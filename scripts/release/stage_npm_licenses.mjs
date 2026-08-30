@@ -14,11 +14,11 @@ function packageDirectories(modulesDirectory) {
   if (!fs.existsSync(modulesDirectory)) return [];
   const directories = [];
   for (const entry of fs.readdirSync(modulesDirectory, { withFileTypes: true }).sort((a, b) => a.name.localeCompare(b.name))) {
-    if (!entry.isDirectory() || entry.name === ".bin") continue;
+    if (!entry.isDirectory() || entry.name.startsWith(".")) continue;
     const entryPath = path.join(modulesDirectory, entry.name);
     if (entry.name.startsWith("@")) {
       for (const scoped of fs.readdirSync(entryPath, { withFileTypes: true }).sort((a, b) => a.name.localeCompare(b.name))) {
-        if (scoped.isDirectory()) directories.push(path.join(entryPath, scoped.name));
+        if (scoped.isDirectory() && !scoped.name.startsWith(".")) directories.push(path.join(entryPath, scoped.name));
       }
     } else {
       directories.push(entryPath);

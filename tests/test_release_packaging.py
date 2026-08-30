@@ -868,6 +868,9 @@ def test_npm_license_staging_creates_missing_output_parents(tmp_path: Path) -> N
         encoding="utf-8",
     )
     (package_root / "LICENSE").write_text("Example license\n", encoding="utf-8")
+    internal_working_directory = tmp_path / "node_modules" / ".vite-temp"
+    internal_working_directory.mkdir()
+    (internal_working_directory / "generated.js").write_text("export {};\n", encoding="utf-8")
     output_root = tmp_path / "missing-parent" / "licenses" / "npm"
 
     subprocess.run(
@@ -888,6 +891,29 @@ def test_npm_license_staging_creates_missing_output_parents(tmp_path: Path) -> N
     assert (output_root / inventory[0]["files"][0]).read_text(encoding="utf-8") == (
         "Example license\n"
     )
+
+
+def test_npm_license_staging_rejects_visible_directory_without_metadata(tmp_path: Path) -> None:
+    node = shutil.which("node")
+    if node is None:
+        pytest.skip("Node.js is required to exercise the npm license staging script")
+
+    (tmp_path / "node_modules" / "unexpected-directory").mkdir(parents=True)
+    result = subprocess.run(
+        [
+            node,
+            str(REPOSITORY_ROOT / "scripts" / "release" / "stage_npm_licenses.mjs"),
+            str(tmp_path / "node_modules"),
+            str(tmp_path / "licenses" / "npm"),
+            str(tmp_path / "overrides"),
+        ],
+        capture_output=True,
+        check=False,
+        text=True,
+    )
+
+    assert result.returncode != 0
+    assert "npm package metadata is missing" in result.stderr
 
 
 def test_privileged_qemu_and_buildkit_images_are_immutable() -> None:
