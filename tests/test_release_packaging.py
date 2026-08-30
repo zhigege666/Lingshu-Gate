@@ -849,6 +849,13 @@ def test_container_and_bundles_stage_complete_license_inventories() -> None:
     assert "stage_third_party_licenses(" in docker_bundle
 
 
+def test_container_ci_tracks_release_script_changes() -> None:
+    workflow = (REPOSITORY_ROOT / ".github" / "workflows" / "docker.yml").read_text(
+        encoding="utf-8"
+    )
+    assert workflow.count('- "scripts/release/**"') == 2
+
+
 def test_npm_license_staging_creates_missing_output_parents(tmp_path: Path) -> None:
     node = shutil.which("node")
     if node is None:
