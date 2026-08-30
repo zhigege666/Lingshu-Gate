@@ -557,6 +557,18 @@ def test_release_toolchains_and_image_timestamps_are_pinned() -> None:
     assert "docker buildx build" not in offline_builder
 
 
+def test_release_quality_uses_pinned_python_for_identity_validation() -> None:
+    workflow = (REPOSITORY_ROOT / ".github" / "workflows" / "release.yml").read_text(
+        encoding="utf-8"
+    )
+    quality_job = workflow.split("\n  quality:\n", maxsplit=1)[1].split(
+        "\n  native:\n", maxsplit=1
+    )[0]
+    assert quality_job.index("- name: Set up Python") < quality_job.index(
+        "- name: Validate repository identity"
+    )
+
+
 def test_release_windows_matrix_smokes_delivery_skill_packager() -> None:
     workflow = (REPOSITORY_ROOT / ".github" / "workflows" / "release.yml").read_text(encoding="utf-8")
     assert '".agents/skills/lingshu-gate-upload-build-start/**"' in workflow

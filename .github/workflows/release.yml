@@ -77,6 +77,11 @@ jobs:
           fetch-depth: 0
           persist-credentials: false
 
+      - name: Set up Python
+        uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1 # v6
+        with:
+          python-version: ${{ env.LINGSHU_GATE_RELEASE_PYTHON_VERSION }}
+
       - name: Validate repository identity
         run: python scripts/quality/check_repository_identity.py --history
 
@@ -94,11 +99,6 @@ jobs:
           npm run check
           npm test
           npm run build
-
-      - name: Set up Python
-        uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1 # v6
-        with:
-          python-version: ${{ env.LINGSHU_GATE_RELEASE_PYTHON_VERSION }}
 
       - name: Set up uv
         uses: astral-sh/setup-uv@37802adc94f370d6bfd71619e3f0bf239e1f3b78 # v7
