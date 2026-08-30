@@ -50,7 +50,7 @@ def _launcher_command(bundle_dir: Path, target: str) -> list[str]:
         launcher = bundle_dir / "start.cmd"
         if not launcher.is_file():
             raise RuntimeError(f"Native launcher is missing: {launcher}")
-        return [os.environ.get("COMSPEC", "cmd.exe"), "/d", "/s", "/c", f'call "{launcher}"']
+        return [os.environ.get("COMSPEC", "cmd.exe"), "/d", "/c", launcher.name]
     launcher = bundle_dir / "start.sh"
     if not launcher.is_file():
         raise RuntimeError(f"Native launcher is missing: {launcher}")

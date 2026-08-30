@@ -30,6 +30,10 @@ def _external_token() -> str:
     return _value((73, 110, 102, 114, 97, 77, 67, 80))
 
 
+def _short_external_token() -> str:
+    return _value((100, 98, 120))
+
+
 def _non_gate_environment_name() -> str:
     return _value((76, 73, 78, 71, 83, 72, 85, 95, 79, 84, 72, 69, 82, 95, 72, 79, 83, 84))
 
@@ -373,6 +377,27 @@ def test_large_invalid_binary_uses_bounded_printable_string_scanning() -> None:
     assert elapsed < 5
 
 
+def test_opaque_binary_ignores_short_collision_without_weakening_text_policy() -> None:
+    short_token = _short_external_token()
+    assert "TXT-005" in {
+        violation.rule_id for violation in identity._scan_text(short_token, "metadata.txt")
+    }
+    assert "TXT-005" in {
+        violation.rule_id
+        for violation in identity._scan_bytes(
+            short_token.encode("ascii"), "unknown-text", strict_text=False
+        )
+    }
+
+    payload = b"\x7fELF\x00" + f"{short_token}-{_restricted_token()}".encode("ascii") + b"\x00"
+    rule_ids = {
+        violation.rule_id for violation in identity._scan_bytes(payload, "executable", strict_text=False)
+    }
+
+    assert "TXT-005" not in rule_ids
+    assert "TXT-001" in rule_ids
+
+
 def test_invalid_source_text_fails_closed(tmp_path: Path) -> None:
     _prepare_repository(tmp_path)
     (tmp_path / "README.md").write_bytes(b"safe\xff")
@@ -462,3 +487,4 @@ def test_policy_source_does_not_embed_restricted_samples() -> None:
 
     assert _restricted_token() not in source
     assert _external_token().casefold() not in source
+    assert _short_external_token() not in source

@@ -24,6 +24,7 @@ collect_artifacts = importlib.import_module("scripts.release.collect_artifacts")
 release_common = importlib.import_module("scripts.release.common")
 generate_sbom = importlib.import_module("scripts.release.generate_sbom")
 reconcile_release_assets = importlib.import_module("scripts.release.reconcile_release_assets")
+smoke_native = importlib.import_module("scripts.release.smoke_native")
 check_glibc = importlib.import_module("scripts.release.check_glibc")
 compare_oci_indexes = importlib.import_module("scripts.release.compare_oci_indexes")
 extract_native = importlib.import_module("scripts.release.extract_native")
@@ -65,6 +66,28 @@ def _fixture_tree(root: Path) -> Path:
     (bundle / "empty").mkdir(parents=True)
     (bundle / "file.txt").write_text("stable\n", encoding="utf-8")
     return bundle
+
+
+def test_windows_native_smoke_uses_cwd_relative_batch_launcher(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    bundle = tmp_path / "bundle with spaces"
+    bundle.mkdir()
+    (bundle / "start.cmd").write_text("@exit /b 0\r\n", encoding="utf-8")
+    command_processor = r"C:\Windows\System32\cmd.exe"
+    monkeypatch.setenv("COMSPEC", command_processor)
+
+    assert smoke_native._launcher_command(bundle, "windows-x86_64") == [
+        command_processor,
+        "/d",
+        "/c",
+        "start.cmd",
+    ]
+
+
+def test_windows_native_smoke_rejects_missing_launcher(tmp_path: Path) -> None:
+    with pytest.raises(RuntimeError, match="Native launcher is missing"):
+        smoke_native._launcher_command(tmp_path, "windows-x86_64")
 
 
 @pytest.mark.parametrize("archive_type", ["tar.gz", "zip"])

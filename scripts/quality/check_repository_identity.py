@@ -284,6 +284,9 @@ _EVENT_NAME = re.compile(r"[a-z][a-z0-9_]*(?:\.[a-z][a-z0-9_]*)+")
 _ASCII_RUN = re.compile(rb"[\x20-\x7e]{4,}")
 _UTF16_LE_RUN = re.compile(rb"(?:[\x20-\x7e]\x00){4,}")
 _UTF16_BE_RUN = re.compile(rb"(?:\x00[\x20-\x7e]){4,}")
+_OPAQUE_BINARY_IGNORED_RULE_IDS = frozenset(
+    rule.rule_id for rule in _TEXT_RULES if rule.units == 1 and rule.size < 4
+)
 
 
 def _sha256(value: str) -> str:
@@ -527,7 +530,11 @@ def _scan_bytes(data: bytes, location: str, *, strict_text: bool = True) -> list
         for pattern, encoding in ((_UTF16_LE_RUN, "utf-16-le"), (_UTF16_BE_RUN, "utf-16-be")):
             for match in pattern.finditer(data):
                 violations.extend(_scan_text(match.group().decode(encoding), location, budget=budget))
-        return violations
+        return [
+            violation
+            for violation in violations
+            if violation.rule_id not in _OPAQUE_BINARY_IGNORED_RULE_IDS
+        ]
     return _scan_text(text, location, budget=budget)
 
 
