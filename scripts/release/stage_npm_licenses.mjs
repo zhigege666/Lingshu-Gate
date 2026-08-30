@@ -63,7 +63,8 @@ function visit(modulesDirectory) {
   }
 }
 
-fs.mkdirSync(outputRoot, { recursive: false });
+fs.mkdirSync(path.dirname(outputRoot), { recursive: true });
+fs.mkdirSync(outputRoot);
 visit(nodeModulesRoot);
 packages.sort((left, right) => left.packagePath.localeCompare(right.packagePath));
 fs.writeFileSync(path.join(outputRoot, "LICENSES.json"), `${JSON.stringify(packages, null, 2)}\n`);

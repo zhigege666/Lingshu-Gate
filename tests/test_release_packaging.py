@@ -6,7 +6,9 @@ import io
 import json
 import os
 import re
+import shutil
 import stat
+import subprocess
 import sys
 import tarfile
 import zipfile
@@ -847,6 +849,40 @@ def test_container_and_bundles_stage_complete_license_inventories() -> None:
     assert "stage_third_party_licenses(" in docker_bundle
 
 
+def test_npm_license_staging_creates_missing_output_parents(tmp_path: Path) -> None:
+    node = shutil.which("node")
+    if node is None:
+        pytest.skip("Node.js is required to exercise the npm license staging script")
+
+    package_root = tmp_path / "node_modules" / "example-package"
+    package_root.mkdir(parents=True)
+    (package_root / "package.json").write_text(
+        json.dumps({"name": "example-package", "version": "1.0.0"}),
+        encoding="utf-8",
+    )
+    (package_root / "LICENSE").write_text("Example license\n", encoding="utf-8")
+    output_root = tmp_path / "missing-parent" / "licenses" / "npm"
+
+    subprocess.run(
+        [
+            node,
+            str(REPOSITORY_ROOT / "scripts" / "release" / "stage_npm_licenses.mjs"),
+            str(tmp_path / "node_modules"),
+            str(output_root),
+            str(tmp_path / "overrides"),
+        ],
+        check=True,
+    )
+
+    inventory = json.loads((output_root / "LICENSES.json").read_text(encoding="utf-8"))
+    assert [(item["name"], item["version"]) for item in inventory] == [
+        ("example-package", "1.0.0")
+    ]
+    assert (output_root / inventory[0]["files"][0]).read_text(encoding="utf-8") == (
+        "Example license\n"
+    )
+
+
 def test_privileged_qemu_and_buildkit_images_are_immutable() -> None:
     for workflow_name, prefix in (
         ("release.yml", "LINGSHU_GATE_RELEASE"),
@@ -971,15 +1007,35 @@ def test_spdx_includes_npm_production_closure(tmp_path: Path, monkeypatch: pytes
         license_declared="Apache-2.0",
         supplier="Organization: Lingshu Gate Contributors",
     )
+    frozen_components = {
+        "packaging": generate_sbom.Component(
+            name="packaging",
+            version="26.3",
+            license_declared="Apache-2.0 OR BSD-2-Clause",
+            supplier="NOASSERTION",
+        ),
+        "pyinstaller-hooks-contrib": generate_sbom.Component(
+            name="pyinstaller-hooks-contrib",
+            version="2026.3",
+            license_declared="Apache-2.0 OR GPL-2.0-or-later",
+            supplier="NOASSERTION",
+        ),
+        "setuptools": generate_sbom.Component(
+            name="setuptools",
+            version="81.0.0",
+            license_declared="MIT",
+            supplier="NOASSERTION",
+        ),
+    }
     monkeypatch.setattr(generate_sbom, "collect_components", lambda _name: {"lingshu-gate": python_root})
+    monkeypatch.setattr(generate_sbom, "_installed_component", frozen_components.__getitem__)
     monkeypatch.setattr(generate_sbom, "read_version", lambda: "1.0.0")
     monkeypatch.setattr(generate_sbom, "source_revision", lambda: "a" * 40)
     monkeypatch.setattr(generate_sbom, "source_date_epoch", lambda: 1_700_000_000)
-    real_distribution_version = generate_sbom.importlib.metadata.version
     monkeypatch.setattr(
         generate_sbom.importlib.metadata,
         "version",
-        lambda name: "6.22.2" if name == "pyinstaller" else real_distribution_version(name),
+        lambda name: "6.22.2" if name == "pyinstaller" else pytest.fail(f"unexpected distribution lookup: {name}"),
     )
 
     document = generate_sbom.build_spdx_document(
@@ -1014,10 +1070,29 @@ def test_spdx_includes_npm_production_closure(tmp_path: Path, monkeypatch: pytes
     package_ids = {package["SPDXID"] for package in packages}
     assert generate_sbom.CPYTHON_SPDX_ID in package_ids
     assert generate_sbom.PYINSTALLER_SPDX_ID in package_ids
-    package_names = {package["name"] for package in packages}
-    assert {"packaging", "setuptools", "pyinstaller-hooks-contrib"} <= {
-        str(name).lower() for name in package_names
+    python_packages = {
+        canonical_name: package
+        for package in packages
+        if str(package["SPDXID"]).startswith("SPDXRef-Package-pypi-")
+        for canonical_name in [str(package["name"]).lower()]
     }
+    assert {
+        name: python_packages[name]["versionInfo"] for name in frozen_components
+    } == {
+        "packaging": "26.3",
+        "pyinstaller-hooks-contrib": "2026.3",
+        "setuptools": "81.0.0",
+    }
+    root_id = generate_sbom._python_spdx_id("lingshu-gate")
+    contained_ids = {
+        relationship["relatedSpdxElement"]
+        for relationship in relationships
+        if relationship["spdxElementId"] == root_id
+        and relationship["relationshipType"] == "CONTAINS"
+    }
+    assert {
+        generate_sbom._python_spdx_id(component.name) for component in frozen_components.values()
+    } <= contained_ids
 
 
 def test_build_host_mismatch_fails_closed(monkeypatch: pytest.MonkeyPatch) -> None:
