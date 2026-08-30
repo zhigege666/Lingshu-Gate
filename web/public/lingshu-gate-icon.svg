@@ -1,0 +1,38 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="512" height="512" viewBox="0 0 256 256" fill="none" role="img" aria-label="Lingshu Gate icon logo">
+  <defs>
+    <linearGradient id="ls-blue" x1="36" y1="40" x2="148" y2="204" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#0EA5FF"/>
+      <stop offset="0.48" stop-color="#0B55F4"/>
+      <stop offset="1" stop-color="#081EA8"/>
+    </linearGradient>
+    <linearGradient id="ls-cyan" x1="92" y1="140" x2="211" y2="219" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#0B52F2"/>
+      <stop offset="0.62" stop-color="#12A9FF"/>
+      <stop offset="1" stop-color="#1EE6FF"/>
+    </linearGradient>
+    <linearGradient id="ls-node" x1="72" y1="58" x2="207" y2="194" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#1737E8"/>
+      <stop offset="1" stop-color="#19D6F2"/>
+    </linearGradient>
+    <linearGradient id="ls-fold" x1="57" y1="141" x2="141" y2="196" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#06177E"/>
+      <stop offset="1" stop-color="#0788F4"/>
+    </linearGradient>
+  </defs>
+  <g stroke-linejoin="round" stroke-linecap="round">
+    <path d="M58 51L106 23V157L58 185V51Z" fill="url(#ls-blue)"/>
+    <path d="M58 185L31 169V66L58 51V185Z" fill="#0B28A7"/>
+    <path d="M106 96L58 124V185L106 157V96Z" fill="#0C3EE5" opacity="0.55"/>
+    <path d="M58 185L111 154L199 187L143 220L58 185Z" fill="url(#ls-cyan)"/>
+    <path d="M31 169L58 185L143 220L116 204L31 169Z" fill="url(#ls-fold)"/>
+    <path d="M58 185L111 154L199 187" stroke="#D8F4FF" stroke-width="3.5" opacity="0.72"/>
+    <path d="M106 23V157" stroke="#74CCFF" stroke-width="1.4" opacity="0.35"/>
+    <path d="M81 94L108 66" stroke="url(#ls-node)" stroke-width="7"/>
+    <path d="M81 94V135H141" stroke="url(#ls-node)" stroke-width="7"/>
+    <path d="M141 135C160 135 161 172 184 187" stroke="url(#ls-node)" stroke-width="7"/>
+    <circle cx="81" cy="94" r="9.5" fill="#1848F4"/>
+    <circle cx="111" cy="63" r="9.5" fill="#14B9FF"/>
+    <circle cx="141" cy="135" r="9.5" fill="#0DAAFF"/>
+    <circle cx="184" cy="187" r="9.5" fill="#10C7F4"/>
+  </g>
+</svg>

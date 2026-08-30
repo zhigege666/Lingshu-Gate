@@ -1,0 +1,10 @@
+id: local-http-example
+name: Local HTTP MCP Example
+enabled: false
+launch:
+  type: external
+transport:
+  type: streamable_http
+  endpoint: http://127.0.0.1:3100/mcp
+timeout_seconds: 30
+auto_start: false

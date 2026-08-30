@@ -1,0 +1,983 @@
+name: Release artifacts
+
+on:
+  push:
+    tags:
+      - "v*"
+  pull_request:
+    paths:
+      - ".github/workflows/release.yml"
+      - "packaging/**"
+      - "scripts/release/**"
+      - "src/**"
+      - "tests/test_release_packaging.py"
+      - "web/**"
+      - "pyproject.toml"
+      - "uv.lock"
+      - "README.md"
+      - "LICENSE"
+      - "NOTICE"
+      - "THIRD_PARTY_NOTICES.md"
+      - "compose.prod.yaml"
+      - "Dockerfile"
+      - ".agents/skills/lingshu-gate-upload-build-start/**"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+env:
+  LINGSHU_GATE_RELEASE_NODE_VERSION: 22.23.2
+  # Current patched CPython line with setup-python assets for every native target.
+  LINGSHU_GATE_RELEASE_PYTHON_VERSION: 3.13.15
+  LINGSHU_GATE_RELEASE_BUILDX_VERSION: v0.36.1
+  LINGSHU_GATE_RELEASE_BUILDKIT_IMAGE: moby/buildkit:v0.32.2@sha256:28a898719c18a33f4e8000685287fa36fd0dd9560c6440227d3a732d79bb41d8
+  LINGSHU_GATE_RELEASE_BINFMT_IMAGE: docker.io/tonistiigi/binfmt:qemu-v10.2.3-68@sha256:400a4873b838d1b89194d982c45e5fb3cda4593fbfd7e08a02e76b03b21166f0
+  LINGSHU_GATE_RELEASE_NODE_BASE_IMAGE: node:22-bookworm-slim@sha256:83f487e0a63425e5b4d146fb5e5be574bcbe1b7b843d3ebafdd95eaf7767a7e5
+  LINGSHU_GATE_RELEASE_PYTHON_BASE_IMAGE: python:3.12-slim-bookworm@sha256:0f5b26b9518d002b6173fd61daad821fa340635ebfec5bba471013f9ca114579
+
+concurrency:
+  group: release-artifacts-${{ github.ref }}
+  cancel-in-progress: ${{ !startsWith(github.ref, 'refs/tags/v') }}
+
+jobs:
+  version:
+    name: Validate release version
+    runs-on: ubuntu-22.04
+    outputs:
+      version: ${{ steps.version.outputs.version }}
+      prerelease: ${{ steps.version.outputs.prerelease }}
+      epoch: ${{ steps.source.outputs.epoch }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
+        with:
+          fetch-depth: 1
+          persist-credentials: false
+
+      - name: Read and validate version
+        id: version
+        env:
+          RELEASE_TAG: ${{ startsWith(github.ref, 'refs/tags/v') && github.ref_name || '' }}
+        run: python -m scripts.release.check_version --tag "$RELEASE_TAG"
+
+      - name: Read source timestamp
+        id: source
+        run: echo "epoch=$(git log -1 --format=%ct)" >> "$GITHUB_OUTPUT"
+
+  quality:
+    name: Release quality gate
+    needs: version
+    runs-on: ubuntu-22.04
+    timeout-minutes: 40
+    steps:
+      - name: Checkout
+        uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Validate repository identity
+        run: python scripts/quality/check_repository_identity.py --history
+
+      - name: Set up Node.js
+        uses: actions/setup-node@a0853c24544627f65ddf259abe73b1d18a591444 # v5
+        with:
+          node-version: ${{ env.LINGSHU_GATE_RELEASE_NODE_VERSION }}
+          cache: npm
+          cache-dependency-path: web/package-lock.json
+
+      - name: Verify and build Console
+        working-directory: web
+        run: |
+          npm ci
+          npm run check
+          npm test
+          npm run build
+
+      - name: Set up Python
+        uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1 # v6
+        with:
+          python-version: ${{ env.LINGSHU_GATE_RELEASE_PYTHON_VERSION }}
+
+      - name: Set up uv
+        uses: astral-sh/setup-uv@37802adc94f370d6bfd71619e3f0bf239e1f3b78 # v7
+        with:
+          version: "0.11.33"
+          enable-cache: true
+          cache-dependency-glob: uv.lock
+
+      - name: Install frozen quality and release dependencies
+        run: uv sync --frozen --group release
+
+      - name: Verify pip export is synchronized
+        run: |
+          uv export --frozen --no-dev --no-emit-project --format requirements-txt > /tmp/requirements.lock
+          diff --unified requirements.lock /tmp/requirements.lock
+
+      - name: Verify backend and release engineering
+        run: |
+          uv run --no-sync ruff check .
+          uv run --no-sync mypy
+          uv run --no-sync pytest -q
+
+  native:
+    name: Native ${{ matrix.target }}
+    needs:
+      - version
+      - quality
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - runner: ubuntu-22.04
+            target: linux-x86_64
+          - runner: ubuntu-22.04-arm
+            target: linux-aarch64
+          - runner: windows-2025
+            target: windows-x86_64
+          - runner: macos-15-intel
+            target: macos-x86_64
+          - runner: macos-15
+            target: macos-arm64
+    runs-on: ${{ matrix.runner }}
+    env:
+      PYTHONHASHSEED: "0"
+      SOURCE_DATE_EPOCH: ${{ needs.version.outputs.epoch }}
+      LINGSHU_GATE_RELEASE_PYINSTALLER_VERSION: "6.22.2"
+    steps:
+      - name: Checkout
+        uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
+        with:
+          persist-credentials: false
+
+      - name: Parse and smoke-test the Delivery Skill packager
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $scriptPath = Join-Path $env:GITHUB_WORKSPACE '.agents/skills/lingshu-gate-upload-build-start/scripts/New-LingshuGateProjectBundle.ps1'
+          $tokens = $null
+          $parseErrors = $null
+          [System.Management.Automation.Language.Parser]::ParseFile(
+              $scriptPath,
+              [ref]$tokens,
+              [ref]$parseErrors
+          ) | Out-Null
+          if ($parseErrors.Count -ne 0) {
+              throw "Delivery Skill PowerShell parser errors: $($parseErrors -join '; ')"
+          }
+
+          $projectRoot = Join-Path $env:RUNNER_TEMP 'lingshu-gate-delivery-skill-smoke'
+          New-Item -ItemType Directory -Path $projectRoot -Force | Out-Null
+          [IO.File]::WriteAllText(
+              (Join-Path $projectRoot 'package.json'),
+              '{"name":"release-smoke","version":"1.0.0"}',
+              [Text.UTF8Encoding]::new($false)
+          )
+          [IO.File]::WriteAllText(
+              (Join-Path $projectRoot 'index.js'),
+              'console.log("release smoke");',
+              [Text.UTF8Encoding]::new($false)
+          )
+          $firstArchive = Join-Path $env:RUNNER_TEMP 'lingshu-gate-delivery-skill-first.zip'
+          $secondArchive = Join-Path $env:RUNNER_TEMP 'lingshu-gate-delivery-skill-second.zip'
+          $first = (& $scriptPath -ProjectRoot $projectRoot -OutputPath $firstArchive) | ConvertFrom-Json
+          $second = (& $scriptPath -ProjectRoot $projectRoot -OutputPath $secondArchive) | ConvertFrom-Json
+          if ($first.file_count -ne 2 -or $first.sha256 -ne $second.sha256 -or
+              $first.file_list_sha256 -ne $second.file_list_sha256) {
+              throw 'Delivery Skill packager output is incomplete or non-deterministic.'
+          }
+          Add-Type -AssemblyName System.IO.Compression
+          $archive = [IO.Compression.ZipFile]::OpenRead($firstArchive)
+          try {
+              $entryNames = @($archive.Entries.FullName | Sort-Object)
+              if (($entryNames -join ',') -ne 'index.js,package.json') {
+                  throw "Unexpected Delivery Skill ZIP entries: $($entryNames -join ',')"
+              }
+              foreach ($entry in $archive.Entries) {
+                  $expectedTimestamp = [datetime]::new(2000, 1, 1, 0, 0, 0, [DateTimeKind]::Utc)
+                  if ($entry.LastWriteTime.UtcDateTime -ne $expectedTimestamp) {
+                      throw "Non-deterministic Delivery Skill ZIP timestamp: $($entry.FullName)"
+                  }
+              }
+          }
+          finally {
+              $archive.Dispose()
+          }
+
+      - name: Set up Node.js
+        uses: actions/setup-node@a0853c24544627f65ddf259abe73b1d18a591444 # v5
+        with:
+          node-version: ${{ env.LINGSHU_GATE_RELEASE_NODE_VERSION }}
+          cache: npm
+          cache-dependency-path: web/package-lock.json
+
+      - name: Set up Python
+        uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1 # v6
+        with:
+          python-version: ${{ env.LINGSHU_GATE_RELEASE_PYTHON_VERSION }}
+
+      - name: Set up uv
+        uses: astral-sh/setup-uv@37802adc94f370d6bfd71619e3f0bf239e1f3b78 # v7
+        with:
+          version: "0.11.33"
+          enable-cache: true
+          cache-dependency-glob: uv.lock
+
+      - name: Install frozen runtime and release toolchain
+        run: uv sync --frozen --no-dev --group release
+
+      - name: Build native archive
+        run: uv run --no-sync python -m scripts.release.build_native --target "${{ matrix.target }}"
+
+      - name: Validate native archive identity
+        run: >-
+          uv run --no-sync python scripts/quality/check_repository_identity.py
+          --artifacts "dist/release/lingshu-gate-v${{ needs.version.outputs.version }}-${{ matrix.target }}.${{ startsWith(matrix.target, 'windows-') && 'zip' || 'tar.gz' }}"
+
+      - name: Validate and extract the publishable native archive
+        run: >-
+          uv run --no-sync python -m scripts.release.extract_native
+          --target "${{ matrix.target }}"
+          --archive "dist/release/lingshu-gate-v${{ needs.version.outputs.version }}-${{ matrix.target }}.${{ startsWith(matrix.target, 'windows-') && 'zip' || 'tar.gz' }}"
+          --output-dir "build/release/native-archive-${{ matrix.target }}"
+
+      - name: Enforce Linux glibc compatibility baseline
+        if: runner.os == 'Linux'
+        run: >-
+          uv run --no-sync python -m scripts.release.check_glibc
+          --maximum 2.35
+          --bundle-dir "build/release/native-archive-${{ matrix.target }}/lingshu-gate-v${{ needs.version.outputs.version }}-${{ matrix.target }}"
+
+      - name: Run native readiness smoke test
+        run: >-
+          uv run --no-sync python -m scripts.release.smoke_native
+          --target "${{ matrix.target }}"
+          --bundle-dir "build/release/native-archive-${{ matrix.target }}/lingshu-gate-v${{ needs.version.outputs.version }}-${{ matrix.target }}"
+
+      - name: Upload native archive
+        uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6
+        with:
+          name: native-${{ matrix.target }}
+          path: dist/release/
+          if-no-files-found: error
+          retention-days: 14
+
+  docker-compose:
+    name: Docker Compose bundle
+    needs:
+      - version
+      - quality
+    runs-on: ubuntu-22.04
+    env:
+      SOURCE_DATE_EPOCH: ${{ needs.version.outputs.epoch }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
+        with:
+          persist-credentials: false
+
+      - name: Set up Node.js
+        uses: actions/setup-node@a0853c24544627f65ddf259abe73b1d18a591444 # v5
+        with:
+          node-version: ${{ env.LINGSHU_GATE_RELEASE_NODE_VERSION }}
+          cache: npm
+          cache-dependency-path: web/package-lock.json
+
+      - name: Install Console dependency metadata
+        working-directory: web
+        run: npm ci
+
+      - name: Set up Python
+        uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1 # v6
+        with:
+          python-version: ${{ env.LINGSHU_GATE_RELEASE_PYTHON_VERSION }}
+
+      - name: Set up uv
+        uses: astral-sh/setup-uv@37802adc94f370d6bfd71619e3f0bf239e1f3b78 # v7
+        with:
+          version: "0.11.33"
+          enable-cache: true
+          cache-dependency-glob: uv.lock
+
+      - name: Install frozen runtime
+        run: uv sync --frozen --no-dev --group release
+
+      - name: Build deployment bundle
+        run: uv run --no-sync python -m scripts.release.build_docker_bundle
+
+      - name: Validate deployment artifacts identity
+        run: uv run --no-sync python scripts/quality/check_repository_identity.py --artifacts dist/release
+
+      - name: Validate bundled Compose model
+        run: |
+          set -euo pipefail
+          tar -xzf "dist/release/lingshu-gate-v${{ needs.version.outputs.version }}-docker-compose.tar.gz" -C /tmp
+          bundle="/tmp/lingshu-gate-v${{ needs.version.outputs.version }}-docker-compose"
+          docker compose --env-file "$bundle/.env.example" -f "$bundle/compose.yaml" \
+            config --format json > /tmp/lingshu-gate-compose-online.json
+          jq -e --arg version "${{ needs.version.outputs.version }}" '
+            .services.core.image == ("ghcr.io/zhigege666/lingshu-gate:" + $version)
+            and .services.core.pull_policy == "always"
+            and .services.core.environment.LINGSHU_GATE_MCP_ALLOWED_ORIGINS == ""
+          ' /tmp/lingshu-gate-compose-online.json
+          for architecture in amd64 arm64; do
+            docker compose \
+              --env-file "$bundle/.env.offline-${architecture}.example" \
+              -f "$bundle/compose.yaml" \
+              config --format json > "/tmp/lingshu-gate-compose-${architecture}.json"
+            jq -e \
+              --arg version "${{ needs.version.outputs.version }}" \
+              --arg architecture "$architecture" '
+              .services.core.image == (
+                "ghcr.io/zhigege666/lingshu-gate:" + $version + "-" + $architecture + "-offline"
+              )
+              and .services.core.pull_policy == "never"
+              and .services.core.environment.LINGSHU_GATE_MCP_ALLOWED_ORIGINS == ""
+            ' "/tmp/lingshu-gate-compose-${architecture}.json"
+          done
+
+      - name: Upload Docker Compose bundle
+        uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6
+        with:
+          name: docker-compose
+          path: dist/release/
+          if-no-files-found: error
+          retention-days: 14
+
+  docker-offline:
+    name: Offline Core images
+    if: github.event_name == 'push' && startsWith(github.ref, 'refs/tags/v')
+    needs:
+      - version
+      - quality
+      - docker-publish
+    runs-on: ubuntu-22.04
+    permissions:
+      contents: read
+      packages: read
+    env:
+      SOURCE_DATE_EPOCH: ${{ needs.version.outputs.epoch }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
+        with:
+          persist-credentials: false
+
+      - name: Set up QEMU
+        uses: docker/setup-qemu-action@96fe6ef7f33517b61c61be40b68a1882f3264fb8 # v4
+        with:
+          image: ${{ env.LINGSHU_GATE_RELEASE_BINFMT_IMAGE }}
+          platforms: arm64
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@37fe631027851001ddb9b187196cc803df7f5f0e # v4
+        with:
+          version: ${{ env.LINGSHU_GATE_RELEASE_BUILDX_VERSION }}
+          driver-opts: image=${{ env.LINGSHU_GATE_RELEASE_BUILDKIT_IMAGE }}
+
+      - name: Log in to GitHub Container Registry
+        uses: docker/login-action@dbcb813823bdd20940b903addbd779551569679f # v4
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Export verified Core payloads as loadable archives
+        env:
+          LINGSHU_GATE_RELEASE_IMAGE_REPOSITORY: ${{ needs.docker-publish.outputs.image }}
+          LINGSHU_GATE_RELEASE_SOURCE_DIGEST: ${{ needs.docker-publish.outputs.digest }}
+          LINGSHU_GATE_RELEASE_CANDIDATE_DIGEST: ${{ needs.docker-publish.outputs.candidate_digest }}
+        run: |
+          set -euo pipefail
+          test "$LINGSHU_GATE_RELEASE_SOURCE_DIGEST" = "$LINGSHU_GATE_RELEASE_CANDIDATE_DIGEST"
+          scripts/release/build_offline_images.sh "${{ needs.version.outputs.version }}" dist/release
+
+      - name: Validate offline image archives identity
+        run: python scripts/quality/check_repository_identity.py --artifacts dist/release
+
+      - name: Inspect and smoke-test offline Core images
+        run: |
+          set -euo pipefail
+          containers=()
+          cleanup() {
+            for container in "${containers[@]}"; do
+              docker rm --force "$container" >/dev/null 2>&1 || true
+            done
+          }
+          trap cleanup EXIT
+          image_repository="${{ needs.docker-publish.outputs.image }}"
+          source_digest="${{ needs.docker-publish.outputs.digest }}"
+          candidate_digest="${{ needs.docker-publish.outputs.candidate_digest }}"
+          test "$source_digest" = "$candidate_digest"
+          docker buildx imagetools inspect "$image_repository@$source_digest" --raw \
+            > /tmp/lingshu-gate-offline-source-index.json
+          python -m scripts.release.compare_oci_indexes \
+            --index /tmp/lingshu-gate-offline-source-index.json
+          for architecture in amd64 arm64; do
+            image="${image_repository}:${{ needs.version.outputs.version }}-${architecture}-offline"
+            archive="dist/release/lingshu-gate-v${{ needs.version.outputs.version }}-docker-core-linux-${architecture}.tar.gz"
+            child_digest=$(jq -er --arg architecture "$architecture" '
+              [.manifests[] | select(
+                .platform.os == "linux" and .platform.architecture == $architecture
+              )]
+              | if length == 1 then .[0].digest else error("platform payload is not unique") end
+            ' /tmp/lingshu-gate-offline-source-index.json)
+            docker buildx imagetools inspect "$image_repository@$child_digest" --raw \
+              > "/tmp/lingshu-gate-${architecture}-manifest.json"
+            expected_config=$(jq -er '.config.digest' "/tmp/lingshu-gate-${architecture}-manifest.json")
+            [[ "$expected_config" =~ ^sha256:[0-9a-f]{64}$ ]]
+            docker image rm "$image" >/dev/null
+            gunzip --stdout "$archive" | docker load
+            test "$(docker image inspect --format '{{.Id}}' "$image")" = "$expected_config"
+            test "$(docker image inspect --format '{{.Config.User}}' "$image")" = "10001:10001"
+            test "$(docker image inspect --format '{{index .Config.Labels "io.lingshu.gate.image.role"}}' "$image")" = "core"
+            docker image inspect --format '{{range .Config.Env}}{{println .}}{{end}}' "$image" \
+              | grep --fixed-strings --line-regexp 'LINGSHU_GATE_RUNTIME_ROLE=core'
+            docker run --rm --platform "linux/${architecture}" --entrypoint sh "$image" -ec \
+              'grep --quiet "^gate:x:10001:10001:" /etc/passwd \
+                && grep --quiet "^gate:x:10001:" /etc/group \
+                && ! command -v node && ! command -v npm && ! command -v npx && ! command -v docker'
+
+            container="lingshu-gate-offline-${architecture}"
+            containers+=("$container")
+            docker run --detach --platform "linux/${architecture}" --name "$container" \
+              --publish 127.0.0.1::8000 "$image"
+            host_port=$(docker port "$container" 8000/tcp | sed -n 's/.*://p')
+            test -n "$host_port"
+            ready=false
+            for _attempt in $(seq 1 60); do
+              if curl --fail --silent --show-error "http://127.0.0.1:${host_port}/readyz" >/dev/null; then
+                ready=true
+                break
+              fi
+              sleep 2
+            done
+            if [[ "$ready" != "true" ]]; then
+              docker logs "$container" >&2 || true
+              exit 1
+            fi
+            docker rm --force "$container" >/dev/null
+          done
+
+      - name: Upload offline Core images
+        uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6
+        with:
+          name: docker-offline
+          path: dist/release/
+          if-no-files-found: error
+          retention-days: 14
+
+  docker-publish:
+    name: Build verified Core image candidate
+    if: github.event_name == 'push' && startsWith(github.ref, 'refs/tags/v')
+    needs:
+      - version
+      - quality
+    runs-on: ubuntu-22.04
+    env:
+      DOCKER_BUILD_RECORD_UPLOAD: "false"
+    permissions:
+      contents: read
+      packages: write
+    outputs:
+      digest: ${{ steps.resolve.outputs.digest }}
+      candidate_digest: ${{ steps.build.outputs.digest }}
+      image: ${{ steps.image.outputs.name }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
+        with:
+          persist-credentials: false
+
+      - name: Set up QEMU
+        uses: docker/setup-qemu-action@96fe6ef7f33517b61c61be40b68a1882f3264fb8 # v4
+        with:
+          image: ${{ env.LINGSHU_GATE_RELEASE_BINFMT_IMAGE }}
+          platforms: arm64
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@37fe631027851001ddb9b187196cc803df7f5f0e # v4
+        with:
+          version: ${{ env.LINGSHU_GATE_RELEASE_BUILDX_VERSION }}
+          driver-opts: image=${{ env.LINGSHU_GATE_RELEASE_BUILDKIT_IMAGE }}
+
+      - name: Select versioned image
+        id: image
+        run: echo "name=ghcr.io/${{ github.repository_owner }}/lingshu-gate" >> "$GITHUB_OUTPUT"
+
+      - name: Log in to GitHub Container Registry
+        uses: docker/login-action@dbcb813823bdd20940b903addbd779551569679f # v4
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Build and publish exact multi-architecture image
+        id: build
+        uses: docker/build-push-action@53b7df96c91f9c12dcc8a07bcb9ccacbed38856a # v7
+        with:
+          context: .
+          target: core
+          platforms: linux/amd64,linux/arm64
+          outputs: type=registry,name=${{ steps.image.outputs.name }}:release-candidate-${{ github.sha }}-${{ github.run_id }}-${{ github.run_attempt }},rewrite-timestamp=true,oci-mediatypes=true
+          labels: |
+            org.opencontainers.image.title=Lingshu Gate Core
+            org.opencontainers.image.version=${{ needs.version.outputs.version }}
+            org.opencontainers.image.revision=${{ github.sha }}
+            io.lingshu.gate.image.role=core
+          build-args: |
+            NODE_BASE_IMAGE=${{ env.LINGSHU_GATE_RELEASE_NODE_BASE_IMAGE }}
+            PYTHON_BASE_IMAGE=${{ env.LINGSHU_GATE_RELEASE_PYTHON_BASE_IMAGE }}
+            SOURCE_DATE_EPOCH=${{ needs.version.outputs.epoch }}
+          cache-from: type=gha,scope=release-core
+          cache-to: type=gha,mode=max,scope=release-core
+          sbom: true
+          provenance: mode=max
+
+      - name: Verify and select candidate platform payloads
+        id: platforms
+        env:
+          IMAGE: ${{ steps.image.outputs.name }}
+          DIGEST: ${{ steps.build.outputs.digest }}
+        run: |
+          set -euo pipefail
+          [[ "$DIGEST" =~ ^sha256:[0-9a-f]{64}$ ]]
+          docker buildx imagetools inspect "$IMAGE@$DIGEST" --raw > /tmp/lingshu-gate-image-index.json
+          python -m scripts.release.compare_oci_indexes \
+            --index /tmp/lingshu-gate-image-index.json
+          for architecture in amd64 arm64; do
+            child_digest=$(jq -er --arg architecture "$architecture" '
+              [.manifests[] | select(
+                .platform.os == "linux" and .platform.architecture == $architecture
+              )]
+              | if length == 1 then .[0].digest else error("platform payload is not unique") end
+            ' /tmp/lingshu-gate-image-index.json)
+            [[ "$child_digest" =~ ^sha256:[0-9a-f]{64}$ ]]
+            echo "${architecture}_digest=$child_digest" >> "$GITHUB_OUTPUT"
+          done
+
+      - name: Scan amd64 candidate payload for critical vulnerabilities
+        uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25 # v0.36.0
+        with:
+          scan-type: image
+          image-ref: ${{ steps.image.outputs.name }}@${{ steps.platforms.outputs.amd64_digest }}
+          format: table
+          exit-code: "1"
+          ignore-unfixed: true
+          severity: CRITICAL
+
+      - name: Scan arm64 candidate payload for critical vulnerabilities
+        uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25 # v0.36.0
+        with:
+          scan-type: image
+          image-ref: ${{ steps.image.outputs.name }}@${{ steps.platforms.outputs.arm64_digest }}
+          format: table
+          exit-code: "1"
+          ignore-unfixed: true
+          severity: CRITICAL
+
+      - name: Resolve stable version digest from platform payloads
+        id: resolve
+        env:
+          IMAGE: ${{ steps.image.outputs.name }}
+          CANDIDATE_DIGEST: ${{ steps.build.outputs.digest }}
+          VERSION: ${{ needs.version.outputs.version }}
+        run: |
+          set -euo pipefail
+          official_ref="$IMAGE:$VERSION"
+          inspect_error=$(mktemp)
+          if inspect_output=$(docker buildx imagetools inspect "$official_ref" 2>"$inspect_error"); then
+            existing_digest=$(sed -n 's/^Digest:[[:space:]]*//p' <<<"$inspect_output" | head -n 1)
+            [[ "$existing_digest" =~ ^sha256:[0-9a-f]{64}$ ]]
+            if [[ "$existing_digest" != "$CANDIDATE_DIGEST" ]]; then
+              echo "Existing version tag does not resolve to the verified candidate digest" >&2
+              exit 1
+            fi
+            docker buildx imagetools inspect "$IMAGE@$existing_digest" --raw > /tmp/lingshu-gate-existing-image-index.json
+            python -m scripts.release.compare_oci_indexes \
+              --candidate /tmp/lingshu-gate-image-index.json \
+              --existing /tmp/lingshu-gate-existing-image-index.json
+            release_digest="$CANDIDATE_DIGEST"
+          else
+            if ! grep --extended-regexp --ignore-case --quiet 'manifest unknown|not found' "$inspect_error"; then
+              cat "$inspect_error" >&2
+              exit 1
+            fi
+            release_digest="$CANDIDATE_DIGEST"
+          fi
+          echo "digest=$release_digest" >> "$GITHUB_OUTPUT"
+
+      - name: Record candidate digest as a checksummed release asset
+        env:
+          IMAGE: ${{ steps.image.outputs.name }}
+          DIGEST: ${{ steps.resolve.outputs.digest }}
+          VERSION: ${{ needs.version.outputs.version }}
+        run: |
+          set -euo pipefail
+          mkdir -p dist/release
+          asset="lingshu-gate-v${VERSION}-container-image.txt"
+          printf '%s@%s\n' "$IMAGE" "$DIGEST" > "dist/release/$asset"
+          (cd dist/release && sha256sum "$asset" > SHA256SUMS)
+
+      - name: Validate container metadata identity
+        run: python scripts/quality/check_repository_identity.py --artifacts dist/release
+
+      - name: Upload verified container metadata
+        uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6
+        with:
+          name: docker-published-candidate
+          path: dist/release/
+          if-no-files-found: error
+          retention-days: 14
+
+  publish:
+    name: Publish GitHub Release
+    if: github.event_name == 'push' && startsWith(github.ref, 'refs/tags/v')
+    needs:
+      - version
+      - quality
+      - native
+      - docker-compose
+      - docker-offline
+      - docker-publish
+    runs-on: ubuntu-22.04
+    permissions:
+      artifact-metadata: write
+      attestations: write
+      contents: write
+      id-token: write
+      packages: write
+    steps:
+      - name: Checkout
+        uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
+        with:
+          persist-credentials: false
+
+      - name: Download verified job artifacts
+        uses: actions/download-artifact@37930b1c2abaa49bbe596cd826c3c89aef350131 # v7
+        with:
+          path: build/downloads
+          pattern: "!*.dockerbuild"
+
+      - name: Validate and assemble release assets
+        run: >-
+          python -m scripts.release.collect_artifacts
+          --input-dir build/downloads
+          --output-dir dist/release
+          --version "${{ needs.version.outputs.version }}"
+
+      - name: Validate final release identity
+        run: python scripts/quality/check_repository_identity.py --artifacts dist/release
+
+      - name: Validate any existing release without mutation
+        id: existing-release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RELEASE_TAG: ${{ github.ref_name }}
+          EXPECTED_PRERELEASE: ${{ needs.version.outputs.prerelease }}
+        run: |
+          set -euo pipefail
+          case "$EXPECTED_PRERELEASE" in
+            true|false) ;;
+            *)
+              echo "Invalid prerelease decision: $EXPECTED_PRERELEASE" >&2
+              exit 1
+              ;;
+          esac
+          release_error=$(mktemp)
+          if ! gh release view "${{ github.ref_name }}" \
+            --json assets,isDraft,isImmutable,isPrerelease,tagName \
+            > /tmp/lingshu-gate-existing-assets.json \
+            2>"$release_error"; then
+            if grep --extended-regexp --ignore-case --quiet \
+              '^[[:space:]]*release not found[[:space:]]*$' "$release_error"; then
+              echo "exists=false" >> "$GITHUB_OUTPUT"
+              echo "immutable=false" >> "$GITHUB_OUTPUT"
+              exit 0
+            fi
+            cat "$release_error" >&2
+            exit 1
+          fi
+          echo "exists=true" >> "$GITHUB_OUTPUT"
+          is_immutable=$(jq -er '.isImmutable | if type == "boolean" then tostring else error("invalid isImmutable") end' \
+            /tmp/lingshu-gate-existing-assets.json)
+          echo "immutable=$is_immutable" >> "$GITHUB_OUTPUT"
+          if ! jq -e \
+            --arg release_tag "$RELEASE_TAG" \
+            --argjson expected_prerelease "$EXPECTED_PRERELEASE" '
+              (.tagName | type == "string")
+              and .tagName == $release_tag
+              and (.isPrerelease | type == "boolean")
+              and .isPrerelease == $expected_prerelease
+              and (.isDraft | type == "boolean")
+              and .isDraft == false
+              and (.isImmutable | type == "boolean")
+              and .isImmutable == true
+            ' /tmp/lingshu-gate-existing-assets.json >/dev/null; then
+            echo "Existing release tag, prerelease, draft, or immutability metadata is invalid" >&2
+            exit 1
+          fi
+          for asset_set in existing missing stale; do
+            python -m scripts.release.reconcile_release_assets \
+              --existing-json /tmp/lingshu-gate-existing-assets.json \
+              --desired-dir dist/release \
+              --emit "$asset_set" > "/tmp/lingshu-gate-${asset_set}-assets.nul"
+          done
+          mapfile -d '' -t existing_assets < /tmp/lingshu-gate-existing-assets.nul
+          test "${#existing_assets[@]}" -eq 11
+          existing_dir=$(mktemp -d)
+          for existing_asset in "${existing_assets[@]}"; do
+            gh release download "${{ github.ref_name }}" \
+              --pattern "$existing_asset" \
+              --dir "$existing_dir"
+            if ! cmp --silent "dist/release/$existing_asset" "$existing_dir/$existing_asset"; then
+              echo "Refusing to replace immutable release asset: $existing_asset" >&2
+              exit 1
+            fi
+          done
+          mapfile -d '' -t missing_assets < /tmp/lingshu-gate-missing-assets.nul
+          mapfile -d '' -t stale_assets < /tmp/lingshu-gate-stale-assets.nul
+          if (( ${#missing_assets[@]} != 0 || ${#stale_assets[@]} != 0 )); then
+            echo "Existing release does not exactly match the verified published artifact set" >&2
+            exit 1
+          fi
+
+      - name: Set up pinned Docker Buildx for promotion
+        uses: docker/setup-buildx-action@37fe631027851001ddb9b187196cc803df7f5f0e # v4
+        with:
+          version: ${{ env.LINGSHU_GATE_RELEASE_BUILDX_VERSION }}
+          driver-opts: image=${{ env.LINGSHU_GATE_RELEASE_BUILDKIT_IMAGE }}
+
+      - name: Log in to GitHub Container Registry for promotion
+        uses: docker/login-action@dbcb813823bdd20940b903addbd779551569679f # v4
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Promote version tag without replacing an existing digest
+        id: container
+        env:
+          IMAGE: ${{ needs.docker-publish.outputs.image }}
+          EXPECTED_DIGEST: ${{ needs.docker-publish.outputs.digest }}
+          CANDIDATE_DIGEST: ${{ needs.docker-publish.outputs.candidate_digest }}
+          VERSION: ${{ needs.version.outputs.version }}
+        run: |
+          set -euo pipefail
+          [[ "$EXPECTED_DIGEST" =~ ^sha256:[0-9a-f]{64}$ ]]
+          [[ "$CANDIDATE_DIGEST" =~ ^sha256:[0-9a-f]{64}$ ]]
+          test "$EXPECTED_DIGEST" = "$CANDIDATE_DIGEST"
+          docker buildx imagetools inspect "$IMAGE@$CANDIDATE_DIGEST" --raw \
+            > /tmp/lingshu-gate-promotion-candidate-index.json
+          python -m scripts.release.compare_oci_indexes \
+            --index /tmp/lingshu-gate-promotion-candidate-index.json
+          official_ref="$IMAGE:$VERSION"
+          inspect_error=$(mktemp)
+          if inspect_output=$(docker buildx imagetools inspect "$official_ref" 2>"$inspect_error"); then
+            existing_digest=$(sed -n 's/^Digest:[[:space:]]*//p' <<<"$inspect_output" | head -n 1)
+            [[ "$existing_digest" =~ ^sha256:[0-9a-f]{64}$ ]]
+            if [[ "$existing_digest" != "$CANDIDATE_DIGEST" ]]; then
+              echo "Refusing to replace existing version tag $official_ref ($existing_digest)" >&2
+              exit 1
+            fi
+            docker buildx imagetools inspect "$IMAGE@$existing_digest" --raw \
+              > /tmp/lingshu-gate-promotion-existing-index.json
+            python -m scripts.release.compare_oci_indexes \
+              --candidate /tmp/lingshu-gate-promotion-candidate-index.json \
+              --existing /tmp/lingshu-gate-promotion-existing-index.json
+          else
+            if ! grep --extended-regexp --ignore-case --quiet 'manifest unknown|not found' "$inspect_error"; then
+              cat "$inspect_error" >&2
+              exit 1
+            fi
+            docker buildx imagetools create \
+              --tag "$official_ref" \
+              "$IMAGE@$EXPECTED_DIGEST"
+          fi
+          final_output=$(docker buildx imagetools inspect "$official_ref")
+          final_digest=$(sed -n 's/^Digest:[[:space:]]*//p' <<<"$final_output" | head -n 1)
+          test "$final_digest" = "$CANDIDATE_DIGEST"
+          docker buildx imagetools inspect "$official_ref" --raw \
+            > /tmp/lingshu-gate-promotion-final-index.json
+          python -m scripts.release.compare_oci_indexes \
+            --candidate /tmp/lingshu-gate-promotion-candidate-index.json \
+            --existing /tmp/lingshu-gate-promotion-final-index.json
+          echo "digest=$final_digest" >> "$GITHUB_OUTPUT"
+
+      - name: Detect container signing configuration
+        if: steps.existing-release.outputs.exists != 'true'
+        id: signing
+        env:
+          COSIGN_PRIVATE_KEY: ${{ secrets.COSIGN_PRIVATE_KEY }}
+        run: |
+          if [[ -n "$COSIGN_PRIVATE_KEY" ]]; then
+            echo "enabled=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "enabled=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Install Cosign
+        if: steps.signing.outputs.enabled == 'true'
+        uses: sigstore/cosign-installer@398d4b0eeef1380460a10c8013a76f728fb906ac # v3
+
+      - name: Sign promoted container digest
+        if: steps.signing.outputs.enabled == 'true'
+        env:
+          COSIGN_PRIVATE_KEY: ${{ secrets.COSIGN_PRIVATE_KEY }}
+          COSIGN_PASSWORD: ${{ secrets.COSIGN_PASSWORD }}
+          IMAGE: ${{ needs.docker-publish.outputs.image }}
+        run: cosign sign --yes --key env://COSIGN_PRIVATE_KEY "$IMAGE@${{ steps.container.outputs.digest }}"
+
+      - name: Attest release assets
+        if: steps.existing-release.outputs.exists != 'true'
+        uses: actions/attest-build-provenance@4d101475d8b20a2381f78447822ac1eab6504dd8 # v4
+        with:
+          subject-path: |
+            dist/release/*.tar.gz
+            dist/release/*.zip
+            dist/release/*.spdx.json
+            dist/release/*.txt
+            dist/release/SHA256SUMS
+
+      - name: Create release
+        if: steps.existing-release.outputs.exists != 'true'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          IS_PRERELEASE: ${{ needs.version.outputs.prerelease }}
+          CONTAINER_IMAGE: ${{ needs.docker-publish.outputs.image }}
+          CONTAINER_DIGEST: ${{ needs.docker-publish.outputs.digest }}
+        run: |
+          set -euo pipefail
+          notes_file=$(mktemp)
+          cp packaging/release-notes.md "$notes_file"
+          printf '\nContainer image: `%s@%s`\n' "$CONTAINER_IMAGE" "$CONTAINER_DIGEST" >> "$notes_file"
+          python -m scripts.release.list_release_assets \
+            --release-dir dist/release \
+            --version "${{ needs.version.outputs.version }}" \
+            > /tmp/lingshu-gate-release-assets.nul
+          mapfile -d '' -t assets < /tmp/lingshu-gate-release-assets.nul
+          test "${#assets[@]}" -eq 11
+          release_state=()
+          if [[ "$IS_PRERELEASE" == "true" ]]; then
+            release_state+=(--prerelease)
+          fi
+          gh release create "${{ github.ref_name }}" "${assets[@]}" \
+            --verify-tag \
+            "${release_state[@]}" \
+            --title "Lingshu Gate ${{ github.ref_name }}" \
+            --notes-file "$notes_file"
+
+      - name: Verify newly published immutable release
+        if: steps.existing-release.outputs.exists != 'true'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RELEASE_TAG: ${{ github.ref_name }}
+          EXPECTED_PRERELEASE: ${{ needs.version.outputs.prerelease }}
+        run: |
+          set -euo pipefail
+          case "$EXPECTED_PRERELEASE" in
+            true|false) ;;
+            *)
+              echo "Invalid prerelease decision: $EXPECTED_PRERELEASE" >&2
+              exit 1
+              ;;
+          esac
+          created_error=$(mktemp)
+          created_visible=false
+          for attempt in $(seq 1 10); do
+            if gh release view "${{ github.ref_name }}" \
+              --json assets,isDraft,isImmutable,isPrerelease,tagName \
+              > /tmp/lingshu-gate-created-release.json \
+              2>"$created_error"; then
+              created_visible=true
+              break
+            fi
+            if ! grep --extended-regexp --ignore-case --quiet \
+              '^[[:space:]]*release not found[[:space:]]*$' "$created_error"; then
+              cat "$created_error" >&2
+              exit 1
+            fi
+            if (( attempt < 10 )); then
+              sleep 2
+            fi
+          done
+          if [[ "$created_visible" != "true" ]]; then
+            cat "$created_error" >&2
+            echo "Published release did not become visible before the verification deadline" >&2
+            exit 1
+          fi
+          jq -e \
+            --arg release_tag "$RELEASE_TAG" \
+            --argjson expected_prerelease "$EXPECTED_PRERELEASE" '
+              (.tagName | type == "string")
+              and .tagName == $release_tag
+              and (.isPrerelease | type == "boolean")
+              and .isPrerelease == $expected_prerelease
+              and (.isDraft | type == "boolean")
+              and .isDraft == false
+              and (.isImmutable | type == "boolean")
+              and .isImmutable == true
+            ' /tmp/lingshu-gate-created-release.json >/dev/null || {
+              echo "Published release tag, prerelease, draft, or immutability metadata is invalid" >&2
+              exit 1
+            }
+          for asset_set in existing missing stale; do
+            python -m scripts.release.reconcile_release_assets \
+              --existing-json /tmp/lingshu-gate-created-release.json \
+              --desired-dir dist/release \
+              --emit "$asset_set" > "/tmp/lingshu-gate-created-${asset_set}-assets.nul"
+          done
+          mapfile -d '' -t missing_assets < /tmp/lingshu-gate-created-missing-assets.nul
+          mapfile -d '' -t stale_assets < /tmp/lingshu-gate-created-stale-assets.nul
+          mapfile -d '' -t published_assets < /tmp/lingshu-gate-created-existing-assets.nul
+          if (( ${#missing_assets[@]} != 0 || ${#stale_assets[@]} != 0 )) \
+            || (( ${#published_assets[@]} != 11 )); then
+            echo "New immutable release does not contain the exact verified artifact set" >&2
+            exit 1
+          fi
+          release_dir=$(mktemp -d)
+          for release_asset in "${published_assets[@]}"; do
+            gh release download "${{ github.ref_name }}" \
+              --pattern "$release_asset" \
+              --dir "$release_dir"
+            if ! cmp --silent "dist/release/$release_asset" "$release_dir/$release_asset"; then
+              echo "Published immutable release asset differs from the verified artifact: $release_asset" >&2
+              exit 1
+            fi
+          done
+
+      - name: Verify every release asset attestation
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          cert_identity="https://github.com/${GITHUB_REPOSITORY}/.github/workflows/release.yml@${GITHUB_REF}"
+          python -m scripts.release.list_release_assets \
+            --release-dir dist/release \
+            --version "${{ needs.version.outputs.version }}" \
+            > /tmp/lingshu-gate-attested-assets.nul
+          mapfile -d '' -t attested_assets < /tmp/lingshu-gate-attested-assets.nul
+          test "${#attested_assets[@]}" -eq 11
+          for attested_asset in "${attested_assets[@]}"; do
+            verification_result=$(mktemp)
+            gh attestation verify "$attested_asset" \
+              --repo "$GITHUB_REPOSITORY" \
+              --cert-identity "$cert_identity" \
+              --source-ref "$GITHUB_REF" \
+              --source-digest "$GITHUB_SHA" \
+              --deny-self-hosted-runners \
+              --format json > "$verification_result"
+            jq -e '
+              type == "array"
+              and length > 0
+              and all(.[];
+                (.verificationResult.verifiedTimestamps | type == "array")
+                and (.verificationResult.verifiedTimestamps | length > 0)
+              )
+            ' "$verification_result" >/dev/null || {
+              echo "Release asset has no trusted attestation timestamp: $attested_asset" >&2
+              exit 1
+            }
+          done

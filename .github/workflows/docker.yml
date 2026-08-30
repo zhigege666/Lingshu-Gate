@@ -1,0 +1,285 @@
+name: Container images
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - "Dockerfile"
+      - ".dockerignore"
+      - "compose.yaml"
+      - "compose.prod.yaml"
+      - "requirements*"
+      - "pyproject.toml"
+      - "uv.lock"
+      - "LICENSE"
+      - "NOTICE"
+      - "THIRD_PARTY_NOTICES.md"
+      - "README.md"
+      - "scripts/quality/**"
+      - "src/**"
+      - "web/**"
+      - ".github/workflows/docker.yml"
+  pull_request:
+    branches:
+      - main
+    paths:
+      - "Dockerfile"
+      - ".dockerignore"
+      - "compose.yaml"
+      - "compose.prod.yaml"
+      - "requirements*"
+      - "pyproject.toml"
+      - "uv.lock"
+      - "LICENSE"
+      - "NOTICE"
+      - "THIRD_PARTY_NOTICES.md"
+      - "README.md"
+      - "scripts/quality/**"
+      - "src/**"
+      - "web/**"
+      - ".github/workflows/docker.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+env:
+  LINGSHU_GATE_CI_BUILDX_VERSION: v0.36.1
+  LINGSHU_GATE_CI_BUILDKIT_IMAGE: moby/buildkit:v0.32.2@sha256:28a898719c18a33f4e8000685287fa36fd0dd9560c6440227d3a732d79bb41d8
+  LINGSHU_GATE_CI_BINFMT_IMAGE: docker.io/tonistiigi/binfmt:qemu-v10.2.3-68@sha256:400a4873b838d1b89194d982c45e5fb3cda4593fbfd7e08a02e76b03b21166f0
+  LINGSHU_GATE_CI_NODE_BASE_IMAGE: node:22-bookworm-slim@sha256:83f487e0a63425e5b4d146fb5e5be574bcbe1b7b843d3ebafdd95eaf7767a7e5
+  LINGSHU_GATE_CI_PYTHON_BASE_IMAGE: python:3.12-slim-bookworm@sha256:0f5b26b9518d002b6173fd61daad821fa340635ebfec5bba471013f9ca114579
+
+concurrency:
+  group: containers-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  quality:
+    name: Source quality gate
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    steps:
+      - name: Checkout
+        uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
+        with:
+          persist-credentials: false
+
+      - name: Validate repository identity
+        run: python scripts/quality/check_repository_identity.py
+
+      - name: Set up Node.js
+        uses: actions/setup-node@a0853c24544627f65ddf259abe73b1d18a591444 # v5
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: web/package-lock.json
+
+      - name: Install and verify Console
+        working-directory: web
+        run: |
+          npm ci
+          npm run check
+          npm test
+          npm run build
+
+      - name: Set up Python
+        uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1 # v6
+        with:
+          python-version: "3.12"
+
+      - name: Set up uv
+        uses: astral-sh/setup-uv@37802adc94f370d6bfd71619e3f0bf239e1f3b78 # v7
+        with:
+          version: "0.11.33"
+          enable-cache: true
+          cache-dependency-glob: uv.lock
+
+      - name: Install frozen dependencies
+        run: uv sync --frozen
+
+      - name: Verify pip export is synchronized
+        run: |
+          uv export --frozen --no-dev --no-emit-project --format requirements-txt > /tmp/requirements.lock
+          diff --unified requirements.lock /tmp/requirements.lock
+
+      - name: Verify backend
+        run: |
+          uv run ruff check .
+          uv run mypy
+          uv run pytest -q
+
+  validate:
+    name: Validate container contracts
+    runs-on: ubuntu-24.04
+    timeout-minutes: 45
+    steps:
+      - name: Checkout
+        uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
+        with:
+          persist-credentials: false
+
+      - name: Validate local Compose
+        run: docker compose -f compose.yaml config --quiet
+
+      - name: Validate production Compose
+        env:
+          LINGSHU_GATE_IMAGE: ghcr.io/example/lingshu-gate@sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
+          LINGSHU_GATE_BOOTSTRAP_ADMIN_USERNAME: bootstrap-admin
+          LINGSHU_GATE_BOOTSTRAP_PASSWORD_FILE: /tmp/lingshu-gate-bootstrap-password
+          LINGSHU_GATE_MCP_ALLOWED_ORIGINS: http://127.0.0.1:8000
+        run: |
+          install -m 0600 /dev/null "$LINGSHU_GATE_BOOTSTRAP_PASSWORD_FILE"
+          printf '%s\n' 'validation-only-not-a-secret' > "$LINGSHU_GATE_BOOTSTRAP_PASSWORD_FILE"
+          docker compose -f compose.prod.yaml config --quiet
+
+      - name: Build and inspect secure Core image
+        run: |
+          docker build --target core --tag lingshu-gate-core:ci .
+          test "$(docker image inspect --format '{{.Config.User}}' lingshu-gate-core:ci)" = "10001:10001"
+          docker run --rm --entrypoint sh lingshu-gate-core:ci -ec \
+            'grep --quiet "^gate:x:10001:10001:" /etc/passwd \
+              && grep --quiet "^gate:x:10001:" /etc/group \
+              && ! command -v node && ! command -v npm && ! command -v npx && ! command -v docker'
+
+      - name: Run Core readiness smoke test
+        shell: bash
+        run: |
+          set -euo pipefail
+          docker run --detach --name lingshu-gate-core-smoke \
+            --publish 127.0.0.1:8000:8000 \
+            lingshu-gate-core:ci
+          trap 'docker logs lingshu-gate-core-smoke || true; docker rm --force lingshu-gate-core-smoke || true' EXIT
+          ready=false
+          for attempt in $(seq 1 30); do
+            if curl --fail --silent --show-error http://127.0.0.1:8000/readyz >/dev/null; then
+              ready=true
+              break
+            fi
+            sleep 2
+          done
+          if [[ "$ready" != "true" ]]; then
+            echo "Lingshu Gate Core did not become ready" >&2
+            exit 1
+          fi
+          credentials_path=/data/initial-admin-credentials.json
+          docker exec lingshu-gate-core-smoke test -s "$credentials_path"
+          test "$(docker exec lingshu-gate-core-smoke stat -c '%a' "$credentials_path")" = "600"
+
+      - name: Scan Core image for critical vulnerabilities
+        uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25 # v0.36.0
+        with:
+          scan-type: image
+          image-ref: lingshu-gate-core:ci
+          format: table
+          exit-code: "1"
+          ignore-unfixed: true
+          severity: CRITICAL
+
+  publish:
+    name: Publish Core image
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    needs:
+      - quality
+      - validate
+    runs-on: ubuntu-24.04
+    timeout-minutes: 60
+    permissions:
+      contents: read
+      packages: write
+    env:
+      IMAGE_NAME: ghcr.io/${{ github.repository_owner }}/lingshu-gate
+    steps:
+      - name: Checkout
+        uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
+        with:
+          persist-credentials: false
+
+      - name: Set up QEMU
+        uses: docker/setup-qemu-action@96fe6ef7f33517b61c61be40b68a1882f3264fb8 # v4
+        with:
+          image: ${{ env.LINGSHU_GATE_CI_BINFMT_IMAGE }}
+          platforms: arm64
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@37fe631027851001ddb9b187196cc803df7f5f0e # v4
+        with:
+          version: ${{ env.LINGSHU_GATE_CI_BUILDX_VERSION }}
+          driver-opts: image=${{ env.LINGSHU_GATE_CI_BUILDKIT_IMAGE }}
+
+      - name: Read release version
+        id: version
+        shell: bash
+        run: |
+          set -euo pipefail
+          version="$(sed -n 's/^__version__ = "\([^\"]*\)"/\1/p' src/lingshu_gate/_version.py)"
+          test -n "$version"
+          if [[ "$GITHUB_REF" == refs/tags/v* ]] && [[ "${GITHUB_REF_NAME#v}" != "$version" ]]; then
+            echo "Tag $GITHUB_REF_NAME does not match source version $version" >&2
+            exit 1
+          fi
+          echo "version=$version" >> "$GITHUB_OUTPUT"
+
+      - name: Log in to GitHub Container Registry
+        uses: docker/login-action@dbcb813823bdd20940b903addbd779551569679f # v4
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Extract image metadata
+        id: meta
+        uses: docker/metadata-action@dc802804100637a589fabce1cb79ff13a1411302 # v6
+        with:
+          images: ${{ env.IMAGE_NAME }}
+          tags: |
+            type=raw,value=latest,enable={{is_default_branch}}
+            type=ref,event=branch
+            type=sha,prefix=sha-
+          labels: |
+            org.opencontainers.image.title=Lingshu Gate Core
+            org.opencontainers.image.description=Lingshu Gate modular MCP gateway and control plane
+            org.opencontainers.image.version=${{ steps.version.outputs.version }}
+            io.lingshu.gate.image.role=core
+
+      - name: Build and publish multi-architecture image
+        id: build
+        uses: docker/build-push-action@53b7df96c91f9c12dcc8a07bcb9ccacbed38856a # v7
+        with:
+          context: .
+          target: core
+          platforms: linux/amd64,linux/arm64
+          push: true
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+          build-args: |
+            NODE_BASE_IMAGE=${{ env.LINGSHU_GATE_CI_NODE_BASE_IMAGE }}
+            PYTHON_BASE_IMAGE=${{ env.LINGSHU_GATE_CI_PYTHON_BASE_IMAGE }}
+          cache-from: type=gha,scope=core
+          cache-to: type=gha,mode=max,scope=core
+          sbom: true
+          provenance: mode=max
+
+      - name: Detect signing configuration
+        id: signing
+        shell: bash
+        env:
+          COSIGN_PRIVATE_KEY: ${{ secrets.COSIGN_PRIVATE_KEY }}
+        run: |
+          if [[ -n "$COSIGN_PRIVATE_KEY" ]]; then
+            echo "enabled=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "enabled=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Install Cosign
+        if: steps.signing.outputs.enabled == 'true'
+        uses: sigstore/cosign-installer@398d4b0eeef1380460a10c8013a76f728fb906ac # v3
+
+      - name: Sign image digest when signing secrets are configured
+        if: steps.signing.outputs.enabled == 'true'
+        env:
+          COSIGN_PRIVATE_KEY: ${{ secrets.COSIGN_PRIVATE_KEY }}
+          COSIGN_PASSWORD: ${{ secrets.COSIGN_PASSWORD }}
+        run: cosign sign --yes --key env://COSIGN_PRIVATE_KEY "${IMAGE_NAME}@${{ steps.build.outputs.digest }}"

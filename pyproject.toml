@@ -1,0 +1,88 @@
+[build-system]
+requires = ["setuptools==81.0.0"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "lingshu-gate"
+dynamic = ["version"]
+description = "Self-hosted MCP gateway and control plane"
+readme = "README.md"
+requires-python = ">=3.11"
+license = "Apache-2.0"
+license-files = ["LICENSE", "NOTICE"]
+authors = [
+  { name = "Lingshu Gate Contributors" },
+]
+keywords = ["mcp", "gateway", "model-context-protocol", "fastapi"]
+classifiers = [
+  "Development Status :: 4 - Beta",
+  "Programming Language :: Python :: 3",
+  "Programming Language :: Python :: 3.11",
+  "Programming Language :: Python :: 3.12",
+  "Programming Language :: Python :: 3.13",
+]
+dependencies = [
+  "fastapi>=0.110,<1.0",
+  "uvicorn[standard]>=0.27,<1.0",
+  "pydantic>=2.6,<3.0",
+  "PyYAML>=6.0,<7.0",
+  "cryptography>=42.0,<45.0",
+  "python-multipart>=0.0.9,<1.0",
+  "mcp>=2.0,<3.0",
+]
+
+[project.urls]
+Homepage = "https://github.com/zhigege666/Lingshu-Gate"
+Repository = "https://github.com/zhigege666/Lingshu-Gate"
+Issues = "https://github.com/zhigege666/Lingshu-Gate/issues"
+
+[project.scripts]
+lingshu-gate = "lingshu_gate.cli:main"
+
+[dependency-groups]
+dev = [
+  "mypy>=1.15,<2",
+  "pytest>=8.3,<9",
+  "ruff>=0.11,<1",
+  "types-PyYAML>=6.0.12.20241230",
+]
+release = [
+  "packaging==26.3",
+  "pyinstaller==6.22.2",
+  "setuptools==81.0.0",
+]
+
+[tool.uv]
+build-constraint-dependencies = ["setuptools==81.0.0"]
+
+[tool.setuptools.dynamic]
+version = { attr = "lingshu_gate._version.__version__" }
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.setuptools.package-data]
+lingshu_gate = ["static/console/**/*"]
+
+[tool.pytest.ini_options]
+addopts = "--strict-config --strict-markers"
+testpaths = ["tests"]
+pythonpath = ["src"]
+
+[tool.ruff]
+target-version = "py311"
+line-length = 120
+extend-exclude = ["src/lingshu_gate/static"]
+
+[tool.ruff.lint]
+select = ["E4", "E7", "E9", "F"]
+
+[tool.mypy]
+python_version = "3.11"
+files = ["src/lingshu_gate"]
+check_untyped_defs = true
+ignore_missing_imports = true
+no_implicit_optional = true
+show_error_codes = true
+warn_redundant_casts = true
+warn_unused_configs = true

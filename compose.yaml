@@ -1,0 +1,68 @@
+name: lingshu-gate
+
+services:
+  core:
+    build:
+      context: .
+      target: core
+    image: ${LINGSHU_GATE_IMAGE:-lingshu-gate:local}
+    init: true
+    restart: unless-stopped
+    user: "10001:10001"
+    read_only: true
+    ports:
+      - "${LINGSHU_GATE_BIND_ADDRESS:-127.0.0.1}:${LINGSHU_GATE_HTTP_PORT:-8000}:8000"
+    environment:
+      LINGSHU_GATE_HOST: 0.0.0.0
+      LINGSHU_GATE_PORT: "8000"
+      LINGSHU_GATE_ALLOWED_ROOT: /workspace
+      LINGSHU_GATE_CONFIG_DIR: /config/mcp.d
+      LINGSHU_GATE_DATA_DIR: /data
+      LINGSHU_GATE_AUTH_ENABLED: "true"
+      LINGSHU_GATE_IN_CONTAINER: "1"
+      LINGSHU_GATE_RUNTIME_ROLE: core
+      LINGSHU_GATE_TRUSTED_PROXY_IPS: ${LINGSHU_GATE_TRUSTED_PROXY_IPS:-127.0.0.1}
+      LINGSHU_GATE_MCP_ALLOWED_ORIGINS: ${LINGSHU_GATE_MCP_ALLOWED_ORIGINS:-}
+      LINGSHU_GATE_LOG_LEVEL: ${LINGSHU_GATE_LOG_LEVEL:-INFO}
+      LINGSHU_GATE_LOG_PAYLOADS: "false"
+    volumes:
+      - type: bind
+        source: ${LINGSHU_GATE_WORKSPACE:-./runtime/workspace}
+        target: /workspace
+        read_only: true
+      - type: volume
+        source: config
+        target: /config
+      - type: volume
+        source: data
+        target: /data
+    tmpfs:
+      - /tmp:rw,noexec,nosuid,nodev,size=64m,uid=10001,gid=10001
+    cap_drop:
+      - ALL
+    security_opt:
+      - no-new-privileges:true
+    pids_limit: 256
+    mem_limit: 1g
+    cpus: 2.0
+    stop_grace_period: 30s
+    healthcheck:
+      test:
+        - CMD
+        - python
+        - -c
+        - "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/readyz', timeout=2).read()"
+      interval: 30s
+      timeout: 3s
+      start_period: 10s
+      retries: 3
+    networks:
+      - edge
+
+networks:
+  edge:
+    driver: bridge
+
+volumes:
+  config:
+  data:

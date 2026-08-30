@@ -1,0 +1,17 @@
+@echo off
+setlocal
+set "BUNDLE_DIR=%~dp0"
+
+if not defined LINGSHU_GATE_HOST set "LINGSHU_GATE_HOST=127.0.0.1"
+if not defined LINGSHU_GATE_PORT set "LINGSHU_GATE_PORT=8000"
+if not defined LINGSHU_GATE_DATA_DIR set "LINGSHU_GATE_DATA_DIR=%BUNDLE_DIR%data"
+if not defined LINGSHU_GATE_CONFIG_DIR set "LINGSHU_GATE_CONFIG_DIR=%BUNDLE_DIR%config\mcp.d"
+if not defined LINGSHU_GATE_ALLOWED_ROOT set "LINGSHU_GATE_ALLOWED_ROOT=%BUNDLE_DIR%workspace"
+if not defined LINGSHU_GATE_RUNTIME_ROLE set "LINGSHU_GATE_RUNTIME_ROLE=local"
+
+if not exist "%LINGSHU_GATE_DATA_DIR%" mkdir "%LINGSHU_GATE_DATA_DIR%"
+if not exist "%LINGSHU_GATE_CONFIG_DIR%" mkdir "%LINGSHU_GATE_CONFIG_DIR%"
+if not exist "%LINGSHU_GATE_ALLOWED_ROOT%" mkdir "%LINGSHU_GATE_ALLOWED_ROOT%"
+
+"%BUNDLE_DIR%lingshu-gate.exe" %*
+exit /b %ERRORLEVEL%
