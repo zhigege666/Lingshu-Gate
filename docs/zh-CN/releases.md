@@ -134,9 +134,9 @@ ARM64 使用 `arm64` 资产和 Tag。让 `LINGSHU_GATE_IMAGE` 指向加载后的
 
 ## 自动化行为
 
-发行工作流在影响打包的 Pull Request、手动触发和 `v*` Tag 上运行：
+发行工作流在影响打包的 Pull Request、手动触发和 `v*` Tag 上运行。独立的 **Publish release** 工作流是正式发行的仓库批准入口：从 `main` 触发并输入精确的 `v<version>` Tag。它会校验源码版本，在该次 `main` 修订上创建或验证不可移动的 Tag，再以已验证的 Tag 触发 `release.yml`。
 
-- Pull Request 和手动运行会构建并冒烟测试原生矩阵和 Compose 包，再上传短期 Workflow Artifact；
+- Pull Request 和分支级手动运行会构建并冒烟测试原生矩阵和 Compose 包，再上传短期 Workflow Artifact；
 - Tag 必须与 `src/lingshu_gate/_version.py` 中的版本完全一致；
 - Tag 运行还会从已验证的容器 Payload 导出 Core 离线镜像、构建应用 SPDX SBOM，汇总无文件名冲突的资产目录，重新生成聚合 `SHA256SUMS`，为每个资产生成 Attestation，并创建 GitHub Release；
 - 如果该 Tag 的 Release 已存在，工作流要求其不可变、不是 Draft、资产名称集合完全一致且内容逐字节一致，随后保持其不变；Release 可变或资产缺失、陈旧、内容不同都会使运行失败；
@@ -156,7 +156,7 @@ Pull Request 构建成功不等于已经发布。只有匹配且通过验证的 
 3. 确认 `LICENSE`、`NOTICE` 和 `THIRD_PARTY_NOTICES.md` 为最新状态；
 4. 确认英文与简体中文文档匹配产物行为；
 5. 在首次创建 Release 前，为仓库启用 GitHub Release immutability；
-6. 创建已签名或符合仓库批准方式的 `v<version>` Tag；
+6. 从 `main` 触发 **Publish release** 并输入精确的 `v<version>` Tag；工作流会在不移动已有 Ref 的前提下创建或验证 Tag，然后启动已验证的 Tag 发行；
 7. 等待全部矩阵 Job 和发布步骤完成；
 8. 独立下载并校验至少一个原生归档、Compose 包、`SHA256SUMS` 及其 Attestation；
 9. 校验已发布容器摘要和 Release 链接。

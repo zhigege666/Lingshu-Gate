@@ -647,6 +647,53 @@ def test_release_is_the_only_version_tag_container_publisher() -> None:
     assert "github.ref == 'refs/heads/main'" in container_workflow
 
 
+def test_manual_release_publication_is_version_checked_and_fail_closed() -> None:
+    publish_workflow = (
+        REPOSITORY_ROOT / ".github" / "workflows" / "publish-release.yml"
+    ).read_text(encoding="utf-8")
+    release_workflow = (
+        REPOSITORY_ROOT / ".github" / "workflows" / "release.yml"
+    ).read_text(encoding="utf-8")
+
+    assert "workflow_dispatch:" in publish_workflow
+    assert "\n  push:" not in publish_workflow
+    assert "contents: write" in publish_workflow
+    assert "actions: write" in publish_workflow
+    assert "cancel-in-progress: false" in publish_workflow
+    assert "ref: ${{ github.sha }}" in publish_workflow
+    assert "persist-credentials: false" in publish_workflow
+    assert '[[ "$GITHUB_REF" != "refs/heads/main" ]]' in publish_workflow
+    assert 'check_version --tag "$RELEASE_TAG"' in publish_workflow
+    assert '-f ref="refs/tags/${RELEASE_TAG}"' in publish_workflow
+    assert '-f sha="$GITHUB_SHA"' in publish_workflow
+    assert "Release tag already points to a different revision" in publish_workflow
+    assert "Release tag lookup failed" in publish_workflow
+    assert "HTTP 404([^0-9]|$)" in publish_workflow
+    assert "Release tag creation failed" in publish_workflow
+    assert "Release tag was created concurrently at the verified revision" in publish_workflow
+    assert "Release tag verification failed" in publish_workflow
+    assert "actions/workflows/release.yml/dispatches" in publish_workflow
+    assert '-f ref="$RELEASE_TAG"' in publish_workflow
+    assert publish_workflow.count("X-GitHub-Api-Version: 2026-03-10") == 2
+    assert ".workflow_run_id" in publish_workflow
+    assert ".run_url" in publish_workflow
+    assert ".html_url" in publish_workflow
+    assert "Release workflow dispatch returned unexpected run metadata" in publish_workflow
+    assert "--force" not in publish_workflow
+    assert "delete" not in publish_workflow.casefold()
+
+    tag_condition = (
+        "if: github.ref_type == 'tag' && startsWith(github.ref, 'refs/tags/v') && "
+        "(github.event_name == 'push' || github.event_name == 'workflow_dispatch')"
+    )
+    assert release_workflow.count(tag_condition) == 3
+    assert "github.event_name == 'push' && startsWith(github.ref" not in release_workflow
+    assert "Verify release tag still targets source revision before promotion" in release_workflow
+    assert "Verify release tag still targets source revision before publication" in release_workflow
+    assert release_workflow.count('.object.type == "commit" and .object.sha == $expected_sha') == 2
+    assert release_workflow.count("Release tag no longer targets the verified source revision") == 2
+
+
 def test_release_reconciliation_propagates_validation_failures() -> None:
     workflow = (REPOSITORY_ROOT / ".github" / "workflows" / "release.yml").read_text(encoding="utf-8")
     assert "--emit \"$asset_set\" > \"/tmp/lingshu-gate-${asset_set}-assets.nul\"" in workflow

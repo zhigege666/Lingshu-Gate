@@ -348,7 +348,7 @@ jobs:
 
   docker-offline:
     name: Offline Core images
-    if: github.event_name == 'push' && startsWith(github.ref, 'refs/tags/v')
+    if: github.ref_type == 'tag' && startsWith(github.ref, 'refs/tags/v') && (github.event_name == 'push' || github.event_name == 'workflow_dispatch')
     needs:
       - version
       - quality
@@ -471,7 +471,7 @@ jobs:
 
   docker-publish:
     name: Build verified Core image candidate
-    if: github.event_name == 'push' && startsWith(github.ref, 'refs/tags/v')
+    if: github.ref_type == 'tag' && startsWith(github.ref, 'refs/tags/v') && (github.event_name == 'push' || github.event_name == 'workflow_dispatch')
     needs:
       - version
       - quality
@@ -634,7 +634,7 @@ jobs:
 
   publish:
     name: Publish GitHub Release
-    if: github.event_name == 'push' && startsWith(github.ref, 'refs/tags/v')
+    if: github.ref_type == 'tag' && startsWith(github.ref, 'refs/tags/v') && (github.event_name == 'push' || github.event_name == 'workflow_dispatch')
     needs:
       - version
       - quality
@@ -757,6 +757,26 @@ jobs:
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
+      - name: Verify release tag still targets source revision before promotion
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RELEASE_TAG: ${{ github.ref_name }}
+        run: |
+          set -euo pipefail
+          gh api \
+            --header "Accept: application/vnd.github+json" \
+            --header "X-GitHub-Api-Version: 2026-03-10" \
+            "repos/${GITHUB_REPOSITORY}/git/ref/tags/${RELEASE_TAG}" \
+            > /tmp/lingshu-gate-release-tag.json
+          jq --exit-status \
+            --arg expected_sha "$GITHUB_SHA" \
+            '.object.type == "commit" and .object.sha == $expected_sha' \
+            /tmp/lingshu-gate-release-tag.json \
+            >/dev/null || {
+              echo "Release tag no longer targets the verified source revision" >&2
+              exit 1
+            }
+
       - name: Promote version tag without replacing an existing digest
         id: container
         env:
@@ -840,6 +860,27 @@ jobs:
             dist/release/*.spdx.json
             dist/release/*.txt
             dist/release/SHA256SUMS
+
+      - name: Verify release tag still targets source revision before publication
+        if: steps.existing-release.outputs.exists != 'true'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RELEASE_TAG: ${{ github.ref_name }}
+        run: |
+          set -euo pipefail
+          gh api \
+            --header "Accept: application/vnd.github+json" \
+            --header "X-GitHub-Api-Version: 2026-03-10" \
+            "repos/${GITHUB_REPOSITORY}/git/ref/tags/${RELEASE_TAG}" \
+            > /tmp/lingshu-gate-release-tag.json
+          jq --exit-status \
+            --arg expected_sha "$GITHUB_SHA" \
+            '.object.type == "commit" and .object.sha == $expected_sha' \
+            /tmp/lingshu-gate-release-tag.json \
+            >/dev/null || {
+              echo "Release tag no longer targets the verified source revision" >&2
+              exit 1
+            }
 
       - name: Create release
         if: steps.existing-release.outputs.exists != 'true'

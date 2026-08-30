@@ -1,0 +1,145 @@
+name: Publish release
+
+on:
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: Exact source version tag, for example v0.1.0
+        required: true
+        type: string
+
+concurrency:
+  group: publish-release
+  cancel-in-progress: false
+
+permissions:
+  contents: write
+  actions: write
+
+jobs:
+  publish:
+    name: Create tag and dispatch verified release
+    runs-on: ubuntu-22.04
+    timeout-minutes: 10
+    steps:
+      - name: Validate dispatch source
+        run: |
+          set -euo pipefail
+          if [[ "$GITHUB_REF" != "refs/heads/main" ]]; then
+            echo "Release publication must be dispatched from main" >&2
+            exit 1
+          fi
+
+      - name: Checkout requested main revision
+        uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
+        with:
+          ref: ${{ github.sha }}
+          fetch-depth: 1
+          persist-credentials: false
+
+      - name: Validate source and release tag
+        env:
+          RELEASE_TAG: ${{ inputs.tag }}
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD)" = "$GITHUB_SHA"
+          python -m scripts.release.check_version --tag "$RELEASE_TAG"
+
+      - name: Create or verify immutable release tag
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RELEASE_TAG: ${{ inputs.tag }}
+        run: |
+          set -euo pipefail
+          accept_header="Accept: application/vnd.github+json"
+          api_version_header="X-GitHub-Api-Version: 2026-03-10"
+          ref_path="repos/${GITHUB_REPOSITORY}/git/ref/tags/${RELEASE_TAG}"
+          lookup_error="${RUNNER_TEMP}/lingshu-gate-tag-lookup.err"
+          if existing_sha="$(
+            gh api \
+              --header "$accept_header" \
+              --header "$api_version_header" \
+              "$ref_path" \
+              --jq '.object.sha' \
+              2>"$lookup_error"
+          )"; then
+            if [[ "$existing_sha" != "$GITHUB_SHA" ]]; then
+              echo "Release tag already points to a different revision" >&2
+              exit 1
+            fi
+          elif ! grep --extended-regexp --quiet 'HTTP 404([^0-9]|$)' "$lookup_error"; then
+            cat "$lookup_error" >&2
+            echo "Release tag lookup failed" >&2
+            exit 1
+          else
+            create_error="${RUNNER_TEMP}/lingshu-gate-tag-create.err"
+            if ! gh api \
+              --method POST \
+              --header "$accept_header" \
+              --header "$api_version_header" \
+              "repos/${GITHUB_REPOSITORY}/git/refs" \
+              -f ref="refs/tags/${RELEASE_TAG}" \
+              -f sha="$GITHUB_SHA" \
+              >/dev/null \
+              2>"$create_error"; then
+              if raced_sha="$(
+                gh api \
+                  --header "$accept_header" \
+                  --header "$api_version_header" \
+                  "$ref_path" \
+                  --jq '.object.sha' \
+                  2>/dev/null
+              )" && [[ "$raced_sha" == "$GITHUB_SHA" ]]; then
+                echo "Release tag was created concurrently at the verified revision"
+              else
+                cat "$create_error" >&2
+                echo "Release tag creation failed" >&2
+                exit 1
+              fi
+            fi
+          fi
+
+          resolved_sha="$(
+            gh api \
+              --header "$accept_header" \
+              --header "$api_version_header" \
+              "$ref_path" \
+              --jq '.object.sha'
+          )"
+          if [[ "$resolved_sha" != "$GITHUB_SHA" ]]; then
+            echo "Release tag verification failed" >&2
+            exit 1
+          fi
+
+      - name: Dispatch release workflow at verified tag
+        id: dispatch
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RELEASE_TAG: ${{ inputs.tag }}
+        run: |
+          set -euo pipefail
+          dispatch_json="$(gh api \
+            --method POST \
+            --header "Accept: application/vnd.github+json" \
+            --header "X-GitHub-Api-Version: 2026-03-10" \
+            "repos/${GITHUB_REPOSITORY}/actions/workflows/release.yml/dispatches" \
+            -f ref="$RELEASE_TAG" \
+          )"
+          workflow_run_id="$(jq --exit-status --raw-output '.workflow_run_id | select(type == "number" and . > 0)' <<<"$dispatch_json")"
+          run_url="$(jq --exit-status --raw-output '.run_url | select(type == "string")' <<<"$dispatch_json")"
+          html_url="$(jq --exit-status --raw-output '.html_url | select(type == "string")' <<<"$dispatch_json")"
+          expected_run_url="https://api.github.com/repos/${GITHUB_REPOSITORY}/actions/runs/${workflow_run_id}"
+          expected_html_url="https://github.com/${GITHUB_REPOSITORY}/actions/runs/${workflow_run_id}"
+          if [[ "$run_url" != "$expected_run_url" || "$html_url" != "$expected_html_url" ]]; then
+            echo "Release workflow dispatch returned unexpected run metadata" >&2
+            exit 1
+          fi
+          echo "run_url=$html_url" >> "$GITHUB_OUTPUT"
+
+          {
+            echo "## Release dispatch"
+            echo
+            echo "- Tag: \`${RELEASE_TAG}\`"
+            echo "- Revision: \`${GITHUB_SHA}\`"
+            echo "- Workflow run: ${html_url}"
+          } >> "$GITHUB_STEP_SUMMARY"

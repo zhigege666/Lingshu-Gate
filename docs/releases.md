@@ -134,9 +134,9 @@ Use the `arm64` asset and tag on ARM64. Point `LINGSHU_GATE_IMAGE` at the loaded
 
 ## Automation behavior
 
-The release workflow runs on pull requests that affect packaging, on manual dispatch, and on `v*` tags:
+The release workflow runs on pull requests that affect packaging, on manual dispatch, and on `v*` tags. The separate **Publish release** workflow is the repository-approved entry point for a formal release: dispatch it from `main` with the exact `v<version>` tag. It validates the source version, creates or verifies a non-moving tag at that exact `main` revision, and dispatches `release.yml` at the verified tag.
 
-- pull requests and manual runs build and smoke-test the native matrix and Compose bundle, then upload short-lived workflow artifacts;
+- pull requests and branch-level manual runs build and smoke-test the native matrix and Compose bundle, then upload short-lived workflow artifacts;
 - a tag must match the version in `src/lingshu_gate/_version.py` exactly;
 - tagged runs additionally export offline Core images from the verified container payloads, build the application SPDX SBOM, assemble a collision-free asset directory, regenerate the aggregate `SHA256SUMS`, attest every asset, and create the GitHub Release;
 - if a release already exists for the tag, the workflow requires an immutable, non-draft release with an exact asset-name set and byte-for-byte matching content, then leaves it unchanged; a mutable release or missing, stale, or different assets fail the run;
@@ -156,7 +156,7 @@ Before creating a tag:
 3. confirm `LICENSE`, `NOTICE`, and `THIRD_PARTY_NOTICES.md` are current;
 4. confirm English and Simplified Chinese documentation match the artifact behavior;
 5. enable GitHub release immutability for the repository before creating its first release;
-6. create the signed or otherwise repository-approved `v<version>` tag;
+6. dispatch **Publish release** from `main` with the exact `v<version>` tag; the workflow creates or verifies the tag without moving an existing ref, then starts the verified tagged release;
 7. wait for every matrix job and publication step;
 8. independently download and verify at least one native archive, the Compose bundle, `SHA256SUMS`, and their attestations;
 9. verify the published container digest and release links.
