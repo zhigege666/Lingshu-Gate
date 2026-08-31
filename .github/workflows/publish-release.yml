@@ -45,6 +45,28 @@ jobs:
           test "$(git rev-parse HEAD)" = "$GITHUB_SHA"
           python -m scripts.release.check_version --tag "$RELEASE_TAG"
 
+      - name: Require immutable releases before creating a tag
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          settings_file="${RUNNER_TEMP}/lingshu-gate-immutable-releases.json"
+          settings_error="${RUNNER_TEMP}/lingshu-gate-immutable-releases.err"
+          if ! gh api \
+            --header "Accept: application/vnd.github+json" \
+            --header "X-GitHub-Api-Version: 2026-03-10" \
+            "repos/${GITHUB_REPOSITORY}/immutable-releases" \
+            >"$settings_file" \
+            2>"$settings_error"; then
+            cat "$settings_error" >&2
+            echo "Enable release immutability before creating the first release tag" >&2
+            exit 1
+          fi
+          if ! jq --exit-status '.enabled == true' "$settings_file" >/dev/null; then
+            echo "Release immutability is not enabled for this repository" >&2
+            exit 1
+          fi
+
       - name: Create or verify immutable release tag
         env:
           GH_TOKEN: ${{ github.token }}

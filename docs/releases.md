@@ -134,7 +134,9 @@ Use the `arm64` asset and tag on ARM64. Point `LINGSHU_GATE_IMAGE` at the loaded
 
 ## Automation behavior
 
-The release workflow runs on pull requests that affect packaging, on manual dispatch, and on `v*` tags. The separate **Publish release** workflow is the repository-approved entry point for a formal release: dispatch it from `main` with the exact `v<version>` tag. It validates the source version, creates or verifies a non-moving tag at that exact `main` revision, and dispatches `release.yml` at the verified tag.
+The release workflow runs on pull requests that affect packaging, on manual dispatch, and on `v*` tags. The separate **Publish release** workflow is the repository-approved entry point for a formal release: dispatch it from `main` with the exact `v<version>` tag. It validates the source version, requires repository release immutability before creating a tag, creates or verifies a non-moving tag at that exact `main` revision, and dispatches `release.yml` at the verified tag.
+
+The separate **Container images** workflow is validation-only. Pushes to `main`, pull requests, and manual runs may build and scan Core images, but this workflow does not authenticate to a registry or push any image. Registry publication is reserved for the verified tag path in `release.yml`.
 
 - pull requests and branch-level manual runs build and smoke-test the native matrix and Compose bundle, then upload short-lived workflow artifacts;
 - a tag must match the version in `src/lingshu_gate/_version.py` exactly;
