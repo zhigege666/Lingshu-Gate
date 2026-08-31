@@ -134,7 +134,9 @@ ARM64 使用 `arm64` 资产和 Tag。让 `LINGSHU_GATE_IMAGE` 指向加载后的
 
 ## 自动化行为
 
-发行工作流在影响打包的 Pull Request、手动触发和 `v*` Tag 上运行。独立的 **Publish release** 工作流是正式发行的仓库批准入口：从 `main` 触发并输入精确的 `v<version>` Tag。它会校验源码版本，在该次 `main` 修订上创建或验证不可移动的 Tag，再以已验证的 Tag 触发 `release.yml`。
+发行工作流在影响打包的 Pull Request、手动触发和 `v*` Tag 上运行。独立的 **Publish release** 工作流是正式发行的仓库批准入口：从 `main` 触发并输入精确的 `v<version>` Tag。它会校验源码版本，在创建 Tag 前强制确认仓库已启用 Release immutability，在该次 `main` 修订上创建或验证不可移动的 Tag，再以已验证的 Tag 触发 `release.yml`。
+
+独立的 **Container images** 工作流只负责验证。推送到 `main`、Pull Request 和手动运行可以构建并扫描 Core 镜像，但该工作流不会登录镜像仓库，也不会推送任何镜像。镜像发布只保留在 `release.yml` 的已验证 Tag 链路中。
 
 - Pull Request 和分支级手动运行会构建并冒烟测试原生矩阵和 Compose 包，再上传短期 Workflow Artifact；
 - Tag 必须与 `src/lingshu_gate/_version.py` 中的版本完全一致；
