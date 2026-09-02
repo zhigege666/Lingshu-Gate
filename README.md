@@ -6,6 +6,12 @@ Self-hosted MCP gateway and control plane for operating downstream servers with 
 
 Lingshu Gate provides one authenticated MCP endpoint, a Web Console, configuration and runtime management, encrypted credentials, tool classification, invocation audit, diagnostics, and a controlled project upload/build/deploy/start workflow.
 
+## Console preview
+
+![Lingshu Gate Web Console dashboard](docs/assets/console-dashboard.svg)
+
+The Console keeps server health, discovered tools, delivery operations, access controls, and audit entry points in one operational workspace. The screenshot uses an empty local development instance and contains no production data or credentials.
+
 ## What it provides
 
 - One Streamable HTTP MCP gateway at `POST /mcp`.
