@@ -571,6 +571,7 @@ jobs:
       - name: Scan amd64 candidate payload for critical vulnerabilities
         uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25 # v0.36.0
         with:
+          cache-dir: ${{ runner.temp }}/trivy-cache
           scan-type: image
           image-ref: ${{ steps.image.outputs.name }}@${{ steps.platforms.outputs.amd64_digest }}
           format: table
@@ -581,6 +582,7 @@ jobs:
       - name: Scan arm64 candidate payload for critical vulnerabilities
         uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25 # v0.36.0
         with:
+          cache-dir: ${{ runner.temp }}/trivy-cache
           scan-type: image
           image-ref: ${{ steps.image.outputs.name }}@${{ steps.platforms.outputs.arm64_digest }}
           format: table

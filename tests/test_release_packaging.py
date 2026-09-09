@@ -1325,3 +1325,15 @@ def test_tag_only_release_jobs_set_up_python_before_scripts(job_name: str) -> No
     assert first_script is not None
     assert setup < first_script.start()
     assert "python-version: ${{ env.LINGSHU_GATE_RELEASE_PYTHON_VERSION }}" in job
+
+
+@pytest.mark.parametrize("workflow_name", ["release.yml", "docker.yml"])
+def test_trivy_cache_stays_outside_release_source(workflow_name: str) -> None:
+    workflow = (REPOSITORY_ROOT / ".github/workflows" / workflow_name).read_text()
+    scans = workflow.split("uses: aquasecurity/trivy-action@")[1:]
+    assert scans
+    for scan in scans:
+        step = scan.split("\n      - name:", 1)[0]
+        assert "cache-dir: ${{ runner.temp }}/trivy-cache" in step
+        assert 'exit-code: "1"' in step
+        assert "severity: CRITICAL" in step
