@@ -166,3 +166,15 @@ Before creating a tag:
 The workflow never updates or deletes an existing release or asset. If initial creation is interrupted and leaves a draft, or if release immutability was not enabled beforehand, resolve that failed release manually before retrying.
 
 Release notes should describe current behavior and operational impact in neutral language.
+
+## Docker Hub mirror
+
+Tagged releases also publish the verified Core image to `docker.io/<DOCKERHUB_USERNAME>/lingshu-gate:<version>` for `linux/amd64` and `linux/arm64`. Buildx copies the digest-pinned GHCR index and its payloads without rebuilding. The mirror is verified against the complete platform and BuildKit attestation descriptor set. The existing 11 Release attachments remain unchanged; the container-image file continues to identify GHCR, and release notes include the Docker Hub version reference.
+
+Before publication, create the Docker Hub repository and configure `DOCKERHUB_USERNAME` as a repository Actions variable (or secret), and `DOCKERHUB_TOKEN` as an Actions secret with read/write access. Credentials are checked for presence before tag creation; registry login and write access are verified during publication. Never put tokens in source files or logs.
+
+The version mirror must succeed before GitHub Release creation. Existing version tags with different payloads or attestation descriptors are rejected. Configure Docker Hub immutable version tags where available, excluding `latest`, to also prevent writes by other clients. GitHub release immutability does not protect Docker Hub tags.
+
+After Release assets and their attestations have been verified, stable releases update `docker.io/<DOCKERHUB_USERNAME>/lingshu-gate:latest` only when GitHub identifies that release as its latest stable release. Prereleases and reruns of older releases do not move `latest`. Publication jobs are serialized. A failure updating `latest` leaves the already published version and Release intact and fails the workflow; rerun it to retry verification and synchronization. Registry publication is not an atomic transaction across GHCR, Docker Hub and GitHub Releases, so a failed run may leave a verified version image in one registry. Do not delete or replace published version tags to retry.
+
+The Docker Hub mirror includes BuildKit SBOM/provenance manifests. GitHub asset attestations remain attached to the GitHub Release assets; optional Cosign signing still targets the GHCR digest, not a separate Docker Hub signature.

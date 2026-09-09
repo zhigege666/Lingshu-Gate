@@ -45,6 +45,15 @@ jobs:
           test "$(git rev-parse HEAD)" = "$GITHUB_SHA"
           python -m scripts.release.check_version --tag "$RELEASE_TAG"
 
+      - name: Require Docker Hub credentials before creating a tag
+        env:
+          DOCKERHUB_USERNAME: ${{ vars.DOCKERHUB_USERNAME || secrets.DOCKERHUB_USERNAME }}
+          DOCKERHUB_TOKEN: ${{ secrets.DOCKERHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+          test -n "$DOCKERHUB_USERNAME" || { echo "Configure DOCKERHUB_USERNAME" >&2; exit 1; }
+          test -n "$DOCKERHUB_TOKEN" || { echo "Configure DOCKERHUB_TOKEN" >&2; exit 1; }
+
       - name: Require immutable releases before creating a tag
         env:
           GH_TOKEN: ${{ github.token }}

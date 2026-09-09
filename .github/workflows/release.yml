@@ -634,6 +634,9 @@ jobs:
 
   publish:
     name: Publish GitHub Release
+    concurrency:
+      group: release-registry-publication
+      cancel-in-progress: false
     if: github.ref_type == 'tag' && startsWith(github.ref, 'refs/tags/v') && (github.event_name == 'push' || github.event_name == 'workflow_dispatch')
     needs:
       - version
@@ -826,6 +829,20 @@ jobs:
             --existing /tmp/lingshu-gate-promotion-final-index.json
           echo "digest=$final_digest" >> "$GITHUB_OUTPUT"
 
+      - name: Log in to Docker Hub
+        uses: docker/login-action@dbcb813823bdd20940b903addbd779551569679f # v4
+        with:
+          registry: docker.io
+          username: ${{ vars.DOCKERHUB_USERNAME || secrets.DOCKERHUB_USERNAME }}
+          password: ${{ secrets.DOCKERHUB_TOKEN }}
+
+      - name: Mirror verified version to Docker Hub
+        env:
+          DOCKERHUB_USERNAME: ${{ vars.DOCKERHUB_USERNAME || secrets.DOCKERHUB_USERNAME }}
+          SOURCE_IMAGE: ${{ needs.docker-publish.outputs.image }}@${{ needs.docker-publish.outputs.digest }}
+          VERSION: ${{ needs.version.outputs.version }}
+        run: python -m scripts.release.mirror_dockerhub --source "$SOURCE_IMAGE" --version "$VERSION"
+
       - name: Detect container signing configuration
         if: steps.existing-release.outputs.exists != 'true'
         id: signing
@@ -887,12 +904,14 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
           IS_PRERELEASE: ${{ needs.version.outputs.prerelease }}
+          DOCKERHUB_USERNAME: ${{ vars.DOCKERHUB_USERNAME || secrets.DOCKERHUB_USERNAME }}
           CONTAINER_IMAGE: ${{ needs.docker-publish.outputs.image }}
           CONTAINER_DIGEST: ${{ needs.docker-publish.outputs.digest }}
         run: |
           set -euo pipefail
           notes_file=$(mktemp)
           cp packaging/release-notes.md "$notes_file"
+          printf '\nDocker Hub mirror: `docker.io/%s/lingshu-gate:%s`\n' "$DOCKERHUB_USERNAME" "${{ needs.version.outputs.version }}" >> "$notes_file"
           printf '\nContainer image: `%s@%s`\n' "$CONTAINER_IMAGE" "$CONTAINER_DIGEST" >> "$notes_file"
           python -m scripts.release.list_release_assets \
             --release-dir dist/release \
@@ -1022,3 +1041,20 @@ jobs:
               exit 1
             }
           done
+
+      - name: Update Docker Hub latest after verified stable publication
+        if: needs.version.outputs.prerelease == 'false'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          DOCKERHUB_USERNAME: ${{ vars.DOCKERHUB_USERNAME || secrets.DOCKERHUB_USERNAME }}
+          SOURCE_IMAGE: ${{ needs.docker-publish.outputs.image }}@${{ needs.docker-publish.outputs.digest }}
+          VERSION: ${{ needs.version.outputs.version }}
+          RELEASE_TAG: ${{ github.ref_name }}
+        run: |
+          set -euo pipefail
+          latest_tag=$(gh api "repos/${GITHUB_REPOSITORY}/releases/latest" --jq '.tag_name')
+          if [[ "$latest_tag" != "$RELEASE_TAG" ]]; then
+            echo "This release is not GitHub's latest stable release; leaving Docker Hub latest unchanged"
+            exit 0
+          fi
+          python -m scripts.release.mirror_dockerhub --source "$SOURCE_IMAGE" --version "$VERSION" --latest
