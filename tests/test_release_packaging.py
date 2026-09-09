@@ -1313,3 +1313,15 @@ def test_dockerhub_workflow_publication_order() -> None:
     assert 'group: release-registry-publication' in workflow
     entry = (REPOSITORY_ROOT / '.github/workflows/publish-release.yml').read_text()
     assert entry.index('Require Docker Hub credentials') < entry.index('Create or verify immutable release tag')
+
+
+@pytest.mark.parametrize("job_name", ["docker-offline", "docker-publish", "publish"])
+def test_tag_only_release_jobs_set_up_python_before_scripts(job_name: str) -> None:
+    workflow = (REPOSITORY_ROOT / ".github/workflows/release.yml").read_text()
+    job = workflow.split(f"  {job_name}:\n", 1)[1]
+    job = re.split(r"^  [a-z][a-z-]*:\n", job, maxsplit=1, flags=re.MULTILINE)[0]
+    setup = job.index("uses: actions/setup-python@")
+    first_script = re.search(r"(?:run: |^ +)python (?:-m |scripts/)", job, re.MULTILINE)
+    assert first_script is not None
+    assert setup < first_script.start()
+    assert "python-version: ${{ env.LINGSHU_GATE_RELEASE_PYTHON_VERSION }}" in job

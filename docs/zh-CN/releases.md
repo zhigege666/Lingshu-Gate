@@ -134,6 +134,8 @@ ARM64 使用 `arm64` 资产和 Tag。让 `LINGSHU_GATE_IMAGE` 指向加载后的
 
 ## 自动化行为
 
+仅在 Tag 上运行的容器、离线镜像和发布任务，均在执行发行脚本前显式安装固定版本的发行 Python 环境。失败的发行 Tag 保留；修复后的源码使用新版本发布，不移动旧 Tag。
+
 配置 Actions Secret `RELEASE_SETTINGS_TOKEN`，使用仅限本仓库、具备 **Administration: read-only** 权限的 GitHub fine-grained token。不可变发行设置接口要求此权限，默认 `GITHUB_TOKEN` 无法提供。此令牌仅用于读取该设置；创建 Tag 和触发工作流仍使用 `GITHUB_TOKEN`。凭据缺失、访问被拒绝或未启用不可变发行都会在创建 Tag 前终止发布。
 
 发行工作流在影响打包的 Pull Request、手动触发和 `v*` Tag 上运行。独立的 **Publish release** 工作流是正式发行的仓库批准入口：从 `main` 触发并输入精确的 `v<version>` Tag。它会校验源码版本，在创建 Tag 前强制确认仓库已启用 Release immutability，在该次 `main` 修订上创建或验证不可移动的 Tag，再以已验证的 Tag 触发 `release.yml`。
