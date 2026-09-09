@@ -671,7 +671,9 @@ def test_manual_release_publication_is_version_checked_and_fail_closed() -> None
     assert 'check_version --tag "$RELEASE_TAG"' in publish_workflow
     assert "Require immutable releases before creating a tag" in publish_workflow
     assert '"repos/${GITHUB_REPOSITORY}/immutable-releases"' in publish_workflow
-    assert "Enable release immutability before creating the first release tag" in publish_workflow
+    assert "Cannot read release immutability settings" in publish_workflow
+    assert "GH_TOKEN: ${{ secrets.RELEASE_SETTINGS_TOKEN }}" in publish_workflow
+    assert 'test -n "$GH_TOKEN"' in publish_workflow
     assert "Release immutability is not enabled for this repository" in publish_workflow
     assert publish_workflow.index("Require immutable releases before creating a tag") < publish_workflow.index(
         "Create or verify immutable release tag"
