@@ -56,9 +56,10 @@ jobs:
 
       - name: Require immutable releases before creating a tag
         env:
-          GH_TOKEN: ${{ github.token }}
+          GH_TOKEN: ${{ secrets.RELEASE_SETTINGS_TOKEN }}
         run: |
           set -euo pipefail
+          test -n "$GH_TOKEN" || { echo "Configure RELEASE_SETTINGS_TOKEN with repository Administration read permission" >&2; exit 1; }
           settings_file="${RUNNER_TEMP}/lingshu-gate-immutable-releases.json"
           settings_error="${RUNNER_TEMP}/lingshu-gate-immutable-releases.err"
           if ! gh api \
@@ -68,7 +69,7 @@ jobs:
             >"$settings_file" \
             2>"$settings_error"; then
             cat "$settings_error" >&2
-            echo "Enable release immutability before creating the first release tag" >&2
+            echo "Cannot read release immutability settings; verify RELEASE_SETTINGS_TOKEN repository access and Administration read permission" >&2
             exit 1
           fi
           if ! jq --exit-status '.enabled == true' "$settings_file" >/dev/null; then

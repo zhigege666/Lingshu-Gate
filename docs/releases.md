@@ -134,6 +134,8 @@ Use the `arm64` asset and tag on ARM64. Point `LINGSHU_GATE_IMAGE` at the loaded
 
 ## Automation behavior
 
+Configure the Actions secret `RELEASE_SETTINGS_TOKEN` with a fine-grained GitHub token restricted to this repository and **Administration: read-only** permission. The immutability settings endpoint requires this permission, which the default `GITHUB_TOKEN` cannot provide. This token is used only to read that setting; tag creation and workflow dispatch continue to use `GITHUB_TOKEN`. Missing credentials, denied access, or disabled immutability stop publication before tag creation.
+
 The release workflow runs on pull requests that affect packaging, on manual dispatch, and on `v*` tags. The separate **Publish release** workflow is the repository-approved entry point for a formal release: dispatch it from `main` with the exact `v<version>` tag. It validates the source version, requires repository release immutability before creating a tag, creates or verifies a non-moving tag at that exact `main` revision, and dispatches `release.yml` at the verified tag.
 
 The separate **Container images** workflow is validation-only. Pushes to `main`, pull requests, and manual runs may build and scan Core images, but this workflow does not authenticate to a registry or push any image. Registry publication is reserved for the verified tag path in `release.yml`.
