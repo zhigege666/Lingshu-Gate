@@ -618,7 +618,7 @@ def test_publishable_bundles_exclude_development_dependencies() -> None:
     assert "uv sync --frozen --group release" in workflow
 
 
-def test_release_is_the_only_version_tag_container_publisher() -> None:
+def test_release_is_the_only_container_publisher() -> None:
     release_workflow = (REPOSITORY_ROOT / ".github" / "workflows" / "release.yml").read_text(
         encoding="utf-8"
     )
@@ -644,7 +644,12 @@ def test_release_is_the_only_version_tag_container_publisher() -> None:
     assert 'pattern: "!*.dockerbuild"' in release_workflow
     assert 'tags:\n      - "v*"' not in container_workflow
     assert "type=semver" not in container_workflow
-    assert "github.ref == 'refs/heads/main'" in container_workflow
+    assert "Validate multi-architecture image build without publishing" in container_workflow
+    assert "push: false" in container_workflow
+    assert "push: true" not in container_workflow
+    assert "packages: write" not in container_workflow
+    assert "docker/login-action" not in container_workflow
+    assert "cosign sign" not in container_workflow
 
 
 def test_manual_release_publication_is_version_checked_and_fail_closed() -> None:
@@ -664,6 +669,13 @@ def test_manual_release_publication_is_version_checked_and_fail_closed() -> None
     assert "persist-credentials: false" in publish_workflow
     assert '[[ "$GITHUB_REF" != "refs/heads/main" ]]' in publish_workflow
     assert 'check_version --tag "$RELEASE_TAG"' in publish_workflow
+    assert "Require immutable releases before creating a tag" in publish_workflow
+    assert '"repos/${GITHUB_REPOSITORY}/immutable-releases"' in publish_workflow
+    assert "Enable release immutability before creating the first release tag" in publish_workflow
+    assert "Release immutability is not enabled for this repository" in publish_workflow
+    assert publish_workflow.index("Require immutable releases before creating a tag") < publish_workflow.index(
+        "Create or verify immutable release tag"
+    )
     assert '-f ref="refs/tags/${RELEASE_TAG}"' in publish_workflow
     assert '-f sha="$GITHUB_SHA"' in publish_workflow
     assert "Release tag already points to a different revision" in publish_workflow
@@ -674,7 +686,7 @@ def test_manual_release_publication_is_version_checked_and_fail_closed() -> None
     assert "Release tag verification failed" in publish_workflow
     assert "actions/workflows/release.yml/dispatches" in publish_workflow
     assert '-f ref="$RELEASE_TAG"' in publish_workflow
-    assert publish_workflow.count("X-GitHub-Api-Version: 2026-03-10") == 2
+    assert publish_workflow.count("X-GitHub-Api-Version: 2026-03-10") == 3
     assert ".workflow_run_id" in publish_workflow
     assert ".run_url" in publish_workflow
     assert ".html_url" in publish_workflow
@@ -1033,7 +1045,6 @@ def test_all_github_actions_are_allowlisted_immutable_commit_pins() -> None:
         "astral-sh/setup-uv": ("37802adc94f370d6bfd71619e3f0bf239e1f3b78", "v7"),
         "docker/build-push-action": ("53b7df96c91f9c12dcc8a07bcb9ccacbed38856a", "v7"),
         "docker/login-action": ("dbcb813823bdd20940b903addbd779551569679f", "v4"),
-        "docker/metadata-action": ("dc802804100637a589fabce1cb79ff13a1411302", "v6"),
         "docker/setup-buildx-action": ("37fe631027851001ddb9b187196cc803df7f5f0e", "v4"),
         "docker/setup-qemu-action": ("96fe6ef7f33517b61c61be40b68a1882f3264fb8", "v4"),
         "github/codeql-action/analyze": ("cdf488f595d80d6e07e03d4674febd5ab45fa938", "v4.37.9"),
