@@ -1,5 +1,5 @@
 [build-system]
-requires = ["setuptools==81.0.0"]
+requires = ["setuptools==84.0.0"]
 build-backend = "setuptools.build_meta"
 
 [project]
@@ -41,19 +41,19 @@ lingshu-gate = "lingshu_gate.cli:main"
 
 [dependency-groups]
 dev = [
-  "mypy>=1.15,<2",
-  "pytest>=8.3,<9",
+  "mypy>=1.15,<3",
+  "pytest>=8.3,<10",
   "ruff>=0.11,<1",
   "types-PyYAML>=6.0.12.20241230",
 ]
 release = [
   "packaging==26.3",
   "pyinstaller==6.22.2",
-  "setuptools==81.0.0",
+  "setuptools==84.0.0",
 ]
 
 [tool.uv]
-build-constraint-dependencies = ["setuptools==81.0.0"]
+build-constraint-dependencies = ["setuptools==84.0.0"]
 
 [tool.setuptools.dynamic]
 version = { attr = "lingshu_gate._version.__version__" }
