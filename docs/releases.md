@@ -136,7 +136,13 @@ Use the `arm64` asset and tag on ARM64. Point `LINGSHU_GATE_IMAGE` at the loaded
 
 ## Automation behavior
 
-The release workflow runs on pull requests that affect packaging, on manual dispatch, and on `v*` tags. The separate **Publish release** workflow is the repository-approved entry point for a formal release: dispatch it from `main` with the exact `v<version>` tag. It validates the source version, creates or verifies a non-moving tag at that exact `main` revision, and dispatches `release.yml` at the verified tag.
+All tag-only container, offline-image, and publication jobs explicitly install the pinned release Python runtime before executing release scripts. A failed release tag is retained; publish a corrected source revision under a new version instead of moving the old tag.
+
+Configure the Actions secret `RELEASE_SETTINGS_TOKEN` with a fine-grained GitHub token restricted to this repository and **Administration: read-only** permission. The immutability settings endpoint requires this permission, which the default `GITHUB_TOKEN` cannot provide. This token is used only to read that setting; tag creation and workflow dispatch continue to use `GITHUB_TOKEN`. Missing credentials, denied access, or disabled immutability stop publication before tag creation.
+
+The release workflow runs on pull requests that affect packaging, on manual dispatch, and on `v*` tags. The separate **Publish release** workflow is the repository-approved entry point for a formal release: dispatch it from `main` with the exact `v<version>` tag. It validates the source version, requires repository release immutability before creating a tag, creates or verifies a non-moving tag at that exact `main` revision, and dispatches `release.yml` at the verified tag.
+
+The separate **Container images** workflow is validation-only. Pushes to `main`, pull requests, and manual runs may build and scan Core images, but this workflow does not authenticate to a registry or push any image. Registry publication is reserved for the verified tag path in `release.yml`.
 
 - pull requests and branch-level manual runs build and smoke-test the native matrix and Compose bundle, then upload short-lived workflow artifacts;
 - a tag must match the version in `src/lingshu_gate/_version.py` exactly;
@@ -166,3 +172,15 @@ Before creating a tag:
 The workflow never updates or deletes an existing release or asset. If initial creation is interrupted and leaves a draft, or if release immutability was not enabled beforehand, resolve that failed release manually before retrying.
 
 Release notes should describe current behavior and operational impact in neutral language.
+
+## Docker Hub mirror
+
+Tagged releases also publish the verified Core image to `docker.io/<DOCKERHUB_USERNAME>/lingshu-gate:<version>` for `linux/amd64` and `linux/arm64`. Buildx copies the digest-pinned GHCR index and its payloads without rebuilding. The mirror is verified against the complete platform and BuildKit attestation descriptor set. The existing 11 Release attachments remain unchanged; the container-image file continues to identify GHCR, and release notes include the Docker Hub version reference.
+
+Before publication, create the Docker Hub repository and configure `DOCKERHUB_USERNAME` as a repository Actions variable (or secret), and `DOCKERHUB_TOKEN` as an Actions secret with read/write access. Credentials are checked for presence before tag creation; registry login and write access are verified during publication. Never put tokens in source files or logs.
+
+The version mirror must succeed before GitHub Release creation. Existing version tags with different payloads or attestation descriptors are rejected. Configure Docker Hub immutable version tags where available, excluding `latest`, to also prevent writes by other clients. GitHub release immutability does not protect Docker Hub tags.
+
+After Release assets and their attestations have been verified, stable releases update `docker.io/<DOCKERHUB_USERNAME>/lingshu-gate:latest` only when GitHub identifies that release as its latest stable release. Prereleases and reruns of older releases do not move `latest`. Publication jobs are serialized. A failure updating `latest` leaves the already published version and Release intact and fails the workflow; rerun it to retry verification and synchronization. Registry publication is not an atomic transaction across GHCR, Docker Hub and GitHub Releases, so a failed run may leave a verified version image in one registry. Do not delete or replace published version tags to retry.
+
+The Docker Hub mirror includes BuildKit SBOM/provenance manifests. GitHub asset attestations remain attached to the GitHub Release assets; optional Cosign signing still targets the GHCR digest, not a separate Docker Hub signature.

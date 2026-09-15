@@ -136,7 +136,13 @@ ARM64 使用 `arm64` 资产和 Tag。让 `LINGSHU_GATE_IMAGE` 指向加载后的
 
 ## 自动化行为
 
-发行工作流在影响打包的 Pull Request、手动触发和 `v*` Tag 上运行。独立的 **Publish release** 工作流是正式发行的仓库批准入口：从 `main` 触发并输入精确的 `v<version>` Tag。它会校验源码版本，在该次 `main` 修订上创建或验证不可移动的 Tag，再以已验证的 Tag 触发 `release.yml`。
+仅在 Tag 上运行的容器、离线镜像和发布任务，均在执行发行脚本前显式安装固定版本的发行 Python 环境。失败的发行 Tag 保留；修复后的源码使用新版本发布，不移动旧 Tag。
+
+配置 Actions Secret `RELEASE_SETTINGS_TOKEN`，使用仅限本仓库、具备 **Administration: read-only** 权限的 GitHub fine-grained token。不可变发行设置接口要求此权限，默认 `GITHUB_TOKEN` 无法提供。此令牌仅用于读取该设置；创建 Tag 和触发工作流仍使用 `GITHUB_TOKEN`。凭据缺失、访问被拒绝或未启用不可变发行都会在创建 Tag 前终止发布。
+
+发行工作流在影响打包的 Pull Request、手动触发和 `v*` Tag 上运行。独立的 **Publish release** 工作流是正式发行的仓库批准入口：从 `main` 触发并输入精确的 `v<version>` Tag。它会校验源码版本，在创建 Tag 前强制确认仓库已启用 Release immutability，在该次 `main` 修订上创建或验证不可移动的 Tag，再以已验证的 Tag 触发 `release.yml`。
+
+独立的 **Container images** 工作流只负责验证。推送到 `main`、Pull Request 和手动运行可以构建并扫描 Core 镜像，但该工作流不会登录镜像仓库，也不会推送任何镜像。镜像发布只保留在 `release.yml` 的已验证 Tag 链路中。
 
 - Pull Request 和分支级手动运行会构建并冒烟测试原生矩阵和 Compose 包，再上传短期 Workflow Artifact；
 - Tag 必须与 `src/lingshu_gate/_version.py` 中的版本完全一致；
@@ -166,3 +172,15 @@ Pull Request 构建成功不等于已经发布。只有匹配且通过验证的 
 工作流不会更新或删除任何已有 Release 或资产。如果首次创建中断并留下 Draft，或此前未启用 Release immutability，请先人工处置该失败 Release，再重试。
 
 发行说明应使用中性语言描述当前行为和运维影响。
+
+## Docker Hub 镜像同步
+
+Tag 发行还会把已验证的 Core 镜像发布到 `docker.io/<DOCKERHUB_USERNAME>/lingshu-gate:<version>`，支持 `linux/amd64` 和 `linux/arm64`。Buildx 按固定 Digest 复制 GHCR 索引及其内容，不重复构建，并比对完整的平台和 BuildKit Attestation 描述符集合。现有 11 个 Release 附件保持不变；镜像引用文件继续记录 GHCR，发行说明增加 Docker Hub 版本地址。
+
+发布前创建 Docker Hub 仓库，将 `DOCKERHUB_USERNAME` 配置为仓库 Actions Variable（也支持 Secret），将具有读写权限的 `DOCKERHUB_TOKEN` 配置为 Actions Secret。创建 Tag 前检查凭据是否存在；登录及推送权限在发布阶段验证。不要把令牌写入源码或日志。
+
+Docker Hub 版本镜像同步成功后才创建 GitHub Release。已有版本标签的平台内容或 Attestation 描述符不一致时拒绝覆盖。建议在 Docker Hub 可用时配置版本标签不可变，并排除 `latest`，以防止其他客户端覆盖；GitHub Release immutability 不保护 Docker Hub 标签。
+
+Release 附件及 Attestation 验证完成后，只有被 GitHub 标记为最新稳定版的发行才更新 `docker.io/<DOCKERHUB_USERNAME>/lingshu-gate:latest`。预发布版和旧版本重跑不会移动 `latest`。发布 Job 串行执行。若更新 `latest` 失败，已发布的版本和 Release 保留，工作流失败；可重跑以重试验证和同步。GHCR、Docker Hub 和 GitHub Release 之间不是原子事务，失败时可能已有一个仓库的版本镜像发布成功。不要为重试而删除或替换已发布版本标签。
+
+Docker Hub 镜像包含 BuildKit SBOM/Provenance Manifest。GitHub 附件 Attestation 仍属于 GitHub Release 附件；可选 Cosign 签名仍针对 GHCR Digest，不额外创建 Docker Hub 签名。

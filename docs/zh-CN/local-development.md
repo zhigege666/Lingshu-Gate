@@ -74,6 +74,14 @@ uv run pytest -q tests/test_access_control.py
 
 ## Console 检查
 
+实时开发 Console 时，保持 Gate 运行，并在另一个终端启动 Vite：
+
+```bash
+npm --prefix web run dev
+```
+
+打开 `http://127.0.0.1:4173/console/`。开发服务器默认把 Gate API 请求代理到 `http://127.0.0.1:8000`；只有本地 Gate 使用其他 Origin 时，才需要在启动 Vite 前设置 `LINGSHU_GATE_DEV_PROXY_TARGET`。
+
 ```bash
 npm --prefix web run check
 npm --prefix web test
