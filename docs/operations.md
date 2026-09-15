@@ -36,6 +36,10 @@ Use `/v1/mcp/servers` for the list and `/v1/mcp/servers/{server_id}/detail` for 
 
 `desired_state=running` is an instruction, not proof of execution. A running process is not acceptance evidence until discovery succeeds.
 
+The Console service workspace keeps the service directory beside the selected service. Overview, tools, logs, and configuration load independently. Tool visibility counts apply to the signed-in Console identity; they do not confirm the scopes or loaded tool catalog of a separate MCP client.
+
+For bounded detail reads, use `/v1/mcp/servers/{server_id}/detail?section=overview`. Supported sections are `overview`, `tools`, `logs`, `events`, `configuration`, `recovery`, and `cache`. Log, event, and recovery reads accept `limit` from 1 to 200 (default 80); the Console requests 40. Overview reads runtime status only. Cache size is calculated only when the cache section or the complete diagnostic view is requested. Omit `section` to retain the complete legacy response. All sections require the same `operations.manage` permission. Missing section fields mean not requested, not zero or healthy.
+
 ## Logs and events
 
 Authenticated operators can query:

@@ -4,6 +4,8 @@ from __future__ import annotations
 
 import sqlite3
 import time
+from collections.abc import Iterator
+from contextlib import closing, contextmanager
 from pathlib import Path
 from typing import Any
 
@@ -443,17 +445,24 @@ class SQLiteDatabase:
         connection.execute("CREATE INDEX IF NOT EXISTS idx_users_status ON users(status)")
         connection.execute("CREATE INDEX IF NOT EXISTS idx_api_tokens_user_id ON api_tokens(user_id)")
 
+    @contextmanager
+    def session(self) -> Iterator[sqlite3.Connection]:
+        """复用一次操作内的连接，并在提交或回滚后明确释放 SQLite 句柄。"""
+
+        with closing(self.connect()) as connection:
+            with connection:
+                yield connection
+
     def execute(self, sql: str, parameters: tuple[Any, ...] = ()) -> None:
-        with self.connect() as connection:
+        with self.session() as connection:
             connection.execute(sql, parameters)
-            connection.commit()
 
     def query_one(self, sql: str, parameters: tuple[Any, ...] = ()) -> sqlite3.Row | None:
-        with self.connect() as connection:
+        with self.session() as connection:
             return connection.execute(sql, parameters).fetchone()
 
     def query_all(self, sql: str, parameters: tuple[Any, ...] = ()) -> list[sqlite3.Row]:
-        with self.connect() as connection:
+        with self.session() as connection:
             return list(connection.execute(sql, parameters).fetchall())
 
 

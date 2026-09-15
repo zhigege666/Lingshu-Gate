@@ -136,7 +136,10 @@ def register_mcp_gateway_route(
                 protocol_version=protocol_context.protocol_version,
             )
         if method == "tools/list":
-            definitions = access_store.visible_tools(principal, registry.list_definitions())
+            # 工具发现也包含同步 SQLite 对账和权限读取，复用调用路径的线程池以免阻塞协议事件循环。
+            definitions = await run_in_threadpool(
+                access_store.visible_tools, principal, registry.list_definitions(),
+            )
             try:
                 tools = [item[1] for item in _gateway_tools(registry, definitions)]
             except ToolNamespaceCollisionError as exc:

@@ -3,7 +3,7 @@ export type ThemeMode = "light" | "dark"
 export function getInitialTheme(): ThemeMode {
   const stored = window.localStorage.getItem("lingshu-gate-console-theme")
   if (stored === "light" || stored === "dark") return stored
-  return "light"
+  return "dark"
 }
 
 export function applyTheme(theme: ThemeMode) {

@@ -1,14 +1,5 @@
 import { lazy, Suspense, useEffect, useMemo, useState } from "react"
-import {
-  Activity,
-  Braces,
-  CircleUserRound,
-  LogOut,
-  Menu,
-  RefreshCcw,
-  Search,
-  Shield,
-} from "lucide-react"
+import { Activity, Braces, RefreshCcw, Shield } from "lucide-react"
 import {
   api,
   type DiagnosticsResponse,
@@ -17,21 +8,19 @@ import {
   type McpServer,
   type ToolDefinition,
 } from "@/api/client"
-import { LanguageSwitcher } from "@/components/language-switcher"
 import { useAuth } from "@/components/auth-gate"
 import { RouteErrorBoundary, RouteLoadingFallback } from "@/components/route-boundary"
-import { ThemeToggle } from "@/components/theme-toggle"
 import { useConfirm } from "@/components/confirm-dialog"
 import { HighlightText } from "@/components/highlight-text"
 import { Button } from "@/components/ui/button"
 import { CommandDialog, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from "@/components/ui/command"
-import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet"
 import { Toaster, type ToastState } from "@/components/ui/toast"
-import { getInitialLocale, saveLocale, translate, type Locale, type MessageKey, type TFunction } from "@/i18n"
-import { cn, prettyJson } from "@/lib/utils"
+import { translate, type MessageKey, type TFunction } from "@/i18n"
+import { prettyJson } from "@/lib/utils"
+import { ConsoleShell } from "@/components/console-shell"
+import { useConsoleDesign } from "@/components/console-design-provider"
 import { useConsoleNavigation } from "@/routing/use-console-navigation"
 import { useConsoleRoute } from "@/routing/use-console-route"
-import { applyTheme, getInitialTheme, type ThemeMode } from "@/theme"
 
 const CONSOLE_VERSION = `v${__LINGSHU_GATE_VERSION__}`
 
@@ -68,14 +57,15 @@ const genericTemplate = {
 export default function App() {
   const { user, logout } = useAuth()
   const { view, routeBuildId, recentViews, navigate } = useConsoleRoute()
-  const [locale, setLocale] = useState<Locale>(getInitialLocale())
-  const [theme, setTheme] = useState<ThemeMode>(getInitialTheme())
+  const { locale } = useConsoleDesign()
   const t: TFunction = (key: MessageKey) => translate(locale, key)
   const [health, setHealth] = useState<HealthResponse | null>(null)
   const [diagnostics, setDiagnostics] = useState<DiagnosticsResponse | null>(null)
   const [servers, setServers] = useState<McpServer[]>([])
   const [loadErrors, setLoadErrors] = useState<string[]>([])
   const [tools, setTools] = useState<ToolDefinition[]>([])
+  const [toolsLoaded, setToolsLoaded] = useState(false)
+  const [toolsError, setToolsError] = useState<string | null>(null)
   const [configs, setConfigs] = useState<McpConfig[]>([])
   const [configErrors, setConfigErrors] = useState<string[]>([])
   const [selectedConfigId, setSelectedConfigId] = useState("")
@@ -83,11 +73,9 @@ export default function App() {
   const [selectedToolId, setSelectedToolId] = useState("")
   const [invokeArgs, setInvokeArgs] = useState("{}")
   const [invokeResult, setInvokeResult] = useState(t("waiting"))
-  const [serverToolOutput, setServerToolOutput] = useState(t("serverToolsHint"))
   const [message, setMessage] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [busy, setBusy] = useState(false)
-  const [mobileNavOpen, setMobileNavOpen] = useState(false)
   const [commandOpen, setCommandOpen] = useState(false)
   const [commandQuery, setCommandQuery] = useState("")
   const { confirm, confirmDialog } = useConfirm(t)
@@ -97,7 +85,6 @@ export default function App() {
 
   const selectedTool = useMemo(() => tools.find((tool) => tool.id === selectedToolId), [tools, selectedToolId])
 
-  useEffect(() => { applyTheme(theme) }, [theme])
   useEffect(() => { void refreshAll() }, [])
   useEffect(() => {
     const onKey = (event: KeyboardEvent) => {
@@ -110,19 +97,8 @@ export default function App() {
     return () => window.removeEventListener("keydown", onKey)
   }, [])
   useEffect(() => { if (!commandOpen) setCommandQuery("") }, [commandOpen])
-  useEffect(() => {
-    const frame = window.requestAnimationFrame(() => {
-      document.querySelector<HTMLElement>('nav[data-console-nav="desktop"] button[data-active="true"]')
-        ?.closest<HTMLElement>("[data-nav-group]")
-        ?.scrollIntoView({ block: "nearest" })
-    })
-    return () => window.cancelAnimationFrame(frame)
-  }, [view])
-
-  function changeLocale(next: Locale) { setLocale(next); saveLocale(next) }
-
   async function refreshAll() {
-    setBusy(true); setError(null)
+    setBusy(true); setError(null); setToolsLoaded(false); setToolsError(null)
     try {
       const refreshErrors: string[] = []
       const recordRefreshError = (label: string, reason: unknown) => {
@@ -164,9 +140,13 @@ export default function App() {
         requests.push(api.tools()
           .then((toolData) => {
             setTools(toolData)
+            setToolsLoaded(true)
             if (!selectedToolId && toolData[0]) setSelectedToolId(toolData[0].id)
           })
-          .catch((reason: unknown) => recordRefreshError("tools", reason)))
+          .catch((reason: unknown) => {
+            setToolsError(reason instanceof Error ? reason.message : String(reason))
+            recordRefreshError("tools", reason)
+          }))
       } else {
         setTools([])
         setSelectedToolId("")
@@ -216,7 +196,6 @@ export default function App() {
   async function reloadConfigs() { setBusy(true); try { await api.reloadConfigs(); setMessage("configs reloaded"); await refreshAll() } catch (err) { setError(err instanceof Error ? err.message : String(err)) } finally { setBusy(false) } }
   async function applyConfig(id: string) { setBusy(true); try { await api.applyConfig(id); setMessage(`applied: ${id}`); await refreshAll() } catch (err) { setError(err instanceof Error ? err.message : String(err)) } finally { setBusy(false) } }
   async function serverAction(id: string, action: "start" | "stop" | "restart") { setBusy(true); try { await api.serverAction(id, action); setMessage(`${action}: ${id}`); await refreshAll() } catch (err) { setError(err instanceof Error ? err.message : String(err)) } finally { setBusy(false) } }
-  async function showServerTools(id: string) { try { setServerToolOutput(prettyJson(await api.serverTools(id))) } catch (err) { setServerToolOutput(err instanceof Error ? err.message : String(err)) } }
   async function runDiagnostics() { setBusy(true); try { setDiagnostics(await api.runDiagnostics()); setMessage("diagnostics completed") } catch (err) { setError(err instanceof Error ? err.message : String(err)) } finally { setBusy(false) } }
   async function invokeTool() { if (!selectedToolId) return; try { const args = JSON.parse(invokeArgs) as Record<string, unknown>; setInvokeResult("..."); setInvokeResult(prettyJson(await api.invoke(selectedToolId, args))) } catch (err) { setInvokeResult(err instanceof Error ? err.message : String(err)) } }
 
@@ -232,109 +211,45 @@ export default function App() {
   const viewAllowed = canAccessView(currentNavItem)
   const allowedRecentViews = recentViews.filter((id) => id !== view && canAccessView(navById[id]))
 
-  const renderNav = (onSelect?: () => void) => navGroups.map((group) => (
-    <div key={group.title} data-nav-group className="mb-5 last:mb-0">
-      <div className="px-3 pb-1.5 text-[11px] font-semibold uppercase tracking-wider text-sidebar-muted">{group.title}</div>
-      <div className="flex flex-col gap-0.5">
-        {group.items.map((id) => {
-          const item = navById[id]
-          const active = view === id
-          return (
-            <button key={id} data-active={active} onClick={() => { navigate(id); onSelect?.() }} className={cn("group relative flex w-full items-center gap-2.5 rounded-md px-3 py-2 text-left text-sm transition-colors", active ? "bg-sidebar-accent font-medium text-white shadow-sm shadow-black/20" : "text-sidebar-foreground/80 hover:bg-white/10 hover:text-white")}>
-              <item.icon className="size-4" />{item.label}
-            </button>
-          )
-        })}
-      </div>
-    </div>
-  ))
-
   return (
-    <div className="min-h-screen text-foreground">
-      <aside className="fixed inset-y-0 left-0 z-20 hidden w-[244px] flex-col bg-sidebar text-sidebar-foreground shadow-[4px_0_18px_rgba(15,23,42,0.16)] lg:flex">
-        <div className="flex h-[72px] shrink-0 items-center gap-3 border-b border-white/10 px-5">
-          <div className="flex size-9 items-center justify-center rounded-xl border border-white/15 bg-white shadow-md shadow-black/20"><img src="/console/lingshu-gate-icon.svg" alt="Lingshu Gate" className="size-6" /></div>
-          <div><div className="text-sm font-semibold leading-tight text-white">Lingshu Gate</div><div className="text-xs text-sidebar-muted">Console {CONSOLE_VERSION}</div></div>
+    <ConsoleShell
+      view={view} title={currentTitle} user={user} version={CONSOLE_VERSION}
+      groups={navGroups} items={navById} busy={busy}
+      onNavigate={navigate} onSearch={() => setCommandOpen(true)}
+      onRefresh={() => void refreshAll()} onLogout={() => void logout()}
+    >
+      {!viewAllowed && (
+        <div className="rounded-xl border border-dashed bg-card p-8 text-center">
+          <Shield className="mx-auto mb-3 size-8 text-muted-foreground" />
+          <div className="font-medium">{locale === "zh-CN" ? "当前账号无权访问此页面" : "Your account cannot access this page"}</div>
+          <div className="mt-1 text-sm text-muted-foreground">{locale === "zh-CN" ? "请联系管理员分配对应控制面权限。" : "Ask an administrator to assign the required control-plane permission."}</div>
+          <Button variant="secondary" className="mt-4" onClick={() => navigate("dashboard")}>{locale === "zh-CN" ? "返回概览" : "Back to overview"}</Button>
         </div>
-        <nav data-console-nav="desktop" className="flex-1 overflow-y-auto px-3 py-4">
-          {renderNav()}
-        </nav>
-      </aside>
-
-      <Sheet open={mobileNavOpen} onOpenChange={setMobileNavOpen}>
-        <SheetContent side="left" className="w-72 gap-0 border-r-0 bg-sidebar p-0 text-sidebar-foreground [&_[data-slot=sheet-close]]:text-white">
-          <SheetHeader className="h-[72px] shrink-0 flex-row items-center gap-3 border-b border-white/10 px-5 py-0">
-            <div className="flex size-9 items-center justify-center rounded-xl border border-white/15 bg-white shadow-md shadow-black/20"><img src="/console/lingshu-gate-icon.svg" alt="Lingshu Gate" className="size-6" /></div>
-            <div><SheetTitle className="text-sm leading-tight text-white">Lingshu Gate</SheetTitle><div className="text-xs text-sidebar-muted">Console {CONSOLE_VERSION}</div></div>
-          </SheetHeader>
-          <nav data-console-nav="mobile" className="flex-1 overflow-y-auto bg-sidebar px-3 py-4">{renderNav(() => setMobileNavOpen(false))}</nav>
-          <div className="flex items-center gap-2 border-t border-white/10 bg-sidebar p-3 text-sidebar-foreground">
-            <CircleUserRound className="size-4 text-primary" />
-            <div className="min-w-0 flex-1"><div className="truncate text-xs font-medium">{user.display_name || user.username}</div><div className="truncate text-[10px] text-sidebar-muted">{user.roles.join(", ") || user.role}</div></div>
-            {user.auth_type !== "disabled" && <Button variant="ghost" size="sm" className="size-8 px-0" onClick={() => void logout()} aria-label={locale === "zh-CN" ? "退出登录" : "Sign out"}><LogOut /></Button>}
-          </div>
-        </SheetContent>
-      </Sheet>
-
-      <main className="lg:pl-[244px]">
-        <header className="sticky top-0 z-10 border-b bg-card/90 px-6 py-4 backdrop-blur-xl lg:h-[72px] lg:px-8 lg:py-0">
-          <div className="flex items-center gap-3 lg:h-full">
-            <Button variant="outline" size="sm" className="lg:hidden" onClick={() => setMobileNavOpen(true)} aria-label="Menu"><Menu /></Button>
-            <div className="min-w-0 flex-1 lg:hidden"><h1 className="truncate text-lg font-semibold tracking-tight sm:text-xl">{currentTitle}</h1></div>
-            <div className="hidden flex-1 lg:block" />
-            <div className="flex flex-wrap items-center justify-end gap-2">
-              <Button variant="outline" size="sm" className="gap-2 text-muted-foreground" onClick={() => setCommandOpen(true)}><Search />
-                <span className="hidden md:inline">{t("search")}</span>
-                <kbd className="hidden rounded border bg-muted px-1.5 font-mono text-[10px] md:inline">Ctrl K</kbd>
-              </Button>
-              <LanguageSwitcher locale={locale} onChange={changeLocale} />
-              <ThemeToggle theme={theme} onChange={setTheme} />
-              <Button variant="secondary" onClick={refreshAll} disabled={busy}><RefreshCcw />{t("refresh")}</Button>
-              <Button variant="outline" className="hidden xl:inline-flex" asChild><a href="/docs" target="_blank" rel="noreferrer">{t("openApi")}</a></Button>
-              <div className="hidden items-center gap-2 rounded-lg border bg-background/80 px-2.5 py-1.5 lg:flex">
-                <CircleUserRound className="size-4 text-primary" />
-                <div className="max-w-28"><div className="truncate text-xs font-medium">{user.display_name || user.username}</div><div className="truncate text-[10px] text-muted-foreground">{user.roles.join(", ") || user.role}</div></div>
-                {user.auth_type !== "disabled" && <Button variant="ghost" size="sm" className="size-7 px-0" onClick={() => void logout()} aria-label={locale === "zh-CN" ? "退出登录" : "Sign out"}><LogOut /></Button>}
-              </div>
-            </div>
-          </div>
-        </header>
-        <div className="flex flex-col gap-4 p-6 lg:p-8">
-          {!viewAllowed && (
-            <div className="rounded-xl border border-dashed bg-card p-8 text-center">
-              <Shield className="mx-auto mb-3 size-8 text-muted-foreground" />
-              <div className="font-medium">{locale === "zh-CN" ? "当前账号无权访问此页面" : "Your account cannot access this page"}</div>
-              <div className="mt-1 text-sm text-muted-foreground">{locale === "zh-CN" ? "请联系管理员分配对应控制面权限。" : "Ask an administrator to assign the required control-plane permission."}</div>
-              <Button variant="secondary" className="mt-4" onClick={() => navigate("dashboard")}>{locale === "zh-CN" ? "返回概览" : "Back to overview"}</Button>
-            </div>
-          )}
-          {viewAllowed && (
-            <RouteErrorBoundary key={view} locale={locale}>
-              <Suspense fallback={<RouteLoadingFallback locale={locale} />}>
-                {view === "dashboard" && <DashboardPage health={health} servers={servers} tools={tools} operationsAllowed={can("operations.manage")} t={t} />}
-                {view === "configs" && <ConfigsPage locale={locale} t={t} configs={configs} configErrors={configErrors} selectedConfigId={selectedConfigId} configText={configText} busy={busy} onNewConfig={newConfig} onReloadConfigs={reloadConfigs} onEditConfig={editConfig} onApplyConfig={applyConfig} onDeleteConfig={deleteConfig} onConfigTextChange={setConfigText} onSaveConfig={saveConfig} />}
-                {view === "servers" && <ServersPage t={t} servers={servers} loadErrors={loadErrors} serverToolOutput={serverToolOutput} onServerAction={serverAction} onShowServerTools={showServerTools} />}
-                {view === "builds" && <BuildsPage t={t} initialBuildId={routeBuildId} />}
-                {view === "credentials" && <CredentialsPage t={t} />}
-                {view === "accessUsers" && <AccessUsersPage locale={locale} t={t} />}
-                {view === "accessRoles" && <AccessRolesPage locale={locale} t={t} />}
-                {view === "accessGrants" && <AccessGrantsPage locale={locale} t={t} />}
-                {view === "toolClassifications" && <ToolClassificationsPage locale={locale} t={t} />}
-                {view === "personalTokens" && <PersonalTokensPage locale={locale} t={t} />}
-                {view === "downstreamCredentials" && <DownstreamCredentialsPage locale={locale} t={t} />}
-                {view === "invocationAudit" && <InvocationAuditPage locale={locale} t={t} />}
-                {view === "logs" && <LogsEventsPage t={t} />}
-                {view === "runtimeCache" && <RuntimeCachePage t={t} />}
-                {view === "uploads" && <UploadsPage t={t} />}
-                {view === "diagnostics" && <DiagnosticsPage diagnostics={diagnostics} t={t} onRunDiagnostics={runDiagnostics} />}
-                {view === "tools" && <ToolsPage tools={tools} t={t} />}
-                {view === "invoke" && <InvokePage t={t} tools={tools} selectedTool={selectedTool} selectedToolId={selectedToolId} invokeArgs={invokeArgs} invokeResult={invokeResult} onToolChange={setSelectedToolId} onArgsChange={setInvokeArgs} onInvoke={invokeTool} />}
-              </Suspense>
-            </RouteErrorBoundary>
-          )}
-        </div>
-      </main>
-
+      )}
+      {viewAllowed && (
+        <RouteErrorBoundary key={view} locale={locale}>
+          <Suspense fallback={<RouteLoadingFallback locale={locale} />}>
+            {view === "dashboard" && <DashboardPage health={health} servers={servers} tools={tools} operationsAllowed={can("operations.manage")} t={t} />}
+            {view === "configs" && <ConfigsPage locale={locale} t={t} configs={configs} configErrors={configErrors} selectedConfigId={selectedConfigId} configText={configText} busy={busy} onNewConfig={newConfig} onReloadConfigs={reloadConfigs} onEditConfig={editConfig} onApplyConfig={applyConfig} onDeleteConfig={deleteConfig} onConfigTextChange={setConfigText} onSaveConfig={saveConfig} />}
+            {view === "servers" && <ServersPage locale={locale} t={t} servers={servers} loadErrors={loadErrors} busy={busy} visibleTools={toolsLoaded ? tools : null} toolsError={toolsError} canReadTools={can("tools.read")} canManageClassifications={can("classifications.manage")} onServerAction={serverAction} onRefresh={refreshAll} onNewConfig={newConfig} onNavigate={navigate} />}
+            {view === "builds" && <BuildsPage t={t} initialBuildId={routeBuildId} />}
+            {view === "credentials" && <CredentialsPage t={t} />}
+            {view === "accessUsers" && <AccessUsersPage locale={locale} t={t} />}
+            {view === "accessRoles" && <AccessRolesPage locale={locale} t={t} />}
+            {view === "accessGrants" && <AccessGrantsPage locale={locale} t={t} />}
+            {view === "toolClassifications" && <ToolClassificationsPage locale={locale} t={t} />}
+            {view === "personalTokens" && <PersonalTokensPage locale={locale} t={t} />}
+            {view === "downstreamCredentials" && <DownstreamCredentialsPage locale={locale} t={t} />}
+            {view === "invocationAudit" && <InvocationAuditPage locale={locale} t={t} />}
+            {view === "logs" && <LogsEventsPage t={t} />}
+            {view === "runtimeCache" && <RuntimeCachePage t={t} />}
+            {view === "uploads" && <UploadsPage t={t} />}
+            {view === "diagnostics" && <DiagnosticsPage diagnostics={diagnostics} t={t} onRunDiagnostics={runDiagnostics} />}
+            {view === "tools" && <ToolsPage tools={tools} t={t} />}
+            {view === "invoke" && <InvokePage t={t} tools={tools} selectedTool={selectedTool} selectedToolId={selectedToolId} invokeArgs={invokeArgs} invokeResult={invokeResult} onToolChange={setSelectedToolId} onArgsChange={setInvokeArgs} onInvoke={invokeTool} />}
+          </Suspense>
+        </RouteErrorBoundary>
+      )}
       <CommandDialog open={commandOpen} onOpenChange={setCommandOpen} title={t("search")} description={t("subtitle")}>
         <CommandInput placeholder={t("search")} value={commandQuery} onValueChange={setCommandQuery} />
         <CommandList>
@@ -374,6 +289,6 @@ export default function App() {
 
       <Toaster toast={toast} onClose={dismissToast} />
       {confirmDialog}
-    </div>
+    </ConsoleShell>
   )
 }

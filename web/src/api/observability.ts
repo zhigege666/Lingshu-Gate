@@ -4,8 +4,7 @@ export type HealthResponse = {
   status: string
   service: string
   version: string
-  tool_count: number
-  mcp_server_count: number
+  checks?: Record<string, { ok: boolean; detail: string; metadata: Record<string, unknown> }>
 }
 
 export type ObservabilityLog = {

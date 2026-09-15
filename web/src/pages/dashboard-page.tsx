@@ -55,8 +55,8 @@ export function DashboardPage({ health, servers, tools, operationsAllowed, t }: 
             <Metric title={t("service")} value={health?.service || "-"} hint={`${t("version")} ${health?.version || "-"}`} icon={<Zap className="size-[18px]" />} />
             <Metric title={t("status")} value={health?.status || "-"} badge={statusBadge(health?.status, t)} icon={<Activity className="size-[18px]" />} />
             {operationsAllowed ? <>
-              <Metric title={t("mcpServers")} value={String(health?.mcp_server_count ?? 0)} hint={`${runningCount} ${t("running")}`} icon={<Server className="size-[18px]" />} />
-              <Metric title={t("tools")} value={String(health?.tool_count ?? 0)} hint={`${mcpToolCount} ${t("mcpTools")}`} icon={<Wrench className="size-[18px]" />} />
+              <Metric title={t("mcpServers")} value={String(servers.length)} hint={`${runningCount} ${t("running")}`} icon={<Server className="size-[18px]" />} />
+              <Metric title={t("tools")} value={String(tools.length)} hint={`${mcpToolCount} ${t("mcpTools")}`} icon={<Wrench className="size-[18px]" />} />
             </> : <Metric title={t("tools")} value={String(tools.length)} icon={<Wrench className="size-[18px]" />} />}
           </>
         )}

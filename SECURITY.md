@@ -53,6 +53,8 @@ The Docker Core image intentionally does not launch local stdio processes or exe
 
 Effective tool access is the intersection of authentication state, control permission, resource grant, published read/write classification, and API-token scope. Tool annotations and discovered schemas are untrusted hints; they never grant access by themselves.
 
+Tool-discovery classification and grant snapshots are scoped to one request and are not shared between principals or retained for later calls. The next discovery or invocation reads current grants, expiration, and classification state again. Sectioned server-detail reads keep the existing `operations.manage` boundary and return only the requested diagnostic data; selecting a section does not bypass authorization or manifest credential masking.
+
 Administrators should:
 
 - classify and publish tools only after human review;

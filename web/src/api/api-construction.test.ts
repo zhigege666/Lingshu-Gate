@@ -44,4 +44,20 @@ describe("feature API construction", () => {
     expect(requestBodies[2]).toMatchObject({ start: false, overwrite: false })
     expect(requestBodies[3]).toEqual({ start: false })
   })
+
+  it("requests one bounded detail section and forwards cancellation", async () => {
+    const fetchMock = vi.fn().mockImplementation(async () => new Response('{"server":{"id":"a/b"}}', {
+      status: 200, headers: { "Content-Type": "application/json" },
+    }))
+    vi.stubGlobal("fetch", fetchMock)
+    const controller = new AbortController()
+
+    await serversRuntimeApi.serverDetail("a/b", { section: "logs", limit: 40, signal: controller.signal })
+
+    expect(fetchMock).toHaveBeenCalledWith("/v1/mcp/servers/a%2Fb/detail?section=logs&limit=40", expect.objectContaining({
+      signal: controller.signal, credentials: "include",
+    }))
+    await serversRuntimeApi.serverDetail("a/b")
+    expect(fetchMock.mock.calls[1][0]).toBe("/v1/mcp/servers/a%2Fb/detail")
+  })
 })

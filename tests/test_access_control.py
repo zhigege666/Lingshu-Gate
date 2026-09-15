@@ -405,14 +405,14 @@ class DefaultAdminTest(unittest.TestCase):
             },
         )
         first_reads = Barrier(2)
-        original_query_one = self.database.query_one
+        original_load = self.access_store._load_classifications
 
-        def synchronize_first_read(sql: str, parameters: tuple[object, ...] = ()):
-            if "FROM mcp_tool_classifications WHERE server_id" in " ".join(sql.split()):
-                first_reads.wait(timeout=2)
-            return original_query_one(sql, parameters)
+        def synchronize_first_read(connection, keys):
+            rows = original_load(connection, keys)
+            first_reads.wait(timeout=2)
+            return rows
 
-        with patch.object(self.database, "query_one", side_effect=synchronize_first_read):
+        with patch.object(self.access_store, "_load_classifications", side_effect=synchronize_first_read):
             with ThreadPoolExecutor(max_workers=2) as executor:
                 results = list(executor.map(lambda _: self.access_store.synchronize_tools([definition]), range(2)))
 
@@ -420,6 +420,102 @@ class DefaultAdminTest(unittest.TestCase):
         classifications = self.access_store.list_classifications(server_id="demo")
         self.assertEqual(len(classifications), 1)
         self.assertEqual(classifications[0]["tool_id"], definition.id)
+
+    def _discovery_fixture(self, count: int = 2) -> tuple[AuthPrincipal, list[ToolDefinition], str]:
+        user = AuthStore(self.settings, self.database).create_user(
+            username="discovery-reader", password="reader-password", role="operator",
+        )
+        principal = AuthPrincipal(
+            id=str(user["id"]), username="discovery-reader", role="operator",
+            roles=("operator",), permissions=("tools.read", "tools.invoke"),
+        )
+        definitions = [
+            ToolDefinition(
+                id=f"mcp.discovery.read_{index}", name=f"Read {index}", description="Read a test record.", source="mcp",
+                metadata={"server_id": "discovery", "annotations": {"readOnlyHint": True}},
+            )
+            for index in range(count)
+        ]
+        self.access_store.synchronize_tools(definitions)
+        self.database.execute(
+            "UPDATE mcp_tool_classifications SET effective_access = 'read', status = 'published' WHERE server_id = ?",
+            ("discovery",),
+        )
+        grant = self.access_store.save_grant(
+            subject_type="user", subject_id=principal.id, server_id="discovery",
+            permission_type_code="read", created_by="test-admin",
+        )
+        return principal, definitions, str(grant["id"])
+
+    def test_large_published_catalog_uses_bounded_reads_without_classification_writes(self) -> None:
+        principal, definitions, _ = self._discovery_fixture(600)
+        statements: list[str] = []
+        original_connect = self.database.connect
+
+        def traced_connect():
+            connection = original_connect()
+            connection.set_trace_callback(statements.append)
+            return connection
+
+        with patch.object(self.database, "connect", side_effect=traced_connect) as connect:
+            visible = self.access_store.visible_tools(principal, definitions)
+        self.assertEqual([item.id for item in visible], [item.id for item in definitions])
+        self.assertEqual(connect.call_count, 1)
+        self.assertLess(sum(sql.lstrip().upper().startswith("SELECT") for sql in statements), 20)
+        self.assertFalse(any(sql.lstrip().upper().startswith(("INSERT", "UPDATE", "DELETE")) for sql in statements))
+
+    def test_discovery_observes_revocation_identity_and_changed_tool_on_next_request(self) -> None:
+        principal, definitions, grant_id = self._discovery_fixture()
+        self.assertEqual(len(self.access_store.visible_tools(principal, definitions)), 2)
+        other = AuthPrincipal(
+            id="another-user", username="another-user", role="operator",
+            permissions=("tools.read", "tools.invoke"),
+        )
+        self.assertEqual(self.access_store.visible_tools(other, definitions), [])
+        self.access_store.delete_grant(grant_id)
+        self.assertEqual(self.access_store.visible_tools(principal, definitions), [])
+        self.access_store.save_grant(
+            subject_type="user", subject_id=principal.id, server_id="discovery",
+            permission_type_code="read", created_by="test-admin",
+        )
+        changed = definitions[0].model_copy(update={"description": "Changed contract"})
+        visible = self.access_store.visible_tools(principal, [changed, definitions[1]])
+        self.assertEqual([item.id for item in visible], [definitions[1].id])
+        self.assertEqual(self.access_store.evaluate(principal, changed)["classification_status"], "stale")
+
+    def test_batched_grants_preserve_user_role_expiry_and_disabled_role_precedence(self) -> None:
+        principal, definitions, grant_id = self._discovery_fixture()
+        self.access_store.delete_grant(grant_id)
+        self.database.execute(
+            "INSERT OR IGNORE INTO user_roles (user_id, role_id) VALUES (?, ?)",
+            (principal.id, "role-viewer"),
+        )
+
+        def grant(subject: str, subject_id: str, level: str, tool_id: str = "", expires_at: str | None = None):
+            return self.access_store.save_grant(
+                subject_type=subject, subject_id=subject_id, server_id="discovery",
+                permission_type_code=level, tool_id=tool_id, expires_at=expires_at,
+                created_by="test-admin",
+            )
+
+        grant("role", "role-operator", "write")
+        grant("role", "role-operator", "none", definitions[0].id)
+        grant("role", "role-viewer", "read")
+        self.assertEqual(self.access_store.effective_access(principal, "discovery", definitions[0].id), "read")
+        self.assertEqual(self.access_store.effective_access(principal, "discovery", definitions[1].id), "write")
+        direct = grant("user", principal.id, "none")
+        self.assertEqual(self.access_store.visible_tools(principal, definitions), [])
+        grant("user", principal.id, "read", definitions[0].id)
+        self.assertEqual(
+            [item.id for item in self.access_store.visible_tools(principal, definitions)], [definitions[0].id],
+        )
+        grant("user", principal.id, "read", definitions[0].id, "2000-01-01T00:00:00+00:00")
+        self.assertEqual(self.access_store.visible_tools(principal, definitions), [])
+        self.access_store.delete_grant(str(direct["id"]))
+        self.database.execute("UPDATE roles SET enabled = 0 WHERE id = ?", ("role-viewer",))
+        self.assertEqual(
+            [item.id for item in self.access_store.visible_tools(principal, definitions)], [definitions[1].id],
+        )
 
     def test_reconcile_server_tools_requires_review_for_changed_retired_and_reappeared_tools(self) -> None:
         original = ToolDefinition(

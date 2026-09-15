@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import os
 from pathlib import Path
-from typing import Any
+from typing import Any, Literal
 
 from lingshu_gate.config import Settings
 from lingshu_gate.mcp_runtime import McpRuntimeManager
@@ -49,39 +49,58 @@ RECOVERY_EVENT_LABELS = {
 }
 
 
-def build_mcp_server_detail(settings: Settings, runtime: McpRuntimeManager, observability_store: ObservabilityStore, server_id: str) -> dict[str, Any]:
-    """Build a single server diagnostic payload for Console detail views."""
+McpServerDetailSection = Literal["overview", "tools", "logs", "events", "configuration", "recovery", "cache"]
 
-    status = runtime.get_server(server_id)
-    manifest = runtime.iter_manifests()[server_id]
-    logs = observability_store.list_logs(server_id=server_id, limit=80)
-    events = observability_store.list_events(subject_id=server_id, limit=80)
-    restart_history = runtime.list_restart_history(server_id, limit=80)
-    cache_plan = McpRuntimeCacheResolver(settings.data_dir).resolve(manifest)
-    cache_status = _cache_status(cache_plan.safe_dict())
-    timeline = _build_timeline(logs, events)
-    stdout = _recent_stream(logs, "stdout")
-    stderr = _recent_stream(logs, "stderr")
-    status_dict = status.model_dump(mode="json")
-    manifest_dict = manifest.safe_dict()
-    failure_hints = _failure_hints(status_dict, manifest_dict, cache_status, logs, restart_history)
-    recovery_chart = _recovery_chart(restart_history)
 
-    return {
-        "server": status_dict,
-        "manifest": manifest_dict,
-        "runtime_cache": cache_status,
-        "timeline": timeline,
-        "recent_stdout": stdout,
-        "recent_stderr": stderr,
-        "logs": logs,
-        "events": events,
-        "tools": runtime.list_server_tools(server_id),
-        "failure_hints": failure_hints,
-        "restart_history": restart_history,
-        "recovery_chart": recovery_chart,
-        "recovery_summary": _recovery_summary(status_dict, manifest_dict, restart_history),
-    }
+def build_mcp_server_detail(
+    settings: Settings,
+    runtime: McpRuntimeManager,
+    observability_store: ObservabilityStore,
+    server_id: str,
+    *,
+    section: McpServerDetailSection | None = None,
+    limit: int = 80,
+) -> dict[str, Any]:
+    """按需读取详情分区；不传分区时保留既有完整响应和诊断工具契约。"""
+
+    status_dict = runtime.get_server(server_id).model_dump(mode="json")
+    result: dict[str, Any] = {"server": status_dict}
+    full = section is None
+    if section == "overview":
+        # 首屏只读取运行态，不扫描缓存目录，也不拉取工具 Schema 和日志正文。
+        return result
+
+    manifest = runtime.iter_manifests()[server_id] if full or section in {"configuration", "recovery", "cache"} else None
+    manifest_dict = manifest.safe_dict() if manifest is not None else {}
+    if full or section == "configuration":
+        result["manifest"] = manifest_dict
+
+    logs = observability_store.list_logs(server_id=server_id, limit=limit) if full or section == "logs" else []
+    events = observability_store.list_events(subject_id=server_id, limit=limit) if full or section == "events" else []
+    restart_history = runtime.list_restart_history(server_id, limit=limit) if full or section == "recovery" else []
+    if full or section == "logs":
+        result.update(logs=logs, recent_stdout=_recent_stream(logs, "stdout"), recent_stderr=_recent_stream(logs, "stderr"))
+    if full or section == "events":
+        result["events"] = events
+    if full or section in {"logs", "events"}:
+        result["timeline"] = _build_timeline(logs, events)
+    if full or section == "tools":
+        result["tools"] = runtime.list_server_tools(server_id)
+    if full or section == "recovery":
+        result.update(
+            restart_history=restart_history,
+            recovery_chart=_recovery_chart(restart_history),
+            recovery_summary=_recovery_summary(status_dict, manifest_dict, restart_history),
+        )
+    cache_status: dict[str, Any] = {}
+    if (full or section == "cache") and manifest is not None:
+        cache_plan = McpRuntimeCacheResolver(settings.data_dir).resolve(manifest)
+        cache_status = _cache_status(cache_plan.safe_dict())
+        result["runtime_cache"] = cache_status
+    if full:
+        # 未加载完整诊断证据的分区不能生成“未发现问题”或“缓存不可写”等推断。
+        result["failure_hints"] = _failure_hints(status_dict, manifest_dict, cache_status, logs, restart_history)
+    return result
 
 
 def _cache_status(plan: dict[str, Any]) -> dict[str, Any]:

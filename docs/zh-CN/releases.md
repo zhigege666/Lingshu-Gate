@@ -23,6 +23,8 @@ Lingshu Gate 发行自动化会生成可直接运行的原生包、Docker Compos
 
 ## 原生包内容
 
+Console 包含由 `web/package-lock.json` 锁定的 Ant Design 及其图标库，仍作为静态客户端由 Gate 提供，发行包不需要额外的前端应用服务器。打包 Console 更新前，应核对服务目录、详情分区加载、深浅主题、中英文文案及既有权限控制，并在生成的发行清单中包含新增前端依赖的许可证。
+
 每个原生归档包含一个顶层目录，以及：
 
 - `lingshu-gate` 可执行文件（Windows 为 `lingshu-gate.exe`）和捆绑运行文件；

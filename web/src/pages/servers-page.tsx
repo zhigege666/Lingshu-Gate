@@ -1,279 +1,280 @@
-import { useMemo, useState, type ReactNode } from "react"
-import { api, type McpServer, type McpServerDetail } from "@/api/client"
-import { ActionMenu, ActionMenuItem } from "@/components/action-menu"
+import { useEffect, useMemo, useState, type ReactNode } from "react"
+import {
+  ArrowLeftOutlined, ArrowRightOutlined, CloudServerOutlined, CodeOutlined, ExportOutlined,
+  InfoCircleOutlined, MoreOutlined, PlusOutlined, ReloadOutlined, SearchOutlined, UnorderedListOutlined,
+} from "@ant-design/icons"
+import { Alert, Badge, Button, Collapse, Drawer, Dropdown, Empty, Grid, Input, Segmented, Skeleton, Table, Tabs, Tag, Tooltip, type TableColumnsType } from "antd"
+import type { McpServer, McpServerDetailSlice, ToolClassification, ToolDefinition } from "@/api/client"
 import { JsonPanel } from "@/components/json-panel"
 import { PageHeader, PageToolbar } from "@/components/page-shell"
-import { ColGroup, SortHead, useColumnWidths } from "@/components/table-tools"
-import { Alert, AlertDescription } from "@/components/ui/alert"
-import { Badge } from "@/components/ui/badge"
-import { Button } from "@/components/ui/button"
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
-import { Dialog, DialogBody, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog"
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
-import { localizeStatus, type TFunction } from "@/i18n"
-import { formatBytes, formatDateTime } from "@/lib/utils"
-import { codePanelClass, statusBadge, TableEmptyRow } from "@/pages/page-utils"
+import { serverCopy, type ServerCopy } from "@/features/servers/copy"
+import { useServerDetails, type DetailSection, type DetailState } from "@/features/servers/use-server-details"
+import { localizeStatus, type Locale, type TFunction } from "@/i18n"
+import { formatDateTime } from "@/lib/utils"
+import type { ConsoleView } from "@/routing/console-routes"
 
-export function ServersPage(props: {
+type Action = "start" | "stop" | "restart"
+type MainTab = "overview" | "tools" | "logs" | "configuration"
+type LogTab = "logs" | "events" | "recovery"
+type RecordValue = Record<string, unknown>
+type ToolRow = { key: string; name: string; description: string; schema: RecordValue; raw: RecordValue }
+type LogRow = { key: string; time: string; level: string; type: string; message: string; raw: RecordValue }
+type Props = {
+  locale: Locale
   t: TFunction
   servers: McpServer[]
   loadErrors: string[]
-  serverToolOutput: string
-  onServerAction: (id: string, action: "start" | "stop" | "restart") => void
-  onShowServerTools: (id: string) => void
-}) {
-  const { t, servers, loadErrors, serverToolOutput, onServerAction, onShowServerTools } = props
-  const [detail, setDetail] = useState<McpServerDetail | null>(null)
-  const [detailError, setDetailError] = useState<string | null>(null)
-  const [detailBusy, setDetailBusy] = useState(false)
-  const [query, setQuery] = useState("")
-  const [statusFilter, setStatusFilter] = useState("__all")
-  const { widths, startResize } = useColumnWidths("lingshu-gate-cols-servers", { id: 180, status: 110, type: 150, pid: 80, tools: 80, restart: 160, lastError: 200 })
-  const runningCount = servers.filter((server) => server.status === "running").length
-  const failedCount = servers.filter((server) => server.status === "failed").length
-  const managedCount = servers.filter((server) => server.launch_type !== "external").length
-  const autoRestartCount = servers.filter((server) => Boolean(getRecord(server.restart_policy).enabled)).length
-  const filteredServers = useMemo(() => {
-    const needle = query.trim().toLowerCase()
-    return servers.filter((server) => {
-      if (statusFilter !== "__all" && server.status !== statusFilter) return false
-      if (!needle) return true
-      return `${server.id} ${server.name || ""} ${server.launch_type} ${server.transport_type} ${server.last_error || ""}`.toLowerCase().includes(needle)
-    })
-  }, [query, servers, statusFilter])
-
-  async function loadDetail(serverId: string) {
-    setDetailBusy(true)
-    setDetailError(null)
-    try {
-      setDetail(await api.serverDetail(serverId))
-    } catch (err) {
-      setDetailError(err instanceof Error ? err.message : String(err))
-    } finally {
-      setDetailBusy(false)
-    }
-  }
-
-  return (
-    <div className="flex flex-col gap-4">
-      <PageHeader
-        eyebrow={t("runtimeOperations")}
-        title={t("servers")}
-        description={loadErrors.length ? loadErrors.join("; ") : t("serverOverviewDesc")}
-        stats={[
-          { label: t("total"), value: servers.length },
-          { label: t("running"), value: runningCount, tone: runningCount === servers.length && servers.length > 0 ? "success" : "default" },
-          { label: t("failed"), value: failedCount, tone: failedCount ? "danger" : "success" },
-          { label: t("restartPolicy"), value: `${autoRestartCount}/${managedCount}`, tone: autoRestartCount === managedCount && managedCount > 0 ? "success" : "warning" },
-        ]}
-      />
-
-      <Card>
-        <CardContent className="flex flex-col gap-3 pt-5">
-          <PageToolbar query={query} onQueryChange={setQuery} placeholder={`${t("search")} ID / ${t("name")} / ${t("lastError")}`} resultCount={filteredServers.length} resultLabel={t("servers")} clearLabel={t("clearSearch")}>
-            <Select value={statusFilter} onValueChange={setStatusFilter}><SelectTrigger className="w-36"><SelectValue /></SelectTrigger><SelectContent><SelectItem value="__all">{t("all")}</SelectItem>{Array.from(new Set(servers.map((server) => server.status))).map((status) => <SelectItem key={status} value={status}>{localizeStatus(t, status)}</SelectItem>)}</SelectContent></Select>
-          </PageToolbar>
-          <div className="overflow-x-auto rounded-lg border">
-            <Table className="table-fixed">
-              <ColGroup order={["id", "status", "type", "pid", "tools", "restart", "lastError", "actions"]} widths={widths} />
-              <TableHeader><TableRow><SortHead label={t("id")} onResizeStart={startResize("id")} /><SortHead label={t("status")} onResizeStart={startResize("status")} /><SortHead label={t("type")} onResizeStart={startResize("type")} /><SortHead label={t("pid")} onResizeStart={startResize("pid")} /><SortHead label={t("tools")} onResizeStart={startResize("tools")} /><SortHead label={t("restartPolicy")} onResizeStart={startResize("restart")} /><SortHead label={t("lastError")} onResizeStart={startResize("lastError")} /><TableHead>{t("actions")}</TableHead></TableRow></TableHeader>
-              <TableBody>
-                {filteredServers.length === 0 ? <TableEmptyRow colSpan={8} title={t("noData")} /> : filteredServers.map((server) => {
-                  const actions = server.allowed_actions || fallbackActions(server.status)
-                  const external = server.launch_type === "external"
-                  return <TableRow key={server.id} className="cursor-pointer" onClick={() => loadDetail(server.id)}>
-                    <TableCell className="align-top"><code className="break-all">{server.id}</code><div className="text-xs text-muted-foreground">{server.name}</div></TableCell>
-                    <TableCell>{statusBadge(server.status, t)}<div className="mt-1 text-xs text-muted-foreground">{t("desiredState")}: {server.desired_state === "running" ? t("keepRunning") : t("keepStopped")}</div></TableCell>
-                    <TableCell><div>{server.launch_type} {server.transport_type}</div></TableCell>
-                    <TableCell>{server.pid || "-"}</TableCell>
-                    <TableCell>{server.tool_count}</TableCell>
-                    <TableCell><RestartSummary server={server} t={t} /></TableCell>
-                    <TableCell className="max-w-xs whitespace-pre-wrap text-xs text-destructive">{server.last_error || server.restore_blocked_reason || "-"}</TableCell>
-                    <TableCell onClick={(event) => event.stopPropagation()}>
-                      <ActionMenu label={t("actions")}>
-                        <ActionMenuItem onClick={() => void loadDetail(server.id)}>{t("detail")}</ActionMenuItem>
-                        {actions.includes("start") ? <ActionMenuItem onClick={() => onServerAction(server.id, "start")}>{external ? t("connect") : t("start")}</ActionMenuItem> : null}
-                        {actions.includes("restart") ? <ActionMenuItem onClick={() => onServerAction(server.id, "restart")}>{server.status === "failed" ? t("retry") : t("restart")}</ActionMenuItem> : null}
-                        {actions.includes("stop") ? <ActionMenuItem destructive onClick={() => onServerAction(server.id, "stop")}>{external ? t("disconnect") : t("stop")}</ActionMenuItem> : null}
-                        {server.status.toLowerCase() === "running" ? <ActionMenuItem onClick={() => onShowServerTools(server.id)}>{t("viewTools")}</ActionMenuItem> : null}
-                      </ActionMenu>
-                    </TableCell>
-                  </TableRow>
-                })}
-              </TableBody>
-            </Table>
-          </div>
-          <details className="rounded-lg border bg-muted/20 p-3">
-            <summary className="cursor-pointer text-sm font-medium">tools/list · {t("serverToolsHint")}</summary>
-            <div className="mt-3"><JsonPanel text={serverToolOutput} maxHeight="max-h-[420px]" /></div>
-          </details>
-        </CardContent>
-      </Card>
-      {detailError && <Alert variant="destructive"><AlertDescription>{detailError}</AlertDescription></Alert>}
-      <Dialog open={Boolean(detail)} onOpenChange={(open) => { if (!open) setDetail(null) }}>
-        <DialogContent className="max-w-6xl">
-          <DialogHeader>
-            <DialogTitle>{detail ? `${t("serverDetail")}: ${detail.server.id}` : ""}</DialogTitle>
-            {detail?.server.manifest_path ? <DialogDescription>{detail.server.manifest_path}</DialogDescription> : null}
-          </DialogHeader>
-          <DialogBody>{detail ? <ServerDetailPanel t={t} detail={detail} /> : null}</DialogBody>
-          {detail ? <DialogFooter><Button size="sm" variant="secondary" onClick={() => loadDetail(detail.server.id)} disabled={detailBusy}>{t("refresh")}</Button></DialogFooter> : null}
-        </DialogContent>
-      </Dialog>
-    </div>
-  )
+  busy: boolean
+  visibleTools: ToolDefinition[] | null
+  toolsError: string | null
+  canReadTools: boolean
+  canManageClassifications: boolean
+  onServerAction: (id: string, action: Action) => Promise<void> | void
+  onRefresh: () => Promise<void> | void
+  onNewConfig: () => void
+  onNavigate: (view: ConsoleView) => void
 }
 
-function fallbackActions(status: string): Array<"start" | "stop" | "restart"> {
+export function ServersPage(props: Props) {
+  const { t, servers, locale } = props
+  const c = serverCopy(locale)
+  const screens = Grid.useBreakpoint()
+  const [selectedId, setSelectedId] = useState<string | null>(null)
+  const [query, setQuery] = useState("")
+  const [filter, setFilter] = useState("all")
+  const [tab, setTab] = useState<MainTab>("overview")
+  const [logTab, setLogTab] = useState<LogTab>("logs")
+  const [toolQuery, setToolQuery] = useState("")
+  const [selectedTool, setSelectedTool] = useState<ToolRow | null>(null)
+  const [selectedRecord, setSelectedRecord] = useState<RecordValue | null>(null)
+  const [actionBusy, setActionBusy] = useState(false)
+  const selected = servers.find(server => server.id === selectedId) || null
+  const { states, load } = useServerDetails(selected?.id || null, servers, props.canManageClassifications)
+  const activeSection: DetailSection = tab === "logs" ? logTab : tab
+
+  function chooseServer(id: string | null) {
+    setSelectedId(id)
+    setTab("overview")
+    setToolQuery("")
+    setSelectedTool(null)
+    setSelectedRecord(null)
+  }
+
+  useEffect(() => {
+    if (selectedId && !servers.some(server => server.id === selectedId)) {
+      chooseServer(screens.md && servers[0] ? servers[0].id : null)
+    } else if (!selectedId && screens.md && servers[0]) {
+      chooseServer(servers[0].id)
+    }
+  }, [selectedId, servers, screens.md])
+  useEffect(() => {
+    if (!selected) return
+    void load(activeSection)
+    if (activeSection !== "overview") void load("overview")
+  }, [selected?.id, activeSection, servers, load])
+
+  const filteredServers = useMemo(() => servers.filter(server => {
+    if (filter === "running" && server.status !== "running") return false
+    if (filter === "issues" && !["failed", "unsupported"].includes(server.status) && !server.last_error && !server.restore_blocked_reason) return false
+    const needle = query.trim().toLowerCase()
+    return !needle || [server.id, server.name, server.last_error].filter(Boolean).join(" ").toLowerCase().includes(needle)
+  }), [servers, query, filter])
+  const runningCount = servers.filter(server => server.status === "running").length
+  const issueCount = servers.filter(server => ["failed", "unsupported"].includes(server.status) || server.last_error || server.restore_blocked_reason).length
+  const server = states.overview?.data?.server || selected
+  const visible = selected && props.visibleTools ? props.visibleTools.filter(tool => tool.source === "mcp" && asRecord(tool.metadata).server_id === selected.id) : null
+  const preview = visible ? toTools(visible.map(tool => asRecord(tool))) : []
+  const classifications = states.overview?.classifications
+  const published = classifications?.filter(item => item.status === "published" && asRecord(item.evidence.lifecycle).status !== "retired").length
+  const classificationByName = useMemo(() => {
+    const result = new Map<string, ToolClassification>()
+    for (const item of classifications || []) {
+      result.set(item.tool_name, item)
+      result.set(item.tool_id, item)
+    }
+    return result
+  }, [classifications])
+
+  function classification(row: ToolRow) {
+    const item = classificationByName.get(row.name) || classificationByName.get(String(row.raw.id || ""))
+    if (item?.status === "published") return <Tag color={item.effective_access === "read" ? "success" : "warning"}>{item.effective_access === "read" ? c.read : c.write}</Tag>
+    if (item) return <Tag>{c.review}</Tag>
+    return <span className="service-description">{c.unknownAccess}</span>
+  }
+
+  const toolColumns: TableColumnsType<ToolRow> = [
+    { title: c.name, dataIndex: "name", key: "name", width: "30%", render: (_, row) => <Button type="link" size="small" className="service-tool-name" onClick={() => setSelectedTool(row)} title={row.name}>{row.name}</Button> },
+    { title: c.description, dataIndex: "description", key: "description", ellipsis: true, render: text => <span className="service-description" title={text}>{text || "-"}</span> },
+    { title: c.classification, key: "classification", width: 120, render: (_, row) => classification(row) },
+  ]
+  const logColumns: TableColumnsType<LogRow> = [
+    { title: c.time, dataIndex: "time", key: "time", width: 165 },
+    { title: c.level, dataIndex: "level", key: "level", width: 80, render: value => <Tag color={value === "error" ? "error" : value === "warning" ? "warning" : undefined}>{value || "-"}</Tag> },
+    { title: c.eventType, dataIndex: "type", key: "type", width: 190, ellipsis: true },
+    { title: c.message, key: "message", ellipsis: true, render: (_, row) => <Button type="link" size="small" onClick={() => setSelectedRecord(row.raw)} title={row.message}>{row.message || c.recordDetails}</Button> },
+  ]
+  const actions = server ? server.allowed_actions ?? fallbackActions(server.status) : []
+  async function runAction(action: Action) {
+    if (!server || !actions.includes(action)) return
+    setActionBusy(true)
+    try { await props.onServerAction(server.id, action) }
+    finally { setActionBusy(false) }
+  }
+  const actionName = (action: Action) => action === "start" ? (server?.launch_type === "external" ? c.connect : c.start) : action === "stop" ? (server?.launch_type === "external" ? c.disconnect : c.stop) : c.restart
+  const rows = toTools(states.tools?.data?.tools || [])
+  const filteredTools = rows.filter(row => [row.name, row.description].join(" ").toLowerCase().includes(toolQuery.trim().toLowerCase()))
+
+  const overview = server && <div>
+    {states.overview?.error && <Alert className="service-panel-error" type="warning" showIcon title={c.loadFailed} description={states.overview.error} action={<Button onClick={() => void load("overview", true)}>{c.retry}</Button>} />}
+    {(server.last_error || server.restore_blocked_reason) && <Alert className="service-panel-error" type="error" showIcon title={c.lastError} description={server.last_error || server.restore_blocked_reason} />}
+    <div className="service-summary-grid">
+      <section>
+        <h2 className="service-section-title"><CodeOutlined aria-hidden="true" />{c.connection}</h2>
+        <dl className="service-facts">
+          <dt>{c.transport}</dt><dd>{server.transport_type}</dd>
+          <dt>{c.process}</dt><dd><RuntimeBadge server={server} t={t} /></dd>
+          <dt>{c.launch}</dt><dd>{server.launch_type}</dd>
+          <dt>{c.pid}</dt><dd>{server.pid ?? "-"}</dd>
+          <dt>{c.discovered}</dt><dd>{server.tool_count}</dd>
+          <dt>{c.health}</dt><dd>{asRecord(asRecord(server.restart_policy).health_check).enabled ? localizeStatus(t, server.health_status || "unknown") : <>{c.healthOff}<span className="service-fact-note">{c.healthOffHint}</span></>}</dd>
+        </dl>
+      </section>
+      <section>
+        <h2 className="service-section-title"><CloudServerOutlined aria-hidden="true" />{c.readiness}</h2>
+        <dl className="service-facts">
+          <dt>{c.discovered}</dt><dd>{server.tool_count}</dd>
+          <dt>{c.published}</dt><dd>{!props.canManageClassifications ? c.noClassificationAccess : states.overview?.loading ? c.loading : states.overview?.classificationError ? c.unread : published === undefined ? c.unread : <Button type="link" size="small" style={{ padding: 0, height: "auto" }} onClick={() => props.onNavigate("toolClassifications")} aria-label={`${c.openClassification} · ${published}`}>{published}<ArrowRightOutlined /></Button>}</dd>
+          <dt>{c.visible}</dt><dd>{!props.canReadTools ? c.noToolsAccess : props.toolsError ? c.visibleError : visible === null ? c.loading : visible.length}<span className="service-fact-note">{c.visibleHint}</span></dd>
+          <dt>{c.client}</dt><dd>{c.clientUnknown} <Tooltip title={c.clientHint}><InfoCircleOutlined /></Tooltip><span className="service-fact-note">{c.clientHint}</span></dd>
+        </dl>
+      </section>
+    </div>
+    <section className="service-preview">
+      <div className="service-section-heading">
+        <h2 className="service-section-title"><UnorderedListOutlined aria-hidden="true" />{c.preview}</h2>
+        <Button type="link" onClick={() => setTab("tools")}>{c.allTools}<ArrowRightOutlined /></Button>
+      </div>
+      {props.canReadTools && visible === null && !props.toolsError ? <Skeleton active paragraph={{ rows: 3 }} /> :
+        <Table className="service-table" columns={toolColumns} dataSource={preview.slice(0, 4)} pagination={false} size="small" tableLayout="fixed" locale={{ emptyText: props.toolsError ? c.visibleError : !props.canReadTools ? c.noToolsAccess : c.noTools }} />}
+    </section>
+  </div>
+
+  return <div className="server-workspace" data-selected={Boolean(selected)}>
+    <aside className="service-directory" aria-label={c.directory}>
+      <div className="service-directory-header">
+        <div className="service-directory-title"><h2>{c.directory}</h2><Tooltip title={c.refresh}><Button type="text" size="small" loading={props.busy} icon={<ReloadOutlined />} onClick={() => void props.onRefresh()} aria-label={c.refresh} /></Tooltip></div>
+        <PageToolbar query={query} onQueryChange={setQuery} placeholder={c.search} clearLabel={t("clearSearch")} />
+        <Segmented aria-label={c.directory} block size="large" value={filter} onChange={value => setFilter(String(value))} options={[
+          { value: "all", label: c.all + " (" + servers.length + ")" },
+          { value: "running", label: c.running + " (" + runningCount + ")" },
+          { value: "issues", label: c.issues + " (" + issueCount + ")" },
+        ]} />
+      </div>
+      {props.loadErrors.length > 0 && <Alert type="error" showIcon title={c.loadFailed} description={props.loadErrors.join("; ")} />}
+      <div className="service-directory-list">
+        {filteredServers.map(item => <button key={item.id} className="service-entry" data-active={item.id === selectedId} aria-pressed={item.id === selectedId} onClick={() => chooseServer(item.id)}>
+          <span><span className="service-entry-name" title={item.name || item.id}>{item.name || item.id}</span><span className="service-entry-subtitle" title={item.id}>{item.id}</span></span>
+          <span className="service-entry-meta"><RuntimeBadge server={item} t={t} /><span className="service-entry-count">{item.tool_count}</span></span>
+        </button>)}
+        {filteredServers.length === 0 && <div className="inline-empty"><Empty image={Empty.PRESENTED_IMAGE_SIMPLE} description={servers.length ? c.noMatches : <>{c.emptyServices}<p className="service-fact-note">{c.emptyHint}</p></>} /></div>}
+      </div>
+      <div className="service-directory-footer"><Button block icon={<PlusOutlined />} onClick={props.onNewConfig}>{c.add}</Button></div>
+    </aside>
+
+    <section className="service-detail" aria-label={selected ? selected.id : c.selectService}>
+      {server ? <>
+        <Button type="text" className="service-detail-back" icon={<ArrowLeftOutlined />} onClick={() => chooseServer(null)}>{c.back}</Button>
+        <div className="service-breadcrumb">{c.directory} <span aria-hidden="true">/</span> {server.id}</div>
+        <PageHeader title={server.name || server.id} description={server.id} titleExtra={<RuntimeBadge server={server} t={t} pill />} actions={<>
+          <Button type="primary" size="large" icon={<ExportOutlined />} onClick={() => setTab("tools")}>{c.viewTools}</Button>
+          <Dropdown trigger={["click"]} menu={{ items: actions.map(action => ({ key: action, label: actionName(action), danger: action === "stop", disabled: actionBusy || props.busy })), onClick: ({ key }) => { if (actions.includes(key as Action)) void runAction(key as Action) } }}>
+            <Button size="large" icon={<MoreOutlined />} loading={actionBusy} disabled={actions.length === 0} aria-label={c.more} />
+          </Dropdown>
+        </>} />
+        <div className="service-detail-identity"><code>{server.launch_type} / {server.transport_type}</code></div>
+        <Tabs className="service-detail-tabs" activeKey={tab} onChange={value => setTab(value as MainTab)} items={[
+          { key: "overview", label: c.overview, children: overview },
+          { key: "tools", label: c.tools + " " + server.tool_count, children: <SectionContent state={states.tools} c={c} onRetry={() => void load("tools", true)}>{() => <>
+            <div className="service-panel-toolbar"><Input value={toolQuery} onChange={event => setToolQuery(event.target.value)} placeholder={c.searchTools} aria-label={c.searchTools} prefix={<SearchOutlined />} allowClear /><Button icon={<ReloadOutlined />} onClick={() => void load("tools", true)}>{c.refresh}</Button></div>
+            <Table className="service-table" columns={toolColumns} dataSource={filteredTools} size="small" tableLayout="fixed" pagination={{ defaultPageSize: 10, showSizeChanger: true, pageSizeOptions: [10, 25, 50], hideOnSinglePage: true }} scroll={{ x: 620 }} locale={{ emptyText: c.noTools }} />
+          </>}</SectionContent> },
+          { key: "logs", label: c.logs, children: <div className="service-panel-stack">
+            <div className="service-panel-toolbar"><Segmented aria-label={c.logs} value={logTab} onChange={value => setLogTab(value as LogTab)} options={[{ value: "logs", label: c.serviceLogs }, { value: "events", label: c.events }, { value: "recovery", label: c.recovery }]} /><Button icon={<ReloadOutlined />} onClick={() => void load(logTab, true)} aria-label={c.refresh} /></div>
+            <SectionContent state={states[logTab]} c={c} onRetry={() => void load(logTab, true)}>{data => <>
+              <Table className="service-table" columns={logColumns} dataSource={toLogs(logTab === "logs" ? data.logs || [] : logTab === "events" ? data.events || [] : data.restart_history || [])} pagination={{ pageSize: 10, showSizeChanger: false, hideOnSinglePage: true }} size="small" scroll={{ x: 680 }} tableLayout="fixed" locale={{ emptyText: c.noRecords }} />
+              <div className="service-panel-toolbar"><span className="service-fact-note">{c.logLimit}</span><Button type="link" onClick={() => props.onNavigate("logs")}>{c.openLogs}<ArrowRightOutlined /></Button></div>
+            </>}</SectionContent>
+          </div> },
+          { key: "configuration", label: c.configuration, children: <div className="service-panel-stack">
+            <SectionContent state={states.configuration} c={c} onRetry={() => void load("configuration", true)}>{data => <>
+              <h2 className="service-section-title"><CodeOutlined aria-hidden="true" />{c.manifest}</h2>
+              <dl className="service-facts">
+                <dt>{c.desired}</dt><dd>{server.desired_state === "running" ? c.keepRunning : server.desired_state === "stopped" ? c.keepStopped : "-"}</dd>
+                <dt>{c.lastStarted}</dt><dd>{formatDateTime(server.last_started_at)}</dd>
+                <dt>{c.configPath}</dt><dd>{server.manifest_path || "-"}</dd>
+              </dl>
+              <JsonPanel data={data.manifest || {}} maxHeight="max-h-[480px]" />
+            </>}</SectionContent>
+            <Collapse onChange={keys => { if (keys.includes("cache")) void load("cache"); if (keys.includes("diagnostics")) void load("diagnostics") }} items={[
+              { key: "cache", label: c.runtimeCache, children: <><p className="service-fact-note">{c.cacheHint}</p><SectionContent state={states.cache} c={c} onRetry={() => void load("cache", true)}>{data => <JsonPanel data={data.runtime_cache || {}} />}</SectionContent></> },
+              { key: "diagnostics", label: c.fullDiagnostics, children: <><p className="service-fact-note">{c.diagnosticHint}</p><SectionContent state={states.diagnostics} c={c} onRetry={() => void load("diagnostics", true)}>{data => <div className="service-panel-stack">{(data.failure_hints || []).map(hint => <Alert key={hint.code} showIcon type={hint.severity === "error" ? "error" : hint.severity === "warning" ? "warning" : "info"} title={hint.code} description={hint.message} />)}</div>}</SectionContent></> },
+            ]} />
+          </div> },
+        ]} />
+      </> : <div className="service-unselected"><Empty image={Empty.PRESENTED_IMAGE_SIMPLE} description={c.selectService} /></div>}
+    </section>
+
+    <Drawer className="service-tool-drawer" title={selectedTool?.name || c.toolDetails} size={560} open={selectedTool !== null} onClose={() => setSelectedTool(null)} destroyOnHidden>
+      {selectedTool && <div className="service-panel-stack">
+        <p className="service-description" style={{ whiteSpace: "normal" }}>{selectedTool.description}</p>
+        <h3 className="service-section-title"><CodeOutlined aria-hidden="true" />{c.inputSchema}</h3>
+        <JsonPanel data={selectedTool.schema} maxHeight="max-h-[480px]" />
+        <Collapse items={[{ key: "metadata", label: c.metadata, children: <JsonPanel data={selectedTool.raw} maxHeight="max-h-80" /> }]} />
+      </div>}
+    </Drawer>
+    <Drawer title={c.recordDetails} size={640} open={selectedRecord !== null} onClose={() => setSelectedRecord(null)} destroyOnHidden>
+      {selectedRecord && <JsonPanel data={selectedRecord} maxHeight="max-h-[calc(100vh-140px)]" />}
+    </Drawer>
+  </div>
+}
+
+function RuntimeBadge({ server, t, pill = false }: { server: McpServer; t: TFunction; pill?: boolean }) {
+  const status = server.status === "running" ? "success" : ["failed", "unsupported"].includes(server.status) ? "error" : server.status === "starting" ? "processing" : "default"
+  const badge = <Badge status={status} text={localizeStatus(t, server.status)} />
+  return pill ? <Tag className="service-title-state" color={status === "default" ? undefined : status}>{badge}</Tag> : badge
+}
+
+function SectionContent({ state, c, onRetry, children }: { state?: DetailState; c: ServerCopy; onRetry: () => void; children: (data: McpServerDetailSlice) => ReactNode }) {
+  if (state?.error) return <Alert type="error" showIcon title={c.loadFailed} description={state.error} action={<Button onClick={onRetry}>{c.retry}</Button>} />
+  if (!state?.data || state.loading) return <Skeleton active paragraph={{ rows: 4 }} />
+  return <>{children(state.data)}</>
+}
+
+function asRecord(value: unknown): RecordValue {
+  return value && typeof value === "object" && !Array.isArray(value) ? value as RecordValue : {}
+}
+
+function toTools(values: RecordValue[]): ToolRow[] {
+  return values.map((raw, index) => ({
+    key: String(raw.id || raw.name || index),
+    name: String(raw.name || raw.id || "-"),
+    description: typeof raw.description === "string" ? raw.description : "",
+    schema: asRecord(raw.input_schema || raw.inputSchema),
+    raw,
+  }))
+}
+
+function toLogs(values: object[]): LogRow[] {
+  return values.map((value, index) => {
+    const raw = asRecord(value)
+    return { key: String(raw.id || index), time: formatDateTime(String(raw.created_at || "")), level: String(raw.level || ""), type: String(raw.event_type || raw.type || ""), message: String(raw.message || raw.type || ""), raw }
+  })
+}
+
+function fallbackActions(status: string): Action[] {
   const normalized = status.toLowerCase()
   if (["loaded", "stopped", "failed"].includes(normalized)) return ["start"]
   if (normalized === "starting") return ["stop"]
   if (normalized === "running") return ["restart", "stop"]
   return []
-}
-
-function ServerDetailPanel({ t, detail }: { t: TFunction; detail: McpServerDetail }) {
-  const launch = getRecord(detail.manifest.launch)
-  const transport = getRecord(detail.manifest.transport)
-  const pkg = getRecord(launch.package)
-  const restartPolicy = getRecord(detail.server.restart_policy)
-  const restartEnabled = Boolean(restartPolicy.enabled)
-  const summary = detail.recovery_summary || {}
-  const latestEvent = summary.latest_event_label || summary.latest_event_type || "-"
-  return (
-    <div className="grid gap-4 xl:grid-cols-[1fr_1fr]">
-      <Card className="xl:col-span-2">
-        <CardHeader><CardTitle>{t("status")}</CardTitle></CardHeader>
-        <CardContent className="grid gap-3 md:grid-cols-4">
-          <Info label={t("status")} value={localizeStatus(t, detail.server.status)} badge={statusBadge(detail.server.status, t)} />
-          <Info label={t("pid")} value={String(detail.server.pid || "-")} />
-          <Info label={t("runtimeType")} value={`${detail.server.launch_type} / ${detail.server.transport_type}`} />
-          <Info label={t("tools")} value={String(detail.server.tool_count)} />
-        </CardContent>
-      </Card>
-
-      <Card>
-        <CardHeader><CardTitle>{t("failureHints")}</CardTitle></CardHeader>
-        <CardContent className="flex flex-col gap-2">
-          {detail.failure_hints.map((hint) => <div key={hint.code} className="rounded-md border p-2 text-sm"><div className="mb-1 flex items-center gap-2"><Badge variant={hint.severity === "error" ? "danger" : hint.severity === "warning" ? "warning" : "outline"}>{localizeStatus(t, hint.severity)}</Badge><code className="text-xs">{hint.code}</code></div><div>{hint.message}</div></div>)}
-        </CardContent>
-      </Card>
-
-      <Card>
-        <CardHeader><CardTitle>{t("recoverySummary")}</CardTitle><CardDescription>{t("recoverySummaryDesc")}</CardDescription></CardHeader>
-        <CardContent className="grid gap-2 text-sm md:grid-cols-2">
-          <Info label={t("totalEvents")} value={String(summary.total_events ?? 0)} />
-          <Info label={t("attemptsRemaining")} value={String(summary.attempts_remaining ?? 0)} />
-          <Info label={t("scheduledRestarts")} value={String(summary.scheduled_restarts ?? 0)} />
-          <Info label={t("autoRestarts")} value={String(summary.auto_restarts ?? 0)} />
-          <Info label={t("healthFailures")} value={String(summary.health_failures ?? 0)} />
-          <Info label={t("healthRecoveries")} value={String(summary.health_recoveries ?? 0)} />
-          <Info label={t("skippedExitCode")} value={String(summary.skipped_exit_code_restarts ?? 0)} />
-          <Info label={t("exhaustedRestarts")} value={String(summary.exhausted_restarts ?? 0)} />
-          <Info label={t("activeSchedule")} value={String(Boolean(summary.active_restart_scheduled))} />
-          <Info label={t("latestRecoveryEvent")} value={`${latestEvent}${summary.latest_event_at ? ` · ${formatDateTime(summary.latest_event_at)}` : ""}`} />
-        </CardContent>
-      </Card>
-
-      <Card>
-        <CardHeader><CardTitle>{t("restartPolicy")}</CardTitle><CardDescription>{t("restartPolicyDesc")}</CardDescription></CardHeader>
-        <CardContent className="grid gap-2 text-sm md:grid-cols-2">
-          {!restartEnabled ? <Alert className="md:col-span-2"><AlertDescription>{t("restartPolicyDisabledHint")}</AlertDescription></Alert> : null}
-          <Info label={t("enabled")} value={restartEnabled ? t("enabled") : t("disabled")} />
-          <Info label={t("restartCount")} value={String(detail.server.restart_count || 0)} />
-          <Info label={t("restartAttempts")} value={restartEnabled ? `${detail.server.restart_attempts || 0} / ${String(restartPolicy.max_attempts ?? 0)}` : "-"} />
-          <Info label={t("lastExitCode")} value={String(detail.server.last_exit_code ?? "-")} />
-          <Info label={t("lastRestartAt")} value={formatDateTime(detail.server.last_restart_at)} />
-          <Info label={t("nextRestartAt")} value={formatDateTime(detail.server.next_restart_at)} />
-          <Info label={t("healthStatus")} value={restartEnabled ? localizeStatus(t, detail.server.health_status || "unknown") : "-"} />
-          <Info label={t("healthFailures")} value={restartEnabled ? String(detail.server.consecutive_health_failures || 0) : "-"} />
-          <Info label={t("lastHealthCheckAt")} value={restartEnabled ? formatDateTime(detail.server.last_health_check_at) : "-"} />
-          <Info label={t("lastHealthOkAt")} value={restartEnabled ? formatDateTime(detail.server.last_health_ok_at) : "-"} />
-          <div className="md:col-span-2"><pre className={codePanelClass("max-h-[180px]")}>{JSON.stringify(restartPolicy, null, 2)}</pre></div>
-        </CardContent>
-      </Card>
-
-      <Card className="xl:col-span-2">
-        <CardHeader><CardTitle>{t("recoveryEvents")}</CardTitle><CardDescription>{t("recoveryEventsDesc")}</CardDescription></CardHeader>
-        <CardContent className="flex flex-col gap-4">
-          <RecoveryChart detail={detail} t={t} />
-          <Table><TableHeader><TableRow><TableHead>{t("time")}</TableHead><TableHead>{t("level")}</TableHead><TableHead>{t("eventType")}</TableHead><TableHead>{t("description")}</TableHead><TableHead>{t("detail")}</TableHead></TableRow></TableHeader><TableBody>{detail.restart_history.length === 0 ? <TableEmptyRow colSpan={5} title={t("noData")} /> : detail.restart_history.slice(0, 20).map((item) => <TableRow key={item.id}><TableCell className="whitespace-nowrap text-xs">{formatDateTime(item.created_at)}</TableCell><TableCell><Badge variant={item.level === "error" ? "danger" : item.level === "warning" ? "warning" : "outline"}>{localizeStatus(t, item.level)}</Badge></TableCell><TableCell><code>{item.event_type}</code></TableCell><TableCell>{item.message}</TableCell><TableCell><pre className="max-h-28 overflow-auto text-xs">{JSON.stringify(item.payload, null, 2)}</pre></TableCell></TableRow>)}</TableBody></Table>
-        </CardContent>
-      </Card>
-
-      <Card>
-        <CardHeader><CardTitle>{t("runtimeCache")}</CardTitle></CardHeader>
-        <CardContent className="grid gap-2 text-sm md:grid-cols-2">
-          <Info label={t("cacheDir")} value={String(detail.runtime_cache.cache_dir || "-")} />
-          <Info label={t("cacheSize")} value={formatBytes(Number(detail.runtime_cache.size_bytes || 0))} />
-          <Info label={t("writable")} value={String(Boolean(detail.runtime_cache.writable))} />
-          <Info label={t("parentWritable")} value={String(Boolean(detail.runtime_cache.parent_writable))} />
-          <Info label={t("packageName")} value={String(detail.runtime_cache.package_name || pkg.name || "-")} />
-          <Info label={t("packageVersion")} value={String(detail.runtime_cache.package_version || pkg.version || "-")} />
-        </CardContent>
-      </Card>
-
-      <Card className="xl:col-span-2">
-        <CardHeader><CardTitle>{t("startupTimeline")}</CardTitle></CardHeader>
-        <CardContent>
-          <Table><TableHeader><TableRow><TableHead>{t("status")}</TableHead><TableHead>{t("type")}</TableHead><TableHead>{t("description")}</TableHead><TableHead>{t("detail")}</TableHead></TableRow></TableHeader><TableBody>{detail.timeline.length === 0 ? <TableEmptyRow colSpan={4} title={t("noData")} /> : detail.timeline.map((item, index) => <TableRow key={`${item.event_type}-${index}`}><TableCell><Badge variant={item.level === "error" ? "danger" : item.level === "warning" ? "warning" : "outline"}>{localizeStatus(t, item.level || item.source)}</Badge><div className="whitespace-nowrap text-xs text-muted-foreground">{formatDateTime(item.created_at)}</div></TableCell><TableCell><code>{item.event_type}</code></TableCell><TableCell>{item.message || "-"}</TableCell><TableCell><pre className="max-h-28 overflow-auto text-xs">{JSON.stringify(item.payload, null, 2)}</pre></TableCell></TableRow>)}</TableBody></Table>
-        </CardContent>
-      </Card>
-
-      <Card>
-        <CardHeader><CardTitle>{t("manifest")}</CardTitle><CardDescription>{String(launch.command || "-")} {Array.isArray(launch.args) ? launch.args.join(" ") : ""} · {String(transport.type || "-")}</CardDescription></CardHeader>
-        <CardContent><JsonPanel data={detail.manifest} maxHeight="max-h-[420px]" /></CardContent>
-      </Card>
-
-      <Card>
-        <CardHeader><CardTitle>{t("recentStderr")}</CardTitle></CardHeader>
-        <CardContent><JsonPanel text={detail.recent_stderr.length ? detail.recent_stderr.join("\n") : t("noData")} maxHeight="max-h-[420px]" /></CardContent>
-      </Card>
-
-      <Card>
-        <CardHeader><CardTitle>{t("latestServerLogs")}</CardTitle></CardHeader>
-        <CardContent><JsonPanel data={detail.logs.slice(0, 30)} maxHeight="max-h-[420px]" /></CardContent>
-      </Card>
-
-      <Card>
-        <CardHeader><CardTitle>{t("latestServerEvents")}</CardTitle></CardHeader>
-        <CardContent><JsonPanel data={detail.events.slice(0, 30)} maxHeight="max-h-[420px]" /></CardContent>
-      </Card>
-    </div>
-  )
-}
-
-function RestartSummary({ server, t }: { server: McpServer; t: TFunction }) {
-  if (server.launch_type === "external") return <div className="flex flex-col gap-1 text-xs"><Badge variant="outline">{t("externalRuntime")}</Badge><div className="text-muted-foreground">{t("externalRuntimeDesc")}</div></div>
-  const policy = getRecord(server.restart_policy)
-  const enabled = Boolean(policy.enabled)
-  return <div className="flex flex-col gap-1 text-xs">
-    <Badge variant={enabled ? "success" : "outline"} title={enabled ? undefined : t("restartPolicyDisabledHint")}>{enabled ? t("enabled") : t("disabled")}</Badge>
-    <div>{t("restartCount")}: {server.restart_count || 0}</div>
-    <div>{t("restartAttempts")}: {enabled ? `${server.restart_attempts || 0}/${String(policy.max_attempts ?? 0)}` : "-"}</div>
-    <div>{t("healthStatus")}: {enabled ? localizeStatus(t, server.health_status || "unknown") : "-"}</div>
-    {server.next_restart_at && <div>{t("nextRestartAt")}: {formatDateTime(server.next_restart_at)}</div>}
-    {server.last_exit_code !== undefined && server.last_exit_code !== null && <div>{t("lastExitCode")}: {server.last_exit_code}</div>}
-  </div>
-}
-
-function RecoveryChart({ detail, t }: { detail: McpServerDetail; t: TFunction }) {
-  const data = detail.recovery_chart || []
-  const max = Math.max(1, ...data.map((item) => item.count))
-  if (data.length === 0) return <div className="rounded-md border border-dashed p-3 text-sm text-muted-foreground">{t("noData")}</div>
-  return <div className="flex flex-col gap-2">
-    {data.map((item) => <div key={item.event_type} className="flex flex-col gap-1">
-      <div className="flex items-center justify-between gap-3 text-xs"><code>{item.label || item.event_type}</code><span>{item.count}</span></div>
-      <div className="h-2 overflow-hidden rounded-full bg-muted"><div className="h-full rounded-full bg-primary" style={{ width: `${Math.max(4, (item.count / max) * 100)}%` }} /></div>
-    </div>)}
-  </div>
-}
-
-function Info({ label, value, badge }: { label: string; value: string; badge?: ReactNode }) {
-  return <div className="rounded-md border p-2"><div className="text-xs text-muted-foreground">{label}</div><div className="mt-1 break-all text-sm font-medium">{badge || value}</div></div>
-}
-
-function getRecord(value: unknown): Record<string, unknown> {
-  return value && typeof value === "object" && !Array.isArray(value) ? value as Record<string, unknown> : {}
 }

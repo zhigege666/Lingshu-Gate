@@ -209,7 +209,7 @@ export const identityAccessApi = {
   accessResources: () => request<{ resources: AccessResource[] }>("/v1/access/resources"),
   saveResourceGrant: (payload: ResourceGrantSaveRequest) => request<ResourceGrant>("/v1/access/grants", { method: "PUT", body: JSON.stringify(payload) }),
   deleteResourceGrant: (grantId: string) => request<{ message: string }>(`/v1/access/grants/${encodeURIComponent(grantId)}`, { method: "DELETE" }),
-  toolClassifications: (filters: { server_id?: string; status?: string } = {}) => request<{ classifications: ToolClassification[] }>(`/v1/access/tool-classifications${queryString(filters)}`),
+  toolClassifications: (filters: { server_id?: string; status?: string } = {}, signal?: AbortSignal) => request<{ classifications: ToolClassification[] }>(`/v1/access/tool-classifications${queryString(filters)}`, { signal }),
   analyzeToolClassifications: (payload: { server_id?: string | null }) => request<{ classifications: ToolClassification[] }>("/v1/access/tool-classifications/analyze", { method: "POST", body: JSON.stringify(payload) }),
   updateToolClassification: (serverId: string, toolId: string, payload: { access: "read" | "write" | "unknown"; destructive: boolean; idempotent: boolean; note?: string }) => request<ToolClassification>(`/v1/access/tool-classifications/${encodeURIComponent(serverId)}/${encodeURIComponent(toolId)}`, { method: "PUT", body: JSON.stringify(payload) }),
   confirmToolClassifications: (payload: { items: Array<{ server_id: string; tool_id: string; expected_fingerprint: string }>; note?: string }) => request<ToolClassificationConfirmResponse>("/v1/access/tool-classifications/confirm", { method: "POST", body: JSON.stringify(payload) }),

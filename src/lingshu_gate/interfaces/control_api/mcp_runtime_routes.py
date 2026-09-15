@@ -4,12 +4,12 @@ from __future__ import annotations
 
 from typing import Any
 
-from fastapi import Depends, FastAPI, HTTPException
+from fastapi import Depends, FastAPI, HTTPException, Query
 
 from lingshu_gate.config import Settings
 from lingshu_gate.interfaces.control_api.dependencies import AuthDependency
 from lingshu_gate.mcp_runtime import McpRuntimeManager
-from lingshu_gate.mcp_server_detail import build_mcp_server_detail
+from lingshu_gate.mcp_server_detail import McpServerDetailSection, build_mcp_server_detail
 from lingshu_gate.models import McpServerListResponse, McpServerStatusResponse
 from lingshu_gate.observability_store import ObservabilityStore
 
@@ -50,13 +50,19 @@ def register_mcp_runtime_routes(
         tags=["mcp"],
         dependencies=[Depends(require_operations_manager)],
     )
-    def get_mcp_server_detail(server_id: str) -> dict[str, Any]:
+    def get_mcp_server_detail(
+        server_id: str,
+        section: McpServerDetailSection | None = None,
+        limit: int = Query(default=80, ge=1, le=200),
+    ) -> dict[str, Any]:
         try:
             return build_mcp_server_detail(
                 settings,
                 mcp_runtime,
                 observability_store,
                 server_id,
+                section=section,
+                limit=limit,
             )
         except KeyError as exc:
             raise HTTPException(status_code=404, detail=str(exc)) from exc

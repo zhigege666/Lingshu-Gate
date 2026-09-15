@@ -36,6 +36,10 @@ curl --fail --silent --show-error http://127.0.0.1:8000/readyz
 
 `desired_state=running` 是指令，不是已经执行的证明。进程 Running 之后仍要发现成功，才能作为验收证据。
 
+控制台服务工作区在服务目录旁展示选中服务，概览、工具、日志和配置独立加载。工具可见数量对应当前登录控制台的身份，不能据此确认另一 MCP 客户端的 Token 范围或已经加载的工具目录。
+
+按需读取详情可使用 `/v1/mcp/servers/{server_id}/detail?section=overview`。支持 `overview`、`tools`、`logs`、`events`、`configuration`、`recovery` 和 `cache` 分区。日志、事件和恢复记录的 `limit` 范围为 1–200，默认 80，控制台请求 40。概览只读取运行态；只有打开缓存分区或完整诊断时才统计缓存目录大小。不传 `section` 时保留原有完整响应。所有分区继续要求 `operations.manage` 权限；未返回的分区字段表示未请求，不能解释为零或健康。
+
 ## 日志和事件
 
 认证 Operator 可以查询：

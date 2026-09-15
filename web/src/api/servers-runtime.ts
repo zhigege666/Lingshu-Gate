@@ -1,4 +1,4 @@
-import { request } from "@/api/http"
+import { queryString, request } from "@/api/http"
 import type { ObservabilityEvent, ObservabilityLog } from "@/api/observability"
 
 export type McpServer = {
@@ -133,6 +133,9 @@ export type McpServerDetail = {
   recovery_summary: RecoverySummary
 }
 
+export type McpServerDetailSection = "overview" | "tools" | "logs" | "events" | "configuration" | "recovery" | "cache"
+export type McpServerDetailSlice = Pick<McpServerDetail, "server"> & Partial<Omit<McpServerDetail, "server">>
+
 export type McpServerListResponse = { servers: McpServer[]; load_errors: string[] }
 
 export type ToolDefinition = {
@@ -184,7 +187,10 @@ export const serversRuntimeApi = {
   runtimeEnvironment: () => request<RuntimeEnvironment>("/v1/runtime/environment"),
   clearRuntimeCache: (cacheName: string) => request<RuntimeCacheClearResponse>(`/v1/runtime/cache/${encodeURIComponent(cacheName)}`, { method: "DELETE" }),
   servers: () => request<McpServerListResponse>("/v1/mcp/servers"),
-  serverDetail: (serverId: string) => request<McpServerDetail>(`/v1/mcp/servers/${encodeURIComponent(serverId)}/detail`),
+  serverDetail: (serverId: string, options: { section?: McpServerDetailSection; limit?: number; signal?: AbortSignal } = {}) => request<McpServerDetailSlice>(
+    `/v1/mcp/servers/${encodeURIComponent(serverId)}/detail${queryString({ section: options.section, limit: options.limit })}`,
+    { signal: options.signal },
+  ),
   serverTools: (serverId: string) => request<unknown[]>(`/v1/mcp/servers/${encodeURIComponent(serverId)}/tools`),
   serverAction: (serverId: string, action: "start" | "stop" | "restart") => request<McpServer>(`/v1/mcp/servers/${encodeURIComponent(serverId)}/${action}`, { method: "POST" }),
   tools: () => request<ToolDefinition[]>("/v1/tools"),

@@ -5,7 +5,10 @@ from __future__ import annotations
 import hashlib
 import json
 import re
+import sqlite3
+from collections.abc import Callable
 from datetime import datetime, timezone
+from functools import partial
 from time import perf_counter
 from typing import Any, Iterable
 from uuid import uuid4
@@ -585,20 +588,57 @@ class AccessControlStore:
         self,
         definitions: Iterable[ToolDefinition],
     ) -> list[dict[str, Any]]:
+        with self.database.session() as connection:
+            self._synchronize_tools(connection, list(definitions))
+        return self.list_classifications()
+
+    @staticmethod
+    def _load_classifications(
+        connection: sqlite3.Connection,
+        tool_keys: Iterable[tuple[str, str]],
+    ) -> dict[tuple[str, str], dict[str, Any]]:
+        """按本次目录批量取数；分块避免超过 SQLite 的绑定参数上限。"""
+
+        keys = sorted(set(tool_keys))
+        result: dict[tuple[str, str], dict[str, Any]] = {}
+        for offset in range(0, len(keys), 250):
+            batch = keys[offset:offset + 250]
+            placeholders = ",".join("(?, ?)" for _ in batch)
+            rows = connection.execute(
+                "SELECT * FROM mcp_tool_classifications "
+                f"WHERE (server_id, tool_id) IN (VALUES {placeholders})",
+                tuple(value for key in batch for value in key),
+            ).fetchall()
+            result.update({(row["server_id"], row["tool_id"]): dict(row) for row in rows})
+        return result
+
+    def _synchronize_tools(
+        self,
+        connection: sqlite3.Connection,
+        definitions: list[ToolDefinition],
+    ) -> None:
+        existing_rows = self._load_classifications(
+            connection, ((_server_id(item), item.id) for item in definitions),
+        )
         now = iso_now()
         for definition in definitions:
             server_id = _server_id(definition)
             fingerprint = _tool_fingerprint(definition)
+            key = (server_id, definition.id)
+            existing = existing_rows.get(key)
+            if (
+                existing
+                and existing["fingerprint"] == fingerprint
+                and (existing["status"] == "published" or existing["source"] == "manual")
+            ):
+                # 已发布或人工维护的同一版本不重复计算规则，也不产生更新时间写入。
+                continue
             suggestion = _suggest_tool(definition)
-            existing = self.database.query_one(
-                "SELECT * FROM mcp_tool_classifications WHERE server_id = ? AND tool_id = ?",
-                (server_id, definition.id),
-            )
             evidence_json = json.dumps(suggestion["evidence"], ensure_ascii=False)
             if not existing:
                 # Console 首次加载可能并发触发同步；由数据库原子忽略重复插入，
                 # 避免两个请求同时完成查询后争抢同一个工具唯一键。
-                self.database.execute(
+                connection.execute(
                     """
                     INSERT INTO mcp_tool_classifications
                         (id, server_id, tool_id, tool_name, fingerprint, suggested_access,
@@ -628,9 +668,15 @@ class AccessControlStore:
                         now,
                     ),
                 )
+                current = connection.execute(
+                    "SELECT * FROM mcp_tool_classifications WHERE server_id = ? AND tool_id = ?",
+                    key,
+                ).fetchone()
+                if current is not None:
+                    existing_rows[key] = dict(current)
                 continue
             if existing["fingerprint"] != fingerprint:
-                self.database.execute(
+                connection.execute(
                     """
                     UPDATE mcp_tool_classifications
                     SET tool_name = ?, fingerprint = ?, suggested_access = ?,
@@ -657,7 +703,7 @@ class AccessControlStore:
                 existing["status"] != "published"
                 and existing["source"] != "manual"
             ):
-                self.database.execute(
+                connection.execute(
                     """
                     UPDATE mcp_tool_classifications
                     SET tool_name = ?, suggested_access = ?, confidence = ?, source = ?,
@@ -677,7 +723,12 @@ class AccessControlStore:
                         existing["id"],
                     ),
                 )
-        return self.list_classifications()
+            current = connection.execute(
+                "SELECT * FROM mcp_tool_classifications WHERE server_id = ? AND tool_id = ?",
+                key,
+            ).fetchone()
+            if current is not None:
+                existing_rows[key] = dict(current)
 
     def analyze_tools(
         self,
@@ -1054,24 +1105,51 @@ class AccessControlStore:
         definitions: Iterable[ToolDefinition],
     ) -> list[ToolDefinition]:
         definitions_list = list(definitions)
-        self.synchronize_tools(definitions_list)
-        return [
-            definition
-            for definition in definitions_list
-            if self.evaluate(principal, definition)["allowed"]
-        ]
+        if not definitions_list:
+            return []
+        keys = [(_server_id(item), item.id) for item in definitions_list]
+        # 快照只在当前请求内使用；下一次发现或调用会重新读取分类和授权，避免跨用户或撤权后复用。
+        with self.database.session() as connection:
+            self._synchronize_tools(connection, definitions_list)
+            classifications = self._load_classifications(connection, keys)
+            grants = self._effective_access_map(connection, principal, keys)
+            return [
+                definition
+                for definition in definitions_list
+                if self._evaluate(
+                    principal,
+                    definition,
+                    classifications.get((_server_id(definition), definition.id)),
+                    partial(grants.__getitem__, (_server_id(definition), definition.id)),
+                )["allowed"]
+            ]
 
     def evaluate(self, principal: AuthPrincipal, definition: ToolDefinition) -> dict[str, Any]:
+        key = (_server_id(definition), definition.id)
+        with self.database.session() as connection:
+            classification = self._load_classifications(connection, [key]).get(key)
+            return self._evaluate(
+                principal,
+                definition,
+                classification,
+                lambda: self._effective_access_map(connection, principal, [key])[key],
+            )
+
+    def _evaluate(
+        self,
+        principal: AuthPrincipal,
+        definition: ToolDefinition,
+        classification: dict[str, Any] | None,
+        grant_lookup: Callable[[], str],
+    ) -> dict[str, Any]:
+        """发现与调用复用同一策略；调用方只负责准备本次请求的分类及授权数据。"""
+
         server_id = _server_id(definition)
         required_control_permission = definition.metadata.get("required_control_permission")
         if not isinstance(required_control_permission, str) or not required_control_permission.strip():
             required_control_permission = None
         else:
             required_control_permission = required_control_permission.strip()
-        classification = self.database.query_one(
-            "SELECT * FROM mcp_tool_classifications WHERE server_id = ? AND tool_id = ?",
-            (server_id, definition.id),
-        )
         roles = set(getattr(principal, "roles", ()) or (principal.role,))
         if (
             definition.metadata.get("classification_control_plane") is True
@@ -1132,12 +1210,12 @@ class AccessControlStore:
                 "reason": "tool classification is not published",
                 "server_id": server_id,
                 "required_access": "unknown",
-                "granted_access": self.effective_access(principal, server_id, definition.id),
+                "granted_access": grant_lookup(),
                 "classification_status": classification["status"] if classification else "missing",
             }
         required = str(classification["effective_access"])
         required_permission = "tools.read" if required == "read" else "tools.invoke"
-        granted = self.effective_access(principal, server_id, definition.id)
+        granted = grant_lookup()
         if not _principal_control_allows(principal, required_permission):
             return {
                 "allowed": False,
@@ -1176,32 +1254,71 @@ class AccessControlStore:
         }
 
     def effective_access(self, principal: AuthPrincipal, server_id: str, tool_id: str) -> str:
+        key = (server_id, tool_id)
+        with self.database.session() as connection:
+            return self._effective_access_map(connection, principal, [key])[key]
+
+    @staticmethod
+    def _effective_access_map(
+        connection: sqlite3.Connection,
+        principal: AuthPrincipal,
+        tool_keys: Iterable[tuple[str, str]],
+    ) -> dict[tuple[str, str], str]:
+        keys = list(dict.fromkeys(tool_keys))
         roles = set(getattr(principal, "roles", ()) or (principal.role,))
         if principal.role == "admin" or "admin" in roles:
-            return "write"
-        direct_tool = self._grant_level("user", principal.id, server_id, tool_id)
-        if direct_tool is not None:
-            return direct_tool
-        direct_server = self._grant_level("user", principal.id, server_id, "")
-        if direct_server is not None:
-            return direct_server
-        role_ids = self.database.query_all(
-            """
-            SELECT roles.id
-            FROM user_roles
-            JOIN roles ON roles.id = user_roles.role_id
-            WHERE user_roles.user_id = ? AND roles.enabled = 1
-            """,
-            (principal.id,),
-        )
-        levels: list[str] = []
-        for role in role_ids:
-            level = self._grant_level("role", role["id"], server_id, tool_id)
-            if level is None:
-                level = self._grant_level("role", role["id"], server_id, "")
-            if level is not None:
-                levels.append(level)
-        return max(levels, key=lambda item: ACCESS_RANK[item]) if levels else "none"
+            return dict.fromkeys(keys, "write")
+
+        server_ids = sorted({key[0] for key in keys})
+        grants: dict[tuple[str, str, str, str], str] = {}
+        role_ids: set[str] = set()
+        for offset in range(0, len(server_ids), 250):
+            batch = server_ids[offset:offset + 250]
+            placeholders = ",".join("?" for _ in batch)
+            rows = connection.execute(
+                """
+                SELECT grants.subject_type, grants.subject_id, grants.server_id,
+                       grants.tool_id, grants.expires_at, permission_types.base_level
+                FROM mcp_resource_grants AS grants
+                JOIN permission_types ON permission_types.id = grants.permission_type_id
+                WHERE permission_types.enabled = 1
+                  AND (
+                    (grants.subject_type = 'user' AND grants.subject_id = ?)
+                    OR (grants.subject_type = 'role' AND grants.subject_id IN (
+                        SELECT user_roles.role_id FROM user_roles
+                        JOIN roles ON roles.id = user_roles.role_id
+                        WHERE user_roles.user_id = ? AND roles.enabled = 1
+                    ))
+                  )
+                """ + f"AND grants.server_id IN ({placeholders})",
+                (principal.id, principal.id, *batch),
+            ).fetchall()
+            for row in rows:
+                if _is_expired(row["expires_at"]):
+                    continue
+                grant_key = (row["subject_type"], row["subject_id"], row["server_id"], row["tool_id"])
+                grants[grant_key] = str(row["base_level"])
+                if row["subject_type"] == "role":
+                    role_ids.add(row["subject_id"])
+
+        result: dict[tuple[str, str], str] = {}
+        for server_id, tool_id in keys:
+            # 保持既有优先级：用户工具授权 > 用户服务授权 > 各角色内工具覆盖服务后取最高权限。
+            direct = grants.get(("user", principal.id, server_id, tool_id))
+            if direct is None:
+                direct = grants.get(("user", principal.id, server_id, ""))
+            if direct is not None:
+                result[(server_id, tool_id)] = direct
+                continue
+            levels: list[str] = []
+            for role_id in role_ids:
+                level = grants.get(("role", role_id, server_id, tool_id))
+                if level is None:
+                    level = grants.get(("role", role_id, server_id, ""))
+                if level is not None:
+                    levels.append(level)
+            result[(server_id, tool_id)] = max(levels, key=lambda item: ACCESS_RANK[item]) if levels else "none"
+        return result
 
     def delivery_target_access(
         self,
@@ -1231,30 +1348,6 @@ class AccessControlStore:
             return False
         granted = self.effective_access(principal, server_id, "")
         return ACCESS_RANK.get(granted, 0) >= ACCESS_RANK[required_access]
-
-    def _grant_level(
-        self,
-        subject_type: str,
-        subject_id: str,
-        server_id: str,
-        tool_id: str,
-    ) -> str | None:
-        row = self.database.query_one(
-            """
-            SELECT permission_types.base_level, mcp_resource_grants.expires_at
-            FROM mcp_resource_grants
-            JOIN permission_types ON permission_types.id = mcp_resource_grants.permission_type_id
-            WHERE mcp_resource_grants.subject_type = ?
-              AND mcp_resource_grants.subject_id = ?
-              AND mcp_resource_grants.server_id = ?
-              AND mcp_resource_grants.tool_id = ?
-              AND permission_types.enabled = 1
-            """,
-            (subject_type, subject_id, server_id, tool_id),
-        )
-        if not row or _is_expired(row["expires_at"]):
-            return None
-        return str(row["base_level"])
 
     def invoke_tool(
         self,

@@ -6,6 +6,7 @@ import asyncio
 import json
 import os
 import unittest
+from threading import Event
 from unittest.mock import patch
 
 from fastapi import FastAPI, HTTPException, Request
@@ -303,6 +304,44 @@ class McpGatewayProtocolTest(unittest.TestCase):
         )
         self.assertTrue(self._json(tools)["result"]["tools"][0]["annotations"]["readOnlyHint"])
         self.assertTrue(self._json(tools)["result"]["tools"][2]["annotations"]["readOnlyHint"])
+
+    def test_slow_tool_discovery_does_not_block_protocol_discovery(self) -> None:
+        app = self._app()
+        entered, release, finished = Event(), Event(), Event()
+        endpoint = next(route.endpoint for route in app.routes if getattr(route, "path", None) == "/mcp")
+
+        def slow_lookup(_principal, definitions):
+            entered.set()
+            release.wait(timeout=5)
+            finished.set()
+            return definitions
+
+        def request_for(method: str, request_id: int) -> Request:
+            params, headers = build_protocol_request(method, {}, client_name="concurrent-test", client_version="1")
+            body = json.dumps({"jsonrpc": "2.0", "id": request_id, "method": method, "params": params}).encode()
+
+            async def receive():
+                return {"type": "http.request", "body": body, "more_body": False}
+
+            return Request({"type": "http", "method": "POST", "path": "/mcp", "headers": [
+                (key.lower().encode(), value.encode()) for key, value in headers.items()
+            ]}, receive)
+
+        async def scenario() -> None:
+            listing = asyncio.create_task(endpoint(request_for("tools/list", 20), app.state.test_principal))
+            try:
+                self.assertTrue(await asyncio.to_thread(entered.wait, 2))
+                response = await asyncio.wait_for(
+                    endpoint(request_for("server/discover", 21), app.state.test_principal), timeout=2,
+                )
+                self.assertEqual(response.status_code, 200)
+                self.assertFalse(finished.is_set(), "目录查询结束前，协议发现应能独立响应")
+            finally:
+                release.set()
+                await listing
+
+        with patch.object(FakeAccessStore, "visible_tools", side_effect=slow_lookup):
+            asyncio.run(scenario())
 
     def test_fastapi_dependency_injection_reaches_gateway(self) -> None:
         params, headers = build_protocol_request(
