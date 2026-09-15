@@ -6,6 +6,12 @@
 
 Lingshu Gate 提供统一的认证 MCP 入口、Web Console、配置与运行时管理、加密凭据、工具分类、调用审计、诊断，以及受控的项目上传、构建、部署和启动工作流。
 
+## Console 预览
+
+![Lingshu Gate Web Console 仪表盘](docs/assets/console-dashboard.svg)
+
+Console 将服务健康状态、已发现工具、项目交付、安全访问和审计入口收拢在同一个运维工作区。截图来自无业务数据的本地开发实例，不包含生产数据或凭据。
+
 ## 核心能力
 
 - `POST /mcp` 上的统一 Streamable HTTP MCP 网关。
