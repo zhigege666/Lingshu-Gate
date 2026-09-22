@@ -14,6 +14,7 @@ import { Label } from "@/components/ui/label"
 import { Switch } from "@/components/ui/switch"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { Toaster, type ToastState } from "@/components/ui/toast"
+import { getAvailableTokenScopes, getDefaultTokenScopes, getTokenScopeOptions } from "@/features/personal-token-scopes"
 import type { Locale, TFunction } from "@/i18n"
 import { formatDateTime } from "@/lib/utils"
 import { TableEmptyRow } from "@/pages/page-utils"
@@ -46,7 +47,7 @@ const copy = {
     expired: "已过期",
     revoke: "吊销凭据",
     noTokens: "暂无个人凭据",
-    scopeHint: "scope 是凭据上限；实际能否调用仍取决于 Tool 已发布分类和用户/角色资源授权。",
+    scopeHint: "scope 是凭据上限，工具调用还受分类与资源授权规则约束。通过 MCP 上传、构建和部署项目需同时选择 tools.invoke 与 operations.manage；确认并发布工具分类还需 classifications.manage。",
   },
   "en-US": {
     eyebrow: "SECURITY & ACCESS · PERSONAL TOKENS",
@@ -75,11 +76,9 @@ const copy = {
     expired: "Expired",
     revoke: "Revoke credential",
     noTokens: "No personal credentials",
-    scopeHint: "Scopes are a ceiling. Invocation still requires a published classification and an effective resource grant.",
+    scopeHint: "Scopes are a ceiling; tool calls also follow classification and resource grant rules. MCP project uploads, builds, and deployments require both tools.invoke and operations.manage. Confirming and publishing tool classifications also requires classifications.manage.",
   },
 } satisfies Record<Locale, Record<string, string>>
-
-const SAFE_SCOPE_ORDER = ["tools.read", "tools.invoke", "audit.read", "console.view"]
 
 export function PersonalTokensPage({ locale, t }: { locale: Locale; t: TFunction }) {
   const c = copy[locale]
@@ -96,23 +95,11 @@ export function PersonalTokensPage({ locale, t }: { locale: Locale; t: TFunction
   const [message, setMessage] = useState<string | null>(null)
   const { confirm, confirmDialog } = useConfirm(t)
 
-  const availableScopes = useMemo(() => {
-    const permissions = new Set(user.permissions)
-    if (user.role === "admin" || user.roles.includes("admin")) SAFE_SCOPE_ORDER.forEach((scope) => permissions.add(scope))
-    return [...permissions]
-      .filter((scope) => SAFE_SCOPE_ORDER.includes(scope))
-      .sort((a, b) => SAFE_SCOPE_ORDER.indexOf(a) - SAFE_SCOPE_ORDER.indexOf(b))
-  }, [user.permissions, user.role, user.roles])
-  const scopeOptions = useMemo(() => {
-    const options = new Set(availableScopes)
-    editingToken?.scopes.forEach((scope) => options.add(scope))
-    return [...options].sort((a, b) => {
-      const left = SAFE_SCOPE_ORDER.indexOf(a)
-      const right = SAFE_SCOPE_ORDER.indexOf(b)
-      if (left === -1 || right === -1) return left === right ? a.localeCompare(b) : left === -1 ? 1 : -1
-      return left - right
-    })
-  }, [availableScopes, editingToken])
+  const availableScopes = useMemo(() => getAvailableTokenScopes(user), [user])
+  const scopeOptions = useMemo(
+    () => getTokenScopeOptions(availableScopes, editingToken?.scopes),
+    [availableScopes, editingToken],
+  )
 
   useEffect(() => { void load() }, [])
 
@@ -132,7 +119,7 @@ export function PersonalTokensPage({ locale, t }: { locale: Locale; t: TFunction
   function openCreate() {
     setEditingToken(null)
     setName("MCP Client")
-    setScopes(availableScopes.includes("tools.read") ? ["tools.read"] : availableScopes.slice(0, 1))
+    setScopes(getDefaultTokenScopes(availableScopes))
     setExpiresAt("")
     setNewToken(null)
     setDialogOpen(true)
@@ -254,7 +241,7 @@ export function PersonalTokensPage({ locale, t }: { locale: Locale; t: TFunction
               <div className="flex flex-col gap-2">
                 <Label>{c.scopes}</Label>
                 <div className="grid gap-2">
-                  {scopeOptions.map((scope) => <label key={scope} className="flex items-center justify-between rounded-lg border p-3"><span><span className="block text-sm font-medium">{scope}</span><span className="block text-xs text-muted-foreground">{scopeDescription(scope, locale)}</span></span><Switch checked={scopes.includes(scope)} onCheckedChange={(checked) => setScopes((current) => checked ? [...new Set([...current, scope])] : current.filter((item) => item !== scope))} /></label>)}
+                  {scopeOptions.map((scope) => <label key={scope} className="flex items-center justify-between gap-3 rounded-lg border p-3"><span className="min-w-0"><span className="block break-all text-sm font-medium">{scope}</span><span className="block text-xs text-muted-foreground">{scopeDescription(scope, locale)}</span></span><Switch aria-label={scope} checked={scopes.includes(scope)} onCheckedChange={(checked) => setScopes((current) => checked ? [...new Set([...current, scope])] : current.filter((item) => item !== scope))} /></label>)}
                 </div>
               </div>
               {!editingToken && <div className="flex flex-col gap-2"><Label>{c.expiresAt}</Label><Input type="datetime-local" value={expiresAt} onChange={(event) => setExpiresAt(event.target.value)} /><div className="text-xs text-muted-foreground">{expiresAt || c.noExpiry}</div></div>}
@@ -282,6 +269,13 @@ function scopeDescription(scope: string, locale: Locale) {
     "tools.invoke": ["调用已授权的写 Tool（同时包含只读）", "Invoke granted write tools, including read-only access"],
     "audit.read": ["读取调用审计", "Read invocation audits"],
     "console.view": ["读取基础控制面信息", "Read basic control-plane data"],
+    "operations.manage": ["管理 MCP 配置与服务，上传、构建、部署和启动项目", "Manage MCP configuration and services; upload, build, deploy, and start projects"],
+    "classifications.manage": ["分析、确认并发布工具的只读或读写分类", "Analyze, confirm, and publish tool read/write classifications"],
+    "credentials.manage.self": ["管理自己的 API Token 与下游 MCP 凭据", "Manage personal API tokens and downstream MCP credentials"],
+    "credentials.manage.all": ["查看并吊销全部用户的 API Token", "View and revoke API tokens for all users"],
+    "users.manage": ["审核、启用、停用和维护用户账号", "Review, activate, disable, and maintain user accounts"],
+    "roles.manage": ["管理角色、控制面权限与 MCP 权限类型", "Manage roles, control-plane permissions, and MCP permission types"],
+    "grants.manage": ["维护用户和角色的 MCP 服务或工具授权", "Manage MCP server and tool grants for users and roles"],
   }
   return values[scope]?.[locale === "zh-CN" ? 0 : 1] || scope
 }
