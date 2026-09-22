@@ -193,6 +193,8 @@ export function PersonalTokensPage({ locale, t }: { locale: Locale; t: TFunction
   }
 
   const activeCount = tokens.filter((token) => tokenStatus(token) === "active").length
+  const revokedCount = tokens.filter((token) => tokenStatus(token) === "revoked").length
+  const expiredCount = tokens.length - activeCount - revokedCount
   const toast: ToastState = error ? { message: error, tone: "error" } : message ? { message, tone: "success" } : null
 
   return (
@@ -201,13 +203,14 @@ export function PersonalTokensPage({ locale, t }: { locale: Locale; t: TFunction
         eyebrow={c.eyebrow}
         title={c.title}
         description={c.description}
-        stats={[{ label: c.active, value: activeCount, tone: "success" }, { label: c.revoked, value: tokens.length - activeCount }]}
+        helpLabel={t("pageHelp")}
+        helpContent={<p>{c.scopeHint}</p>}
+        stats={[{ label: c.active, value: activeCount, tone: "success" }, { label: c.expired, value: expiredCount, tone: expiredCount ? "warning" : "default" }, { label: c.revoked, value: revokedCount }]}
         actions={<><Button onClick={openCreate}><Plus />{c.newToken}</Button><Button variant="outline" onClick={load} disabled={busy}><RefreshCcw />{t("refresh")}</Button></>}
       />
       {error && <Alert variant="destructive"><AlertDescription>{error}</AlertDescription></Alert>}
       <Card>
         <CardContent className="flex flex-col gap-3 p-3 md:p-4">
-          <div className="rounded-lg border border-primary/25 bg-primary/[0.035] p-3 text-xs leading-5 text-muted-foreground">{c.scopeHint}</div>
           <div className="overflow-x-auto rounded-lg border">
             <Table>
               <TableHeader><TableRow><TableHead>{c.name}</TableHead><TableHead>{c.prefix}</TableHead><TableHead>{c.scopes}</TableHead><TableHead>{c.lastUsed}</TableHead><TableHead>{c.status}</TableHead><TableHead>{t("actions")}</TableHead></TableRow></TableHeader>

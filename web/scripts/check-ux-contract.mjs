@@ -17,6 +17,12 @@ const pageNames = [
   "runtime-cache-page.tsx",
   "uploads-page.tsx",
   "tool-classifications-page.tsx",
+  "access-users-page.tsx",
+  "access-roles-page.tsx",
+  "access-grants-page.tsx",
+  "personal-tokens-page.tsx",
+  "downstream-credentials-page.tsx",
+  "invocation-audit-page.tsx",
 ]
 const searchablePages = new Set([
   "configs-page.tsx",
@@ -27,10 +33,12 @@ const searchablePages = new Set([
   "runtime-cache-page.tsx",
   "uploads-page.tsx",
   "tool-classifications-page.tsx",
+  "access-users-page.tsx",
+  "access-grants-page.tsx",
+  "invocation-audit-page.tsx",
 ])
 const workflowPages = new Set([
   "builds-page.tsx",
-  "invoke-page.tsx",
   "uploads-page.tsx",
 ])
 
@@ -40,7 +48,10 @@ function assertContract(condition, message) {
 
 for (const pageName of pageNames) {
   const source = await readFile(join(pageRoot, pageName), "utf8")
-  assertContract(source.includes("PageHeader"), `${pageName} 未接入 PageHeader`)
+  assertContract(source.includes("PageHeader"), `${pageName} 缺少统一页面标题`)
+  if (pageName !== "servers-page.tsx") {
+    assertContract(source.includes('helpLabel={t("pageHelp")}'), `${pageName} 缺少多语言页面帮助入口`)
+  }
   assertContract(!/eyebrow="[^"]+"/.test(source), `${pageName} 的页面分类未经过多语言`)
   if (searchablePages.has(pageName)) {
     assertContract(source.includes("PageToolbar"), `${pageName} 缺少搜索或筛选工具栏`)

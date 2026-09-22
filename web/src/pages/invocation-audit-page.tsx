@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from "react"
-import { RefreshCcw, ShieldCheck, ShieldX } from "lucide-react"
+import { ShieldCheck, ShieldX } from "lucide-react"
 import { api, type InvocationAudit, type InvocationAuditFilterOptions } from "@/api/client"
 import { JsonPanel } from "@/components/json-panel"
 import { PageHeader, PageToolbar } from "@/components/page-shell"
@@ -37,7 +37,8 @@ const copy = {
     allUsers: "全部用户",
     allServers: "全部 MCP 服务",
     allTools: "全部工具",
-    search: "搜索用户、MCP 服务、工具或关联 ID",
+    search: "在当前结果中搜索用户、MCP 服务、工具或关联 ID",
+    filterHint: "筛选条件需点击「应用筛选」后生效；搜索框只匹配当前查询结果，最多 300 条。",
     noData: "暂无调用审计",
     detail: "审计详情",
     payload: "参数摘要",
@@ -73,7 +74,8 @@ const copy = {
     allUsers: "All users",
     allServers: "All MCP servers",
     allTools: "All tools",
-    search: "Search actor, server, tool, or correlation ID",
+    search: "Search current results by actor, server, tool, or correlation ID",
+    filterHint: "Select Apply Filters to query records. The search box only searches the current query results, up to 300 records.",
     noData: "No invocation audits",
     detail: "Audit detail",
     payload: "Payload summary",
@@ -140,6 +142,11 @@ export function InvocationAuditPage({ locale, t }: { locale: Locale; t: TFunctio
   const allowCount = audits.filter((item) => item.decision === "allow").length
   const denyCount = audits.filter((item) => item.decision === "deny").length
   const errorCount = audits.filter((item) => item.outcome === "error").length
+  const advancedFilters = [
+    userId !== "__all" && `${c.userId}: ${filterOptions.users.find((user) => user.id === userId)?.username || userId}`,
+    serverId !== "__all" && `${c.serverId}: ${serverId}`,
+    toolId !== "__all" && `${c.toolId}: ${toolId}`,
+  ].filter(Boolean)
 
   function changeServer(value: string) {
     setServerId(value)
@@ -161,25 +168,30 @@ export function InvocationAuditPage({ locale, t }: { locale: Locale; t: TFunctio
         eyebrow={c.eyebrow}
         title={c.title}
         description={c.description}
+        helpLabel={t("pageHelp")}
+        helpContent={<p>{c.filterHint}</p>}
+        toolbar={<PageToolbar query={query} onQueryChange={setQuery} placeholder={c.search} resultCount={visibleAudits.length} resultLabel={c.title} clearLabel={t("clearSearch")}>
+          <Select value={decision} onValueChange={setDecision}><SelectTrigger className="w-[150px]" aria-label={c.decision}><SelectValue /></SelectTrigger><SelectContent><SelectItem value="__all">{c.allDecisions}</SelectItem><SelectItem value="allow">{c.allow}</SelectItem><SelectItem value="deny">{c.deny}</SelectItem></SelectContent></Select>
+          <Select value={outcome} onValueChange={setOutcome}><SelectTrigger className="w-[150px]" aria-label={c.outcome}><SelectValue /></SelectTrigger><SelectContent><SelectItem value="__all">{c.allOutcomes}</SelectItem><SelectItem value="success">{c.success}</SelectItem><SelectItem value="error">{c.error}</SelectItem><SelectItem value="not_invoked">{c.not_invoked}</SelectItem></SelectContent></Select>
+        </PageToolbar>}
         stats={[
           { label: c.allow, value: allowCount, tone: "success" },
           { label: c.deny, value: denyCount, tone: denyCount ? "danger" : "default" },
           { label: c.error, value: errorCount, tone: errorCount ? "warning" : "default" },
         ]}
-        actions={<Button variant="outline" onClick={() => void load()} disabled={busy}><RefreshCcw />{t("refresh")}</Button>}
+        actions={<Button onClick={() => void load()} disabled={busy}>{t("applyFilters")}</Button>}
       />
       {error && <Alert variant="destructive"><AlertDescription>{error}</AlertDescription></Alert>}
       <Card>
         <CardContent className="flex flex-col gap-3 p-3 md:p-4">
-          <div className="grid gap-3 rounded-lg border bg-muted/20 p-3 md:grid-cols-2 xl:grid-cols-[repeat(5,minmax(0,1fr))_auto]">
-            <FilterField label={c.userId}><Select value={userId} onValueChange={setUserId}><SelectTrigger aria-label={c.userId}><SelectValue /></SelectTrigger><SelectContent><SelectItem value="__all">{c.allUsers}</SelectItem>{filterOptions.users.map((user) => <SelectItem key={user.id} value={user.id}>{user.username} · {user.id}</SelectItem>)}</SelectContent></Select></FilterField>
-            <FilterField label={c.serverId}><Select value={serverId} onValueChange={changeServer}><SelectTrigger aria-label={c.serverId}><SelectValue /></SelectTrigger><SelectContent><SelectItem value="__all">{c.allServers}</SelectItem>{filterOptions.servers.map((server) => <SelectItem key={server} value={server}>{server}</SelectItem>)}</SelectContent></Select></FilterField>
-            <FilterField label={c.toolId}><Select value={toolId} onValueChange={changeTool}><SelectTrigger aria-label={c.toolId}><SelectValue /></SelectTrigger><SelectContent><SelectItem value="__all">{c.allTools}</SelectItem>{toolOptions.map((tool) => <SelectItem key={`${tool.server_id}:${tool.tool_id}`} value={tool.tool_id}>{tool.tool_id}{serverId === "__all" ? ` · ${tool.server_id}` : ""}</SelectItem>)}</SelectContent></Select></FilterField>
-            <FilterField label={c.decision}><Select value={decision} onValueChange={setDecision}><SelectTrigger><SelectValue /></SelectTrigger><SelectContent><SelectItem value="__all">{c.allDecisions}</SelectItem><SelectItem value="allow">{c.allow}</SelectItem><SelectItem value="deny">{c.deny}</SelectItem></SelectContent></Select></FilterField>
-            <FilterField label={c.outcome}><Select value={outcome} onValueChange={setOutcome}><SelectTrigger><SelectValue /></SelectTrigger><SelectContent><SelectItem value="__all">{c.allOutcomes}</SelectItem><SelectItem value="success">{c.success}</SelectItem><SelectItem value="error">{c.error}</SelectItem><SelectItem value="not_invoked">{c.not_invoked}</SelectItem></SelectContent></Select></FilterField>
-            <div className="flex items-end md:justify-end"><Button className="w-full xl:w-auto" onClick={() => void load()} disabled={busy}>{t("search")}</Button></div>
-          </div>
-          <PageToolbar query={query} onQueryChange={setQuery} placeholder={c.search} resultCount={visibleAudits.length} resultLabel={c.title} clearLabel={t("clearSearch")} />
+          <details className="rounded-md border bg-muted/20 px-3 py-2">
+            <summary className="cursor-pointer text-xs font-medium text-muted-foreground">{t("advancedFilters")} ({advancedFilters.length}){advancedFilters.length > 0 && <span className="ml-2 break-words font-normal">{advancedFilters.join(" · ")}</span>}</summary>
+            <div className="mt-3 grid gap-3 md:grid-cols-3">
+              <FilterField label={c.userId}><Select value={userId} onValueChange={setUserId}><SelectTrigger aria-label={c.userId}><SelectValue /></SelectTrigger><SelectContent><SelectItem value="__all">{c.allUsers}</SelectItem>{filterOptions.users.map((user) => <SelectItem key={user.id} value={user.id}>{user.username} · {user.id}</SelectItem>)}</SelectContent></Select></FilterField>
+              <FilterField label={c.serverId}><Select value={serverId} onValueChange={changeServer}><SelectTrigger aria-label={c.serverId}><SelectValue /></SelectTrigger><SelectContent><SelectItem value="__all">{c.allServers}</SelectItem>{filterOptions.servers.map((server) => <SelectItem key={server} value={server}>{server}</SelectItem>)}</SelectContent></Select></FilterField>
+              <FilterField label={c.toolId}><Select value={toolId} onValueChange={changeTool}><SelectTrigger aria-label={c.toolId}><SelectValue /></SelectTrigger><SelectContent><SelectItem value="__all">{c.allTools}</SelectItem>{toolOptions.map((tool) => <SelectItem key={`${tool.server_id}:${tool.tool_id}`} value={tool.tool_id}>{tool.tool_id}{serverId === "__all" ? ` · ${tool.server_id}` : ""}</SelectItem>)}</SelectContent></Select></FilterField>
+            </div>
+          </details>
           <div className="max-h-[620px] overflow-auto rounded-lg border">
             <Table>
               <TableHeader><TableRow><TableHead>{c.time}</TableHead><TableHead>{c.actor}</TableHead><TableHead>{c.resource}</TableHead><TableHead>{c.access}</TableHead><TableHead>{c.decision}</TableHead><TableHead>{c.outcome}</TableHead><TableHead>{c.duration}</TableHead></TableRow></TableHeader>

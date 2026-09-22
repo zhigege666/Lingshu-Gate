@@ -1,18 +1,44 @@
 import type { ReactNode } from "react"
-import { CloseOutlined, SearchOutlined } from "@ant-design/icons"
+import { CloseOutlined, QuestionCircleOutlined, SearchOutlined } from "@ant-design/icons"
 import { Button, Empty, Input, Steps, type StepsProps } from "antd"
+import { Dialog, DialogBody, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog"
 import { cn } from "@/lib/utils"
 
 type Tone = "default" | "success" | "warning" | "danger"
 
-export function PageHeader({ title, description, eyebrow, actions, titleExtra, stats = [] }: {
+export function PageHeader({ title, description, eyebrow, actions, titleExtra, stats = [], variant = "compact", toolbar, helpLabel, helpContent }: {
   title: string
   description?: string
   eyebrow?: string
   actions?: ReactNode
   titleExtra?: ReactNode
   stats?: Array<{ label: string; value: ReactNode; tone?: Tone }>
+  variant?: "compact" | "detail"
+  toolbar?: ReactNode
+  helpLabel?: string
+  helpContent?: ReactNode
 }) {
+  // 列表页复用全局导航标题；详情页保留资源名称，避免丢失当前操作对象。
+  if (variant === "compact") return <header className="page-header page-header-compact">
+    <h1>{title}</h1>
+    <div className="page-header-controls">
+      {toolbar && <div className="page-header-toolbar">{toolbar}</div>}
+      {stats.length > 0 && <div className="page-stats">{stats.map(stat => <PageStat key={stat.label} {...stat} />)}</div>}
+      <div className="page-header-actions">
+        {actions}
+        {(description || helpContent) && <Dialog>
+          <DialogTrigger asChild><Button type="text" icon={<QuestionCircleOutlined />} aria-label={helpLabel || title} title={helpLabel || title} /></DialogTrigger>
+          <DialogContent>
+            <DialogHeader><DialogTitle>{title}</DialogTitle></DialogHeader>
+            <DialogBody className="space-y-3 text-sm leading-6">
+              <DialogDescription className="whitespace-pre-wrap break-words leading-6">{description}</DialogDescription>
+              {helpContent}
+            </DialogBody>
+          </DialogContent>
+        </Dialog>}
+      </div>
+    </div>
+  </header>
   return <header className="page-header">
     <div className="page-header-main">
       <div className="min-w-0">

@@ -2,12 +2,11 @@ import { useMemo } from "react"
 import { Play } from "lucide-react"
 import type { ToolDefinition } from "@/api/client"
 import { JsonPanel } from "@/components/json-panel"
-import { PageHeader, WorkflowSteps } from "@/components/page-shell"
+import { PageHeader } from "@/components/page-shell"
 import { Alert, AlertDescription } from "@/components/ui/alert"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
-import { Label } from "@/components/ui/label"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Textarea } from "@/components/ui/textarea"
 import type { TFunction } from "@/i18n"
@@ -39,20 +38,31 @@ export function InvokePage(props: {
         eyebrow={t("toolTesting")}
         title={t("invoke")}
         description={selectedTool?.description || t("serverToolsHint")}
-        stats={[
-          { label: t("tools"), value: tools.length },
-          { label: t("source"), value: selectedTool?.source || "-" },
-          { label: t("permission"), value: selectedTool?.permission || "-" },
-        ]}
+        helpLabel={t("pageHelp")}
+        toolbar={<div className="flex min-w-0 flex-wrap items-center gap-2">
+          <div className="min-w-0 flex-1 basis-64">
+            <Select value={selectedToolId || "__none"} onValueChange={(value) => onToolChange(value === "__none" ? "" : value)}>
+              <SelectTrigger aria-label={t("tools")}><SelectValue placeholder={t("tools")} /></SelectTrigger>
+              <SelectContent><SelectItem value="__none">-</SelectItem>{tools.map((tool) => <SelectItem key={tool.id} value={tool.id}>{tool.id}</SelectItem>)}</SelectContent>
+            </Select>
+          </div>
+          {selectedTool && <>
+            <Badge variant="outline" title={t("source")}>{selectedTool.source}</Badge>
+            <Badge variant="secondary" title={t("permission")}>{selectedTool.permission}</Badge>
+          </>}
+        </div>}
+        actions={<Button onClick={onInvoke} disabled={!selectedToolId || Boolean(validationError)}><Play />{t("invokeTool")}</Button>}
       />
-      <WorkflowSteps ariaLabel={t("workflowProgress")} steps={[
-        { label: t("tools"), state: selectedTool ? "done" : "current" },
-        { label: t("arguments"), state: !selectedTool ? "next" : validationError ? "current" : "done" },
-        { label: t("result"), state: hasResult ? "done" : selectedTool && !validationError ? "current" : "next" },
-      ]} />
       <div className="grid gap-4 xl:grid-cols-2">
-      <Card><CardHeader><CardTitle>{t("invoke")}</CardTitle><CardDescription>{selectedTool?.id || t("waiting")}</CardDescription></CardHeader><CardContent className="flex flex-col gap-3"><Select value={selectedToolId || "__none"} onValueChange={(value) => onToolChange(value === "__none" ? "" : value)}><SelectTrigger><SelectValue /></SelectTrigger><SelectContent><SelectItem value="__none">-</SelectItem>{tools.map((tool) => <SelectItem key={tool.id} value={tool.id}>{tool.id}</SelectItem>)}</SelectContent></Select>{selectedTool ? <div className="flex flex-wrap gap-2"><Badge variant="outline">{selectedTool.source}</Badge><Badge variant="secondary">{selectedTool.permission}</Badge></div> : null}<Label>{t("arguments")}</Label><Textarea value={invokeArgs} onChange={(event) => onArgsChange(event.target.value)} aria-invalid={Boolean(validationError) || undefined} className="min-h-[220px] font-mono" />{validationError ? <Alert variant="destructive"><AlertDescription>{validationError}</AlertDescription></Alert> : null}{selectedTool ? <details className="rounded-md border p-3"><summary className="cursor-pointer text-sm font-medium">{t("inputSchema")}</summary><div className="mt-3"><JsonPanel data={selectedTool.input_schema} maxHeight="max-h-64" /></div></details> : null}<Button onClick={onInvoke} disabled={!selectedToolId || Boolean(validationError)}><Play />{t("invokeTool")}</Button></CardContent></Card>
-      <Card><CardHeader><CardTitle>{t("result")}</CardTitle><CardDescription>{hasResult ? selectedTool?.id : t("waiting")}</CardDescription></CardHeader><CardContent><JsonPanel text={invokeResult} maxHeight="max-h-[540px]" /></CardContent></Card>
+        <Card>
+          <CardHeader><CardTitle><label htmlFor="invoke-arguments">{t("arguments")}</label></CardTitle></CardHeader>
+          <CardContent className="flex flex-col gap-3">
+            <Textarea id="invoke-arguments" value={invokeArgs} onChange={(event) => onArgsChange(event.target.value)} aria-invalid={Boolean(validationError) || undefined} aria-describedby={validationError ? "invoke-arguments-error" : undefined} className="min-h-[320px] font-mono" />
+            {validationError && <Alert variant="destructive"><AlertDescription id="invoke-arguments-error">{validationError}</AlertDescription></Alert>}
+            {selectedTool && <details className="rounded-md border p-3"><summary className="cursor-pointer text-sm font-medium">{t("inputSchema")}</summary><div className="mt-3"><JsonPanel data={selectedTool.input_schema} maxHeight="max-h-64" /></div></details>}
+          </CardContent>
+        </Card>
+        <Card><CardHeader><CardTitle>{t("result")}</CardTitle><CardDescription>{hasResult ? selectedTool?.id : t("waiting")}</CardDescription></CardHeader><CardContent><JsonPanel text={invokeResult} maxHeight="max-h-[540px]" /></CardContent></Card>
       </div>
     </div>
   )

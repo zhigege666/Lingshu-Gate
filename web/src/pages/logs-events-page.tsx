@@ -1,10 +1,11 @@
 import { useEffect, useMemo, useState, type ReactNode } from "react"
+import { Tabs } from "antd"
 import { api, type EventFilters, type LogFilters, type ObservabilityEvent, type ObservabilityLog } from "@/api/client"
 import { PageHeader } from "@/components/page-shell"
 import { Alert, AlertDescription } from "@/components/ui/alert"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
+import { Card, CardContent } from "@/components/ui/card"
 import { Dialog, DialogBody, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import { Input } from "@/components/ui/input"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
@@ -28,11 +29,23 @@ export function LogsEventsPage({ t }: { t: TFunction }) {
   const [lastLoadedAt, setLastLoadedAt] = useState("")
   const [logFilters, setLogFilters] = useState<LogFilters>({ limit: 80 })
   const [eventFilters, setEventFilters] = useState<EventFilters>({ limit: 80 })
+  const [activeTab, setActiveTab] = useState("logs")
 
   const logEventTypes = useMemo(() => unique(logs.map((item) => item.event_type).filter(Boolean) as string[]), [logs])
   const logSources = useMemo(() => unique(logs.map((item) => item.source).filter(Boolean)), [logs])
   const eventTypes = useMemo(() => unique(events.map((item) => item.type).filter(Boolean)), [events])
   const eventSources = useMemo(() => unique(events.map((item) => item.source).filter(Boolean)), [events])
+  const logAdvancedSummary = [
+    logFilters.event_type && `${t("eventType")}: ${logFilters.event_type}`,
+    logFilters.source && `${t("source")}: ${logFilters.source}`,
+    logFilters.tool_id && `${t("toolId")}: ${logFilters.tool_id}`,
+    `${t("limit")}: ${logFilters.limit || 80}`,
+  ].filter(Boolean).join(" · ")
+  const eventAdvancedSummary = [
+    eventFilters.event_type && `${t("eventType")}: ${eventFilters.event_type}`,
+    eventFilters.source && `${t("source")}: ${eventFilters.source}`,
+    `${t("limit")}: ${eventFilters.limit || 80}`,
+  ].filter(Boolean).join(" · ")
 
   useEffect(() => { void loadLogsEvents() }, [])
 
@@ -61,52 +74,61 @@ export function LogsEventsPage({ t }: { t: TFunction }) {
         eyebrow={t("observability")}
         title={t("logs")}
         description={t("logFiltersDesc")}
+        helpLabel={t("pageHelp")}
         stats={[
-          { label: t("logRows"), value: logs.length },
-          { label: t("events"), value: events.length },
           { label: t("error"), value: logs.filter((item) => item.level === "error").length, tone: logs.some((item) => item.level === "error") ? "danger" : "success" },
           { label: t("updatedAt"), value: lastLoadedAt ? formatDateTime(lastLoadedAt) : t("waiting") },
         ]}
-        actions={<Button onClick={loadLogsEvents} disabled={busy}>{t("applyFilters")}</Button>}
+        actions={<><Button variant="outline" onClick={resetFilters} disabled={busy}>{t("resetFilters")}</Button><Button onClick={loadLogsEvents} disabled={busy}>{t("applyFilters")}</Button></>}
       />
       {error && <Alert variant="destructive"><AlertDescription>{error}</AlertDescription></Alert>}
       <Card>
-        <CardHeader>
-          <div className="flex flex-wrap items-start justify-between gap-3">
-            <div><CardTitle>{t("logFilters")}</CardTitle><CardDescription>{t("logFiltersDesc")}</CardDescription></div>
-            <Button size="sm" variant="secondary" onClick={resetFilters} disabled={busy}>{t("resetFilters")}</Button>
-          </div>
-        </CardHeader>
-        <CardContent className="grid gap-4 xl:grid-cols-2">
-          <FilterPanel title={t("logRows")}>
-            <FilterInput label={t("serverId")} value={logFilters.server_id || ""} onChange={(value) => setLogFilters((current) => ({ ...current, server_id: value }))} placeholder="example-server" />
-            <FilterSelect t={t} localize label={t("level")} value={logFilters.level || ALL_VALUE} options={LEVEL_OPTIONS} onChange={(value) => setLogFilters((current) => ({ ...current, level: fromSelectValue(value) }))} />
-            <FilterSelect t={t} label={t("eventType")} value={logFilters.event_type || ALL_VALUE} options={logEventTypes} onChange={(value) => setLogFilters((current) => ({ ...current, event_type: fromSelectValue(value) }))} allowCustom />
-            <FilterSelect t={t} label={t("source")} value={logFilters.source || ALL_VALUE} options={logSources} onChange={(value) => setLogFilters((current) => ({ ...current, source: fromSelectValue(value) }))} allowCustom />
-            <FilterInput label={t("toolId")} value={logFilters.tool_id || ""} onChange={(value) => setLogFilters((current) => ({ ...current, tool_id: value }))} placeholder="mcp.example-server.*" />
-            <FilterInput label={t("keyword")} value={logFilters.keyword || ""} onChange={(value) => setLogFilters((current) => ({ ...current, keyword: value }))} placeholder="stderr / timeout / example-server" />
-            <LimitSelect t={t} value={logFilters.limit || 80} onChange={(value) => setLogFilters((current) => ({ ...current, limit: value }))} />
-          </FilterPanel>
-          <FilterPanel title={t("events")}>
-            <FilterInput label={t("serverId")} value={eventFilters.subject_id || ""} onChange={(value) => setEventFilters((current) => ({ ...current, subject_id: value }))} placeholder="example-server" />
-            <FilterSelect t={t} label={t("eventType")} value={eventFilters.event_type || ALL_VALUE} options={eventTypes} onChange={(value) => setEventFilters((current) => ({ ...current, event_type: fromSelectValue(value) }))} allowCustom />
-            <FilterSelect t={t} label={t("source")} value={eventFilters.source || ALL_VALUE} options={eventSources} onChange={(value) => setEventFilters((current) => ({ ...current, source: fromSelectValue(value) }))} allowCustom />
-            <FilterInput label={t("keyword")} value={eventFilters.keyword || ""} onChange={(value) => setEventFilters((current) => ({ ...current, keyword: value }))} placeholder="gate.server.failed / gate.config" />
-            <LimitSelect t={t} value={eventFilters.limit || 80} onChange={(value) => setEventFilters((current) => ({ ...current, limit: value }))} />
-          </FilterPanel>
+        <CardContent className="p-3 md:p-4" aria-busy={busy}>
+          <Tabs
+            activeKey={activeTab}
+            onChange={setActiveTab}
+            items={[
+              {
+                key: "logs",
+                label: `${t("logRows")} (${logs.length})`,
+                // 保留两个表格的分页、排序与列宽状态，切换标签不重新挂载。
+                forceRender: true,
+                children: <div className="flex flex-col gap-3">
+                  <div className="grid gap-3 md:grid-cols-[minmax(0,1fr)_minmax(140px,0.6fr)_minmax(0,1.6fr)]">
+                    <FilterInput label={t("serverId")} value={logFilters.server_id || ""} onChange={(value) => setLogFilters((current) => ({ ...current, server_id: value }))} placeholder="example-server" />
+                    <FilterSelect t={t} localize label={t("level")} value={logFilters.level || ALL_VALUE} options={LEVEL_OPTIONS} onChange={(value) => setLogFilters((current) => ({ ...current, level: fromSelectValue(value) }))} />
+                    <FilterInput label={t("keyword")} value={logFilters.keyword || ""} onChange={(value) => setLogFilters((current) => ({ ...current, keyword: value }))} placeholder="stderr / timeout / example-server" />
+                  </div>
+                  <AdvancedFilters title={t("advancedFilters")} summary={logAdvancedSummary}>
+                    <FilterSelect t={t} label={t("eventType")} value={logFilters.event_type || ALL_VALUE} options={logEventTypes} onChange={(value) => setLogFilters((current) => ({ ...current, event_type: fromSelectValue(value) }))} allowCustom />
+                    <FilterSelect t={t} label={t("source")} value={logFilters.source || ALL_VALUE} options={logSources} onChange={(value) => setLogFilters((current) => ({ ...current, source: fromSelectValue(value) }))} allowCustom />
+                    <FilterInput label={t("toolId")} value={logFilters.tool_id || ""} onChange={(value) => setLogFilters((current) => ({ ...current, tool_id: value }))} placeholder="mcp.example-server.*" />
+                    <LimitSelect t={t} value={logFilters.limit || 80} onChange={(value) => setLogFilters((current) => ({ ...current, limit: value }))} />
+                  </AdvancedFilters>
+                  <LogTable t={t} logs={logs} onSelect={setSelectedPayload} />
+                </div>,
+              },
+              {
+                key: "events",
+                label: `${t("events")} (${events.length})`,
+                forceRender: true,
+                children: <div className="flex flex-col gap-3">
+                  <div className="grid gap-3 md:grid-cols-[minmax(0,1fr)_minmax(0,2.2fr)]">
+                    <FilterInput label={t("serverId")} value={eventFilters.subject_id || ""} onChange={(value) => setEventFilters((current) => ({ ...current, subject_id: value }))} placeholder="example-server" />
+                    <FilterInput label={t("keyword")} value={eventFilters.keyword || ""} onChange={(value) => setEventFilters((current) => ({ ...current, keyword: value }))} placeholder="gate.server.failed / gate.config" />
+                  </div>
+                  <AdvancedFilters title={t("advancedFilters")} summary={eventAdvancedSummary}>
+                    <FilterSelect t={t} label={t("eventType")} value={eventFilters.event_type || ALL_VALUE} options={eventTypes} onChange={(value) => setEventFilters((current) => ({ ...current, event_type: fromSelectValue(value) }))} allowCustom />
+                    <FilterSelect t={t} label={t("source")} value={eventFilters.source || ALL_VALUE} options={eventSources} onChange={(value) => setEventFilters((current) => ({ ...current, source: fromSelectValue(value) }))} allowCustom />
+                    <LimitSelect t={t} value={eventFilters.limit || 80} onChange={(value) => setEventFilters((current) => ({ ...current, limit: value }))} />
+                  </AdvancedFilters>
+                  <EventTable t={t} events={events} onSelect={setSelectedPayload} />
+                </div>,
+              },
+            ]}
+          />
         </CardContent>
       </Card>
-
-      <div className="grid gap-4 md:grid-cols-3">
-        <SummaryCard title={t("logRows")} value={logs.length} detail={summaryBy(logs, "level")} />
-        <SummaryCard title={t("events")} value={events.length} detail={summaryBy(events, "source")} />
-        <SummaryCard title={t("selectedPayload")} value={selectedPayload ? 1 : 0} detail={selectedPayload ? t("detail") : t("noData")} />
-      </div>
-
-      <div className="grid gap-4 xl:grid-cols-2">
-        <Card><CardHeader><CardTitle>{t("events")}</CardTitle><CardDescription>{t("latestEvents")}</CardDescription></CardHeader><CardContent><EventTable t={t} events={events} onSelect={setSelectedPayload} /></CardContent></Card>
-        <Card><CardHeader><CardTitle>{t("logRows")}</CardTitle><CardDescription>{t("latestLogs")}</CardDescription></CardHeader><CardContent><LogTable t={t} logs={logs} onSelect={setSelectedPayload} /></CardContent></Card>
-      </div>
 
       <Dialog open={selectedPayload !== null} onOpenChange={(open) => { if (!open) setSelectedPayload(null) }}>
         <DialogContent className="max-w-4xl">
@@ -118,8 +140,8 @@ export function LogsEventsPage({ t }: { t: TFunction }) {
   )
 }
 
-function FilterPanel({ title, children }: { title: string; children: ReactNode }) {
-  return <div className="rounded-lg border p-3"><div className="mb-3 text-sm font-semibold">{title}</div><div className="grid gap-3 md:grid-cols-2">{children}</div></div>
+function AdvancedFilters({ title, summary, children }: { title: string; summary: string; children: ReactNode }) {
+  return <details className="rounded-md border bg-muted/20 px-3 py-2"><summary className="cursor-pointer text-xs font-medium text-muted-foreground">{title}<span className="ml-2 break-words font-normal">{summary}</span></summary><div className="mt-3 grid gap-3 md:grid-cols-2 xl:grid-cols-4">{children}</div></details>
 }
 
 function FilterInput({ label, value, onChange, placeholder }: { label: string; value: string; onChange: (value: string) => void; placeholder?: string }) {
@@ -138,8 +160,10 @@ function LimitSelect({ t, value, onChange }: { t: TFunction; value: number; onCh
 function EventTable({ t, events, onSelect }: { t: TFunction; events: ObservabilityEvent[]; onSelect: (value: unknown) => void }) {
   const { pageRows, page, setPage, pageCount, total, sortKey, sortDir, toggleSort } = usePagedSorted(events, { pageSize: 15, initialSortKey: "created_at", getSortValue: (event, key) => (event as unknown as Record<string, string>)[key] })
   const { widths, startResize } = useColumnWidths("lingshu-gate-cols-events", { created_at: 170, type: 160, source: 120 })
+  // 为末列保留可读宽度；窄屏或拖宽其他列时在表格内横向滚动。
+  const minWidth = widths.created_at + widths.type + widths.source + 200
   return <div>
-    <div className="max-h-[520px] overflow-auto"><Table className="table-fixed"><ColGroup order={["created_at", "type", "source", "subject_id"]} widths={widths} /><TableHeader><TableRow>
+    <div className="max-h-[520px] overflow-auto"><Table className="table-fixed" style={{ minWidth }}><ColGroup order={["created_at", "type", "source", "subject_id"]} widths={widths} /><TableHeader><TableRow>
       <SortHead label={t("time")} sortKey="created_at" activeKey={sortKey} dir={sortDir} onSort={toggleSort} onResizeStart={startResize("created_at")} />
       <SortHead label={t("eventType")} sortKey="type" activeKey={sortKey} dir={sortDir} onSort={toggleSort} onResizeStart={startResize("type")} />
       <SortHead label={t("source")} sortKey="source" activeKey={sortKey} dir={sortDir} onSort={toggleSort} onResizeStart={startResize("source")} />
@@ -152,8 +176,9 @@ function EventTable({ t, events, onSelect }: { t: TFunction; events: Observabili
 function LogTable({ t, logs, onSelect }: { t: TFunction; logs: ObservabilityLog[]; onSelect: (value: unknown) => void }) {
   const { pageRows, page, setPage, pageCount, total, sortKey, sortDir, toggleSort } = usePagedSorted(logs, { pageSize: 15, initialSortKey: "created_at", getSortValue: (log, key) => (log as unknown as Record<string, string>)[key] })
   const { widths, startResize } = useColumnWidths("lingshu-gate-cols-logs", { created_at: 170, level: 100, server_id: 120, event_type: 150 })
+  const minWidth = widths.created_at + widths.level + widths.server_id + widths.event_type + 240
   return <div>
-    <div className="max-h-[520px] overflow-auto"><Table className="table-fixed"><ColGroup order={["created_at", "level", "server_id", "event_type", "message"]} widths={widths} /><TableHeader><TableRow>
+    <div className="max-h-[520px] overflow-auto"><Table className="table-fixed" style={{ minWidth }}><ColGroup order={["created_at", "level", "server_id", "event_type", "message"]} widths={widths} /><TableHeader><TableRow>
       <SortHead label={t("time")} sortKey="created_at" activeKey={sortKey} dir={sortDir} onSort={toggleSort} onResizeStart={startResize("created_at")} />
       <SortHead label={t("level")} sortKey="level" activeKey={sortKey} dir={sortDir} onSort={toggleSort} onResizeStart={startResize("level")} />
       <SortHead label={t("serverId")} sortKey="server_id" activeKey={sortKey} dir={sortDir} onSort={toggleSort} onResizeStart={startResize("server_id")} />
@@ -162,10 +187,6 @@ function LogTable({ t, logs, onSelect }: { t: TFunction; logs: ObservabilityLog[
     </TableRow></TableHeader><TableBody>{total === 0 ? <TableEmptyRow colSpan={5} title={t("noData")} /> : pageRows.map((log) => <TableRow key={log.id} className="cursor-pointer" onClick={() => onSelect(log)}><TableCell className="whitespace-nowrap text-xs">{formatDateTime(log.created_at)}</TableCell><TableCell><Badge variant={log.level === "error" ? "danger" : log.level === "warning" ? "warning" : "outline"}>{localizeStatus(t, log.level)}</Badge></TableCell><TableCell className="truncate">{log.server_id || "-"}</TableCell><TableCell className="truncate"><code>{log.event_type || "-"}</code></TableCell><TableCell className="whitespace-pre-wrap text-xs">{log.message}</TableCell></TableRow>)}</TableBody></Table></div>
     <Pager t={t} page={page} pageCount={pageCount} total={total} onPage={setPage} />
   </div>
-}
-
-function SummaryCard({ title, value, detail }: { title: string; value: number; detail: string }) {
-  return <Card><CardHeader className="pb-2"><CardDescription>{title}</CardDescription><CardTitle>{value}</CardTitle></CardHeader><CardContent className="text-xs text-muted-foreground">{detail}</CardContent></Card>
 }
 
 function cleanFilters<T extends object>(filters: T): T {
@@ -178,13 +199,4 @@ function fromSelectValue(value: string) {
 
 function unique(values: string[]) {
   return Array.from(new Set(values)).sort()
-}
-
-function summaryBy(items: object[], key: string) {
-  const counts = new Map<string, number>()
-  for (const item of items) {
-    const value = String((item as Record<string, unknown>)[key] || "unknown")
-    counts.set(value, (counts.get(value) || 0) + 1)
-  }
-  return Array.from(counts.entries()).slice(0, 5).map(([name, count]) => `${name}: ${count}`).join(" · ") || "-"
 }

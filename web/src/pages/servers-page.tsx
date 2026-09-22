@@ -185,7 +185,7 @@ export function ServersPage(props: Props) {
       {server ? <>
         <Button type="text" className="service-detail-back" icon={<ArrowLeftOutlined />} onClick={() => chooseServer(null)}>{c.back}</Button>
         <div className="service-breadcrumb">{c.directory} <span aria-hidden="true">/</span> {server.id}</div>
-        <PageHeader title={server.name || server.id} description={server.id} titleExtra={<RuntimeBadge server={server} t={t} pill />} actions={<>
+        <PageHeader variant="detail" title={server.name || server.id} description={server.id} titleExtra={<RuntimeBadge server={server} t={t} pill />} actions={<>
           <Button type="primary" size="large" icon={<ExportOutlined />} onClick={() => setTab("tools")}>{c.viewTools}</Button>
           <Dropdown trigger={["click"]} menu={{ items: actions.map(action => ({ key: action, label: actionName(action), danger: action === "stop", disabled: actionBusy || props.busy })), onClick: ({ key }) => { if (actions.includes(key as Action)) void runAction(key as Action) } }}>
             <Button size="large" icon={<MoreOutlined />} loading={actionBusy} disabled={actions.length === 0} aria-label={c.more} />

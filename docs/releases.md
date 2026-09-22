@@ -4,6 +4,8 @@
 
 Lingshu Gate release automation produces directly runnable native packages, a Docker Compose deployment bundle, and tagged-release offline Core images. Every published asset is covered by `SHA256SUMS` and a repository build-provenance attestation.
 
+The current source version is `0.2.0`, adding shared MCP protocol negotiation, configuration editing improvements, expanded personal API token scope selection, and unified Console navigation and page layouts. Console pages now use direct navigation links, compact toolbars, on-demand help, and responsive tables and dialogs. Runtime reporting, Python package metadata, CLI output, and release artifact names derive from the single version source in `src/lingshu_gate/_version.py`.
+
 ## Artifact matrix
 
 | Target | Asset | Build architecture |

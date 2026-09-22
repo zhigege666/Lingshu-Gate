@@ -250,18 +250,18 @@ export function AccessRolesPage({ locale, t }: { locale: Locale; t: TFunction })
         eyebrow={c.eyebrow}
         title={c.title}
         description={c.description}
-        stats={[{ label: c.roles, value: roles.length }, { label: c.permissionTypes, value: permissionTypes.length }, { label: c.controlPermissions, value: permissions.length }]}
+        helpLabel={t("pageHelp")}
         actions={<Button variant="outline" onClick={load} disabled={busy}><RefreshCcw />{t("refresh")}</Button>}
       />
       {error && <Alert variant="destructive"><AlertDescription>{error}</AlertDescription></Alert>}
-      <div className="grid gap-4">
+      <div className="grid grid-cols-1 gap-4">
         <Card>
-          <CardHeader className="flex-row items-start justify-between gap-3">
+          <CardHeader className="items-start gap-3 sm:flex-row sm:justify-between">
             <div><CardTitle className="flex items-center gap-2"><Shield className="size-5 text-primary" />{c.roles}</CardTitle><CardDescription>{c.roleDesc}</CardDescription></div>
             <Button onClick={() => openRole()}><Plus />{c.newRole}</Button>
           </CardHeader>
           <CardContent>
-            <Table>
+            <Table className="min-w-[640px]">
               <TableHeader><TableRow><TableHead>{c.name}</TableHead><TableHead>{c.members}</TableHead><TableHead>{c.controlPermissions}</TableHead><TableHead>{t("status")}</TableHead><TableHead>{t("actions")}</TableHead></TableRow></TableHeader>
               <TableBody>
                 {roles.length === 0 ? <TableEmptyRow colSpan={5} title={c.noRoles} /> : roles.map((role) => <TableRow key={role.id}>
@@ -277,12 +277,12 @@ export function AccessRolesPage({ locale, t }: { locale: Locale; t: TFunction })
         </Card>
 
         <Card>
-          <CardHeader className="flex-row items-start justify-between gap-3">
+          <CardHeader className="items-start gap-3 sm:flex-row sm:justify-between">
             <div><CardTitle className="flex items-center gap-2"><KeySquare className="size-5 text-primary" />{c.permissionTypes}</CardTitle><CardDescription>{c.permissionTypeDesc}</CardDescription></div>
             <Button onClick={() => openType()}><Plus />{c.newType}</Button>
           </CardHeader>
           <CardContent>
-            <Table>
+            <Table className="min-w-[560px]">
               <TableHeader><TableRow><TableHead>{c.name}</TableHead><TableHead>{c.baseLevel}</TableHead><TableHead>{c.references}</TableHead><TableHead>{t("actions")}</TableHead></TableRow></TableHeader>
               <TableBody>
                 {permissionTypes.length === 0 ? <TableEmptyRow colSpan={4} title={c.noTypes} /> : permissionTypes.map((item) => <TableRow key={item.id}>

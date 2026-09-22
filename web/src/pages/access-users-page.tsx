@@ -212,31 +212,24 @@ export function AccessUsersPage({ locale, t }: { locale: Locale; t: TFunction })
         eyebrow={c.eyebrow}
         title={c.title}
         description={c.description}
-        stats={[
-          { label: c.pending, value: statusCounts.pending, tone: statusCounts.pending ? "warning" : "default" },
-          { label: c.active, value: statusCounts.active, tone: "success" },
-          { label: c.disabled, value: statusCounts.disabled },
-        ]}
+        helpLabel={t("pageHelp")}
+        helpContent={<><p>{c.createHint}</p><p>{c.registrationHint}</p></>}
+        toolbar={<PageToolbar query={query} onQueryChange={setQuery} placeholder={c.search} resultCount={visibleUsers.length} resultLabel={c.title} clearLabel={t("clearSearch")}>
+          <Select value={statusFilter} onValueChange={setStatusFilter}>
+            <SelectTrigger className="w-40" aria-label={c.statusFilter}><SelectValue /></SelectTrigger>
+            <SelectContent>
+              <SelectItem value="__all">{c.allStatus}</SelectItem>
+              <SelectItem value="pending">{c.pending} ({statusCounts.pending})</SelectItem>
+              <SelectItem value="active">{c.active} ({statusCounts.active})</SelectItem>
+              <SelectItem value="disabled">{c.disabled} ({statusCounts.disabled})</SelectItem>
+            </SelectContent>
+          </Select>
+        </PageToolbar>}
         actions={<><Button onClick={openCreate}><Plus />{c.newUser}</Button><Button variant="outline" onClick={load} disabled={busy}><RefreshCcw />{t("refresh")}</Button></>}
       />
       {error && <Alert variant="destructive"><AlertDescription>{error}</AlertDescription></Alert>}
       <Card>
         <CardContent className="flex flex-col gap-3 p-3 md:p-4">
-          <div className="grid gap-2 md:grid-cols-2">
-            <div className="rounded-lg border border-primary/25 bg-primary/[0.035] p-3 text-sm"><div className="font-medium">{c.newUser}</div><div className="mt-1 text-xs leading-5 text-muted-foreground">{c.createHint}</div></div>
-            <div className="rounded-lg border bg-muted/20 p-3 text-sm"><div className="font-medium">{c.pending}</div><div className="mt-1 text-xs leading-5 text-muted-foreground">{c.registrationHint}</div></div>
-          </div>
-          <PageToolbar query={query} onQueryChange={setQuery} placeholder={c.search} resultCount={visibleUsers.length} resultLabel={c.title} clearLabel={t("clearSearch")}>
-            <Select value={statusFilter} onValueChange={setStatusFilter}>
-              <SelectTrigger className="w-40" aria-label={c.statusFilter}><SelectValue /></SelectTrigger>
-              <SelectContent>
-                <SelectItem value="__all">{c.allStatus}</SelectItem>
-                <SelectItem value="pending">{c.pending}</SelectItem>
-                <SelectItem value="active">{c.active}</SelectItem>
-                <SelectItem value="disabled">{c.disabled}</SelectItem>
-              </SelectContent>
-            </Select>
-          </PageToolbar>
           <div className="overflow-x-auto rounded-lg border">
             <Table>
               <TableHeader><TableRow><TableHead>{c.account}</TableHead><TableHead>{t("status")}</TableHead><TableHead>{c.roles}</TableHead><TableHead>{c.registeredAt}</TableHead><TableHead>{t("actions")}</TableHead></TableRow></TableHeader>

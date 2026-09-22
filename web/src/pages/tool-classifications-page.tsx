@@ -1,9 +1,9 @@
 import { useEffect, useMemo, useState } from "react"
-import { BadgeCheck, CheckCheck, ListChecks, RefreshCcw, ScanSearch, ShieldQuestion } from "lucide-react"
+import { BadgeCheck, CheckCheck, ListChecks, RefreshCcw, ScanSearch } from "lucide-react"
 import { api, type ToolClassification } from "@/api/client"
 import { useConfirm } from "@/components/confirm-dialog"
 import { JsonPanel } from "@/components/json-panel"
-import { PageHeader, PageToolbar, WorkflowSteps } from "@/components/page-shell"
+import { PageHeader, PageToolbar } from "@/components/page-shell"
 import { Alert, AlertDescription } from "@/components/ui/alert"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
@@ -20,8 +20,8 @@ import { TableEmptyRow } from "@/pages/page-utils"
 
 const copy = {
   "zh-CN": {
-    eyebrow: "安全与访问 · 工具策略",
     title: "工具读写分类",
+    help: "分类说明",
     description: "先读取 MCP 工具标注并运行内部规则，最后由人工确认发布。只有已发布的只读或读写分类才进入运行时授权。",
     pending: "待审核",
     published: "已发布",
@@ -69,6 +69,8 @@ const copy = {
     filterStatus: "按显示状态筛选",
     selectRow: "选择工具",
     selectionReady: "勾选工具后可批量分类或发布已确认记录",
+    selectionActions: "所选工具操作",
+    clearSelection: "取消选择",
     sourceBuiltin: "Lingshu Gate 内置",
     sourceMcp: "下游 MCP",
     readAccess: "只读",
@@ -83,8 +85,8 @@ const copy = {
     step4: "发布生效",
   },
   "en-US": {
-    eyebrow: "TOOL RISK CLASSIFICATION",
     title: "Tool Read/Write Classification",
+    help: "Classification help",
     description: "Start with MCP annotations and local rules, then publish a human-reviewed decision. Only published read/write results enter enforcement.",
     pending: "Pending",
     published: "Published",
@@ -132,6 +134,8 @@ const copy = {
     filterStatus: "Filter by displayed status",
     selectRow: "Select tool",
     selectionReady: "Select tools to classify in bulk or publish reviewed records",
+    selectionActions: "Selected tool actions",
+    clearSelection: "Clear selection",
     sourceBuiltin: "Lingshu Gate built-in",
     sourceMcp: "Downstream MCP",
     readAccess: "Read",
@@ -423,58 +427,46 @@ export function ToolClassificationsPage({ locale, t }: { locale: Locale; t: TFun
       : current.filter((id) => !visibleIds.includes(id)))
   }
 
-  const counts = {
-    needsConfirmation: items.filter((item) => classificationViewStatus(item) === "needs_confirmation").length,
-    confirmedPending: items.filter((item) => classificationViewStatus(item) === "confirmed_pending").length,
-    stale: items.filter((item) => classificationViewStatus(item) === "stale").length,
-    published: items.filter((item) => classificationViewStatus(item) === "published").length,
-  }
-  const waitingReviewCount = visibleItems.filter((item) => item.status !== "published" && item.effective_access === "unknown").length
+  // 筛选不会清空选择；明确提示视图外的已选项，避免用户误判批量操作范围。
+  const hiddenSelectedCount = selectedItems.length - selectedVisibleCount
   const selectionSummary = locale === "zh-CN"
-    ? `当前视图还有 ${waitingReviewCount} 条待确认，已选 ${selectedItems.length} 条，其中 ${confirmableSelectedItems.length} 条可批量确认`
-    : `${waitingReviewCount} visible classifications need confirmation; ${selectedItems.length} selected and ${confirmableSelectedItems.length} ready to confirm`
+    ? `已选 ${selectedItems.length} 项${hiddenSelectedCount > 0 ? `，其中 ${hiddenSelectedCount} 项不在当前筛选结果中` : ""}`
+    : `${selectedItems.length} selected${hiddenSelectedCount > 0 ? `, including ${hiddenSelectedCount} outside the current filters` : ""}`
   const toast: ToastState = error ? { message: error, tone: "error" } : message ? { message, tone: "success" } : null
 
   return (
-    <div className="flex flex-col gap-3">
-      <PageHeader
-        eyebrow={c.eyebrow}
-        title={c.title}
-        description={c.description}
-        stats={[
-          { label: c.needsConfirmation, value: counts.needsConfirmation, tone: counts.needsConfirmation ? "warning" : "default" },
-          { label: c.confirmedPending, value: counts.confirmedPending, tone: "default" },
-          { label: c.stale, value: counts.stale, tone: counts.stale ? "danger" : "default" },
-          { label: c.published, value: counts.published, tone: "success" },
-        ]}
-        actions={<Button variant="outline" onClick={load} disabled={busy}><RefreshCcw />{t("refresh")}</Button>}
+    <div className="flex flex-col gap-4">
+      <PageHeader title={c.title} description={c.description} helpLabel={t("pageHelp")}
+        helpContent={<>
+          <ol className="list-inside list-decimal space-y-1">{[c.step1, c.step2, c.step3, c.step4].map((step) => <li key={step}>{step}</li>)}</ol>
+          <p>{c.selectionReady}</p>
+          <p className="text-muted-foreground">{c.selectHint}</p>
+        </>}
+        toolbar={<PageToolbar query={query} onQueryChange={setQuery} placeholder={c.search} resultCount={visibleItems.length} resultLabel={c.tool} clearLabel={t("clearSearch")}>
+            <Select value={serverFilter} onValueChange={setServerFilter}><SelectTrigger aria-label={c.filterSource} className="w-full sm:w-44"><SelectValue /></SelectTrigger><SelectContent><SelectItem value="__all">{c.allServers}</SelectItem>{servers.map((server) => <SelectItem key={server} value={server}>{sourceOptionLabel(server, c)}</SelectItem>)}</SelectContent></Select>
+            <Select value={statusFilter} onValueChange={(value) => setStatusFilter(value as ClassificationViewStatus)}><SelectTrigger aria-label={c.filterStatus} className="w-full sm:w-44"><SelectValue /></SelectTrigger><SelectContent><SelectItem value="__all">{c.allStatuses}</SelectItem><SelectItem value="needs_confirmation">{c.needsConfirmation}</SelectItem><SelectItem value="confirmed_pending">{c.confirmedPending}</SelectItem><SelectItem value="stale">{c.stale}</SelectItem><SelectItem value="published">{c.published}</SelectItem></SelectContent></Select>
+        </PageToolbar>}
+        actions={<>
+          <Button variant="outline" onClick={() => void analyze()} disabled={busy}><ScanSearch />{c.analyzeRules}</Button>
+          <Button className="size-9 shrink-0 p-0" variant="ghost" onClick={() => void load()} disabled={busy} aria-label={t("refresh")} title={t("refresh")}><RefreshCcw /></Button>
+        </>}
       />
-      <WorkflowSteps ariaLabel={c.title} steps={[{ label: c.step1, state: "done" }, { label: c.step2, state: "done" }, { label: c.step3, state: "current" }, { label: c.step4, state: "next" }]} />
       {error && <Alert variant="destructive"><AlertDescription>{error}</AlertDescription></Alert>}
       <Card>
         <div className="flex flex-col gap-3 p-3 md:p-4">
-          <PageToolbar query={query} onQueryChange={setQuery} placeholder={c.search} resultCount={visibleItems.length} resultLabel={c.tool} clearLabel={t("clearSearch")}>
-            <Select value={serverFilter} onValueChange={setServerFilter}><SelectTrigger aria-label={c.filterSource} className="w-48"><SelectValue /></SelectTrigger><SelectContent><SelectItem value="__all">{c.allServers}</SelectItem>{servers.map((server) => <SelectItem key={server} value={server}>{sourceOptionLabel(server, c)}</SelectItem>)}</SelectContent></Select>
-            <Select value={statusFilter} onValueChange={(value) => setStatusFilter(value as ClassificationViewStatus)}><SelectTrigger aria-label={c.filterStatus} className="w-44"><SelectValue /></SelectTrigger><SelectContent><SelectItem value="__all">{c.allStatuses}</SelectItem><SelectItem value="needs_confirmation">{c.needsConfirmation}</SelectItem><SelectItem value="confirmed_pending">{c.confirmedPending}</SelectItem><SelectItem value="stale">{c.stale}</SelectItem><SelectItem value="published">{c.published}</SelectItem></SelectContent></Select>
-          </PageToolbar>
-          <div className="flex flex-col gap-3 border-t pt-3 2xl:flex-row 2xl:items-end">
-            <div className="flex flex-wrap items-end gap-2">
-              <Button className="min-h-10" variant="outline" onClick={() => void analyze()} disabled={busy}><ScanSearch />{c.analyzeRules}</Button>
+          {selectedItems.length > 0 && <div role="region" aria-label={c.selectionActions} className="flex flex-wrap items-center justify-between gap-3 rounded-lg bg-muted/50 px-3 py-2">
+            <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-sm">
+              <span role="status">{selectionSummary}</span>
+              <Button size="sm" variant="ghost" onClick={() => setSelectedIds([])} disabled={busy}>{c.clearSelection}</Button>
             </div>
-            <div className="flex flex-1 flex-col gap-2 rounded-lg bg-muted/40 px-3 py-2 2xl:ml-auto 2xl:max-w-4xl">
-              <div className="flex min-w-0 flex-1 items-start gap-2 text-xs leading-5 text-foreground/75">
-                <ShieldQuestion className="mt-0.5 size-4 shrink-0 text-primary" />
-                <span>{waitingReviewCount > 0 ? selectionSummary : c.selectionReady}。{c.selectHint}</span>
-              </div>
-              <div className="flex flex-wrap gap-2 sm:justify-end">
-                <Button className="min-h-10 shrink-0" variant="outline" onClick={openBatchReview} disabled={busy || selectedItems.length === 0}><ListChecks />{c.batchClassify} ({selectedItems.length})</Button>
-                <Button className="min-h-10 shrink-0" variant="secondary" onClick={() => void confirmSelected()} disabled={busy || confirmableSelectedItems.length === 0}><BadgeCheck />{c.confirmSelected} ({confirmableSelectedItems.length})</Button>
-                <Button className="min-h-10 shrink-0" onClick={() => void publish()} disabled={busy || publishableSelectedItems.length === 0}><CheckCheck />{c.publishSelected} ({publishableSelectedItems.length})</Button>
-              </div>
+            <div className="flex flex-wrap gap-2">
+              <Button className="shrink-0" variant="outline" onClick={openBatchReview} disabled={busy}><ListChecks />{c.batchClassify} ({selectedItems.length})</Button>
+              <Button className="shrink-0" variant="secondary" onClick={() => void confirmSelected()} disabled={busy || confirmableSelectedItems.length === 0}><BadgeCheck />{c.confirmSelected} ({confirmableSelectedItems.length})</Button>
+              <Button className="shrink-0" onClick={() => void publish()} disabled={busy || publishableSelectedItems.length === 0}><CheckCheck />{c.publishSelected} ({publishableSelectedItems.length})</Button>
             </div>
-          </div>
+          </div>}
           <div className="overflow-x-auto rounded-lg border">
-            <Table className="min-w-[900px]">
+            <Table className="min-w-[900px] [&_th]:whitespace-nowrap">
               <TableHeader><TableRow><TableHead className="w-10"><input ref={(node) => { if (node) node.indeterminate = someVisibleSelected }} className="size-4 accent-primary" type="checkbox" aria-label={c.selectVisible} title={c.selectVisible} checked={allVisibleSelected} disabled={busy || selectableVisibleItems.length === 0} onChange={(event) => toggleVisibleSelected(event.target.checked)} /></TableHead><TableHead>{c.tool}</TableHead><TableHead>{c.suggestion}</TableHead><TableHead>{c.effective}</TableHead><TableHead>{c.confidence}</TableHead><TableHead>{c.flags}</TableHead><TableHead>{t("status")}</TableHead><TableHead>{t("actions")}</TableHead></TableRow></TableHeader>
               <TableBody>
                 {visibleItems.length === 0 ? <TableEmptyRow colSpan={8} title={c.noData} /> : visibleItems.map((item) => <TableRow key={item.id}>

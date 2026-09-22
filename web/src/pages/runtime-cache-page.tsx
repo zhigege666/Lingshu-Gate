@@ -7,7 +7,7 @@ import { PageHeader, PageToolbar } from "@/components/page-shell"
 import { Toaster, type ToastState } from "@/components/ui/toast"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
+import { Card, CardContent } from "@/components/ui/card"
 import { Dialog, DialogBody, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import type { TFunction } from "@/i18n"
@@ -70,19 +70,21 @@ export function RuntimeCachePage({ t }: { t: TFunction }) {
         eyebrow={t("runtimeStorage")}
         title={t("runtimeCache")}
         description={t("runtimeCacheDesc")}
+        helpLabel={t("pageHelp")}
+        helpContent={<>
+          <p>{t("cacheListDesc")}</p>
+          <div><div className="font-medium">{t("cacheRoot")}</div><code className="break-all text-xs">{status?.root.path || "-"}</code></div>
+        </>}
+        toolbar={<PageToolbar query={query} onQueryChange={setQuery} placeholder={`${t("search")} ${t("name")} / ${t("path")}`} resultCount={filteredCaches.length} resultLabel={t("cacheCount")} clearLabel={t("clearSearch")} />}
         stats={[
-          { label: t("cacheSize"), value: formatBytes(status?.total_size_bytes || 0) },
-          { label: t("cacheCount"), value: status?.caches.length || 0 },
-          { label: t("writable"), value: String(Boolean(status?.root.writable || status?.root.parent_writable)), tone: status?.root.writable || status?.root.parent_writable ? "success" : "danger" },
-          { label: t("cacheRoot"), value: status?.root.path || "-" },
+          { label: t("cacheSize"), value: status ? formatBytes(status.total_size_bytes) : "-" },
+          { label: t("writable"), value: status ? String(Boolean(status.root.writable || status.root.parent_writable)) : "-", tone: !status ? "default" : status.root.writable || status.root.parent_writable ? "success" : "danger" },
         ]}
         actions={<Button variant="outline" onClick={load} disabled={busy}>{t("refresh")}</Button>}
       />
 
       <Card>
-        <CardHeader><CardTitle>{t("cacheList")}</CardTitle><CardDescription>{t("cacheListDesc")}</CardDescription></CardHeader>
-        <CardContent className="flex flex-col gap-3">
-          <PageToolbar query={query} onQueryChange={setQuery} placeholder={`${t("search")} ${t("name")} / ${t("path")}`} resultCount={filteredCaches.length} resultLabel={t("cacheCount")} clearLabel={t("clearSearch")} />
+        <CardContent className="overflow-x-auto p-3 md:p-4">
           <Table>
             <TableHeader><TableRow><TableHead>{t("name")}</TableHead><TableHead>{t("path")}</TableHead><TableHead>{t("cacheSize")}</TableHead><TableHead>{t("fileCount")}</TableHead><TableHead>{t("writable")}</TableHead><TableHead>{t("lastModified")}</TableHead><TableHead>{t("actions")}</TableHead></TableRow></TableHeader>
             <TableBody>

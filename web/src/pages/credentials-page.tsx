@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react"
+import { useEffect, useMemo, useRef, useState } from "react"
 import { KeyRound, Plus, RefreshCcw } from "lucide-react"
 import { api, type Credential, type CredentialSaveRequest } from "@/api/client"
 import { ActionMenu, ActionMenuItem } from "@/components/action-menu"
@@ -6,8 +6,9 @@ import { useConfirm } from "@/components/confirm-dialog"
 import { JsonPanel } from "@/components/json-panel"
 import { PageHeader, PageToolbar } from "@/components/page-shell"
 import { Toaster, type ToastState } from "@/components/ui/toast"
+import { Alert, AlertDescription } from "@/components/ui/alert"
 import { Button } from "@/components/ui/button"
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
+import { Card, CardContent } from "@/components/ui/card"
 import { Dialog, DialogBody, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
@@ -26,6 +27,9 @@ const emptyForm: CredentialSaveRequest = {
 export function CredentialsPage({ t }: { t: TFunction }) {
   const [credentials, setCredentials] = useState<Credential[]>([])
   const [selectedId, setSelectedId] = useState("")
+  const [editorOpen, setEditorOpen] = useState(false)
+  const createTrigger = useRef<HTMLButtonElement>(null)
+  const editorReturnFocus = useRef<HTMLButtonElement | null>(null)
   const [form, setForm] = useState<CredentialSaveRequest>({ ...emptyForm })
   const [busy, setBusy] = useState(false)
   const [message, setMessage] = useState<string | null>(null)
@@ -53,14 +57,23 @@ export function CredentialsPage({ t }: { t: TFunction }) {
     }
   }
 
-  function edit(credential: Credential) {
+  function edit(credential: Credential, menuItem: HTMLButtonElement) {
+    // 菜单项打开弹窗后会卸载，关闭时应回到仍在表格中的菜单按钮。
+    const menuId = menuItem.closest('[role="menu"]')?.id
+    editorReturnFocus.current = Array.from(document.querySelectorAll<HTMLButtonElement>('button[aria-controls]'))
+      .find(button => button.getAttribute("aria-controls") === menuId) || createTrigger.current
+    setError(null)
     setSelectedId(credential.id)
     setForm({ name: credential.name, value: "***", description: credential.description })
+    setEditorOpen(true)
   }
 
   function createNew() {
+    editorReturnFocus.current = createTrigger.current
+    setError(null)
     setSelectedId("")
     setForm({ ...emptyForm })
+    setEditorOpen(true)
   }
 
   async function save() {
@@ -74,6 +87,7 @@ export function CredentialsPage({ t }: { t: TFunction }) {
       setForm({ name: credential.name, value: "***", description: credential.description })
       setMessage(`${t("saved")}: ${credential.id}`)
       await load()
+      setEditorOpen(false)
     } catch (err) {
       setError(err instanceof Error ? err.message : String(err))
     } finally {
@@ -88,7 +102,11 @@ export function CredentialsPage({ t }: { t: TFunction }) {
     try {
       await api.deleteCredential(id)
       setMessage(`${t("deleted")}: ${id}`)
-      if (selectedId === id) createNew()
+      if (selectedId === id) {
+        setSelectedId("")
+        setForm({ ...emptyForm })
+        setEditorOpen(false)
+      }
       await load()
     } catch (err) {
       setError(err instanceof Error ? err.message : String(err))
@@ -111,7 +129,7 @@ export function CredentialsPage({ t }: { t: TFunction }) {
     setDetail({ title: credential.id, body: { credential, reference: credentialRef(credential.id) } })
   }
 
-  const toast: ToastState = error ? { message: error, tone: "error" } : message ? { message, tone: "success" } : null
+  const toast: ToastState = editorOpen ? null : error ? { message: error, tone: "error" } : message ? { message, tone: "success" } : null
   const nameInvalid = form.name.trim() === ""
   const valueInvalid = !selectedId && (form.value || "").trim() === ""
 
@@ -121,28 +139,33 @@ export function CredentialsPage({ t }: { t: TFunction }) {
         eyebrow={t("secretsCenter")}
         title={t("credentials")}
         description={t("credentialsDesc")}
-        stats={[{ label: t("total"), value: credentials.length }, { label: t("status"), value: selectedId || t("waiting") }]}
-        actions={<><Button onClick={createNew} disabled={busy}><Plus />{t("newCredential")}</Button><Button variant="outline" onClick={load} disabled={busy}><RefreshCcw />{t("refresh")}</Button></>}
+        helpLabel={t("pageHelp")}
+        toolbar={<PageToolbar query={query} onQueryChange={setQuery} placeholder={`${t("search")} ID / ${t("name")}`} resultCount={filteredCredentials.length} resultLabel={t("credentials")} clearLabel={t("clearSearch")} />}
+        actions={<><Button ref={createTrigger} onClick={createNew} disabled={busy}><Plus />{t("newCredential")}</Button><Button variant="outline" onClick={load} disabled={busy}><RefreshCcw />{t("refresh")}</Button></>}
       />
-      <div className="grid gap-4 xl:grid-cols-[1.1fr_0.9fr]">
-        <Card className="xl:order-2">
-          <CardHeader>
-            <CardTitle>{selectedId ? t("editCredential") : t("newCredential")}</CardTitle>
-            <CardDescription>{t("credentialsDesc")}</CardDescription>
-          </CardHeader>
-          <CardContent className="flex flex-col gap-3">
+      <Dialog open={editorOpen} onOpenChange={(open) => { if (!busy) setEditorOpen(open) }}>
+        <DialogContent onCloseAutoFocus={(event) => {
+          event.preventDefault()
+          const trigger = editorReturnFocus.current?.isConnected ? editorReturnFocus.current : createTrigger.current
+          trigger?.focus()
+        }}>
+          <DialogHeader>
+            <DialogTitle>{selectedId ? t("editCredential") : t("newCredential")}</DialogTitle>
+            <DialogDescription>{t("credentialsDesc")}</DialogDescription>
+          </DialogHeader>
+          <DialogBody className="flex flex-col gap-3">
+            {error && <Alert variant="destructive"><AlertDescription>{error}</AlertDescription></Alert>}
             <div className="flex flex-col gap-2"><Label>{t("name")}</Label><Input value={form.name} aria-invalid={nameInvalid || undefined} onChange={(event) => setForm((current) => ({ ...current, name: event.target.value }))} placeholder="SERVICE_PASSWORD" />{nameInvalid && <span className="text-xs text-destructive">{t("required")}</span>}</div>
             <div className="flex flex-col gap-2"><Label>{t("credentialValue")}</Label><Input type="password" value={form.value || ""} aria-invalid={valueInvalid || undefined} onChange={(event) => setForm((current) => ({ ...current, value: event.target.value }))} placeholder={selectedId ? "***" : "secret value"} />{valueInvalid && <span className="text-xs text-destructive">{t("required")}</span>}</div>
             <div className="flex flex-col gap-2"><Label>{t("description")}</Label><Textarea value={form.description || ""} onChange={(event) => setForm((current) => ({ ...current, description: event.target.value }))} placeholder="Password used by the example MCP server" /></div>
             <div className="rounded-md border bg-muted p-2 text-xs text-muted-foreground">{t("credentialRefHint")}</div>
-            <div className="sticky bottom-0 flex flex-wrap gap-2 border-t bg-card/95 pt-3 backdrop-blur"><Button onClick={save} disabled={busy || !form.name || (!selectedId && !form.value)}><KeyRound />{t("save")}</Button><Button variant="secondary" onClick={createNew} disabled={busy}>{t("cancel")}</Button></div>
-          </CardContent>
-        </Card>
+            <div className="flex justify-end gap-2 border-t pt-3"><Button variant="outline" onClick={() => setEditorOpen(false)} disabled={busy}>{t("cancel")}</Button><Button onClick={save} disabled={busy || nameInvalid || valueInvalid}><KeyRound />{t("save")}</Button></div>
+          </DialogBody>
+        </DialogContent>
+      </Dialog>
 
-        <Card className="xl:order-1">
-          <CardHeader><CardTitle>{t("credentials")}</CardTitle><CardDescription>{t("credentialsListDesc")}</CardDescription></CardHeader>
-          <CardContent className="flex flex-col gap-3">
-            <PageToolbar query={query} onQueryChange={setQuery} placeholder={`${t("search")} ID / ${t("name")}`} resultCount={filteredCredentials.length} resultLabel={t("credentials")} clearLabel={t("clearSearch")} />
+        <Card>
+          <CardContent className="overflow-x-auto p-3 md:p-4">
             <Table>
               <TableHeader><TableRow><TableHead>{t("id")}</TableHead><TableHead>{t("name")}</TableHead><TableHead>{t("description")}</TableHead><TableHead>{t("updatedAt")}</TableHead><TableHead>{t("actions")}</TableHead></TableRow></TableHeader>
               <TableBody>
@@ -151,13 +174,12 @@ export function CredentialsPage({ t }: { t: TFunction }) {
                   <TableCell>{credential.name}</TableCell>
                   <TableCell>{credential.description || "-"}</TableCell>
                   <TableCell className="whitespace-nowrap text-xs">{formatDateTime(credential.updated_at)}</TableCell>
-                  <TableCell onClick={(event) => event.stopPropagation()}><ActionMenu label={t("actions")}><ActionMenuItem onClick={() => edit(credential)}>{t("edit")}</ActionMenuItem><ActionMenuItem onClick={() => void copyReference(credential.id)}>{t("copyRef")}</ActionMenuItem><ActionMenuItem onClick={() => showDetail(credential)}>{t("detail")}</ActionMenuItem><ActionMenuItem destructive disabled={busy} onClick={() => void remove(credential.id)}>{t("delete")}</ActionMenuItem></ActionMenu></TableCell>
+                  <TableCell onClick={(event) => event.stopPropagation()}><ActionMenu label={t("actions")}><ActionMenuItem disabled={busy} onClick={(event) => edit(credential, event.currentTarget)}>{t("edit")}</ActionMenuItem><ActionMenuItem onClick={() => void copyReference(credential.id)}>{t("copyRef")}</ActionMenuItem><ActionMenuItem onClick={() => showDetail(credential)}>{t("detail")}</ActionMenuItem><ActionMenuItem destructive disabled={busy} onClick={() => void remove(credential.id)}>{t("delete")}</ActionMenuItem></ActionMenu></TableCell>
                 </TableRow>)}
               </TableBody>
             </Table>
           </CardContent>
         </Card>
-      </div>
 
       <Dialog open={detail !== null} onOpenChange={(open) => { if (!open) setDetail(null) }}>
         <DialogContent className="max-w-2xl">

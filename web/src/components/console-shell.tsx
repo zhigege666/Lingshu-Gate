@@ -1,14 +1,14 @@
-import { useState, type ReactNode } from "react"
+import { useEffect, useRef, useState, type ReactNode } from "react"
 import {
-  ApiOutlined, AppstoreOutlined, CloudServerOutlined, DashboardOutlined, DownOutlined,
-  GlobalOutlined, LogoutOutlined, MenuOutlined, MonitorOutlined, MoonOutlined,
-  ReloadOutlined, SearchOutlined, SecurityScanOutlined, SunOutlined, ToolOutlined,
+  ApiOutlined, DownOutlined, GlobalOutlined, LogoutOutlined, MenuOutlined, MoonOutlined,
+  ReloadOutlined, SearchOutlined, SunOutlined,
 } from "@ant-design/icons"
 import { Avatar, Button, Drawer, Dropdown, Menu, Select, Tooltip, type MenuProps } from "antd"
 import type { AuthUser } from "@/components/auth-gate"
 import { useConsoleDesign } from "@/components/console-design-provider"
 import type { ConsoleNavItem } from "@/routing/use-console-navigation"
 import type { ConsoleView } from "@/routing/console-routes"
+import { consoleViewHash } from "@/routing/use-console-route"
 
 type Props = {
   view: ConsoleView
@@ -28,16 +28,10 @@ type Props = {
 export function ConsoleShell({ view, title, user, version, groups, items, busy, onNavigate, onSearch, onRefresh, onLogout, children }: Props) {
   const { theme, setTheme, locale, setLocale } = useConsoleDesign()
   const [mobileOpen, setMobileOpen] = useState(false)
+  const activeNavItem = useRef<HTMLAnchorElement>(null)
+  useEffect(() => { activeNavItem.current?.scrollIntoView({ block: "nearest" }) }, [view])
   const zh = locale === "zh-CN"
   const languageOptions = [{ value: "zh-CN", label: "中文" }, { value: "en-US", label: "English" }]
-  const groupIcons: Record<string, ReactNode> = {
-    overview: <DashboardOutlined />, manage: <CloudServerOutlined />, tools: <ToolOutlined />,
-    ops: <MonitorOutlined />, access: <SecurityScanOutlined />,
-  }
-  const shortNames: Record<string, string> = {
-    overview: zh ? "概览" : "Home", manage: zh ? "管理" : "Manage", tools: zh ? "工具" : "Tools",
-    ops: zh ? "观测" : "Observe", access: zh ? "访问" : "Access",
-  }
   const allowedIds = groups.flatMap(group => group.items)
   function navigate(key: string) {
     if (!allowedIds.includes(key as ConsoleView)) return
@@ -45,8 +39,11 @@ export function ConsoleShell({ view, title, user, version, groups, items, busy, 
     setMobileOpen(false)
   }
   const mobileItems: MenuProps["items"] = groups.map(group => ({
-    type: "group", key: group.title, label: group.title,
-    children: group.items.map(id => ({ key: id, label: items[id].label, icon: groupIcons[items[id].section] })),
+    type: "group", key: items[group.items[0]].section, label: group.title,
+    children: group.items.map(id => {
+      const Icon = items[id].icon
+      return { key: id, label: items[id].label, icon: <Icon size={16} aria-hidden="true" /> }
+    }),
   }))
 
   return <div className="console-shell">
@@ -57,8 +54,7 @@ export function ConsoleShell({ view, title, user, version, groups, items, busy, 
         <strong>Lingshu Gate</strong>
       </a>
       <span className="console-header-divider" />
-      <span className="console-context">{title}</span>
-      <span className="console-header-caption">{zh ? "MCP 服务管理与工具访问治理" : "MCP services and tool access"}</span>
+      <span className="console-context" title={title}>{title}</span>
       <div className="console-header-actions">
         <Tooltip title={zh ? "搜索 · Ctrl K" : "Search · Ctrl K"}><Button type="text" icon={<SearchOutlined />} onClick={onSearch} aria-label={zh ? "搜索" : "Search"} /></Tooltip>
         <Tooltip title={zh ? "刷新当前数据" : "Refresh data"}><Button type="text" icon={<ReloadOutlined />} loading={busy} onClick={onRefresh} aria-label={zh ? "刷新" : "Refresh"} /></Tooltip>
@@ -80,14 +76,19 @@ export function ConsoleShell({ view, title, user, version, groups, items, busy, 
     </header>
 
     <nav className="console-rail" data-console-nav="desktop" aria-label={zh ? "主导航" : "Main navigation"}>
-      {allowedIds.includes("servers") && <Tooltip title={zh ? "MCP 服务工作区" : "MCP service workspace"} placement="right">
-        <button className="console-rail-item console-rail-primary" data-active={view === "servers"} aria-current={view === "servers" ? "page" : undefined} onClick={() => onNavigate("servers")}><CloudServerOutlined /><span>MCP</span></button>
-      </Tooltip>}
       {groups.map(group => {
         const section = items[group.items[0]].section
-        const active = group.items.includes(view) && view !== "servers"
-        const button = <button className="console-rail-item" data-active={active} aria-label={group.title} aria-current={active ? "page" : undefined} onClick={group.items.length === 1 ? () => onNavigate(group.items[0]) : undefined}>{groupIcons[section] || <AppstoreOutlined />}<span>{shortNames[section] || group.title}</span></button>
-        return group.items.length === 1 ? <Tooltip key={section} title={group.title} placement="right">{button}</Tooltip> : <Dropdown key={section} trigger={["click"]} placement="rightTop" menu={{ selectedKeys: [view], items: group.items.map(id => ({ key: id, label: items[id].label })), onClick: ({ key }) => navigate(key) }}>{button}</Dropdown>
+        return <div className="console-nav-group" key={section}>
+          <div className="console-nav-group-title">{group.title}</div>
+          {group.items.map(id => {
+            const Icon = items[id].icon
+            return <a key={id} ref={view === id ? activeNavItem : undefined} href={consoleViewHash(id)} className="console-rail-item" data-active={view === id} aria-current={view === id ? "page" : undefined} title={items[id].label} onClick={event => {
+              if (event.button !== 0 || event.ctrlKey || event.metaKey || event.shiftKey || event.altKey) return
+              event.preventDefault()
+              navigate(id)
+            }}><Icon size={17} aria-hidden="true" /><span>{items[id].label}</span></a>
+          })}
+        </div>
       })}
       <span className="console-rail-version">{version}</span>
     </nav>

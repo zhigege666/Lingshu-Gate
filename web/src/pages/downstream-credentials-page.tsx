@@ -1,7 +1,8 @@
 import { useEffect, useMemo, useState } from "react"
-import { CircleCheck, Globe2, KeyRound, Link2, LockKeyhole, RefreshCcw, ShieldAlert, TriangleAlert } from "lucide-react"
+import { KeyRound, RefreshCcw, ShieldAlert } from "lucide-react"
 import { api, type UserDownstreamCredential } from "@/api/client"
 import { useConfirm } from "@/components/confirm-dialog"
+import { PageHeader } from "@/components/page-shell"
 import { Alert, AlertDescription } from "@/components/ui/alert"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
@@ -12,7 +13,7 @@ import { Sheet, SheetContent, SheetDescription, SheetFooter, SheetHeader, SheetT
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { Toaster, type ToastState } from "@/components/ui/toast"
 import type { Locale, TFunction } from "@/i18n"
-import { cn, formatDateTime } from "@/lib/utils"
+import { formatDateTime } from "@/lib/utils"
 import { TableEmptyRow } from "@/pages/page-utils"
 
 const copy = {
@@ -164,36 +165,12 @@ export function DownstreamCredentialsPage({ locale, t }: { locale: Locale; t: TF
   const toast: ToastState = error ? { message: error, tone: "error" } : message ? { message, tone: "success" } : null
 
   return (
-    <div className={cn("flex flex-col gap-6 transition-[padding] duration-200", selected && "lg:pr-[440px]")}>
-      <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
-        <div>
-          <div className="mb-2 text-xs font-semibold uppercase tracking-[0.16em] text-primary">{c.eyebrow}</div>
-          <h2 className="text-2xl font-semibold tracking-tight md:text-[28px]">{c.title}</h2>
-          <p className="mt-2 max-w-3xl text-sm leading-6 text-muted-foreground">{c.description}</p>
-        </div>
-        <Button variant="outline" onClick={load} disabled={busy}><RefreshCcw />{t("refresh")}</Button>
-      </div>
-
-      <div className="grid gap-4 md:grid-cols-3">
-        <Card>
-          <CardContent className="flex items-center justify-between p-5">
-            <div><div className="text-sm text-muted-foreground">{c.configured}</div><div className="mt-2 text-3xl font-semibold">{configuredCount}</div></div>
-            <CircleCheck className="size-9 text-success" />
-          </CardContent>
-        </Card>
-        <Card>
-          <CardContent className="flex items-center justify-between p-5">
-            <div><div className="text-sm text-muted-foreground">{c.missing}</div><div className="mt-2 text-3xl font-semibold">{missingCount}</div></div>
-            <TriangleAlert className="size-9 text-warning" />
-          </CardContent>
-        </Card>
-        <Card>
-          <CardContent className="flex items-center justify-between p-5">
-            <div><div className="text-sm text-muted-foreground">{c.httpMcp}</div><div className="mt-2 text-3xl font-semibold">{serverCount}</div></div>
-            <Globe2 className="size-9 text-primary" />
-          </CardContent>
-        </Card>
-      </div>
+    <div className="flex flex-col gap-4">
+      <PageHeader title={c.title} description={c.description} helpLabel={t("pageHelp")}
+        helpContent={<><p className="font-medium">{c.technicalTitle}</p><p>{c.httpHint}</p><p>{c.stdioHint}</p></>}
+        stats={[{ label: c.configured, value: configuredCount, tone: "success" }, { label: c.missing, value: missingCount, tone: missingCount ? "warning" : "default" }, { label: c.httpMcp, value: serverCount }]}
+        actions={<Button variant="outline" onClick={load} disabled={busy}><RefreshCcw />{t("refresh")}</Button>}
+      />
 
       {!secureTransport && (
         <Alert className="border-warning/50 bg-warning/10 text-warning">
@@ -243,17 +220,6 @@ export function DownstreamCredentialsPage({ locale, t }: { locale: Locale; t: TF
           </div>
         </CardContent>
       </Card>
-
-      <Alert className="border-primary/40 bg-primary/[0.03]">
-        <LockKeyhole className="size-4" />
-        <AlertDescription>
-          <div className="mb-2 font-medium">{c.technicalTitle}</div>
-          <div className="grid gap-2 text-sm md:grid-cols-2">
-            <div className="flex gap-2"><Link2 className="mt-0.5 size-4 shrink-0 text-primary" /><span>{c.httpHint}</span></div>
-            <div className="flex gap-2"><KeyRound className="mt-0.5 size-4 shrink-0 text-muted-foreground" /><span>{c.stdioHint}</span></div>
-          </div>
-        </AlertDescription>
-      </Alert>
 
       <Sheet open={selected !== null} onOpenChange={(open) => { if (!open) { setSelected(null); setValue("") } }}>
         <SheetContent className="w-full sm:max-w-[440px]">

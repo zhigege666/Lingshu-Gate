@@ -56,6 +56,7 @@ export function BuildsPage({ t, initialBuildId = "" }: { t: TFunction; initialBu
   const latestDeployment = deployments.find((deployment) => deployment.build_id === selectedBuildId) || null
   const selectedBuildLog = buildLogs[buildLogs.length - 1] || null
   const polling = Boolean(selectedBuild && ACTIVE_BUILD_STATUSES.has(selectedBuild.status))
+  const preflightReady = preflight?.status === "ok" || preflight?.status === "warning"
   const runtimeOverrideValue = runtimeOverride === "auto" ? null : runtimeOverride
   const tx = (key: string) => buildPageText(t, key)
   const notify = (message: string, tone: ToastTone = "info") => setToast({ message, tone })
@@ -369,35 +370,30 @@ export function BuildsPage({ t, initialBuildId = "" }: { t: TFunction; initialBu
     <PageHeader
       eyebrow={t("projectPipeline")}
       title={t("builds")}
-      description={`${t("buildDeployDesc")} ${t("longBuildHint")}`}
+      description={t("buildDeployDesc")}
+      helpLabel={t("pageHelp")}
+      helpContent={<><p>{tx("projectContextDesc")}</p><p>{t("longBuildHint")}</p></>}
+      toolbar={<div role="tablist" aria-label={tx("workspaceNavigation")} className="flex flex-wrap gap-1 rounded-lg bg-muted p-1">
+        {(["workspace", "builds", "deployments", "logs"] as WorkspaceSection[]).map((section) => <Button key={section} type="button" role="tab" aria-selected={activeSection === section} variant={activeSection === section ? "secondary" : "ghost"} onClick={() => setActiveSection(section)}>{tx(`${section}Tab`)}{section === "builds" ? ` (${builds.length})` : section === "deployments" ? ` (${deployments.length})` : ""}</Button>)}
+      </div>}
       actions={<Button variant="outline" disabled={busy} onClick={() => void refresh()}>{t("refresh")}</Button>}
-      stats={[
-        { label: t("uploads"), value: uploads.length },
-        { label: t("buildRecords"), value: builds.length },
-        { label: t("deploymentRecords"), value: deployments.length },
-        { label: t("status"), value: selectedBuild?.status || "-", tone: selectedBuild?.status === "success" ? "success" : selectedBuild?.status === "failed" ? "danger" : "default" },
-      ]}
     />
-    <WorkflowSteps ariaLabel={t("workflowProgress")} steps={[
-      { label: t("selectUpload"), state: selectedUpload ? "done" : "current" },
-      { label: tx("runPreflight"), state: preflight ? "done" : selectedUpload ? "current" : "next" },
-      { label: t("createBuild"), state: selectedBuild ? "done" : preflight ? "current" : "next" },
-      { label: t("deployBuild"), state: latestDeployment ? "done" : selectedBuild?.status === "success" ? "current" : "next" },
-    ]} />
-    <Card>
-      <CardContent className="p-2"><div role="tablist" aria-label={tx("workspaceNavigation")} className="grid grid-cols-2 gap-1 rounded-lg bg-muted p-1 md:grid-cols-4">
-        {(["workspace", "builds", "deployments", "logs"] as WorkspaceSection[]).map((section) => <Button key={section} type="button" role="tab" aria-selected={activeSection === section} variant={activeSection === section ? "secondary" : "ghost"} onClick={() => setActiveSection(section)}>{tx(`${section}Tab`)}</Button>)}
-      </div></CardContent>
-    </Card>
 
     {activeSection === "workspace" ? <>
+    {/* 流程仅展示当前工作台进度；失败记录仍停留在对应阶段，详情保留错误原因。 */}
+    <WorkflowSteps ariaLabel={t("workflowProgress")} steps={[
+      { label: t("selectUpload"), state: selectedUpload ? "done" : "current" },
+      { label: tx("runPreflight"), state: preflight ? preflightReady ? "done" : "current" : selectedBuild ? "done" : selectedUpload ? "current" : "next" },
+      { label: t("createBuild"), state: selectedBuild?.status === "success" ? "done" : preflight && !preflightReady ? "next" : selectedBuild || preflightReady ? "current" : "next" },
+      { label: t("deployBuild"), state: latestDeployment?.status === "success" ? "done" : selectedBuild?.status === "success" ? "current" : "next" },
+    ]} />
     <Card>
       <CardHeader className="gap-3 md:flex-row md:items-start md:justify-between">
-        <div><CardTitle>{tx("projectContext")}</CardTitle><CardDescription>{tx("projectContextDesc")}</CardDescription></div>
+        <CardTitle>{tx("projectContext")}</CardTitle>
         <Button variant="outline" className="text-destructive hover:text-destructive" onClick={() => selectedUpload && void deleteUpload(selectedUpload)} disabled={busy || !selectedUpload}>{tx("deleteUpload")}</Button>
       </CardHeader>
       <CardContent className="flex flex-col gap-4">
-        <div className="grid gap-3 md:grid-cols-2 lg:grid-cols-4">
+        <div className="grid gap-3 md:grid-cols-3">
           <Field label={t("selectUpload")}>
             <Select value={selectedUploadId || undefined} onValueChange={changeSelectedUpload}>
               <SelectTrigger><SelectValue placeholder={t("selectUpload")} /></SelectTrigger>

@@ -4,7 +4,7 @@ import type { ToolDefinition } from "@/api/client"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { PageHeader, PageToolbar } from "@/components/page-shell"
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
+import { Card, CardContent } from "@/components/ui/card"
 import { Dialog, DialogBody, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import type { TFunction } from "@/i18n"
@@ -31,15 +31,14 @@ export function ToolsPage({ tools, t }: { tools: ToolDefinition[]; t: TFunction 
       eyebrow={t("toolRegistry")}
       title={t("tools")}
       description={t("serverToolsHint")}
-      stats={[{ label: t("total"), value: tools.length }, { label: t("source"), value: sources.length }, { label: t("mcpTools"), value: tools.filter((tool) => tool.source === "mcp").length }]}
+      helpLabel={t("pageHelp")}
+      toolbar={<PageToolbar query={query} onQueryChange={setQuery} placeholder={`${t("search")} ID / ${t("description")}`} resultCount={filteredTools.length} resultLabel={t("tools")} clearLabel={t("clearSearch")}>
+        <Select value={source} onValueChange={setSource}><SelectTrigger className="w-40" aria-label={t("source")}><SelectValue /></SelectTrigger><SelectContent><SelectItem value="__all">{t("all")}</SelectItem>{sources.map((item) => <SelectItem key={item} value={item}>{item}</SelectItem>)}</SelectContent></Select>
+      </PageToolbar>}
       actions={<Button asChild><a href="#/invoke"><Play />{t("invoke")}</a></Button>}
     />
     <Card>
-      <CardHeader><CardTitle>{t("tools")}</CardTitle></CardHeader>
-      <CardContent className="flex flex-col gap-3">
-        <PageToolbar query={query} onQueryChange={setQuery} placeholder={`${t("search")} ID / ${t("description")}`} resultCount={filteredTools.length} resultLabel={t("tools")} clearLabel={t("clearSearch")}>
-          <Select value={source} onValueChange={setSource}><SelectTrigger className="w-40"><SelectValue /></SelectTrigger><SelectContent><SelectItem value="__all">{t("all")}</SelectItem>{sources.map((item) => <SelectItem key={item} value={item}>{item}</SelectItem>)}</SelectContent></Select>
-        </PageToolbar>
+      <CardContent className="overflow-x-auto p-3 md:p-4">
         <Table>
           <TableHeader><TableRow><TableHead>{t("id")}</TableHead><TableHead>{t("source")}</TableHead><TableHead>{t("permission")}</TableHead><TableHead>{t("description")}</TableHead></TableRow></TableHeader>
           <TableBody>{filteredTools.length === 0 ? <TableEmptyRow colSpan={4} title={t("noData")} /> : filteredTools.map((tool) => <TableRow key={tool.id} className="cursor-pointer" onClick={() => setSelected(tool)}><TableCell><code>{tool.id}</code></TableCell><TableCell><Badge variant="outline">{tool.source}</Badge></TableCell><TableCell>{tool.permission}</TableCell><TableCell className="max-w-md truncate" title={tool.description}>{tool.description}</TableCell></TableRow>)}</TableBody>

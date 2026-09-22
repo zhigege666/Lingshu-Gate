@@ -1,5 +1,5 @@
-import { useEffect, useMemo, useState } from "react"
-import { KeyRound, Plus, RefreshCcw, ShieldAlert, UsersRound } from "lucide-react"
+import { useEffect, useMemo, useRef, useState } from "react"
+import { Plus, RefreshCcw, ShieldAlert, UsersRound } from "lucide-react"
 import {
   api,
   type AccessResource,
@@ -11,11 +11,12 @@ import {
 } from "@/api/client"
 import { ActionMenu, ActionMenuItem } from "@/components/action-menu"
 import { useConfirm } from "@/components/confirm-dialog"
-import { PageHeader, PageToolbar, WorkflowSteps } from "@/components/page-shell"
+import { PageHeader, PageToolbar } from "@/components/page-shell"
 import { Alert, AlertDescription } from "@/components/ui/alert"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
+import { Card, CardContent } from "@/components/ui/card"
+import { Dialog, DialogBody, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
@@ -46,6 +47,7 @@ const copy = {
     expiresAt: "失效时间",
     neverExpires: "永久有效",
     saveGrant: "保存授权",
+    newGrant: "新增授权",
     grants: "授权记录",
     classification: "工具分类",
     source: "来源",
@@ -87,6 +89,7 @@ const copy = {
     expiresAt: "Expires at",
     neverExpires: "Never",
     saveGrant: "Save grant",
+    newGrant: "New grant",
     grants: "Grants",
     classification: "Tool classification",
     source: "Source",
@@ -127,6 +130,8 @@ export function AccessGrantsPage({ locale, t }: { locale: Locale; t: TFunction }
   })
   const [scope, setScope] = useState<"server" | "tool">("server")
   const [query, setQuery] = useState("")
+  const [editorOpen, setEditorOpen] = useState(false)
+  const createTrigger = useRef<HTMLButtonElement>(null)
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [message, setMessage] = useState<string | null>(null)
@@ -182,6 +187,7 @@ export function AccessGrantsPage({ locale, t }: { locale: Locale; t: TFunction }
       })
       setMessage(`${t("saved")}: ${form.server_id}`)
       await load()
+      setEditorOpen(false)
     } catch (err) {
       setError(err instanceof Error ? err.message : String(err))
     } finally {
@@ -206,6 +212,13 @@ export function AccessGrantsPage({ locale, t }: { locale: Locale; t: TFunction }
     }))
   }
 
+  function openCreate() {
+    setError(null)
+    setForm({ subject_type: "user", subject_id: users[0]?.id || "", server_id: resources[0]?.server_id || "", tool_id: null, permission_type_code: "read", expires_at: null })
+    setScope("server")
+    setEditorOpen(true)
+  }
+
   function changeServer(serverId: string) {
     const firstTool = resources.find((resource) => resource.server_id === serverId)?.tool_id || null
     setForm((current) => ({ ...current, server_id: serverId, tool_id: firstTool }))
@@ -215,7 +228,7 @@ export function AccessGrantsPage({ locale, t }: { locale: Locale; t: TFunction }
     ? users.map((user) => ({ id: user.id, label: user.display_name ? `${user.display_name} (@${user.username})` : `@${user.username}` }))
     : roles.map((role) => ({ id: role.id, label: `${role.name} (${role.code})` }))
   const selectedResource = resources.find((resource) => resource.server_id === form.server_id && resource.tool_id === form.tool_id)
-  const toast: ToastState = error ? { message: error, tone: "error" } : message ? { message, tone: "success" } : null
+  const toast: ToastState = editorOpen ? null : error ? { message: error, tone: "error" } : message ? { message, tone: "success" } : null
 
   return (
     <div className="flex flex-col gap-4">
@@ -223,15 +236,17 @@ export function AccessGrantsPage({ locale, t }: { locale: Locale; t: TFunction }
         eyebrow={c.eyebrow}
         title={c.title}
         description={c.description}
-        stats={[{ label: c.grants, value: grants.length }, { label: c.server, value: servers.length }, { label: c.tool, value: resources.length }]}
-        actions={<Button variant="outline" onClick={load} disabled={busy}><RefreshCcw />{t("refresh")}</Button>}
+        helpLabel={t("pageHelp")}
+        helpContent={<><ol className="list-inside list-decimal space-y-1">{[c.step1, c.step2, c.step3, c.step4].map(step => <li key={step}>{step}</li>)}</ol><p>{c.unknownWarning}</p></>}
+        toolbar={<PageToolbar query={query} onQueryChange={setQuery} placeholder={c.search} resultCount={visibleGrants.length} resultLabel={c.grants} clearLabel={t("clearSearch")} />}
+        actions={<><Button ref={createTrigger} onClick={openCreate} disabled={busy}><Plus />{c.newGrant}</Button><Button variant="outline" onClick={load} disabled={busy}><RefreshCcw />{t("refresh")}</Button></>}
       />
-      <WorkflowSteps ariaLabel={c.title} steps={[{ label: c.step1, state: "done" }, { label: c.step2, state: "current" }, { label: c.step3, state: "current" }, { label: c.step4, state: "next" }]} />
       {error && <Alert variant="destructive"><AlertDescription>{error}</AlertDescription></Alert>}
-      <div className="grid gap-4 xl:grid-cols-[0.82fr_1.18fr]">
-        <Card>
-          <CardHeader><CardTitle className="flex items-center gap-2"><KeyRound className="size-5 text-primary" />{c.saveGrant}</CardTitle></CardHeader>
-          <CardContent className="flex flex-col gap-4">
+      <Dialog open={editorOpen} onOpenChange={(open) => { if (!busy) setEditorOpen(open) }}>
+        <DialogContent className="max-w-xl" onCloseAutoFocus={(event) => { event.preventDefault(); createTrigger.current?.focus() }}>
+          <DialogHeader><DialogTitle>{c.newGrant}</DialogTitle><DialogDescription>{c.description}</DialogDescription></DialogHeader>
+          <DialogBody className="flex flex-col gap-4">
+            {error && <Alert variant="destructive"><AlertDescription>{error}</AlertDescription></Alert>}
             <div className="grid gap-4 sm:grid-cols-2">
               <Field label={c.subjectType}><Select value={form.subject_type} onValueChange={(value) => changeSubjectType(value as "user" | "role")}><SelectTrigger><SelectValue /></SelectTrigger><SelectContent><SelectItem value="user"><span className="flex items-center gap-2"><UsersRound className="size-4" />{c.user}</span></SelectItem><SelectItem value="role"><span className="flex items-center gap-2"><ShieldAlert className="size-4" />{c.role}</span></SelectItem></SelectContent></Select></Field>
               <Field label={c.subject}><Select value={form.subject_id} onValueChange={(subject_id) => setForm((current) => ({ ...current, subject_id }))}><SelectTrigger><SelectValue placeholder={c.selectSubject} /></SelectTrigger><SelectContent>{subjectOptions.map((subject) => <SelectItem key={subject.id} value={subject.id}>{subject.label}</SelectItem>)}</SelectContent></Select></Field>
@@ -245,14 +260,13 @@ export function AccessGrantsPage({ locale, t }: { locale: Locale; t: TFunction }
             <Field label={c.permissionType}><Select value={form.permission_type_code} onValueChange={(permission_type_code) => setForm((current) => ({ ...current, permission_type_code }))}><SelectTrigger><SelectValue /></SelectTrigger><SelectContent>{permissionTypes.map((item) => <SelectItem key={item.id} value={item.code}>{permissionTypeLabel(item, c)}</SelectItem>)}</SelectContent></Select></Field>
             <Field label={c.expiresAt}><Input type="datetime-local" value={form.expires_at || ""} onChange={(event) => setForm((current) => ({ ...current, expires_at: event.target.value || null }))} /><div className="text-xs text-muted-foreground">{form.expires_at ? formatDateTime(form.expires_at) : c.neverExpires}</div></Field>
             <Alert><AlertDescription>{c.unknownWarning}</AlertDescription></Alert>
-            <Button onClick={() => void save()} disabled={busy || !form.subject_id || !form.server_id || (scope === "tool" && !form.tool_id)}><Plus />{c.saveGrant}</Button>
-          </CardContent>
-        </Card>
+            <div className="flex justify-end gap-2"><Button variant="outline" onClick={() => setEditorOpen(false)} disabled={busy}>{t("cancel")}</Button><Button onClick={() => void save()} disabled={busy || !form.subject_id || !form.server_id || (scope === "tool" && !form.tool_id)}><Plus />{c.saveGrant}</Button></div>
+          </DialogBody>
+        </DialogContent>
+      </Dialog>
 
         <Card>
-          <CardHeader><CardTitle>{c.grants}</CardTitle></CardHeader>
-          <CardContent className="flex flex-col gap-3">
-            <PageToolbar query={query} onQueryChange={setQuery} placeholder={c.search} resultCount={visibleGrants.length} resultLabel={c.grants} clearLabel={t("clearSearch")} />
+          <CardContent className="p-3 md:p-4">
             <div className="overflow-x-auto rounded-lg border">
               <Table>
                 <TableHeader><TableRow><TableHead>{c.subject}</TableHead><TableHead>{c.server}</TableHead><TableHead>{c.scope}</TableHead><TableHead>{c.permissionType}</TableHead><TableHead>{c.expiresAt}</TableHead><TableHead>{t("actions")}</TableHead></TableRow></TableHeader>
@@ -270,7 +284,6 @@ export function AccessGrantsPage({ locale, t }: { locale: Locale; t: TFunction }
             </div>
           </CardContent>
         </Card>
-      </div>
       {confirmDialog}
       <Toaster toast={toast} onClose={() => { setError(null); setMessage(null) }} />
     </div>

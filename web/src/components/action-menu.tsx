@@ -70,7 +70,7 @@ export function ActionMenu({ label, children }: { label: string; children: React
       aria-haspopup="menu"
       aria-expanded={open}
       aria-controls={open ? menuId : undefined}
-      className="inline-flex h-8 items-center justify-center gap-2 rounded-md border border-input bg-background px-3 text-xs font-medium shadow-sm transition-colors hover:bg-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+      className="relative inline-flex h-8 items-center justify-center gap-2 rounded-md border border-input bg-background px-3 text-xs font-medium shadow-sm transition-colors hover:bg-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
       onClick={(event) => { event.stopPropagation(); setOpen((value) => !value) }}
     >
       <MoreHorizontal className="size-4" /><span className="sr-only sm:not-sr-only">{label}</span>

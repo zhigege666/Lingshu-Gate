@@ -4,6 +4,8 @@
 
 Lingshu Gate 发行自动化会生成可直接运行的原生包、Docker Compose 部署包，以及只在 Tag 发行提供的 Core 离线镜像。每个已发布资产都由 `SHA256SUMS` 和仓库 Build Provenance Attestation 覆盖。
 
+当前源码版本为 `0.2.0`，新增通用 MCP 协议协商，完善配置编辑与个人 API Token 权限范围选项，并统一控制台导航和页面布局。控制台页面采用直接导航、紧凑工具栏、按需帮助，以及适配窄屏的表格和弹窗。运行时版本信息、Python 包元数据、CLI 输出及发行产物名称统一读取 `src/lingshu_gate/_version.py` 中的唯一版本源。
+
 ## 产物矩阵
 
 | 目标 | 资产 | 构建架构 |

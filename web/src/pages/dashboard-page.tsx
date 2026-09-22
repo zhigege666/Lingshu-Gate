@@ -20,15 +20,7 @@ export function DashboardPage({ health, servers, tools, operationsAllowed, t }: 
         eyebrow={t("controlPlane")}
         title={t("dashboard")}
         description={t("subtitle")}
-        stats={operationsAllowed ? [
-          { label: t("status"), value: health?.status || t("waiting"), tone: health?.status === "ok" ? "success" : "warning" },
-          { label: t("running"), value: `${runningCount}/${servers.length}`, tone: runningCount === servers.length && servers.length > 0 ? "success" : "default" },
-          { label: t("tools"), value: tools.length },
-          { label: t("warning"), value: attentionServers.length, tone: attentionServers.length ? "warning" : "success" },
-        ] : [
-          { label: t("status"), value: health?.status || t("waiting"), tone: health?.status === "ok" ? "success" : "warning" },
-          { label: t("tools"), value: tools.length },
-        ]}
+        helpLabel={t("pageHelp")}
         actions={operationsAllowed ? <>
           <Button variant="secondary" asChild><a href="#/servers"><Server />{t("servers")}</a></Button>
           <Button variant="outline" asChild><a href="#/logs"><ScrollText />{t("logs")}</a></Button>

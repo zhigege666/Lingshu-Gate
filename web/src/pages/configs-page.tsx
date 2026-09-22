@@ -71,11 +71,8 @@ export function ConfigsPage(props: {
         eyebrow={t("configurationCenter")}
         title={t("configs")}
         description={t("configDesc")}
-        stats={[
-          { label: t("total"), value: configs.length },
-          { label: t("error"), value: configErrors.length, tone: configErrors.length ? "danger" : "success" },
-          { label: t("status"), value: selectedConfigId ? `${t("edit")}: ${selectedConfigId}` : t("waiting") },
-        ]}
+        helpLabel={t("pageHelp")}
+        toolbar={<PageToolbar query={query} onQueryChange={setQuery} placeholder={`${t("search")} ID / ${t("path")}`} resultCount={filteredConfigs.length} resultLabel={t("configs")} clearLabel={t("clearSearch")} />}
         actions={<>
           <Button onClick={handleCreateNew} disabled={busy} className="shadow-xs"><Plus className="size-4 mr-1.5" />{zh ? "新建配置" : "New Config"}</Button>
           <Button variant="outline" onClick={onReloadConfigs} disabled={busy}><RefreshCcw className="size-4 mr-1.5" />{t("reload")}</Button>
@@ -83,15 +80,7 @@ export function ConfigsPage(props: {
       />
 
       <Card className="border-border/70 shadow-xs">
-        <CardContent className="flex flex-col gap-4 pt-5">
-          <PageToolbar
-            query={query}
-            onQueryChange={setQuery}
-            placeholder={`${t("search")} ID / ${t("path")}`}
-            resultCount={filteredConfigs.length}
-            resultLabel={t("configs")}
-            clearLabel={t("clearSearch")}
-          />
+        <CardContent className="flex flex-col gap-3 p-3 md:p-4">
           {configErrors.map((item) => <Alert key={item} variant="destructive"><AlertDescription>{item}</AlertDescription></Alert>)}
           <div className="overflow-x-auto rounded-lg border border-border/70">
             <Table>

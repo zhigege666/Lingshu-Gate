@@ -119,25 +119,10 @@ export function UploadsPage({ t }: { t: TFunction }) {
           eyebrow={t("projectDelivery")}
           title={t("uploads")}
           description={t("uploadDesc")}
+          helpLabel={t("pageHelp")}
+          toolbar={<PageToolbar query={query} onQueryChange={setQuery} placeholder={`${t("search")} ${t("uploads")}`} resultCount={visibleUploads.length} resultLabel={t("uploads")} clearLabel={t("clearSearch")} />}
           actions={<Button variant="outline" disabled={busy} onClick={loadUploads}>{t("refresh")}</Button>}
-          stats={[
-            { label: t("uploads"), value: uploads.length },
-            { label: t("buildRecords"), value: builds.length },
-            { label: t("deploymentRecords"), value: deployments.length },
-            { label: t("status"), value: selectedDeployment?.status || selectedBuild?.status || selectedUpload?.status || "-", tone: selectedDeployment?.status === "success" ? "success" : "default" },
-          ]}
         />
-      </div>
-      <div className="xl:col-span-2">
-        <WorkflowSteps ariaLabel={t("workflowProgress")} steps={[
-          { label: t("uploadZip"), state: uploads.length > 0 ? "done" : "current" },
-          { label: t("selectUpload"), state: selectedUpload ? "done" : "next" },
-          { label: t("createBuild"), state: selectedBuild ? "done" : selectedUpload ? "current" : "next" },
-          { label: t("deployBuild"), state: selectedDeployment ? "done" : selectedBuild?.status === "success" ? "current" : "next" },
-        ]} />
-      </div>
-      <div className="xl:col-span-2">
-        <PageToolbar query={query} onQueryChange={setQuery} placeholder={`${t("search")} ${t("uploads")}`} resultCount={visibleUploads.length} resultLabel={t("uploads")} clearLabel={t("clearSearch")} />
       </div>
       {error && <Alert variant="destructive" className="xl:col-span-2"><AlertDescription>{error}</AlertDescription></Alert>}
       <div className="flex min-w-0 flex-col gap-4">
@@ -145,6 +130,11 @@ export function UploadsPage({ t }: { t: TFunction }) {
         <UploadList uploads={visibleUploads} builds={builds} deployments={deployments} selectedId={selectedUploadId} busy={busy} onSelect={setSelectedUploadId} onDraft={draftUpload} onCreateBuild={(uploadId) => { setSelectedUploadId(uploadId); void buildProject(uploadId, { run_install: true, run_build: true, project_root: "." }) }} onDelete={deleteUpload} t={t} />
       </div>
       <div className="flex min-w-0 flex-col gap-4">
+        {selectedUpload && <WorkflowSteps ariaLabel={t("workflowProgress")} steps={[
+          { label: t("selectUpload"), state: "done" },
+          { label: t("createBuild"), state: selectedBuild?.status === "success" ? "done" : "current" },
+          { label: t("deployBuild"), state: selectedDeployment?.status === "success" ? "done" : selectedBuild?.status === "success" ? "current" : "next" },
+        ]} />}
         {selectedUpload && <ProjectDetailPanel key={selectedUpload.id} upload={selectedUpload as unknown as ProjectUpload} build={selectedBuild} deployment={selectedDeployment} busy={busy} onBuild={(options) => void buildProject(selectedUpload.id, options)} onDeploy={(buildId, options) => void deployProject(buildId, options)} t={t} />}
         <UploadResultPanel result={result} onSaveManifest={saveManifest} t={t} />
       </div>
