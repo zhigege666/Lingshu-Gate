@@ -28,9 +28,10 @@ from lingshu_gate.endpoint_security import REDACTED_ENDPOINT
 from lingshu_gate.logging import log_event
 from lingshu_gate.mcp_manifest import McpServerManifest
 from lingshu_gate.mcp_stdio_client import McpProtocolError
+from lingshu_gate.protocol.lifecycle import discovery_requires_initialize, initialize_params, parse_initialize_result
 from lingshu_gate.protocol.version import (
     MCP_PROTOCOL_VERSION,
-    require_current_protocol_version,
+    resolve_downstream_protocol_version,
 )
 from lingshu_gate.redaction import redact_text, redact_value
 from lingshu_gate.transports.http import build_protocol_request
@@ -90,11 +91,9 @@ class StreamableHttpMcpClient:
         self.settings = settings
         self.log_sink = log_sink
         self.endpoint = manifest.transport.endpoint or ""
-        configured_protocol = manifest.transport.protocol_version or MCP_PROTOCOL_VERSION
-        self.protocol_version = require_current_protocol_version(configured_protocol)
-        # The current HTTP protocol is stateless; this property remains useful
-        # to callers that expose connection details.
+        self.protocol_version = resolve_downstream_protocol_version(manifest.transport.protocol_version)
         self.session_id: str | None = None
+        self._session_expired = False
         self.initialized = False
         self.server_info: dict[str, Any] = {}
         self.server_capabilities: dict[str, Any] = {}
@@ -123,13 +122,40 @@ class StreamableHttpMcpClient:
         return None
 
     def start(self) -> None:
+        if self.initialized:
+            return
         if not self.endpoint:
             raise ValueError("transport.endpoint is required for streamable_http")
+        self.protocol_version = resolve_downstream_protocol_version(self.manifest.transport.protocol_version)
+        self._session_expired = False
+        self.server_info = {}
+        self.server_capabilities = {}
         self._resolve_headers()
         startup_timeout = self.manifest.timeout_seconds or self.settings.mcp_startup_timeout_seconds
         log_event(logger, logging.INFO, "gate.mcp.http_connect_started", "Connecting to external MCP endpoint", server_id=self.manifest.id, timeout_seconds=startup_timeout)
         self._store_log("info", "Connecting to external MCP endpoint", "gate.mcp.http_connect_started", {"timeout_seconds": startup_timeout})
-        self._start_current(startup_timeout)
+        try:
+            if self.protocol_version == MCP_PROTOCOL_VERSION:
+                try:
+                    self._start_current(startup_timeout)
+                except McpProtocolError as exc:
+                    if self.manifest.transport.protocol_version not in (None, "auto") or not discovery_requires_initialize(exc.code, exc.rpc_message):
+                        raise
+                    self.protocol_version = "2025-11-25"
+            if self.protocol_version != MCP_PROTOCOL_VERSION:
+                result = self.request(
+                    "initialize",
+                    initialize_params(self.protocol_version, self.settings.version),
+                    timeout=startup_timeout,
+                )
+                try:
+                    self.protocol_version, self.server_capabilities, self.server_info = parse_initialize_result(result)
+                except ValueError as exc:
+                    raise McpProtocolError(str(exc)) from None
+                self.notify("notifications/initialized")
+        except Exception:
+            self.stop()
+            raise
         self.initialized = True
         connection_summary = {
             "capability_count": len(self.server_capabilities),
@@ -197,6 +223,8 @@ class StreamableHttpMcpClient:
         return result
 
     def request(self, method: str, params: dict[str, Any] | None = None, *, timeout: int | None = None) -> dict[str, Any]:
+        if self._session_expired:
+            raise McpProtocolError("MCP session expired; reconnect before issuing another request")
         request_id = next(self._ids)
         message: dict[str, Any] = {"jsonrpc": "2.0", "id": request_id, "method": method}
         protocol_headers: dict[str, str] = {}
@@ -218,21 +246,35 @@ class StreamableHttpMcpClient:
         )
         if response is None:
             raise McpProtocolError(f"No JSON-RPC response for MCP request: {method}")
+        if method in {"initialize", "server/discover"} and (
+            response.get("jsonrpc") != "2.0"
+            or type(response.get("id")) is not int
+            or response["id"] != request_id
+        ):
+            raise McpProtocolError(f"Invalid JSON-RPC {method} response")
         if "error" in response:
             safe_error = self._redact(response["error"])
             error_code = safe_error.get("code") if isinstance(safe_error, dict) else None
+            error_message = safe_error.get("message") if isinstance(safe_error, dict) else None
+            negotiating = method == "server/discover" and self.manifest.transport.protocol_version in (None, "auto") and discovery_requires_initialize(error_code, error_message)
             error_summary = {
                 "method": method,
                 "request_id": request_id,
                 "error_code": error_code,
             }
-            log_event(logger, logging.ERROR, "gate.mcp.request_error_received", "MCP request returned error", server_id=self.manifest.id, **error_summary)
-            self._store_log("error", "MCP request returned error", "gate.mcp.request_error_received", error_summary)
-            raise McpProtocolError(str(safe_error))
+            log_event(logger, logging.INFO if negotiating else logging.ERROR, "gate.mcp.request_error_received", "MCP discovery requires initialization" if negotiating else "MCP request returned error", server_id=self.manifest.id, **error_summary)
+            self._store_log("info" if negotiating else "error", "MCP discovery requires initialization" if negotiating else "MCP request returned error", "gate.mcp.request_error_received", error_summary)
+            raise McpProtocolError(
+                str(safe_error),
+                code=error_code,
+                rpc_message=error_message,
+            )
         result = response.get("result")
         return result if isinstance(result, dict) else {"result": result}
 
     def notify(self, method: str, params: dict[str, Any] | None = None) -> None:
+        if self._session_expired:
+            raise McpProtocolError("MCP session expired; reconnect before issuing another request")
         message: dict[str, Any] = {"jsonrpc": "2.0", "method": method}
         protocol_headers: dict[str, str] = {}
         request_params, protocol_headers = build_protocol_request(
@@ -253,10 +295,36 @@ class StreamableHttpMcpClient:
         )
 
     def stop(self) -> None:
+        if self.session_id:
+            # DELETE 仅用于释放本连接的旧版会话；清理失败不能掩盖原调用错误。
+            request = urllib.request.Request(
+                self.endpoint,
+                headers=self._http_headers({"MCP-Protocol-Version": self.protocol_version}),
+                method="DELETE",
+            )
+            try:
+                with self._opener.open(request, timeout=min(self.manifest.timeout_seconds or self.settings.mcp_request_timeout_seconds, 5)):
+                    pass
+            except urllib.error.HTTPError as exc:
+                exc.close()
+                if exc.code not in {404, 405}:
+                    self._store_log("warning", "MCP session cleanup failed", "gate.mcp.http_session_cleanup_failed", {"status_code": exc.code})
+            except (OSError, ValueError):
+                self._store_log("warning", "MCP session cleanup failed", "gate.mcp.http_session_cleanup_failed", {})
         log_event(logger, logging.INFO, "gate.mcp.http_disconnected", "External MCP endpoint disconnected", server_id=self.manifest.id)
         self._store_log("info", "External MCP endpoint disconnected", "gate.mcp.http_disconnected", {})
         self.initialized = False
         self.session_id = None
+
+    def _http_headers(self, protocol_headers: dict[str, str]) -> dict[str, str]:
+        # 协议头由连接状态生成，不能被配置中的大小写变体覆盖。
+        reserved = {"content-type", "accept", "mcp-session-id", "mcp-protocol-version", "mcp-method", "mcp-name"}
+        headers = {key: value for key, value in self._resolved_headers.items() if key.lower() not in reserved}
+        headers.update({"Content-Type": "application/json", "Accept": "application/json, text/event-stream"})
+        headers.update(protocol_headers)
+        if self.session_id:
+            headers["Mcp-Session-Id"] = self.session_id
+        return headers
 
     def _resolve_headers(self) -> None:
         raw_headers = dict(self.manifest.transport.headers or {})
@@ -290,9 +358,7 @@ class StreamableHttpMcpClient:
     ) -> dict[str, Any] | None:
         deadline = time.monotonic() + max(float(timeout), 0.001)
         body = json.dumps(message, ensure_ascii=False, separators=(",", ":")).encode("utf-8")
-        headers = {"Content-Type": "application/json", "Accept": "application/json, text/event-stream"}
-        headers.update(self._resolved_headers)
-        headers.update(protocol_headers)
+        headers = self._http_headers(protocol_headers)
         if self.settings.mcp_log_payloads:
             log_event(logger, logging.DEBUG, "gate.mcp.http_message_sent", "MCP HTTP message sent", server_id=self.manifest.id, payload=self._redact(message))
         request = urllib.request.Request(self.endpoint, data=body, headers=headers, method="POST")
@@ -319,6 +385,12 @@ class StreamableHttpMcpClient:
             safe_detail = self._redact_text(detail)
             if exc.code in {401, 403}:
                 raise McpHttpAuthenticationError(exc.code, self.endpoint, safe_detail) from exc
+            if exc.code == 404 and self.session_id:
+                # 业务请求绝不自动重放，避免会话过期时重复执行写操作。
+                self.session_id = None
+                self.initialized = False
+                self._session_expired = True
+                raise McpProtocolError("MCP session expired (HTTP 404); reconnect before issuing another request") from None
             raise McpProtocolError(f"HTTP {exc.code} from MCP endpoint: {safe_detail}") from exc
         except urllib.error.URLError as exc:
             safe_reason = self._redact_text(str(exc.reason))
@@ -328,6 +400,13 @@ class StreamableHttpMcpClient:
                 "MCP HTTP request exceeded its absolute deadline"
             ) from exc
         with response:
+            if message.get("method") == "initialize" and self.protocol_version != MCP_PROTOCOL_VERSION:
+                session_id = response.headers.get("Mcp-Session-Id")
+                if session_id is not None:
+                    if not session_id or any(not 0x21 <= ord(character) <= 0x7E for character in session_id):
+                        raise McpProtocolError("MCP endpoint returned an invalid session identifier")
+                    self.session_id = session_id
+                    self._redaction_values = tuple(sorted({*self._redaction_values, session_id}, key=len, reverse=True))
             content_type = (response.headers.get("Content-Type") or "").lower()
             if not expect_response or response.status == 202:
                 return None

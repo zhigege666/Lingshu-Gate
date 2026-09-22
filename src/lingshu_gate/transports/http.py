@@ -23,6 +23,7 @@ from lingshu_gate.protocol.version import (
     MCP_PROTOCOL_VERSION,
     UnsupportedProtocolVersion,
     require_current_protocol_version,
+    resolve_downstream_protocol_version,
 )
 
 HEADER_MISMATCH = -32020
@@ -253,9 +254,9 @@ def build_protocol_request(
     protocol_version: str = MCP_PROTOCOL_VERSION,
     client_capabilities: dict[str, Any] | None = None,
 ) -> tuple[dict[str, Any], dict[str, str]]:
-    """Add current per-request metadata and mirrored HTTP routing headers."""
+    """按下游协议生成参数与请求头，旧版初始化后才发送版本头。"""
 
-    require_current_protocol_version(protocol_version)
+    protocol_version = resolve_downstream_protocol_version(protocol_version)
 
     request_params = build_request_params(
         params,
@@ -264,6 +265,8 @@ def build_protocol_request(
         protocol_version=protocol_version,
         client_capabilities=client_capabilities,
     )
+    if protocol_version != MCP_PROTOCOL_VERSION:
+        return request_params, {} if method == "initialize" else {"MCP-Protocol-Version": protocol_version}
     headers = {
         "MCP-Protocol-Version": protocol_version,
         "Mcp-Method": method,

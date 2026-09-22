@@ -4,6 +4,8 @@
 
 Lingshu Gate exposes one authenticated Streamable HTTP MCP endpoint at `POST /mcp`. It aggregates reviewed first-party operations and tools discovered from configured downstream servers.
 
+Protocol compatibility is a shared Gate platform capability. Client-to-Gate and Gate-to-server connections negotiate independently, using the same transport rules for every configured downstream service.
+
 ## Connection contract
 
 - Endpoint: `http://127.0.0.1:8000/mcp` for the default local deployment.
@@ -14,7 +16,7 @@ Lingshu Gate exposes one authenticated Streamable HTTP MCP endpoint at `POST /mc
 
 For `2026-07-28`, start with `server/discover`. Handshake clients start with `initialize` (`protocolVersion`, `capabilities`, and `clientInfo`), then send `notifications/initialized`. Initialization does not require a protocol-version header; an unsupported proposal negotiates `2025-11-25`. Subsequent requests use the negotiated `MCP-Protocol-Version`; without a header or current-protocol metadata, the Streamable HTTP compatibility default is `2025-03-26`. Unknown header versions are rejected. Gate does not allocate an MCP session, and supports JSON responses, `ping`, `tools/list`, and `tools/call` for handshake clients; GET/SSE and DELETE are not required or exposed.
 
-Derive tool names from `tools/list`; do not construct them from assumptions about server IDs. Legacy clients do not need `Mcp-Method`, `Mcp-Name`, or the current protocol's per-request metadata. The existing endpoint and bearer-token configuration can be retained. This compatibility applies only to incoming clients; downstream connections remain on `2026-07-28`.
+Derive tool names from `tools/list`; do not construct them from assumptions about server IDs. Legacy clients do not need `Mcp-Method`, `Mcp-Name`, or the current protocol's per-request metadata. The existing endpoint and bearer-token configuration can be retained. Downstream protocol selection is independent and configured per manifest as described below.
 
 Each `2026-07-28` HTTP request mirrors routing data in headers and JSON-RPC parameters:
 
@@ -63,7 +65,26 @@ Analysis uses local rules and produces review input. Review and publication rema
 
 ## Downstream Streamable HTTP
 
-Use `launch.type=external` and `transport.type=streamable_http`. Gate sends stateless downstream requests with per-request metadata, applies request and startup timeouts, and routes discovery and calls through the registry.
+Use `launch.type=external` and `transport.type=streamable_http`. Gate applies request and startup timeouts and routes discovery and calls through the registry. The same protocol selection applies to managed HTTP processes.
+
+Omitting `transport.protocol_version`, or setting it to `auto`, enables platform-wide negotiation for HTTP and stdio. Gate first tries `2026-07-28` discovery. Only a JSON-RPC method, parameter, or protocol-version rejection during that startup probe permits one `initialize` attempt. Recognized generic server errors explicitly naming unsupported `server/discover` are also supported. Existing manifests do not need per-service edits. To select the initial protocol explicitly and disable discovery fallback, set `protocol_version` to `2026-07-28`, `2025-03-26`, `2025-06-18`, or `2025-11-25`. Initialization still accepts a different supported version returned by the server, as required by version negotiation. For example:
+
+```json
+{
+  "id": "example-service",
+  "launch": {"type": "external"},
+  "transport": {
+    "type": "streamable_http",
+    "endpoint": "https://mcp.example.test/mcp",
+    "protocol_version": "auto"
+  },
+  "auto_start": false
+}
+```
+
+Gate sends `initialize`, validates the returned version and server information, then sends `notifications/initialized`. The negotiated version must be one of the three supported handshake versions. Subsequent requests use that version and any session ID assigned during initialization. JSON and POST SSE responses are supported. Sessions are scoped to their connection and credentials, never shared between per-user clients. Closing a session sends DELETE, tolerating 404/405 responses. A session-expiry 404 invalidates the connection and fails the current operation without replaying it; reconnect before a later operation.
+
+Timeouts, HTTP/authentication errors, invalid discovery results, and business-method errors never trigger negotiation or replay. Automatic negotiation does not relaunch a stdio process that exits during discovery; a service requiring initialization before any other message can use an explicitly pinned version. This does not add the older HTTP+SSE transport with separate event and message endpoints, unsolicited server requests, or resumable GET streams. A naming collision anywhere in the registry fails both discovery and calls closed; visibility filtering cannot change tool identities.
 
 There are two credential layers:
 
@@ -75,6 +96,8 @@ Gate does not write resolved values into manifests or return them in API respons
 ## Downstream stdio
 
 Use `launch.type=managed_process` and `transport.type=stdio` in a native deployment. Gate starts the configured executable directly, exchanges protocol messages over stdin/stdout, captures bounded diagnostic output, and tracks desired and observed state.
+
+Stdio uses the same automatic or explicit `transport.protocol_version` selection and additionally supports `2024-11-05`, both as a configured proposal and as a negotiated result. A supported initialization protocol initializes the current process once before listing or calling tools; failed initialization stops that child. Gate does not launch a second process to probe protocol compatibility. The `2024-11-05` version is restricted to downstream stdio and does not enable the separate legacy HTTP+SSE transport or extend Gate's inbound HTTP versions.
 
 Stdio constraints:
 

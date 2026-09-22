@@ -118,6 +118,12 @@ class OfficialSdkInteropEndToEndTest(unittest.TestCase):
         asyncio.run(scenario())
 
     def test_gateway_client_discovers_lists_and_calls_official_server(self) -> None:
+        self._check_downstream_server(MCP_PROTOCOL_VERSION, stateless=True)
+
+    def test_gateway_client_initializes_lists_and_calls_official_stateful_server(self) -> None:
+        self._check_downstream_server("2025-11-25", stateless=False)
+
+    def _check_downstream_server(self, version: str, *, stateless: bool) -> None:
         sdk_server = MCPServer("official-test", version="1.0")
 
         @sdk_server.tool()
@@ -127,7 +133,7 @@ class OfficialSdkInteropEndToEndTest(unittest.TestCase):
         app = sdk_server.streamable_http_app(
             streamable_http_path="/mcp",
             json_response=True,
-            stateless_http=True,
+            stateless_http=stateless,
         )
         listener = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         listener.bind(("127.0.0.1", 0))
@@ -162,7 +168,7 @@ class OfficialSdkInteropEndToEndTest(unittest.TestCase):
                         "transport": {
                             "type": "streamable_http",
                             "endpoint": f"http://127.0.0.1:{port}/mcp",
-                            "protocol_version": MCP_PROTOCOL_VERSION,
+                            "protocol_version": version,
                         },
                     }
                 )
@@ -170,12 +176,15 @@ class OfficialSdkInteropEndToEndTest(unittest.TestCase):
                     manifest,
                     Settings(data_dir=Path(directory)),
                 )
-                client.start()
-                tools = client.list_tools()
-                result = client.call_tool("echo", {"message": "official-server"})
-                client.stop()
+                try:
+                    client.start()
+                    self.assertEqual(bool(client.session_id), not stateless)
+                    tools = client.list_tools()
+                    result = client.call_tool("echo", {"message": "official-server"})
+                finally:
+                    client.stop()
 
-            self.assertEqual(client.protocol_version, MCP_PROTOCOL_VERSION)
+            self.assertEqual(client.protocol_version, version)
             self.assertEqual(client.server_info["name"], "official-test")
             self.assertEqual([tool["name"] for tool in tools], ["echo"])
             self.assertFalse(result["isError"])

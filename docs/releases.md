@@ -21,9 +21,15 @@ Lingshu Gate release automation produces directly runnable native packages, a Do
 
 Do not run an archive built for a different operating system or CPU architecture.
 
+## MCP protocol compatibility
+
+Gate supports `initialize` alongside `2026-07-28` discovery on the same `/mcp` endpoint. Client and downstream connections select their protocol versions independently. Existing bearer tokens, grants, and external data directories are retained. See the [connection contract](mcp-gateway.md#connection-contract).
+
+Downstream HTTP and stdio negotiate automatically when `transport.protocol_version` is omitted or `auto`: prefer `2026-07-28`, then attempt initialization only after a recognized protocol rejection. Explicit `2025-03-26`, `2025-06-18`, `2025-11-25`, and `2026-07-28` values select the initial protocol without discovery fallback; initialization may negotiate another supported version. Downstream stdio also supports `2024-11-05`. These rules apply to every configured service without rewriting its manifest.
+
 ## Native package contents
 
-Builds with incoming MCP handshake compatibility support `initialize` alongside `2026-07-28` discovery on the same `/mcp` endpoint. Existing bearer tokens, grants, and external data directories are retained; no downstream protocol migration is implied. For an operator-built upgrade, verify the `BUILD-INFO.json` source revision, test both protocol paths, and retain the previous package for rollback. See the [connection contract](mcp-gateway.md#connection-contract).
+Preserve the service environment, configuration directory, data directory, and credential keys when switching the executable. For an operator-built upgrade, verify the `BUILD-INFO.json` source revision, test both protocol paths, and retain the previous package for rollback. For uncommitted operator builds, record the dirty source inventory and its digest alongside the base revision; the revision alone does not identify the package.
 
 The Console includes Ant Design and its icon library, resolved by `web/package-lock.json`. It remains a static client served by Gate; no additional frontend application server is required in a release package. Before packaging a Console update, verify the service directory, detail-section loading, dark/light themes, Chinese/English labels, and the existing authorization controls. Include the new frontend dependency licenses in the generated release inventory.
 

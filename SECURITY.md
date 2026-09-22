@@ -71,6 +71,8 @@ System credentials and user downstream bindings are encrypted at rest and masked
 
 Use `${credential:<id>}` references in manifests instead of plaintext. Per-user downstream values are injected only into that user's isolated HTTP request context. Gate rejects downstream HTTP redirects so those headers cannot be forwarded to another endpoint. Do not configure user-specific secrets for shared stdio processes.
 
+Downstream auto negotiation is restricted to the startup discovery phase and recognized JSON-RPC protocol rejections. Pinned versions never fall back. Legacy HTTP sessions belong to one client and credential context, and session identifiers are redacted from diagnostics. Authentication errors and timeouts do not trigger fallback; expired sessions and business errors never cause automatic replay. Replacing an executable must preserve the external configuration, credential key material, and database together; keep a stopped-instance backup and the previous package for rollback.
+
 Back up key material with the encrypted data, protect the backup with equivalent controls, and test restoration without printing secrets.
 
 ## Out of scope

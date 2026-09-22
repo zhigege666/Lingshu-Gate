@@ -157,11 +157,14 @@ def register_mcp_gateway_route(
             )
         if method == "tools/list":
             # 工具发现也包含同步 SQLite 对账和权限读取，复用调用路径的线程池以免阻塞协议事件循环。
-            definitions = await run_in_threadpool(
-                access_store.visible_tools, principal, registry.list_definitions(),
-            )
             try:
-                tools = [item[1] for item in _gateway_tools(registry, definitions)]
+                # 发现与调用必须使用同一全局命名规则，隐藏的冲突也不能产生可列出却不可调用的工具。
+                namespace = ToolNamespace(registry.list_definitions())
+                definitions = await run_in_threadpool(
+                    access_store.visible_tools, principal,
+                    [entry.definition for entry in namespace.entries],
+                )
+                tools = [item[1] for item in _gateway_tools(registry, definitions, namespace=namespace)]
             except ToolNamespaceCollisionError as exc:
                 return _namespace_collision_response(request_id, exc, settings, protocol_context)
             result = OfficialSdkTypesAdapter.list_tools(
@@ -296,15 +299,18 @@ async def _call_tool(
 def _gateway_tools(
     registry: ToolRegistry,
     definitions: list[ToolDefinition] | None = None,
+    *,
+    namespace: ToolNamespace | None = None,
 ) -> list[tuple[str, dict[str, Any], ToolDefinition]]:
     """把当前 Registry 快照转换为稳定、唯一且符合 MCP 命名约束的工具列表。"""
 
-    namespace = ToolNamespace(
-        definitions if definitions is not None else registry.list_definitions()
-    )
+    namespace = namespace or ToolNamespace(registry.list_definitions())
+    visible_ids = {definition.id for definition in definitions} if definitions is not None else None
     tools: list[tuple[str, dict[str, Any], ToolDefinition]] = []
     for entry in namespace.entries:
         definition = entry.definition
+        if visible_ids is not None and definition.id not in visible_ids:
+            continue
         payload: dict[str, Any] = {
             "name": entry.wire_name,
             "title": definition.name,

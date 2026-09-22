@@ -25,10 +25,12 @@ from lingshu_gate.logging import log_event
 from lingshu_gate.mcp_container import build_docker_command, resolve_docker_binary
 from lingshu_gate.mcp_manifest import McpServerManifest
 from lingshu_gate.mcp_runtime_cache import McpRuntimeCacheResolver
+from lingshu_gate.protocol.lifecycle import discovery_requires_initialize, initialize_params, parse_initialize_result
 from lingshu_gate.protocol.request import build_request_params
 from lingshu_gate.protocol.version import (
+    STDIO_LEGACY_PROTOCOL_VERSIONS,
     MCP_PROTOCOL_VERSION,
-    require_current_protocol_version,
+    resolve_downstream_protocol_version,
 )
 from lingshu_gate.redaction import redact_command, redact_text, redact_value
 from lingshu_gate.subprocess_environment import (
@@ -48,6 +50,11 @@ MAX_DISCOVERED_TOOLS = 10_000
 class McpProtocolError(RuntimeError):
     """Raised when an MCP server returns an invalid or error response."""
 
+    def __init__(self, message: str, *, code: Any = None, rpc_message: Any = None) -> None:
+        super().__init__(message)
+        self.code = code if type(code) is int else None
+        self.rpc_message = rpc_message if isinstance(rpc_message, str) else None
+
 
 class StdioMcpClient:
     """Manage one stdio MCP server process and JSON-RPC session."""
@@ -55,8 +62,8 @@ class StdioMcpClient:
     def __init__(self, manifest: McpServerManifest, settings: Settings, log_sink: LogSink | None = None) -> None:
         self.manifest = manifest
         self.settings = settings
-        self.protocol_version = require_current_protocol_version(
-            manifest.transport.protocol_version or MCP_PROTOCOL_VERSION
+        self.protocol_version = resolve_downstream_protocol_version(
+            manifest.transport.protocol_version, allow_legacy_stdio=True,
         )
         self.log_sink = log_sink
         self.process: subprocess.Popen[str] | None = None
@@ -84,6 +91,12 @@ class StdioMcpClient:
             log_event(logger, logging.INFO, "gate.mcp.stdio_already_running", "MCP stdio process already running", server_id=self.manifest.id, pid=self.pid)
             return
         self._fatal_protocol_error = None
+        self.protocol_version = resolve_downstream_protocol_version(
+            self.manifest.transport.protocol_version, allow_legacy_stdio=True,
+        )
+        self.initialized = False
+        self.server_info = {}
+        self.server_capabilities = {}
         launch = self.manifest.launch
         env = build_subprocess_environment()
         cwd: Path | None = None
@@ -139,22 +152,48 @@ class StdioMcpClient:
         self._stderr_thread.start()
         log_event(logger, logging.INFO, "gate.mcp.stdio_process_ready", "MCP stdio process started", server_id=self.manifest.id, pid=self.pid)
         self._store_log("info", "MCP stdio process started", "gate.mcp.stdio_process_ready", {"pid": self.pid})
-        self.discover()
+        try:
+            self.discover()
+        except Exception:
+            self.stop()
+            raise
 
     def discover(self) -> dict[str, Any]:
         startup_timeout = self.manifest.timeout_seconds or self.settings.mcp_startup_timeout_seconds
         log_event(logger, logging.INFO, "gate.mcp.discovery_started", "Discovering MCP server", server_id=self.manifest.id, timeout_seconds=startup_timeout)
-        result = self.request("server/discover", {}, timeout=startup_timeout)
-        supported = result.get("supportedVersions") if isinstance(result, dict) else None
-        if not isinstance(supported, list) or self.protocol_version not in supported:
-            raise McpProtocolError(
-                f"MCP server did not advertise requested version {self.protocol_version}"
+        result: dict[str, Any] = {}
+        if self.protocol_version == MCP_PROTOCOL_VERSION:
+            try:
+                result = self.request("server/discover", {}, timeout=startup_timeout)
+            except McpProtocolError as exc:
+                if self.manifest.transport.protocol_version not in (None, "auto") or not discovery_requires_initialize(exc.code, exc.rpc_message):
+                    raise
+                # 同一进程内只协商一次，不为探测协议重启服务或重放业务调用。
+                self.protocol_version = "2025-11-25"
+        if self.protocol_version != MCP_PROTOCOL_VERSION:
+            result = self.request(
+                "initialize",
+                initialize_params(self.protocol_version, self.settings.version),
+                timeout=startup_timeout,
             )
-        self.server_capabilities = result.get("capabilities", {}) if isinstance(result, dict) else {}
-        raw_result_meta = result.get("_meta")
-        result_meta: dict[str, Any] = raw_result_meta if isinstance(raw_result_meta, dict) else {}
-        server_info = result_meta.get("io.modelcontextprotocol/serverInfo")
-        self.server_info = server_info if isinstance(server_info, dict) else {}
+            try:
+                self.protocol_version, self.server_capabilities, self.server_info = parse_initialize_result(
+                    result, supported_versions=STDIO_LEGACY_PROTOCOL_VERSIONS,
+                )
+            except ValueError as exc:
+                raise McpProtocolError(str(exc)) from None
+            self.notify("notifications/initialized")
+        else:
+            supported = result.get("supportedVersions") if isinstance(result, dict) else None
+            if not isinstance(supported, list) or self.protocol_version not in supported:
+                raise McpProtocolError(
+                    f"MCP server did not advertise requested version {self.protocol_version}"
+                )
+            self.server_capabilities = result.get("capabilities", {}) if isinstance(result, dict) else {}
+            raw_result_meta = result.get("_meta")
+            result_meta: dict[str, Any] = raw_result_meta if isinstance(raw_result_meta, dict) else {}
+            server_info = result_meta.get("io.modelcontextprotocol/serverInfo")
+            self.server_info = server_info if isinstance(server_info, dict) else {}
         self.initialized = True
         capability_names = sorted(str(name) for name in self.server_capabilities)
         log_event(
@@ -164,12 +203,13 @@ class StdioMcpClient:
             "MCP server discovered",
             server_id=self.manifest.id,
             capability_names=capability_names,
+            protocol_version=self.protocol_version,
         )
         self._store_log(
             "info",
             "MCP server discovered",
             "gate.mcp.discovery_succeeded",
-            {"capability_names": capability_names},
+            {"capability_names": capability_names, "protocol_version": self.protocol_version},
         )
         if self.settings.mcp_log_payloads:
             log_event(
@@ -294,9 +334,16 @@ class StdioMcpClient:
                 continue
         if "error" in response:
             safe_error = redact_value(response["error"], known_secrets=self._redaction_values)
-            log_event(logger, logging.ERROR, "gate.mcp.request_error_received", "MCP request returned error", server_id=self.manifest.id, method=method, request_id=request_id, error=safe_error)
-            self._store_log("error", "MCP request returned error", "gate.mcp.request_error_received", {"method": method, "request_id": request_id, "error": safe_error})
-            raise McpProtocolError(str(safe_error))
+            error_code = safe_error.get("code") if isinstance(safe_error, dict) else None
+            error_message = safe_error.get("message") if isinstance(safe_error, dict) else None
+            negotiating = method == "server/discover" and self.manifest.transport.protocol_version in (None, "auto") and discovery_requires_initialize(error_code, error_message)
+            log_event(logger, logging.INFO if negotiating else logging.ERROR, "gate.mcp.request_error_received", "MCP discovery requires initialization" if negotiating else "MCP request returned error", server_id=self.manifest.id, method=method, request_id=request_id, error=safe_error)
+            self._store_log("info" if negotiating else "error", "MCP discovery requires initialization" if negotiating else "MCP request returned error", "gate.mcp.request_error_received", {"method": method, "request_id": request_id, "error": safe_error})
+            raise McpProtocolError(
+                str(safe_error),
+                code=error_code,
+                rpc_message=error_message,
+            )
         result = response.get("result")
         return result if isinstance(result, dict) else {"result": result}
 

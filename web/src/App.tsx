@@ -70,6 +70,7 @@ export default function App() {
   const [configErrors, setConfigErrors] = useState<string[]>([])
   const [selectedConfigId, setSelectedConfigId] = useState("")
   const [configText, setConfigText] = useState(prettyJson(genericTemplate))
+  const [configEditorOpen, setConfigEditorOpen] = useState(false)
   const [selectedToolId, setSelectedToolId] = useState("")
   const [invokeArgs, setInvokeArgs] = useState("{}")
   const [invokeResult, setInvokeResult] = useState(t("waiting"))
@@ -158,8 +159,8 @@ export default function App() {
     finally { setBusy(false) }
   }
 
-  function editConfig(config: McpConfig) { setSelectedConfigId(config.id); setConfigText(prettyJson(config.manifest)); navigate("configs") }
-  function newConfig() { setSelectedConfigId(""); setConfigText(prettyJson(genericTemplate)); navigate("configs") }
+  function editConfig(config: McpConfig) { setSelectedConfigId(config.id); setConfigText(prettyJson(config.manifest)); setConfigEditorOpen(true); navigate("configs") }
+  function newConfig() { setSelectedConfigId(""); setConfigText(prettyJson(genericTemplate)); setConfigEditorOpen(true); navigate("configs") }
 
   async function saveConfig(nextValue?: string) {
     const manifestText = nextValue || configText
@@ -187,8 +188,13 @@ export default function App() {
         : await api.createConfig(manifest, false, false, userCredentialValues)
       setMessage(`${response.message}: ${response.config?.id || manifest.id}`)
       setSelectedConfigId(String(response.config?.id || manifest.id || ""))
+      setConfigEditorOpen(false)
       await refreshAll()
-    } catch (err) { setError(err instanceof Error ? err.message : String(err)) }
+    } catch (err) {
+      setError(err instanceof Error ? err.message : String(err))
+      // 保存失败交回编辑器显示，避免错误提示被 Modal 遮挡且草稿被关闭。
+      throw err
+    }
     finally { setBusy(false) }
   }
 
@@ -230,7 +236,7 @@ export default function App() {
         <RouteErrorBoundary key={view} locale={locale}>
           <Suspense fallback={<RouteLoadingFallback locale={locale} />}>
             {view === "dashboard" && <DashboardPage health={health} servers={servers} tools={tools} operationsAllowed={can("operations.manage")} t={t} />}
-            {view === "configs" && <ConfigsPage locale={locale} t={t} configs={configs} configErrors={configErrors} selectedConfigId={selectedConfigId} configText={configText} busy={busy} onNewConfig={newConfig} onReloadConfigs={reloadConfigs} onEditConfig={editConfig} onApplyConfig={applyConfig} onDeleteConfig={deleteConfig} onConfigTextChange={setConfigText} onSaveConfig={saveConfig} />}
+            {view === "configs" && <ConfigsPage locale={locale} t={t} configs={configs} configErrors={configErrors} selectedConfigId={selectedConfigId} configText={configText} busy={busy} editorOpen={configEditorOpen} onCloseEditor={() => { if (!busy) setConfigEditorOpen(false) }} onNewConfig={newConfig} onReloadConfigs={reloadConfigs} onEditConfig={editConfig} onApplyConfig={applyConfig} onDeleteConfig={deleteConfig} onConfigTextChange={setConfigText} onSaveConfig={saveConfig} />}
             {view === "servers" && <ServersPage locale={locale} t={t} servers={servers} loadErrors={loadErrors} busy={busy} visibleTools={toolsLoaded ? tools : null} toolsError={toolsError} canReadTools={can("tools.read")} canManageClassifications={can("classifications.manage")} onServerAction={serverAction} onRefresh={refreshAll} onNewConfig={newConfig} onNavigate={navigate} />}
             {view === "builds" && <BuildsPage t={t} initialBuildId={routeBuildId} />}
             {view === "credentials" && <CredentialsPage t={t} />}

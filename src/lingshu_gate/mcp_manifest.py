@@ -9,7 +9,7 @@ from typing import Any, Literal
 from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
 from lingshu_gate.endpoint_security import redact_endpoint, validate_streamable_http_endpoint
-from lingshu_gate.protocol.version import require_current_protocol_version
+from lingshu_gate.protocol.version import resolve_downstream_protocol_version
 from lingshu_gate.subprocess_environment import validate_docker_child_environment_names
 
 LaunchType = Literal["managed_process", "external", "managed_container"]
@@ -231,7 +231,7 @@ class TransportConfig(BaseModel):
     @model_validator(mode="after")
     def validate_transport(self) -> "TransportConfig":
         if self.protocol_version is not None:
-            require_current_protocol_version(self.protocol_version)
+            resolve_downstream_protocol_version(self.protocol_version, allow_legacy_stdio=self.type == "stdio")
         if self.type == "streamable_http" and not self.endpoint:
             raise ValueError("transport.endpoint is required when transport.type=streamable_http")
         return self
