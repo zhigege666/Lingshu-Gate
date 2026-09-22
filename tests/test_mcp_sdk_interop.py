@@ -53,6 +53,12 @@ def _allow(_: Request) -> AuthPrincipal:
 
 class OfficialSdkInteropEndToEndTest(unittest.TestCase):
     def test_official_client_discovers_lists_and_calls_gateway_over_asgi(self) -> None:
+        self._assert_official_client(legacy=False)
+
+    def test_official_legacy_client_initializes_lists_and_calls_gateway_over_asgi(self) -> None:
+        self._assert_official_client(legacy=True)
+
+    def _assert_official_client(self, *, legacy: bool) -> None:
         app = FastAPI()
         registry = ToolRegistry()
         registry.register(
@@ -89,17 +95,19 @@ class OfficialSdkInteropEndToEndTest(unittest.TestCase):
                     terminate_on_close=False,
                 ) as streams:
                     async with ClientSession(*streams) as session:
-                        discovery = await session.discover()
+                        if legacy:
+                            initialization = await session.initialize()
+                            self.assertEqual(initialization.protocol_version, "2025-11-25")
+                            self.assertEqual(initialization.server_info.name, "lingshu_gate")
+                        else:
+                            discovery = await session.discover()
+                            self.assertEqual(discovery.supported_versions, [MCP_PROTOCOL_VERSION])
                         tools = await session.list_tools()
                         result = await session.call_tool(
                             "test__echo",
                             {"message": "official-client"},
                         )
 
-            self.assertEqual(
-                discovery.supported_versions,
-                [MCP_PROTOCOL_VERSION],
-            )
             self.assertEqual([tool.name for tool in tools.tools], ["test__echo"])
             self.assertFalse(result.is_error)
             self.assertEqual(

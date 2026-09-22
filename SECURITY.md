@@ -53,6 +53,8 @@ The Docker Core image intentionally does not launch local stdio processes or exe
 
 Effective tool access is the intersection of authentication state, control permission, resource grant, published read/write classification, and API-token scope. Tool annotations and discovered schemas are untrusted hints; they never grant access by themselves.
 
+Incoming MCP handshake compatibility does not create an authenticated session or cache permissions from `initialize`. Both protocol paths authenticate every HTTP request, enforce the same Origin allowlist, and recheck access for discovery and invocation. Requests carrying current-protocol metadata must pass current header validation; they cannot silently downgrade to legacy framing.
+
 Tool-discovery classification and grant snapshots are scoped to one request and are not shared between principals or retained for later calls. The next discovery or invocation reads current grants, expiration, and classification state again. Sectioned server-detail reads keep the existing `operations.manage` boundary and return only the requested diagnostic data; selecting a section does not bypass authorization or manifest credential masking.
 
 Administrators should:

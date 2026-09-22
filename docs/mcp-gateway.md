@@ -7,14 +7,16 @@ Lingshu Gate exposes one authenticated Streamable HTTP MCP endpoint at `POST /mc
 ## Connection contract
 
 - Endpoint: `http://127.0.0.1:8000/mcp` for the default local deployment.
-- Protocol version: `2026-07-28`, fixed by the release.
+- Current protocol: `2026-07-28`; incoming clients may also use the `2025-03-26`, `2025-06-18`, or `2025-11-25` handshake.
 - Authentication: an authenticated Console cookie or `Authorization: Bearer <api-token>`.
 - Content negotiation: follow the Streamable HTTP requirements of the protocol.
-- Request model: HTTP is stateless; send the required protocol and caller metadata on every request.
+- Request model: HTTP is stateless; authenticate every request and use the framing required by its protocol version.
 
-Start with `server/discover`, use a current protocol implementation, and derive tool names from `tools/list`. Do not construct downstream tool names from assumptions about server IDs. Unsupported protocol versions and malformed request metadata fail with a protocol error.
+For `2026-07-28`, start with `server/discover`. Handshake clients start with `initialize` (`protocolVersion`, `capabilities`, and `clientInfo`), then send `notifications/initialized`. Initialization does not require a protocol-version header; an unsupported proposal negotiates `2025-11-25`. Subsequent requests use the negotiated `MCP-Protocol-Version`; without a header or current-protocol metadata, the Streamable HTTP compatibility default is `2025-03-26`. Unknown header versions are rejected. Gate does not allocate an MCP session, and supports JSON responses, `ping`, `tools/list`, and `tools/call` for handshake clients; GET/SSE and DELETE are not required or exposed.
 
-Each HTTP request mirrors routing data in headers and JSON-RPC parameters:
+Derive tool names from `tools/list`; do not construct them from assumptions about server IDs. Legacy clients do not need `Mcp-Method`, `Mcp-Name`, or the current protocol's per-request metadata. The existing endpoint and bearer-token configuration can be retained. This compatibility applies only to incoming clients; downstream connections remain on `2026-07-28`.
+
+Each `2026-07-28` HTTP request mirrors routing data in headers and JSON-RPC parameters:
 
 | Location | Contract |
 |---|---|
@@ -25,7 +27,7 @@ Each HTTP request mirrors routing data in headers and JSON-RPC parameters:
 | `params._meta.io.modelcontextprotocol/clientCapabilities` | Caller capability object, even when empty |
 | `params._meta.io.modelcontextprotocol/clientInfo` | Caller name and version when available |
 
-Gate rejects a header/parameter mismatch before dispatch. This keeps routing metadata independently verifiable at the HTTP boundary.
+Gate rejects a header/parameter mismatch before dispatch. A request carrying current-protocol metadata cannot fall back to legacy validation by omitting or changing its version header. This keeps routing metadata independently verifiable at the HTTP boundary.
 
 Remote deployments must use HTTPS. Gate should remain on a private interface behind the TLS reverse proxy.
 

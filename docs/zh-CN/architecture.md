@@ -34,7 +34,7 @@ flowchart TB
 
 ### MCP 调用
 
-1. 调用方把 `server/discover` 和后续无状态请求发送到 `/mcp`，并在每个请求的必需元数据中携带协议版本 `2026-07-28`。
+1. 调用方通过 `/mcp` 使用 `2026-07-28` 的 `server/discover` 和每请求元数据，或使用受支持的 2025 握手版本的 `initialize` / `notifications/initialized`。两条路径均无状态，并复用鉴权和工具分发。
 2. Gate 认证请求中的 Console 凭据或 Bearer Token。
 3. `tools/list` 只返回该主体可见的定义。
 4. `tools/call` 检查控制权限、已发布的读写分类、资源授权和 Token scope。

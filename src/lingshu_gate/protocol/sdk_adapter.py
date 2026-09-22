@@ -12,10 +12,13 @@ from typing import Any
 from mcp.types import (
     CallToolResult,
     DiscoverResult,
+    Implementation,
+    InitializeResult,
     ListToolsResult,
     ServerCapabilities,
     Tool,
 )
+from mcp_types.methods import serialize_server_result
 
 from lingshu_gate.protocol.capabilities import GatewayCapabilityPolicy
 from lingshu_gate.protocol.version import MCP_PROTOCOL_VERSION
@@ -37,6 +40,7 @@ class OfficialSdkTypesAdapter:
         *,
         server_name: str,
         server_version: str,
+        protocol_version: str = MCP_PROTOCOL_VERSION,
     ) -> dict[str, Any]:
         model = ListToolsResult(
             tools=[Tool.model_validate(tool) for tool in tools],
@@ -46,7 +50,10 @@ class OfficialSdkTypesAdapter:
             cache_scope="private",
             ttl_ms=0,
         )
-        return model.model_dump(mode="json", by_alias=True, exclude_none=True)
+        return serialize_server_result(
+            "tools/list", protocol_version,
+            model.model_dump(mode="json", by_alias=True, exclude_none=True),
+        )
 
     @staticmethod
     def call_tool(
@@ -54,6 +61,7 @@ class OfficialSdkTypesAdapter:
         *,
         server_name: str,
         server_version: str,
+        protocol_version: str = MCP_PROTOCOL_VERSION,
     ) -> dict[str, Any]:
         payload = dict(result)
         existing_meta = payload.get("_meta")
@@ -62,7 +70,35 @@ class OfficialSdkTypesAdapter:
             SERVER_INFO_META_KEY: {"name": server_name, "version": server_version},
         }
         model = CallToolResult.model_validate(payload)
-        return model.model_dump(mode="json", by_alias=True, exclude_none=True)
+        return serialize_server_result(
+            "tools/call", protocol_version,
+            model.model_dump(mode="json", by_alias=True, exclude_none=True),
+        )
+
+    @staticmethod
+    def initialize(
+        capability_policy: GatewayCapabilityPolicy,
+        *,
+        protocol_version: str,
+        server_name: str,
+        server_version: str,
+        instructions: str,
+        client_capabilities: dict[str, Any],
+    ) -> dict[str, Any]:
+        """通过官方版本化模型返回旧版握手结果。"""
+
+        model = InitializeResult(
+            protocol_version=protocol_version,
+            capabilities=ServerCapabilities.model_validate(
+                capability_policy.advertised_for(client_capabilities)
+            ),
+            server_info=Implementation(name=server_name, version=server_version),
+            instructions=instructions,
+        )
+        return serialize_server_result(
+            "initialize", protocol_version,
+            model.model_dump(mode="json", by_alias=True, exclude_none=True),
+        )
 
     @staticmethod
     def discover(

@@ -15,7 +15,7 @@ from lingshu_gate.auth import AuthPrincipal
 from lingshu_gate.config import Settings
 from lingshu_gate.models import ToolDefinition
 from lingshu_gate.protocol.capabilities import GatewayCapabilityPolicy
-from lingshu_gate.protocol.version import MCP_PROTOCOL_VERSION
+from lingshu_gate.protocol.version import GATEWAY_HANDSHAKE_VERSIONS, MCP_PROTOCOL_VERSION
 from lingshu_gate.protocol.sdk_adapter import OfficialSdkTypesAdapter
 from lingshu_gate.protocol.tool_namespace import (
     ToolNamespace,
@@ -26,7 +26,7 @@ from lingshu_gate.transports.http import (
     HttpProtocolContext,
     HttpProtocolValidationError,
     resolve_allowed_origins,
-    validate_inbound_http_request,
+    validate_gateway_http_request,
     validate_origin_header,
 )
 from lingshu_gate.transports.oauth import (
@@ -108,7 +108,7 @@ def register_mcp_gateway_route(
             return _error_response(None, -32600, "Invalid Request")
 
         try:
-            protocol_context = validate_inbound_http_request(request.headers, message)
+            protocol_context = validate_gateway_http_request(request.headers, message)
         except HttpProtocolValidationError as exc:
             return _error_response(
                 request_id,
@@ -122,6 +122,26 @@ def register_mcp_gateway_route(
 
         if not has_request_id:
             return Response(status_code=202)
+        if protocol_context.protocol_version in GATEWAY_HANDSHAKE_VERSIONS:
+            if method == "initialize":
+                return _result_response(
+                    request_id,
+                    OfficialSdkTypesAdapter.initialize(
+                        capability_policy,
+                        protocol_version=protocol_context.protocol_version,
+                        server_name=SERVER_NAME,
+                        server_version=settings.version,
+                        instructions=GATEWAY_INSTRUCTIONS,
+                        client_capabilities=protocol_context.client_capabilities,
+                    ),
+                    settings,
+                    protocol_version=protocol_context.protocol_version,
+                )
+            if method == "ping":
+                return _result_response(
+                    request_id, {}, settings,
+                    protocol_version=protocol_context.protocol_version,
+                )
         if method == "server/discover":
             return _result_response(
                 request_id,
@@ -148,6 +168,7 @@ def register_mcp_gateway_route(
                 tools,
                 server_name=SERVER_NAME,
                 server_version=settings.version,
+                protocol_version=protocol_context.protocol_version,
             )
             return _result_response(
                 request_id,
@@ -262,6 +283,7 @@ async def _call_tool(
         result,
         server_name=SERVER_NAME,
         server_version=settings.version,
+        protocol_version=protocol_context.protocol_version,
     )
     return _result_response(
         request_id,
@@ -346,6 +368,7 @@ def _tool_error(
             result,
             server_name=SERVER_NAME,
             server_version=settings.version,
+            protocol_version=protocol_context.protocol_version,
         )
     return _result_response(
         request_id,

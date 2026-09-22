@@ -23,6 +23,8 @@ Do not run an archive built for a different operating system or CPU architecture
 
 ## Native package contents
 
+Builds with incoming MCP handshake compatibility support `initialize` alongside `2026-07-28` discovery on the same `/mcp` endpoint. Existing bearer tokens, grants, and external data directories are retained; no downstream protocol migration is implied. For an operator-built upgrade, verify the `BUILD-INFO.json` source revision, test both protocol paths, and retain the previous package for rollback. See the [connection contract](mcp-gateway.md#connection-contract).
+
 The Console includes Ant Design and its icon library, resolved by `web/package-lock.json`. It remains a static client served by Gate; no additional frontend application server is required in a release package. Before packaging a Console update, verify the service directory, detail-section loading, dark/light themes, Chinese/English labels, and the existing authorization controls. Include the new frontend dependency licenses in the generated release inventory.
 
 Each native archive contains one top-level directory and:

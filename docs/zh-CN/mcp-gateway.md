@@ -7,14 +7,16 @@ Lingshu Gate 在 `POST /mcp` 提供统一的认证 Streamable HTTP MCP 入口，
 ## 连接契约
 
 - 默认本机 Endpoint：`http://127.0.0.1:8000/mcp`。
-- 协议版本：`2026-07-28`，由发行版固定。
+- 当前协议：`2026-07-28`；入站客户端也可使用 `2025-03-26`、`2025-06-18` 或 `2025-11-25` 握手。
 - 认证：已认证的 Console Cookie，或 `Authorization: Bearer <api-token>`。
 - 内容协商：遵循协议的 Streamable HTTP 要求。
-- 请求模型：HTTP 无状态；每个请求都必须携带必需的协议和调用方元数据。
+- 请求模型：HTTP 无状态；每个请求都必须认证，并遵守所用协议版本的消息格式。
 
-先调用 `server/discover`，使用当前协议实现，并从 `tools/list` 获取工具名称。不要根据服务 ID 推测下游工具名。不支持的协议版本和错误的请求元数据会返回协议错误。
+`2026-07-28` 客户端先调用 `server/discover`。握手客户端先调用 `initialize`（携带 `protocolVersion`、`capabilities` 和 `clientInfo`），再发送 `notifications/initialized`。初始化不要求协议版本 Header；不支持的提议版本会协商为 `2025-11-25`。后续请求使用协商后的 `MCP-Protocol-Version`；缺少 Header 且没有当前协议元数据时，按 Streamable HTTP 兼容规则默认为 `2025-03-26`。未知 Header 版本会被拒绝。Gate 不分配 MCP Session，为握手客户端提供 JSON 响应、`ping`、`tools/list` 和 `tools/call`；不要求或提供 GET/SSE 和 DELETE。
 
-每个 HTTP 请求都在 Header 和 JSON-RPC 参数中镜像路由信息：
+从 `tools/list` 获取工具名称，不要根据服务 ID 推测名称。旧版客户端不需要 `Mcp-Method`、`Mcp-Name` 或当前协议的每请求元数据，可保留既有 Endpoint 和 Bearer Token 配置。兼容仅适用于入站客户端，下游连接仍使用 `2026-07-28`。
+
+每个 `2026-07-28` HTTP 请求都在 Header 和 JSON-RPC 参数中镜像路由信息：
 
 | 位置 | 契约 |
 |---|---|
@@ -25,7 +27,7 @@ Lingshu Gate 在 `POST /mcp` 提供统一的认证 Streamable HTTP MCP 入口，
 | `params._meta.io.modelcontextprotocol/clientCapabilities` | 调用方 Capability Object，即使为空也必须提供 |
 | `params._meta.io.modelcontextprotocol/clientInfo` | 可用时提供调用方名称和版本 |
 
-Header 与参数不一致时，Gate 会在 Dispatch 前拒绝请求，使 HTTP 边界可以独立校验路由元数据。
+Header 与参数不一致时，Gate 会在 Dispatch 前拒绝请求。携带当前协议元数据的请求不能通过删除或更改版本 Header 降级为旧版校验，使 HTTP 边界可以独立校验路由元数据。
 
 远程部署必须使用 HTTPS。Gate 应保留在 TLS 反向代理之后的私有接口。
 

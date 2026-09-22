@@ -34,7 +34,7 @@ The gateway does not make discovered tools callable by default. Discovery produc
 
 ### MCP invocation
 
-1. The caller sends `server/discover` and subsequent stateless requests to `/mcp` with protocol version `2026-07-28` in the required per-request metadata.
+1. The caller uses `/mcp` through `server/discover` and per-request metadata for `2026-07-28`, or `initialize` / `notifications/initialized` for the supported 2025 handshake versions. Both paths are stateless and share authorization and tool dispatch.
 2. Gate authenticates the request's Console credential or bearer token.
 3. `tools/list` returns only definitions visible to the principal.
 4. `tools/call` checks control permission, published read/write classification, resource grant, and token scope.

@@ -9,13 +9,21 @@ from dataclasses import dataclass
 from typing import Any
 from urllib.parse import urlsplit
 
+from mcp.types import InitializeRequestParams
+from pydantic import ValidationError
+
 from lingshu_gate.protocol.request import (
     CLIENT_CAPABILITIES_META_KEY,
     CLIENT_INFO_META_KEY,
     PROTOCOL_META_KEY,
     build_request_params,
 )
-from lingshu_gate.protocol.version import MCP_PROTOCOL_VERSION, UnsupportedProtocolVersion, require_current_protocol_version
+from lingshu_gate.protocol.version import (
+    GATEWAY_HANDSHAKE_VERSIONS,
+    MCP_PROTOCOL_VERSION,
+    UnsupportedProtocolVersion,
+    require_current_protocol_version,
+)
 
 HEADER_MISMATCH = -32020
 MISSING_REQUIRED_CLIENT_CAPABILITY = -32021
@@ -110,6 +118,56 @@ def _normalize_origin(value: str) -> tuple[str, str, int]:
         parsed.hostname.casefold(),
         port or (443 if parsed.scheme.casefold() == "https" else 80),
     )
+
+
+def validate_gateway_http_request(
+    headers: Mapping[str, str],
+    message: dict[str, Any],
+) -> HttpProtocolContext:
+    """区分入站协议代际，不降低新版请求的 Header/metadata 校验。"""
+
+    normalized_headers = {key.lower(): value for key, value in headers.items()}
+    header_version = normalized_headers.get("mcp-protocol-version")
+    method = message.get("method")
+    params = message.get("params")
+    meta = params.get("_meta") if isinstance(params, dict) else None
+    if (
+        header_version == MCP_PROTOCOL_VERSION
+        or method == "server/discover"
+        or isinstance(meta, dict) and any(
+            key in meta for key in (PROTOCOL_META_KEY, CLIENT_CAPABILITIES_META_KEY, CLIENT_INFO_META_KEY)
+        )
+    ):
+        return validate_inbound_http_request(headers, message)
+
+    if header_version is not None and header_version not in GATEWAY_HANDSHAKE_VERSIONS:
+        raise HttpProtocolValidationError(
+            UNSUPPORTED_PROTOCOL_VERSION,
+            "Unsupported protocol version",
+            data={
+                "supported": [*GATEWAY_HANDSHAKE_VERSIONS, MCP_PROTOCOL_VERSION],
+                "requested": header_version,
+            },
+        )
+    if method == "initialize":
+        if "id" not in message:
+            raise HttpProtocolValidationError(-32600, "initialize must be a request")
+        try:
+            initialization = InitializeRequestParams.model_validate(params, by_name=False)
+        except ValidationError as exc:
+            # 不回显验证输入，避免把客户端元数据中的敏感值带入错误响应。
+            raise HttpProtocolValidationError(-32602, "Invalid initialize params") from exc
+        proposed = initialization.protocol_version
+        negotiated = proposed if proposed in GATEWAY_HANDSHAKE_VERSIONS else GATEWAY_HANDSHAKE_VERSIONS[-1]
+        return HttpProtocolContext(
+            negotiated,
+            initialization.capabilities.model_dump(mode="json", by_alias=True, exclude_none=True),
+            initialization.client_info.model_dump(mode="json", by_alias=True, exclude_none=True),
+        )
+
+    # 旧版 HTTP 规范要求：无法取得协商版本时，兼容按 2025-03-26 处理。
+    # 不保存握手权限快照，每次工具发现和调用仍走网关现有鉴权。
+    return HttpProtocolContext(header_version or GATEWAY_HANDSHAKE_VERSIONS[0], {})
 
 
 def validate_inbound_http_request(
