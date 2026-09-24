@@ -123,6 +123,57 @@ class BuildPlanTest(unittest.TestCase):
         self.assertEqual(preflight["metadata"]["node_dependency_groups"], [])
         self.assertEqual(build_plan(preflight)["steps"], [])
 
+    def test_node_preflight_explains_unrelated_python_tool_warnings(self) -> None:
+        tools_cache = {
+            name: {"available": name not in {"python", "pip", "pip3"}, "path": name, "version": "test", "error": ""}
+            for name in ("node", "npm", "npx", "python", "python3", "pip", "pip3")
+        }
+        with tempfile.TemporaryDirectory() as temporary_dir:
+            root = Path(temporary_dir)
+            (root / "package.json").write_text(
+                json.dumps({"name": "plain-mcp", "scripts": {"start": "node index.js"}}),
+                encoding="utf-8",
+            )
+            (root / "index.js").write_text("console.log('ok');\n", encoding="utf-8")
+            preflight = run_build_preflight({"root_dir": str(root)}, runtime_override="node", tools_cache=tools_cache)
+
+        self.assertEqual(preflight["status"], "warning")
+        self.assertEqual(len(preflight["recommendations"]), 1)
+        self.assertIn("不阻断 node 项目", preflight["recommendations"][0]["message"])
+        self.assertNotIn("安装 Python", preflight["recommendations"][0]["message"])
+
+    def test_node_preflight_still_reports_missing_required_tool(self) -> None:
+        tools_cache = {
+            name: {"available": name != "node", "path": name, "version": "test", "error": ""}
+            for name in ("node", "npm", "npx", "python", "python3", "pip", "pip3")
+        }
+        with tempfile.TemporaryDirectory() as temporary_dir:
+            root = Path(temporary_dir)
+            (root / "package.json").write_text(
+                json.dumps({"name": "plain-mcp", "scripts": {"start": "node index.js"}}),
+                encoding="utf-8",
+            )
+            (root / "index.js").write_text("console.log('ok');\n", encoding="utf-8")
+            preflight = run_build_preflight({"root_dir": str(root)}, runtime_override="node", tools_cache=tools_cache)
+
+        self.assertEqual(preflight["status"], "error")
+        self.assertIn("缺少必需工具：node", preflight["recommendations"][0]["message"])
+
+    def test_python_preflight_explains_unrelated_node_tool_warnings(self) -> None:
+        tools_cache = {
+            name: {"available": name in {"python3", "pip3"}, "path": name, "version": "test", "error": ""}
+            for name in ("node", "npm", "npx", "python", "python3", "pip", "pip3")
+        }
+        with tempfile.TemporaryDirectory() as temporary_dir:
+            root = Path(temporary_dir)
+            (root / "requirements.txt").write_text("", encoding="utf-8")
+            (root / "main.py").write_text("print('ok')\n", encoding="utf-8")
+            preflight = run_build_preflight({"root_dir": str(root)}, runtime_override="python", tools_cache=tools_cache)
+
+        self.assertEqual(preflight["status"], "warning")
+        self.assertIn("不阻断 python 项目", preflight["recommendations"][0]["message"])
+        self.assertNotIn("安装 Node", preflight["recommendations"][0]["message"])
+
 
 if __name__ == "__main__":
     unittest.main()

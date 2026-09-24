@@ -399,6 +399,44 @@ def _overall_status(checks: list[dict[str, Any]]) -> str:
 
 
 def _recommendations(runtime: str, checks: list[dict[str, Any]]) -> list[dict[str, str]]:
+    if runtime in {"node", "python"}:
+        runtime_tools = {
+            "node": {"node", "npm", "npx"},
+            "python": {"python", "python3", "pip", "pip3"},
+        }[runtime]
+        required_errors = [
+            str(check["id"]).rsplit(".", 1)[-1]
+            for check in checks
+            if str(check.get("id", "")).startswith(f"{runtime}.required_tool.") and check.get("status") == "error"
+        ]
+        optional_tools = [
+            str(check["id"])[5:]
+            for check in checks
+            if str(check.get("id", "")).startswith("tool.") and check.get("status") == "warning"
+        ]
+        unrelated_tools = [name for name in optional_tools if name not in runtime_tools]
+        selected_tools = [name for name in optional_tools if name in runtime_tools and name not in required_errors]
+        project_issues = [
+            str(check["id"])
+            for check in checks
+            if check.get("status") in {"warning", "error"}
+            and not str(check.get("id", "")).startswith("tool.")
+            and not str(check.get("id", "")).startswith(f"{runtime}.required_tool.")
+        ]
+        if not (required_errors or unrelated_tools or selected_tools or project_issues):
+            return []
+
+        messages: list[str] = []
+        if required_errors:
+            messages.append(f"当前 {runtime} 运行时缺少必需工具：{', '.join(required_errors)}；请安装后重新预检。")
+        if unrelated_tools:
+            messages.append(f"缺少 {', '.join(unrelated_tools)} 属于未选运行时的提示，不阻断 {runtime} 项目。")
+        if selected_tools:
+            messages.append(f"当前运行时的工具提示：{', '.join(selected_tools)}；请核对计划是否需要这些命令。")
+        if project_issues:
+            messages.append(f"另需核对预检项 {', '.join(project_issues[:5])} 和构建计划校验结果。")
+        return [{"platform": _platform_key(), "message": " ".join(messages)}]
+
     missing = [str(check["id"]).replace("tool.", "") for check in checks if str(check.get("id", "")).startswith("tool.") and check.get("status") == "warning"]
     suffix = f" Missing tools: {', '.join(missing)}." if missing else ""
     if runtime in {"unknown", "ambiguous"}:
