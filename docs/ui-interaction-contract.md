@@ -13,7 +13,7 @@ The goal is efficient task completion: find an object, perform the intended oper
 - Use values from those files rather than trial dimensions from design research. For example, the current AntD provider defines `fontSize: 14`, `borderRadius: 6`, `controlHeight: 36`, and `controlHeightSM: 30`; these describe the provider, not a claim that every existing local control matches it. Token changes must be explicit and checked at their consumers.
 - Shared components own presentation and interaction mechanics. Domain adapters own requests, authorization, business state, and secret handling. Reuse behavior where it matches; do not turn visually similar pages into a universal CRUD component.
 
-Use `--input` / AntD `colorBorder` for editable control boundaries, including Invoke's nullable/JSON-only value containers. Use the quieter `--border` / `colorBorderSecondary` / `colorSplit` for structural dividers, tables, cards, and read-only results. Keep these mappings aligned in both themes; focus and error indicators retain their own semantic colors. Verify actual rendered controls on their adjacent backgrounds after changing these tokens. The build-injected Console version stays visible in the fixed header on desktop and mobile, with the full value available when a long prerelease is truncated.
+Use `--input` / AntD `colorBorder` for editable control boundaries, including Invoke's nullable/JSON-only value containers. Use the quieter `--border` / `colorBorderSecondary` / `colorSplit` for structural dividers, tables, cards, and read-only results. Keep these mappings aligned in both themes; focus and error indicators retain their own semantic colors. Verify actual rendered controls on their adjacent backgrounds after changing these tokens. The build-injected Console version stays visible in the fixed header on desktop and mobile. When a long prerelease is truncated, the full value remains available in the account menu without requiring hover and wraps within the viewport.
 
 ## Rules
 
@@ -36,6 +36,10 @@ The rules below are project decisions. The references explain the practices that
 | UI-13 — Accessibility | Prefer native control semantics, accessible names, visible focus, and information beyond color. Check the keyboard path through the changed task, including menus and overlays. Automated accessibility results do not replace assessment of focus order, reading order, zoom, and task completion. |
 | UI-14 — Language | Use consistent domain terms and concrete action labels; dangerous confirmations identify the action, target, and consequence. Maintain Chinese/English keys, units, and time meaning. Keep diagnostic identifiers useful without exposing secrets; do not translate raw logs as if they were interface copy. |
 | UI-15 — Reuse | A new composite component states its actual consumers, supported states, and responsibilities it leaves to the caller. Migrate explicitly and check affected consumers. Preserve the latest Tools, Roles, and Invoke behavior while adopting shared patterns; do not rebuild their new capabilities in parallel. |
+
+## Overview and domain boundaries
+
+The Dashboard opens with a compact resource overview instead of a separate row of navigation shortcuts already available in the sidebar. Preserve its accessible page heading and inline scope explanations; a generic help dialog is not required when it adds no task guidance. Gate health describes only Gate's health endpoint, service states keep their actual meanings, and tool counts cover the current user's visible catalog. Each resource distinguishes loading, failure, and a successful empty result independently. Resource links follow the same permissions as their destination; visual summaries do not grant access or imply that every visible tool can be invoked.
 
 ## Editor and domain boundaries
 

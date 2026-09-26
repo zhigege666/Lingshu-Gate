@@ -1,16 +1,16 @@
 import { useEffect, useState } from "react"
-import { Activity, AlertTriangle, BarChart3, MousePointerClick, RefreshCw, ScrollText, Server, Wrench, Zap } from "lucide-react"
+import { Activity, AlertTriangle, ArrowUpRight, BarChart3, MousePointerClick, RefreshCw, Server, Wrench } from "lucide-react"
 import { api, type HealthResponse, type InvocationStatistics, type McpServer, type ToolDefinition } from "@/api/client"
 import { useConsoleDesign } from "@/components/console-design-provider"
-import { PageHeader } from "@/components/page-shell"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Empty, EmptyDescription, EmptyHeader, EmptyMedia, EmptyTitle } from "@/components/ui/empty"
 import { Skeleton } from "@/components/ui/skeleton"
 import type { Locale, TFunction } from "@/i18n"
 import { Metric, statusBadge } from "@/pages/page-utils"
+import "@/pages/dashboard-page.css"
 
-export function DashboardPage({ health, servers, tools, principalId, globalRefreshId, operationsAllowed, canReadAudit, canReadTools, toolsLoaded, toolsError, t }: { health: HealthResponse | null; servers: McpServer[]; tools: ToolDefinition[]; principalId: string; globalRefreshId: number; operationsAllowed: boolean; canReadAudit: boolean; canReadTools: boolean; toolsLoaded: boolean; toolsError: string | null; t: TFunction }) {
+export function DashboardPage({ health, healthError, servers, tools, principalId, globalRefreshId, operationsAllowed, canReadAudit, canReadTools, toolsLoaded, toolsError, serversLoaded, serversError, t }: { health: HealthResponse | null; healthError: string | null; servers: McpServer[]; tools: ToolDefinition[]; principalId: string; globalRefreshId: number; operationsAllowed: boolean; canReadAudit: boolean; canReadTools: boolean; toolsLoaded: boolean; toolsError: string | null; serversLoaded: boolean; serversError: string | null; t: TFunction }) {
   const { locale } = useConsoleDesign()
   const [hours, setHours] = useState<24 | 168>(24)
   const [refreshId, setRefreshId] = useState(0)
@@ -45,47 +45,20 @@ export function DashboardPage({ health, servers, tools, principalId, globalRefre
     setStatisticsLoading(true)
     setRefreshId((value) => value + 1)
   }
-  const loading = health === null
-  const runningCount = servers.filter((server) => server.status === "running").length
-  const mcpToolCount = tools.filter((tool) => tool.source === "mcp").length
   const attentionServers = servers.filter((server) => ["failed", "unsupported"].includes(server.status))
 
   return (
     <div className="flex flex-col gap-4">
-      <PageHeader
-        eyebrow={t("controlPlane")}
-        title={t("dashboard")}
-        description={t("subtitle")}
-        helpLabel={t("pageHelp")}
-        actions={operationsAllowed ? <>
-          <Button variant="secondary" asChild><a href="#/servers"><Server />{t("servers")}</a></Button>
-          <Button variant="outline" asChild><a href="#/logs"><ScrollText />{t("logs")}</a></Button>
-        </> : null}
-      />
+      <h1 className="sr-only">{t("dashboard")}</h1>
 
-      {operationsAllowed && attentionServers.length ? <Card className="border-warning/40 bg-warning/5">
+      <DashboardResourceOverview health={health} healthError={healthError} servers={servers} tools={tools} operationsAllowed={operationsAllowed} canReadTools={canReadTools} toolsLoaded={toolsLoaded} toolsError={toolsError} serversLoaded={serversLoaded} serversError={serversError} locale={locale} t={t} />
+
+      {operationsAllowed && serversLoaded && !serversError && attentionServers.length ? <Card className="border-warning/40 bg-warning/5">
         <CardContent className="flex flex-col gap-3 p-4 sm:flex-row sm:items-center sm:justify-between">
           <div className="flex items-start gap-3"><AlertTriangle className="mt-0.5 size-5 text-warning" /><div><div className="font-medium">{attentionServers.length} {t("warning")}</div><div className="text-sm text-muted-foreground">{attentionServers.map((server) => server.name || server.id).join(" · ")}</div></div></div>
           <Button size="sm" variant="outline" asChild><a href="#/servers">{t("detail")}</a></Button>
         </CardContent>
       </Card> : null}
-
-      <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
-        {loading ? (
-          <>
-            <MetricSkeleton />
-            <MetricSkeleton />
-            {operationsAllowed && <MetricSkeleton />}
-            {canReadTools && <MetricSkeleton />}
-          </>
-        ) : (
-          <>
-            <Metric title={t("status")} value={health?.status || "-"} badge={statusBadge(health?.status, t)} icon={<Activity className="size-[18px]" />} />
-            {operationsAllowed && <Metric title={t("mcpServers")} value={String(servers.length)} hint={`${runningCount} ${t("running")}`} icon={<Server className="size-[18px]" />} />}
-            {canReadTools && (toolsError ? <Metric title={t("tools")} value="—" hint={t("dashboardToolsUnavailable")} icon={<Wrench className="size-[18px]" />} /> : toolsLoaded ? <Metric title={t("tools")} value={String(tools.length)} hint={`${mcpToolCount} ${t("mcpTools")}`} icon={<Wrench className="size-[18px]" />} /> : <MetricSkeleton />)}
-          </>
-        )}
-      </div>
 
       {canReadAudit && <section className="space-y-4" aria-labelledby="dashboard-usage-title">
         <div className="flex flex-wrap items-end justify-between gap-3">
@@ -123,7 +96,7 @@ export function DashboardPage({ health, servers, tools, principalId, globalRefre
           <CardDescription>{t("serverOverviewDesc")}</CardDescription>
         </CardHeader>
         <CardContent>
-          {loading ? (
+          {serversError ? <p className="text-sm text-muted-foreground" role="status">{t("dashboardServersUnavailable")} · {t("dashboardRefreshHint")}</p> : !serversLoaded ? (
             <div className="flex flex-col gap-2">
               <Skeleton className="h-12 w-full" />
               <Skeleton className="h-12 w-full" />
@@ -154,6 +127,62 @@ export function DashboardPage({ health, servers, tools, principalId, globalRefre
       </Card> : null}
     </div>
   )
+}
+
+/** A read-only snapshot and two real navigation links; it does not fetch data. */
+export function DashboardResourceOverview({ health, healthError, servers, tools, operationsAllowed, canReadTools, toolsLoaded, toolsError, serversLoaded, serversError, locale, t }: {
+  health: HealthResponse | null
+  healthError: string | null
+  servers: McpServer[]
+  tools: ToolDefinition[]
+  operationsAllowed: boolean
+  canReadTools: boolean
+  toolsLoaded: boolean
+  toolsError: string | null
+  serversLoaded: boolean
+  serversError: string | null
+  locale: Locale
+  t: TFunction
+}) {
+  const running = servers.filter(server => server.status === "running").length
+  const attention = servers.filter(server => server.status === "failed" || server.status === "unsupported").length
+  const otherServers = servers.length - running - attention
+  const builtin = tools.filter(tool => tool.source === "builtin").length
+  const mcp = tools.filter(tool => tool.source === "mcp").length
+  const otherTools = tools.length - builtin - mcp
+  const healthy = health?.status === "ok"
+  const count = (value: number) => value.toLocaleString(locale)
+  const healthLabel = healthy ? t("dashboardGateResponding") : health?.status === "starting" ? t("dashboardGateStarting") : t("dashboardGateNeedsAttention")
+
+  return <section className="dashboard-resource-overview" data-slot="dashboard-overview" data-columns={1 + Number(operationsAllowed) + Number(canReadTools)} aria-label={t("dashboardResourceOverview")}>
+    <div className="dashboard-resource dashboard-gate" data-resource="gate" aria-busy={!healthError && health === null}>
+      <div className="dashboard-resource-label"><Activity aria-hidden="true" /><span>{t("dashboardGateHealth")}</span></div>
+      {healthError ? <><div className="dashboard-health-value needs-attention" role="status">{t("dashboardGateUnavailable")}</div><p className="dashboard-resource-detail">{t("dashboardRefreshHint")}</p></> : health === null ? <OverviewLoading label={t("dashboardGateHealth")} t={t} /> : <>
+        <div className={`dashboard-health-value ${healthy ? "is-healthy" : "needs-attention"}`}><span className="dashboard-health-dot" aria-hidden="true" />{healthLabel}</div>
+        <p className="dashboard-resource-detail">{t("dashboardGateHealthScope")}</p>
+      </>}
+    </div>
+
+    {operationsAllowed && <a className="dashboard-resource dashboard-resource-link" data-resource="servers" href="#/servers" aria-busy={!serversError && !serversLoaded}>
+      <div className="dashboard-resource-label"><Server aria-hidden="true" /><span>{t("mcpServers")}</span><ArrowUpRight className="dashboard-resource-arrow" aria-hidden="true" /></div>
+      {serversError ? <><strong className="dashboard-resource-value">—</strong><p className="dashboard-resource-detail" role="status">{t("dashboardServersUnavailable")}</p></> : !serversLoaded ? <OverviewLoading label={t("mcpServers")} t={t} /> : <>
+        <strong className="dashboard-resource-value">{count(servers.length)}<span>{t("dashboardRegistered")}</span></strong>
+        <p className="dashboard-resource-detail"><span className="dashboard-detail-item"><i className="is-running" aria-hidden="true" />{count(running)} {t("running")}</span>{attention > 0 && <span className="dashboard-detail-item"><i className="is-attention" aria-hidden="true" />{count(attention)} {t("dashboardServerAttention")}</span>}{otherServers > 0 && <span className="dashboard-detail-item"><i className="is-other" aria-hidden="true" />{count(otherServers)} {t("dashboardServerOther")}</span>}</p>
+      </>}
+    </a>}
+
+    {canReadTools && <a className="dashboard-resource dashboard-resource-link" data-resource="tools" href="#/tools" aria-busy={!toolsError && !toolsLoaded}>
+      <div className="dashboard-resource-label"><Wrench aria-hidden="true" /><span>{t("toolRegistry")}</span><ArrowUpRight className="dashboard-resource-arrow" aria-hidden="true" /></div>
+      {toolsError ? <><strong className="dashboard-resource-value">—</strong><p className="dashboard-resource-detail" role="status">{t("dashboardToolsUnavailable")}</p></> : !toolsLoaded ? <OverviewLoading label={t("toolRegistry")} t={t} /> : <>
+        <strong className="dashboard-resource-value">{count(tools.length)}<span>{t("dashboardVisibleToYou")}</span></strong>
+        <p className="dashboard-resource-detail"><span className="dashboard-detail-item"><i className="is-mcp" aria-hidden="true" />{count(mcp)} MCP</span><span className="dashboard-detail-item"><i className="is-builtin" aria-hidden="true" />{count(builtin)} {t("dashboardBuiltinSource")}</span>{otherTools > 0 && <span className="dashboard-detail-item"><i className="is-other" aria-hidden="true" />{count(otherTools)} {t("dashboardOtherSource")}</span>}</p>
+      </>}
+    </a>}
+  </section>
+}
+
+function OverviewLoading({ label, t }: { label: string; t: TFunction }) {
+  return <div className="dashboard-resource-loading" role="status" aria-label={`${label} · ${t("loadingData")}`}><span className="sr-only">{t("loadingData")}</span><Skeleton className="h-7 w-24" /><Skeleton className="mt-2 h-3 w-32" /></div>
 }
 
 function MetricSkeleton() {
@@ -192,7 +221,7 @@ function UsageTrend({ statistics, locale, t }: { statistics: InvocationStatistic
         <div className="mt-2 flex gap-1 text-[10px] text-muted-foreground">
           {statistics.series.map((point, index) => <span key={point.start} className="min-w-0 flex-1 text-center"><span className={statistics.bucket_hours === 2 && index % 2 === 1 ? "hidden sm:inline" : ""}>{new Intl.DateTimeFormat(locale, statistics.bucket_hours === 2 ? { hour: "2-digit" } : { month: "numeric", day: "numeric" }).format(new Date(point.start))}</span></span>)}
         </div>
-        <table className="sr-only"><caption>{t("dashboardTrend")}</caption><thead><tr><th>{t("time")}</th><th>{t("dashboardToolRequests")}</th><th>{t("dashboardToolCalls")}</th><th>{t("dashboardMcpCalls")}</th></tr></thead><tbody>{statistics.series.map((point) => <tr key={point.start}><td>{new Date(point.start).toLocaleString(locale)}</td><td>{point.requests}</td><td>{point.calls}</td><td>{point.mcp_calls}</td></tr>)}</tbody></table>
+        <div className="sr-only"><table><caption>{t("dashboardTrend")}</caption><thead><tr><th>{t("time")}</th><th>{t("dashboardToolRequests")}</th><th>{t("dashboardToolCalls")}</th><th>{t("dashboardMcpCalls")}</th></tr></thead><tbody>{statistics.series.map((point) => <tr key={point.start}><td>{new Date(point.start).toLocaleString(locale)}</td><td>{point.requests}</td><td>{point.calls}</td><td>{point.mcp_calls}</td></tr>)}</tbody></table></div>
         <div className="mt-4 flex flex-wrap items-center gap-x-5 gap-y-2 text-xs text-muted-foreground"><span className="flex items-center gap-2"><span className="size-2.5 rounded-sm bg-primary/30" />{t("dashboardToolRequests")}</span><span className="flex items-center gap-2"><span className="size-2.5 rounded-sm bg-primary" />{t("dashboardToolCalls")}</span><span className="flex items-center gap-2"><span className="size-2.5 rounded-sm bg-success" />{t("dashboardMcpCalls")}</span><span>{statistics.totals.not_invoked.toLocaleString(locale)} {t("dashboardNotInvoked")}</span></div>
       </> : <p className="py-14 text-center text-sm text-muted-foreground">{t("dashboardNoCalls")}</p>}
     </CardContent>

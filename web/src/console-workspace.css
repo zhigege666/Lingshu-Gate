@@ -97,6 +97,33 @@
   color: #fff;
 }
 
+.console-account-menu {
+  width: min(20rem, calc(100vw - 2rem));
+  max-width: calc(100vw - 2rem);
+}
+
+.console-account-menu .ant-dropdown-menu-item,
+.console-account-menu .ant-dropdown-menu-item-group-title {
+  white-space: normal;
+  overflow-wrap: anywhere;
+}
+
+.console-account-version {
+  display: flex;
+  flex-direction: column;
+  gap: .25rem;
+  cursor: text;
+  user-select: text;
+}
+
+.console-account-version code {
+  color: hsl(var(--foreground));
+  font-size: .8125rem;
+  line-height: 1.5;
+  white-space: normal;
+  overflow-wrap: anywhere;
+}
+
 .console-mobile-menu.ant-btn {
   display: none;
 }

@@ -17,6 +17,27 @@ Lingshu Gate 提供统一的认证 MCP 入口、Web Console、配置与运行时
 - 项目上传、预检、确定性构建计划、构建、部署、启动和工具刷新。
 - 仓库自带的 Delivery Skill：`.agents/skills/lingshu-gate-upload-build-start/`，通过 `gate_*` 交付工具执行有确认边界的自动化。
 
+## 界面预览
+
+以下为本地运行 Gate 的中文界面截图；Console 也支持英文。
+
+<img src="docs/images/console/dashboard-light.jpg" alt="浅色主题的 Gate 仪表盘，展示网关状态、已注册服务、可见工具和调用统计" width="1000">
+
+*仪表盘：查看网关状态、已注册服务与调用活动。*
+
+<details>
+<summary>配置与工具调用</summary>
+
+<img src="docs/images/console/config-form-light.jpg" alt="MCP 配置弹窗，通过有标签的表单字段编辑，也可切换 JSON" width="1000">
+
+*MCP 配置：通过表单维护常用设置，也可切换到 JSON。*
+
+<img src="docs/images/console/tool-invoke-dark.jpg" alt="深色主题的工具调用页面，提供表单和 JSON 两种参数编辑方式" width="1000">
+
+*工具调用：选择工具、检查参数，运行后查看结果。*
+
+</details>
+
 ## 快速开始
 
 ### Docker Compose

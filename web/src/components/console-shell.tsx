@@ -68,8 +68,10 @@ export function ConsoleShell({ view, title, user, version, groups, items, busy, 
         <Tooltip title={theme === "dark" ? (zh ? "切换浅色" : "Light theme") : (zh ? "切换深色" : "Dark theme")}>
           <Button type="text" icon={theme === "dark" ? <SunOutlined /> : <MoonOutlined />} onClick={() => setTheme(theme === "dark" ? "light" : "dark")} aria-label={zh ? "切换主题" : "Toggle theme"} />
         </Tooltip>
-        <Dropdown trigger={["click"]} menu={{ items: [
+        <Dropdown trigger={["click"]} classNames={{ root: "console-account-menu" }} menu={{ items: [
           { key: "identity", label: `${user.display_name || user.username} · ${user.roles.join(", ") || user.role}`, disabled: true },
+          { type: "group", key: "version", label: <div className="console-account-version"><span>{zh ? "版本" : "Version"}</span><code>{version}</code></div>, children: [] },
+          { type: "divider" },
           { key: "docs", label: "OpenAPI", icon: <ApiOutlined /> },
           ...(user.auth_type === "disabled" ? [] : [{ key: "logout", label: zh ? "退出登录" : "Sign out", icon: <LogoutOutlined /> }]),
         ], onClick: ({ key }) => { if (key === "logout") onLogout(); if (key === "docs") window.open("/docs", "_blank", "noreferrer") } }}>

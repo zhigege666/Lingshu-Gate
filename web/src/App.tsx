@@ -99,8 +99,11 @@ export default function App() {
     return () => window.removeEventListener("beforeunload", beforeUnload)
   }, [leaveState, editorDirty, editorPending])
   const [health, setHealth] = useState<HealthResponse | null>(null)
+  const [healthError, setHealthError] = useState<string | null>(null)
   const [diagnostics, setDiagnostics] = useState<DiagnosticsResponse | null>(null)
   const [servers, setServers] = useState<McpServer[]>([])
+  const [serversLoaded, setServersLoaded] = useState(false)
+  const [serversError, setServersError] = useState<string | null>(null)
   const [loadErrors, setLoadErrors] = useState<string[]>([])
   const [tools, setTools] = useState<ToolDefinition[]>([])
   const [toolsLoaded, setToolsLoaded] = useState(false)
@@ -136,6 +139,7 @@ export default function App() {
   useEffect(() => { if (!commandOpen) setCommandQuery("") }, [commandOpen])
   async function refreshAll() {
     setBusy(true); setError(null); setToolsLoaded(false); setToolsError(null)
+    setServersLoaded(false)
     try {
       const refreshErrors: string[] = []
       const recordRefreshError = (label: string, reason: unknown) => {
@@ -144,8 +148,11 @@ export default function App() {
       }
       const requests: Promise<void>[] = [
         api.health()
-          .then(setHealth)
-          .catch((reason: unknown) => recordRefreshError("health", reason)),
+          .then(data => { setHealth(data); setHealthError(null) })
+          .catch((reason: unknown) => {
+            setHealthError(reason instanceof Error ? reason.message : String(reason))
+            recordRefreshError("health", reason)
+          }),
       ]
 
       if (can("operations.manage")) {
@@ -160,7 +167,12 @@ export default function App() {
           if (serverResult.status === "fulfilled") {
             setServers(serverResult.value.servers)
             setLoadErrors(serverResult.value.load_errors)
-          } else recordRefreshError("servers", serverResult.reason)
+            setServersLoaded(true)
+            setServersError(null)
+          } else {
+            setServersError(serverResult.reason instanceof Error ? serverResult.reason.message : String(serverResult.reason))
+            recordRefreshError("servers", serverResult.reason)
+          }
 
           if (configResult.status === "fulfilled") {
             setConfigs(configResult.value.configs)
@@ -170,7 +182,7 @@ export default function App() {
         }))
       } else {
         // 账号权限发生变化时同步清空管理域数据，避免沿用上一身份的前端缓存。
-        setDiagnostics(null); setServers([]); setLoadErrors([]); setConfigs([]); setConfigErrors([])
+        setDiagnostics(null); setServers([]); setServersLoaded(false); setServersError(null); setLoadErrors([]); setConfigs([]); setConfigErrors([])
       }
 
       if (can("tools.read")) {
@@ -201,9 +213,15 @@ export default function App() {
     try {
       if (pageRefresh.current) { await pageRefresh.current(); return }
       const reads: Promise<unknown>[] = []
-      if (view === "dashboard") reads.push(api.health().then(setHealth))
+      if (view === "dashboard") {
+        reads.push(api.health().then(data => { setHealth(data); setHealthError(null) }).catch(reason => {
+          setHealthError(reason instanceof Error ? reason.message : String(reason)); throw reason
+        }))
+      }
       if (can("operations.manage") && ["dashboard", "servers", "invoke", "tools"].includes(view)) {
-        reads.push(api.servers().then(data => { setServers(data.servers); setLoadErrors(data.load_errors) }))
+        reads.push(api.servers().then(data => { setServers(data.servers); setLoadErrors(data.load_errors); setServersLoaded(true); setServersError(null) }).catch(reason => {
+          setServersError(reason instanceof Error ? reason.message : String(reason)); throw reason
+        }))
       }
       if (view === "configs" && can("operations.manage")) reads.push(api.configs().then(data => { setConfigs(data.configs); setConfigErrors(data.errors) }))
       if (view === "diagnostics" && can("operations.manage")) reads.push(api.diagnostics().then(setDiagnostics))
@@ -302,7 +320,7 @@ export default function App() {
       {viewAllowed && (
         <RouteErrorBoundary key={view} locale={locale}>
           <Suspense fallback={<RouteLoadingFallback locale={locale} />}>
-            {view === "dashboard" && <DashboardPage health={health} servers={servers} tools={tools} principalId={user.id} globalRefreshId={dashboardRefreshId} operationsAllowed={can("operations.manage")} canReadAudit={can("audit.read")} canReadTools={can("tools.read")} toolsLoaded={toolsLoaded} toolsError={toolsError} t={t} />}
+            {view === "dashboard" && <DashboardPage health={health} healthError={healthError} servers={servers} serversLoaded={serversLoaded} serversError={serversError} tools={tools} principalId={user.id} globalRefreshId={dashboardRefreshId} operationsAllowed={can("operations.manage")} canReadAudit={can("audit.read")} canReadTools={can("tools.read")} toolsLoaded={toolsLoaded} toolsError={toolsError} t={t} />}
             {view === "configs" && <ConfigsPage locale={locale} t={t} configs={configs} configErrors={configErrors} selectedConfigId={selectedConfigId} configText={configText} busy={busy} editorOpen={configEditorOpen} onCloseEditor={() => { if (!busy) { setConfigEditorOpen(false); setConfigText(prettyJson(genericTemplate)) } }} onNewConfig={newConfig} onReloadConfigs={reloadConfigs} onEditConfig={editConfig} onApplyConfig={applyConfig} onDeleteConfig={deleteConfig} onConfigTextChange={setConfigText} onSaveConfig={saveConfig} />}
             {view === "servers" && <ServersPage locale={locale} t={t} servers={servers} loadErrors={loadErrors} busy={busy} visibleTools={toolsLoaded ? tools : null} toolsError={toolsError} canReadTools={can("tools.read")} canManageClassifications={can("classifications.manage")} onServerAction={serverAction} onRefresh={refreshCurrentPage} onNewConfig={newConfig} onNavigate={navigate} />}
             {view === "builds" && <BuildsPage t={t} initialBuildId={routeBuildId} />}
