@@ -51,8 +51,14 @@ function assertContract(condition, message) {
 
 for (const pageName of pageNames) {
   const source = await readFile(join(pageRoot, pageName), "utf8")
-  assertContract(source.includes("PageHeader"), `${pageName} 缺少统一页面标题`)
-  if (pageName !== "servers-page.tsx") {
+  if (pageName === "dashboard-page.tsx") {
+    // The dashboard uses an inline overview instead of an otherwise empty
+    // toolbar. Keep its accessible page identity without a redundant help row.
+    assertContract(/<h1\b[^>]*>\{t\("dashboard"\)\}<\/h1>/.test(source), `${pageName} 缺少可访问的页面标题`)
+  } else {
+    assertContract(source.includes("PageHeader"), `${pageName} 缺少统一页面标题`)
+  }
+  if (!["servers-page.tsx", "dashboard-page.tsx"].includes(pageName)) {
     assertContract(source.includes('helpLabel={t("pageHelp")}'), `${pageName} 缺少多语言页面帮助入口`)
   }
   assertContract(!/eyebrow="[^"]+"/.test(source), `${pageName} 的页面分类未经过多语言`)

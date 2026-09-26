@@ -17,6 +17,27 @@ Lingshu Gate provides one authenticated MCP endpoint, a Web Console, configurati
 - Project upload, preflight, deterministic build planning, build, deploy, start, and tool-refresh operations.
 - A repository-owned Delivery Skill at `.agents/skills/lingshu-gate-upload-build-start/` for confirmation-bound automation through the `gate_*` delivery tools.
 
+## Console preview
+
+Screenshots from a local Gate instance, shown in Chinese. The Console also supports English.
+
+<img src="docs/images/console/dashboard-light.jpg" alt="Gate dashboard in the light theme, showing gateway status, registered services, visible tools, and invocation statistics" width="1000">
+
+*Dashboard — check gateway status, registered services, and invocation activity.*
+
+<details>
+<summary>Configuration and tool invocation</summary>
+
+<img src="docs/images/console/config-form-light.jpg" alt="MCP configuration dialog with labeled form fields and a JSON editing option" width="1000">
+
+*MCP configuration — maintain common settings in a form or switch to JSON.*
+
+<img src="docs/images/console/tool-invoke-dark.jpg" alt="Gate tool invocation in the dark theme, with form and JSON parameter modes" width="1000">
+
+*Tool invocation — choose a tool, review its parameters, and inspect the result after running it.*
+
+</details>
+
 ## Quick start
 
 ### Docker Compose
