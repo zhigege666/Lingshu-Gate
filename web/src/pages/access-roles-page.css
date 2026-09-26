@@ -1,0 +1,64 @@
+.access-roles-layout { display: grid; grid-template-columns: minmax(0, 1fr); gap: 24px; align-items: start; }
+.access-roles-layout.with-details { grid-template-columns: minmax(0, 1fr) 320px; }
+.access-roles-directory { min-width: 0; display: flex; flex-direction: column; gap: 18px; }
+.access-roles-page .page-header-controls { flex-wrap: nowrap; gap: 8px; border-bottom: 1px solid hsl(var(--border)); }
+.access-roles-page .page-header-toolbar { flex-basis: auto; }
+.access-role-tabs { display: flex; gap: 8px; min-height: 44px; }
+.access-role-tabs button { display: flex; align-items: center; gap: 8px; padding: 10px 16px; border-bottom: 2px solid transparent; font-size: 14px; font-weight: 600; white-space: nowrap; }
+.access-role-tabs button[aria-selected="true"] { color: hsl(var(--primary)); border-bottom-color: hsl(var(--primary)); }
+.access-role-tabs button:focus-visible { outline: 2px solid hsl(var(--ring)); outline-offset: -3px; }
+.access-role-tabs button span { padding: 0 5px; border-radius: 4px; background: hsl(var(--muted)); color: hsl(var(--muted-foreground)); font-size: 11px; }
+.access-role-filters { margin-bottom: 18px; flex-wrap: wrap; }
+.access-role-filters .page-toolbar-search { min-width: 180px; }
+.access-role-filters .page-toolbar-filters { flex: 1 1 auto; }
+.access-role-filters .access-filter-select { width: auto; min-width: 108px; }
+.access-role-filters .access-create { margin-left: auto; }
+.access-role-table { min-width: 760px; table-layout: fixed; background: hsl(var(--card)); }
+.access-role-table th { font-weight: 400; height: 44px; }
+.access-role-table td { height: 72px; }
+.access-role-table tr[data-state="selected"] { background: hsl(var(--accent)); }
+.access-role-table .access-name { display: flex; align-items: center; gap: 10px; max-width: 100%; text-align: left; border-radius: 4px; }
+.access-role-table .access-name svg { flex-shrink: 0; width: 24px; height: 24px; color: hsl(var(--primary)); }
+.access-role-table .access-name > span { min-width: 0; }
+.access-role-table strong { display: block; font-size: 13px; font-weight: 600; overflow-wrap: anywhere; }
+.access-role-table small { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: hsl(var(--muted-foreground)); font-size: 11px; line-height: 22px; }
+.access-role-table .access-permission-summary { max-width: 100%; text-align: left; border-radius: 4px; }
+.access-role-table .access-name:focus-visible, .access-role-table .access-permission-summary:focus-visible { outline: 2px solid hsl(var(--ring)); outline-offset: 4px; }
+.access-inline-actions { display: flex; flex-wrap: wrap; align-items: center; gap: 2px 10px; }
+.access-inline-actions button { padding: 2px 0; height: 30px; color: hsl(var(--primary)); font-size: 12px; background: transparent; }
+.access-inline-actions button:hover { text-decoration: underline; text-underline-offset: 3px; }
+.access-inline-actions button.text-destructive { color: hsl(var(--destructive)); }
+.access-role-status { display: inline-flex; align-items: center; gap: 6px; white-space: nowrap; font-size: 12px; color: hsl(var(--muted-foreground)); }
+.access-role-status[data-enabled="true"] { color: hsl(var(--success)); }
+.access-role-status::before { content: ""; width: 7px; height: 7px; border-radius: 50%; background: currentColor; }
+.access-role-count { margin-top: 12px; color: hsl(var(--muted-foreground)); font-size: 12px; }
+.access-role-tip { display: flex; align-items: center; gap: 10px; padding: 12px 16px; border-radius: 6px; background: hsl(var(--accent)); font-size: 12px; color: hsl(var(--muted-foreground)); }
+.access-role-tip > svg { width: 18px; height: 18px; flex-shrink: 0; color: hsl(var(--primary)); }
+.access-role-tip button { margin-left: auto; color: hsl(var(--primary)); }
+.access-role-detail { position: sticky; top: 88px; min-width: 0; max-height: calc(100dvh - 108px); overflow-y: auto; border: 1px solid hsl(var(--border)); border-radius: 8px; background: hsl(var(--card)); padding: 0 20px 20px; }
+.access-role-detail-header { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 14px 0; border-bottom: 1px solid hsl(var(--border)); }
+.access-role-detail-header h2 { font-size: 16px; font-weight: 600; }
+.access-role-detail-content { min-width: 0; }
+.access-role-detail-identity { display: flex; gap: 12px; align-items: center; margin-top: 22px; }
+.access-role-detail-identity svg { width: 30px; height: 30px; flex-shrink: 0; color: hsl(var(--primary)); }
+.access-role-detail-identity h3 { overflow-wrap: anywhere; font-size: 20px; font-weight: 600; }
+.access-role-detail-identity p { overflow-wrap: anywhere; color: hsl(var(--muted-foreground)); font-size: 12px; }
+.access-role-detail-badges { display: flex; flex-wrap: wrap; gap: 12px; margin: 16px 0 20px 42px; align-items: center; }
+.access-role-detail-stat { border-top: 1px solid hsl(var(--border)); padding: 16px 0; }
+.access-role-detail-stat dt { font-size: 12px; color: hsl(var(--muted-foreground)); }
+.access-role-detail-stat dd { margin-top: 4px; font-size: 22px; font-weight: 600; }
+.access-role-detail-section { border-top: 1px solid hsl(var(--border)); padding: 18px 0; }
+.access-role-detail-section h4 { font-size: 15px; font-weight: 600; }
+.access-role-detail-section > p { margin-top: 6px; color: hsl(var(--muted-foreground)); font-size: 12px; line-height: 1.8; overflow-wrap: anywhere; }
+.access-role-detail-section ul { list-style: none; margin-top: 14px; padding: 0; }
+.access-role-detail-section li { display: flex; align-items: flex-start; gap: 10px; border-top: 1px solid hsl(var(--border)); padding: 14px 0; font-size: 12px; line-height: 1.7; }
+.access-role-detail-section li svg { flex-shrink: 0; margin-top: 2px; width: 17px; height: 17px; color: hsl(var(--primary)); }
+.access-role-detail-section li small { display: block; color: hsl(var(--muted-foreground)); overflow-wrap: anywhere; }
+@media (max-width: 1439px) { .access-roles-layout.with-details { grid-template-columns: minmax(0, 1fr); } }
+@media (max-width: 720px) {
+  .access-role-tabs button { padding-inline: 10px; }
+  .access-role-filters { align-items: stretch; }
+  .access-role-filters .page-toolbar-search { flex-basis: 100%; }
+  .access-role-tip { flex-wrap: wrap; }
+  .access-role-tip button { margin-left: 24px; }
+}
