@@ -154,7 +154,15 @@ All tag-only container, offline-image, and publication jobs explicitly install t
 
 Configure the Actions secret `RELEASE_SETTINGS_TOKEN` with a fine-grained GitHub token restricted to this repository and **Administration: read-only** permission. The immutability settings endpoint requires this permission, which the default `GITHUB_TOKEN` cannot provide. This token is used only to read that setting; tag creation and workflow dispatch continue to use `GITHUB_TOKEN`. Missing credentials, denied access, or disabled immutability stop publication before tag creation.
 
-The release workflow runs on pull requests that affect packaging, on manual dispatch, and on `v*` tags. The separate **Publish release** workflow is the repository-approved entry point for a formal release: dispatch it from `main` with the exact `v<version>` tag. It validates the source version, requires repository release immutability before creating a tag, creates or verifies a non-moving tag at that exact `main` revision, and dispatches `release.yml` at the verified tag.
+The release workflow runs on pull requests that affect packaging, on manual dispatch, and on `v*` tags. The separate **Publish release** workflow is the repository-approved entry point for a formal release. It checks every push to `main` and also retains manual dispatch from `main` with an exact `v<version>` tag.
+
+For a `main` push, it parses the sole version source, `src/lingshu_gate/_version.py`, at the push's `before` and `after` revisions. Only a changed version starts publication; ordinary commits and comment-only edits do not. For example, explicitly changing `0.2.0` to `0.2.1` creates `v0.2.1` at that push's exact `after` revision. The workflow does not increment versions. Merging the automation change without changing the source version does not backfill a `v0.2.0` release.
+
+Both entry paths validate the source version, require the publication credentials and repository release immutability, create or verify a non-moving tag at the exact selected `main` revision, and explicitly dispatch `release.yml` at the verified tag. Invalid versions, an unavailable or unverifiable push baseline, a tag pointing to another revision, missing credentials, or disabled immutability stop publication. The tagged workflow still runs all existing packaging, testing, attestation, and registry publication checks.
+
+After a failure, first rerun the original **Publish release** run to preserve its `before` revision and source SHA, or rerun the failed jobs of an existing **Release artifacts** run. Manual **Publish release** dispatch must still match the selected `main` revision and its source version: if the tag already exists and `main` has advanced, dispatching the old tag from the latest `main` is correctly rejected. Source fixes require a new version; later pushes with an unchanged version do not automatically retry a failed release. The same tag at the same commit may be processed again, subject to the existing immutable release and asset checks. This is not an exactly-once publication guarantee, and an existing tag is never moved for a retry.
+
+The **Publish release** entry workflow and the registry publication job in `release.yml` each use `queue: max`. Each concurrency group permits up to 100 pending runs or jobs; GitHub cancels additional entries when the queue is full, so those releases need manual recovery. See [GitHub's concurrency limits](https://docs.github.com/en/actions/how-tos/write-workflows/choose-when-workflows-run/control-workflow-concurrency).
 
 The separate **Container images** workflow is validation-only. Pushes to `main`, pull requests, and manual runs may build and scan Core images, but this workflow does not authenticate to a registry or push any image. Registry publication is reserved for the verified tag path in `release.yml`.
 
@@ -171,14 +179,14 @@ A successful build on a pull request is not a published release. Only a matching
 
 ## Versioning and release checklist
 
-Before creating a tag:
+Before merging a version change to `main` or manually starting publication:
 
 1. update the single source version and user-facing release notes;
 2. run backend, Console, identity, packaging, and container checks;
 3. confirm `LICENSE`, `NOTICE`, and `THIRD_PARTY_NOTICES.md` are current;
 4. confirm English and Simplified Chinese documentation match the artifact behavior;
 5. enable GitHub release immutability for the repository before creating its first release;
-6. dispatch **Publish release** from `main` with the exact `v<version>` tag; the workflow creates or verifies the tag without moving an existing ref, then starts the verified tagged release;
+6. merge the version change to `main` to start **Publish release** automatically; the workflow creates or verifies the tag without moving an existing ref, then starts the verified tagged release; if it fails, follow the recovery rules above;
 7. wait for every matrix job and publication step;
 8. independently download and verify at least one native archive, the Compose bundle, `SHA256SUMS`, and their attestations;
 9. verify the published container digest and release links.
