@@ -60,8 +60,10 @@
     --success-foreground: 0 0% 100%;
     --warning: 38 92% 46%;
     --warning-foreground: 0 0% 100%;
-    --border: 220 15% 91%;
-    --input: 220 15% 90%;
+    /* Structure stays quieter than editable control boundaries. Keep in sync
+       with colorBorderSecondary/colorSplit and colorBorder in the provider. */
+    --border: 216 20% 78%;
+    --input: 216 16% 54%;
     --ring: 217 91% 60%;
     --sidebar: 220 25% 97%;
     --sidebar-foreground: 218 37% 17%;
@@ -92,8 +94,8 @@
     --success-foreground: 0 0% 100%;
     --warning: 38 90% 55%;
     --warning-foreground: 38 92% 10%;
-    --border: 216 24% 22%;
-    --input: 216 24% 22%;
+    --border: 216 24% 33%;
+    --input: 215 20% 49%;
     --ring: 217 91% 60%;
     --sidebar: 216 30% 10%;
     --sidebar-foreground: 215 52% 94%;
