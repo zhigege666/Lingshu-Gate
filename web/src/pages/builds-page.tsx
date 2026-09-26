@@ -1,4 +1,4 @@
-import { useEffect, useState, type ReactNode } from "react"
+import { useEffect, useRef, useState, type ReactNode } from "react"
 import { BuildApiError, buildApi, type BuildBlockedDetail, type BuildLog, type BuildPlan, type BuildPreflightResult, type BuildPreflightTool, type BuildRecord, type DeploymentRecord, type ProjectUpload } from "@/api/builds"
 import { BuildDetailCard } from "@/components/builds/build-detail-card"
 import { BuildHintCard } from "@/components/builds/build-hint-card"
@@ -9,6 +9,8 @@ import { BuildTimelineCard } from "@/components/builds/build-timeline-card"
 import { DeploymentRecordsTable } from "@/components/builds/deployment-records-table"
 import { useConfirm } from "@/components/confirm-dialog"
 import { JsonPanel } from "@/components/json-panel"
+import { usePageRefresh } from "@/components/page-refresh"
+import { uploadCopy } from "@/components/uploads/upload-copy"
 import { PageHeader, WorkflowSteps } from "@/components/page-shell"
 import { Alert, AlertDescription } from "@/components/ui/alert"
 import { Badge } from "@/components/ui/badge"
@@ -32,8 +34,8 @@ export function BuildsPage({ t, initialBuildId = "" }: { t: TFunction; initialBu
   const [builds, setBuilds] = useState<BuildRecord[]>([])
   const [buildLogs, setBuildLogs] = useState<BuildLog[]>([])
   const [deployments, setDeployments] = useState<DeploymentRecord[]>([])
-  const [selectedUploadId, setSelectedUploadId] = useState("")
-  const [selectedBuildId, setSelectedBuildId] = useState(initialBuildId)
+  const [selectedUploadId, setSelectedUploadIdState] = useState("")
+  const [selectedBuildId, setSelectedBuildIdState] = useState(initialBuildId)
   const [selectedDeploymentId, setSelectedDeploymentId] = useState("")
   const [activeSection, setActiveSection] = useState<WorkspaceSection>("workspace")
   const [serverId, setServerId] = useState("")
@@ -47,9 +49,19 @@ export function BuildsPage({ t, initialBuildId = "" }: { t: TFunction; initialBu
   const [detailDialog, setDetailDialog] = useState<{ title: string; body: string } | null>(null)
   const [toast, setToast] = useState<ToastState>(null)
   const [busy, setBusy] = useState(false)
+  const [loading, setLoading] = useState(true)
+  const [loadError, setLoadError] = useState<string | null>(null)
   const [logFilter, setLogFilter] = useState<LogFilter>("all")
   const [liveTail, setLiveTail] = useState(false)
   const { confirm, confirmDialog } = useConfirm(t)
+  const mounted = useRef(true)
+  const refreshRequest = useRef(0)
+  const logRequest = useRef(0)
+  const selectedUploadRef = useRef(selectedUploadId)
+  const selectedBuildRef = useRef(selectedBuildId)
+  function setSelectedUploadId(id: string) { selectedUploadRef.current = id; setSelectedUploadIdState(id) }
+  function setSelectedBuildId(id: string) { selectedBuildRef.current = id; setSelectedBuildIdState(id) }
+  const c = uploadCopy(t)
 
   const selectedUpload = uploads.find((upload) => upload.id === selectedUploadId) || null
   const selectedBuild = builds.find((build) => build.id === selectedBuildId) || null
@@ -62,7 +74,8 @@ export function BuildsPage({ t, initialBuildId = "" }: { t: TFunction; initialBu
   const notify = (message: string, tone: ToastTone = "info") => setToast({ message, tone })
   const notifyError = (err: unknown) => notify(err instanceof Error ? err.message : String(err), "error")
 
-  useEffect(() => { void refresh(initialBuildId) }, [])
+  useEffect(() => { mounted.current = true; void refresh(initialBuildId); return () => { mounted.current = false; refreshRequest.current += 1; logRequest.current += 1 } }, [])
+  usePageRefresh(() => refresh(), loading || busy)
 
   useEffect(() => {
     if (!initialBuildId || initialBuildId === selectedBuildId) return
@@ -74,13 +87,16 @@ export function BuildsPage({ t, initialBuildId = "" }: { t: TFunction; initialBu
 
   useEffect(() => {
     if (!selectedBuildId || !polling) return undefined
-    setLiveTail(true)
+    setLiveTail(false)
     const source = new EventSource(`/v1/builds/${encodeURIComponent(selectedBuildId)}/logs/stream`)
+    source.onopen = () => { if (selectedBuildRef.current === selectedBuildId) setLiveTail(true) }
     source.addEventListener("log", (event) => {
+      if (selectedBuildRef.current !== selectedBuildId) return
       const log = JSON.parse((event as MessageEvent).data) as BuildLog
       setBuildLogs((previous) => previous.some((item) => item.id === log.id) ? previous : [...previous, log].sort((a, b) => a.sequence - b.sequence))
     })
     source.addEventListener("status", (event) => {
+      if (selectedBuildRef.current !== selectedBuildId) return
       const status = JSON.parse((event as MessageEvent).data) as { status?: string }
       if (status.status && !ACTIVE_BUILD_STATUSES.has(status.status)) {
         source.close()
@@ -94,30 +110,34 @@ export function BuildsPage({ t, initialBuildId = "" }: { t: TFunction; initialBu
 
   async function loadBuildLogs(buildId: string) {
     if (!buildId) return
+    const requestId = ++logRequest.current
     try {
       const response = await buildApi.buildLogs(buildId, 200)
-      setBuildLogs(response.logs)
+      if (mounted.current && requestId === logRequest.current && selectedBuildRef.current === buildId) setBuildLogs(response.logs)
     } catch (err) {
-      setBuildLogs([])
-      notifyError(err)
+      if (mounted.current && requestId === logRequest.current && selectedBuildRef.current === buildId) {
+        setBuildLogs([])
+        notifyError(err)
+      }
     }
   }
 
-  async function refresh(preferredBuildId = selectedBuildId, preferredUploadId = selectedUploadId) {
+  async function refresh(preferredBuildId?: string, preferredUploadId?: string) {
+    const requestId = ++refreshRequest.current
+    setLoading(true)
+    setLoadError(null)
     try {
       const [uploadData, buildData, deploymentData] = await Promise.all([buildApi.uploads(), buildApi.builds(), buildApi.deployments()])
+      if (!mounted.current || requestId !== refreshRequest.current) return
       setUploads(uploadData.uploads)
       setBuilds(buildData.builds)
       setDeployments(deploymentData.deployments)
-      const preferredBuild = buildData.builds.find((build) => build.id === preferredBuildId)
-      const nextUploadId = preferredBuild?.upload_id
-        || (uploadData.uploads.some((upload) => upload.id === preferredUploadId) ? preferredUploadId : "")
-        || uploadData.uploads[0]?.id
-        || ""
-      const nextBuild = preferredBuild || buildData.builds.find((build) => build.upload_id === nextUploadId) || null
-      const nextDeployment = deploymentData.deployments.find((deployment) => deployment.id === selectedDeploymentId)
-        || deploymentData.deployments.find((deployment) => deployment.build_id === nextBuild?.id)
-        || null
+      const preferredBuild = buildData.builds.find(build => build.id === (preferredBuildId ?? selectedBuildRef.current))
+      const uploadId = preferredUploadId ?? selectedUploadRef.current
+      const nextUploadId = preferredBuild?.upload_id || (uploadData.uploads.some(upload => upload.id === uploadId) ? uploadId : "")
+      const nextBuild = preferredBuild || buildData.builds.find(build => build.upload_id === nextUploadId) || null
+      const nextDeployment = deploymentData.deployments.find(deployment => deployment.id === selectedDeploymentId)
+        || deploymentData.deployments.find(deployment => deployment.build_id === nextBuild?.id) || null
       setSelectedUploadId(nextUploadId)
       setSelectedBuildId(nextBuild?.id || "")
       setSelectedDeploymentId(nextDeployment?.id || "")
@@ -125,10 +145,13 @@ export function BuildsPage({ t, initialBuildId = "" }: { t: TFunction; initialBu
         writeBuildHash(nextBuild.id, true)
         await loadBuildLogs(nextBuild.id)
       } else {
+        logRequest.current += 1
         setBuildLogs([])
       }
     } catch (err) {
-      notifyError(err)
+      if (mounted.current && requestId === refreshRequest.current) setLoadError(err instanceof Error ? err.message : String(err))
+    } finally {
+      if (mounted.current && requestId === refreshRequest.current) setLoading(false)
     }
   }
 
@@ -376,91 +399,87 @@ export function BuildsPage({ t, initialBuildId = "" }: { t: TFunction; initialBu
       toolbar={<div role="tablist" aria-label={tx("workspaceNavigation")} className="flex flex-wrap gap-1 rounded-lg bg-muted p-1">
         {(["workspace", "builds", "deployments", "logs"] as WorkspaceSection[]).map((section) => <Button key={section} type="button" role="tab" aria-selected={activeSection === section} variant={activeSection === section ? "secondary" : "ghost"} onClick={() => setActiveSection(section)}>{tx(`${section}Tab`)}{section === "builds" ? ` (${builds.length})` : section === "deployments" ? ` (${deployments.length})` : ""}</Button>)}
       </div>}
-      actions={<Button variant="outline" disabled={busy} onClick={() => void refresh()}>{t("refresh")}</Button>}
     />
 
+    {loadError && <Alert variant="destructive" role="alert"><AlertDescription className="flex flex-wrap items-center justify-between gap-2"><span>{c.listFailed}: {loadError}</span><Button size="sm" variant="outline" disabled={loading} onClick={() => void refresh()}>{t("retry")}</Button></AlertDescription></Alert>}
+    {loading && <p role="status" className="text-sm text-muted-foreground">{c.refreshing}</p>}
+
     {activeSection === "workspace" ? <>
-    {/* 流程仅展示当前工作台进度；失败记录仍停留在对应阶段，详情保留错误原因。 */}
-    <WorkflowSteps ariaLabel={t("workflowProgress")} steps={[
-      { label: t("selectUpload"), state: selectedUpload ? "done" : "current" },
-      { label: tx("runPreflight"), state: preflight ? preflightReady ? "done" : "current" : selectedBuild ? "done" : selectedUpload ? "current" : "next" },
+    {selectedUpload && <WorkflowSteps ariaLabel={t("workflowProgress")} steps={[
+      { label: t("selectUpload"), state: "done" },
+      { label: tx("runPreflight"), state: preflight ? preflightReady ? "done" : "current" : selectedBuild ? "done" : "current" },
       { label: t("createBuild"), state: selectedBuild?.status === "success" ? "done" : preflight && !preflightReady ? "next" : selectedBuild || preflightReady ? "current" : "next" },
       { label: t("deployBuild"), state: latestDeployment?.status === "success" ? "done" : selectedBuild?.status === "success" ? "current" : "next" },
-    ]} />
+    ]} />}
     <Card>
-      <CardHeader className="gap-3 md:flex-row md:items-start md:justify-between">
-        <CardTitle>{tx("projectContext")}</CardTitle>
-        <Button variant="outline" className="text-destructive hover:text-destructive" onClick={() => selectedUpload && void deleteUpload(selectedUpload)} disabled={busy || !selectedUpload}>{tx("deleteUpload")}</Button>
-      </CardHeader>
-      <CardContent className="flex flex-col gap-4">
-        <div className="grid gap-3 md:grid-cols-3">
-          <Field label={t("selectUpload")}>
-            <Select value={selectedUploadId || undefined} onValueChange={changeSelectedUpload}>
-              <SelectTrigger><SelectValue placeholder={t("selectUpload")} /></SelectTrigger>
-              <SelectContent>{uploads.map((upload) => <SelectItem key={upload.id} value={upload.id}>{upload.filename} · {upload.detected_runtime}</SelectItem>)}</SelectContent>
-            </Select>
-          </Field>
-          <div className="rounded-md border bg-muted/30 px-3 py-2 text-sm"><div className="text-xs text-muted-foreground">{tx("latestBuild")}</div><div className="font-medium">{selectedBuild ? `${selectedBuild.status} · ${selectedBuild.runtime}` : tx("noBuild")}</div></div>
-          <div className="rounded-md border bg-muted/30 px-3 py-2 text-sm"><div className="text-xs text-muted-foreground">{tx("latestDeployment")}</div><div className="font-medium">{latestDeployment ? `${latestDeployment.status} · ${latestDeployment.server_id}` : tx("notDeployed")}</div></div>
-        </div>
-        <details className="rounded-md border p-3"><summary className="cursor-pointer text-sm font-medium">{tx("advancedSettings")}</summary><div className="mt-3 grid gap-3 md:grid-cols-3">
-          <Field label={t("runtimeType")}><Select value={runtimeOverride} onValueChange={(value) => { setRuntimeOverride(value); setPreflight(null); setPlan(null) }}><SelectTrigger><SelectValue placeholder={t("runtimeType")} /></SelectTrigger><SelectContent><SelectItem value="auto">{tx("runtimeAuto")}</SelectItem><SelectItem value="node">{tx("runtimeNode")}</SelectItem><SelectItem value="python">{tx("runtimePython")}</SelectItem></SelectContent></Select></Field>
-          <Field label={tx("projectRoot")}><Input placeholder={tx("projectRootPlaceholder")} value={projectRoot} onChange={(event) => { setProjectRoot(event.target.value); setPreflight(null); setPlan(null) }} /></Field>
-          <Field label={t("overrideServerId")}><Input placeholder={t("overrideServerId")} value={serverId} onChange={(event) => setServerId(event.target.value)} /></Field>
-        </div></details>
-        <div className="rounded-md border p-3">
-          <div className="mb-3 text-sm font-medium">{tx("deploymentOptions")}</div>
-          <div className="grid gap-3 md:grid-cols-3">
-            <div className="rounded-md bg-muted/30 px-3 py-2 text-sm">
-              <div className="text-xs text-muted-foreground">{tx("deploymentTarget")}</div>
-              <div className="break-all font-mono">{serverId.trim() || (typeof selectedBuild?.manifest?.id === "string" ? selectedBuild.manifest.id : tx("unavailableTarget"))}</div>
+      {selectedUpload && <CardHeader className="gap-3 md:flex-row md:items-start md:justify-between">
+        <CardTitle className="break-words text-base">{selectedUpload.filename}</CardTitle>
+        <Button variant="outline" className="text-destructive hover:text-destructive" onClick={() => void deleteUpload(selectedUpload)} disabled={busy}>{tx("deleteUpload")}</Button>
+      </CardHeader>}
+      <CardContent className={`flex flex-col gap-4 ${selectedUpload ? "" : "pt-6"}`}>
+        {uploads.length > 0 && <Field label={t("selectUpload")}>
+          <Select value={selectedUploadId || undefined} onValueChange={changeSelectedUpload} disabled={busy}>
+            <SelectTrigger aria-label={t("selectUpload")}><SelectValue placeholder={t("selectUpload")} /></SelectTrigger>
+            <SelectContent>{uploads.map(upload => <SelectItem key={upload.id} value={upload.id}>{upload.filename} · {upload.detected_runtime}</SelectItem>)}</SelectContent>
+          </Select>
+        </Field>}
+        {!selectedUpload ? <div className="flex flex-wrap items-center gap-3">
+          {!loading && !loadError && <p className="text-sm text-muted-foreground">{uploads.length ? c.selectProject : c.noProjects}</p>}
+          <Button variant="outline" asChild><a href="#/uploads">{c.uploadProject}</a></Button>
+        </div> : <>
+          <dl className="grid gap-3 text-sm sm:grid-cols-2">
+            <div><dt className="text-xs text-muted-foreground">{tx("latestBuild")}</dt><dd>{selectedBuild ? `${localizeStatus(t, selectedBuild.status)} · ${selectedBuild.runtime}` : tx("noBuild")}</dd></div>
+            <div><dt className="text-xs text-muted-foreground">{tx("latestDeployment")}</dt><dd>{latestDeployment ? `${localizeStatus(t, latestDeployment.status)} · ${latestDeployment.server_id}` : tx("notDeployed")}</dd></div>
+          </dl>
+          <details><summary className="cursor-pointer text-sm font-medium">{tx("advancedSettings")}</summary><fieldset disabled={busy} className="mt-3 grid gap-3 md:grid-cols-3">
+            <Field label={t("runtimeType")}><Select disabled={busy} value={runtimeOverride} onValueChange={value => { setRuntimeOverride(value); setPreflight(null); setPlan(null) }}><SelectTrigger aria-label={t("runtimeType")}><SelectValue placeholder={t("runtimeType")} /></SelectTrigger><SelectContent><SelectItem value="auto">{tx("runtimeAuto")}</SelectItem><SelectItem value="node">{tx("runtimeNode")}</SelectItem><SelectItem value="python">{tx("runtimePython")}</SelectItem></SelectContent></Select></Field>
+            <Field label={tx("projectRoot")}><Input aria-label={tx("projectRoot")} placeholder={tx("projectRootPlaceholder")} value={projectRoot} onChange={event => { setProjectRoot(event.target.value); setPreflight(null); setPlan(null) }} /></Field>
+            <Field label={t("overrideServerId")}><Input aria-label={t("overrideServerId")} placeholder={t("overrideServerId")} value={serverId} onChange={event => setServerId(event.target.value)} /></Field>
+          </fieldset></details>
+          {selectedBuild?.status === "success" && <fieldset disabled={busy} className="border-t pt-3">
+            <legend className="mb-3 text-sm font-medium">{tx("deploymentOptions")}</legend>
+            <div className="grid gap-3 md:grid-cols-3">
+              <div className="text-sm"><div className="text-xs text-muted-foreground">{tx("deploymentTarget")}</div><div className="break-all font-mono">{serverId.trim() || (typeof selectedBuild.manifest?.id === "string" ? selectedBuild.manifest.id : tx("unavailableTarget"))}</div></div>
+              <label className="flex items-start gap-2 text-sm"><input type="checkbox" className="mt-1" checked={deployOverwrite} onChange={event => setDeployOverwrite(event.target.checked)} /><span><span className="font-medium">{tx("overwriteExisting")}</span><span className="block text-xs text-muted-foreground">{tx("overwriteExistingDesc")}</span></span></label>
+              <label className="flex items-start gap-2 text-sm"><input type="checkbox" className="mt-1" checked={deployStart} onChange={event => setDeployStart(event.target.checked)} /><span><span className="font-medium">{tx("startAfterDeploy")}</span><span className="block text-xs text-muted-foreground">{tx("startAfterDeployDesc")}</span></span></label>
             </div>
-            <label className="flex items-start gap-2 rounded-md border px-3 py-2 text-sm">
-              <input type="checkbox" className="mt-1" checked={deployOverwrite} onChange={(event) => setDeployOverwrite(event.target.checked)} />
-              <span><span className="font-medium">{tx("overwriteExisting")}</span><span className="block text-xs text-muted-foreground">{tx("overwriteExistingDesc")}</span></span>
-            </label>
-            <label className="flex items-start gap-2 rounded-md border px-3 py-2 text-sm">
-              <input type="checkbox" className="mt-1" checked={deployStart} onChange={(event) => setDeployStart(event.target.checked)} />
-              <span><span className="font-medium">{tx("startAfterDeploy")}</span><span className="block text-xs text-muted-foreground">{tx("startAfterDeployDesc")}</span></span>
-            </label>
+          </fieldset>}
+          <div className="flex flex-wrap items-center gap-2 border-t pt-3">
+            <Button variant="secondary" onClick={() => void runPreflight()} disabled={busy}>{tx("runPreflight")}</Button>
+            {preflight && <Button variant="outline" onClick={() => void runPreflight(selectedUploadId, true)} disabled={busy}>{tx("forceRefresh")}</Button>}
+            <Button variant="secondary" onClick={() => void previewPlan()} disabled={busy}>{tx("previewPlan")}</Button>
+            <Button onClick={() => void createBuild()} disabled={busy}>{t("createBuild")}</Button>
+            {selectedBuild?.status === "success" && <Button variant="secondary" onClick={() => void deployBuild()} disabled={busy}>{t("deployBuild")}</Button>}
+            {selectedBuild && canRequestStop(selectedBuild) && <Button variant="outline" onClick={() => void requestStopBuild()} disabled={busy}>{t("requestStopBuild")}</Button>}
           </div>
-        </div>
-        <div className="flex flex-wrap items-center gap-2 border-t pt-3">
-          <Button variant="secondary" onClick={() => void runPreflight()} disabled={busy || !selectedUploadId}>{tx("runPreflight")}</Button>
-          <Button variant="outline" onClick={() => void runPreflight(selectedUploadId, true)} disabled={busy || !selectedUploadId}>{tx("forceRefresh")}</Button>
-          <Button variant="secondary" onClick={() => void previewPlan()} disabled={busy || !selectedUploadId}>{tx("previewPlan")}</Button>
-          <div className="mx-1 hidden h-6 w-px bg-border sm:block" />
-          <Button onClick={() => createBuild()} disabled={busy || !selectedUploadId}>{t("createBuild")}</Button>
-          <Button variant="secondary" onClick={() => deployBuild()} disabled={busy || !selectedBuildId || selectedBuild?.status !== "success"}>{t("deployBuild")}</Button>
-          <Button variant="outline" onClick={() => requestStopBuild()} disabled={busy || !selectedBuild || !canRequestStop(selectedBuild)}>{t("requestStopBuild")}</Button>
-        </div>
+        </>}
       </CardContent>
     </Card>
-
-    {preflight ? <PreflightCard preflight={preflight} t={t} /> : null}
-    {plan ? <BuildPlanCard plan={plan} t={t} /> : null}
-
-    <BuildHintCard build={selectedBuild} t={t} />
-    <div className="grid gap-4 xl:grid-cols-[minmax(0,1.2fr)_minmax(0,0.8fr)]">
-      <BuildDetailCard build={selectedBuild} logs={buildLogs} polling={polling} t={t} onCopied={onCopied} />
-      <BuildTimelineCard build={selectedBuild} logs={buildLogs} t={t} />
-    </div>
+    {selectedUpload && preflight ? <PreflightCard preflight={preflight} t={t} /> : null}
+    {selectedUpload && plan ? <BuildPlanCard plan={plan} t={t} /> : null}
+    {selectedBuild && <>
+      <BuildHintCard build={selectedBuild} t={t} />
+      <div className="grid items-start gap-4 xl:grid-cols-[minmax(0,1.2fr)_minmax(0,0.8fr)]">
+        <BuildDetailCard build={selectedBuild} logs={buildLogs} streamConnected={liveTail} t={t} onCopied={onCopied} />
+        <BuildTimelineCard build={selectedBuild} logs={buildLogs} t={t} />
+      </div>
+    </>}
 
     </> : null}
 
     {activeSection === "builds" ? <BuildRecordsTable builds={builds} busy={busy} selectedBuildId={selectedBuildId} canRequestStop={canRequestStop} onShowBuild={(build) => showBuild(build, "workspace")} onLoadLogs={(build) => showBuild(build, "logs")} onRequestStop={(id) => void requestStopBuild(id)} onDeploy={(id) => void deployBuild(id)} onRetry={retryBuild} onDelete={(build) => void deleteBuild(build)} t={t} /> : null}
     {activeSection === "deployments" ? <>
-      <Card>
+      {selectedDeploymentId && <Card>
         <CardHeader><CardTitle>{tx("rollbackSummary")}</CardTitle><CardDescription>{tx("startAfterRollbackDesc")}</CardDescription></CardHeader>
         <CardContent className="grid gap-3 md:grid-cols-3">
           <div className="rounded-md bg-muted/30 px-3 py-2 text-sm"><div className="text-xs text-muted-foreground">{tx("deploymentTarget")}</div><div className="break-all font-mono">{deployments.find((item) => item.id === selectedDeploymentId)?.server_id || tx("unavailableTarget")}</div></div>
           <div className="rounded-md bg-muted/30 px-3 py-2 text-sm"><div className="text-xs text-muted-foreground">{tx("restoresSnapshot")}</div><div>{tx("enabledChoice")}</div></div>
           <label className="flex items-start gap-2 rounded-md border px-3 py-2 text-sm"><input type="checkbox" className="mt-1" checked={rollbackStart} onChange={(event) => setRollbackStart(event.target.checked)} /><span><span className="font-medium">{tx("startAfterRollback")}</span><span className="block text-xs text-muted-foreground">{tx("startAfterRollbackDesc")}</span></span></label>
         </CardContent>
-      </Card>
+      </Card>}
       <DeploymentRecordsTable deployments={deployments} busy={busy} selectedDeploymentId={selectedDeploymentId} onSelect={(deployment) => showDeployment(deployment)} onDetail={(deployment) => showDeployment(deployment, true)} onRollback={(id) => void rollback(id)} onDelete={(deployment) => void deleteDeployment(deployment)} t={t} />
     </> : null}
-    {activeSection === "logs" ? <div className="flex flex-col gap-4"><BuildLogsTable logs={buildLogs} filter={logFilter} onFilterChange={setLogFilter} selectedBuildLabel={selectedBuild ? `${selectedBuild.id} · ${selectedBuild.status} · ${buildLogs.length}` : t("noData")} live={liveTail} t={t} /><BuildOutputPanels build={selectedBuild} log={selectedBuildLog} t={t} /></div> : null}
+    {activeSection === "logs" ? selectedBuild ? <div className="flex flex-col gap-4"><BuildLogsTable logs={buildLogs} filter={logFilter} onFilterChange={setLogFilter} selectedBuildLabel={`${selectedBuild.id} · ${localizeStatus(t, selectedBuild.status)} · ${buildLogs.length}`} live={liveTail} t={t} /><BuildOutputPanels build={selectedBuild} log={selectedBuildLog} t={t} /></div> : <div className="flex flex-wrap items-center gap-3"><p className="text-sm text-muted-foreground">{c.selectBuild}</p><Button variant="outline" onClick={() => setActiveSection("builds")}>{tx("buildsTab")}</Button></div> : null}
 
     <Toaster toast={toast} onClose={() => setToast(null)} />
     {confirmDialog}

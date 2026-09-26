@@ -44,3 +44,24 @@ export function canDeleteAccessItem(item: AccessItem): boolean {
 export function normalizeAccessCode(code: string): string {
   return code.trim().toLowerCase().replace(/[^a-z0-9_.-]+/g, "-").replace(/^[-.]+|[-.]+$/g, "")
 }
+
+type AccessDraft = AccessRoleSaveRequest | PermissionTypeSaveRequest
+
+/** Compare editable values; toggling a permission off and on is not a new draft. */
+export function accessDraftChanged(current: AccessDraft, original: AccessDraft): boolean {
+  const fingerprint = (draft: AccessDraft) => JSON.stringify("permissions" in draft ? { ...draft, permissions: [...draft.permissions].sort() } : draft)
+  return fingerprint(current) !== fingerprint(original)
+}
+
+/** Own the submitted permissions array so later state updates cannot change it. */
+export function roleSaveSnapshot(draft: AccessRoleSaveRequest): AccessRoleSaveRequest {
+  return { ...draft, code: normalizeAccessCode(draft.code), name: draft.name.trim(), permissions: [...draft.permissions] }
+}
+
+export function accessIdentityErrors(draft: AccessDraft, items: AccessItem[], editingId?: string): { code?: "required" | "duplicate"; name?: "required" } {
+  const code = normalizeAccessCode(draft.code)
+  return {
+    code: !code ? "required" : items.some(item => item.code === code && item.id !== editingId) ? "duplicate" : undefined,
+    name: draft.name.trim() ? undefined : "required",
+  }
+}

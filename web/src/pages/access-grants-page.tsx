@@ -1,5 +1,6 @@
+import { usePageRefresh } from "@/components/page-refresh"
 import { useEffect, useMemo, useRef, useState } from "react"
-import { Plus, RefreshCcw, ShieldAlert, UsersRound } from "lucide-react"
+import { Plus, ShieldAlert, UsersRound } from "lucide-react"
 import {
   api,
   type AccessResource,
@@ -10,18 +11,19 @@ import {
   type ResourceGrantSaveRequest,
 } from "@/api/client"
 import { ActionMenu, ActionMenuItem } from "@/components/action-menu"
+import { FormDialog } from "@/components/form-dialog"
+import { useDraftCloseGuard } from "@/components/use-draft-close-guard"
 import { useConfirm } from "@/components/confirm-dialog"
 import { PageHeader, PageToolbar } from "@/components/page-shell"
 import { Alert, AlertDescription } from "@/components/ui/alert"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent } from "@/components/ui/card"
-import { Dialog, DialogBody, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
-import { Toaster, type ToastState } from "@/components/ui/toast"
+import { Toaster } from "@/components/ui/toast"
 import type { Locale, TFunction } from "@/i18n"
 import { formatDateTime } from "@/lib/utils"
 import { TableEmptyRow } from "@/pages/page-utils"
@@ -40,6 +42,7 @@ const copy = {
     selectServer: "请选择 MCP 服务",
     scope: "授权范围",
     wholeServer: "整个 MCP 服务",
+    wholeServerHint: "授权作用于整个服务，并非当前工具列表的快照；每次调用仍会校验工具分类。",
     singleTool: "单个工具",
     tool: "工具",
     selectTool: "请选择工具",
@@ -82,6 +85,7 @@ const copy = {
     selectServer: "Select an MCP server",
     scope: "Scope",
     wholeServer: "Entire server",
+    wholeServerHint: "This grants server-level access, not a snapshot of this tool list. Classification is still checked on each invocation.",
     singleTool: "Single tool",
     tool: "Tool",
     selectTool: "Select a tool",
@@ -135,8 +139,12 @@ export function AccessGrantsPage({ locale, t }: { locale: Locale; t: TFunction }
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [message, setMessage] = useState<string | null>(null)
+  const [formError, setFormError] = useState<string | null>(null)
+  const baseline = useRef("")
+  const saving = useRef(false)
   const { confirm, confirmDialog } = useConfirm(t)
 
+  const closeEditor = useDraftCloseGuard({ dirty: JSON.stringify({ form, scope }) !== baseline.current, pending: busy, locale, confirm, onClose: () => { setEditorOpen(false); setFormError(null) } })
   const servers = useMemo(() => [...new Set(resources.map((resource) => resource.server_id))].sort(), [resources])
   const serverTools = useMemo(() => resources.filter((resource) => resource.server_id === form.server_id), [form.server_id, resources])
   const visibleGrants = useMemo(() => {
@@ -145,6 +153,7 @@ export function AccessGrantsPage({ locale, t }: { locale: Locale; t: TFunction }
     return grants.filter((grant) => `${subjectLabel(grant, users, roles)} ${grant.server_id} ${grant.tool_id || ""} ${grant.permission_type_name}`.toLowerCase().includes(needle))
   }, [grants, query, roles, users])
 
+  usePageRefresh(load, busy)
   useEffect(() => { void load() }, [])
 
   async function load() {
@@ -162,13 +171,6 @@ export function AccessGrantsPage({ locale, t }: { locale: Locale; t: TFunction }
       setPermissionTypes(typeResult.permission_types.filter((item) => item.enabled))
       setResources(resourceResult.resources)
       setGrants(grantResult.grants)
-      const firstServer = resourceResult.resources[0]?.server_id || ""
-      const firstUser = subjectResult.users[0]?.id || ""
-      setForm((current) => ({
-        ...current,
-        subject_id: current.subject_id || firstUser,
-        server_id: current.server_id || firstServer,
-      }))
     } catch (err) {
       setError(err instanceof Error ? err.message : String(err))
     } finally {
@@ -177,8 +179,10 @@ export function AccessGrantsPage({ locale, t }: { locale: Locale; t: TFunction }
   }
 
   async function save() {
+    if (busy || saving.current || !form.subject_id || !form.server_id || (scope === "tool" && !form.tool_id)) return
+    saving.current = true
     setBusy(true)
-    setError(null)
+    setFormError(null)
     try {
       await api.saveResourceGrant({
         ...form,
@@ -189,19 +193,24 @@ export function AccessGrantsPage({ locale, t }: { locale: Locale; t: TFunction }
       await load()
       setEditorOpen(false)
     } catch (err) {
-      setError(err instanceof Error ? err.message : String(err))
+      setFormError(err instanceof Error ? err.message : String(err))
     } finally {
+      saving.current = false
       setBusy(false)
     }
   }
 
   async function remove(grant: ResourceGrant) {
+    if (busy || saving.current) return
     if (!(await confirm({ title: c.deleteGrant, description: `${subjectLabel(grant, users, roles)} · ${grant.server_id}/${grant.tool_id || "*"}`, destructive: true }))) return
+    setBusy(true)
+    setError(null)
     try {
       await api.deleteResourceGrant(grant.id)
       setMessage(`${t("deleted")}: ${grant.server_id}`)
       await load()
     } catch (err) { setError(err instanceof Error ? err.message : String(err)) }
+    finally { setBusy(false) }
   }
 
   function changeSubjectType(subjectType: "user" | "role") {
@@ -213,8 +222,11 @@ export function AccessGrantsPage({ locale, t }: { locale: Locale; t: TFunction }
   }
 
   function openCreate() {
-    setError(null)
-    setForm({ subject_type: "user", subject_id: users[0]?.id || "", server_id: resources[0]?.server_id || "", tool_id: null, permission_type_code: "read", expires_at: null })
+    if (busy) return
+    setFormError(null)
+    const draft: ResourceGrantSaveRequest = { subject_type: "user", subject_id: users[0]?.id || "", server_id: resources[0]?.server_id || "", tool_id: null, permission_type_code: "read", expires_at: null }
+    baseline.current = JSON.stringify({ form: draft, scope: "server" })
+    setForm(draft)
     setScope("server")
     setEditorOpen(true)
   }
@@ -228,7 +240,6 @@ export function AccessGrantsPage({ locale, t }: { locale: Locale; t: TFunction }
     ? users.map((user) => ({ id: user.id, label: user.display_name ? `${user.display_name} (@${user.username})` : `@${user.username}` }))
     : roles.map((role) => ({ id: role.id, label: `${role.name} (${role.code})` }))
   const selectedResource = resources.find((resource) => resource.server_id === form.server_id && resource.tool_id === form.tool_id)
-  const toast: ToastState = editorOpen ? null : error ? { message: error, tone: "error" } : message ? { message, tone: "success" } : null
 
   return (
     <div className="flex flex-col gap-4">
@@ -239,31 +250,29 @@ export function AccessGrantsPage({ locale, t }: { locale: Locale; t: TFunction }
         helpLabel={t("pageHelp")}
         helpContent={<><ol className="list-inside list-decimal space-y-1">{[c.step1, c.step2, c.step3, c.step4].map(step => <li key={step}>{step}</li>)}</ol><p>{c.unknownWarning}</p></>}
         toolbar={<PageToolbar query={query} onQueryChange={setQuery} placeholder={c.search} resultCount={visibleGrants.length} resultLabel={c.grants} clearLabel={t("clearSearch")} />}
-        actions={<><Button ref={createTrigger} onClick={openCreate} disabled={busy}><Plus />{c.newGrant}</Button><Button variant="outline" onClick={load} disabled={busy}><RefreshCcw />{t("refresh")}</Button></>}
+        actions={<Button ref={createTrigger} onClick={openCreate} disabled={busy}><Plus />{c.newGrant}</Button>}
       />
-      {error && <Alert variant="destructive"><AlertDescription>{error}</AlertDescription></Alert>}
-      <Dialog open={editorOpen} onOpenChange={(open) => { if (!busy) setEditorOpen(open) }}>
-        <DialogContent className="max-w-xl" onCloseAutoFocus={(event) => { event.preventDefault(); createTrigger.current?.focus() }}>
-          <DialogHeader><DialogTitle>{c.newGrant}</DialogTitle><DialogDescription>{c.description}</DialogDescription></DialogHeader>
-          <DialogBody className="flex flex-col gap-4">
-            {error && <Alert variant="destructive"><AlertDescription>{error}</AlertDescription></Alert>}
+      {error && <Alert variant="destructive" role="alert"><AlertDescription>{error}</AlertDescription><Button variant="outline" size="sm" className="mt-2" disabled={busy} onClick={() => void load()}>{t("refresh")}</Button></Alert>}
+      <FormDialog dirty={JSON.stringify({ form, scope }) !== baseline.current} open={editorOpen} onClose={() => void closeEditor()} title={c.newGrant} description={c.description} closeLabel={t("close")} pending={busy} error={formError} className="max-w-xl"
+        onCloseAutoFocus={event => { event.preventDefault(); createTrigger.current?.focus() }}
+        footer={<><Button variant="outline" onClick={() => void closeEditor()} disabled={busy}>{t("cancel")}</Button><Button type="submit" form="resource-grant-editor" disabled={busy || !form.subject_id || !form.server_id || (scope === "tool" && !form.tool_id)}><Plus />{c.saveGrant}</Button></>}>
+        <form id="resource-grant-editor" className="flex flex-col gap-4" onSubmit={event => { event.preventDefault(); void save() }}>
             <div className="grid gap-4 sm:grid-cols-2">
-              <Field label={c.subjectType}><Select value={form.subject_type} onValueChange={(value) => changeSubjectType(value as "user" | "role")}><SelectTrigger><SelectValue /></SelectTrigger><SelectContent><SelectItem value="user"><span className="flex items-center gap-2"><UsersRound className="size-4" />{c.user}</span></SelectItem><SelectItem value="role"><span className="flex items-center gap-2"><ShieldAlert className="size-4" />{c.role}</span></SelectItem></SelectContent></Select></Field>
-              <Field label={c.subject}><Select value={form.subject_id} onValueChange={(subject_id) => setForm((current) => ({ ...current, subject_id }))}><SelectTrigger><SelectValue placeholder={c.selectSubject} /></SelectTrigger><SelectContent>{subjectOptions.map((subject) => <SelectItem key={subject.id} value={subject.id}>{subject.label}</SelectItem>)}</SelectContent></Select></Field>
+              <Field label={c.subjectType} id="grant-subjectType"><Select disabled={busy} value={form.subject_type} onValueChange={(value) => changeSubjectType(value as "user" | "role")}><SelectTrigger id="grant-subjectType"><SelectValue /></SelectTrigger><SelectContent><SelectItem value="user"><span className="flex items-center gap-2"><UsersRound className="size-4" />{c.user}</span></SelectItem><SelectItem value="role"><span className="flex items-center gap-2"><ShieldAlert className="size-4" />{c.role}</span></SelectItem></SelectContent></Select></Field>
+              <Field label={c.subject} id="grant-subject"><Select disabled={busy} value={form.subject_id} onValueChange={(subject_id) => setForm((current) => ({ ...current, subject_id }))}><SelectTrigger id="grant-subject"><SelectValue placeholder={c.selectSubject} /></SelectTrigger><SelectContent>{subjectOptions.map((subject) => <SelectItem key={subject.id} value={subject.id}>{subject.label}</SelectItem>)}</SelectContent></Select></Field>
             </div>
-            <Field label={c.server}><Select value={form.server_id} onValueChange={changeServer}><SelectTrigger><SelectValue placeholder={c.selectServer} /></SelectTrigger><SelectContent>{servers.map((server) => <SelectItem key={server} value={server}>{serverLabel(server, c)}</SelectItem>)}</SelectContent></Select></Field>
+            <Field label={c.server} id="grant-server"><Select disabled={busy} value={form.server_id} onValueChange={changeServer}><SelectTrigger id="grant-server"><SelectValue placeholder={c.selectServer} /></SelectTrigger><SelectContent>{servers.map((server) => <SelectItem key={server} value={server}>{serverLabel(server, c)}</SelectItem>)}</SelectContent></Select></Field>
             <div className="grid gap-4 sm:grid-cols-2">
-              <Field label={c.scope}><Select value={scope} onValueChange={(value) => setScope(value as "server" | "tool")}><SelectTrigger><SelectValue /></SelectTrigger><SelectContent><SelectItem value="server">{c.wholeServer}</SelectItem><SelectItem value="tool">{c.singleTool}</SelectItem></SelectContent></Select></Field>
-              {scope === "tool" && <Field label={c.tool}><Select value={form.tool_id || ""} onValueChange={(tool_id) => setForm((current) => ({ ...current, tool_id }))}><SelectTrigger><SelectValue placeholder={c.selectTool} /></SelectTrigger><SelectContent>{serverTools.map((resource) => <SelectItem key={resource.tool_id} value={resource.tool_id}>{resource.tool_name} · {resource.tool_id}</SelectItem>)}</SelectContent></Select></Field>}
+              <Field label={c.scope} id="grant-scope"><Select disabled={busy} value={scope} onValueChange={(value) => setScope(value as "server" | "tool")}><SelectTrigger id="grant-scope"><SelectValue /></SelectTrigger><SelectContent><SelectItem value="server">{c.wholeServer}</SelectItem><SelectItem value="tool">{c.singleTool}</SelectItem></SelectContent></Select></Field>
+              {scope === "tool" && <Field label={c.tool} id="grant-tool"><Select disabled={busy} value={form.tool_id || ""} onValueChange={(tool_id) => setForm((current) => ({ ...current, tool_id }))}><SelectTrigger id="grant-tool"><SelectValue placeholder={c.selectTool} /></SelectTrigger><SelectContent>{serverTools.map((resource) => <SelectItem key={resource.tool_id} value={resource.tool_id}>{resource.tool_name} · {resource.tool_id}</SelectItem>)}</SelectContent></Select></Field>}
             </div>
+            {scope === "server" && <p className="text-xs text-muted-foreground">{c.wholeServerHint}</p>}
             {scope === "tool" && selectedResource && <div className="flex items-center justify-between rounded-lg border bg-muted/30 p-3 text-sm"><span>{c.classification}</span><div className="flex gap-2"><AccessBadge level={selectedResource.classification} labels={c} /><Badge variant="outline">{classificationStatusLabel(selectedResource.classification_status, c)}</Badge></div></div>}
-            <Field label={c.permissionType}><Select value={form.permission_type_code} onValueChange={(permission_type_code) => setForm((current) => ({ ...current, permission_type_code }))}><SelectTrigger><SelectValue /></SelectTrigger><SelectContent>{permissionTypes.map((item) => <SelectItem key={item.id} value={item.code}>{permissionTypeLabel(item, c)}</SelectItem>)}</SelectContent></Select></Field>
-            <Field label={c.expiresAt}><Input type="datetime-local" value={form.expires_at || ""} onChange={(event) => setForm((current) => ({ ...current, expires_at: event.target.value || null }))} /><div className="text-xs text-muted-foreground">{form.expires_at ? formatDateTime(form.expires_at) : c.neverExpires}</div></Field>
+            <Field label={c.permissionType} id="grant-permissionType"><Select disabled={busy} value={form.permission_type_code} onValueChange={(permission_type_code) => setForm((current) => ({ ...current, permission_type_code }))}><SelectTrigger id="grant-permissionType"><SelectValue /></SelectTrigger><SelectContent>{permissionTypes.map((item) => <SelectItem key={item.id} value={item.code}>{permissionTypeLabel(item, c)}</SelectItem>)}</SelectContent></Select></Field>
+            <Field label={c.expiresAt} id="grant-expiresAt"><Input id="grant-expiresAt" disabled={busy} type="datetime-local" value={form.expires_at || ""} onChange={(event) => setForm((current) => ({ ...current, expires_at: event.target.value || null }))} /><div className="text-xs text-muted-foreground">{form.expires_at ? formatDateTime(form.expires_at) : c.neverExpires}</div></Field>
             <Alert><AlertDescription>{c.unknownWarning}</AlertDescription></Alert>
-            <div className="flex justify-end gap-2"><Button variant="outline" onClick={() => setEditorOpen(false)} disabled={busy}>{t("cancel")}</Button><Button onClick={() => void save()} disabled={busy || !form.subject_id || !form.server_id || (scope === "tool" && !form.tool_id)}><Plus />{c.saveGrant}</Button></div>
-          </DialogBody>
-        </DialogContent>
-      </Dialog>
+        </form>
+      </FormDialog>
 
         <Card>
           <CardContent className="p-3 md:p-4">
@@ -271,13 +280,13 @@ export function AccessGrantsPage({ locale, t }: { locale: Locale; t: TFunction }
               <Table>
                 <TableHeader><TableRow><TableHead>{c.subject}</TableHead><TableHead>{c.server}</TableHead><TableHead>{c.scope}</TableHead><TableHead>{c.permissionType}</TableHead><TableHead>{c.expiresAt}</TableHead><TableHead>{t("actions")}</TableHead></TableRow></TableHeader>
                 <TableBody>
-                  {visibleGrants.length === 0 ? <TableEmptyRow colSpan={6} title={c.noGrants} /> : visibleGrants.map((grant) => <TableRow key={grant.id}>
+                  {visibleGrants.length === 0 ? <TableEmptyRow colSpan={6} title={busy ? t("loadingData") : error ? t("error") : c.noGrants} /> : visibleGrants.map((grant) => <TableRow key={grant.id}>
                     <TableCell><div className="font-medium">{subjectLabel(grant, users, roles)}</div><div className="text-xs text-muted-foreground">{c[grant.subject_type]}</div></TableCell>
                     <TableCell><div className="font-medium">{serverLabel(grant.server_id, c)}</div>{grant.server_id === "builtin" && <code className="text-xs text-muted-foreground">{grant.server_id}</code>}</TableCell>
                     <TableCell><div className="max-w-72 truncate" title={grant.tool_id || c.wholeServer}>{grant.tool_id || c.wholeServer}</div></TableCell>
                     <TableCell><AccessBadge level={grant.base_level} labels={c} /><div className="mt-1 text-xs text-muted-foreground">{grant.permission_type_name}</div></TableCell>
                     <TableCell className="whitespace-nowrap text-xs text-muted-foreground">{grant.expires_at ? formatDateTime(grant.expires_at) : c.neverExpires}</TableCell>
-                    <TableCell><ActionMenu label={t("actions")}><ActionMenuItem destructive onClick={() => void remove(grant)}>{t("delete")}</ActionMenuItem></ActionMenu></TableCell>
+                    <TableCell><ActionMenu label={t("actions")}><ActionMenuItem destructive disabled={busy} onClick={() => void remove(grant)}>{t("delete")}</ActionMenuItem></ActionMenu></TableCell>
                   </TableRow>)}
                 </TableBody>
               </Table>
@@ -285,13 +294,13 @@ export function AccessGrantsPage({ locale, t }: { locale: Locale; t: TFunction }
           </CardContent>
         </Card>
       {confirmDialog}
-      <Toaster toast={toast} onClose={() => { setError(null); setMessage(null) }} />
+      <Toaster toast={message ? { message, tone: "success" } : null} onClose={() => setMessage(null)} />
     </div>
   )
 }
 
-function Field({ label, children }: { label: string; children: React.ReactNode }) {
-  return <div className="flex flex-col gap-2"><Label>{label}</Label>{children}</div>
+function Field({ label, id, children }: { label: string; id: string; children: React.ReactNode }) {
+  return <div className="flex flex-col gap-2"><Label htmlFor={id}>{label}</Label>{children}</div>
 }
 
 function AccessBadge({ level, labels }: { level: "none" | "read" | "write" | "unknown"; labels: Record<string, string> }) {

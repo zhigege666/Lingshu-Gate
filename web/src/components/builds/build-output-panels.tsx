@@ -4,6 +4,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { localizeStatus, type TFunction } from "@/i18n"
 
 export function BuildOutputPanels({ build, log, t }: { build: BuildRecord | null; log: BuildLog | null; t: TFunction }) {
+  if (!build || (!log?.stdout && !log?.stderr && !build.error)) return null
   const stderrText = String(log?.stderr || build?.error || t("noData"))
   return (
     <div className="grid gap-4 xl:grid-cols-2">

@@ -7,6 +7,15 @@ export const locales: Array<{ value: Locale; label: string }> = [
 
 const messages = {
   "zh-CN": {
+    unappliedFilters: "条件已更改，应用后生效",
+    appliedFilters: "已应用条件",
+    notLoaded: "尚未查询",
+    loadingData: "正在加载…",
+    snapshotAt: "快照时间",
+    resetConditions: "重置条件",
+    cacheRootWritable: "缓存根目录可写或可创建",
+    writableOrCreatable: "可写或可创建",
+    refreshCurrentPage: "刷新当前页面",
     subtitle: "在线管理 MCP 配置、运行时状态、工具发现和调用测试。",
     controlPlane: "控制台总览",
     configurationCenter: "配置中心",
@@ -276,6 +285,8 @@ const messages = {
     latestServerEvents: "最近服务事件",
     loadDetail: "加载详情",
     noData: "暂无数据",
+    noAppliedMatches: "没有符合已应用条件的记录；调整条件后再应用筛选。",
+    noCurrentMatches: "当前查询结果中没有匹配记录；请调整或清除搜索。",
 
     runDiagnostics: "运行诊断",
 
@@ -312,6 +323,15 @@ const messages = {
     uploadResultDesc: "上传、分析、Build 和 Manifest 草稿结果",
   },
   "en-US": {
+    unappliedFilters: "Filters changed. Apply to update results",
+    appliedFilters: "Applied filters",
+    notLoaded: "Not loaded",
+    loadingData: "Loading…",
+    snapshotAt: "Snapshot time",
+    resetConditions: "Reset conditions",
+    cacheRootWritable: "Cache root writable or creatable",
+    writableOrCreatable: "Writable or creatable",
+    refreshCurrentPage: "Refresh current page",
     subtitle: "Manage MCP configs, runtime status, tool discovery, and invocation tests.",
     controlPlane: "Control Plane",
     configurationCenter: "Configuration Center",
@@ -581,6 +601,8 @@ const messages = {
     latestServerEvents: "Latest Server Events",
     loadDetail: "Load Detail",
     noData: "No data",
+    noAppliedMatches: "No records match the applied filters. Adjust the conditions and apply again.",
+    noCurrentMatches: "No matches in the current query results. Adjust or clear the search.",
 
     runDiagnostics: "Run Diagnostics",
 

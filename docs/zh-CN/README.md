@@ -13,6 +13,7 @@
 | [部署](deployment.md) | Docker Compose、原生服务、生产加固、备份、升级和回滚 |
 | [运维](operations.md) | 健康探针、日志、事件、诊断、运行时缓存、审计和故障检查 |
 | [本地开发](local-development.md) | 源码环境、Console 构建、测试套件和仓库约定 |
+| [UI 交互约束](ui-interaction-contract.md) | 新增或迁移 Console UI 的验收规则、编辑安全、证据与独立评审 |
 | [发行产物](releases.md) | 平台归档、checksum、SBOM、构建元数据、离线镜像和发布规则 |
 
 运行中的 Gate 会在 `/docs` 提供 API Schema。安全策略和报告方式见 [SECURITY.zh-CN.md](../../SECURITY.zh-CN.md)。

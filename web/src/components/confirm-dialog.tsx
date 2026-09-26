@@ -17,6 +17,7 @@ type ConfirmOptions = {
   confirmText?: string
   cancelText?: string
   destructive?: boolean
+  hideCancel?: boolean
 }
 
 /**
@@ -51,7 +52,7 @@ export function useConfirm(t: TFunction): { confirm: (options: ConfirmOptions) =
           {options.description ? <AlertDialogDescription className="whitespace-pre-line">{options.description}</AlertDialogDescription> : null}
         </AlertDialogHeader>
         <AlertDialogFooter>
-          <AlertDialogCancel onClick={() => settle(false)}>{options.cancelText ?? t("cancel")}</AlertDialogCancel>
+          {!options.hideCancel && <AlertDialogCancel onClick={() => settle(false)}>{options.cancelText ?? t("cancel")}</AlertDialogCancel>}
           <AlertDialogAction variant={options.destructive ? "danger" : "default"} onClick={() => settle(true)}>{options.confirmText ?? t("confirm")}</AlertDialogAction>
         </AlertDialogFooter>
       </AlertDialogContent>

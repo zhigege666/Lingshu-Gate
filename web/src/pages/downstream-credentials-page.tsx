@@ -1,6 +1,9 @@
-import { useEffect, useMemo, useState } from "react"
-import { KeyRound, RefreshCcw, ShieldAlert } from "lucide-react"
+import { usePageRefresh } from "@/components/page-refresh"
+import { useEffect, useMemo, useRef, useState } from "react"
+import { KeyRound, ShieldAlert } from "lucide-react"
 import { api, type UserDownstreamCredential } from "@/api/client"
+import { FormDialog } from "@/components/form-dialog"
+import { useDraftCloseGuard } from "@/components/use-draft-close-guard"
 import { useConfirm } from "@/components/confirm-dialog"
 import { PageHeader } from "@/components/page-shell"
 import { Alert, AlertDescription } from "@/components/ui/alert"
@@ -9,9 +12,8 @@ import { Button } from "@/components/ui/button"
 import { Card, CardContent } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
-import { Sheet, SheetContent, SheetDescription, SheetFooter, SheetHeader, SheetTitle } from "@/components/ui/sheet"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
-import { Toaster, type ToastState } from "@/components/ui/toast"
+import { Toaster } from "@/components/ui/toast"
 import type { Locale, TFunction } from "@/i18n"
 import { formatDateTime } from "@/lib/utils"
 import { TableEmptyRow } from "@/pages/page-utils"
@@ -31,7 +33,8 @@ const copy = {
     readonly: "只读",
     accessMode: "访问方式",
     security: "安全状态",
-    localSecure: "本地安全预览",
+    localSecure: "本地安全连接",
+    httpsSecure: "HTTPS 安全连接",
     required: "必填",
     optional: "可选",
     status: "状态",
@@ -66,7 +69,8 @@ const copy = {
     readonly: "Read only",
     accessMode: "Access mode",
     security: "Security",
-    localSecure: "Local secure preview",
+    localSecure: "Local secure connection",
+    httpsSecure: "Secure HTTPS connection",
     required: "Required",
     optional: "Optional",
     status: "Status",
@@ -97,12 +101,16 @@ export function DownstreamCredentialsPage({ locale, t }: { locale: Locale; t: TF
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [message, setMessage] = useState<string | null>(null)
+  const [formError, setFormError] = useState<string | null>(null)
+  const saving = useRef(false)
   const { confirm, confirmDialog } = useConfirm(t)
+  const closeEditor = useDraftCloseGuard({ dirty: value.length > 0, pending: busy, locale, confirm, onClose: () => { setSelected(null); setValue(""); setFormError(null) } })
   const secureTransport = useMemo(() => {
     if (typeof window === "undefined") return false
     return window.location.protocol === "https:" || ["localhost", "127.0.0.1", "::1"].includes(window.location.hostname)
   }, [])
 
+  usePageRefresh(load, busy)
   useEffect(() => { void load() }, [])
 
   async function load() {
@@ -119,14 +127,17 @@ export function DownstreamCredentialsPage({ locale, t }: { locale: Locale; t: TF
   }
 
   function openBinding(credential: UserDownstreamCredential) {
+    if (busy) return
+    setFormError(null)
     setSelected(credential)
     setValue("")
   }
 
   async function save() {
-    if (!selected) return
+    if (!selected || busy || saving.current || !secureTransport || !value.trim()) return
+    saving.current = true
     setBusy(true)
-    setError(null)
+    setFormError(null)
     try {
       await api.saveDownstreamCredential(selected.server_id, selected.id, value)
       setMessage(`${t("saved")}: ${selected.server_name} / ${selected.name}`)
@@ -134,13 +145,15 @@ export function DownstreamCredentialsPage({ locale, t }: { locale: Locale; t: TF
       setValue("")
       await load()
     } catch (err) {
-      setError(err instanceof Error ? err.message : String(err))
+      setFormError(err instanceof Error ? err.message : String(err))
     } finally {
+      saving.current = false
       setBusy(false)
     }
   }
 
   async function remove(credential: UserDownstreamCredential) {
+    if (busy || saving.current) return
     if (!(await confirm({
       title: c.remove,
       description: `${credential.server_name} / ${credential.name}`,
@@ -162,16 +175,15 @@ export function DownstreamCredentialsPage({ locale, t }: { locale: Locale; t: TF
   const configuredCount = credentials.filter((item) => item.configured).length
   const missingCount = credentials.filter((item) => item.required && !item.configured).length
   const serverCount = new Set(credentials.map((item) => item.server_id)).size
-  const toast: ToastState = error ? { message: error, tone: "error" } : message ? { message, tone: "success" } : null
 
   return (
     <div className="flex flex-col gap-4">
       <PageHeader title={c.title} description={c.description} helpLabel={t("pageHelp")}
         helpContent={<><p className="font-medium">{c.technicalTitle}</p><p>{c.httpHint}</p><p>{c.stdioHint}</p></>}
         stats={[{ label: c.configured, value: configuredCount, tone: "success" }, { label: c.missing, value: missingCount, tone: missingCount ? "warning" : "default" }, { label: c.httpMcp, value: serverCount }]}
-        actions={<Button variant="outline" onClick={load} disabled={busy}><RefreshCcw />{t("refresh")}</Button>}
       />
 
+      {error && <Alert variant="destructive" role="alert"><AlertDescription>{error}</AlertDescription><Button variant="outline" size="sm" className="mt-2" disabled={busy} onClick={() => void load()}>{t("refresh")}</Button></Alert>}
       {!secureTransport && (
         <Alert className="border-warning/50 bg-warning/10 text-warning">
           <ShieldAlert className="size-4" />
@@ -195,7 +207,7 @@ export function DownstreamCredentialsPage({ locale, t }: { locale: Locale; t: TF
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {credentials.length === 0 ? <TableEmptyRow colSpan={7} title={c.empty} /> : credentials.map((credential) => (
+                {credentials.length === 0 ? <TableEmptyRow colSpan={7} title={busy ? t("loadingData") : error ? t("error") : c.empty} /> : credentials.map((credential) => (
                   <TableRow key={`${credential.server_id}:${credential.id}`}>
                     <TableCell><div className="font-medium">{credential.server_name}</div><code className="text-xs text-muted-foreground">{credential.server_id}</code></TableCell>
                     <TableCell><div className="font-medium">{credential.name}</div><div className="max-w-xs text-xs text-muted-foreground">{credential.description || credential.id}</div></TableCell>
@@ -209,8 +221,8 @@ export function DownstreamCredentialsPage({ locale, t }: { locale: Locale; t: TF
                     <TableCell className="whitespace-nowrap text-xs text-muted-foreground">{credential.last_used_at ? formatDateTime(credential.last_used_at) : "-"}</TableCell>
                     <TableCell>
                       <div className="flex gap-2">
-                        <Button size="sm" variant="ghost" onClick={() => openBinding(credential)}>{credential.configured ? c.replace : c.bind}</Button>
-                        {credential.configured && <Button size="sm" variant="ghost" className="text-destructive" onClick={() => void remove(credential)}>{c.remove}</Button>}
+                        <Button disabled={busy} size="sm" variant="ghost" onClick={() => openBinding(credential)}>{credential.configured ? c.replace : c.bind}</Button>
+                        {credential.configured && <Button disabled={busy} size="sm" variant="ghost" className="text-destructive" onClick={() => void remove(credential)}>{c.remove}</Button>}
                       </div>
                     </TableCell>
                   </TableRow>
@@ -221,37 +233,22 @@ export function DownstreamCredentialsPage({ locale, t }: { locale: Locale; t: TF
         </CardContent>
       </Card>
 
-      <Sheet open={selected !== null} onOpenChange={(open) => { if (!open) { setSelected(null); setValue("") } }}>
-        <SheetContent className="w-full sm:max-w-[440px]">
-          <SheetHeader className="border-b p-6">
-            <SheetTitle>{c.panelTitle}</SheetTitle>
-            <SheetDescription>{c.panelDescription}</SheetDescription>
-          </SheetHeader>
-          <div className="flex flex-1 flex-col gap-5 overflow-y-auto p-6">
-            <div className="flex flex-col gap-2"><Label>{c.service}（{c.readonly}）</Label><Input value={selected?.server_name || ""} readOnly /></div>
-            <div className="flex flex-col gap-2"><Label>{c.slot}（{c.readonly}）</Label><Input value={selected?.name || ""} readOnly /></div>
-            <div className="flex flex-col gap-2">
-              <Label>{c.value}{selected?.required ? <span className="ml-1 text-destructive">*</span> : null}</Label>
-              <Input type="password" autoComplete="new-password" value={value} onChange={(event) => setValue(event.target.value)} placeholder={c.valuePlaceholder} disabled={!secureTransport} />
-              <span className="text-xs text-muted-foreground">{c.panelDescription}</span>
-            </div>
-            <div className="flex flex-col gap-2"><Label>{c.injection}（{c.readonly}）</Label><Input value={selected ? `${selected.injection.name} Header` : ""} readOnly /></div>
-            <div className="flex flex-col gap-2"><Label>{c.accessMode}（{c.readonly}）</Label><Input value={selected?.transport_type === "streamable_http" ? "HTTP" : selected?.transport_type || ""} readOnly /></div>
-            <div className="flex flex-col gap-2">
-              <Label>{c.security}</Label>
-              <Badge variant={secureTransport ? "success" : "warning"} className="w-fit">
-                <ShieldAlert className="mr-1 size-3" />{secureTransport ? c.localSecure : c.httpsRequired}
-              </Badge>
-            </div>
-          </div>
-          <SheetFooter className="border-t p-6">
-            <Button onClick={() => void save()} disabled={busy || !secureTransport || !value.trim()}>{c.save}</Button>
-            <Button variant="outline" onClick={() => { setSelected(null); setValue("") }}>{t("cancel")}</Button>
-          </SheetFooter>
-        </SheetContent>
-      </Sheet>
+      <FormDialog dirty={value.length > 0} open={selected !== null} onClose={() => void closeEditor()} title={c.panelTitle} description={c.panelDescription} closeLabel={t("close")} pending={busy} error={formError}
+        footer={<><Button variant="outline" disabled={busy} onClick={() => void closeEditor()}>{t("cancel")}</Button><Button type="submit" form="downstream-credential-editor" disabled={busy || !secureTransport || !value.trim()}><KeyRound />{c.save}</Button></>}>
+        <form id="downstream-credential-editor" className="flex flex-col gap-4" onSubmit={event => { event.preventDefault(); void save() }}>
+          <dl className="grid grid-cols-[auto_minmax(0,1fr)] gap-x-4 gap-y-2 text-sm">
+            <dt className="text-muted-foreground">{c.service}</dt><dd className="break-words">{selected?.server_name}</dd>
+            <dt className="text-muted-foreground">{c.slot}</dt><dd className="break-words">{selected?.name}</dd>
+            <dt className="text-muted-foreground">{c.injection}</dt><dd className="break-words">{selected?.injection.name} Header</dd>
+            <dt className="text-muted-foreground">{c.accessMode}</dt><dd>{selected?.transport_type === "streamable_http" ? "HTTP" : selected?.transport_type}</dd>
+          </dl>
+          <div className="flex flex-col gap-2"><Label htmlFor="downstream-credential-value">{c.value}</Label><Input id="downstream-credential-value" type="password" autoComplete="new-password" value={value} onChange={event => setValue(event.target.value)} placeholder={c.valuePlaceholder} disabled={busy || !secureTransport} aria-describedby="downstream-credential-hint" /><p id="downstream-credential-hint" className="text-xs text-muted-foreground">{c.panelDescription}</p></div>
+          <div className="flex flex-wrap items-center gap-2 text-sm"><span className="text-muted-foreground">{c.security}</span><Badge variant={secureTransport ? "success" : "warning"}><ShieldAlert className="mr-1 size-3" />{secureTransport ? (window.location.protocol === "https:" ? c.httpsSecure : c.localSecure) : c.httpsRequired}</Badge></div>
+          {!secureTransport && <Alert><AlertDescription>{c.insecure}</AlertDescription></Alert>}
+        </form>
+      </FormDialog>
       {confirmDialog}
-      <Toaster toast={toast} onClose={() => { setError(null); setMessage(null) }} />
+      <Toaster toast={message ? { message, tone: "success" } : null} onClose={() => setMessage(null)} />
     </div>
   )
 }

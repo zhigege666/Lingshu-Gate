@@ -1,20 +1,22 @@
-import { useEffect, useMemo, useState } from "react"
-import { Plus, RefreshCcw, ShieldCheck, UserCheck, UserPlus, UserX } from "lucide-react"
+import { usePageRefresh } from "@/components/page-refresh"
+import { useEffect, useMemo, useRef, useState } from "react"
+import { Plus, ShieldCheck, UserCheck, UserPlus, UserX } from "lucide-react"
 import { api, type AccessRole, type AccessUser } from "@/api/client"
 import { ActionMenu, ActionMenuItem } from "@/components/action-menu"
+import { FormDialog } from "@/components/form-dialog"
+import { useDraftCloseGuard } from "@/components/use-draft-close-guard"
 import { useConfirm } from "@/components/confirm-dialog"
 import { PageHeader, PageToolbar } from "@/components/page-shell"
 import { Alert, AlertDescription } from "@/components/ui/alert"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent } from "@/components/ui/card"
-import { Dialog, DialogBody, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Switch } from "@/components/ui/switch"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
-import { Toaster, type ToastState } from "@/components/ui/toast"
+import { Toaster } from "@/components/ui/toast"
 import type { Locale, TFunction } from "@/i18n"
 import { formatDateTime } from "@/lib/utils"
 import { TableEmptyRow } from "@/pages/page-utils"
@@ -106,8 +108,16 @@ export function AccessUsersPage({ locale, t }: { locale: Locale; t: TFunction })
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [message, setMessage] = useState<string | null>(null)
+  const [formError, setFormError] = useState<string | null>(null)
+  const createBaseline = useRef("")
+  const editBaseline = useRef("")
+  const saving = useRef(false)
   const { confirm, confirmDialog } = useConfirm(t)
 
+  const createDraft = JSON.stringify({ username, password, createDisplayName, createStatus, createRoleCodes: [...createRoleCodes].sort(), mustChangePassword })
+  const editDraft = JSON.stringify({ displayName, status, roleCodes: [...roleCodes].sort() })
+  const closeCreate = useDraftCloseGuard({ dirty: createDraft !== createBaseline.current, pending: busy, locale, confirm, onClose: () => { setCreateOpen(false); setPassword(""); setFormError(null) } })
+  const closeEdit = useDraftCloseGuard({ dirty: editDraft !== editBaseline.current, pending: busy, locale, confirm, onClose: () => { setSelected(null); setFormError(null) } })
   const visibleUsers = useMemo(() => {
     const needle = query.trim().toLowerCase()
     return users.filter((user) => {
@@ -116,6 +126,7 @@ export function AccessUsersPage({ locale, t }: { locale: Locale; t: TFunction })
     })
   }, [query, statusFilter, users])
 
+  usePageRefresh(load, busy)
   useEffect(() => { void load() }, [])
 
   async function load() {
@@ -133,6 +144,9 @@ export function AccessUsersPage({ locale, t }: { locale: Locale; t: TFunction })
   }
 
   function edit(user: AccessUser) {
+    if (busy) return
+    setFormError(null)
+    editBaseline.current = JSON.stringify({ displayName: user.display_name || "", status: user.status, roleCodes: [...(user.roles.length ? user.roles : [user.role])].sort() })
     setSelected(user)
     setDisplayName(user.display_name || "")
     setStatus(user.status)
@@ -140,18 +154,24 @@ export function AccessUsersPage({ locale, t }: { locale: Locale; t: TFunction })
   }
 
   function openCreate() {
+    if (busy) return
+    setFormError(null)
+    const initialRoles = [roles.find(role => role.code === "viewer")?.code || roles[0]?.code || "viewer"]
+    createBaseline.current = JSON.stringify({ username: "", password: "", createDisplayName: "", createStatus: "active", createRoleCodes: initialRoles, mustChangePassword: true })
     setUsername("")
     setPassword("")
     setCreateDisplayName("")
     setCreateStatus("active")
-    setCreateRoleCodes([roles.find((role) => role.code === "viewer")?.code || roles[0]?.code || "viewer"])
+    setCreateRoleCodes(initialRoles)
     setMustChangePassword(true)
     setCreateOpen(true)
   }
 
   async function createUser() {
+    if (busy || saving.current || !username.trim() || password.length < 8 || !createRoleCodes.length) return
+    saving.current = true
     setBusy(true)
-    setError(null)
+    setFormError(null)
     setMessage(null)
     try {
       const user = await api.createAccessUser({
@@ -159,33 +179,42 @@ export function AccessUsersPage({ locale, t }: { locale: Locale; t: TFunction })
         display_name: createDisplayName,
         password,
         status: createStatus,
-        roles: createRoleCodes,
+        roles: [...createRoleCodes],
         must_change_password: mustChangePassword,
       })
       setMessage(`${t("saved")}: ${user.username}`)
       setCreateOpen(false)
+      setPassword("")
       await load()
     } catch (err) {
-      setError(err instanceof Error ? err.message : String(err))
+      setFormError(err instanceof Error ? err.message : String(err))
     } finally {
+      saving.current = false
       setBusy(false)
     }
   }
 
   async function update(user: AccessUser, nextStatus?: AccessUser["status"]) {
+    if (busy || saving.current) return
+    const editing = selected?.id === user.id && !nextStatus
+    if (editing && !roleCodes.length) return
+    if (editing && status === "disabled" && user.status !== "disabled" && !(await confirm({ title: `${c.disable}: ${user.display_name || user.username}`, description: c.disableConfirm, destructive: true }))) return
+    saving.current = true
     setBusy(true)
-    setError(null)
+    if (editing) setFormError(null)
+    else setError(null)
     setMessage(null)
     try {
-      await api.updateAccessUser(user.id, selected?.id === user.id && !nextStatus
-        ? { display_name: displayName, status, roles: roleCodes }
+      await api.updateAccessUser(user.id, editing
+        ? { display_name: displayName, status, roles: [...roleCodes] }
         : { status: nextStatus })
       setMessage(`${t("saved")}: ${user.username}`)
       setSelected(null)
       await load()
     } catch (err) {
-      setError(err instanceof Error ? err.message : String(err))
+      (editing ? setFormError : setError)(err instanceof Error ? err.message : String(err))
     } finally {
+      saving.current = false
       setBusy(false)
     }
   }
@@ -204,7 +233,6 @@ export function AccessUsersPage({ locale, t }: { locale: Locale; t: TFunction })
     active: users.filter((user) => user.status === "active").length,
     disabled: users.filter((user) => user.status === "disabled").length,
   }
-  const toast: ToastState = error ? { message: error, tone: "error" } : message ? { message, tone: "success" } : null
 
   return (
     <div className="flex flex-col gap-4">
@@ -225,26 +253,26 @@ export function AccessUsersPage({ locale, t }: { locale: Locale; t: TFunction })
             </SelectContent>
           </Select>
         </PageToolbar>}
-        actions={<><Button onClick={openCreate}><Plus />{c.newUser}</Button><Button variant="outline" onClick={load} disabled={busy}><RefreshCcw />{t("refresh")}</Button></>}
+        actions={<Button onClick={openCreate} disabled={busy}><Plus />{c.newUser}</Button>}
       />
-      {error && <Alert variant="destructive"><AlertDescription>{error}</AlertDescription></Alert>}
+      {error && <Alert variant="destructive" role="alert"><AlertDescription>{error}</AlertDescription><Button variant="outline" size="sm" className="mt-2" disabled={busy} onClick={() => void load()}>{t("refresh")}</Button></Alert>}
       <Card>
         <CardContent className="flex flex-col gap-3 p-3 md:p-4">
           <div className="overflow-x-auto rounded-lg border">
             <Table>
               <TableHeader><TableRow><TableHead>{c.account}</TableHead><TableHead>{t("status")}</TableHead><TableHead>{c.roles}</TableHead><TableHead>{c.registeredAt}</TableHead><TableHead>{t("actions")}</TableHead></TableRow></TableHeader>
               <TableBody>
-                {visibleUsers.length === 0 ? <TableEmptyRow colSpan={5} title={c.noUsers} /> : visibleUsers.map((user) => (
+                {visibleUsers.length === 0 ? <TableEmptyRow colSpan={5} title={busy ? t("loadingData") : error ? t("error") : c.noUsers} /> : visibleUsers.map((user) => (
                   <TableRow key={user.id} className="cursor-pointer" onClick={() => edit(user)}>
-                    <TableCell><div className="font-medium">{user.display_name || user.username}</div><div className="text-xs text-muted-foreground">@{user.username}</div></TableCell>
+                    <TableCell><button type="button" className="text-left font-medium text-primary underline-offset-4 hover:underline focus-visible:underline" disabled={busy} onClick={() => edit(user)}>{user.display_name || user.username}</button><div className="text-xs text-muted-foreground">@{user.username}</div></TableCell>
                     <TableCell><UserStatusBadge status={user.status} labels={c} /></TableCell>
                     <TableCell><div className="flex flex-wrap gap-1">{user.roles.map((role) => <Badge key={role} variant="outline">{role}</Badge>)}</div></TableCell>
                     <TableCell className="whitespace-nowrap text-xs text-muted-foreground">{formatDateTime(user.created_at)}</TableCell>
                     <TableCell onClick={(event) => event.stopPropagation()}>
                       <ActionMenu label={t("actions")}>
-                        <ActionMenuItem onClick={() => edit(user)}>{c.edit}</ActionMenuItem>
-                        {user.status === "pending" && <ActionMenuItem onClick={() => void update(user, "active")}>{c.approve}</ActionMenuItem>}
-                        {user.status === "disabled" ? <ActionMenuItem onClick={() => void update(user, "active")}>{c.enable}</ActionMenuItem> : <ActionMenuItem destructive onClick={() => void disableUser(user)}>{c.disable}</ActionMenuItem>}
+                        <ActionMenuItem disabled={busy} onClick={() => edit(user)}>{c.edit}</ActionMenuItem>
+                        {user.status === "pending" && <ActionMenuItem disabled={busy} onClick={() => void update(user, "active")}>{c.approve}</ActionMenuItem>}
+                        {user.status === "disabled" ? <ActionMenuItem disabled={busy} onClick={() => void update(user, "active")}>{c.enable}</ActionMenuItem> : <ActionMenuItem destructive disabled={busy} onClick={() => void disableUser(user)}>{c.disable}</ActionMenuItem>}
                       </ActionMenu>
                     </TableCell>
                   </TableRow>
@@ -255,63 +283,50 @@ export function AccessUsersPage({ locale, t }: { locale: Locale; t: TFunction })
         </CardContent>
       </Card>
 
-      <Dialog open={createOpen} onOpenChange={setCreateOpen}>
-        <DialogContent className="max-w-2xl">
-          <DialogHeader><DialogTitle>{c.newUser}</DialogTitle><DialogDescription>{c.createHint}</DialogDescription></DialogHeader>
-          <DialogBody className="flex max-h-[72vh] flex-col gap-4 overflow-y-auto">
+      <FormDialog dirty={createDraft !== createBaseline.current} open={createOpen} onClose={() => void closeCreate()} title={c.newUser} description={c.createHint} closeLabel={t("close")} pending={busy} error={formError} className="max-w-2xl"
+        footer={<><Button variant="outline" disabled={busy} onClick={() => void closeCreate()}>{t("cancel")}</Button><Button type="submit" form="create-user-editor" disabled={busy || !username.trim() || password.length < 8 || createRoleCodes.length === 0}><UserPlus />{c.createUser}</Button></>}>
+        <form id="create-user-editor" className="flex flex-col gap-4" onSubmit={event => { event.preventDefault(); void createUser() }}>
             <div className="grid gap-4 sm:grid-cols-2">
-              <div className="flex flex-col gap-2"><Label htmlFor="new-user-username">{c.username}</Label><Input id="new-user-username" autoComplete="off" value={username} onChange={(event) => setUsername(event.target.value)} placeholder={c.usernamePlaceholder} /></div>
-              <div className="flex flex-col gap-2"><Label htmlFor="new-user-display-name">{c.displayName}</Label><Input id="new-user-display-name" value={createDisplayName} onChange={(event) => setCreateDisplayName(event.target.value)} /></div>
+              <div className="flex flex-col gap-2"><Label htmlFor="new-user-username">{c.username}</Label><Input disabled={busy} id="new-user-username" autoComplete="off" value={username} onChange={(event) => setUsername(event.target.value)} placeholder={c.usernamePlaceholder} /></div>
+              <div className="flex flex-col gap-2"><Label htmlFor="new-user-display-name">{c.displayName}</Label><Input disabled={busy} id="new-user-display-name" value={createDisplayName} onChange={(event) => setCreateDisplayName(event.target.value)} /></div>
             </div>
             <div className="grid gap-4 sm:grid-cols-2">
-              <div className="flex flex-col gap-2"><Label htmlFor="new-user-password">{c.password}</Label><Input id="new-user-password" type="password" autoComplete="new-password" value={password} onChange={(event) => setPassword(event.target.value)} /><div className="text-xs text-muted-foreground">{c.passwordHint}</div></div>
-              <div className="flex flex-col gap-2"><Label>{t("status")}</Label><Select value={createStatus} onValueChange={(value) => setCreateStatus(value as AccessUser["status"])}><SelectTrigger><SelectValue /></SelectTrigger><SelectContent><SelectItem value="active">{c.active}</SelectItem><SelectItem value="pending">{c.pending}</SelectItem><SelectItem value="disabled">{c.disabled}</SelectItem></SelectContent></Select></div>
+              <div className="flex flex-col gap-2"><Label htmlFor="new-user-password">{c.password}</Label><Input disabled={busy} id="new-user-password" aria-describedby="new-user-password-hint" type="password" autoComplete="new-password" value={password} onChange={(event) => setPassword(event.target.value)} /><div id="new-user-password-hint" className="text-xs text-muted-foreground">{c.passwordHint}</div></div>
+              <div className="flex flex-col gap-2"><Label htmlFor="create-user-status">{t("status")}</Label><Select disabled={busy} value={createStatus} onValueChange={(value) => setCreateStatus(value as AccessUser["status"])}><SelectTrigger id="create-user-status"><SelectValue /></SelectTrigger><SelectContent><SelectItem value="active">{c.active}</SelectItem><SelectItem value="pending">{c.pending}</SelectItem><SelectItem value="disabled">{c.disabled}</SelectItem></SelectContent></Select></div>
             </div>
             <div className="flex flex-col gap-2">
               <Label>{c.roles}</Label>
               <div className="grid gap-2 sm:grid-cols-2">
                 {roles.map((role) => <label key={role.id} className="flex items-start justify-between gap-3 rounded-lg border p-3">
                   <span><span className="block text-sm font-medium">{role.name}</span><span className="block text-xs text-muted-foreground">{role.description}</span></span>
-                  <Switch checked={createRoleCodes.includes(role.code)} onCheckedChange={(checked) => setCreateRoleCodes((current) => checked ? [...new Set([...current, role.code])] : current.filter((item) => item !== role.code))} />
+                  <Switch aria-label={role.name} disabled={busy} checked={createRoleCodes.includes(role.code)} onCheckedChange={(checked) => setCreateRoleCodes((current) => checked ? [...new Set([...current, role.code])] : current.filter((item) => item !== role.code))} />
                 </label>)}
               </div>
             </div>
-            <label className="flex items-center justify-between rounded-lg border bg-muted/20 p-3"><span><span className="block text-sm font-medium">{c.mustChangePassword}</span><span className="block text-xs text-muted-foreground">{c.passwordHint}</span></span><Switch checked={mustChangePassword} onCheckedChange={setMustChangePassword} /></label>
-            <div className="flex justify-end gap-2 border-t pt-4">
-              <Button variant="outline" onClick={() => setCreateOpen(false)}>{t("cancel")}</Button>
-              <Button onClick={() => void createUser()} disabled={busy || !username.trim() || password.length < 8 || createRoleCodes.length === 0}><UserPlus />{c.createUser}</Button>
-            </div>
-          </DialogBody>
-        </DialogContent>
-      </Dialog>
-
-      <Dialog open={selected !== null} onOpenChange={(open) => { if (!open) setSelected(null) }}>
-        <DialogContent className="max-w-xl">
-          <DialogHeader><DialogTitle>{c.edit}</DialogTitle><DialogDescription>{selected ? `@${selected.username}` : ""}</DialogDescription></DialogHeader>
-          <DialogBody className="flex flex-col gap-4">
+            <label className="flex items-center justify-between rounded-lg border bg-muted/20 p-3"><span><span className="block text-sm font-medium">{c.mustChangePassword}</span><span className="block text-xs text-muted-foreground">{c.passwordHint}</span></span><Switch aria-label={c.mustChangePassword} disabled={busy} checked={mustChangePassword} onCheckedChange={setMustChangePassword} /></label>
+        </form>
+      </FormDialog>
+      <FormDialog dirty={editDraft !== editBaseline.current} open={selected !== null} onClose={() => void closeEdit()} title={c.edit} description={selected ? `@${selected.username}` : ""} closeLabel={t("close")} pending={busy} error={formError} className="max-w-xl"
+        footer={<><Button variant="outline" disabled={busy} onClick={() => void closeEdit()}>{t("cancel")}</Button><Button type="submit" form="edit-user-editor" disabled={busy || roleCodes.length === 0}><ShieldCheck />{c.save}</Button></>}>
+        <form id="edit-user-editor" className="flex flex-col gap-4" onSubmit={event => { event.preventDefault(); if (selected) void update(selected) }}>
             <div className="grid gap-4 sm:grid-cols-2">
-              <div className="flex flex-col gap-2"><Label>{c.displayName}</Label><Input value={displayName} onChange={(event) => setDisplayName(event.target.value)} /></div>
-              <div className="flex flex-col gap-2"><Label>{t("status")}</Label><Select value={status} onValueChange={(value) => setStatus(value as AccessUser["status"])}><SelectTrigger><SelectValue /></SelectTrigger><SelectContent><SelectItem value="pending">{c.pending}</SelectItem><SelectItem value="active">{c.active}</SelectItem><SelectItem value="disabled">{c.disabled}</SelectItem></SelectContent></Select></div>
+              <div className="flex flex-col gap-2"><Label htmlFor="edit-user-display-name">{c.displayName}</Label><Input id="edit-user-display-name" disabled={busy} value={displayName} onChange={(event) => setDisplayName(event.target.value)} /></div>
+              <div className="flex flex-col gap-2"><Label htmlFor="edit-user-status">{t("status")}</Label><Select disabled={busy} value={status} onValueChange={(value) => setStatus(value as AccessUser["status"])}><SelectTrigger id="edit-user-status"><SelectValue /></SelectTrigger><SelectContent><SelectItem value="pending">{c.pending}</SelectItem><SelectItem value="active">{c.active}</SelectItem><SelectItem value="disabled">{c.disabled}</SelectItem></SelectContent></Select></div>
             </div>
             <div className="flex flex-col gap-2">
               <Label>{c.roles}</Label>
               <div className="grid gap-2 sm:grid-cols-2">
                 {roles.map((role) => <label key={role.id} className="flex items-start justify-between gap-3 rounded-lg border p-3">
                   <span><span className="block text-sm font-medium">{role.name}</span><span className="block text-xs text-muted-foreground">{role.description}</span></span>
-                  <Switch checked={roleCodes.includes(role.code)} onCheckedChange={(checked) => setRoleCodes((current) => checked ? [...new Set([...current, role.code])] : current.filter((item) => item !== role.code))} />
+                  <Switch aria-label={role.name} disabled={busy} checked={roleCodes.includes(role.code)} onCheckedChange={(checked) => setRoleCodes((current) => checked ? [...new Set([...current, role.code])] : current.filter((item) => item !== role.code))} />
                 </label>)}
               </div>
               <div className="rounded-md border bg-muted/30 p-3 text-xs text-muted-foreground">{c.roleHint}</div>
             </div>
-            <div className="flex justify-end gap-2 border-t pt-4">
-              <Button variant="outline" onClick={() => setSelected(null)}>{t("cancel")}</Button>
-              <Button onClick={() => selected && void update(selected)} disabled={busy || roleCodes.length === 0}><ShieldCheck />{c.save}</Button>
-            </div>
-          </DialogBody>
-        </DialogContent>
-      </Dialog>
+        </form>
+      </FormDialog>
       {confirmDialog}
-      <Toaster toast={toast} onClose={() => { setError(null); setMessage(null) }} />
+      <Toaster toast={message ? { message, tone: "success" } : null} onClose={() => setMessage(null)} />
     </div>
   )
 }

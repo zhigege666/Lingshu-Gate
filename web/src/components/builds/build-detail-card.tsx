@@ -3,13 +3,13 @@ import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { localizeStatus, type TFunction } from "@/i18n"
 import { JsonPanel } from "@/components/json-panel"
+import { uploadCopy } from "@/components/uploads/upload-copy"
 import { StatusBadge } from "@/components/builds/status-badge"
 import { copyText, formatCommand, formatDateTime } from "@/components/builds/build-utils"
 
-export function BuildDetailCard({ build, logs, polling, t, onCopied }: { build: BuildRecord | null; logs: BuildLog[]; polling: boolean; t: TFunction; onCopied: (message: string) => void }) {
-  if (!build) {
-    return <Card><CardHeader><CardTitle>{t("buildDetail")}</CardTitle><CardDescription>{t("noSelectedBuild")}</CardDescription></CardHeader></Card>
-  }
+export function BuildDetailCard({ build, logs, streamConnected, t, onCopied }: { build: BuildRecord | null; logs: BuildLog[]; streamConnected: boolean; t: TFunction; onCopied: (message: string) => void }) {
+  const c = uploadCopy(t)
+  if (!build) return null
   return (
     <Card>
       <CardHeader>
@@ -17,16 +17,16 @@ export function BuildDetailCard({ build, logs, polling, t, onCopied }: { build: 
         <CardDescription>{t("buildDetailDesc")}</CardDescription>
       </CardHeader>
       <CardContent className="flex flex-col gap-4">
-        <div className="grid gap-3 md:grid-cols-4">
+        <dl className="grid gap-3 text-sm sm:grid-cols-2 xl:grid-cols-4">
           <Info label={t("status")} value={localizeStatus(t, build.status)} />
           <Info label={t("runtimeType")} value={build.runtime} />
           <Info label={t("start")} value={build.entrypoint || "-"} />
-          <Info label={t("polling")} value={polling ? t("pollingOn") : t("pollingOff")} />
+          <Info label={c.liveConnection} value={streamConnected ? c.connected : c.disconnected} />
           <Info label={t("uploadId")} value={build.upload_id} />
           <Info label={t("createdAt")} value={formatDateTime(build.created_at)} />
           <Info label={t("updatedAt")} value={formatDateTime(build.updated_at)} />
           <Info label={t("logCount")} value={String(logs.length)} />
-        </div>
+        </dl>
         <div className="flex flex-wrap gap-2">
           <Button size="sm" variant="secondary" onClick={() => void copyText(build.id).then((ok) => ok && onCopied(t("copyBuildId")))}>{t("copyBuildId")}</Button>
           <Button size="sm" variant="secondary" onClick={() => void copyText(build.artifact_dir).then((ok) => ok && onCopied(t("copyArtifactPath")))}>{t("copyArtifactPath")}</Button>
@@ -49,7 +49,7 @@ export function BuildDetailCard({ build, logs, polling, t, onCopied }: { build: 
 }
 
 function Info({ label, value }: { label: string; value: string }) {
-  return <div className="rounded-lg border p-3 text-sm"><div className="text-xs text-muted-foreground">{label}</div><div className="mt-1 break-all font-medium">{value}</div></div>
+  return <div><dt className="text-xs text-muted-foreground">{label}</dt><dd className="mt-1 break-all font-medium">{value}</dd></div>
 }
 
 function StepStates({ steps, t }: { steps: BuildStepState[]; t: TFunction }) {

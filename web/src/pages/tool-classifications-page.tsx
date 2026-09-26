@@ -1,14 +1,16 @@
-import { useEffect, useMemo, useState } from "react"
-import { BadgeCheck, CheckCheck, ListChecks, RefreshCcw, ScanSearch } from "lucide-react"
+import { usePageRefresh } from "@/components/page-refresh"
+import { useEffect, useMemo, useRef, useState } from "react"
+import { BadgeCheck, CheckCheck, ListChecks, ScanSearch } from "lucide-react"
 import { api, type ToolClassification } from "@/api/client"
 import { useConfirm } from "@/components/confirm-dialog"
+import { FormDialog } from "@/components/form-dialog"
+import { useDraftCloseGuard } from "@/components/use-draft-close-guard"
 import { JsonPanel } from "@/components/json-panel"
 import { PageHeader, PageToolbar } from "@/components/page-shell"
 import { Alert, AlertDescription } from "@/components/ui/alert"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Card } from "@/components/ui/card"
-import { Dialog, DialogBody, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import { Label } from "@/components/ui/label"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Switch } from "@/components/ui/switch"
@@ -45,6 +47,7 @@ const copy = {
     applyBatch: "应用到所选工具",
     batchSaved: "已批量更新",
     batchFailed: "条更新失败，请重试",
+    saving: "正在保存…",
     confirmSelected: "批量确认",
     confirmDescription: "逐条保留每个工具已保存的人工读写结论；没有人工结论时，采纳该工具的规则建议。确认后仍需单独发布才会生效。",
     confirmSaved: "已批量确认",
@@ -110,6 +113,7 @@ const copy = {
     applyBatch: "Apply to selected tools",
     batchSaved: "Batch updated",
     batchFailed: "updates failed; retry them",
+    saving: "Saving…",
     confirmSelected: "Confirm selected",
     confirmDescription: "Keep each tool's saved human decision; when none exists, adopt that tool's rule suggestion. Confirmation stays pending until you publish it separately.",
     confirmSaved: "Batch confirmed",
@@ -165,14 +169,27 @@ export function ToolClassificationsPage({ locale, t }: { locale: Locale; t: TFun
   const [batchOpen, setBatchOpen] = useState(false)
   const [batchAccess, setBatchAccess] = useState<"read" | "write" | "unknown">("read")
   const [batchNote, setBatchNote] = useState("")
+  const [batchItems, setBatchItems] = useState<ToolClassification[]>([])
+  const [reviewInitial, setReviewInitial] = useState("")
   const [access, setAccess] = useState<"read" | "write" | "unknown">("unknown")
   const [destructive, setDestructive] = useState(false)
   const [idempotent, setIdempotent] = useState(false)
   const [note, setNote] = useState("")
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const [formError, setFormError] = useState<string | null>(null)
   const [message, setMessage] = useState<string | null>(null)
   const { confirm, confirmDialog } = useConfirm(t)
+  const submitting = useRef(false)
+  const closeBatch = useDraftCloseGuard({
+    dirty: batchOpen && (batchAccess !== "read" || batchNote !== ""), pending: busy, locale, confirm,
+    onClose: () => { setBatchOpen(false); setBatchItems([]); setFormError(null) },
+  })
+  const closeReview = useDraftCloseGuard({
+    dirty: editing !== null && JSON.stringify({ access, destructive, idempotent, note }) !== reviewInitial,
+    pending: busy, locale, confirm,
+    onClose: () => { setEditing(null); setFormError(null) },
+  })
 
   const servers = useMemo(() => [...new Set(items.map((item) => item.server_id))].sort(), [items])
   const visibleItems = useMemo(() => {
@@ -212,6 +229,7 @@ export function ToolClassificationsPage({ locale, t }: { locale: Locale; t: TFun
   const allVisibleSelected = selectableVisibleItems.length > 0 && selectedVisibleCount === selectableVisibleItems.length
   const someVisibleSelected = selectedVisibleCount > 0 && !allVisibleSelected
 
+  usePageRefresh(load, busy || batchOpen || editing !== null)
   useEffect(() => { void load() }, [])
 
   async function load() {
@@ -245,66 +263,91 @@ export function ToolClassificationsPage({ locale, t }: { locale: Locale; t: TFun
   }
 
   function openReview(item: ToolClassification) {
+    if (busy) return
+    const nextAccess = item.effective_access !== "unknown" ? item.effective_access : item.suggested_access
     setEditing(item)
-    setAccess(item.effective_access !== "unknown" ? item.effective_access : item.suggested_access)
+    setAccess(nextAccess)
     setDestructive(item.destructive)
     setIdempotent(item.idempotent)
     setNote("")
+    setFormError(null)
+    setReviewInitial(JSON.stringify({ access: nextAccess, destructive: item.destructive, idempotent: item.idempotent, note: "" }))
   }
 
   async function saveReview() {
-    if (!editing) return
+    if (!editing || busy || submitting.current || access === "unknown") return
+    const target = editing
+    const payload = { access, destructive, idempotent, note }
+    submitting.current = true
     setBusy(true)
-    setError(null)
+    setFormError(null)
     try {
-      await api.updateToolClassification(editing.server_id, editing.tool_id, { access, destructive, idempotent, note })
-      setMessage(`${t("saved")}: ${editing.tool_id}`)
+      await api.updateToolClassification(target.server_id, target.tool_id, payload)
+      setMessage(`${t("saved")}: ${target.tool_id}`)
       setEditing(null)
       await load()
     } catch (err) {
-      setError(err instanceof Error ? err.message : String(err))
+      setFormError(err instanceof Error ? err.message : String(err))
     } finally {
+      submitting.current = false
       setBusy(false)
     }
   }
 
   function openBatchReview() {
-    if (!selectedItems.length) return
+    if (!selectedItems.length || busy) return
     setBatchAccess("read")
     setBatchNote("")
+    setBatchItems(selectedItems.map(item => ({ ...item })))
+    setFormError(null)
     setBatchOpen(true)
   }
 
   async function applyBatchReview() {
-    if (!selectedItems.length) return
+    if (!batchItems.length || busy || submitting.current) return
+    const targets = batchItems
+    const decision = { access: batchAccess, note: batchNote }
+    submitting.current = true
     setBusy(true)
-    setError(null)
+    setFormError(null)
     try {
       // 限制并发写入数量，避免大批量工具同时更新 SQLite 产生写锁竞争。
-      let failedCount = 0
-      for (let index = 0; index < selectedItems.length; index += 6) {
-        const results = await Promise.allSettled(selectedItems.slice(index, index + 6).map((item) => api.updateToolClassification(
+      const failed: ToolClassification[] = []
+      const failureDetails: string[] = []
+      const savedIds = new Set<string>()
+      for (let index = 0; index < targets.length; index += 6) {
+        const batch = targets.slice(index, index + 6)
+        const results = await Promise.allSettled(batch.map((item) => api.updateToolClassification(
           item.server_id,
           item.tool_id,
           {
-            access: batchAccess,
+            access: decision.access,
             destructive: item.destructive,
             idempotent: item.idempotent,
-            note: batchNote,
+            note: decision.note,
           },
         )))
-        failedCount += results.filter((result) => result.status === "rejected").length
+        results.forEach((result, position) => {
+          if (result.status === "rejected") {
+            failed.push(batch[position])
+            if (failureDetails.length < 3) failureDetails.push(`${batch[position].tool_id}: ${result.reason instanceof Error ? result.reason.message : String(result.reason)}`)
+          }
+          else savedIds.add(batch[position].id)
+        })
       }
-      setBatchOpen(false)
+      setSelectedIds(current => current.filter(id => !savedIds.has(id)))
+      setBatchItems(failed)
+      if (!failed.length) setBatchOpen(false)
       await load()
-      if (failedCount > 0) {
-        setError(`${failedCount} ${c.batchFailed}`)
+      if (failed.length > 0) {
+        setFormError(`${c.batchSaved}: ${savedIds.size}；${failed.length} ${c.batchFailed}。${failureDetails.join("; ")}`)
       } else {
-        setMessage(`${c.batchSaved}: ${selectedItems.length}`)
+        setMessage(`${c.batchSaved}: ${targets.length}`)
       }
     } catch (err) {
-      setError(err instanceof Error ? err.message : String(err))
+      setFormError(err instanceof Error ? err.message : String(err))
     } finally {
+      submitting.current = false
       setBusy(false)
     }
   }
@@ -432,7 +475,7 @@ export function ToolClassificationsPage({ locale, t }: { locale: Locale; t: TFun
   const selectionSummary = locale === "zh-CN"
     ? `已选 ${selectedItems.length} 项${hiddenSelectedCount > 0 ? `，其中 ${hiddenSelectedCount} 项不在当前筛选结果中` : ""}`
     : `${selectedItems.length} selected${hiddenSelectedCount > 0 ? `, including ${hiddenSelectedCount} outside the current filters` : ""}`
-  const toast: ToastState = error ? { message: error, tone: "error" } : message ? { message, tone: "success" } : null
+  const toast: ToastState = message ? { message, tone: "success" } : null
 
   return (
     <div className="flex flex-col gap-4">
@@ -448,7 +491,6 @@ export function ToolClassificationsPage({ locale, t }: { locale: Locale; t: TFun
         </PageToolbar>}
         actions={<>
           <Button variant="outline" onClick={() => void analyze()} disabled={busy}><ScanSearch />{c.analyzeRules}</Button>
-          <Button className="size-9 shrink-0 p-0" variant="ghost" onClick={() => void load()} disabled={busy} aria-label={t("refresh")} title={t("refresh")}><RefreshCcw /></Button>
         </>}
       />
       {error && <Alert variant="destructive"><AlertDescription>{error}</AlertDescription></Alert>}
@@ -480,7 +522,7 @@ export function ToolClassificationsPage({ locale, t }: { locale: Locale; t: TFun
                   <TableCell className="font-mono text-xs">{Math.round(item.confidence * 100)}%</TableCell>
                   <TableCell><div className="flex flex-wrap gap-1">{item.destructive && <Badge variant="danger">{c.destructive}</Badge>}{item.idempotent && <Badge variant="outline">{c.idempotent}</Badge>}{!item.destructive && !item.idempotent && <span className="text-xs text-foreground/65">{c.noRiskFlag}</span>}</div></TableCell>
                   <TableCell><StatusBadge item={item} labels={c} /></TableCell>
-                  <TableCell><Button className="min-h-9" size="sm" variant="outline" onClick={() => openReview(item)}>{c.edit}</Button></TableCell>
+                  <TableCell><Button className="min-h-9" size="sm" variant="outline" disabled={busy} onClick={() => openReview(item)}>{c.edit}</Button></TableCell>
                 </TableRow>)}
               </TableBody>
             </Table>
@@ -488,34 +530,30 @@ export function ToolClassificationsPage({ locale, t }: { locale: Locale; t: TFun
         </div>
       </Card>
 
-      <Dialog open={batchOpen} onOpenChange={setBatchOpen}>
-        <DialogContent className="max-w-lg">
-          <DialogHeader><DialogTitle>{c.batchClassify} ({selectedItems.length})</DialogTitle><DialogDescription>{c.batchDescription}</DialogDescription></DialogHeader>
-          <DialogBody className="flex flex-col gap-4">
-            <div><Label>{c.batchAccess}</Label><Select value={batchAccess} onValueChange={(value) => setBatchAccess(value as typeof batchAccess)}><SelectTrigger aria-label={c.batchAccess} className="mt-2"><SelectValue /></SelectTrigger><SelectContent><SelectItem value="read">{c.readAccess}</SelectItem><SelectItem value="write">{c.writeAccess}</SelectItem><SelectItem value="unknown">{c.unknown}</SelectItem></SelectContent></Select>{batchAccess === "unknown" && <p className="mt-2 text-xs text-foreground/65">{c.batchPendingHint}</p>}</div>
-            <div><Label>{c.batchNote}</Label><Textarea className="mt-2 min-h-24" value={batchNote} placeholder={c.batchNotePlaceholder} onChange={(event) => setBatchNote(event.target.value)} /></div>
-            <div className="flex justify-end gap-2"><Button variant="outline" onClick={() => setBatchOpen(false)} disabled={busy}>{t("cancel")}</Button><Button onClick={() => void applyBatchReview()} disabled={busy || selectedItems.length === 0}>{c.applyBatch} ({selectedItems.length})</Button></div>
-          </DialogBody>
-        </DialogContent>
-      </Dialog>
+      <FormDialog dirty={batchAccess !== "read" || batchNote !== ""} open={batchOpen} onClose={() => void closeBatch()}
+        title={`${c.batchClassify} (${batchItems.length})`} description={c.batchDescription}
+        closeLabel={t("cancel")} pending={busy} className="max-w-lg" error={formError}
+        footer={<><Button variant="outline" onClick={() => void closeBatch()} disabled={busy}>{t("cancel")}</Button><Button onClick={() => void applyBatchReview()} disabled={busy || batchItems.length === 0}>{busy ? c.saving : `${c.applyBatch} (${batchItems.length})`}</Button></>}>
+        <div className="flex flex-col gap-4">
+          <div><Label htmlFor="classification-batch-access">{c.batchAccess}</Label><Select value={batchAccess} disabled={busy} onValueChange={(value) => setBatchAccess(value as typeof batchAccess)}><SelectTrigger id="classification-batch-access" aria-label={c.batchAccess} className="mt-2"><SelectValue /></SelectTrigger><SelectContent><SelectItem value="read">{c.readAccess}</SelectItem><SelectItem value="write">{c.writeAccess}</SelectItem><SelectItem value="unknown">{c.unknown}</SelectItem></SelectContent></Select>{batchAccess === "unknown" && <p className="mt-2 text-xs text-foreground/65">{c.batchPendingHint}</p>}</div>
+          <div><Label htmlFor="classification-batch-note">{c.batchNote}</Label><Textarea id="classification-batch-note" className="mt-2 min-h-24" disabled={busy} value={batchNote} placeholder={c.batchNotePlaceholder} onChange={(event) => setBatchNote(event.target.value)} /></div>
+        </div>
+      </FormDialog>
 
-      <Dialog open={editing !== null} onOpenChange={(open) => { if (!open) setEditing(null) }}>
-        <DialogContent className="max-w-3xl">
-          <DialogHeader><DialogTitle>{c.edit}</DialogTitle><DialogDescription>{editing ? `${sourceDisplayName(editing.server_id, c)} · ${editing.tool_id}` : ""}</DialogDescription></DialogHeader>
-          <DialogBody className="grid max-h-[72vh] gap-4 overflow-y-auto lg:grid-cols-[0.9fr_1.1fr]">
-            <div className="flex flex-col gap-4">
-              <div><Label>{c.effective}</Label><Select value={access} onValueChange={(value) => setAccess(value as typeof access)}><SelectTrigger aria-label={c.effective} className="mt-2"><SelectValue /></SelectTrigger><SelectContent><SelectItem value="read">{c.readAccess}</SelectItem><SelectItem value="write">{c.writeAccess}</SelectItem><SelectItem value="unknown">{c.unknown}</SelectItem></SelectContent></Select></div>
-              <label className="flex items-center justify-between rounded-lg border p-3"><span className="text-sm font-medium">{c.destructive}</span><Switch checked={destructive} onCheckedChange={setDestructive} /></label>
-              <label className="flex items-center justify-between rounded-lg border p-3"><span className="text-sm font-medium">{c.idempotent}</span><Switch checked={idempotent} onCheckedChange={setIdempotent} /></label>
-              <div><Label>{c.note}</Label><Textarea className="mt-2 min-h-28" value={note} onChange={(event) => setNote(event.target.value)} /></div>
-              <Button onClick={() => void saveReview()} disabled={busy || access === "unknown"}>{c.saveDecision}</Button>
-            </div>
-            <div><Label>{c.evidence}</Label><div className="mt-2"><JsonPanel data={editing?.evidence || {}} maxHeight="max-h-[520px]" /></div></div>
-          </DialogBody>
-        </DialogContent>
-      </Dialog>
+      <FormDialog dirty={JSON.stringify({ access, destructive, idempotent, note }) !== reviewInitial} open={editing !== null} onClose={() => void closeReview()}
+        title={c.edit} description={editing ? `${sourceDisplayName(editing.server_id, c)} · ${editing.tool_id}` : ""}
+        closeLabel={t("cancel")} pending={busy} className="max-w-3xl" error={formError}
+        footer={<><Button variant="outline" onClick={() => void closeReview()} disabled={busy}>{t("cancel")}</Button><Button onClick={() => void saveReview()} disabled={busy || access === "unknown"}>{busy ? c.saving : c.saveDecision}</Button></>}>
+        <div className="flex flex-col gap-4">
+          <div><Label htmlFor="classification-review-access">{c.effective}</Label><Select value={access} disabled={busy} onValueChange={(value) => setAccess(value as typeof access)}><SelectTrigger id="classification-review-access" aria-label={c.effective} className="mt-2"><SelectValue /></SelectTrigger><SelectContent><SelectItem value="read">{c.readAccess}</SelectItem><SelectItem value="write">{c.writeAccess}</SelectItem><SelectItem value="unknown">{c.unknown}</SelectItem></SelectContent></Select></div>
+          <div className="flex items-center justify-between gap-3"><Label htmlFor="classification-destructive">{c.destructive}</Label><Switch id="classification-destructive" disabled={busy} checked={destructive} onCheckedChange={setDestructive} /></div>
+          <div className="flex items-center justify-between gap-3"><Label htmlFor="classification-idempotent">{c.idempotent}</Label><Switch id="classification-idempotent" disabled={busy} checked={idempotent} onCheckedChange={setIdempotent} /></div>
+          <div><Label htmlFor="classification-review-note">{c.note}</Label><Textarea id="classification-review-note" className="mt-2 min-h-28" disabled={busy} value={note} onChange={(event) => setNote(event.target.value)} /></div>
+          <details><summary className="cursor-pointer text-sm font-medium">{c.evidence}</summary><div className="mt-2"><JsonPanel data={editing?.evidence || {}} maxHeight="max-h-80" /></div></details>
+        </div>
+      </FormDialog>
       {confirmDialog}
-      <Toaster toast={toast} onClose={() => { setError(null); setMessage(null) }} />
+      <Toaster toast={toast} onClose={() => setMessage(null)} />
     </div>
   )
 }

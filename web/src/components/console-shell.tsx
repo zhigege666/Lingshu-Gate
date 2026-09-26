@@ -29,7 +29,10 @@ export function ConsoleShell({ view, title, user, version, groups, items, busy, 
   const { theme, setTheme, locale, setLocale } = useConsoleDesign()
   const [mobileOpen, setMobileOpen] = useState(false)
   const activeNavItem = useRef<HTMLAnchorElement>(null)
-  useEffect(() => { activeNavItem.current?.scrollIntoView({ block: "nearest" }) }, [view])
+  useEffect(() => {
+    activeNavItem.current?.scrollIntoView({ block: "nearest" })
+    if (view !== "tools") window.scrollTo(0, 0)
+  }, [view])
   const zh = locale === "zh-CN"
   const languageOptions = [{ value: "zh-CN", label: "中文" }, { value: "en-US", label: "English" }]
   const allowedIds = groups.flatMap(group => group.items)
@@ -57,7 +60,7 @@ export function ConsoleShell({ view, title, user, version, groups, items, busy, 
       <span className="console-context" title={title}>{title}</span>
       <div className="console-header-actions">
         <Tooltip title={zh ? "搜索 · Ctrl K" : "Search · Ctrl K"}><Button type="text" icon={<SearchOutlined />} onClick={onSearch} aria-label={zh ? "搜索" : "Search"} /></Tooltip>
-        <Tooltip title={zh ? "刷新当前数据" : "Refresh data"}><Button type="text" icon={<ReloadOutlined />} loading={busy} onClick={onRefresh} aria-label={zh ? "刷新" : "Refresh"} /></Tooltip>
+        <Tooltip title={zh ? "刷新当前页面" : "Refresh current page"}><Button type="text" icon={<ReloadOutlined />} loading={busy} onClick={onRefresh} aria-label={zh ? "刷新当前页面" : "Refresh current page"} /></Tooltip>
         <Select className="console-language" size="small" value={locale} onChange={setLocale} prefix={<GlobalOutlined />} variant="borderless" aria-label={zh ? "语言" : "Language"} options={languageOptions} />
         <Tooltip title={theme === "dark" ? (zh ? "切换浅色" : "Light theme") : (zh ? "切换深色" : "Dark theme")}>
           <Button type="text" icon={theme === "dark" ? <SunOutlined /> : <MoonOutlined />} onClick={() => setTheme(theme === "dark" ? "light" : "dark")} aria-label={zh ? "切换主题" : "Toggle theme"} />

@@ -3,7 +3,7 @@ import { describe, expect, it } from "vitest"
 import type { AccessRole, PermissionType } from "@/api/client"
 import { translate } from "@/i18n"
 import { AccessInlineActions } from "./inline-actions"
-import { canDeleteAccessItem, copyPermissionTypePayload, copyRolePayload, emptyAccessFilters, filterAccessItems, normalizeAccessCode, permissionTypePayload, rolePayload } from "./model"
+import { accessDraftChanged, accessIdentityErrors, canDeleteAccessItem, copyPermissionTypePayload, copyRolePayload, emptyAccessFilters, filterAccessItems, normalizeAccessCode, permissionTypePayload, rolePayload, roleSaveSnapshot } from "./model"
 
 const role: AccessRole = { id: "role-viewer", code: "viewer", name: "只读观察者", description: "Read access", is_system: true, enabled: true, member_count: 3, permissions: ["console.view", "tools.read"], created_at: "", updated_at: "" }
 const type: PermissionType = { id: "type-read", code: "read", name: "只读", description: "Read tools", is_system: true, enabled: true, reference_count: 2, base_level: "read", created_at: "", updated_at: "" }
@@ -51,6 +51,35 @@ describe("Roles and permission types", () => {
 
   it.each([["  Viewer  ", "viewer"], [" Audit / Read ", "audit-read"], ["---", ""], ["_custom.read-1", "_custom.read-1"]])("normalizes %s like the API before checking duplicates", (input, output) => {
     expect(normalizeAccessCode(input)).toBe(output)
+  })
+
+  it("protects unsaved editable values but allows closing an unchanged or reverted draft", () => {
+    const original = rolePayload(role)
+    expect(accessDraftChanged(rolePayload(role), original)).toBe(false)
+    expect(accessDraftChanged({ ...original, name: "Changed name" }, original)).toBe(true)
+    expect(accessDraftChanged({ ...original, permissions: ["console.view"] }, original)).toBe(true)
+    expect(accessDraftChanged({ ...original, permissions: [...original.permissions].reverse() }, original)).toBe(false)
+    const originalType = permissionTypePayload(type)
+    expect(accessDraftChanged({ ...originalType, base_level: "write" }, originalType)).toBe(true)
+    expect(accessDraftChanged({ ...originalType, enabled: false }, originalType)).toBe(true)
+    expect(accessDraftChanged(permissionTypePayload(type), originalType)).toBe(false)
+  })
+
+  it("owns a normalized submission snapshot independently of the current form", () => {
+    const draft = { ...rolePayload(role), code: " Audit / Read ", name: "  Audit reader  " }
+    const submitted = roleSaveSnapshot(draft)
+    draft.name = "Edited after submission"
+    draft.permissions.push("audit.read")
+    expect(submitted.code).toBe("audit-read")
+    expect(submitted.name).toBe("Audit reader")
+    expect(submitted.permissions).toEqual(["console.view", "tools.read"])
+  })
+
+  it("locates identity errors without rejecting the currently edited entry's code", () => {
+    expect(accessIdentityErrors(rolePayload(role), [role], role.id)).toEqual({ code: undefined, name: undefined })
+    expect(accessIdentityErrors({ ...rolePayload(role), code: " VIEWER " }, [role])).toEqual({ code: "duplicate", name: undefined })
+    expect(accessIdentityErrors({ ...permissionTypePayload(type), code: "---", name: "  " }, [type])).toEqual({ code: "required", name: "required" })
+    expect(accessIdentityErrors({ ...permissionTypePayload(type), code: "custom" }, [type])).toEqual({ code: undefined, name: undefined })
   })
 })
 

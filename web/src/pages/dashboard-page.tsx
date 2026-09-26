@@ -1,4 +1,4 @@
-import { Activity, AlertTriangle, ScrollText, Server, Wrench, Zap } from "lucide-react"
+import { Activity, AlertTriangle, ScrollText, Server, Wrench } from "lucide-react"
 import type { HealthResponse, McpServer, ToolDefinition } from "@/api/client"
 import { PageHeader } from "@/components/page-shell"
 import { Button } from "@/components/ui/button"
@@ -34,7 +34,7 @@ export function DashboardPage({ health, servers, tools, operationsAllowed, t }: 
         </CardContent>
       </Card> : null}
 
-      <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
+      <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
         {loading ? (
           <>
             <MetricSkeleton />
@@ -44,7 +44,6 @@ export function DashboardPage({ health, servers, tools, operationsAllowed, t }: 
           </>
         ) : (
           <>
-            <Metric title={t("service")} value={health?.service || "-"} hint={`${t("version")} ${health?.version || "-"}`} icon={<Zap className="size-[18px]" />} />
             <Metric title={t("status")} value={health?.status || "-"} badge={statusBadge(health?.status, t)} icon={<Activity className="size-[18px]" />} />
             {operationsAllowed ? <>
               <Metric title={t("mcpServers")} value={String(servers.length)} hint={`${runningCount} ${t("running")}`} icon={<Server className="size-[18px]" />} />

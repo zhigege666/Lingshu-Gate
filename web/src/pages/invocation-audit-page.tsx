@@ -1,3 +1,5 @@
+import { usePageRefresh } from "@/components/page-refresh"
+import { QueryStatus, querySignature } from "@/components/query-status"
 import { useEffect, useMemo, useState } from "react"
 import { ShieldCheck, ShieldX } from "lucide-react"
 import { api, type InvocationAudit, type InvocationAuditFilterOptions } from "@/api/client"
@@ -101,6 +103,8 @@ export function InvocationAuditPage({ locale, t }: { locale: Locale; t: TFunctio
   const [userId, setUserId] = useState("__all")
   const [serverId, setServerId] = useState("__all")
   const [toolId, setToolId] = useState("__all")
+  const [applied, setApplied] = useState({ userId: "__all", serverId: "__all", toolId: "__all", decision: "__all", outcome: "__all" })
+  const [lastLoadedAt, setLastLoadedAt] = useState("")
   const [filterOptions, setFilterOptions] = useState<InvocationAuditFilterOptions>({ users: [], servers: [], tools: [] })
   const [selected, setSelected] = useState<InvocationAudit | null>(null)
   const [busy, setBusy] = useState(false)
@@ -116,20 +120,23 @@ export function InvocationAuditPage({ locale, t }: { locale: Locale; t: TFunctio
     [filterOptions.tools, serverId],
   )
 
-  useEffect(() => { void load() }, [])
+  usePageRefresh(() => load(applied), busy)
+  useEffect(() => { void load(applied) }, [])
 
-  async function load() {
+  async function load(snapshot = { userId, serverId, toolId, decision, outcome }) {
     setBusy(true)
     setError(null)
     try {
       const result = await api.invocationAudits({
-        user_id: userId === "__all" ? undefined : userId,
-        server_id: serverId === "__all" ? undefined : serverId,
-        tool_id: toolId === "__all" ? undefined : toolId,
-        decision: decision === "__all" ? undefined : decision,
-        outcome: outcome === "__all" ? undefined : outcome,
+        user_id: snapshot.userId === "__all" ? undefined : snapshot.userId,
+        server_id: snapshot.serverId === "__all" ? undefined : snapshot.serverId,
+        tool_id: snapshot.toolId === "__all" ? undefined : snapshot.toolId,
+        decision: snapshot.decision === "__all" ? undefined : snapshot.decision,
+        outcome: snapshot.outcome === "__all" ? undefined : snapshot.outcome,
         limit: 300,
       })
+      setApplied(snapshot)
+      setLastLoadedAt(new Date().toISOString())
       setAudits(result.audits)
       setFilterOptions(result.filter_options)
     } catch (err) {
@@ -179,8 +186,9 @@ export function InvocationAuditPage({ locale, t }: { locale: Locale; t: TFunctio
           { label: c.deny, value: denyCount, tone: denyCount ? "danger" : "default" },
           { label: c.error, value: errorCount, tone: errorCount ? "warning" : "default" },
         ]}
-        actions={<Button onClick={() => void load()} disabled={busy}>{t("applyFilters")}</Button>}
+        actions={<><Button variant="outline" disabled={busy} onClick={() => { setUserId("__all"); setServerId("__all"); setToolId("__all"); setDecision("__all"); setOutcome("__all") }}>{t("resetConditions")}</Button><Button onClick={() => void load()} disabled={busy}>{t("applyFilters")}</Button></>}
       />
+      <QueryStatus t={t} pendingChanges={querySignature({ userId, serverId, toolId, decision, outcome }) !== querySignature(applied)} lastLoadedAt={lastLoadedAt} summary={Object.entries(applied).filter(([, value]) => value !== "__all").map(([key, value]) => `${c[key as keyof typeof c] || key}: ${value}`).join(" · ") || `${t("all")} · ${t("limit")}: 300`} />
       {error && <Alert variant="destructive"><AlertDescription>{error}</AlertDescription></Alert>}
       <Card>
         <CardContent className="flex flex-col gap-3 p-3 md:p-4">
@@ -196,10 +204,10 @@ export function InvocationAuditPage({ locale, t }: { locale: Locale; t: TFunctio
             <Table>
               <TableHeader><TableRow><TableHead>{c.time}</TableHead><TableHead>{c.actor}</TableHead><TableHead>{c.resource}</TableHead><TableHead>{c.access}</TableHead><TableHead>{c.decision}</TableHead><TableHead>{c.outcome}</TableHead><TableHead>{c.duration}</TableHead></TableRow></TableHeader>
               <TableBody>
-                {visibleAudits.length === 0 ? <TableEmptyRow colSpan={7} title={c.noData} /> : visibleAudits.map((item) => <TableRow key={item.id} className="cursor-pointer" onClick={() => setSelected(item)}>
+                {visibleAudits.length === 0 ? <TableEmptyRow colSpan={7} title={busy ? t("loadingData") : error ? t("notLoaded") : query.trim() ? t("noCurrentMatches") : Object.values(applied).some(value => value !== "__all") ? t("noAppliedMatches") : c.noData} /> : visibleAudits.map((item) => <TableRow key={item.id} className="cursor-pointer" onClick={() => setSelected(item)}>
                   <TableCell className="whitespace-nowrap text-xs">{formatDateTime(item.created_at)}</TableCell>
                   <TableCell><div className="font-medium">{item.username}</div><div className="text-xs text-muted-foreground">{item.auth_type}{item.api_token_id ? ` · ${item.api_token_id.slice(0, 8)}` : ""}</div></TableCell>
-                  <TableCell><div className="font-medium">{item.tool_id}</div><div className="text-xs text-muted-foreground">{item.server_id}</div></TableCell>
+                  <TableCell><button type="button" className="text-left font-medium underline underline-offset-4 focus-visible:outline focus-visible:outline-2" onClick={e => { e.stopPropagation(); setSelected(item) }}>{item.tool_id}</button><div className="text-xs text-muted-foreground">{item.server_id}</div></TableCell>
                   <TableCell><div className="flex items-center gap-2"><AccessBadge access={item.required_access} labels={c} /><span className="text-muted-foreground">≤</span><AccessBadge access={item.granted_access} labels={c} /></div></TableCell>
                   <TableCell><Badge variant={item.decision === "allow" ? "success" : "danger"}>{item.decision === "allow" ? <ShieldCheck /> : <ShieldX />}{c[item.decision]}</Badge></TableCell>
                   <TableCell><OutcomeBadge outcome={item.outcome} labels={c} /></TableCell>

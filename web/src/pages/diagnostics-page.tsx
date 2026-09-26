@@ -1,3 +1,4 @@
+import { usePageRefresh } from "@/components/page-refresh"
 import { useEffect, useState } from "react"
 import { api, type DiagnosticsResponse, type RuntimeEnvironment } from "@/api/client"
 import { PageHeader, PageToolbar } from "@/components/page-shell"
@@ -13,7 +14,7 @@ import { statusBadge, TableEmptyRow } from "@/pages/page-utils"
 
 type DiagnosticsCheck = DiagnosticsResponse["checks"][number]
 
-export function DiagnosticsPage({ diagnostics, t, onRunDiagnostics }: { diagnostics: DiagnosticsResponse | null; t: TFunction; onRunDiagnostics: () => void }) {
+export function DiagnosticsPage({ diagnostics, t, busy, onRefreshDiagnostics, onRunDiagnostics }: { busy: boolean; onRefreshDiagnostics: () => Promise<void>; diagnostics: DiagnosticsResponse | null; t: TFunction; onRunDiagnostics: () => void }) {
   const [selectedCheck, setSelectedCheck] = useState<DiagnosticsCheck | null>(null)
   const [query, setQuery] = useState("")
   const checks = diagnostics?.checks || []
@@ -32,14 +33,14 @@ export function DiagnosticsPage({ diagnostics, t, onRunDiagnostics }: { diagnost
         stats={[
           { label: t("failed"), value: diagnostics ? failedChecks.length : "-", tone: failedChecks.length ? "danger" : checks.length ? "success" : "default" },
         ]}
-        actions={<Button onClick={onRunDiagnostics}>{t("runDiagnostics")}</Button>}
+        actions={<Button disabled={busy} onClick={onRunDiagnostics}>{t("runDiagnostics")}</Button>}
       />
       <Card>
         <CardContent className="overflow-x-auto p-3 md:p-4">
-          <Table><TableHeader><TableRow><TableHead>{t("check")}</TableHead><TableHead>{t("status")}</TableHead><TableHead>{t("detail")}</TableHead></TableRow></TableHeader><TableBody>{filteredChecks.length === 0 ? <TableEmptyRow colSpan={3} title={diagnostics ? t("noData") : t("waiting")} /> : filteredChecks.map((check) => <TableRow key={check.name} className="cursor-pointer" onClick={() => setSelectedCheck(check)}><TableCell className="font-medium">{check.name}</TableCell><TableCell>{statusBadge(check.ok ? "ok" : check.severity, t)}</TableCell><TableCell className="max-w-md truncate text-muted-foreground" title={check.detail}>{check.detail}</TableCell></TableRow>)}</TableBody></Table>
+          <Table><TableHeader><TableRow><TableHead>{t("check")}</TableHead><TableHead>{t("status")}</TableHead><TableHead>{t("detail")}</TableHead></TableRow></TableHeader><TableBody>{filteredChecks.length === 0 ? <TableEmptyRow colSpan={3} title={diagnostics ? t("noData") : t("waiting")} /> : filteredChecks.map((check) => <TableRow key={check.name} className="cursor-pointer" onClick={() => setSelectedCheck(check)}><TableCell className="font-medium"><button type="button" className="text-left underline underline-offset-4" onClick={e => { e.stopPropagation(); setSelectedCheck(check) }}>{check.name}</button></TableCell><TableCell>{statusBadge(check.ok ? "ok" : check.severity, t)}</TableCell><TableCell className="max-w-md truncate text-muted-foreground" title={check.detail}>{check.detail}</TableCell></TableRow>)}</TableBody></Table>
         </CardContent>
       </Card>
-      <RuntimeEnvironmentCard t={t} />
+      <RuntimeEnvironmentCard t={t} onRefreshDiagnostics={onRefreshDiagnostics} />
 
       <Dialog open={selectedCheck !== null} onOpenChange={(open) => { if (!open) setSelectedCheck(null) }}>
         <DialogContent className="max-w-2xl">
@@ -54,7 +55,7 @@ export function DiagnosticsPage({ diagnostics, t, onRunDiagnostics }: { diagnost
   )
 }
 
-function RuntimeEnvironmentCard({ t }: { t: TFunction }) {
+function RuntimeEnvironmentCard({ t, onRefreshDiagnostics }: { t: TFunction; onRefreshDiagnostics: () => Promise<void> }) {
   const [env, setEnv] = useState<RuntimeEnvironment | null>(null)
   const [error, setError] = useState("")
 
@@ -67,6 +68,7 @@ function RuntimeEnvironmentCard({ t }: { t: TFunction }) {
     }
   }
 
+  usePageRefresh(async () => { await Promise.all([onRefreshDiagnostics(), refresh()]) })
   useEffect(() => { void refresh() }, [])
 
   return (
