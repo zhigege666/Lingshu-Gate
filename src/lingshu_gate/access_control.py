@@ -7,7 +7,7 @@ import json
 import re
 import sqlite3
 from collections.abc import Callable
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from functools import partial
 from time import perf_counter
 from typing import Any, Iterable
@@ -17,7 +17,7 @@ from lingshu_gate.auth import AuthPrincipal
 from lingshu_gate.database import SQLiteDatabase
 from lingshu_gate.mcp_runtime import McpRuntimeManager
 from lingshu_gate.models import ToolDefinition, ToolInvokeResponse
-from lingshu_gate.registry import ToolInvocationContext, ToolRegistry
+from lingshu_gate.registry import ToolExecutionError, ToolInvocationContext, ToolRegistry
 from lingshu_gate.user_credential_store import UserCredentialBindingError
 
 ACCESS_RANK = {"none": 0, "read": 1, "write": 2, "unknown": -1}
@@ -1390,6 +1390,10 @@ class AccessControlStore:
                     tool_name,
                     arguments,
                     user_id=principal.id,
+                    retry_read_only=(
+                        decision["classification_status"] == "published"
+                        and decision["required_access"] == "read"
+                    ),
                 )
                 response = ToolInvokeResponse(ok=True, tool_id=tool_id, output=output)
             else:
@@ -1428,6 +1432,8 @@ class AccessControlStore:
                 required_access=decision["required_access"],
                 granted_access=decision["granted_access"],
             ) from exc
+        except ToolExecutionError as exc:
+            response = ToolInvokeResponse(ok=False, tool_id=tool_id, error=str(exc), output=exc.to_payload())
         except Exception as exc:  # noqa: BLE001 - 工具边界统一返回失败响应
             response = ToolInvokeResponse(ok=False, tool_id=tool_id, error=str(exc))
         duration_ms = max(0, round((perf_counter() - started) * 1000))
@@ -1531,6 +1537,84 @@ class AccessControlStore:
             }
             for row in rows
         ]
+
+    def invocation_statistics(
+        self,
+        *,
+        hours: int = 24,
+        now: datetime | None = None,
+    ) -> dict[str, Any]:
+        """按审计记录聚合工具请求、实际执行和下游 MCP 工具调用。"""
+
+        if hours not in {24, 168}:
+            raise ValueError("hours must be 24 or 168")
+        end = now or datetime.now(timezone.utc)
+        start = end - timedelta(hours=hours)
+        start_text, end_text = start.isoformat(), end.isoformat()
+        bucket_hours = 2 if hours == 24 else 24
+        bucket_seconds = bucket_hours * 3600
+        bucket_count = hours // bucket_hours
+        executed = "decision = 'allow' AND outcome IN ('success', 'error')"
+        mcp_executed = f"{executed} AND substr(tool_id, 1, 4) = 'mcp.'"
+        with self.database.session() as connection:
+            totals = connection.execute(
+                f"""
+                SELECT COUNT(*) AS requests,
+                       COALESCE(SUM(CASE WHEN {executed} THEN 1 ELSE 0 END), 0) AS calls,
+                       COALESCE(SUM(CASE WHEN {mcp_executed} THEN 1 ELSE 0 END), 0) AS mcp_calls,
+                       COALESCE(SUM(CASE WHEN outcome = 'success' THEN 1 ELSE 0 END), 0) AS success,
+                       COALESCE(SUM(CASE WHEN outcome = 'error' THEN 1 ELSE 0 END), 0) AS errors,
+                       COALESCE(SUM(CASE WHEN outcome = 'not_invoked' THEN 1 ELSE 0 END), 0) AS not_invoked
+                FROM invocation_audits
+                WHERE created_at >= ? AND created_at < ?
+                """,
+                (start_text, end_text),
+            ).fetchone()
+            rows = connection.execute(
+                f"""
+                SELECT CAST((strftime('%s', created_at) - ?) / ? AS INTEGER) AS bucket,
+                       COUNT(*) AS requests,
+                       COALESCE(SUM(CASE WHEN {executed} THEN 1 ELSE 0 END), 0) AS calls,
+                       COALESCE(SUM(CASE WHEN {mcp_executed} THEN 1 ELSE 0 END), 0) AS mcp_calls
+                FROM invocation_audits
+                WHERE created_at >= ? AND created_at < ?
+                GROUP BY bucket
+                """,
+                (int(start.timestamp()), bucket_seconds, start_text, end_text),
+            ).fetchall()
+            top_rows = connection.execute(
+                f"""
+                SELECT tool_id, server_id, COUNT(*) AS calls,
+                       SUM(CASE WHEN outcome = 'error' THEN 1 ELSE 0 END) AS errors
+                FROM invocation_audits
+                WHERE created_at >= ? AND created_at < ? AND {executed}
+                GROUP BY tool_id, server_id
+                ORDER BY calls DESC, tool_id ASC
+                LIMIT 5
+                """,
+                (start_text, end_text),
+            ).fetchall()
+
+        by_bucket = {int(row["bucket"]): row for row in rows}
+        return {
+            "period_start": start_text,
+            "period_end": end_text,
+            "bucket_hours": bucket_hours,
+            "totals": {key: int(totals[key]) for key in ("requests", "calls", "mcp_calls", "success", "errors", "not_invoked")},
+            "series": [
+                {
+                    "start": (start + timedelta(hours=index * bucket_hours)).isoformat(),
+                    "requests": int(by_bucket[index]["requests"]) if index in by_bucket else 0,
+                    "calls": int(by_bucket[index]["calls"]) if index in by_bucket else 0,
+                    "mcp_calls": int(by_bucket[index]["mcp_calls"]) if index in by_bucket else 0,
+                }
+                for index in range(bucket_count)
+            ],
+            "top_tools": [
+                {"tool_id": row["tool_id"], "server_id": row["server_id"], "calls": int(row["calls"]), "errors": int(row["errors"])}
+                for row in top_rows
+            ],
+        }
 
     def list_invocation_audit_filter_options(self) -> dict[str, Any]:
         """从历史审计快照生成筛选候选，保留已删除用户和已下线资源。"""

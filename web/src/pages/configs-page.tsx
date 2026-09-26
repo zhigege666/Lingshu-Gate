@@ -1,8 +1,7 @@
 import { useMemo, useState } from "react"
-import { Code2, Edit3, FilePlus2, Play, Plus, RefreshCcw } from "lucide-react"
+import { Edit3, Play, Plus, RefreshCcw, Trash2 } from "lucide-react"
 import { Modal } from "antd"
 import type { McpConfig } from "@/api/client"
-import { ActionMenu, ActionMenuItem } from "@/components/action-menu"
 import { McpConfigEditor } from "@/components/mcp-config-editor"
 import { PageHeader, PageToolbar } from "@/components/page-shell"
 import { Alert, AlertDescription } from "@/components/ui/alert"
@@ -90,7 +89,7 @@ export function ConfigsPage(props: {
                   <TableHead className="w-[140px] font-semibold">{zh ? "运行方式" : "Runtime Mode"}</TableHead>
                   <TableHead className="w-[110px] font-semibold">{zh ? "自启动" : "Auto Start"}</TableHead>
                   <TableHead className="font-semibold">{t("path")}</TableHead>
-                  <TableHead className="w-[160px] text-right font-semibold">{t("actions")}</TableHead>
+                  <TableHead className="min-w-[240px] text-right font-semibold">{t("actions")}</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
@@ -129,7 +128,7 @@ export function ConfigsPage(props: {
                           {config.path}
                         </span>
                       </TableCell>
-                      <TableCell className="py-3 text-right" onClick={(event) => event.stopPropagation()}>
+                      <TableCell className="min-w-[240px] py-3 text-right" onClick={(event) => event.stopPropagation()}>
                         <div className="flex items-center justify-end gap-1.5">
                           <Button
                             size="sm"
@@ -149,11 +148,15 @@ export function ConfigsPage(props: {
                           >
                             <Play className="size-3.5 mr-1" />{t("apply")}
                           </Button>
-                          <ActionMenu label={t("actions")}>
-                            <ActionMenuItem disabled={busy} onClick={() => handleEdit(config)}>{t("edit")}</ActionMenuItem>
-                            <ActionMenuItem disabled={busy} onClick={() => onApplyConfig(config.id)}>{t("apply")}</ActionMenuItem>
-                            <ActionMenuItem destructive disabled={busy} onClick={() => onDeleteConfig(config.id)}>{t("delete")}</ActionMenuItem>
-                          </ActionMenu>
+                          <Button
+                            size="sm"
+                            variant="ghost"
+                            className="h-7 px-2 text-xs font-normal text-destructive hover:bg-destructive/10 hover:text-destructive"
+                            disabled={busy}
+                            onClick={() => onDeleteConfig(config.id)}
+                          >
+                            <Trash2 className="size-3.5 mr-1" />{t("delete")}
+                          </Button>
                         </div>
                       </TableCell>
                     </TableRow>
@@ -166,26 +169,15 @@ export function ConfigsPage(props: {
       </Card>
 
       <Modal
-        title={
-          <div className="flex items-center gap-3">
-            <div className="size-8 rounded-lg bg-primary/10 text-primary flex items-center justify-center">
-              <Code2 className="size-4.5" />
-            </div>
-            <div className="flex flex-col">
-              <span className="font-semibold text-base leading-none text-foreground">
-                {selectedConfigId ? `${t("edit")} · ${selectedConfigId}` : (zh ? "新建 MCP Config" : "New MCP Config")}
-              </span>
-              <span className="text-xs text-muted-foreground mt-1">
-                {zh ? "配置 MCP 服务的运行方式、连接参数、高可用策略与健康探活" : "Configure runtime mode, transport, reliability policy, and health check"}
-              </span>
-            </div>
-          </div>
-        }
+        title={null}
+        closable={false}
+        mask={{ closable: false }}
+        keyboard={false}
         open={editorOpen}
         onCancel={onCloseEditor}
-        width="95vw"
-        style={{ top: "3vh", maxWidth: "1680px", paddingBottom: 0 }}
-        className="[&_.ant-modal-container]:!p-0 [&_.ant-modal-container]:!h-[94vh] [&_.ant-modal-container]:!flex [&_.ant-modal-container]:!flex-col [&_.ant-modal-container]:!overflow-hidden [&_.ant-modal-container]:!rounded-2xl [&_.ant-modal-container]:!shadow-2xl [&_.ant-modal-content]:!p-0 [&_.ant-modal-content]:!h-[94vh] [&_.ant-modal-content]:!flex [&_.ant-modal-content]:!flex-col [&_.ant-modal-content]:!overflow-hidden [&_.ant-modal-content]:!rounded-2xl [&_.ant-modal-body]:!flex-1 [&_.ant-modal-body]:!overflow-hidden [&_.ant-modal-body]:!flex [&_.ant-modal-body]:!flex-col [&_.ant-modal-body]:!p-0"
+        width="100vw"
+        style={{ top: 0, maxWidth: "100vw", margin: 0, paddingBottom: 0 }}
+        className="[&_.ant-modal-container]:!p-0 [&_.ant-modal-container]:!h-[100dvh] [&_.ant-modal-container]:!flex [&_.ant-modal-container]:!flex-col [&_.ant-modal-container]:!overflow-hidden [&_.ant-modal-container]:!rounded-none [&_.ant-modal-container]:!shadow-2xl [&_.ant-modal-content]:!p-0 [&_.ant-modal-content]:!h-[100dvh] [&_.ant-modal-content]:!flex [&_.ant-modal-content]:!flex-col [&_.ant-modal-content]:!overflow-hidden [&_.ant-modal-content]:!rounded-none [&_.ant-modal-body]:!flex-1 [&_.ant-modal-body]:!overflow-hidden [&_.ant-modal-body]:!flex [&_.ant-modal-body]:!flex-col [&_.ant-modal-body]:!p-0"
         styles={{
           header: {
             padding: "16px 24px",
@@ -203,9 +195,10 @@ export function ConfigsPage(props: {
           },
         }}
         footer={null}
-        destroyOnClose={false}
+        destroyOnHidden
       >
         <McpConfigEditor
+          key={selectedConfigId || "new"}
           locale={locale}
           selectedConfigId={selectedConfigId}
           value={configText}

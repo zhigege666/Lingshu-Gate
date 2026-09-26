@@ -84,6 +84,10 @@ auto_start: false
 
 静态 Header 可以包含 `${credential:<id>}` 引用。Gate 只在下游请求中解析它，并在 API 响应和日志中掩码显示。
 
+外部 HTTP 连接在工具调用中发现 MCP 会话过期时，会自动重新握手并发现工具一次，无需新增 Manifest 开关。共享会话的恢复由服务锁串行处理。只有访问分类已发布为 `read`，且重新发现后的工具定义未变化，Gate 才自动重试中断的调用一次；下游只读提示不能单独授权重放。写调用或未发布分类的调用会在重连后返回结构化错误 `mcp_session_reconnected_not_replayed`，再次调用前应检查原操作结果。工具定义变化返回 `mcp_tool_changed_after_reconnect`，需要按实际变化重新审核分类。
+
+重连失败，或一次只读重试中再次发生会话过期时，共享运行时标记为 `failed`/`unhealthy`，并返回 `mcp_session_reconnect_failed`；检查下游服务后手动重连。本能力由请求触发，不进行后台循环重试或定时探活，也不重启外部进程。用户独立会话始终使用各自的凭据绑定，不替换共享会话或修改共享健康状态。外部服务仍不支持现有的 `restart_policy`。
+
 ### 受管本机 stdio
 
 受管 stdio 只在原生模式可用，并以 Gate 操作系统账户运行：

@@ -77,6 +77,10 @@ class McpHttpAuthenticationError(McpProtocolError):
         super().__init__(f"HTTP {status_code} authentication failure from MCP endpoint: {safe_detail}")
 
 
+class McpSessionExpiredError(McpProtocolError):
+    """旧会话已失效；由运行时决定是否重连及安全重试。"""
+
+
 class StreamableHttpMcpClient:
     """Talk to one external MCP server over Streamable HTTP JSON-RPC."""
 
@@ -224,7 +228,7 @@ class StreamableHttpMcpClient:
 
     def request(self, method: str, params: dict[str, Any] | None = None, *, timeout: int | None = None) -> dict[str, Any]:
         if self._session_expired:
-            raise McpProtocolError("MCP session expired; reconnect before issuing another request")
+            raise McpSessionExpiredError("MCP session expired; reconnect before issuing another request")
         request_id = next(self._ids)
         message: dict[str, Any] = {"jsonrpc": "2.0", "id": request_id, "method": method}
         protocol_headers: dict[str, str] = {}
@@ -274,7 +278,7 @@ class StreamableHttpMcpClient:
 
     def notify(self, method: str, params: dict[str, Any] | None = None) -> None:
         if self._session_expired:
-            raise McpProtocolError("MCP session expired; reconnect before issuing another request")
+            raise McpSessionExpiredError("MCP session expired; reconnect before issuing another request")
         message: dict[str, Any] = {"jsonrpc": "2.0", "method": method}
         protocol_headers: dict[str, str] = {}
         request_params, protocol_headers = build_protocol_request(
@@ -390,7 +394,7 @@ class StreamableHttpMcpClient:
                 self.session_id = None
                 self.initialized = False
                 self._session_expired = True
-                raise McpProtocolError("MCP session expired (HTTP 404); reconnect before issuing another request") from None
+                raise McpSessionExpiredError("MCP session expired (HTTP 404); reconnect before issuing another request") from None
             raise McpProtocolError(f"HTTP {exc.code} from MCP endpoint: {safe_detail}") from exc
         except urllib.error.URLError as exc:
             safe_reason = self._redact_text(str(exc.reason))

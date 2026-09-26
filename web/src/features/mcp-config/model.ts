@@ -189,7 +189,7 @@ export function precheckManifest(
       })
       if (protectedEnvironment) errors.push(copy("containerEnvironmentProtected"))
     }
-    if (launchType !== "managed_process") warnings.push(copy("launchTypeWarning"))
+    if (!["managed_process", "external", "managed_container"].includes(launchType)) warnings.push(copy("launchTypeWarning"))
     if (Array.isArray(launch.args) && launch.args.some((item) => typeof item !== "string")) warnings.push(copy("argsWarning"))
   }
 

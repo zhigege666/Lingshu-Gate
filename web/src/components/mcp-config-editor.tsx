@@ -1,56 +1,19 @@
-import { useEffect, useMemo, useState, type ReactNode } from "react"
-import {
-  AlertCircle,
-  Braces,
-  Check,
-  Cpu,
-  FileCode2,
-  Globe,
-  Info,
-  Key,
-  LayoutTemplate,
-  RefreshCw,
-  Save,
-  Server,
-  ShieldCheck,
-  Sliders,
-  Terminal,
-  Wand2,
-  X,
-} from "lucide-react"
+import { useEffect, useMemo, useRef, useState, type ReactNode } from "react"
+import { Modal, Popover } from "antd"
+import { Braces, Code2, Globe, Heart, KeyRound, Plus, Save, Search, Server, ShieldCheck, Terminal, Trash2, X } from "lucide-react"
 import { api, type Credential, type ManifestValidationResponse } from "@/api/client"
-import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
-import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
-import { Label } from "@/components/ui/label"
 import { Switch } from "@/components/ui/switch"
 import { Textarea } from "@/components/ui/textarea"
-import {
-  credentialRef,
-  envKeyFromCredential,
-  formatManifestJson,
-  getRecord,
-  parseArgs,
-  parseEnv,
-  parseManifest,
-  parseNumberList,
-  precheckManifest,
-  runtimeModeFromManifest,
-  sensitiveEnvKeys,
-  stringifyArgs,
-  stringifyEnv,
-  stringifyNumberList,
-  withoutUserCredentialValues,
-  type ManifestLike,
-  type PrecheckResult,
-  type RuntimeMode,
-} from "@/features/mcp-config/model"
+import { ConfigField, ConfigHelp, ConfigValue } from "@/components/mcp-config-fields"
+import { FORM_COPY } from "@/features/mcp-config/copy"
+import { changeRuntimeMode, manifestFingerprint, PROTECTED_HEADERS, updateManifestPath } from "@/features/mcp-config/draft"
+import { credentialRef, getRecord, parseManifest, precheckManifest, runtimeModeFromManifest, withoutUserCredentialValues, type RuntimeMode } from "@/features/mcp-config/model"
 import type { Locale } from "@/i18n"
 import { prettyJson } from "@/lib/utils"
 
-type McpConfigEditorProps = {
+type Props = {
   locale: Locale
   selectedConfigId: string
   value: string
@@ -59,1052 +22,248 @@ type McpConfigEditorProps = {
   onClose?: () => void
   busy: boolean
 }
+const sectionNames = [
+  ["basic", "基本信息", "Basic information", Server],
+  ["connection", "连接设置", "Connection", Globe],
+  ["credentials", "认证与凭据", "Credentials", KeyRound],
+  ["launch", "启动与环境", "Launch & environment", Terminal],
+  ["recovery", "健康与恢复", "Health & recovery", Heart],
+  ["permissions", "权限与目录", "Permissions & roots", ShieldCheck],
+] as const
+const selectClass = "h-9 w-full min-w-0 rounded-md border border-input bg-background px-3 text-sm"
 
-const FORM_COPY = {
-  "zh-CN": {
-    newConfig: "新增 MCP Config",
-    editConfig: "编辑",
-    formDesc: "表单支持受管 Stdio、外部 HTTP 和受管 HTTP；复杂字段仍可在 JSON 中保留。",
-    parseErrorPrefix: "JSON / 预检查失败：",
-    credentialErrorPrefix: "凭据列表加载失败：",
-    localErrors: "保存前本地预检查错误",
-    localWarnings: "本地配置提醒",
-    sensitiveEnv: "已识别敏感环境变量",
-    sensitiveEnvHint: "建议使用凭据引用，避免把明文密钥写入 Manifest。",
-    serverId: "服务 ID",
-    serverIdDesc: "MCP Server 的唯一标识，只能包含字母、数字、点、下划线和短横线。",
-    name: "名称",
-    nameDesc: "Console 中展示的服务名称，建议使用容易识别的业务名称。",
-    runtimeMode: "运行方式",
-    runtimeModeDesc: "选择 Lingshu Gate 如何获得服务，以及使用哪种 MCP 传输连接。",
-    managedStdio: "受管 Stdio",
-    managedStdioDesc: "由 Lingshu Gate 启动本地可执行进程，通过标准输入输出交互。",
-    externalHttp: "外部 HTTP",
-    externalHttpDesc: "服务独立运行在外部，Lingshu Gate 仅负责 streamable_http 连接。",
-    managedHttp: "受管 HTTP",
-    managedHttpDesc: "由 Lingshu Gate 启动后台服务，并等待其 HTTP 端口就绪建立连接。",
-    advancedMode: "高级模式",
-    advancedModeDesc: "保留当前 Manifest 的复杂运行与传输配置，仅在 JSON 中直接编辑。",
-    advancedModeHint: "当前 Manifest 使用表单尚未覆盖的运行组合。应用表单时会原样保留 launch、transport、auto_start 与 restart_policy，避免静默改写。",
-    endpoint: "MCP 地址",
-    endpointDesc: "streamable_http 地址，例如 http://127.0.0.1:3120/mcp。",
-    externalManagedHint: "该服务由外部进程管理，Lingshu Gate 只负责连接或断开，不负责启动、停止或自动重启。",
-    command: "启动命令",
-    commandDesc: "managed_process 要执行的已安装可执行文件或绝对路径。",
-    cwd: "工作目录",
-    cwdDesc: "可选。命令启动时的工作目录，例如 /workspace。",
-    args: "启动参数",
-    argsDesc: "一行一个参数，保存时会同步到 launch.args。",
-    env: "环境变量",
-    envDesc: "一行一个 KEY=VALUE，敏感值建议使用 ${credential:ID}。",
-    insertCredential: "插入凭据引用",
-    insertCredentialDesc: "点击凭据后会插入一行 KEY=${credential:ID} 到环境变量。",
-    timeoutSeconds: "超时秒数",
-    timeoutSecondsDesc: "MCP 初始化和请求等待的默认超时时间。",
-    autoStart: "开机自启",
-    autoStartDesc: "仅记录运行意图；保存与应用配置均不会直接启动服务。",
-    restartPolicy: "崩溃重启策略",
-    restartPolicyDesc: "进程退出、启动失败、健康检查失败后的自动恢复策略。",
-    maxAttempts: "最大尝试次数",
-    maxAttemptsDesc: "达到次数后停止自动重启，0 表示不重试。",
-    delaySeconds: "初始延迟",
-    delaySecondsDesc: "第一次自动重启前等待的秒数。",
-    backoff: "退避倍数",
-    backoffDesc: "每次失败后的延迟增长倍数。",
-    maxDelay: "最大延迟",
-    maxDelayDesc: "退避后允许等待的最大秒数。",
-    resetAfterSeconds: "重置计数",
-    resetAfterSecondsDesc: "服务稳定运行超过该秒数后，重置当前重启尝试次数。",
-    restartOnExit: "进程退出后重启",
-    restartOnExitDesc: "开启后，非策略排除的退出会触发自动重启。",
-    exitAllowlist: "退出码允许列表",
-    exitAllowlistDesc: "逗号分隔。填写后只有这些退出码会触发重启。",
-    exitBlocklist: "退出码阻止列表",
-    exitBlocklistDesc: "逗号分隔。命中后不会自动重启，常用 0 表示正常退出不重启。",
-    healthCheck: "健康检查探活",
-    healthCheckDesc: "当前通过 MCP tools/list 检查已连接服务是否健康。",
-    intervalSeconds: "检查间隔",
-    intervalSecondsDesc: "两次健康检查之间的等待时间。",
-    healthTimeoutSeconds: "检查超时",
-    healthTimeoutSecondsDesc: "单次健康检查最多等待的时间。",
-    failureThreshold: "失败阈值",
-    failureThresholdDesc: "连续失败达到该次数后触发恢复策略。",
-    endpointRequired: "HTTP 运行方式需要填写 transport.endpoint",
-    endpointInvalid: "MCP 地址必须是有效的 HTTP/HTTPS URL",
-    applyForm: "应用表单到 JSON",
-    formatJson: "格式化 JSON",
-    backendPrecheck: "后端预检查",
-    saveAndApply: "保存配置",
-    rawJson: "Manifest JSON",
-    rawJsonDesc: "复杂字段可以继续在 JSON 中编辑；应用表单时会保留未在表单中展示的字段。",
-    precheckFailed: "预检查失败：",
-    backendPrecheckFailed: "后端预检查失败：",
-    backendCheck: "后端预检查",
-    notRecommended: "不建议应用",
-    saveWithWarning: "可以保存，但建议确认警告",
-    saveOk: "可以保存",
-    errors: "错误",
-    warnings: "警告",
-    info: "信息",
-    ok: "正常",
-    idRequired: "id 不能为空",
-    idPattern: "id 只能包含字母、数字、下划线、点和短横线",
-    launchRequired: "launch 配置不能为空",
-    transportRequired: "transport 配置不能为空",
-    launchTypeRequired: "launch.type 不能为空",
-    commandRequired: "managed_process 需要填写 launch.command",
-    containerImageDigestError: "managed_container 镜像必须固定到小写 SHA-256 Digest",
-    containerVolumesUnsupported: "不支持旧的 launch.volumes；请使用结构化只读 launch.mounts",
-    containerMountsError: "launch.mounts 必须包含绝对 Source、非根且非受保护的绝对 Target，并且不能关闭 read_only；后端还会校验 Allowed Root",
-    containerEnvironmentProtected: "managed_container Environment 不能覆盖 LINGSHU_GATE_* 或 Docker 进程控制",
-    launchTypeWarning: "当前表单主要覆盖 managed_process；其它 launch.type 请检查 Manifest JSON",
-    argsWarning: "launch.args 建议全部使用字符串",
-    transportTypeRequired: "transport.type 不能为空",
-    stdioLaunchError: "transport.type=stdio 要求 launch.type 为 managed_process 或 managed_container",
-    streamableEndpointError: "streamable_http 需要填写 transport.endpoint",
-    timeoutWarning: "timeout_seconds 建议设置为大于 0 的数字",
-  },
-  "en-US": {
-    newConfig: "New MCP Config",
-    editConfig: "Edit",
-    formDesc: "The form supports managed Stdio, external HTTP, and managed HTTP. Complex fields remain available in JSON.",
-    parseErrorPrefix: "JSON / precheck failed: ",
-    credentialErrorPrefix: "Failed to load credentials: ",
-    localErrors: "Local precheck errors before saving",
-    localWarnings: "Local config warnings",
-    sensitiveEnv: "Sensitive env detected",
-    sensitiveEnvHint: "Use credential references instead of storing plaintext secrets in the Manifest.",
-    serverId: "Server ID",
-    serverIdDesc: "Unique MCP Server identifier. Use letters, numbers, dots, underscores, and hyphens only.",
-    name: "Name",
-    nameDesc: "Display name in Console. Use a clear business name.",
-    runtimeMode: "Runtime Mode",
-    runtimeModeDesc: "Choose how Lingshu Gate obtains the service and connects to its MCP transport.",
-    managedStdio: "Managed Stdio",
-    managedStdioDesc: "Lingshu Gate starts the process and connects over standard input/output.",
-    externalHttp: "External HTTP",
-    externalHttpDesc: "The service runs independently. Lingshu Gate only connects or disconnects.",
-    managedHttp: "Managed HTTP",
-    managedHttpDesc: "Lingshu Gate starts the process and waits for the HTTP MCP endpoint.",
-    advancedMode: "Advanced Mode",
-    advancedModeDesc: "Preserve the current runtime and transport configuration; edit it in JSON.",
-    advancedModeHint: "This Manifest uses a runtime combination not covered by the form. Applying the form preserves launch, transport, auto_start, and restart_policy without silently rewriting them.",
-    endpoint: "MCP Endpoint",
-    endpointDesc: "Streamable HTTP endpoint, for example http://127.0.0.1:3120/mcp.",
-    externalManagedHint: "This service is externally managed. Lingshu Gate only connects or disconnects and does not start, stop, or restart the process.",
-    command: "Command",
-    commandDesc: "Installed executable or absolute path used by managed_process.",
-    cwd: "Working Directory",
-    cwdDesc: "Optional command working directory, for example /workspace.",
-    args: "Arguments",
-    argsDesc: "One argument per line. Saved into launch.args.",
-    env: "Environment Variables",
-    envDesc: "One KEY=VALUE per line. Use ${credential:ID} for sensitive values.",
-    insertCredential: "Insert Credential Reference",
-    insertCredentialDesc: "Click a credential to insert KEY=${credential:ID} into env.",
-    timeoutSeconds: "Timeout Seconds",
-    timeoutSecondsDesc: "Default timeout for MCP initialization and requests.",
-    autoStart: "Auto Start",
-    autoStartDesc: "Records runtime intent only; saving or applying does not directly start the server.",
-    restartPolicy: "Restart Policy",
-    restartPolicyDesc: "Auto recovery policy after process exit, startup failure, or health-check failure.",
-    maxAttempts: "Max Attempts",
-    maxAttemptsDesc: "Stop auto restart after this count. 0 means no retry.",
-    delaySeconds: "Initial Delay",
-    delaySecondsDesc: "Seconds to wait before the first auto restart.",
-    backoff: "Backoff Multiplier",
-    backoffDesc: "Delay growth multiplier after each failure.",
-    maxDelay: "Max Delay",
-    maxDelayDesc: "Maximum delay after backoff.",
-    resetAfterSeconds: "Reset After",
-    resetAfterSecondsDesc: "Reset restart attempts after the server stays stable for this duration.",
-    restartOnExit: "Restart On Exit",
-    restartOnExitDesc: "Restart automatically when the exit code is not excluded by policy.",
-    exitAllowlist: "Exit Code Allowlist",
-    exitAllowlistDesc: "Comma separated. When set, only these exit codes trigger restart.",
-    exitBlocklist: "Exit Code Blocklist",
-    exitBlocklistDesc: "Comma separated. Matching codes will not restart. 0 usually means normal exit.",
-    healthCheck: "Health Check",
-    healthCheckDesc: "Uses MCP tools/list to check whether the connected service is healthy.",
-    intervalSeconds: "Interval",
-    intervalSecondsDesc: "Delay between health checks.",
-    healthTimeoutSeconds: "Timeout",
-    healthTimeoutSecondsDesc: "Maximum wait time for one health check.",
-    failureThreshold: "Failure Threshold",
-    failureThresholdDesc: "Trigger recovery after this many consecutive failures.",
-    endpointRequired: "HTTP runtime modes require transport.endpoint",
-    endpointInvalid: "MCP endpoint must be a valid HTTP/HTTPS URL",
-    applyForm: "Apply Form to JSON",
-    formatJson: "Format JSON",
-    backendPrecheck: "Backend Precheck",
-    saveAndApply: "Save Config",
-    rawJson: "Manifest JSON",
-    rawJsonDesc: "Complex fields remain editable in JSON. Applying the form preserves fields not represented above.",
-    precheckFailed: "Precheck failed: ",
-    backendPrecheckFailed: "Backend precheck failed: ",
-    backendCheck: "Backend Precheck",
-    notRecommended: "Not recommended to apply",
-    saveWithWarning: "Can save, but review warnings first",
-    saveOk: "Can save",
-    errors: "Errors",
-    warnings: "Warnings",
-    info: "Info",
-    ok: "OK",
-    idRequired: "id is required",
-    idPattern: "id may only contain letters, numbers, underscores, dots, and hyphens",
-    launchRequired: "launch config is required",
-    transportRequired: "transport config is required",
-    launchTypeRequired: "launch.type is required",
-    commandRequired: "managed_process requires launch.command",
-    containerImageDigestError: "managed_container images must be pinned by a lowercase SHA-256 digest",
-    containerVolumesUnsupported: "launch.volumes is not supported; use structured read-only launch.mounts",
-    containerMountsError: "launch.mounts requires absolute sources, non-root absolute targets outside protected paths, and read_only cannot be disabled; the backend also enforces the allowed root",
-    containerEnvironmentProtected: "managed_container environment cannot override LINGSHU_GATE_* or Docker process controls",
-    launchTypeWarning: "This form mainly covers managed_process. Check Manifest JSON for other launch.type values.",
-    argsWarning: "launch.args should all be strings",
-    transportTypeRequired: "transport.type is required",
-    stdioLaunchError: "transport.type=stdio requires launch.type to be managed_process or managed_container",
-    streamableEndpointError: "streamable_http requires transport.endpoint",
-    timeoutWarning: "timeout_seconds should be greater than 0",
-  },
-} satisfies Record<Locale, Record<string, string>>
-
-type CopyKey = keyof typeof FORM_COPY["zh-CN"]
-type CopyFn = (key: CopyKey) => string
-
-function Field({
-  label,
-  desc,
-  children,
-  className = "",
-  extra,
-}: {
-  label: string
-  desc?: string
-  children: ReactNode
-  className?: string
-  extra?: ReactNode
-}) {
-  return (
-    <div className={`flex flex-col gap-1.5 ${className}`}>
-      <div className="flex items-center justify-between">
-        <Label className="font-medium text-xs text-foreground/90">{label}</Label>
-        {extra}
-      </div>
-      {children}
-      {desc && <div className="text-[11px] text-muted-foreground/80 leading-tight">{desc}</div>}
-    </div>
-  )
-}
-
-function NumberField({
-  label,
-  desc,
-  value,
-  onChange,
-  min = 0,
-  step = 1,
-  suffix,
-  className = "",
-}: {
-  label: string
-  desc?: string
-  value: number
-  onChange: (val: number) => void
-  min?: number
-  step?: number
-  suffix: string
-  className?: string
-}) {
-  return (
-    <Field label={label} desc={desc} className={className}>
-      <div className="relative flex items-center">
-        <Input
-          type="number"
-          min={min}
-          step={step}
-          value={value}
-          onChange={(e) => onChange(Number(e.target.value || min))}
-          className="h-9 pr-10 font-mono text-xs bg-muted/20 border-border/70"
-        />
-        <span className="absolute right-3 text-xs font-medium text-muted-foreground pointer-events-none select-none">
-          {suffix}
-        </span>
-      </div>
-    </Field>
-  )
-}
-
-function SwitchRow({
-  title,
-  desc,
-  checked,
-  onCheckedChange,
-  disabled = false,
-  className = "",
-}: {
-  title: string
-  desc?: string
-  checked: boolean
-  onCheckedChange: (checked: boolean) => void
-  disabled?: boolean
-  className?: string
-}) {
-  return (
-    <div
-      className={`flex items-center justify-between gap-3 p-3 rounded-lg border border-border/60 bg-muted/15 transition-colors ${
-        disabled ? "opacity-60 cursor-not-allowed" : "hover:bg-muted/25"
-      } ${className}`}
-    >
-      <div className="flex flex-col gap-0.5">
-        <span className="text-xs font-medium text-foreground">{title}</span>
-        {desc && <span className="text-[11px] text-muted-foreground">{desc}</span>}
-      </div>
-      <Switch checked={checked} disabled={disabled} onCheckedChange={onCheckedChange} />
-    </div>
-  )
-}
-
-export function McpConfigEditor({ locale, selectedConfigId, value, onChange, onSave, onClose, busy }: McpConfigEditorProps) {
-  const copy = FORM_COPY[locale]
-  const c: CopyFn = (key) => copy[key]
+export function McpConfigEditor({ locale, selectedConfigId, value, onChange, onSave, onClose, busy }: Props) {
   const zh = locale === "zh-CN"
-  const [activeTab, setActiveTab] = useState<"form" | "json">("form")
-  const [id, setId] = useState("")
-  const [name, setName] = useState("")
-  const [runtimeMode, setRuntimeMode] = useState<RuntimeMode>("managed_stdio")
-  const [command, setCommand] = useState("")
-  const [argsText, setArgsText] = useState("")
-  const [envText, setEnvText] = useState("")
-  const [cwd, setCwd] = useState("")
-  const [endpoint, setEndpoint] = useState("")
-  const [timeoutSeconds, setTimeoutSeconds] = useState(120)
-  const [autoStart, setAutoStart] = useState(false)
-  const [restartEnabled, setRestartEnabled] = useState(false)
-  const [restartMaxAttempts, setRestartMaxAttempts] = useState(3)
-  const [restartDelaySeconds, setRestartDelaySeconds] = useState(5)
-  const [restartBackoffMultiplier, setRestartBackoffMultiplier] = useState(2)
-  const [restartMaxDelaySeconds, setRestartMaxDelaySeconds] = useState(60)
-  const [restartOnExit, setRestartOnExit] = useState(true)
-  const [restartResetAfterSeconds, setRestartResetAfterSeconds] = useState(300)
-  const [exitCodeAllowlistText, setExitCodeAllowlistText] = useState("")
-  const [exitCodeBlocklistText, setExitCodeBlocklistText] = useState("")
-  const [healthCheckEnabled, setHealthCheckEnabled] = useState(false)
-  const [healthIntervalSeconds, setHealthIntervalSeconds] = useState(30)
-  const [healthTimeoutSeconds, setHealthTimeoutSeconds] = useState(10)
-  const [healthFailureThreshold, setHealthFailureThreshold] = useState(3)
-  const [parseError, setParseError] = useState<string | null>(null)
-  const [validation, setValidation] = useState<ManifestValidationResponse | null>(null)
-  const [validating, setValidating] = useState(false)
+  const t = (cn: string, en: string) => zh ? cn : en
+  const copy = FORM_COPY[locale]
+  const initialValue = useRef(value)
+  const scrollRef = useRef<HTMLDivElement>(null)
+  const savedScroll = useRef(0)
+  const [jsonMode, setJsonMode] = useState(false)
+  const [activeSection, setActiveSection] = useState("basic")
+  const [query, setQuery] = useState("")
+  const [modeOpen, setModeOpen] = useState(false)
+  const pendingAnchor = useRef<string | null>(null)
+  const [modeChoice, setModeChoice] = useState<Exclude<RuntimeMode, "advanced">>("external_http")
   const [credentials, setCredentials] = useState<Credential[]>([])
-  const [credentialError, setCredentialError] = useState<string | null>(null)
-
-  const manifest = useMemo(() => {
-    try {
-      return parseManifest(value)
-    } catch {
-      return null
-    }
+  const [credentialError, setCredentialError] = useState("")
+  const [validation, setValidation] = useState<ManifestValidationResponse | null>(null)
+  const [error, setError] = useState("")
+  const [validating, setValidating] = useState(false)
+  const locked = busy || validating
+  // value 是表单和 JSON 的唯一草稿。JSON 无效时保留原文，禁止回退到旧表单保存。
+  const parsed = useMemo(() => {
+    try { return { manifest: parseManifest(value), error: "" } }
+    catch (reason) { return { manifest: null, error: reason instanceof Error ? reason.message : String(reason) } }
   }, [value])
-
-  const precheck = useMemo<PrecheckResult>(() => {
-    if (!manifest) return { errors: parseError ? [parseError] : [], warnings: [] }
-    return precheckManifest(manifest, c)
-  }, [manifest, parseError, locale])
-  const sensitiveKeys = useMemo(() => sensitiveEnvKeys(envText), [envText])
-  const canSave = Boolean(manifest) && precheck.errors.length === 0
+  const manifest = parsed.manifest
+  const draft = manifest || {}
+  const launch = getRecord(draft.launch)
+  const transport = getRecord(draft.transport)
+  const policy = getRecord(draft.restart_policy)
+  const health = getRecord(policy.health_check)
+  const mode = runtimeModeFromManifest(draft)
+  const managed = launch.type === "managed_process"
+  const container = launch.type === "managed_container"
+  const external = launch.type === "external"
+  const http = transport.type === "streamable_http"
+  const dirty = manifestFingerprint(value) !== manifestFingerprint(initialValue.current)
+  const precheck = manifest ? precheckManifest(manifest, key => copy[key]) : { errors: [parsed.error], warnings: [] }
+  const headers = getRecord(transport.headers)
+  const slots = Array.isArray(draft.user_credentials) ? draft.user_credentials.map(getRecord) : []
+  const roots = Array.isArray(draft.roots) ? draft.roots.map(String) : []
+  const modeLabel = mode === "external_http" ? t("外部 HTTP", "External HTTP") : mode === "managed_http" ? t("受管 HTTP", "Managed HTTP") : mode === "managed_stdio" ? t("受管 Stdio", "Managed Stdio") : container ? t("受管容器", "Managed container") : t("其他运行组合", "Other runtime")
 
   useEffect(() => {
-    void api.credentials().then(setCredentials).catch((err) => setCredentialError(err instanceof Error ? err.message : String(err)))
+    let cancelled = false
+    void api.credentials().then(items => { if (!cancelled) setCredentials(items) }).catch(() => { if (!cancelled) setCredentialError(t("凭据列表加载失败，现有引用仍会保留。", "Could not load credentials; existing references are preserved.")) })
+    return () => { cancelled = true }
   }, [])
-
+  useEffect(() => { setValidation(null); setError("") }, [value])
   useEffect(() => {
-    try {
-      const next = parseManifest(value)
-      const launch = getRecord(next.launch)
-      const transport = getRecord(next.transport)
-      const policy = getRecord(next.restart_policy)
-      const health = getRecord(policy.health_check)
-      setId(String(next.id || ""))
-      setName(String(next.name || ""))
-      setRuntimeMode(runtimeModeFromManifest(next))
-      setCommand(String(launch.command || ""))
-      setArgsText(stringifyArgs(launch.args))
-      setEnvText(stringifyEnv(launch.env))
-      setCwd(String(launch.cwd || ""))
-      setEndpoint(String(transport.endpoint || ""))
-      setTimeoutSeconds(Number(next.timeout_seconds || 120))
-      setAutoStart(Boolean(next.auto_start ?? false))
-      setRestartEnabled(Boolean(policy.enabled ?? false))
-      setRestartMaxAttempts(Number(policy.max_attempts ?? 3))
-      setRestartDelaySeconds(Number(policy.delay_seconds ?? 5))
-      setRestartBackoffMultiplier(Number(policy.backoff_multiplier ?? 2))
-      setRestartMaxDelaySeconds(Number(policy.max_delay_seconds ?? 60))
-      setRestartOnExit(Boolean(policy.restart_on_exit ?? true))
-      setRestartResetAfterSeconds(Number(policy.reset_after_seconds ?? 300))
-      setExitCodeAllowlistText(stringifyNumberList(policy.exit_code_allowlist))
-      setExitCodeBlocklistText(stringifyNumberList(policy.exit_code_blocklist))
-      setHealthCheckEnabled(Boolean(health.enabled ?? false))
-      setHealthIntervalSeconds(Number(health.interval_seconds ?? 30))
-      setHealthTimeoutSeconds(Number(health.timeout_seconds ?? 10))
-      setHealthFailureThreshold(Number(health.failure_threshold ?? 3))
-      setParseError(null)
-      setValidation(null)
-    } catch (err) {
-      setParseError(err instanceof Error ? err.message : String(err))
-    }
-  }, [value])
+    if (error && scrollRef.current) scrollRef.current.scrollTop = 0
+  }, [error])
+  useEffect(() => {
+    if (!jsonMode && scrollRef.current) scrollRef.current.scrollTop = savedScroll.current
+  }, [jsonMode])
 
-  function buildManifestFromForm(): ManifestLike {
-    const current = parseManifest(value)
-    const currentLaunch = getRecord(current.launch)
-    const currentTransport = getRecord(current.transport)
-    const currentPolicy = getRecord(current.restart_policy)
-    const currentHealth = getRecord(currentPolicy.health_check)
-    const advanced = runtimeMode === "advanced"
-    const managedProcess = runtimeMode === "managed_stdio" || runtimeMode === "managed_http"
-    const http = runtimeMode === "external_http" || runtimeMode === "managed_http"
-    const nextLaunch: Record<string, unknown> = advanced
-      ? { ...currentLaunch }
-      : { ...currentLaunch, type: managedProcess ? "managed_process" : "external" }
-    if (managedProcess) {
-      nextLaunch.command = command.trim()
-      nextLaunch.args = parseArgs(argsText)
-      nextLaunch.env = parseEnv(envText)
-      if (cwd.trim()) nextLaunch.cwd = cwd.trim()
-      else delete nextLaunch.cwd
-    }
-
-    const nextTransport: Record<string, unknown> = advanced
-      ? { ...currentTransport }
-      : { ...currentTransport, type: http ? "streamable_http" : "stdio" }
-    if (!advanced) {
-      if (http) nextTransport.endpoint = endpoint.trim()
-      else delete nextTransport.endpoint
-    }
-
-    const policyEnabled = managedProcess && restartEnabled
-    const nextPolicy = advanced ? currentPolicy : {
-      ...currentPolicy,
-      enabled: policyEnabled,
-      max_attempts: Number(restartMaxAttempts || 0),
-      delay_seconds: Number(restartDelaySeconds || 0),
-      backoff_multiplier: Number(restartBackoffMultiplier || 1),
-      max_delay_seconds: Number(restartMaxDelaySeconds || 0),
-      restart_on_exit: restartOnExit,
-      reset_after_seconds: Number(restartResetAfterSeconds || 0),
-      exit_code_allowlist: parseNumberList(exitCodeAllowlistText),
-      exit_code_blocklist: parseNumberList(exitCodeBlocklistText),
-      health_check: {
-        ...currentHealth,
-        enabled: policyEnabled && healthCheckEnabled,
-        method: "tools_list",
-        interval_seconds: Number(healthIntervalSeconds || 30),
-        timeout_seconds: Number(healthTimeoutSeconds || 10),
-        failure_threshold: Number(healthFailureThreshold || 3),
-      },
-    }
-
-    return {
-      ...current,
-      id: id.trim(),
-      name: name.trim(),
-      launch: nextLaunch,
-      transport: nextTransport,
-      timeout_seconds: Number(timeoutSeconds || 120),
-      auto_start: advanced ? current.auto_start : managedProcess ? autoStart : false,
-      restart_policy: nextPolicy,
-    }
+  function update(path: string[], next: unknown) {
+    if (manifest && !locked) onChange(prettyJson(updateManifestPath(manifest, path, next)))
   }
-
-  function insertCredentialRef(credential: Credential) {
-    const line = `${envKeyFromCredential(credential.id)}=${credentialRef(credential.id)}`
-    setEnvText((current) => current.trim() ? `${current.trim()}\n${line}` : line)
-    setValidation(null)
+  function close() {
+    if (locked) return
+    if (!dirty) { onClose?.(); return }
+    Modal.confirm({ title: t("放弃未保存的修改？", "Discard unsaved changes?"), okText: t("放弃修改", "Discard"), cancelText: t("继续编辑", "Keep editing"), onOk: onClose })
   }
-
-  function applyFormToJson() {
-    try {
-      const next = buildManifestFromForm()
-      onChange(prettyJson(next))
-      setParseError(null)
-      setValidation(null)
-    } catch (err) {
-      setParseError(err instanceof Error ? err.message : String(err))
+  function switchView() {
+    if (jsonMode && !manifest) { setError(t("请先修正 JSON 格式，再返回表单。", "Fix JSON before returning to the form.")); return }
+    if (!jsonMode) savedScroll.current = scrollRef.current?.scrollTop || 0
+    setJsonMode(!jsonMode)
+  }
+  function jump(id: string) {
+    const pane = scrollRef.current
+    const section = pane?.querySelector<HTMLElement>(`#config-${id}`)
+    if (!pane || !section) return
+    const previous = pane.scrollTop
+    pendingAnchor.current = id
+    pane.scrollTo({ top: pane.scrollTop + section.getBoundingClientRect().top - pane.getBoundingClientRect().top - 20, behavior: "auto" })
+    if (pane.scrollTop === previous) pendingAnchor.current = null
+    setActiveSection(id)
+    section.focus({ preventScroll: true })
+  }
+  function trackScroll() {
+    const pane = scrollRef.current
+    if (!pane) return
+    if (pendingAnchor.current) { setActiveSection(pendingAnchor.current); pendingAnchor.current = null; return }
+    const top = pane.getBoundingClientRect().top + 72
+    let current = "basic"
+    pane.querySelectorAll<HTMLElement>("[data-config-section]").forEach(section => {
+      if (section.getBoundingClientRect().top <= top) current = section.dataset.configSection || current
+    })
+    if (pane.scrollTop + pane.clientHeight >= pane.scrollHeight - 4) current = "permissions"
+    setActiveSection(current)
+  }
+  function findField() {
+    const needle = query.trim().toLowerCase()
+    if (!needle) return
+    const field = Array.from(scrollRef.current?.querySelectorAll<HTMLElement>("[data-config-field], [data-config-section]") || []).find(node => (node.dataset.configField || node.dataset.search || "").toLowerCase().includes(needle))
+    if (!field || !scrollRef.current) { setError(t("没有找到匹配的配置项", "No matching setting")); return }
+    setError("")
+    let parent = field.parentElement
+    while (parent && parent !== scrollRef.current) {
+      if (parent instanceof HTMLDetailsElement) parent.open = true
+      parent = parent.parentElement
     }
+    scrollRef.current.scrollTo({ top: scrollRef.current.scrollTop + field.getBoundingClientRect().top - scrollRef.current.getBoundingClientRect().top - 24, behavior: "auto" })
+    field.querySelector<HTMLElement>("input, select, button, textarea")?.focus({ preventScroll: true })
   }
-
-  function formatJson() {
+  async function save() {
+    if (!manifest || locked) return
+    const invalid = scrollRef.current?.querySelector<HTMLInputElement>("input:invalid")
+    if (!jsonMode && invalid) { invalid.reportValidity(); invalid.focus(); return }
+    if (precheck.errors.length) { setError(precheck.errors.join("；")); return }
+    setValidating(true); setError("")
     try {
-      onChange(formatManifestJson(value))
-      setParseError(null)
-      setValidation(null)
-    } catch (err) {
-      setParseError(err instanceof Error ? err.message : String(err))
-    }
-  }
-
-  async function validateWithBackend(): Promise<ManifestValidationResponse | null> {
-    setValidating(true)
-    setValidation(null)
-    setParseError(null)
-    try {
-      const next = buildManifestFromForm()
-      const nextText = prettyJson(next)
-      onChange(nextText)
-      const result = await api.validateConfig(withoutUserCredentialValues(next) as Record<string, unknown>, selectedConfigId || null)
+      const result = await api.validateConfig(withoutUserCredentialValues(manifest), selectedConfigId || null)
       setValidation(result)
-      return result
-    } catch (err) {
-      setParseError(err instanceof Error ? err.message : String(err))
-      return null
-    } finally {
-      setValidating(false)
-    }
+      if (result.summary.errors) { setError(t("配置校验未通过，请查看错误详情。", "Validation failed. Review the errors.")); return }
+      await onSave(value)
+      initialValue.current = value
+    } catch (reason) { setError(reason instanceof Error ? reason.message : String(reason)) }
+    finally { setValidating(false) }
+  }
+  function section(id: string, children: ReactNode) {
+    const entry = sectionNames.find(item => item[0] === id)!
+    const Icon = entry[3]
+    return <section id={`config-${id}`} data-config-section={id} data-search={`${entry[1]} ${entry[2]}`} tabIndex={-1} className="scroll-mt-5 border-b border-border/70 py-5 first:pt-1 last:border-0 focus:outline-none">
+      <h2 className="mb-4 flex items-center gap-3 text-lg font-semibold"><Icon className="size-5 text-primary" />{zh ? entry[1] : entry[2]}</h2>{children}
+    </section>
+  }
+  function textField(label: string, path: string[], current: unknown, help?: string, placeholder?: string) {
+    return <ConfigField label={label} help={help} search={path.join(".")}><Input value={String(current ?? "")} placeholder={placeholder} onChange={event => update(path, event.target.value)} /></ConfigField>
+  }
+  function numberField(label: string, path: string[], current: unknown, fallback: number, min: number, help?: string, step = 1) {
+    return <ConfigField label={label} help={help} search={path.join(".")}><Input type="number" min={min} step={step} value={current === undefined ? fallback : String(current)} onChange={event => update(path, event.target.value === "" ? "" : Number(event.target.value))} /></ConfigField>
+  }
+  function toggle(label: string, path: string[], current: unknown, fallback = false, help?: string) {
+    return <ConfigField label={label} help={help} search={path.join(".")}><Switch checked={Boolean(current ?? fallback)} onCheckedChange={next => update(path, next)} /></ConfigField>
+  }
+  function arrayField(label: string, path: string[], current: unknown, help?: string) {
+    const items = Array.isArray(current) ? current : []
+    return <div data-config-field={`${label} ${path.join(".")}`} className="space-y-2">
+      <div className="flex items-center gap-1 text-sm font-medium">{label}{help && <ConfigHelp label={label}>{help}</ConfigHelp>}</div>
+      {items.map((item, index) => <div key={index} className="flex gap-2"><Input aria-label={`${label} ${index + 1}`} value={String(item)} onChange={event => update(path, items.map((old, i) => i === index ? event.target.value : old))} /><Button type="button" variant="ghost" size="sm" aria-label={`${t("删除", "Remove")} ${label} ${index + 1}`} onClick={() => update(path, items.filter((_, i) => i !== index))}><Trash2 className="size-4" /></Button></div>)}
+      <Button type="button" size="sm" variant="outline" onClick={() => update(path, [...items, ""])}><Plus className="mr-1 size-4" />{t("添加", "Add")} {label}</Button>
+    </div>
   }
 
-  async function saveAfterPrecheck() {
-    try {
-      const next = buildManifestFromForm()
-      const latestPrecheck = precheckManifest(next, c)
-      if (latestPrecheck.errors.length > 0) {
-        setParseError(`${c("precheckFailed")}${latestPrecheck.errors.join("; ")}`)
-        return
-      }
-      const result = await validateWithBackend()
-      if (!result) return
-      if (result.summary.errors > 0) {
-        setParseError(`${c("backendPrecheckFailed")}${result.summary.errors}`)
-        return
-      }
-      const nextText = prettyJson(next)
-      onChange(nextText)
-      setParseError(null)
-      await onSave(nextText)
-    } catch (err) {
-      setParseError(err instanceof Error ? err.message : String(err))
-    }
-  }
-
-  const RUNTIME_MODES: Array<{
-    id: RuntimeMode
-    title: string
-    desc: string
-    icon: typeof Terminal
-  }> = [
-    { id: "managed_stdio", title: c("managedStdio"), desc: c("managedStdioDesc"), icon: Terminal },
-    { id: "external_http", title: c("externalHttp"), desc: c("externalHttpDesc"), icon: Globe },
-    { id: "managed_http", title: c("managedHttp"), desc: c("managedHttpDesc"), icon: Cpu },
-    { id: "advanced", title: c("advancedMode"), desc: c("advancedModeDesc"), icon: Sliders },
-  ]
-
-  return (
-    <div className="flex h-full flex-col bg-background text-foreground">
-      {/* 顶部 Tab 切换与概要状态 */}
-      <div className="flex items-center justify-between border-b px-8 py-3 bg-muted/20 shrink-0">
-        <div className="flex items-center gap-1.5 rounded-lg bg-muted/80 p-1">
-          <button
-            type="button"
-            className={`flex items-center gap-2 rounded-md px-3.5 py-1.5 text-xs font-medium transition-all ${
-              activeTab === "form"
-                ? "bg-background text-foreground shadow-xs font-semibold"
-                : "text-muted-foreground hover:text-foreground"
-            }`}
-            onClick={() => setActiveTab("form")}
-          >
-            <LayoutTemplate className="size-3.5" />
-            {zh ? "可视化表单" : "Visual Form"}
-          </button>
-          <button
-            type="button"
-            className={`flex items-center gap-2 rounded-md px-3.5 py-1.5 text-xs font-medium transition-all ${
-              activeTab === "json"
-                ? "bg-background text-foreground shadow-xs font-semibold"
-                : "text-muted-foreground hover:text-foreground"
-            }`}
-            onClick={() => setActiveTab("json")}
-          >
-            <FileCode2 className="size-3.5" />
-            {zh ? "JSON 源码编辑" : "Raw JSON Editor"}
-          </button>
-        </div>
-
-        <div className="flex items-center gap-3">
-          {validation && (
-            <Badge variant={validation.summary.errors > 0 ? "danger" : validation.summary.warnings > 0 ? "warning" : "success"}>
-              {validation.summary.errors > 0
-                ? (zh ? "预检查未通过" : "Precheck Failed")
-                : (zh ? "后端预检查通过" : "Precheck OK")}
-            </Badge>
-          )}
-        </div>
+  return <div className="flex h-full min-h-0 flex-col bg-background text-foreground" onKeyDown={event => { if (event.key === "Escape" && !event.defaultPrevented) { event.stopPropagation(); close() } }}>
+    <header className="flex shrink-0 flex-wrap items-center justify-between gap-3 border-b px-5 py-3">
+      <div className="flex min-w-0 items-center gap-3"><Code2 className="size-8 rounded-md bg-primary/10 p-1 text-primary" /><h1 className="truncate text-lg font-semibold">{selectedConfigId ? `${selectedConfigId} ${t("配置", "configuration")}` : t("新建 MCP 配置", "New MCP configuration")}</h1>{dirty && <span className="rounded border border-amber-500/30 px-2 py-0.5 text-xs text-amber-700 dark:text-amber-400">{t("未保存", "Unsaved")}</span>}</div>
+      <div className="flex items-center gap-2"><span className="hidden rounded border border-primary/20 px-3 py-1.5 text-sm text-primary sm:inline-flex">{modeLabel}</span><ConfigHelp label={t("运行方式", "Runtime mode")}>{external ? copy.externalManagedHint : copy.runtimeModeDesc}</ConfigHelp>
+        <Popover trigger="click" open={modeOpen} onOpenChange={setModeOpen} content={<div className="max-w-sm space-y-3"><p className="text-sm">{t("切换会移除不兼容的启动字段；保存前请核对配置。", "Switching removes incompatible launch fields. Review before saving.")}</p><select aria-label={t("运行方式", "Runtime mode")} className={selectClass} value={modeChoice} onChange={event => setModeChoice(event.target.value as typeof modeChoice)}><option value="external_http">{copy.externalHttp}</option><option value="managed_http">{copy.managedHttp}</option><option value="managed_stdio">{copy.managedStdio}</option></select><Button size="sm" disabled={locked || !manifest} onClick={() => { if (manifest) onChange(prettyJson(changeRuntimeMode(manifest, modeChoice))); setModeOpen(false) }}>{t("更改运行方式", "Change runtime mode")}</Button></div>}><Button size="sm" variant="outline" disabled={locked || !manifest}>{t("更改运行方式", "Change runtime mode")}</Button></Popover>
+        <Button size="sm" variant="outline" onClick={switchView} disabled={locked}><Braces className="mr-1 size-4" />{jsonMode ? t("返回表单", "Back to form") : "JSON"}</Button><Button size="sm" variant="ghost" aria-label={t("关闭配置编辑器", "Close configuration editor")} onClick={close} disabled={locked}><X className="size-5" /></Button>
       </div>
-
-      {/* 中间滚动区 */}
-      <div className="flex-1 overflow-y-auto px-8 py-6 space-y-6">
-        {parseError && (
-          <Alert variant="destructive" className="border-destructive/30 bg-destructive/10">
-            <AlertCircle className="size-4" />
-            <AlertDescription className="ml-2 font-medium">
-              {c("parseErrorPrefix")}{parseError}
-            </AlertDescription>
-          </Alert>
-        )}
-        {credentialError && (
-          <Alert className="border-warning/30 bg-warning/10 text-warning-foreground">
-            <AlertCircle className="size-4" />
-            <AlertDescription className="ml-2">{c("credentialErrorPrefix")}{credentialError}</AlertDescription>
-          </Alert>
-        )}
-        {precheck.errors.length > 0 && (
-          <Alert variant="destructive" className="border-destructive/30 bg-destructive/5">
-            <AlertCircle className="size-4" />
-            <div className="ml-2">
-              <AlertTitle className="font-semibold text-xs">{c("localErrors")}</AlertTitle>
-              <AlertDescription>
-                <ul className="list-disc pl-4 text-xs space-y-0.5 mt-1">
-                  {precheck.errors.map((item) => <li key={item}>{item}</li>)}
-                </ul>
-              </AlertDescription>
-            </div>
-          </Alert>
-        )}
-        {precheck.warnings.length > 0 && (
-          <Alert className="border-warning/30 bg-warning/5 text-warning-foreground">
-            <Info className="size-4" />
-            <div className="ml-2">
-              <AlertTitle className="font-semibold text-xs">{c("localWarnings")}</AlertTitle>
-              <AlertDescription>
-                <ul className="list-disc pl-4 text-xs space-y-0.5 mt-1">
-                  {precheck.warnings.map((item) => <li key={item}>{item}</li>)}
-                </ul>
-              </AlertDescription>
-            </div>
-          </Alert>
-        )}
-        {sensitiveKeys.length > 0 && (
-          <Alert className="border-blue-500/20 bg-blue-500/5 text-foreground text-xs">
-            <Info className="size-4 text-blue-500" />
-            <AlertDescription className="ml-2">
-              <span className="font-semibold">{c("sensitiveEnv")}:</span> {sensitiveKeys.join(", ")}。{c("sensitiveEnvHint")}
-            </AlertDescription>
-          </Alert>
-        )}
-        {validation && <ValidationPanel validation={validation} c={c} />}
-
-        {activeTab === "form" ? (
-          <div className="space-y-6">
-            {/* 核心单选卡片组：运行方式 */}
-            <div className="flex flex-col gap-2">
-              <div className="flex items-center justify-between">
-                <div>
-                  <Label className="text-sm font-semibold text-foreground">{c("runtimeMode")}</Label>
-                  <p className="text-xs text-muted-foreground">{c("runtimeModeDesc")}</p>
-                </div>
-              </div>
-              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 pt-1">
-                {RUNTIME_MODES.map((mode) => {
-                  const isSelected = runtimeMode === mode.id
-                  const Icon = mode.icon
-                  return (
-                    <button
-                      key={mode.id}
-                      type="button"
-                      onClick={() => { setRuntimeMode(mode.id); setValidation(null) }}
-                      className={`relative flex flex-col gap-2.5 p-4 rounded-xl border text-left transition-all ${
-                        isSelected
-                          ? "border-primary bg-primary/5 shadow-xs ring-1 ring-primary/25"
-                          : "border-border/70 bg-card hover:border-border hover:bg-muted/30"
-                      }`}
-                    >
-                      <div className="flex items-center justify-between">
-                        <div className={`size-8 rounded-lg flex items-center justify-center ${
-                          isSelected ? "bg-primary text-primary-foreground" : "bg-muted text-muted-foreground"
-                        }`}>
-                          <Icon className="size-4.5" />
-                        </div>
-                        {isSelected && (
-                          <span className="size-5 rounded-full bg-primary text-primary-foreground flex items-center justify-center shadow-xs">
-                            <Check className="size-3 stroke-[3]" />
-                          </span>
-                        )}
-                      </div>
-                      <div>
-                        <div className="text-xs font-semibold text-foreground">{mode.title}</div>
-                        <div className="text-[11px] text-muted-foreground leading-relaxed mt-1">{mode.desc}</div>
-                      </div>
-                    </button>
-                  )
-                })}
-              </div>
-            </div>
-
-            {runtimeMode === "external_http" && (
-              <Alert className="bg-muted/40 border-border/70 text-xs">
-                <Info className="size-3.5 text-muted-foreground" />
-                <AlertDescription className="ml-1.5">{c("externalManagedHint")}</AlertDescription>
-              </Alert>
-            )}
-            {runtimeMode === "advanced" && (
-              <Alert className="bg-amber-500/10 border-amber-500/20 text-xs">
-                <Info className="size-3.5 text-amber-600" />
-                <AlertDescription className="ml-1.5">{c("advancedModeHint")}</AlertDescription>
-              </Alert>
-            )}
-
-            {/* 双栏布局：左栏（基础与进程） + 右栏（环境变量与高可用） */}
-            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-              {/* 左栏 */}
-              <div className="space-y-6">
-                {/* 基础属性 */}
-                <Card className="border-border/70 shadow-xs">
-                  <CardHeader className="pb-3 pt-4 px-5 border-b bg-muted/20">
-                    <div className="flex items-center gap-2">
-                      <Server className="size-4 text-primary" />
-                      <CardTitle className="text-sm font-semibold">{zh ? "基础信息" : "Basic Information"}</CardTitle>
-                    </div>
-                    <CardDescription className="text-xs">
-                      {zh ? "MCP Server 的唯一标识与展示名称" : "Server unique identifier and display name"}
-                    </CardDescription>
-                  </CardHeader>
-                  <CardContent className="p-5 grid gap-4 sm:grid-cols-2">
-                    <Field label={c("serverId")} desc={c("serverIdDesc")}>
-                      <Input value={id} onChange={(event) => setId(event.target.value)} placeholder="mcp-server" className="h-9 font-mono text-xs bg-muted/20 border-border/70" />
-                    </Field>
-                    <Field label={c("name")} desc={c("nameDesc")}>
-                      <Input value={name} onChange={(event) => setName(event.target.value)} placeholder="MCP Server" className="h-9 bg-muted/20 border-border/70" />
-                    </Field>
-                    <NumberField
-                      label={c("timeoutSeconds")}
-                      desc={c("timeoutSecondsDesc")}
-                      value={timeoutSeconds}
-                      onChange={setTimeoutSeconds}
-                      min={1}
-                      suffix={zh ? "秒" : "s"}
-                    />
-                    {runtimeMode !== "advanced" && (
-                      <div className="flex flex-col justify-end">
-                        <SwitchRow
-                          title={c("autoStart")}
-                          desc={runtimeMode === "external_http" ? c("externalManagedHint") : c("autoStartDesc")}
-                          checked={runtimeMode === "external_http" ? false : autoStart}
-                          disabled={runtimeMode === "external_http"}
-                          onCheckedChange={setAutoStart}
-                        />
-                      </div>
-                    )}
-                  </CardContent>
-                </Card>
-
-                {/* 进程命令与连接 */}
-                {(runtimeMode === "managed_stdio" || runtimeMode === "managed_http" || runtimeMode === "external_http") && (
-                  <Card className="border-border/70 shadow-xs">
-                    <CardHeader className="pb-3 pt-4 px-5 border-b bg-muted/20">
-                      <div className="flex items-center gap-2">
-                        <Terminal className="size-4 text-primary" />
-                        <CardTitle className="text-sm font-semibold">{zh ? "进程与执行命令" : "Process & Execution"}</CardTitle>
-                      </div>
-                      <CardDescription className="text-xs">
-                        {zh ? "可执行文件命令路径、启动参数与工作目录" : "Executable command path, parameters, and working directory"}
-                      </CardDescription>
-                    </CardHeader>
-                    <CardContent className="p-5 flex flex-col gap-4">
-                      {(runtimeMode === "managed_stdio" || runtimeMode === "managed_http") && (
-                        <>
-                          <div className="grid gap-4 sm:grid-cols-2">
-                            <Field label={c("command")} desc={c("commandDesc")}>
-                              <Input value={command} onChange={(event) => setCommand(event.target.value)} placeholder="/path/to/mcp-server" className="h-9 font-mono text-xs bg-muted/20 border-border/70" />
-                            </Field>
-                            <Field label={c("cwd")} desc={c("cwdDesc")}>
-                              <Input value={cwd} onChange={(event) => setCwd(event.target.value)} placeholder="/workspace" className="h-9 font-mono text-xs bg-muted/20 border-border/70" />
-                            </Field>
-                          </div>
-                          <Field label={c("args")} desc={c("argsDesc")}>
-                            <Textarea
-                              className="min-h-[110px] font-mono text-xs leading-relaxed bg-slate-900/[0.03] dark:bg-slate-950/40 border-border/70 resize-y"
-                              value={argsText}
-                              onChange={(event) => setArgsText(event.target.value)}
-                              placeholder={'--config\n/path/to/config.json\n--verbose'}
-                            />
-                          </Field>
-                        </>
-                      )}
-                      {(runtimeMode === "external_http" || runtimeMode === "managed_http") && (
-                        <Field label={c("endpoint")} desc={c("endpointDesc")}>
-                          <Input
-                            value={endpoint}
-                            onChange={(event) => { setEndpoint(event.target.value); setValidation(null) }}
-                            placeholder="http://127.0.0.1:3120/mcp"
-                            className="h-9 font-mono text-xs bg-muted/20 border-border/70"
-                          />
-                        </Field>
-                      )}
-                    </CardContent>
-                  </Card>
-                )}
-              </div>
-
-              {/* 右栏 */}
-              <div className="space-y-6">
-                {/* 环境变量与凭据 */}
-                {(runtimeMode === "managed_stdio" || runtimeMode === "managed_http") && (
-                  <Card className="border-border/70 shadow-xs">
-                    <CardHeader className="pb-3 pt-4 px-5 border-b bg-muted/20">
-                      <div className="flex items-center gap-2">
-                        <Key className="size-4 text-primary" />
-                        <CardTitle className="text-sm font-semibold">{c("env")}</CardTitle>
-                      </div>
-                      <CardDescription className="text-xs">{c("envDesc")}</CardDescription>
-                    </CardHeader>
-                    <CardContent className="p-5 flex flex-col gap-4">
-                      <Field label={c("env")} desc={c("envDesc")}>
-                        <Textarea
-                          className="min-h-[130px] font-mono text-xs leading-relaxed bg-slate-900/[0.03] dark:bg-slate-950/40 border-border/70 resize-y"
-                          value={envText}
-                          onChange={(event) => setEnvText(event.target.value)}
-                          placeholder={'SERVICE_TOKEN=${credential:SERVICE_TOKEN}\nSERVICE_MODE=production\nLOG_LEVEL=debug'}
-                        />
-                      </Field>
-                      {credentials.length > 0 && (
-                        <div className="flex flex-col gap-2 rounded-lg border border-border/60 bg-muted/15 p-3.5">
-                          <div className="flex items-center justify-between">
-                            <span className="text-xs font-medium text-foreground">{c("insertCredential")}</span>
-                            <span className="text-[11px] text-muted-foreground">{c("insertCredentialDesc")}</span>
-                          </div>
-                          <div className="flex flex-wrap gap-1.5 pt-1">
-                            {credentials.map((credential) => (
-                              <Button
-                                key={credential.id}
-                                size="sm"
-                                variant="secondary"
-                                className="h-7 text-xs font-mono bg-background hover:bg-muted border border-border/60 shadow-2xs"
-                                onClick={() => insertCredentialRef(credential)}
-                              >
-                                + {credential.id}
-                              </Button>
-                            ))}
-                          </div>
-                        </div>
-                      )}
-                    </CardContent>
-                  </Card>
-                )}
-
-                {/* 高可用与健康探活 */}
-                {(runtimeMode === "managed_stdio" || runtimeMode === "managed_http") && (
-                  <Card className="border-border/70 shadow-xs">
-                    <CardHeader className="pb-3 pt-4 px-5 border-b bg-muted/20">
-                      <div className="flex items-center justify-between">
-                        <div className="flex items-center gap-2">
-                          <RefreshCw className="size-4 text-primary" />
-                          <CardTitle className="text-sm font-semibold">{c("restartPolicy")}</CardTitle>
-                        </div>
-                        <Switch checked={restartEnabled} onCheckedChange={setRestartEnabled} />
-                      </div>
-                      <CardDescription className="text-xs">{c("restartPolicyDesc")}</CardDescription>
-                    </CardHeader>
-                    {restartEnabled && (
-                      <CardContent className="p-5 flex flex-col gap-5">
-                        <div className="grid gap-4 sm:grid-cols-2">
-                          <NumberField
-                            label={c("maxAttempts")}
-                            desc={c("maxAttemptsDesc")}
-                            value={restartMaxAttempts}
-                            onChange={setRestartMaxAttempts}
-                            min={0}
-                            suffix={zh ? "次" : "times"}
-                          />
-                          <NumberField
-                            label={c("delaySeconds")}
-                            desc={c("delaySecondsDesc")}
-                            value={restartDelaySeconds}
-                            onChange={setRestartDelaySeconds}
-                            min={0}
-                            suffix={zh ? "秒" : "s"}
-                          />
-                          <NumberField
-                            label={c("backoff")}
-                            desc={c("backoffDesc")}
-                            value={restartBackoffMultiplier}
-                            onChange={setRestartBackoffMultiplier}
-                            min={1}
-                            step={0.1}
-                            suffix="x"
-                          />
-                          <NumberField
-                            label={c("maxDelay")}
-                            desc={c("maxDelayDesc")}
-                            value={restartMaxDelaySeconds}
-                            onChange={setRestartMaxDelaySeconds}
-                            min={0}
-                            suffix={zh ? "秒" : "s"}
-                          />
-                          <NumberField
-                            label={c("resetAfterSeconds")}
-                            desc={c("resetAfterSecondsDesc")}
-                            value={restartResetAfterSeconds}
-                            onChange={setRestartResetAfterSeconds}
-                            min={0}
-                            suffix={zh ? "秒" : "s"}
-                          />
-                          <div className="flex flex-col justify-end">
-                            <SwitchRow
-                              title={c("restartOnExit")}
-                              desc={c("restartOnExitDesc")}
-                              checked={restartOnExit}
-                              onCheckedChange={setRestartOnExit}
-                            />
-                          </div>
-                          <Field label={c("exitAllowlist")} desc={c("exitAllowlistDesc")}>
-                            <Input value={exitCodeAllowlistText} onChange={(event) => setExitCodeAllowlistText(event.target.value)} placeholder="1,2,130" className="h-9 font-mono text-xs bg-muted/20 border-border/70" />
-                          </Field>
-                          <Field label={c("exitBlocklist")} desc={c("exitBlocklistDesc")}>
-                            <Input value={exitCodeBlocklistText} onChange={(event) => setExitCodeBlocklistText(event.target.value)} placeholder="0" className="h-9 font-mono text-xs bg-muted/20 border-border/70" />
-                          </Field>
-                        </div>
-
-                        {/* 健康检查探活区 */}
-                        <div className="rounded-xl border border-border/70 p-4 bg-muted/10 space-y-3">
-                          <div className="flex items-center justify-between">
-                            <div className="flex flex-col">
-                              <span className="font-semibold text-xs text-foreground">{c("healthCheck")}</span>
-                              <span className="text-[11px] text-muted-foreground">{c("healthCheckDesc")}</span>
-                            </div>
-                            <Switch checked={healthCheckEnabled} onCheckedChange={setHealthCheckEnabled} />
-                          </div>
-                          {healthCheckEnabled && (
-                            <div className="grid gap-3 sm:grid-cols-3 pt-2">
-                              <NumberField
-                                label={c("intervalSeconds")}
-                                desc={c("intervalSecondsDesc")}
-                                value={healthIntervalSeconds}
-                                onChange={setHealthIntervalSeconds}
-                                min={1}
-                                suffix={zh ? "秒" : "s"}
-                              />
-                              <NumberField
-                                label={c("healthTimeoutSeconds")}
-                                desc={c("healthTimeoutSecondsDesc")}
-                                value={healthTimeoutSeconds}
-                                onChange={setHealthTimeoutSeconds}
-                                min={1}
-                                suffix={zh ? "秒" : "s"}
-                              />
-                              <NumberField
-                                label={c("failureThreshold")}
-                                desc={c("failureThresholdDesc")}
-                                value={healthFailureThreshold}
-                                onChange={setHealthFailureThreshold}
-                                min={1}
-                                suffix={zh ? "次" : "times"}
-                              />
-                            </div>
-                          )}
-                        </div>
-                      </CardContent>
-                    )}
-                  </Card>
-                )}
-              </div>
-            </div>
-          </div>
-        ) : (
-          <Card className="border-border/70 shadow-xs h-full flex flex-col">
-            <CardHeader className="pb-3 pt-4 px-6 border-b bg-muted/20">
-              <div className="flex items-center gap-2">
-                <FileCode2 className="size-4 text-primary" />
-                <CardTitle className="text-sm font-semibold">{c("rawJson")}</CardTitle>
-              </div>
-              <CardDescription className="text-xs">{c("rawJsonDesc")}</CardDescription>
-            </CardHeader>
-            <CardContent className="p-6 flex-1">
-              <Textarea
-                className="h-[580px] font-mono text-xs leading-relaxed bg-slate-900/[0.03] dark:bg-slate-950/50 border-border/70 resize-none"
-                value={value}
-                onChange={(event) => onChange(event.target.value)}
-              />
-            </CardContent>
-          </Card>
-        )}
-      </div>
-
-      {/* 底部吸底操作栏 */}
-      <div className="flex items-center justify-between border-t bg-card/95 backdrop-blur-sm px-8 py-3.5 shadow-sm shrink-0">
-        <div className="flex items-center gap-2.5">
-          {activeTab === "form" && (
-            <Button size="sm" variant="outline" onClick={applyFormToJson} className="h-8.5 text-xs">
-              <Wand2 className="size-3.5 mr-1.5" />
-              {c("applyForm")}
-            </Button>
-          )}
-          <Button size="sm" variant="outline" onClick={formatJson} className="h-8.5 text-xs">
-            <Braces className="size-3.5 mr-1.5" />
-            {c("formatJson")}
-          </Button>
-          <Button
-            size="sm"
-            variant="outline"
-            onClick={validateWithBackend}
-            disabled={validating || !manifest}
-            className="h-8.5 text-xs"
-          >
-            <ShieldCheck className="size-3.5 mr-1.5" />
-            {validating ? (zh ? "检查中..." : "Checking...") : c("backendPrecheck")}
-          </Button>
-        </div>
-
-        <div className="flex items-center gap-3">
-          {onClose && (
-            <Button size="sm" variant="ghost" onClick={onClose} className="h-8.5 px-4 text-xs">
-              {zh ? "取消" : "Cancel"}
-            </Button>
-          )}
-          <Button
-            size="sm"
-            onClick={saveAfterPrecheck}
-            disabled={busy || validating || !canSave}
-            className="h-8.5 px-5 text-xs shadow-xs font-medium"
-          >
-            <Save className="size-3.5 mr-1.5" />
-            {c("saveAndApply")}
-          </Button>
-        </div>
+    </header>
+    <div className="flex min-h-0 flex-1">
+      {!jsonMode && <aside className="flex w-44 shrink-0 flex-col border-r bg-muted/10 p-3 md:w-56">
+        <form className="relative mb-4" onSubmit={event => { event.preventDefault(); findField() }}><Search className="pointer-events-none absolute left-2.5 top-2.5 size-4 text-muted-foreground" /><Input aria-label={t("搜索配置项", "Search settings")} placeholder={t("搜索配置项…", "Search settings…")} value={query} onChange={event => setQuery(event.target.value)} className="pl-8" /><button type="submit" className="sr-only">{t("搜索", "Search")}</button></form>
+        <nav aria-label={t("配置目录", "Configuration sections")} className="space-y-1 overflow-y-auto">{sectionNames.map(([id, cn, en, Icon]) => <button type="button" key={id} aria-current={activeSection === id ? "location" : undefined} onClick={() => jump(id)} className={`flex w-full items-center gap-3 rounded-md border-l-2 px-3 py-3 text-left text-sm ${activeSection === id ? "border-primary bg-primary/10 font-medium text-primary" : "border-transparent hover:bg-muted"}`}><Icon className="size-5 shrink-0" />{zh ? cn : en}</button>)}</nav>
+      </aside>}
+      <div ref={scrollRef} onScroll={jsonMode ? undefined : trackScroll} className="relative min-w-0 flex-1 overflow-y-auto px-5 py-4 md:px-7" data-testid="config-scroll-pane">
+        {(error || parsed.error) && <div role="alert" className="mb-3 rounded-md border border-destructive/30 bg-destructive/5 p-3 text-sm text-destructive">{error || parsed.error}</div>}
+        {precheck.errors.length > 0 && !error && !parsed.error && <div role="alert" className="mb-3 rounded-md border border-destructive/30 p-3 text-sm text-destructive">{precheck.errors.join("；")}</div>}
+        {validation && validation.summary.errors > 0 && <ul className="mb-3 list-inside list-disc text-sm text-destructive">{validation.checks.filter(check => check.severity === "error").map(check => <li key={`${check.name}-${check.message}`}>{check.message}</li>)}</ul>}
+        {jsonMode ? <div className="flex h-full min-h-96 flex-col gap-3"><div className="flex items-center justify-between"><h2 className="font-semibold">{t("完整配置 JSON", "Full configuration JSON")}</h2><Button size="sm" variant="outline" disabled={!manifest || locked} onClick={() => { if (manifest) onChange(prettyJson(manifest)) }}>{t("格式化", "Format")}</Button></div><Textarea aria-label={t("配置 JSON", "Configuration JSON")} spellCheck={false} readOnly={locked} value={value} onChange={event => onChange(event.target.value)} className="min-h-80 flex-1 resize-none font-mono text-sm" /></div> : manifest ? <fieldset disabled={locked} className="min-w-0">
+          {section("basic", <div className="grid items-end gap-4 sm:grid-cols-2 xl:grid-cols-[1fr_1.3fr_140px]">
+            {textField(copy.serverId, ["id"], draft.id, copy.serverIdDesc)}{textField(copy.name, ["name"], draft.name)}{toggle(t("启用", "Enabled"), ["enabled"], draft.enabled, true)}
+          </div>)}
+          {section("connection", <div className="grid gap-4 sm:grid-cols-2">
+            {http && <div className="sm:col-span-2">{textField(copy.endpoint, ["transport", "endpoint"], transport.endpoint, copy.endpointDesc, "https://graph.example.com/mcp")}</div>}
+            {numberField(t("请求超时（秒）", "Request timeout (seconds)"), ["timeout_seconds"], draft.timeout_seconds, 30, 1, copy.timeoutSecondsDesc)}
+            <ConfigField label={t("MCP 协议版本", "MCP protocol version")} help={t("留空或 auto 使用自动协商；指定值由后端校验支持范围。", "Empty or auto negotiates the protocol. The backend validates explicit versions.")}><Input placeholder="auto" value={String(transport.protocol_version ?? "")} onChange={event => update(["transport", "protocol_version"], event.target.value || undefined)} /></ConfigField>
+          </div>)}
+          {section("credentials", <div className="space-y-4">
+            {credentialError && <p role="status" className="text-sm text-amber-700 dark:text-amber-400">{credentialError}</p>}
+            {http ? <StringMap label={t("HTTP 请求头", "HTTP headers")} value={headers} credentials={credentials} zh={zh} headers onChange={next => update(["transport", "headers"], next)} /> : <p className="text-sm text-muted-foreground">{t("Stdio 凭据通过下方环境变量引用。", "Stdio credentials are referenced through environment variables below.")}</p>}
+            {external && http && <details className="rounded-md border p-3"><summary className="cursor-pointer text-sm font-medium">{t("用户凭据槽位", "Per-user credential slots")} ({slots.length})</summary><div className="mt-3 space-y-4">{slots.map((slot, index) => {
+              const injection = getRecord(slot.injection)
+              const edit = (key: string, next: unknown) => update(["user_credentials"], slots.map((old, i) => i === index ? { ...old, [key]: next } : old))
+              return <div key={index} className="grid gap-3 border-b pb-4 sm:grid-cols-2 xl:grid-cols-3">{[['id', '槽位 ID', 'Slot ID'], ['name', '名称', 'Name'], ['description', '说明', 'Description']].map(([key, cn, en]) => <ConfigField key={key} label={`${t(cn, en)} ${index + 1}`}><Input value={String(slot[key] ?? "")} onChange={event => edit(key, event.target.value)} /></ConfigField>)}<ConfigField label={t("请求头名称", "Header name")}><Input value={String(injection.name ?? "")} onChange={event => edit("injection", { ...injection, type: "http_header", name: event.target.value })} /></ConfigField><ConfigField label={t("注入模板", "Injection template")}><Input value={String(injection.template ?? "{value}")} onChange={event => edit("injection", { ...injection, template: event.target.value })} /></ConfigField><div className="flex items-center justify-between"><ConfigField label={t("必填", "Required")}><Switch checked={Boolean(slot.required ?? true)} onCheckedChange={next => edit("required", next)} /></ConfigField><Button variant="ghost" size="sm" aria-label={`${t("删除槽位", "Remove slot")} ${index + 1}`} onClick={() => update(["user_credentials"], slots.filter((_, i) => i !== index))}><Trash2 className="size-4" /></Button></div></div>
+            })}<Button size="sm" variant="outline" onClick={() => update(["user_credentials"], [...slots, { id: "", name: "", required: true, injection: { type: "http_header", name: "Authorization", template: "Bearer {value}" } }])}><Plus className="mr-1 size-4" />{t("添加槽位", "Add slot")}</Button></div></details>}
+          </div>)}
+          {section("launch", external ? <div className="flex items-center gap-2 text-sm text-muted-foreground">{t("外部 HTTP 模式不适用", "Not applicable to external HTTP")}<ConfigHelp label={t("启动与环境", "Launch & environment")}>{copy.externalManagedHint}</ConfigHelp></div> : <div className="space-y-4">
+            {(managed || container) && toggle(copy.autoStart, ["auto_start"], draft.auto_start, false, copy.autoStartDesc)}
+            {managed && <><div className="grid gap-4 sm:grid-cols-2">{textField(copy.command, ["launch", "command"], launch.command, copy.commandDesc)}{textField(copy.cwd, ["launch", "cwd"], launch.cwd, copy.cwdDesc)}</div>{arrayField(copy.args, ["launch", "args"], launch.args, copy.argsDesc)}<StringMap label={copy.env} value={getRecord(launch.env)} credentials={credentials} zh={zh} onChange={next => update(["launch", "env"], next)} />
+              <details className="rounded-md border p-3"><summary className="cursor-pointer text-sm font-medium">{t("NPM 包配置", "NPM package")}</summary><div className="mt-3 space-y-3"><Button size="sm" variant="outline" onClick={() => update(["launch", "package"], launch.package ? undefined : { manager: "npm", name: "", cache: true })}>{launch.package ? t("移除包配置", "Remove package") : t("添加包配置", "Add package")}</Button>{launch.package ? <div className="grid gap-3 sm:grid-cols-2">{textField(t("包名称", "Package name"), ["launch", "package", "name"], getRecord(launch.package).name)}{textField(t("版本", "Version"), ["launch", "package", "version"], getRecord(launch.package).version)}{textField(t("可执行名称", "Binary"), ["launch", "package", "bin"], getRecord(launch.package).bin)}{toggle(t("缓存", "Cache"), ["launch", "package", "cache"], getRecord(launch.package).cache, true)}</div> : null}</div></details>
+            </>}
+            {container && <>{textField(t("镜像（固定摘要）", "Image (pinned digest)"), ["launch", "image"], launch.image)}<StringMap label={copy.env} value={getRecord(launch.environment)} credentials={credentials} zh={zh} onChange={next => update(["launch", "environment"], next)} /><div className="grid gap-3 sm:grid-cols-3">{textField(t("内存限制", "Memory limit"), ["launch", "resources", "memory"], getRecord(launch.resources).memory ?? "512m")}{numberField("CPU", ["launch", "resources", "cpus"], getRecord(launch.resources).cpus, 1, 0.1, undefined, 0.1)}{numberField(t("进程上限", "PID limit"), ["launch", "resources", "pids_limit"], getRecord(launch.resources).pids_limit, 128, 16)}</div><ConfigValue label="launch.mounts" value={launch.mounts ?? []} zh={zh} onChange={next => update(["launch", "mounts"], next)} /></>}
+            {!managed && !container && <ConfigValue label="launch" value={launch} zh={zh} onChange={next => update(["launch"], next)} />}
+          </div>)}
+          {section("recovery", external ? <div className="flex items-center gap-2 text-sm text-muted-foreground">{t("会话过期时自动重新连接", "Automatically reconnect expired sessions")}<ConfigHelp label={t("健康与恢复", "Health & recovery")}>{t("请求发现会话过期时重连一次；仅已发布为只读且定义未变的工具会自动重试。失败后需手动重连；不定时探活或重启外部服务。", "An expired session triggers one reconnect. Only published read-only tools with unchanged definitions are retried. Reconnect manually if recovery fails; no periodic probe or external process restart.")}</ConfigHelp></div> : <div className="space-y-4">
+            {toggle(copy.restartPolicy, ["restart_policy", "enabled"], policy.enabled, false, copy.restartPolicyDesc)}
+            {Boolean(policy.enabled) && <><div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
+              {numberField(copy.maxAttempts, ["restart_policy", "max_attempts"], policy.max_attempts, 3, 0, copy.maxAttemptsDesc)}{numberField(copy.delaySeconds, ["restart_policy", "delay_seconds"], policy.delay_seconds, 5, 0, copy.delaySecondsDesc)}{toggle(copy.restartOnExit, ["restart_policy", "restart_on_exit"], policy.restart_on_exit, true, copy.restartOnExitDesc)}
+            </div><details className="rounded-md border p-3"><summary className="cursor-pointer text-sm">{t("高级重试设置", "Advanced retry settings")}</summary><div className="mt-3 grid gap-4 sm:grid-cols-2 xl:grid-cols-3">{numberField(copy.backoff, ["restart_policy", "backoff_multiplier"], policy.backoff_multiplier, 2, 1, copy.backoffDesc, 0.1)}{numberField(copy.maxDelay, ["restart_policy", "max_delay_seconds"], policy.max_delay_seconds, 60, 0, copy.maxDelayDesc)}{numberField(copy.resetAfterSeconds, ["restart_policy", "reset_after_seconds"], policy.reset_after_seconds, 300, 0, copy.resetAfterSecondsDesc)}{['exit_code_allowlist', 'exit_code_blocklist'].map(key => <div key={key}><span className="text-sm">{key === 'exit_code_allowlist' ? copy.exitAllowlist : copy.exitBlocklist}</span><ConfigValue label={key} value={policy[key] ?? []} zh={zh} onChange={next => update(["restart_policy", key], next)} /></div>)}</div></details>
+              {toggle(copy.healthCheck, ["restart_policy", "health_check", "enabled"], health.enabled, false, copy.healthCheckDesc)}{Boolean(health.enabled) && <div className="grid gap-4 sm:grid-cols-3">{numberField(copy.intervalSeconds, ["restart_policy", "health_check", "interval_seconds"], health.interval_seconds, 30, 1, copy.intervalSecondsDesc)}{numberField(copy.healthTimeoutSeconds, ["restart_policy", "health_check", "timeout_seconds"], health.timeout_seconds, 10, 1, copy.healthTimeoutSecondsDesc)}{numberField(copy.failureThreshold, ["restart_policy", "health_check", "failure_threshold"], health.failure_threshold, 3, 1, copy.failureThresholdDesc)}</div>}
+            </>}
+          </div>)}
+          {section("permissions", <div className="space-y-4">{arrayField(t("根目录", "Roots"), ["roots"], roots, t("传递给下游的 MCP 根目录声明，不代表授予文件系统权限。", "MCP root declarations sent downstream; these do not grant filesystem access."))}{['permissions', 'analysis'].map(key => <details key={key} className="rounded-md border p-3"><summary className="cursor-pointer text-sm font-medium">{key === 'permissions' ? t("权限声明", "Permission declarations") : t("分析元数据", "Analysis metadata")}</summary><div className="mt-3"><ConfigValue label={key} value={draft[key] ?? {}} zh={zh} onChange={next => update([key], next)} /></div></details>)}</div>)}
+        </fieldset> : <Button variant="outline" onClick={() => setJsonMode(true)}>{t("打开 JSON 修正配置", "Fix configuration in JSON")}</Button>}
       </div>
     </div>
-  )
+    <footer className="flex shrink-0 items-center justify-between gap-3 border-t bg-background px-5 py-3">
+      <div className="flex items-center gap-2 text-sm"><span className={`size-2 rounded-full ${dirty ? "bg-amber-500" : "bg-muted-foreground"}`} /><span>{dirty ? t("未保存", "Unsaved") : t("无未保存修改", "No unsaved changes")}<span className="hidden sm:inline"> · {t("保存后需应用", "Apply after saving")}</span></span><ConfigHelp label={t("保存与应用", "Save and apply")}>{t("保存只更新配置文件。应用配置和连接或启动服务是独立操作。", "Saving updates the configuration file only. Applying and connecting or starting are separate actions.")}</ConfigHelp></div>
+      <div className="flex items-center gap-2"><Button variant="outline" onClick={close} disabled={locked}>{t("取消", "Cancel")}</Button><Button onClick={() => void save()} disabled={locked || !manifest}><Save className="mr-2 size-4" />{validating ? t("校验并保存中…", "Validating…") : t("保存配置", "Save configuration")}</Button></div>
+    </footer>
+  </div>
 }
 
-function ValidationPanel({ validation, c }: { validation: ManifestValidationResponse; c: CopyFn }) {
-  const statusText = validation.summary.errors > 0 ? c("notRecommended") : validation.summary.warnings > 0 ? c("saveWithWarning") : c("saveOk")
-  return (
-    <div className="rounded-lg border border-border/70 bg-muted/30 p-4 text-xs">
-      <div className="mb-2.5 flex flex-wrap items-center justify-between gap-2">
-        <div className="font-semibold text-foreground">{c("backendCheck")}: {statusText}</div>
-        <div className="flex flex-wrap gap-1.5 text-xs">
-          <Badge variant={validation.summary.errors > 0 ? "danger" : "outline"}>{c("errors")} {validation.summary.errors}</Badge>
-          <Badge variant={validation.summary.warnings > 0 ? "warning" : "outline"}>{c("warnings")} {validation.summary.warnings}</Badge>
-          <Badge variant="outline">{c("info")} {validation.summary.info}</Badge>
-          <Badge variant="success">{c("ok")} {validation.summary.ok}</Badge>
-        </div>
+function StringMap({ label, value, onChange, credentials, zh, headers = false }: { label: string; value: Record<string, unknown>; onChange: (next: Record<string, string>) => void; credentials: Credential[]; zh: boolean; headers?: boolean }) {
+  const [newKey, setNewKey] = useState("")
+  const [error, setError] = useState("")
+  const entries = Object.entries(value)
+  function edit(key: string, next: string) { onChange({ ...value, [key]: next } as Record<string, string>) }
+  return <div data-config-field={`${label} ${headers ? 'transport.headers' : 'launch.env'}`} className="space-y-2">
+    <div className="flex items-center gap-1 text-sm font-medium">{label}<ConfigHelp label={label}>{zh ? '敏感值使用凭据引用；不会在此读取凭据明文。可在值中组合 Bearer 等前缀。' : 'Use credential references for secrets. Values may include a Bearer prefix.'}</ConfigHelp></div>
+    {entries.map(([key, raw], index) => {
+      const text = String(raw ?? "")
+      const ref = text.match(/\$\{credential:([a-zA-Z0-9_.-]+)\}/)?.[1]
+      return <div key={index} className="grid items-center gap-2 rounded border border-border/60 p-2 sm:grid-cols-[minmax(100px,1fr)_minmax(0,2fr)_minmax(120px,1fr)_32px]">
+        <Input aria-label={`${label} ${zh ? '名称' : 'name'} ${index + 1}`} className="font-mono" value={key} onChange={event => {
+          const nextKey = event.target.value
+          if (!nextKey.trim() || Object.keys(value).some(old => old !== key && (headers ? old.toLowerCase() === nextKey.toLowerCase() : old === nextKey)) || (headers && (PROTECTED_HEADERS.has(nextKey.toLowerCase()) || !/^[A-Za-z0-9-]+$/.test(nextKey)))) { setError(zh ? '名称无效、重复或属于系统保留请求头。' : 'Invalid, duplicate or reserved name.'); return }
+          onChange(Object.fromEntries(entries.map(([old, item]) => [old === key ? nextKey : old, String(item)]))); setError("")
+        }} /><Input aria-label={`${label} ${key}`} value={text} onChange={event => edit(key, event.target.value)} />
+        <select aria-label={`${label} ${key} ${zh ? '凭据引用' : 'credential reference'}`} value={ref || ""} className={selectClass} onChange={event => { if (event.target.value) edit(key, ref ? text.replace(credentialRef(ref), credentialRef(event.target.value)) : credentialRef(event.target.value)) }}><option value="">{zh ? '插入凭据引用' : 'Insert credential'}</option>{ref && !credentials.some(item => item.id === ref) && <option value={ref}>{ref}</option>}{credentials.map(item => <option key={item.id} value={item.id}>{item.id}</option>)}</select>
+        <Button variant="ghost" size="sm" aria-label={`${zh ? '删除' : 'Remove'} ${label} ${index + 1}`} onClick={() => { const next = { ...value }; delete next[key]; onChange(next as Record<string, string>) }}><Trash2 className="size-4" /></Button>
       </div>
-      <div className="flex max-h-60 flex-col gap-2 overflow-auto">
-        {validation.checks.map((check) => (
-          <div key={`${check.name}-${check.message}`} className="rounded-md border border-border/60 bg-card p-2.5 shadow-2xs">
-            <div className="mb-1 flex flex-wrap items-center gap-2">
-              <Badge variant={check.severity === "error" ? "danger" : check.severity === "warning" ? "warning" : check.severity === "ok" ? "success" : "outline"}>
-                {check.severity}
-              </Badge>
-              <code className="text-xs font-semibold">{check.name}</code>
-            </div>
-            <div className="text-muted-foreground">{check.message}</div>
-            {Object.keys(check.metadata || {}).length > 0 && (
-              <pre className="mt-1.5 max-h-28 overflow-auto rounded bg-muted/50 p-2 text-[11px] font-mono">
-                {JSON.stringify(check.metadata, null, 2)}
-              </pre>
-            )}
-          </div>
-        ))}
-      </div>
-    </div>
-  )
+    })}
+    <div className="flex flex-wrap gap-2"><Input aria-label={`${label} ${zh ? '新名称' : 'new name'}`} className="max-w-72" value={newKey} placeholder={headers ? 'X-Client' : 'SERVICE_TOKEN'} onChange={event => { setNewKey(event.target.value); setError("") }} /><Button variant="outline" size="sm" onClick={() => {
+      const key = newKey.trim()
+      const duplicate = Object.keys(value).some(old => headers ? old.toLowerCase() === key.toLowerCase() : old === key)
+      if (!key || duplicate || (headers && (PROTECTED_HEADERS.has(key.toLowerCase()) || !/^[A-Za-z0-9-]+$/.test(key)))) { setError(zh ? '名称为空、重复或属于系统保留请求头。' : 'Name is empty, duplicate, invalid or reserved.'); return }
+      edit(key, ""); setNewKey(""); setError("")
+    }}><Plus className="mr-1 size-4" />{zh ? '添加' : 'Add'}</Button></div>{error && <p role="alert" className="text-sm text-destructive">{error}</p>}
+  </div>
 }

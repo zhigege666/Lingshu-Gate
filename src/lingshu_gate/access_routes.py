@@ -503,6 +503,16 @@ def register_access_routes(
             "filter_options": access_store.list_invocation_audit_filter_options(),
         }
 
+    @app.get("/v1/access/invocation-statistics", tags=["access"])
+    def invocation_statistics(
+        hours: int = Query(24, ge=24, le=168),
+        principal: AuthPrincipal = Depends(require_viewer),
+    ) -> dict[str, Any]:
+        _require(access_store, principal, "audit.read")
+        if hours not in {24, 168}:
+            raise HTTPException(status_code=422, detail="hours must be 24 or 168")
+        return access_store.invocation_statistics(hours=hours)
+
     @app.get("/v1/auth/tokens", tags=["auth"])
     def list_personal_tokens(
         principal: AuthPrincipal = Depends(require_viewer),

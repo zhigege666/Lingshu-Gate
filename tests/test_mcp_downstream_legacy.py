@@ -23,7 +23,7 @@ from lingshu_gate.protocol.version import LEGACY_PROTOCOL_VERSIONS, MCP_PROTOCOL
 @contextmanager
 def legacy_http_peer(*, session=True, sse=False, negotiated=None, auth_status=None,
                      discovery_error=(-32601, "Method not found"), modern=False):
-    state = {"messages": [], "sessions": {}, "expired": False, "writes": 0}
+    state = {"messages": [], "sessions": {}, "expired": False, "expired_sessions": set(), "writes": 0}
 
     class Handler(BaseHTTPRequestHandler):
         def log_message(self, *_args):
@@ -78,7 +78,7 @@ def legacy_http_peer(*, session=True, sse=False, negotiated=None, auth_status=No
                 return
             if method == "tools/call":
                 state["writes"] += 1
-            if state["expired"]:
+            if state["expired"] or self.headers.get("Mcp-Session-Id") in state["expired_sessions"]:
                 self.respond(404)
                 return
             if method == "tools/list":
