@@ -40,7 +40,7 @@
 .invoke-remove-row{align-self:start;margin-top:28px}
 .invoke-map-add{display:flex;gap:8px;align-items:center}
 .invoke-map-add .ant-input{min-width:0}
-.invoke-complex{border:1px solid hsl(var(--border));border-radius:6px;padding:8px 12px;display:flex;justify-content:space-between;gap:10px;align-items:center;font-size:13px;flex-wrap:wrap}
+.invoke-complex{border:1px solid hsl(var(--input));border-radius:6px;padding:8px 12px;display:flex;justify-content:space-between;gap:10px;align-items:center;font-size:13px;flex-wrap:wrap}
 .invoke-complex .ant-btn{padding:0}
 .invoke-blank{display:flex;flex-wrap:wrap;gap:8px;align-items:center;padding:8px 0;color:hsl(var(--muted-foreground));font-size:14px}
 .invoke-retained{margin:8px 0;font-size:12px;color:hsl(var(--muted-foreground));overflow-wrap:anywhere}

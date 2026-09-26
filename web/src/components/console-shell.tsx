@@ -52,9 +52,12 @@ export function ConsoleShell({ view, title, user, version, groups, items, busy, 
   return <div className="console-shell">
     <header className="console-header">
       <Button className="console-mobile-menu" type="text" icon={<MenuOutlined />} onClick={() => setMobileOpen(true)} aria-label={zh ? "打开导航" : "Open navigation"} />
-      <a href="#/dashboard" className="console-brand" aria-label="Lingshu Gate">
+      <a href="#/dashboard" className="console-brand" aria-label={`Lingshu Gate ${version}`}>
         <img src="/console/lingshu-gate-icon.svg" alt="" />
-        <strong>Lingshu Gate</strong>
+        <span className="console-brand-label">
+          <strong>Lingshu Gate</strong>
+          <span className="console-version" title={version}>{version}</span>
+        </span>
       </a>
       <span className="console-header-divider" />
       <span className="console-context" title={title}>{title}</span>
@@ -93,7 +96,6 @@ export function ConsoleShell({ view, title, user, version, groups, items, busy, 
           })}
         </div>
       })}
-      <span className="console-rail-version">{version}</span>
     </nav>
     <Drawer title="Lingshu Gate" placement="left" size={280} open={mobileOpen} onClose={() => setMobileOpen(false)} styles={{ body: { padding: 12 } }} footer={<Select style={{ width: "100%" }} value={locale} onChange={setLocale} prefix={<GlobalOutlined />} aria-label={zh ? "语言" : "Language"} options={languageOptions} />}>
       <Menu items={mobileItems} selectedKeys={[view]} mode="inline" onClick={({ key }) => navigate(key)} />

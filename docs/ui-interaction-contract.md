@@ -13,6 +13,8 @@ The goal is efficient task completion: find an object, perform the intended oper
 - Use values from those files rather than trial dimensions from design research. For example, the current AntD provider defines `fontSize: 14`, `borderRadius: 6`, `controlHeight: 36`, and `controlHeightSM: 30`; these describe the provider, not a claim that every existing local control matches it. Token changes must be explicit and checked at their consumers.
 - Shared components own presentation and interaction mechanics. Domain adapters own requests, authorization, business state, and secret handling. Reuse behavior where it matches; do not turn visually similar pages into a universal CRUD component.
 
+Use `--input` / AntD `colorBorder` for editable control boundaries, including Invoke's nullable/JSON-only value containers. Use the quieter `--border` / `colorBorderSecondary` / `colorSplit` for structural dividers, tables, cards, and read-only results. Keep these mappings aligned in both themes; focus and error indicators retain their own semantic colors. Verify actual rendered controls on their adjacent backgrounds after changing these tokens. The build-injected Console version stays visible in the fixed header on desktop and mobile, with the full value available when a long prerelease is truncated.
+
 ## Rules
 
 The rules below are project decisions. The references explain the practices that informed them; their complete rules and framework choices are not adopted wholesale.

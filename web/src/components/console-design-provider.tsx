@@ -30,7 +30,10 @@ export function ConsoleDesignProvider({ children }: { children: ReactNode }) {
       colorBgBase: mode === "dark" ? "#0d121a" : "#ffffff",
       colorBgContainer: mode === "dark" ? "#131a24" : "#ffffff",
       colorBgElevated: mode === "dark" ? "#1a2330" : "#ffffff",
-      colorBorder: mode === "dark" ? "#2a3545" : "#dce3ec",
+      // Match --input and --border in index.css for AntD and native controls.
+      colorBorder: mode === "dark" ? "hsl(215, 20%, 49%)" : "hsl(216, 16%, 54%)",
+      colorBorderSecondary: mode === "dark" ? "hsl(216, 24%, 33%)" : "hsl(216, 20%, 78%)",
+      colorSplit: mode === "dark" ? "hsl(216, 24%, 33%)" : "hsl(216, 20%, 78%)",
       colorText: mode === "dark" ? "#e6edf7" : "#1b273b",
       colorTextSecondary: mode === "dark" ? "#9daec4" : "#64748b",
       fontFamily: '"Microsoft YaHei UI", "Microsoft YaHei", "PingFang SC", "Noto Sans SC", system-ui, sans-serif',

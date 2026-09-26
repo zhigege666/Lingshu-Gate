@@ -33,10 +33,27 @@
   object-fit: contain;
 }
 
+.console-brand-label {
+  display: flex;
+  flex-direction: column;
+}
+
 .console-brand strong {
   font-size: 20px;
+  line-height: 1.2;
   letter-spacing: -.5px;
   white-space: nowrap;
+}
+
+.console-version {
+  max-inline-size: 14ch;
+  font-size: 12px;
+  line-height: 1.25;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  color: hsl(var(--muted-foreground));
 }
 
 .console-header-divider {
@@ -166,14 +183,6 @@
 .console-rail-item:focus-visible {
   outline: 2px solid hsl(var(--ring));
   outline-offset: 2px;
-}
-
-.console-rail-version {
-  margin-top: auto;
-  text-align: center;
-  font-size: 10px;
-  color: hsl(var(--sidebar-muted));
-  opacity: .65;
 }
 
 .console-main {
