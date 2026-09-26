@@ -83,6 +83,8 @@ curl --fail --silent --show-error http://127.0.0.1:8000/readyz
 
 审计不是 Payload 归档。不要为了补充业务审计字段而开启 Payload 日志；应增加受限且脱敏的字段。
 
+`GET /v1/access/invocation-statistics?hours=24` 为仪表盘提供只读聚合接口，需具备 `audit.read` 权限。`hours` 可选 `24` 或 `168`；返回总数、每 2 小时或每 24 小时的趋势，以及调用最多的 5 个工具。`requests` 统计已识别工具的调用请求，包括拒绝和未执行的尝试；`calls` 统计结果为成功或错误的已允许执行；`mcp_calls` 是其中下游 MCP 工具 ID 的子集。一次 Gate 调用只计一次，下游重试不另计。成功率以 Gate 审计结果为准，不代表下游业务结果。普通 HTTP 请求、审计前被拒绝的未知工具名，以及绕过 Gate 直接调用下游服务的操作不在统计范围内。
+
 ## 诊断
 
 | Endpoint 或工具 | 用途 |

@@ -83,6 +83,8 @@ Drafts and results are kept separately by service identity and registered tool I
 
 An audit is not a payload archive. Do not enable payload logging to compensate for missing business-level audit fields; add a bounded, redacted field instead.
 
+`GET /v1/access/invocation-statistics?hours=24` supplies the Console dashboard with a read-only, `audit.read`-protected aggregate. `hours` accepts `24` or `168`; the response contains totals, 2-hour or 24-hour time buckets, and the five most-called tools. `requests` counts recognized tool invocation attempts, including denied and unexecuted attempts. `calls` counts allowed executions with a success or error outcome, while `mcp_calls` is the subset for downstream MCP tool IDs. One Gate invocation counts once even if the downstream call is retried. The success rate uses audit outcomes, not downstream business-result semantics. These figures do not count ordinary HTTP requests, unknown tool names rejected before audit, or calls made directly to downstream servers.
+
 ## Diagnostics
 
 | Endpoint or tool | Use |

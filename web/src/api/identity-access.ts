@@ -158,6 +158,15 @@ export type InvocationAuditFilterOptions = {
   tools: Array<{ server_id: string; tool_id: string }>
 }
 
+export type InvocationStatistics = {
+  period_start: string
+  period_end: string
+  bucket_hours: number
+  totals: { requests: number; calls: number; mcp_calls: number; success: number; errors: number; not_invoked: number }
+  series: Array<{ start: string; requests: number; calls: number; mcp_calls: number }>
+  top_tools: Array<{ tool_id: string; server_id: string; calls: number; errors: number }>
+}
+
 export type PersonalToken = {
   id: string
   name: string
@@ -215,6 +224,7 @@ export const identityAccessApi = {
   confirmToolClassifications: (payload: { items: Array<{ server_id: string; tool_id: string; expected_fingerprint: string }>; note?: string }) => request<ToolClassificationConfirmResponse>("/v1/access/tool-classifications/confirm", { method: "POST", body: JSON.stringify(payload) }),
   publishToolClassifications: (payload: { server_id?: string | null; tool_ids?: string[] }) => request<{ classifications: ToolClassification[] }>("/v1/access/tool-classifications/publish", { method: "POST", body: JSON.stringify(payload) }),
   invocationAudits: (filters: { user_id?: string; server_id?: string; tool_id?: string; decision?: string; outcome?: string; limit?: number } = {}) => request<{ audits: InvocationAudit[]; filter_options: InvocationAuditFilterOptions }>(`/v1/access/invocation-audits${queryString(filters)}`),
+  invocationStatistics: (hours: 24 | 168 = 24) => request<InvocationStatistics>(`/v1/access/invocation-statistics${queryString({ hours })}`),
   personalTokens: () => request<{ tokens: PersonalToken[] }>("/v1/auth/tokens"),
   createPersonalToken: (payload: { name: string; scopes: string[]; expires_at?: string | null }) => request<PersonalTokenCreateResponse>("/v1/auth/tokens", { method: "POST", body: JSON.stringify(payload) }),
   updatePersonalTokenScopes: (tokenId: string, scopes: string[]) => request<PersonalToken>(`/v1/auth/tokens/${encodeURIComponent(tokenId)}`, { method: "PATCH", body: JSON.stringify({ scopes }) }),

@@ -22,7 +22,7 @@ from lingshu_gate.mcp_config_loader import McpConfigLoader
 from lingshu_gate.mcp_container import docker_available
 from lingshu_gate.mcp_managed_http_client import ManagedHttpMcpClient
 from lingshu_gate.mcp_manifest import McpServerManifest
-from lingshu_gate.mcp_http_client import StreamableHttpMcpClient
+from lingshu_gate.mcp_http_client import McpSessionExpiredError, StreamableHttpMcpClient
 from lingshu_gate.mcp_restart_history import McpRestartHistoryStore
 from lingshu_gate.mcp_runtime_state_store import (
     DesiredState,
@@ -32,7 +32,7 @@ from lingshu_gate.mcp_runtime_state_store import (
 from lingshu_gate.mcp_stdio_client import StdioMcpClient
 from lingshu_gate.models import McpServerListResponse, McpServerStatusResponse, ToolDefinition
 from lingshu_gate.observability_store import ObservabilityStore
-from lingshu_gate.registry import ToolRecord, ToolRegistry
+from lingshu_gate.registry import ToolExecutionError, ToolRecord, ToolRegistry
 from lingshu_gate.redaction import redact_text
 from lingshu_gate.tool_files import ToolFileError, ToolFileStore
 from lingshu_gate.user_credential_store import UserCredentialBindingError, UserCredentialStore
@@ -1162,12 +1162,84 @@ class McpRuntimeManager:
             records.append(ToolRecord(definition=definition, handler=handler))
         return records
 
-    def invoke_mcp_tool(self, server_id: str, tool_name: str, arguments: dict[str, Any]) -> dict[str, Any]:
+    def invoke_mcp_tool(
+        self, server_id: str, tool_name: str, arguments: dict[str, Any], *, retry_read_only: bool = False,
+    ) -> dict[str, Any]:
         runtime = self._get_runtime(server_id)
         with runtime.lock:
             if runtime.state != McpServerState.RUNNING or not runtime.client:
                 raise RuntimeError(f"MCP server is not running: {server_id} ({runtime.state.value})")
-            return runtime.client.call_tool(tool_name, arguments)
+            try:
+                return runtime.client.call_tool(tool_name, arguments)
+            except McpSessionExpiredError:
+                if runtime.manifest.launch.type != "external":
+                    raise
+                return self._recover_expired_session_locked(
+                    server_id, runtime, tool_name, arguments, retry_read_only=retry_read_only,
+                )
+
+    def _recover_expired_session_locked(
+        self, server_id: str, runtime: McpServerRuntime, tool_name: str,
+        arguments: dict[str, Any], *, retry_read_only: bool,
+    ) -> dict[str, Any]:
+        """持有服务锁，只重连一次；写调用与变更后的工具定义不重放。"""
+        client = runtime.client
+        if not isinstance(client, StreamableHttpMcpClient):
+            raise McpSessionExpiredError("MCP session expired; reconnect before issuing another request")
+        previous_tools = copy.deepcopy(runtime.tools)
+        runtime.state = McpServerState.STARTING
+        runtime.health_status = "unhealthy"
+        runtime.last_error = "MCP session expired; reconnecting"
+        self._log_runtime(server_id, "warning", "MCP session expired; reconnecting", "gate.mcp.session_reconnect_started", {})
+        try:
+            # 客户端已经清除了失效的 session id；初始化继续使用原凭据和协议配置。
+            client.start()
+            tools = client.list_tools()
+            records = self._mcp_tool_records(runtime, tools, strict=True)
+            self.registry.replace_by_metadata("server_id", server_id, records, source="mcp")
+            runtime.tools = tools
+        except Exception as exc:
+            self._fail_session_recovery_locked(server_id, runtime)
+            raise ToolExecutionError(
+                "mcp_session_reconnect_failed",
+                "MCP session reconnect failed; the original tool call was not replayed",
+                next_action="Check the downstream service and reconnect this MCP server.",
+            ) from exc
+        runtime.state = McpServerState.RUNNING
+        runtime.health_status = "healthy"
+        runtime.last_health_ok_at = _now()
+        runtime.last_error = None
+        self._log_runtime(server_id, "info", "MCP session reconnected", "gate.mcp.session_reconnect_succeeded", {})
+        # 工具元数据变化可能使已发布分类失效；必须返回入口重新鉴权。
+        old_tool = next((tool for tool in previous_tools if tool.get("name") == tool_name), None)
+        new_tool = next((tool for tool in tools if tool.get("name") == tool_name), None)
+        if old_tool is None or old_tool != new_tool:
+            raise ToolExecutionError(
+                "mcp_tool_changed_after_reconnect",
+                "MCP session reconnected, but tool metadata changed; the call was not replayed",
+                next_action="Review and publish the current tool classification before invoking again.",
+            )
+        if not retry_read_only:
+            raise ToolExecutionError(
+                "mcp_session_reconnected_not_replayed",
+                "MCP session reconnected; this call was not automatically replayed",
+                next_action="Check the original operation result before invoking again.",
+            )
+        try:
+            return client.call_tool(tool_name, arguments)
+        except McpSessionExpiredError as exc:
+            # 新会话仍失效时到此停止，避免递归重连或无限重试。
+            self._fail_session_recovery_locked(server_id, runtime)
+            raise ToolExecutionError(
+                "mcp_session_reconnect_failed", "The new MCP session expired during the single read-only retry",
+                next_action="Check the downstream service and reconnect this MCP server.",
+            ) from exc
+
+    def _fail_session_recovery_locked(self, server_id: str, runtime: McpServerRuntime) -> None:
+        runtime.state = McpServerState.FAILED
+        runtime.health_status = "unhealthy"
+        runtime.last_error = "MCP session recovery failed; reconnect this server after checking the downstream service"
+        self._log_runtime(server_id, "error", runtime.last_error, "gate.mcp.session_reconnect_failed", {})
 
     def list_user_credential_slots(self) -> list[dict[str, Any]]:
         """返回 Manifest 中不含秘密的用户凭据槽位。"""
@@ -1208,6 +1280,7 @@ class McpRuntimeManager:
         arguments: dict[str, Any],
         *,
         user_id: str,
+        retry_read_only: bool = False,
     ) -> dict[str, Any]:
         """解析用户文件引用，并在需要时使用当前用户自己的下游凭据。"""
 
@@ -1217,6 +1290,7 @@ class McpRuntimeManager:
                 raise RuntimeError(f"MCP server is not running: {server_id} ({runtime.state.value})")
             manifest = runtime.manifest
             slots = list(manifest.user_credentials)
+            previous_tools = copy.deepcopy(runtime.tools)
         prepared_arguments = arguments
         if "fileRef" in arguments:
             if not self.tool_file_store:
@@ -1234,7 +1308,7 @@ class McpRuntimeManager:
             except ToolFileError as exc:
                 raise RuntimeError(f"fileRef resolution failed ({exc.code}): {exc}") from exc
         if not slots:
-            return self.invoke_mcp_tool(server_id, tool_name, prepared_arguments)
+            return self.invoke_mcp_tool(server_id, tool_name, prepared_arguments, retry_read_only=retry_read_only)
         if manifest.launch.type != "external" or manifest.transport.type != "streamable_http":
             raise UserCredentialBindingError(
                 f"user credentials are not supported for {manifest.launch.type}/{manifest.transport.type}: {server_id}"
@@ -1275,7 +1349,37 @@ class McpRuntimeManager:
         try:
             client.start()
             session_started = True
-            return client.call_tool(tool_name, prepared_arguments)
+            try:
+                return client.call_tool(tool_name, prepared_arguments)
+            except McpSessionExpiredError:
+                # 用户会话仍使用当前用户凭据，不能借用或覆盖共享客户端与健康状态。
+                try:
+                    client.start()
+                    tools = client.list_tools()
+                except Exception as exc:
+                    raise ToolExecutionError(
+                        "mcp_session_reconnect_failed", "User MCP session reconnect failed; the call was not replayed",
+                        next_action="Check the downstream service and your credential binding.",
+                    ) from exc
+                old_tool = next((tool for tool in previous_tools if tool.get("name") == tool_name), None)
+                new_tool = next((tool for tool in tools if tool.get("name") == tool_name), None)
+                if old_tool is None or old_tool != new_tool:
+                    raise ToolExecutionError(
+                        "mcp_tool_changed_after_reconnect", "Tool metadata changed; the user call was not replayed",
+                        next_action="Refresh tools and review the current classification before invoking again.",
+                    )
+                if not retry_read_only:
+                    raise ToolExecutionError(
+                        "mcp_session_reconnected_not_replayed", "User MCP session reconnected; the call was not replayed",
+                        next_action="Check the original operation result before invoking again.",
+                    )
+                try:
+                    return client.call_tool(tool_name, prepared_arguments)
+                except McpSessionExpiredError as exc:
+                    raise ToolExecutionError(
+                        "mcp_session_reconnect_failed", "The new user MCP session expired during the single read-only retry",
+                        next_action="Check the downstream service before invoking again.",
+                    ) from exc
         finally:
             try:
                 client.stop()

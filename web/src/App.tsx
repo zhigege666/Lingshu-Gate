@@ -114,6 +114,7 @@ export default function App() {
   const [message, setMessage] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [busy, setBusy] = useState(false)
+  const [dashboardRefreshId, setDashboardRefreshId] = useState(0)
   const [commandOpen, setCommandOpen] = useState(false)
   const [commandQuery, setCommandQuery] = useState("")
   const toast: ToastState = message ? { message, tone: "success" } : null
@@ -191,7 +192,7 @@ export default function App() {
       await Promise.all(requests)
       if (refreshErrors.length > 0) setError(refreshErrors.join("; "))
     } catch (err) { setError(err instanceof Error ? err.message : String(err)) }
-    finally { setBusy(false) }
+    finally { setBusy(false); setDashboardRefreshId((value) => value + 1) }
   }
 
   async function refreshCurrentPage() {
@@ -301,7 +302,7 @@ export default function App() {
       {viewAllowed && (
         <RouteErrorBoundary key={view} locale={locale}>
           <Suspense fallback={<RouteLoadingFallback locale={locale} />}>
-            {view === "dashboard" && <DashboardPage health={health} servers={servers} tools={tools} operationsAllowed={can("operations.manage")} t={t} />}
+            {view === "dashboard" && <DashboardPage health={health} servers={servers} tools={tools} principalId={user.id} globalRefreshId={dashboardRefreshId} operationsAllowed={can("operations.manage")} canReadAudit={can("audit.read")} canReadTools={can("tools.read")} toolsLoaded={toolsLoaded} toolsError={toolsError} t={t} />}
             {view === "configs" && <ConfigsPage locale={locale} t={t} configs={configs} configErrors={configErrors} selectedConfigId={selectedConfigId} configText={configText} busy={busy} editorOpen={configEditorOpen} onCloseEditor={() => { if (!busy) { setConfigEditorOpen(false); setConfigText(prettyJson(genericTemplate)) } }} onNewConfig={newConfig} onReloadConfigs={reloadConfigs} onEditConfig={editConfig} onApplyConfig={applyConfig} onDeleteConfig={deleteConfig} onConfigTextChange={setConfigText} onSaveConfig={saveConfig} />}
             {view === "servers" && <ServersPage locale={locale} t={t} servers={servers} loadErrors={loadErrors} busy={busy} visibleTools={toolsLoaded ? tools : null} toolsError={toolsError} canReadTools={can("tools.read")} canManageClassifications={can("classifications.manage")} onServerAction={serverAction} onRefresh={refreshCurrentPage} onNewConfig={newConfig} onNavigate={navigate} />}
             {view === "builds" && <BuildsPage t={t} initialBuildId={routeBuildId} />}

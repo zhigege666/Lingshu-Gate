@@ -84,6 +84,10 @@ The manifest field is explicit self-documentation. Its only accepted value is `2
 
 Static headers may contain `${credential:<id>}` references. Gate resolves them only for the downstream request and masks values in API responses and logs.
 
+For an external HTTP connection, an expired MCP session detected during a tool call triggers one new handshake and tool discovery automatically; no additional manifest switch is required. The per-server lock serializes shared-session recovery. Gate retries the interrupted call once only when its access classification is published as `read` and the tool definition is unchanged after discovery. Downstream read-only hints alone do not authorize replay. Write or unclassified calls return a structured `mcp_session_reconnected_not_replayed` error after reconnecting; check the original operation result before invoking again. Changed tool metadata returns `mcp_tool_changed_after_reconnect` and requires classification review as applicable.
+
+Recovery failure, or another expired session during that single read retry, marks the shared runtime `failed`/`unhealthy` and returns `mcp_session_reconnect_failed`. Check the downstream service and reconnect manually. Recovery is request-driven, not a background retry loop or periodic health monitor; it does not restart the external process. User-specific sessions retain their own credential bindings and never replace the shared session or its health state. The existing `restart_policy` remains unavailable for external services.
+
 ### Managed local stdio
 
 Managed stdio is available only in native mode and runs as the Gate operating-system account:

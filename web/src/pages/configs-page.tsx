@@ -1,9 +1,8 @@
 import { useMemo, useRef, useState } from "react"
-import { Code2, Edit3, FilePlus2, Play, Plus, RefreshCcw } from "lucide-react"
+import { Edit3, Play, Plus, RefreshCcw, Trash2 } from "lucide-react"
 import { FormDialog } from "@/components/form-dialog"
 import { useConfirm } from "@/components/confirm-dialog"
 import type { McpConfig } from "@/api/client"
-import { ActionMenu, ActionMenuItem } from "@/components/action-menu"
 import { McpConfigEditor } from "@/components/mcp-config-editor"
 import { PageHeader, PageToolbar } from "@/components/page-shell"
 import { Alert, AlertDescription } from "@/components/ui/alert"
@@ -110,7 +109,7 @@ export function ConfigsPage(props: {
                   <TableHead className="w-[140px] font-semibold">{zh ? "运行方式" : "Runtime Mode"}</TableHead>
                   <TableHead className="w-[110px] font-semibold">{zh ? "自启动" : "Auto Start"}</TableHead>
                   <TableHead className="font-semibold">{t("path")}</TableHead>
-                  <TableHead className="w-[160px] text-right font-semibold">{t("actions")}</TableHead>
+                  <TableHead className="min-w-[240px] text-right font-semibold">{t("actions")}</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
@@ -149,7 +148,7 @@ export function ConfigsPage(props: {
                           {config.path}
                         </span>
                       </TableCell>
-                      <TableCell className="py-3 text-right" onClick={(event) => event.stopPropagation()}>
+                      <TableCell className="min-w-[240px] py-3 text-right" onClick={(event) => event.stopPropagation()}>
                         <div className="flex items-center justify-end gap-1.5 whitespace-nowrap">
                           <Button
                             size="sm"
@@ -169,11 +168,15 @@ export function ConfigsPage(props: {
                           >
                             <Play className="size-3.5 mr-1" />{t("apply")}
                           </Button>
-                          <ActionMenu label={t("actions")}>
-                            <ActionMenuItem disabled={busy} onClick={() => handleEdit(config)}>{t("edit")}</ActionMenuItem>
-                            <ActionMenuItem disabled={busy} onClick={() => onApplyConfig(config.id)}>{t("apply")}</ActionMenuItem>
-                            <ActionMenuItem destructive disabled={busy} onClick={() => onDeleteConfig(config.id)}>{t("delete")}</ActionMenuItem>
-                          </ActionMenu>
+                          <Button
+                            size="sm"
+                            variant="ghost"
+                            className="h-7 px-2 text-xs font-normal text-destructive hover:bg-destructive/10 hover:text-destructive"
+                            disabled={busy}
+                            onClick={() => onDeleteConfig(config.id)}
+                          >
+                            <Trash2 className="size-3.5 mr-1" />{t("delete")}
+                          </Button>
                         </div>
                       </TableCell>
                     </TableRow>

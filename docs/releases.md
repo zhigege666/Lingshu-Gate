@@ -10,6 +10,8 @@ The source Console also includes the card-based tool catalog with deployment-spe
 
 ## Artifact matrix
 
+Source change pending release: external HTTP tool calls recover an expired MCP session with one handshake and discovery attempt. Only published read-only calls with unchanged tool metadata are retried once; other calls receive actionable structured errors. Failed recovery is reflected in runtime health. This is request-driven recovery, not periodic monitoring or an external process restart; deploying the updated source is required.
+
 | Target | Asset | Build architecture |
 |---|---|---|
 | Linux x86-64 | `lingshu-gate-v<version>-linux-x86_64.tar.gz` | Ubuntu x86-64 |
