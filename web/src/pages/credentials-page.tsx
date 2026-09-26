@@ -1,11 +1,14 @@
+import { usePageRefresh } from "@/components/page-refresh"
 import { useEffect, useMemo, useRef, useState } from "react"
-import { KeyRound, Plus, RefreshCcw } from "lucide-react"
+import { KeyRound, Plus } from "lucide-react"
 import { api, type Credential, type CredentialSaveRequest } from "@/api/client"
 import { ActionMenu, ActionMenuItem } from "@/components/action-menu"
+import { FormDialog } from "@/components/form-dialog"
+import { useDraftCloseGuard } from "@/components/use-draft-close-guard"
 import { useConfirm } from "@/components/confirm-dialog"
 import { JsonPanel } from "@/components/json-panel"
 import { PageHeader, PageToolbar } from "@/components/page-shell"
-import { Toaster, type ToastState } from "@/components/ui/toast"
+import { Toaster } from "@/components/ui/toast"
 import { Alert, AlertDescription } from "@/components/ui/alert"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent } from "@/components/ui/card"
@@ -14,7 +17,7 @@ import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { Textarea } from "@/components/ui/textarea"
-import type { TFunction } from "@/i18n"
+import type { Locale, TFunction } from "@/i18n"
 import { formatDateTime } from "@/lib/utils"
 import { TableEmptyRow } from "@/pages/page-utils"
 
@@ -24,25 +27,33 @@ const emptyForm: CredentialSaveRequest = {
   description: "",
 }
 
-export function CredentialsPage({ t }: { t: TFunction }) {
+export function CredentialsPage({ locale, t }: { locale: Locale; t: TFunction }) {
+  const c = locale === "zh-CN" ? { secretMode: "凭据值处理", keep: "保持现有凭据值", replace: "替换凭据值", keepHint: "保存名称或说明时将保留现有秘密。旧秘密不会显示。", replaceHint: "输入新的凭据值；保存失败时保留本次输入以便重试。" } : { secretMode: "Credential value", keep: "Keep current secret", replace: "Replace secret", keepHint: "Saving the name or description keeps the existing secret. Its value is never shown.", replaceHint: "Enter a new secret. A failed save keeps this attempt's input for retry." }
   const [credentials, setCredentials] = useState<Credential[]>([])
   const [selectedId, setSelectedId] = useState("")
   const [editorOpen, setEditorOpen] = useState(false)
   const createTrigger = useRef<HTMLButtonElement>(null)
   const editorReturnFocus = useRef<HTMLButtonElement | null>(null)
   const [form, setForm] = useState<CredentialSaveRequest>({ ...emptyForm })
+  const [secretMode, setSecretMode] = useState<"keep" | "replace">("replace")
+  const [formError, setFormError] = useState<string | null>(null)
+  const [showValidation, setShowValidation] = useState(false)
+  const baseline = useRef({ ...emptyForm })
+  const saving = useRef(false)
   const [busy, setBusy] = useState(false)
   const [message, setMessage] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [detail, setDetail] = useState<{ title: string; body: unknown } | null>(null)
   const [query, setQuery] = useState("")
   const { confirm, confirmDialog } = useConfirm(t)
+  const closeEditor = useDraftCloseGuard({ dirty: JSON.stringify(form) !== JSON.stringify(baseline.current) || (Boolean(selectedId) && secretMode !== "keep"), pending: busy, locale, confirm, onClose: () => { setEditorOpen(false); setForm({ ...emptyForm }); setFormError(null) } })
   const filteredCredentials = useMemo(() => {
     const needle = query.trim().toLowerCase()
     if (!needle) return credentials
     return credentials.filter((credential) => `${credential.id} ${credential.name} ${credential.description || ""}`.toLowerCase().includes(needle))
   }, [credentials, query])
 
+  usePageRefresh(load, busy)
   useEffect(() => { void load() }, [])
 
   async function load() {
@@ -62,7 +73,11 @@ export function CredentialsPage({ t }: { t: TFunction }) {
     const menuId = menuItem.closest('[role="menu"]')?.id
     editorReturnFocus.current = Array.from(document.querySelectorAll<HTMLButtonElement>('button[aria-controls]'))
       .find(button => button.getAttribute("aria-controls") === menuId) || createTrigger.current
-    setError(null)
+    if (busy) return
+    setFormError(null)
+    setShowValidation(false)
+    setSecretMode("keep")
+    baseline.current = { name: credential.name, value: "***", description: credential.description }
     setSelectedId(credential.id)
     setForm({ name: credential.name, value: "***", description: credential.description })
     setEditorOpen(true)
@@ -70,18 +85,29 @@ export function CredentialsPage({ t }: { t: TFunction }) {
 
   function createNew() {
     editorReturnFocus.current = createTrigger.current
-    setError(null)
+    if (busy) return
+    setFormError(null)
+    setShowValidation(false)
+    setSecretMode("replace")
+    baseline.current = { ...emptyForm }
     setSelectedId("")
     setForm({ ...emptyForm })
     setEditorOpen(true)
   }
 
   async function save() {
+    if (busy || saving.current) return
+    setShowValidation(true)
+    if (nameInvalid || valueInvalid) {
+      document.getElementById(nameInvalid ? "credential-name" : "credential-value")?.focus()
+      return
+    }
+    saving.current = true
     setBusy(true)
-    setError(null)
+    setFormError(null)
     setMessage(null)
     try {
-      const payload = { ...form, value: form.value || null }
+      const payload = { ...form, value: selectedId && secretMode === "keep" ? "***" : form.value || null }
       const credential = selectedId ? await api.updateCredential(selectedId, payload) : await api.createCredential(payload)
       setSelectedId(credential.id)
       setForm({ name: credential.name, value: "***", description: credential.description })
@@ -89,8 +115,9 @@ export function CredentialsPage({ t }: { t: TFunction }) {
       await load()
       setEditorOpen(false)
     } catch (err) {
-      setError(err instanceof Error ? err.message : String(err))
+      setFormError(err instanceof Error ? err.message : String(err))
     } finally {
+      saving.current = false
       setBusy(false)
     }
   }
@@ -129,9 +156,8 @@ export function CredentialsPage({ t }: { t: TFunction }) {
     setDetail({ title: credential.id, body: { credential, reference: credentialRef(credential.id) } })
   }
 
-  const toast: ToastState = editorOpen ? null : error ? { message: error, tone: "error" } : message ? { message, tone: "success" } : null
   const nameInvalid = form.name.trim() === ""
-  const valueInvalid = !selectedId && (form.value || "").trim() === ""
+  const valueInvalid = (!selectedId || secretMode === "replace") && (form.value || "").trim() === ""
 
   return (
     <div className="flex flex-col gap-4">
@@ -141,36 +167,28 @@ export function CredentialsPage({ t }: { t: TFunction }) {
         description={t("credentialsDesc")}
         helpLabel={t("pageHelp")}
         toolbar={<PageToolbar query={query} onQueryChange={setQuery} placeholder={`${t("search")} ID / ${t("name")}`} resultCount={filteredCredentials.length} resultLabel={t("credentials")} clearLabel={t("clearSearch")} />}
-        actions={<><Button ref={createTrigger} onClick={createNew} disabled={busy}><Plus />{t("newCredential")}</Button><Button variant="outline" onClick={load} disabled={busy}><RefreshCcw />{t("refresh")}</Button></>}
+        actions={<Button ref={createTrigger} onClick={createNew} disabled={busy}><Plus />{t("newCredential")}</Button>}
       />
-      <Dialog open={editorOpen} onOpenChange={(open) => { if (!busy) setEditorOpen(open) }}>
-        <DialogContent onCloseAutoFocus={(event) => {
-          event.preventDefault()
-          const trigger = editorReturnFocus.current?.isConnected ? editorReturnFocus.current : createTrigger.current
-          trigger?.focus()
-        }}>
-          <DialogHeader>
-            <DialogTitle>{selectedId ? t("editCredential") : t("newCredential")}</DialogTitle>
-            <DialogDescription>{t("credentialsDesc")}</DialogDescription>
-          </DialogHeader>
-          <DialogBody className="flex flex-col gap-3">
-            {error && <Alert variant="destructive"><AlertDescription>{error}</AlertDescription></Alert>}
-            <div className="flex flex-col gap-2"><Label>{t("name")}</Label><Input value={form.name} aria-invalid={nameInvalid || undefined} onChange={(event) => setForm((current) => ({ ...current, name: event.target.value }))} placeholder="SERVICE_PASSWORD" />{nameInvalid && <span className="text-xs text-destructive">{t("required")}</span>}</div>
-            <div className="flex flex-col gap-2"><Label>{t("credentialValue")}</Label><Input type="password" value={form.value || ""} aria-invalid={valueInvalid || undefined} onChange={(event) => setForm((current) => ({ ...current, value: event.target.value }))} placeholder={selectedId ? "***" : "secret value"} />{valueInvalid && <span className="text-xs text-destructive">{t("required")}</span>}</div>
-            <div className="flex flex-col gap-2"><Label>{t("description")}</Label><Textarea value={form.description || ""} onChange={(event) => setForm((current) => ({ ...current, description: event.target.value }))} placeholder="Password used by the example MCP server" /></div>
-            <div className="rounded-md border bg-muted p-2 text-xs text-muted-foreground">{t("credentialRefHint")}</div>
-            <div className="flex justify-end gap-2 border-t pt-3"><Button variant="outline" onClick={() => setEditorOpen(false)} disabled={busy}>{t("cancel")}</Button><Button onClick={save} disabled={busy || nameInvalid || valueInvalid}><KeyRound />{t("save")}</Button></div>
-          </DialogBody>
-        </DialogContent>
-      </Dialog>
+      {error && <Alert variant="destructive" role="alert"><AlertDescription>{error}</AlertDescription><Button variant="outline" size="sm" className="mt-2" disabled={busy} onClick={() => void load()}>{t("refresh")}</Button></Alert>}
+      <FormDialog dirty={JSON.stringify(form) !== JSON.stringify(baseline.current) || (Boolean(selectedId) && secretMode !== "keep")} open={editorOpen} onClose={() => void closeEditor()} title={selectedId ? t("editCredential") : t("newCredential")} description={t("credentialsDesc")} closeLabel={t("close")} pending={busy} error={formError}
+        onCloseAutoFocus={event => { event.preventDefault(); (editorReturnFocus.current?.isConnected ? editorReturnFocus.current : createTrigger.current)?.focus() }}
+        footer={<><Button variant="outline" onClick={() => void closeEditor()} disabled={busy}>{t("cancel")}</Button><Button type="submit" form="credential-editor" disabled={busy}><KeyRound />{t("save")}</Button></>}>
+        <form id="credential-editor" onSubmit={event => { event.preventDefault(); void save() }} className="flex flex-col gap-4">
+          <div className="flex flex-col gap-2"><Label htmlFor="credential-name">{t("name")}</Label><Input id="credential-name" value={form.name} disabled={busy} aria-required="true" aria-invalid={showValidation && nameInvalid || undefined} aria-describedby={showValidation && nameInvalid ? "credential-name-error" : undefined} onChange={event => setForm(current => ({ ...current, name: event.target.value }))} placeholder="SERVICE_PASSWORD" />{showValidation && nameInvalid && <span id="credential-name-error" className="text-xs text-destructive">{t("required")}</span>}</div>
+          {selectedId && <div className="flex flex-col gap-2"><Label htmlFor="credential-secret-mode">{c.secretMode}</Label><select id="credential-secret-mode" className="h-9 rounded-md border border-input bg-background px-3 text-sm" value={secretMode} disabled={busy} onChange={event => { const mode = event.target.value as "keep" | "replace"; setSecretMode(mode); setForm(current => ({ ...current, value: mode === "keep" ? "***" : "" })) }}><option value="keep">{c.keep}</option><option value="replace">{c.replace}</option></select></div>}
+          {selectedId && secretMode === "keep" ? <p className="text-sm text-muted-foreground">{c.keepHint}</p> : <div className="flex flex-col gap-2"><Label htmlFor="credential-value">{t("credentialValue")}</Label><Input id="credential-value" type="password" autoComplete="new-password" value={form.value || ""} disabled={busy} aria-required="true" aria-invalid={showValidation && valueInvalid || undefined} aria-describedby="credential-value-hint" onChange={event => setForm(current => ({ ...current, value: event.target.value }))} /><p id="credential-value-hint" className="text-xs text-muted-foreground">{c.replaceHint}</p>{showValidation && valueInvalid && <span className="text-xs text-destructive">{t("required")}</span>}</div>}
+          <div className="flex flex-col gap-2"><Label htmlFor="credential-description">{t("description")}</Label><Textarea id="credential-description" value={form.description || ""} disabled={busy} onChange={event => setForm(current => ({ ...current, description: event.target.value }))} /></div>
+          <p className="text-xs text-muted-foreground">{t("credentialRefHint")}</p>
+        </form>
+      </FormDialog>
 
         <Card>
           <CardContent className="overflow-x-auto p-3 md:p-4">
             <Table>
               <TableHeader><TableRow><TableHead>{t("id")}</TableHead><TableHead>{t("name")}</TableHead><TableHead>{t("description")}</TableHead><TableHead>{t("updatedAt")}</TableHead><TableHead>{t("actions")}</TableHead></TableRow></TableHeader>
               <TableBody>
-                {filteredCredentials.length === 0 ? <TableEmptyRow colSpan={5} title={t("noData")} /> : filteredCredentials.map((credential) => <TableRow key={credential.id} className={selectedId === credential.id ? "cursor-pointer bg-accent/50" : "cursor-pointer"} onClick={() => showDetail(credential)}>
-                  <TableCell><code>{credential.id}</code><div className="text-xs text-muted-foreground">{credential.value_masked}</div></TableCell>
+                {filteredCredentials.length === 0 ? <TableEmptyRow colSpan={5} title={busy ? t("loadingData") : error ? t("error") : t("noData")} /> : filteredCredentials.map((credential) => <TableRow key={credential.id} className={selectedId === credential.id ? "cursor-pointer bg-accent/50" : "cursor-pointer"} onClick={() => showDetail(credential)}>
+                  <TableCell><button type="button" className="text-left text-primary underline-offset-4 hover:underline focus-visible:underline" onClick={() => showDetail(credential)}><code>{credential.id}</code></button><div className="text-xs text-muted-foreground">{credential.value_masked}</div></TableCell>
                   <TableCell>{credential.name}</TableCell>
                   <TableCell>{credential.description || "-"}</TableCell>
                   <TableCell className="whitespace-nowrap text-xs">{formatDateTime(credential.updated_at)}</TableCell>
@@ -188,7 +206,7 @@ export function CredentialsPage({ t }: { t: TFunction }) {
         </DialogContent>
       </Dialog>
       {confirmDialog}
-      <Toaster toast={toast} onClose={() => { setMessage(null); setError(null) }} />
+      <Toaster toast={message ? { message, tone: "success" } : null} onClose={() => setMessage(null)} />
     </div>
   )
 }

@@ -8,6 +8,7 @@ describe("console routing", () => {
 
   it("falls back to the dashboard for unknown routes", () => {
     expect(parseConsoleHash("#/unknown")).toEqual({ view: "dashboard" })
+    expect(parseConsoleHash("#/builds/%broken")).toEqual({ view: "dashboard" })
   })
 
   it("serializes typed views", () => {

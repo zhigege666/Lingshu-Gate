@@ -1,5 +1,4 @@
 import type { JSX, ReactNode } from "react"
-import { Inbox } from "lucide-react"
 import { Badge } from "@/components/ui/badge"
 import { Card, CardContent } from "@/components/ui/card"
 import { Empty, EmptyDescription, EmptyHeader, EmptyMedia, EmptyTitle } from "@/components/ui/empty"
@@ -15,11 +14,11 @@ export function codePanelClass(extra = "") {
 export function TableEmptyRow({ colSpan, title, description, icon }: { colSpan: number; title: string; description?: string; icon?: ReactNode }) {
   return (
     <TableRow className="hover:bg-transparent">
-      <TableCell colSpan={colSpan} className="h-40">
-        <Empty className="border-none p-0">
+      <TableCell colSpan={colSpan} className="py-6">
+        <Empty className="gap-2 border-none p-0 md:p-0">
           <EmptyHeader>
-            <EmptyMedia variant="icon">{icon ?? <Inbox />}</EmptyMedia>
-            <EmptyTitle>{title}</EmptyTitle>
+            {icon && <EmptyMedia variant="icon">{icon}</EmptyMedia>}
+            <EmptyTitle className="text-sm font-normal text-muted-foreground">{title}</EmptyTitle>
             {description ? <EmptyDescription>{description}</EmptyDescription> : null}
           </EmptyHeader>
         </Empty>

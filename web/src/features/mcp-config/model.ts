@@ -12,6 +12,64 @@ export type RuntimeMode = "managed_stdio" | "external_http" | "managed_http" | "
 
 export type PrecheckResult = { errors: string[]; warnings: string[] }
 
+export const REDACTED_ENDPOINT = "[REDACTED]"
+
+/** A masked endpoint is a keep instruction for this existing resource only. */
+export type ManifestEditContext = { existingConfigId: string; originalEndpointMasked: boolean }
+
+export function canKeepMaskedEndpoint(manifest: ManifestLike, context?: ManifestEditContext): boolean {
+  return Boolean(context?.existingConfigId && context.originalEndpointMasked
+    && manifest.id === context.existingConfigId
+    && getRecord(manifest.transport).endpoint === REDACTED_ENDPOINT)
+}
+
+export type ManifestPatch = { kind: "set"; value: unknown } | { kind: "remove" }
+
+/** Only the explicitly edited path changes; absent and falsy siblings remain intact. */
+export function patchManifestField(manifest: ManifestLike, path: string[], patch: ManifestPatch): ManifestLike {
+  if (!path.length || path.some((part) => ["__proto__", "prototype", "constructor"].includes(part))) {
+    throw new Error("Invalid Manifest field path")
+  }
+  const next = { ...manifest }
+  let target: Record<string, unknown> = next
+  let source: Record<string, unknown> = manifest
+  for (const part of path.slice(0, -1)) {
+    const child = getRecord(source[part])
+    const copy = { ...child }
+    target[part] = copy
+    target = copy
+    source = child
+  }
+  const last = path[path.length - 1]
+  if (patch.kind === "remove") delete target[last]
+  else target[last] = patch.value
+  return next
+}
+
+export function isStringMap(value: unknown): value is Record<string, string> {
+  return Boolean(value && typeof value === "object" && !Array.isArray(value)
+    && Object.values(value).every((item) => typeof item === "string"))
+}
+
+export function manifestValidationIssues(checks: ManifestValidationCheck[], revision: number): ValidationIssue[] {
+  return checks.flatMap((check): ValidationIssue[] => {
+    if (check.severity !== "error" && check.severity !== "warning") return []
+    const base = { code: check.name, messageKey: check.name, severity: check.severity, source: "server" as const, revision }
+    const errors = check.metadata?.errors
+    if (Array.isArray(errors) && errors.length) {
+      return errors.map((error) => {
+        const item = getRecord(error)
+        const path = Array.isArray(item.loc) ? pointerFor(item.loc.map(String)) : ""
+        return { ...base, code: typeof item.type === "string" ? item.type : check.name, message: typeof item.msg === "string" ? item.msg : check.message, path }
+      })
+    }
+    const path = check.name.startsWith("manifest.")
+      ? ["manifest.id", "manifest.id_mismatch", "manifest.duplicate"].includes(check.name) ? "/id" : ""
+      : pointerFor(check.name.split("."))
+    return [{ ...base, message: check.message, path }]
+  })
+}
+
 export type ManifestPrecheckMessageKey =
   | "idRequired"
   | "idPattern"
@@ -44,7 +102,7 @@ const DOCKER_PROCESS_CONTROL_NAMES = new Set([
 ])
 
 export function parseManifest(value: string): ManifestLike {
-  const parsed = JSON.parse(value || "{}")
+  const parsed = JSON.parse(value)
   if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) {
     throw new Error("Manifest root must be a JSON object")
   }
@@ -99,6 +157,14 @@ export function runtimeModeFromManifest(manifest: ManifestLike): RuntimeMode {
   return "advanced"
 }
 
+/** Advanced JSON is an editing capability, not a different launch protocol. */
+export function changeRuntimeMode(manifest: ManifestLike, mode: RuntimeMode): ManifestLike {
+  if (mode === "advanced") return manifest
+  let next = patchManifestField(manifest, ["launch", "type"], { kind: "set", value: mode === "external_http" ? "external" : "managed_process" })
+  next = patchManifestField(next, ["transport", "type"], { kind: "set", value: mode === "managed_stdio" ? "stdio" : "streamable_http" })
+  return mode === "managed_stdio" ? patchManifestField(next, ["transport", "endpoint"], { kind: "remove" }) : next
+}
+
 export function parseHttpUrl(value: string): URL | null {
   try {
     const parsed = new URL(value)
@@ -134,6 +200,7 @@ export function envKeyFromCredential(id: string): string {
 export function precheckManifest(
   manifest: ManifestLike,
   copy: (key: ManifestPrecheckMessageKey) => string,
+  context?: ManifestEditContext,
 ): PrecheckResult {
   const errors: string[] = []
   const warnings: string[] = []
@@ -189,7 +256,7 @@ export function precheckManifest(
       })
       if (protectedEnvironment) errors.push(copy("containerEnvironmentProtected"))
     }
-    if (launchType !== "managed_process") warnings.push(copy("launchTypeWarning"))
+    if (!["managed_process", "external"].includes(launchType)) warnings.push(copy("launchTypeWarning"))
     if (Array.isArray(launch.args) && launch.args.some((item) => typeof item !== "string")) warnings.push(copy("argsWarning"))
   }
 
@@ -202,12 +269,16 @@ export function precheckManifest(
 
   const runtimeMode = runtimeModeFromManifest(manifest)
   const endpoint = String(transport?.endpoint || "").trim()
+  if (transport?.endpoint === REDACTED_ENDPOINT && !canKeepMaskedEndpoint(manifest, context)
+    && runtimeMode !== "external_http" && runtimeMode !== "managed_http") errors.push(copy("endpointInvalid"))
   if (runtimeMode === "external_http" || runtimeMode === "managed_http") {
     if (!endpoint) errors.push(copy("endpointRequired"))
-    else if (!parseHttpUrl(endpoint)) errors.push(copy("endpointInvalid"))
+    else if (!parseHttpUrl(endpoint) && !canKeepMaskedEndpoint(manifest, context)) errors.push(copy("endpointInvalid"))
   }
 
   const timeout = Number(manifest.timeout_seconds || 0)
   if (!Number.isFinite(timeout) || timeout <= 0) warnings.push(copy("timeoutWarning"))
   return { errors, warnings }
 }
+import type { ManifestValidationCheck } from "@/api/client"
+import { pointerFor, type ValidationIssue } from "@/lib/validation"

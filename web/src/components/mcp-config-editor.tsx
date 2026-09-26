@@ -1,54 +1,26 @@
-import { useEffect, useMemo, useState, type ReactNode } from "react"
-import {
-  AlertCircle,
-  Braces,
-  Check,
-  Cpu,
-  FileCode2,
-  Globe,
-  Info,
-  Key,
-  LayoutTemplate,
-  RefreshCw,
-  Save,
-  Server,
-  ShieldCheck,
-  Sliders,
-  Terminal,
-  Wand2,
-  X,
-} from "lucide-react"
+import { useEffect, useId, useMemo, useRef, useState, type ReactNode } from "react"
+import { Braces, Plus, Save, ShieldCheck, Trash2 } from "lucide-react"
+import { createPortal } from "react-dom"
 import { api, type Credential, type ManifestValidationResponse } from "@/api/client"
-import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
+import { ValidationErrors } from "@/components/validation-errors"
+import { Alert, AlertDescription } from "@/components/ui/alert"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Switch } from "@/components/ui/switch"
 import { Textarea } from "@/components/ui/textarea"
 import {
-  credentialRef,
-  envKeyFromCredential,
-  formatManifestJson,
-  getRecord,
-  parseArgs,
-  parseEnv,
-  parseManifest,
-  parseNumberList,
-  precheckManifest,
-  runtimeModeFromManifest,
-  sensitiveEnvKeys,
-  stringifyArgs,
-  stringifyEnv,
-  stringifyNumberList,
-  withoutUserCredentialValues,
-  type ManifestLike,
-  type PrecheckResult,
-  type RuntimeMode,
+  REDACTED_ENDPOINT, canKeepMaskedEndpoint, changeRuntimeMode, credentialRef, envKeyFromCredential,
+  formatManifestJson, getRecord, isStringMap, parseManifest, patchManifestField,
+  precheckManifest, runtimeModeFromManifest, withoutUserCredentialValues,
+  manifestValidationIssues,
+  type ManifestEditContext, type ManifestLike, type ManifestPrecheckMessageKey, type RuntimeMode,
 } from "@/features/mcp-config/model"
 import type { Locale } from "@/i18n"
+import { JSON_SYNTAX_MESSAGE, type ValidationIssue } from "@/lib/validation"
 import { prettyJson } from "@/lib/utils"
+import "@/features/mcp-config/editor.css"
 
 type McpConfigEditorProps = {
   locale: Locale
@@ -57,35 +29,25 @@ type McpConfigEditorProps = {
   onChange: (value: string) => void
   onSave: (nextValue?: string) => void | Promise<void>
   onClose?: () => void
+  onPendingChange?: (pending: boolean) => void
+  onDraftDirtyChange?: (dirty: boolean) => void
+  backendPrecheck?: boolean
+  loadCredentials?: boolean
+  footerContainer?: HTMLElement | null
   busy: boolean
 }
 
 const FORM_COPY = {
   "zh-CN": {
-    newConfig: "新增 MCP Config",
-    editConfig: "编辑",
-    formDesc: "表单支持受管 Stdio、外部 HTTP 和受管 HTTP；复杂字段仍可在 JSON 中保留。",
-    parseErrorPrefix: "JSON / 预检查失败：",
-    credentialErrorPrefix: "凭据列表加载失败：",
     localErrors: "保存前本地预检查错误",
-    localWarnings: "本地配置提醒",
-    sensitiveEnv: "已识别敏感环境变量",
-    sensitiveEnvHint: "建议使用凭据引用，避免把明文密钥写入 Manifest。",
     serverId: "服务 ID",
     serverIdDesc: "MCP Server 的唯一标识，只能包含字母、数字、点、下划线和短横线。",
     name: "名称",
-    nameDesc: "Console 中展示的服务名称，建议使用容易识别的业务名称。",
     runtimeMode: "运行方式",
-    runtimeModeDesc: "选择 Lingshu Gate 如何获得服务，以及使用哪种 MCP 传输连接。",
     managedStdio: "受管 Stdio",
-    managedStdioDesc: "由 Lingshu Gate 启动本地可执行进程，通过标准输入输出交互。",
     externalHttp: "外部 HTTP",
-    externalHttpDesc: "服务独立运行在外部，Lingshu Gate 仅负责 streamable_http 连接。",
     managedHttp: "受管 HTTP",
-    managedHttpDesc: "由 Lingshu Gate 启动后台服务，并等待其 HTTP 端口就绪建立连接。",
     advancedMode: "高级模式",
-    advancedModeDesc: "保留当前 Manifest 的复杂运行与传输配置，仅在 JSON 中直接编辑。",
-    advancedModeHint: "当前 Manifest 使用表单尚未覆盖的运行组合。应用表单时会原样保留 launch、transport、auto_start 与 restart_policy，避免静默改写。",
     endpoint: "MCP 地址",
     endpointDesc: "streamable_http 地址，例如 http://127.0.0.1:3120/mcp。",
     externalManagedHint: "该服务由外部进程管理，Lingshu Gate 只负责连接或断开，不负责启动、停止或自动重启。",
@@ -94,51 +56,32 @@ const FORM_COPY = {
     cwd: "工作目录",
     cwdDesc: "可选。命令启动时的工作目录，例如 /workspace。",
     args: "启动参数",
-    argsDesc: "一行一个参数，保存时会同步到 launch.args。",
     env: "环境变量",
-    envDesc: "一行一个 KEY=VALUE，敏感值建议使用 ${credential:ID}。",
-    insertCredential: "插入凭据引用",
-    insertCredentialDesc: "点击凭据后会插入一行 KEY=${credential:ID} 到环境变量。",
     timeoutSeconds: "超时秒数",
-    timeoutSecondsDesc: "MCP 初始化和请求等待的默认超时时间。",
     autoStart: "开机自启",
     autoStartDesc: "仅记录运行意图；保存与应用配置均不会直接启动服务。",
     restartPolicy: "崩溃重启策略",
-    restartPolicyDesc: "进程退出、启动失败、健康检查失败后的自动恢复策略。",
     maxAttempts: "最大尝试次数",
-    maxAttemptsDesc: "达到次数后停止自动重启，0 表示不重试。",
     delaySeconds: "初始延迟",
-    delaySecondsDesc: "第一次自动重启前等待的秒数。",
     backoff: "退避倍数",
-    backoffDesc: "每次失败后的延迟增长倍数。",
     maxDelay: "最大延迟",
-    maxDelayDesc: "退避后允许等待的最大秒数。",
     resetAfterSeconds: "重置计数",
-    resetAfterSecondsDesc: "服务稳定运行超过该秒数后，重置当前重启尝试次数。",
     restartOnExit: "进程退出后重启",
     restartOnExitDesc: "开启后，非策略排除的退出会触发自动重启。",
     exitAllowlist: "退出码允许列表",
-    exitAllowlistDesc: "逗号分隔。填写后只有这些退出码会触发重启。",
     exitBlocklist: "退出码阻止列表",
-    exitBlocklistDesc: "逗号分隔。命中后不会自动重启，常用 0 表示正常退出不重启。",
     healthCheck: "健康检查探活",
     healthCheckDesc: "当前通过 MCP tools/list 检查已连接服务是否健康。",
     intervalSeconds: "检查间隔",
-    intervalSecondsDesc: "两次健康检查之间的等待时间。",
     healthTimeoutSeconds: "检查超时",
-    healthTimeoutSecondsDesc: "单次健康检查最多等待的时间。",
     failureThreshold: "失败阈值",
-    failureThresholdDesc: "连续失败达到该次数后触发恢复策略。",
     endpointRequired: "HTTP 运行方式需要填写 transport.endpoint",
     endpointInvalid: "MCP 地址必须是有效的 HTTP/HTTPS URL",
-    applyForm: "应用表单到 JSON",
     formatJson: "格式化 JSON",
     backendPrecheck: "后端预检查",
     saveAndApply: "保存配置",
     rawJson: "Manifest JSON",
-    rawJsonDesc: "复杂字段可以继续在 JSON 中编辑；应用表单时会保留未在表单中展示的字段。",
-    precheckFailed: "预检查失败：",
-    backendPrecheckFailed: "后端预检查失败：",
+    rawJsonDesc: "表单修改自动同步到 JSON；未修改的字段和原有值会保留。",
     backendCheck: "后端预检查",
     notRecommended: "不建议应用",
     saveWithWarning: "可以保存，但建议确认警告",
@@ -157,7 +100,7 @@ const FORM_COPY = {
     containerVolumesUnsupported: "不支持旧的 launch.volumes；请使用结构化只读 launch.mounts",
     containerMountsError: "launch.mounts 必须包含绝对 Source、非根且非受保护的绝对 Target，并且不能关闭 read_only；后端还会校验 Allowed Root",
     containerEnvironmentProtected: "managed_container Environment 不能覆盖 LINGSHU_GATE_* 或 Docker 进程控制",
-    launchTypeWarning: "当前表单主要覆盖 managed_process；其它 launch.type 请检查 Manifest JSON",
+    launchTypeWarning: "此运行方式的专有字段需在 Manifest JSON 中维护。",
     argsWarning: "launch.args 建议全部使用字符串",
     transportTypeRequired: "transport.type 不能为空",
     stdioLaunchError: "transport.type=stdio 要求 launch.type 为 managed_process 或 managed_container",
@@ -165,30 +108,15 @@ const FORM_COPY = {
     timeoutWarning: "timeout_seconds 建议设置为大于 0 的数字",
   },
   "en-US": {
-    newConfig: "New MCP Config",
-    editConfig: "Edit",
-    formDesc: "The form supports managed Stdio, external HTTP, and managed HTTP. Complex fields remain available in JSON.",
-    parseErrorPrefix: "JSON / precheck failed: ",
-    credentialErrorPrefix: "Failed to load credentials: ",
     localErrors: "Local precheck errors before saving",
-    localWarnings: "Local config warnings",
-    sensitiveEnv: "Sensitive env detected",
-    sensitiveEnvHint: "Use credential references instead of storing plaintext secrets in the Manifest.",
     serverId: "Server ID",
     serverIdDesc: "Unique MCP Server identifier. Use letters, numbers, dots, underscores, and hyphens only.",
     name: "Name",
-    nameDesc: "Display name in Console. Use a clear business name.",
     runtimeMode: "Runtime Mode",
-    runtimeModeDesc: "Choose how Lingshu Gate obtains the service and connects to its MCP transport.",
     managedStdio: "Managed Stdio",
-    managedStdioDesc: "Lingshu Gate starts the process and connects over standard input/output.",
     externalHttp: "External HTTP",
-    externalHttpDesc: "The service runs independently. Lingshu Gate only connects or disconnects.",
     managedHttp: "Managed HTTP",
-    managedHttpDesc: "Lingshu Gate starts the process and waits for the HTTP MCP endpoint.",
     advancedMode: "Advanced Mode",
-    advancedModeDesc: "Preserve the current runtime and transport configuration; edit it in JSON.",
-    advancedModeHint: "This Manifest uses a runtime combination not covered by the form. Applying the form preserves launch, transport, auto_start, and restart_policy without silently rewriting them.",
     endpoint: "MCP Endpoint",
     endpointDesc: "Streamable HTTP endpoint, for example http://127.0.0.1:3120/mcp.",
     externalManagedHint: "This service is externally managed. Lingshu Gate only connects or disconnects and does not start, stop, or restart the process.",
@@ -197,51 +125,32 @@ const FORM_COPY = {
     cwd: "Working Directory",
     cwdDesc: "Optional command working directory, for example /workspace.",
     args: "Arguments",
-    argsDesc: "One argument per line. Saved into launch.args.",
     env: "Environment Variables",
-    envDesc: "One KEY=VALUE per line. Use ${credential:ID} for sensitive values.",
-    insertCredential: "Insert Credential Reference",
-    insertCredentialDesc: "Click a credential to insert KEY=${credential:ID} into env.",
     timeoutSeconds: "Timeout Seconds",
-    timeoutSecondsDesc: "Default timeout for MCP initialization and requests.",
     autoStart: "Auto Start",
     autoStartDesc: "Records runtime intent only; saving or applying does not directly start the server.",
     restartPolicy: "Restart Policy",
-    restartPolicyDesc: "Auto recovery policy after process exit, startup failure, or health-check failure.",
     maxAttempts: "Max Attempts",
-    maxAttemptsDesc: "Stop auto restart after this count. 0 means no retry.",
     delaySeconds: "Initial Delay",
-    delaySecondsDesc: "Seconds to wait before the first auto restart.",
     backoff: "Backoff Multiplier",
-    backoffDesc: "Delay growth multiplier after each failure.",
     maxDelay: "Max Delay",
-    maxDelayDesc: "Maximum delay after backoff.",
     resetAfterSeconds: "Reset After",
-    resetAfterSecondsDesc: "Reset restart attempts after the server stays stable for this duration.",
     restartOnExit: "Restart On Exit",
     restartOnExitDesc: "Restart automatically when the exit code is not excluded by policy.",
     exitAllowlist: "Exit Code Allowlist",
-    exitAllowlistDesc: "Comma separated. When set, only these exit codes trigger restart.",
     exitBlocklist: "Exit Code Blocklist",
-    exitBlocklistDesc: "Comma separated. Matching codes will not restart. 0 usually means normal exit.",
     healthCheck: "Health Check",
     healthCheckDesc: "Uses MCP tools/list to check whether the connected service is healthy.",
     intervalSeconds: "Interval",
-    intervalSecondsDesc: "Delay between health checks.",
     healthTimeoutSeconds: "Timeout",
-    healthTimeoutSecondsDesc: "Maximum wait time for one health check.",
     failureThreshold: "Failure Threshold",
-    failureThresholdDesc: "Trigger recovery after this many consecutive failures.",
     endpointRequired: "HTTP runtime modes require transport.endpoint",
     endpointInvalid: "MCP endpoint must be a valid HTTP/HTTPS URL",
-    applyForm: "Apply Form to JSON",
     formatJson: "Format JSON",
     backendPrecheck: "Backend Precheck",
     saveAndApply: "Save Config",
     rawJson: "Manifest JSON",
-    rawJsonDesc: "Complex fields remain editable in JSON. Applying the form preserves fields not represented above.",
-    precheckFailed: "Precheck failed: ",
-    backendPrecheckFailed: "Backend precheck failed: ",
+    rawJsonDesc: "Form edits sync to JSON automatically; untouched fields and values are preserved.",
     backendCheck: "Backend Precheck",
     notRecommended: "Not recommended to apply",
     saveWithWarning: "Can save, but review warnings first",
@@ -260,7 +169,7 @@ const FORM_COPY = {
     containerVolumesUnsupported: "launch.volumes is not supported; use structured read-only launch.mounts",
     containerMountsError: "launch.mounts requires absolute sources, non-root absolute targets outside protected paths, and read_only cannot be disabled; the backend also enforces the allowed root",
     containerEnvironmentProtected: "managed_container environment cannot override LINGSHU_GATE_* or Docker process controls",
-    launchTypeWarning: "This form mainly covers managed_process. Check Manifest JSON for other launch.type values.",
+    launchTypeWarning: "Maintain fields specific to this runtime in Manifest JSON.",
     argsWarning: "launch.args should all be strings",
     transportTypeRequired: "transport.type is required",
     stdioLaunchError: "transport.type=stdio requires launch.type to be managed_process or managed_container",
@@ -272,839 +181,318 @@ const FORM_COPY = {
 type CopyKey = keyof typeof FORM_COPY["zh-CN"]
 type CopyFn = (key: CopyKey) => string
 
-function Field({
-  label,
-  desc,
-  children,
-  className = "",
-  extra,
-}: {
-  label: string
-  desc?: string
-  children: ReactNode
-  className?: string
-  extra?: ReactNode
+const PRECHECK_PATHS: Record<ManifestPrecheckMessageKey, string> = {
+  idRequired: "/id", idPattern: "/id", launchRequired: "/launch", transportRequired: "/transport",
+  launchTypeRequired: "/launch/type", commandRequired: "/launch/command",
+  containerImageDigestError: "/launch/image", containerVolumesUnsupported: "/launch/volumes",
+  containerMountsError: "/launch/mounts", containerEnvironmentProtected: "/launch/environment",
+  launchTypeWarning: "/launch/type", argsWarning: "/launch/args", transportTypeRequired: "/transport/type",
+  stdioLaunchError: "/transport/type", streamableEndpointError: "/transport/endpoint",
+  endpointRequired: "/transport/endpoint", endpointInvalid: "/transport/endpoint", timeoutWarning: "/timeout_seconds",
+}
+
+function Field({ id, label, desc, error, children }: {
+  id: string; label: string; desc?: string; error?: string; children: ReactNode
 }) {
-  return (
-    <div className={`flex flex-col gap-1.5 ${className}`}>
-      <div className="flex items-center justify-between">
-        <Label className="font-medium text-xs text-foreground/90">{label}</Label>
-        {extra}
-      </div>
-      {children}
-      {desc && <div className="text-[11px] text-muted-foreground/80 leading-tight">{desc}</div>}
+  return <div className="manifest-field">
+    <Label htmlFor={id}>{label}</Label>
+    {children}
+    {desc && <p id={`${id}-help`} className="text-xs text-muted-foreground">{desc}</p>}
+    {error && <p id={`${id}-error`} className="text-xs text-destructive">{error}</p>}
+  </div>
+}
+
+function StringMapEditor({ value, label, disabled, onChange, zh, id, credentials = [], onDraftDirtyChange }: {
+  value: Record<string, string>; label: string; disabled: boolean; onChange: (value: Record<string, string>) => void
+  zh: boolean; id: string; credentials?: Credential[]; onDraftDirtyChange: (dirty: boolean) => void
+}) {
+  const [key, setKey] = useState("")
+  const [entryValue, setEntryValue] = useState("")
+  const [error, setError] = useState("")
+  const reportDirty = useRef(onDraftDirtyChange)
+  reportDirty.current = onDraftDirtyChange
+  useEffect(() => { reportDirty.current(Boolean(key || entryValue)) }, [key, entryValue])
+  useEffect(() => () => reportDirty.current(false), [])
+  function add(nextKey = key, nextValue = entryValue) {
+    if (!nextKey.trim()) { setError(zh ? "请填写键名。" : "Enter a key."); return }
+    if (Object.prototype.hasOwnProperty.call(value, nextKey)) { setError(zh ? "键名已存在，请直接修改已有值。" : "This key already exists. Edit its value below."); return }
+    onChange({ ...value, [nextKey]: nextValue })
+    setKey(""); setEntryValue(""); setError("")
+  }
+  return <fieldset className="manifest-map" disabled={disabled}>
+    <legend className="sr-only">{label}</legend>
+    {Object.entries(value).map(([name, item], index) => <div className="manifest-map-row" key={name}>
+      <label className="break-all font-mono text-xs" htmlFor={`${id}-${index}`}>{name || (zh ? "空键名" : "Empty key")}</label>
+      <Input id={`${id}-${index}`} value={item} onChange={(event) => onChange({ ...value, [name]: event.target.value })} />
+      <Button type="button" variant="ghost" size="sm" className="size-9 shrink-0 px-0" aria-label={`${zh ? "移除" : "Remove"} ${name}`} onClick={() => {
+        const next = { ...value }; delete next[name]; onChange(next)
+      }}><Trash2 className="size-4" /></Button>
+    </div>)}
+    <div className="manifest-map-row">
+      <Input id={id} aria-label={`${label} ${zh ? "新键名" : "new key"}`} placeholder={zh ? "新键名" : "New key"} value={key} onChange={(event) => { setKey(event.target.value); setError("") }} />
+      <Input aria-label={`${label} ${zh ? "新值" : "new value"}`} placeholder={zh ? "值（可为空）" : "Value (may be empty)"} value={entryValue} onChange={(event) => setEntryValue(event.target.value)} />
+      <Button type="button" variant="outline" size="sm" className="size-9 shrink-0 px-0" aria-label={`${zh ? "添加" : "Add"} ${label}`} onClick={() => add()}><Plus className="size-4" /></Button>
     </div>
-  )
+    {(key || entryValue) && <div className="flex items-center justify-between gap-2"><p className="text-xs text-muted-foreground">{zh ? "点击添加后写入配置；键名的空格和空值会原样保留。" : "Select Add to include this entry; spaces in keys and empty values are preserved."}</p><Button type="button" size="sm" variant="ghost" onClick={() => { setKey(""); setEntryValue(""); setError("") }}>{zh ? "清除待添加项" : "Clear pending entry"}</Button></div>}
+    {error && <p role="alert" className="text-xs text-destructive">{error}</p>}
+    {credentials.length > 0 && <details>
+      <summary className="text-xs cursor-pointer">{zh ? "插入凭据引用" : "Insert credential reference"}</summary>
+      <div className="mt-2 flex flex-wrap gap-2">{credentials.map((item) => <Button key={item.id} type="button" variant="outline" size="sm" onClick={() => add(envKeyFromCredential(item.id), credentialRef(item.id))}>{item.id}</Button>)}</div>
+    </details>}
+  </fieldset>
 }
 
-function NumberField({
-  label,
-  desc,
-  value,
-  onChange,
-  min = 0,
-  step = 1,
-  suffix,
-  className = "",
-}: {
-  label: string
-  desc?: string
-  value: number
-  onChange: (val: number) => void
-  min?: number
-  step?: number
-  suffix: string
-  className?: string
-}) {
-  return (
-    <Field label={label} desc={desc} className={className}>
-      <div className="relative flex items-center">
-        <Input
-          type="number"
-          min={min}
-          step={step}
-          value={value}
-          onChange={(e) => onChange(Number(e.target.value || min))}
-          className="h-9 pr-10 font-mono text-xs bg-muted/20 border-border/70"
-        />
-        <span className="absolute right-3 text-xs font-medium text-muted-foreground pointer-events-none select-none">
-          {suffix}
-        </span>
-      </div>
-    </Field>
-  )
-}
-
-function SwitchRow({
-  title,
-  desc,
-  checked,
-  onCheckedChange,
-  disabled = false,
-  className = "",
-}: {
-  title: string
-  desc?: string
-  checked: boolean
-  onCheckedChange: (checked: boolean) => void
-  disabled?: boolean
-  className?: string
-}) {
-  return (
-    <div
-      className={`flex items-center justify-between gap-3 p-3 rounded-lg border border-border/60 bg-muted/15 transition-colors ${
-        disabled ? "opacity-60 cursor-not-allowed" : "hover:bg-muted/25"
-      } ${className}`}
-    >
-      <div className="flex flex-col gap-0.5">
-        <span className="text-xs font-medium text-foreground">{title}</span>
-        {desc && <span className="text-[11px] text-muted-foreground">{desc}</span>}
-      </div>
-      <Switch checked={checked} disabled={disabled} onCheckedChange={onCheckedChange} />
-    </div>
-  )
-}
-
-export function McpConfigEditor({ locale, selectedConfigId, value, onChange, onSave, onClose, busy }: McpConfigEditorProps) {
-  const copy = FORM_COPY[locale]
-  const c: CopyFn = (key) => copy[key]
+export function McpConfigEditor({ locale, selectedConfigId, value, onChange, onSave, onClose, onPendingChange, onDraftDirtyChange, backendPrecheck = true, loadCredentials = true, footerContainer, busy }: McpConfigEditorProps) {
+  const c: CopyFn = (key) => FORM_COPY[locale][key]
   const zh = locale === "zh-CN"
+  const editorId = useId()
+  const root = useRef<HTMLDivElement>(null)
   const [activeTab, setActiveTab] = useState<"form" | "json">("form")
-  const [id, setId] = useState("")
-  const [name, setName] = useState("")
-  const [runtimeMode, setRuntimeMode] = useState<RuntimeMode>("managed_stdio")
-  const [command, setCommand] = useState("")
-  const [argsText, setArgsText] = useState("")
-  const [envText, setEnvText] = useState("")
-  const [cwd, setCwd] = useState("")
-  const [endpoint, setEndpoint] = useState("")
-  const [timeoutSeconds, setTimeoutSeconds] = useState(120)
-  const [autoStart, setAutoStart] = useState(false)
-  const [restartEnabled, setRestartEnabled] = useState(false)
-  const [restartMaxAttempts, setRestartMaxAttempts] = useState(3)
-  const [restartDelaySeconds, setRestartDelaySeconds] = useState(5)
-  const [restartBackoffMultiplier, setRestartBackoffMultiplier] = useState(2)
-  const [restartMaxDelaySeconds, setRestartMaxDelaySeconds] = useState(60)
-  const [restartOnExit, setRestartOnExit] = useState(true)
-  const [restartResetAfterSeconds, setRestartResetAfterSeconds] = useState(300)
-  const [exitCodeAllowlistText, setExitCodeAllowlistText] = useState("")
-  const [exitCodeBlocklistText, setExitCodeBlocklistText] = useState("")
-  const [healthCheckEnabled, setHealthCheckEnabled] = useState(false)
-  const [healthIntervalSeconds, setHealthIntervalSeconds] = useState(30)
-  const [healthTimeoutSeconds, setHealthTimeoutSeconds] = useState(10)
-  const [healthFailureThreshold, setHealthFailureThreshold] = useState(3)
-  const [parseError, setParseError] = useState<string | null>(null)
+  const [attempted, setAttempted] = useState(false)
+  const [touched, setTouched] = useState<Set<string>>(new Set())
   const [validation, setValidation] = useState<ManifestValidationResponse | null>(null)
+  const [requestError, setRequestError] = useState<string | null>(null)
   const [validating, setValidating] = useState(false)
+  const [submitting, setSubmitting] = useState(false)
   const [credentials, setCredentials] = useState<Credential[]>([])
-  const [credentialError, setCredentialError] = useState<string | null>(null)
-
-  const manifest = useMemo(() => {
-    try {
-      return parseManifest(value)
-    } catch {
-      return null
-    }
-  }, [value])
-
-  const precheck = useMemo<PrecheckResult>(() => {
-    if (!manifest) return { errors: parseError ? [parseError] : [], warnings: [] }
-    return precheckManifest(manifest, c)
-  }, [manifest, parseError, locale])
-  const sensitiveKeys = useMemo(() => sensitiveEnvKeys(envText), [envText])
-  const canSave = Boolean(manifest) && precheck.errors.length === 0
+  const [pendingEntries, setPendingEntries] = useState<Set<string>>(new Set())
+  const requestPending = useRef(false)
+  const latest = useRef({ value, revision: 0 })
+  if (latest.current.value !== value) latest.current = { value, revision: latest.current.revision + 1 }
+  const revision = latest.current.revision
+  const initialContext = useRef<ManifestEditContext>({ existingConfigId: selectedConfigId, originalEndpointMasked: (() => {
+    try { return getRecord(parseManifest(value).transport).endpoint === REDACTED_ENDPOINT } catch { return false }
+  })() })
+  const parsed = useMemo(() => {
+    try { return { manifest: parseManifest(value), error: null, syntax: false } }
+    catch (err) { return { manifest: null, syntax: err instanceof SyntaxError, error: err instanceof SyntaxError ? JSON_SYNTAX_MESSAGE[zh ? "zh-CN" : "en"] : (zh ? "配置必须是 JSON 对象。当前输入已保留。" : "The configuration must be a JSON object. Your input has been retained.") } }
+  }, [value, zh])
+  const manifest = parsed.manifest
+  const locked = busy || validating || submitting
+  const rawChecks = manifest ? precheckManifest(manifest, (key) => key, initialContext.current) : { errors: [], warnings: [] }
+  const issues: ValidationIssue[] = [
+    ...rawChecks.errors.map((key) => ({ code: key, messageKey: key, message: c(key as CopyKey), severity: "error" as const, source: "domain" as const, path: PRECHECK_PATHS[key as ManifestPrecheckMessageKey], revision })),
+    ...rawChecks.warnings.map((key) => ({ code: key, messageKey: key, message: c(key as CopyKey), severity: "warning" as const, source: "domain" as const, path: PRECHECK_PATHS[key as ManifestPrecheckMessageKey], revision })),
+  ].filter((issue, index, all) => all.findIndex((other) => other.path === issue.path && other.message === issue.message) === index)
+  const visibleIssues = issues.filter((issue) => attempted || touched.has(issue.path))
+  const backendIssues = validation ? manifestValidationIssues(validation.checks, revision) : []
+  const mode = manifest ? runtimeModeFromManifest(manifest) : "advanced"
+  const launch = getRecord(manifest?.launch)
+  const transport = getRecord(manifest?.transport)
+  const policy = getRecord(manifest?.restart_policy)
+  const health = getRecord(policy.health_check)
+  const managed = mode === "managed_stdio" || mode === "managed_http"
+  const http = mode === "external_http" || mode === "managed_http"
+  const endpointKept = manifest ? canKeepMaskedEndpoint(manifest, initialContext.current) : false
 
   useEffect(() => {
-    void api.credentials().then(setCredentials).catch((err) => setCredentialError(err instanceof Error ? err.message : String(err)))
-  }, [])
+    let active = true
+    if (loadCredentials) void api.credentials().then((items) => { if (active) setCredentials(items) }).catch(() => { /* References can always be entered manually. */ })
+    return () => { active = false }
+  }, [loadCredentials])
+  useEffect(() => { setValidation(null); setRequestError(null) }, [value])
+  useEffect(() => { onPendingChange?.(locked); return () => onPendingChange?.(false) }, [locked, onPendingChange])
+  useEffect(() => { onDraftDirtyChange?.(pendingEntries.size > 0) }, [pendingEntries, onDraftDirtyChange])
 
-  useEffect(() => {
+  function fieldId(path: string) { return `${editorId}-${path.replace(/\//g, "-")}` }
+  function switchToJson() {
+    if (pendingEntries.size) { setRequestError(zh ? "请先添加或清除键值列表中尚未添加的项，再切换 JSON。" : "Add or clear the pending key/value entry before switching to JSON."); return false }
+    setActiveTab("json")
+    return true
+  }
+  function focusIssue(issue: ValidationIssue) {
+    const field = Array.from(root.current?.querySelectorAll<HTMLElement>("[data-manifest-path]") || []).find((element) => element.getAttribute("data-manifest-path") === issue.path)
+    if (activeTab === "form" && field && !field.hasAttribute("disabled")) {
+      let parent = field.parentElement
+      while (parent && parent !== root.current) { if (parent instanceof HTMLDetailsElement) parent.open = true; parent = parent.parentElement }
+      field.focus(); field.scrollIntoView({ block: "center" }); return
+    }
+    if (!switchToJson()) return
+    window.setTimeout(() => {
+      const area = root.current?.querySelector<HTMLTextAreaElement>("[data-manifest-json]")
+      if (!area) return
+      area.focus()
+      // A repeated key name is not a source location. Keep the full pointer in
+      // the diagnostic and focus JSON without selecting an unrelated property.
+      area.scrollIntoView({ block: "center" })
+    }, 0)
+  }
+  function write(next: ManifestLike) { if (!locked) onChange(prettyJson(next)) }
+  function set(path: string[], next: unknown) {
+    if (!manifest || locked) return
+    write(patchManifestField(manifest, path, { kind: "set", value: next }))
+  }
+  function remove(path: string[]) {
+    if (!manifest || locked) return
+    write(patchManifestField(manifest, path, { kind: "remove" }))
+  }
+  function touch(path: string) { setTouched((current) => new Set(current).add(path)) }
+  function fieldError(path: string) { return [...visibleIssues, ...backendIssues].find((issue) => issue.path === path && issue.severity === "error")?.message }
+  function unsupported(label: string) {
+    return <p className="text-xs text-muted-foreground">{zh ? `${label} 的当前结构需在 JSON 中维护，未修改的值会保留。` : `Edit the current ${label} structure in JSON. Its value is preserved.`} <button type="button" className="text-primary underline" disabled={locked} onClick={switchToJson}>JSON</button></p>
+  }
+  function textField(path: string[], label: string, current: unknown, desc?: string, disabled = false) {
+    const pointer = `/${path.join("/")}`
+    const id = fieldId(pointer)
+    return <Field id={id} label={label} desc={desc} error={fieldError(pointer)}>
+      {current !== undefined && current !== null && typeof current !== "string" ? unsupported(label) : <Input id={id} data-manifest-path={pointer} value={typeof current === "string" ? current : ""} disabled={locked || disabled} aria-invalid={Boolean(fieldError(pointer))} aria-describedby={`${id}-help${fieldError(pointer) ? ` ${id}-error` : ""}`} onBlur={() => touch(pointer)} onChange={(event) => set(path, event.target.value)} />}
+    </Field>
+  }
+  function numberField(path: string[], label: string, current: unknown, min: number, fallback: number, step = 1) {
+    const pointer = `/${path.join("/")}`
+    const id = fieldId(pointer)
+    return <Field id={id} label={label} error={fieldError(pointer)}>
+      {current !== undefined && current !== null && typeof current !== "number" ? unsupported(label) : <Input id={id} data-manifest-path={pointer} type="number" min={min} step={step} value={typeof current === "number" ? current : ""} placeholder={current === null ? "null" : String(fallback)} disabled={locked} onBlur={() => touch(pointer)} onChange={(event) => event.target.value === "" ? remove(path) : set(path, Number(event.target.value))} />}
+    </Field>
+  }
+  function toggle(path: string[], label: string, current: unknown, fallback: boolean, desc?: string) {
+    const pointer = `/${path.join("/")}`
+    const id = fieldId(pointer)
+    if (current !== undefined && typeof current !== "boolean") return <Field id={id} label={label}>{unsupported(label)}</Field>
+    return <div className="manifest-toggle"><div><Label htmlFor={id}>{label}</Label>{desc && <p className="text-xs text-muted-foreground">{desc}</p>}</div><Switch id={id} data-manifest-path={pointer} checked={typeof current === "boolean" ? current : fallback} disabled={locked} onCheckedChange={(checked) => set(path, checked)} /></div>
+  }
+  function mapField(path: string[], label: string, current: unknown, withCredentials = false) {
+    const id = fieldId(`/${path.join("/")}`)
+    return <Field id={id} label={label} desc={withCredentials ? (zh ? "敏感值使用 ${credential:ID} 引用；已有键名需删除后重新添加。" : "Use ${credential:ID} for secrets. Remove and add an entry to change its key.") : undefined}>
+      {current !== undefined && !isStringMap(current) ? unsupported(label) : <StringMapEditor id={id} label={label} value={(current || {}) as Record<string, string>} disabled={locked} onChange={(next) => set(path, next)} zh={zh} credentials={withCredentials ? credentials : []} onDraftDirtyChange={(dirty) => setPendingEntries((current) => {
+        if (current.has(id) === dirty) return current
+        const next = new Set(current); if (dirty) next.add(id); else next.delete(id); return next
+      })} />}
+    </Field>
+  }
+  function arrayField(path: string[], label: string, current: unknown, numeric = false) {
+    const pointer = `/${path.join("/")}`
+    const supported = current === undefined || (Array.isArray(current) && current.every((item) => numeric ? typeof item === "number" && Number.isInteger(item) : typeof item === "string"))
+    const items = supported && Array.isArray(current) ? current : []
+    return <Field id={fieldId(pointer)} label={label} desc={numeric ? undefined : (zh ? "每行是一个完整参数；空参数和前后空格原样保留。" : "Each row is one complete argument; empty arguments and spaces are preserved.")}>
+      {!supported ? unsupported(label) : <div className="manifest-array" id={fieldId(pointer)} data-manifest-path={pointer} tabIndex={-1}>
+        {items.map((item, index) => <div className="manifest-array-row" key={index}>
+          <Input type={numeric ? "number" : "text"} aria-label={`${label} ${index + 1}`} value={item} disabled={locked} onChange={(event) => {
+            const next = [...items]; next[index] = numeric ? Number(event.target.value) : event.target.value; set(path, next)
+          }} />
+          <Button type="button" variant="ghost" size="sm" className="size-9 shrink-0 px-0" disabled={locked} aria-label={`${zh ? "移除" : "Remove"} ${label} ${index + 1}`} onClick={() => set(path, items.filter((_, i) => i !== index))}><Trash2 className="size-4" /></Button>
+        </div>)}
+        <Button type="button" variant="outline" size="sm" disabled={locked} onClick={() => set(path, [...items, numeric ? 0 : ""])}><Plus className="size-4" />{zh ? "添加一行" : "Add row"}</Button>
+      </div>}
+    </Field>
+  }
+  async function check(snapshot: ManifestLike, snapshotRevision: number) {
+    const result = await api.validateConfig(withoutUserCredentialValues(snapshot), selectedConfigId || null)
+    if (latest.current.revision !== snapshotRevision) return null
+    setValidation(result)
+    return result
+  }
+  async function validate(save: boolean) {
+    if (requestPending.current || locked || !manifest) return
+    if (pendingEntries.size > 0) { setRequestError(zh ? "请先添加或清除键值列表中尚未添加的项，再保存或检查。" : "Add or clear the pending key/value entry before saving or checking."); return }
+    setAttempted(true)
+    const first = issues.find((issue) => issue.severity === "error")
+    if (backendPrecheck && first) { focusIssue(first); return }
+    requestPending.current = true
+    setRequestError(null)
+    if (save) setSubmitting(true)
+    else setValidating(true)
+    const snapshotRevision = revision
+    const snapshot = manifest
     try {
-      const next = parseManifest(value)
-      const launch = getRecord(next.launch)
-      const transport = getRecord(next.transport)
-      const policy = getRecord(next.restart_policy)
-      const health = getRecord(policy.health_check)
-      setId(String(next.id || ""))
-      setName(String(next.name || ""))
-      setRuntimeMode(runtimeModeFromManifest(next))
-      setCommand(String(launch.command || ""))
-      setArgsText(stringifyArgs(launch.args))
-      setEnvText(stringifyEnv(launch.env))
-      setCwd(String(launch.cwd || ""))
-      setEndpoint(String(transport.endpoint || ""))
-      setTimeoutSeconds(Number(next.timeout_seconds || 120))
-      setAutoStart(Boolean(next.auto_start ?? false))
-      setRestartEnabled(Boolean(policy.enabled ?? false))
-      setRestartMaxAttempts(Number(policy.max_attempts ?? 3))
-      setRestartDelaySeconds(Number(policy.delay_seconds ?? 5))
-      setRestartBackoffMultiplier(Number(policy.backoff_multiplier ?? 2))
-      setRestartMaxDelaySeconds(Number(policy.max_delay_seconds ?? 60))
-      setRestartOnExit(Boolean(policy.restart_on_exit ?? true))
-      setRestartResetAfterSeconds(Number(policy.reset_after_seconds ?? 300))
-      setExitCodeAllowlistText(stringifyNumberList(policy.exit_code_allowlist))
-      setExitCodeBlocklistText(stringifyNumberList(policy.exit_code_blocklist))
-      setHealthCheckEnabled(Boolean(health.enabled ?? false))
-      setHealthIntervalSeconds(Number(health.interval_seconds ?? 30))
-      setHealthTimeoutSeconds(Number(health.timeout_seconds ?? 10))
-      setHealthFailureThreshold(Number(health.failure_threshold ?? 3))
-      setParseError(null)
-      setValidation(null)
-    } catch (err) {
-      setParseError(err instanceof Error ? err.message : String(err))
-    }
-  }, [value])
-
-  function buildManifestFromForm(): ManifestLike {
-    const current = parseManifest(value)
-    const currentLaunch = getRecord(current.launch)
-    const currentTransport = getRecord(current.transport)
-    const currentPolicy = getRecord(current.restart_policy)
-    const currentHealth = getRecord(currentPolicy.health_check)
-    const advanced = runtimeMode === "advanced"
-    const managedProcess = runtimeMode === "managed_stdio" || runtimeMode === "managed_http"
-    const http = runtimeMode === "external_http" || runtimeMode === "managed_http"
-    const nextLaunch: Record<string, unknown> = advanced
-      ? { ...currentLaunch }
-      : { ...currentLaunch, type: managedProcess ? "managed_process" : "external" }
-    if (managedProcess) {
-      nextLaunch.command = command.trim()
-      nextLaunch.args = parseArgs(argsText)
-      nextLaunch.env = parseEnv(envText)
-      if (cwd.trim()) nextLaunch.cwd = cwd.trim()
-      else delete nextLaunch.cwd
-    }
-
-    const nextTransport: Record<string, unknown> = advanced
-      ? { ...currentTransport }
-      : { ...currentTransport, type: http ? "streamable_http" : "stdio" }
-    if (!advanced) {
-      if (http) nextTransport.endpoint = endpoint.trim()
-      else delete nextTransport.endpoint
-    }
-
-    const policyEnabled = managedProcess && restartEnabled
-    const nextPolicy = advanced ? currentPolicy : {
-      ...currentPolicy,
-      enabled: policyEnabled,
-      max_attempts: Number(restartMaxAttempts || 0),
-      delay_seconds: Number(restartDelaySeconds || 0),
-      backoff_multiplier: Number(restartBackoffMultiplier || 1),
-      max_delay_seconds: Number(restartMaxDelaySeconds || 0),
-      restart_on_exit: restartOnExit,
-      reset_after_seconds: Number(restartResetAfterSeconds || 0),
-      exit_code_allowlist: parseNumberList(exitCodeAllowlistText),
-      exit_code_blocklist: parseNumberList(exitCodeBlocklistText),
-      health_check: {
-        ...currentHealth,
-        enabled: policyEnabled && healthCheckEnabled,
-        method: "tools_list",
-        interval_seconds: Number(healthIntervalSeconds || 30),
-        timeout_seconds: Number(healthTimeoutSeconds || 10),
-        failure_threshold: Number(healthFailureThreshold || 3),
-      },
-    }
-
-    return {
-      ...current,
-      id: id.trim(),
-      name: name.trim(),
-      launch: nextLaunch,
-      transport: nextTransport,
-      timeout_seconds: Number(timeoutSeconds || 120),
-      auto_start: advanced ? current.auto_start : managedProcess ? autoStart : false,
-      restart_policy: nextPolicy,
-    }
+      if (!backendPrecheck) { await onSave(value); return }
+      const result = await check(snapshot, snapshotRevision)
+      if (!result || result.summary.errors > 0 || !save) return
+      await onSave(prettyJson(snapshot))
+    } catch (err) { setRequestError(err instanceof Error ? err.message : String(err)) }
+    finally { requestPending.current = false; setValidating(false); setSubmitting(false) }
   }
 
-  function insertCredentialRef(credential: Credential) {
-    const line = `${envKeyFromCredential(credential.id)}=${credentialRef(credential.id)}`
-    setEnvText((current) => current.trim() ? `${current.trim()}\n${line}` : line)
-    setValidation(null)
-  }
-
-  function applyFormToJson() {
-    try {
-      const next = buildManifestFromForm()
-      onChange(prettyJson(next))
-      setParseError(null)
-      setValidation(null)
-    } catch (err) {
-      setParseError(err instanceof Error ? err.message : String(err))
-    }
-  }
-
-  function formatJson() {
-    try {
-      onChange(formatManifestJson(value))
-      setParseError(null)
-      setValidation(null)
-    } catch (err) {
-      setParseError(err instanceof Error ? err.message : String(err))
-    }
-  }
-
-  async function validateWithBackend(): Promise<ManifestValidationResponse | null> {
-    setValidating(true)
-    setValidation(null)
-    setParseError(null)
-    try {
-      const next = buildManifestFromForm()
-      const nextText = prettyJson(next)
-      onChange(nextText)
-      const result = await api.validateConfig(withoutUserCredentialValues(next) as Record<string, unknown>, selectedConfigId || null)
-      setValidation(result)
-      return result
-    } catch (err) {
-      setParseError(err instanceof Error ? err.message : String(err))
-      return null
-    } finally {
-      setValidating(false)
-    }
-  }
-
-  async function saveAfterPrecheck() {
-    try {
-      const next = buildManifestFromForm()
-      const latestPrecheck = precheckManifest(next, c)
-      if (latestPrecheck.errors.length > 0) {
-        setParseError(`${c("precheckFailed")}${latestPrecheck.errors.join("; ")}`)
-        return
-      }
-      const result = await validateWithBackend()
-      if (!result) return
-      if (result.summary.errors > 0) {
-        setParseError(`${c("backendPrecheckFailed")}${result.summary.errors}`)
-        return
-      }
-      const nextText = prettyJson(next)
-      onChange(nextText)
-      setParseError(null)
-      await onSave(nextText)
-    } catch (err) {
-      setParseError(err instanceof Error ? err.message : String(err))
-    }
-  }
-
-  const RUNTIME_MODES: Array<{
-    id: RuntimeMode
-    title: string
-    desc: string
-    icon: typeof Terminal
-  }> = [
-    { id: "managed_stdio", title: c("managedStdio"), desc: c("managedStdioDesc"), icon: Terminal },
-    { id: "external_http", title: c("externalHttp"), desc: c("externalHttpDesc"), icon: Globe },
-    { id: "managed_http", title: c("managedHttp"), desc: c("managedHttpDesc"), icon: Cpu },
-    { id: "advanced", title: c("advancedMode"), desc: c("advancedModeDesc"), icon: Sliders },
-  ]
-
-  return (
-    <div className="flex h-full flex-col bg-background text-foreground">
-      {/* 顶部 Tab 切换与概要状态 */}
-      <div className="flex items-center justify-between border-b px-8 py-3 bg-muted/20 shrink-0">
-        <div className="flex items-center gap-1.5 rounded-lg bg-muted/80 p-1">
-          <button
-            type="button"
-            className={`flex items-center gap-2 rounded-md px-3.5 py-1.5 text-xs font-medium transition-all ${
-              activeTab === "form"
-                ? "bg-background text-foreground shadow-xs font-semibold"
-                : "text-muted-foreground hover:text-foreground"
-            }`}
-            onClick={() => setActiveTab("form")}
-          >
-            <LayoutTemplate className="size-3.5" />
-            {zh ? "可视化表单" : "Visual Form"}
-          </button>
-          <button
-            type="button"
-            className={`flex items-center gap-2 rounded-md px-3.5 py-1.5 text-xs font-medium transition-all ${
-              activeTab === "json"
-                ? "bg-background text-foreground shadow-xs font-semibold"
-                : "text-muted-foreground hover:text-foreground"
-            }`}
-            onClick={() => setActiveTab("json")}
-          >
-            <FileCode2 className="size-3.5" />
-            {zh ? "JSON 源码编辑" : "Raw JSON Editor"}
-          </button>
-        </div>
-
-        <div className="flex items-center gap-3">
-          {validation && (
-            <Badge variant={validation.summary.errors > 0 ? "danger" : validation.summary.warnings > 0 ? "warning" : "success"}>
-              {validation.summary.errors > 0
-                ? (zh ? "预检查未通过" : "Precheck Failed")
-                : (zh ? "后端预检查通过" : "Precheck OK")}
-            </Badge>
-          )}
-        </div>
-      </div>
-
-      {/* 中间滚动区 */}
-      <div className="flex-1 overflow-y-auto px-8 py-6 space-y-6">
-        {parseError && (
-          <Alert variant="destructive" className="border-destructive/30 bg-destructive/10">
-            <AlertCircle className="size-4" />
-            <AlertDescription className="ml-2 font-medium">
-              {c("parseErrorPrefix")}{parseError}
-            </AlertDescription>
-          </Alert>
-        )}
-        {credentialError && (
-          <Alert className="border-warning/30 bg-warning/10 text-warning-foreground">
-            <AlertCircle className="size-4" />
-            <AlertDescription className="ml-2">{c("credentialErrorPrefix")}{credentialError}</AlertDescription>
-          </Alert>
-        )}
-        {precheck.errors.length > 0 && (
-          <Alert variant="destructive" className="border-destructive/30 bg-destructive/5">
-            <AlertCircle className="size-4" />
-            <div className="ml-2">
-              <AlertTitle className="font-semibold text-xs">{c("localErrors")}</AlertTitle>
-              <AlertDescription>
-                <ul className="list-disc pl-4 text-xs space-y-0.5 mt-1">
-                  {precheck.errors.map((item) => <li key={item}>{item}</li>)}
-                </ul>
-              </AlertDescription>
-            </div>
-          </Alert>
-        )}
-        {precheck.warnings.length > 0 && (
-          <Alert className="border-warning/30 bg-warning/5 text-warning-foreground">
-            <Info className="size-4" />
-            <div className="ml-2">
-              <AlertTitle className="font-semibold text-xs">{c("localWarnings")}</AlertTitle>
-              <AlertDescription>
-                <ul className="list-disc pl-4 text-xs space-y-0.5 mt-1">
-                  {precheck.warnings.map((item) => <li key={item}>{item}</li>)}
-                </ul>
-              </AlertDescription>
-            </div>
-          </Alert>
-        )}
-        {sensitiveKeys.length > 0 && (
-          <Alert className="border-blue-500/20 bg-blue-500/5 text-foreground text-xs">
-            <Info className="size-4 text-blue-500" />
-            <AlertDescription className="ml-2">
-              <span className="font-semibold">{c("sensitiveEnv")}:</span> {sensitiveKeys.join(", ")}。{c("sensitiveEnvHint")}
-            </AlertDescription>
-          </Alert>
-        )}
-        {validation && <ValidationPanel validation={validation} c={c} />}
-
-        {activeTab === "form" ? (
-          <div className="space-y-6">
-            {/* 核心单选卡片组：运行方式 */}
-            <div className="flex flex-col gap-2">
-              <div className="flex items-center justify-between">
-                <div>
-                  <Label className="text-sm font-semibold text-foreground">{c("runtimeMode")}</Label>
-                  <p className="text-xs text-muted-foreground">{c("runtimeModeDesc")}</p>
-                </div>
-              </div>
-              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 pt-1">
-                {RUNTIME_MODES.map((mode) => {
-                  const isSelected = runtimeMode === mode.id
-                  const Icon = mode.icon
-                  return (
-                    <button
-                      key={mode.id}
-                      type="button"
-                      onClick={() => { setRuntimeMode(mode.id); setValidation(null) }}
-                      className={`relative flex flex-col gap-2.5 p-4 rounded-xl border text-left transition-all ${
-                        isSelected
-                          ? "border-primary bg-primary/5 shadow-xs ring-1 ring-primary/25"
-                          : "border-border/70 bg-card hover:border-border hover:bg-muted/30"
-                      }`}
-                    >
-                      <div className="flex items-center justify-between">
-                        <div className={`size-8 rounded-lg flex items-center justify-center ${
-                          isSelected ? "bg-primary text-primary-foreground" : "bg-muted text-muted-foreground"
-                        }`}>
-                          <Icon className="size-4.5" />
-                        </div>
-                        {isSelected && (
-                          <span className="size-5 rounded-full bg-primary text-primary-foreground flex items-center justify-center shadow-xs">
-                            <Check className="size-3 stroke-[3]" />
-                          </span>
-                        )}
-                      </div>
-                      <div>
-                        <div className="text-xs font-semibold text-foreground">{mode.title}</div>
-                        <div className="text-[11px] text-muted-foreground leading-relaxed mt-1">{mode.desc}</div>
-                      </div>
-                    </button>
-                  )
-                })}
-              </div>
-            </div>
-
-            {runtimeMode === "external_http" && (
-              <Alert className="bg-muted/40 border-border/70 text-xs">
-                <Info className="size-3.5 text-muted-foreground" />
-                <AlertDescription className="ml-1.5">{c("externalManagedHint")}</AlertDescription>
-              </Alert>
-            )}
-            {runtimeMode === "advanced" && (
-              <Alert className="bg-amber-500/10 border-amber-500/20 text-xs">
-                <Info className="size-3.5 text-amber-600" />
-                <AlertDescription className="ml-1.5">{c("advancedModeHint")}</AlertDescription>
-              </Alert>
-            )}
-
-            {/* 双栏布局：左栏（基础与进程） + 右栏（环境变量与高可用） */}
-            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-              {/* 左栏 */}
-              <div className="space-y-6">
-                {/* 基础属性 */}
-                <Card className="border-border/70 shadow-xs">
-                  <CardHeader className="pb-3 pt-4 px-5 border-b bg-muted/20">
-                    <div className="flex items-center gap-2">
-                      <Server className="size-4 text-primary" />
-                      <CardTitle className="text-sm font-semibold">{zh ? "基础信息" : "Basic Information"}</CardTitle>
-                    </div>
-                    <CardDescription className="text-xs">
-                      {zh ? "MCP Server 的唯一标识与展示名称" : "Server unique identifier and display name"}
-                    </CardDescription>
-                  </CardHeader>
-                  <CardContent className="p-5 grid gap-4 sm:grid-cols-2">
-                    <Field label={c("serverId")} desc={c("serverIdDesc")}>
-                      <Input value={id} onChange={(event) => setId(event.target.value)} placeholder="mcp-server" className="h-9 font-mono text-xs bg-muted/20 border-border/70" />
-                    </Field>
-                    <Field label={c("name")} desc={c("nameDesc")}>
-                      <Input value={name} onChange={(event) => setName(event.target.value)} placeholder="MCP Server" className="h-9 bg-muted/20 border-border/70" />
-                    </Field>
-                    <NumberField
-                      label={c("timeoutSeconds")}
-                      desc={c("timeoutSecondsDesc")}
-                      value={timeoutSeconds}
-                      onChange={setTimeoutSeconds}
-                      min={1}
-                      suffix={zh ? "秒" : "s"}
-                    />
-                    {runtimeMode !== "advanced" && (
-                      <div className="flex flex-col justify-end">
-                        <SwitchRow
-                          title={c("autoStart")}
-                          desc={runtimeMode === "external_http" ? c("externalManagedHint") : c("autoStartDesc")}
-                          checked={runtimeMode === "external_http" ? false : autoStart}
-                          disabled={runtimeMode === "external_http"}
-                          onCheckedChange={setAutoStart}
-                        />
-                      </div>
-                    )}
-                  </CardContent>
-                </Card>
-
-                {/* 进程命令与连接 */}
-                {(runtimeMode === "managed_stdio" || runtimeMode === "managed_http" || runtimeMode === "external_http") && (
-                  <Card className="border-border/70 shadow-xs">
-                    <CardHeader className="pb-3 pt-4 px-5 border-b bg-muted/20">
-                      <div className="flex items-center gap-2">
-                        <Terminal className="size-4 text-primary" />
-                        <CardTitle className="text-sm font-semibold">{zh ? "进程与执行命令" : "Process & Execution"}</CardTitle>
-                      </div>
-                      <CardDescription className="text-xs">
-                        {zh ? "可执行文件命令路径、启动参数与工作目录" : "Executable command path, parameters, and working directory"}
-                      </CardDescription>
-                    </CardHeader>
-                    <CardContent className="p-5 flex flex-col gap-4">
-                      {(runtimeMode === "managed_stdio" || runtimeMode === "managed_http") && (
-                        <>
-                          <div className="grid gap-4 sm:grid-cols-2">
-                            <Field label={c("command")} desc={c("commandDesc")}>
-                              <Input value={command} onChange={(event) => setCommand(event.target.value)} placeholder="/path/to/mcp-server" className="h-9 font-mono text-xs bg-muted/20 border-border/70" />
-                            </Field>
-                            <Field label={c("cwd")} desc={c("cwdDesc")}>
-                              <Input value={cwd} onChange={(event) => setCwd(event.target.value)} placeholder="/workspace" className="h-9 font-mono text-xs bg-muted/20 border-border/70" />
-                            </Field>
-                          </div>
-                          <Field label={c("args")} desc={c("argsDesc")}>
-                            <Textarea
-                              className="min-h-[110px] font-mono text-xs leading-relaxed bg-slate-900/[0.03] dark:bg-slate-950/40 border-border/70 resize-y"
-                              value={argsText}
-                              onChange={(event) => setArgsText(event.target.value)}
-                              placeholder={'--config\n/path/to/config.json\n--verbose'}
-                            />
-                          </Field>
-                        </>
-                      )}
-                      {(runtimeMode === "external_http" || runtimeMode === "managed_http") && (
-                        <Field label={c("endpoint")} desc={c("endpointDesc")}>
-                          <Input
-                            value={endpoint}
-                            onChange={(event) => { setEndpoint(event.target.value); setValidation(null) }}
-                            placeholder="http://127.0.0.1:3120/mcp"
-                            className="h-9 font-mono text-xs bg-muted/20 border-border/70"
-                          />
-                        </Field>
-                      )}
-                    </CardContent>
-                  </Card>
-                )}
-              </div>
-
-              {/* 右栏 */}
-              <div className="space-y-6">
-                {/* 环境变量与凭据 */}
-                {(runtimeMode === "managed_stdio" || runtimeMode === "managed_http") && (
-                  <Card className="border-border/70 shadow-xs">
-                    <CardHeader className="pb-3 pt-4 px-5 border-b bg-muted/20">
-                      <div className="flex items-center gap-2">
-                        <Key className="size-4 text-primary" />
-                        <CardTitle className="text-sm font-semibold">{c("env")}</CardTitle>
-                      </div>
-                      <CardDescription className="text-xs">{c("envDesc")}</CardDescription>
-                    </CardHeader>
-                    <CardContent className="p-5 flex flex-col gap-4">
-                      <Field label={c("env")} desc={c("envDesc")}>
-                        <Textarea
-                          className="min-h-[130px] font-mono text-xs leading-relaxed bg-slate-900/[0.03] dark:bg-slate-950/40 border-border/70 resize-y"
-                          value={envText}
-                          onChange={(event) => setEnvText(event.target.value)}
-                          placeholder={'SERVICE_TOKEN=${credential:SERVICE_TOKEN}\nSERVICE_MODE=production\nLOG_LEVEL=debug'}
-                        />
-                      </Field>
-                      {credentials.length > 0 && (
-                        <div className="flex flex-col gap-2 rounded-lg border border-border/60 bg-muted/15 p-3.5">
-                          <div className="flex items-center justify-between">
-                            <span className="text-xs font-medium text-foreground">{c("insertCredential")}</span>
-                            <span className="text-[11px] text-muted-foreground">{c("insertCredentialDesc")}</span>
-                          </div>
-                          <div className="flex flex-wrap gap-1.5 pt-1">
-                            {credentials.map((credential) => (
-                              <Button
-                                key={credential.id}
-                                size="sm"
-                                variant="secondary"
-                                className="h-7 text-xs font-mono bg-background hover:bg-muted border border-border/60 shadow-2xs"
-                                onClick={() => insertCredentialRef(credential)}
-                              >
-                                + {credential.id}
-                              </Button>
-                            ))}
-                          </div>
-                        </div>
-                      )}
-                    </CardContent>
-                  </Card>
-                )}
-
-                {/* 高可用与健康探活 */}
-                {(runtimeMode === "managed_stdio" || runtimeMode === "managed_http") && (
-                  <Card className="border-border/70 shadow-xs">
-                    <CardHeader className="pb-3 pt-4 px-5 border-b bg-muted/20">
-                      <div className="flex items-center justify-between">
-                        <div className="flex items-center gap-2">
-                          <RefreshCw className="size-4 text-primary" />
-                          <CardTitle className="text-sm font-semibold">{c("restartPolicy")}</CardTitle>
-                        </div>
-                        <Switch checked={restartEnabled} onCheckedChange={setRestartEnabled} />
-                      </div>
-                      <CardDescription className="text-xs">{c("restartPolicyDesc")}</CardDescription>
-                    </CardHeader>
-                    {restartEnabled && (
-                      <CardContent className="p-5 flex flex-col gap-5">
-                        <div className="grid gap-4 sm:grid-cols-2">
-                          <NumberField
-                            label={c("maxAttempts")}
-                            desc={c("maxAttemptsDesc")}
-                            value={restartMaxAttempts}
-                            onChange={setRestartMaxAttempts}
-                            min={0}
-                            suffix={zh ? "次" : "times"}
-                          />
-                          <NumberField
-                            label={c("delaySeconds")}
-                            desc={c("delaySecondsDesc")}
-                            value={restartDelaySeconds}
-                            onChange={setRestartDelaySeconds}
-                            min={0}
-                            suffix={zh ? "秒" : "s"}
-                          />
-                          <NumberField
-                            label={c("backoff")}
-                            desc={c("backoffDesc")}
-                            value={restartBackoffMultiplier}
-                            onChange={setRestartBackoffMultiplier}
-                            min={1}
-                            step={0.1}
-                            suffix="x"
-                          />
-                          <NumberField
-                            label={c("maxDelay")}
-                            desc={c("maxDelayDesc")}
-                            value={restartMaxDelaySeconds}
-                            onChange={setRestartMaxDelaySeconds}
-                            min={0}
-                            suffix={zh ? "秒" : "s"}
-                          />
-                          <NumberField
-                            label={c("resetAfterSeconds")}
-                            desc={c("resetAfterSecondsDesc")}
-                            value={restartResetAfterSeconds}
-                            onChange={setRestartResetAfterSeconds}
-                            min={0}
-                            suffix={zh ? "秒" : "s"}
-                          />
-                          <div className="flex flex-col justify-end">
-                            <SwitchRow
-                              title={c("restartOnExit")}
-                              desc={c("restartOnExitDesc")}
-                              checked={restartOnExit}
-                              onCheckedChange={setRestartOnExit}
-                            />
-                          </div>
-                          <Field label={c("exitAllowlist")} desc={c("exitAllowlistDesc")}>
-                            <Input value={exitCodeAllowlistText} onChange={(event) => setExitCodeAllowlistText(event.target.value)} placeholder="1,2,130" className="h-9 font-mono text-xs bg-muted/20 border-border/70" />
-                          </Field>
-                          <Field label={c("exitBlocklist")} desc={c("exitBlocklistDesc")}>
-                            <Input value={exitCodeBlocklistText} onChange={(event) => setExitCodeBlocklistText(event.target.value)} placeholder="0" className="h-9 font-mono text-xs bg-muted/20 border-border/70" />
-                          </Field>
-                        </div>
-
-                        {/* 健康检查探活区 */}
-                        <div className="rounded-xl border border-border/70 p-4 bg-muted/10 space-y-3">
-                          <div className="flex items-center justify-between">
-                            <div className="flex flex-col">
-                              <span className="font-semibold text-xs text-foreground">{c("healthCheck")}</span>
-                              <span className="text-[11px] text-muted-foreground">{c("healthCheckDesc")}</span>
-                            </div>
-                            <Switch checked={healthCheckEnabled} onCheckedChange={setHealthCheckEnabled} />
-                          </div>
-                          {healthCheckEnabled && (
-                            <div className="grid gap-3 sm:grid-cols-3 pt-2">
-                              <NumberField
-                                label={c("intervalSeconds")}
-                                desc={c("intervalSecondsDesc")}
-                                value={healthIntervalSeconds}
-                                onChange={setHealthIntervalSeconds}
-                                min={1}
-                                suffix={zh ? "秒" : "s"}
-                              />
-                              <NumberField
-                                label={c("healthTimeoutSeconds")}
-                                desc={c("healthTimeoutSecondsDesc")}
-                                value={healthTimeoutSeconds}
-                                onChange={setHealthTimeoutSeconds}
-                                min={1}
-                                suffix={zh ? "秒" : "s"}
-                              />
-                              <NumberField
-                                label={c("failureThreshold")}
-                                desc={c("failureThresholdDesc")}
-                                value={healthFailureThreshold}
-                                onChange={setHealthFailureThreshold}
-                                min={1}
-                                suffix={zh ? "次" : "times"}
-                              />
-                            </div>
-                          )}
-                        </div>
-                      </CardContent>
-                    )}
-                  </Card>
-                )}
-              </div>
-            </div>
-          </div>
-        ) : (
-          <Card className="border-border/70 shadow-xs h-full flex flex-col">
-            <CardHeader className="pb-3 pt-4 px-6 border-b bg-muted/20">
-              <div className="flex items-center gap-2">
-                <FileCode2 className="size-4 text-primary" />
-                <CardTitle className="text-sm font-semibold">{c("rawJson")}</CardTitle>
-              </div>
-              <CardDescription className="text-xs">{c("rawJsonDesc")}</CardDescription>
-            </CardHeader>
-            <CardContent className="p-6 flex-1">
-              <Textarea
-                className="h-[580px] font-mono text-xs leading-relaxed bg-slate-900/[0.03] dark:bg-slate-950/50 border-border/70 resize-none"
-                value={value}
-                onChange={(event) => onChange(event.target.value)}
-              />
-            </CardContent>
-          </Card>
-        )}
-      </div>
-
-      {/* 底部吸底操作栏 */}
-      <div className="flex items-center justify-between border-t bg-card/95 backdrop-blur-sm px-8 py-3.5 shadow-sm shrink-0">
-        <div className="flex items-center gap-2.5">
-          {activeTab === "form" && (
-            <Button size="sm" variant="outline" onClick={applyFormToJson} className="h-8.5 text-xs">
-              <Wand2 className="size-3.5 mr-1.5" />
-              {c("applyForm")}
-            </Button>
-          )}
-          <Button size="sm" variant="outline" onClick={formatJson} className="h-8.5 text-xs">
-            <Braces className="size-3.5 mr-1.5" />
-            {c("formatJson")}
-          </Button>
-          <Button
-            size="sm"
-            variant="outline"
-            onClick={validateWithBackend}
-            disabled={validating || !manifest}
-            className="h-8.5 text-xs"
-          >
-            <ShieldCheck className="size-3.5 mr-1.5" />
-            {validating ? (zh ? "检查中..." : "Checking...") : c("backendPrecheck")}
-          </Button>
-        </div>
-
-        <div className="flex items-center gap-3">
-          {onClose && (
-            <Button size="sm" variant="ghost" onClick={onClose} className="h-8.5 px-4 text-xs">
-              {zh ? "取消" : "Cancel"}
-            </Button>
-          )}
-          <Button
-            size="sm"
-            onClick={saveAfterPrecheck}
-            disabled={busy || validating || !canSave}
-            className="h-8.5 px-5 text-xs shadow-xs font-medium"
-          >
-            <Save className="size-3.5 mr-1.5" />
-            {c("saveAndApply")}
-          </Button>
-        </div>
+  const footer = <div className="manifest-editor-footer">
+    {requestError && <Alert variant="destructive"><AlertDescription>{requestError}</AlertDescription></Alert>}
+    <div className="manifest-editor-actions">
+      {backendPrecheck && <Button type="button" variant="outline" disabled={locked || !manifest} onClick={() => void validate(false)}><ShieldCheck className="size-4" />{validating ? (zh ? "检查中…" : "Checking…") : c("backendPrecheck")}</Button>}
+      <div className="ml-auto flex gap-2">
+        {onClose && <Button type="button" variant="ghost" disabled={locked} onClick={onClose}>{zh ? "取消" : "Cancel"}</Button>}
+        <Button type="button" disabled={locked || !manifest} onClick={() => void validate(true)}><Save className="size-4" />{submitting || busy ? (zh ? "保存中…" : "Saving…") : c("saveAndApply")}</Button>
       </div>
     </div>
-  )
+  </div>
+
+  return <div ref={root} className="manifest-editor">
+    <div className="manifest-editor-toolbar">
+      <div role="group" aria-label={zh ? "编辑模式" : "Editor mode"} className="flex gap-1">
+        <Button type="button" size="sm" variant={activeTab === "form" ? "secondary" : "ghost"} aria-pressed={activeTab === "form"} disabled={locked || !manifest} onClick={() => setActiveTab("form")}>{zh ? "表单" : "Form"}</Button>
+        <Button type="button" size="sm" variant={activeTab === "json" ? "secondary" : "ghost"} aria-pressed={activeTab === "json"} disabled={locked} onClick={switchToJson}>JSON</Button>
+      </div>
+      {activeTab === "json" && <Button type="button" size="sm" variant="ghost" disabled={locked || !manifest} onClick={() => onChange(formatManifestJson(value))}><Braces className="size-4" />{c("formatJson")}</Button>}
+    </div>
+    <div className="manifest-editor-body">
+      {parsed.error && <ValidationErrors title={parsed.syntax ? (zh ? "JSON 语法错误" : "JSON syntax error") : (zh ? "配置格式错误" : "Invalid configuration structure")} issues={[{ code: parsed.syntax ? "invalid_json" : "object_required", messageKey: parsed.syntax ? "invalid_json" : "object_required", message: parsed.error, severity: "error", source: parsed.syntax ? "syntax" : "schema", path: "", revision }]} onSelect={focusIssue} />}
+      {visibleIssues.length > 0 && <ValidationErrors title={c("localErrors")} issues={visibleIssues} onSelect={focusIssue} />}
+      {backendIssues.length > 0 && <ValidationErrors title={c("backendCheck")} issues={backendIssues} onSelect={focusIssue} />}
+      {validation && <ValidationPanel validation={validation} c={c} />}
+      {activeTab === "form" && manifest ? <div className="manifest-form">
+        <div className="manifest-form-pair">
+          {textField(["id"], c("serverId"), manifest.id, c("serverIdDesc"), Boolean(selectedConfigId))}
+          {textField(["name"], c("name"), manifest.name)}
+        </div>
+        <Field id={fieldId("/launch/type")} label={c("runtimeMode")} desc={mode === "external_http" ? c("externalManagedHint") : undefined}>
+          <select id={fieldId("/launch/type")} data-manifest-path="/launch/type" className="manifest-select" value={mode} disabled={locked || mode === "advanced" || pendingEntries.size > 0} onChange={(event) => {
+            const nextMode = event.target.value as RuntimeMode
+            write(changeRuntimeMode(manifest, nextMode))
+          }}>
+            <option value="managed_stdio">{c("managedStdio")}</option><option value="external_http">{c("externalHttp")}</option><option value="managed_http">{c("managedHttp")}</option>{mode === "advanced" && <option value="advanced" disabled>{c("advancedMode")}</option>}
+          </select>
+          {mode === "advanced" && unsupported(c("runtimeMode"))}
+        </Field>
+        {managed && <>
+          <div className="manifest-form-pair">{textField(["launch", "command"], c("command"), launch.command, c("commandDesc"))}{textField(["launch", "cwd"], c("cwd"), launch.cwd, c("cwdDesc"))}</div>
+          {arrayField(["launch", "args"], c("args"), launch.args)}
+          {mapField(["launch", "env"], c("env"), launch.env, true)}
+        </>}
+        {http && <>
+          <Field id={fieldId("/transport/endpoint")} label={c("endpoint")} desc={endpointKept ? (zh ? "保留此配置已保存的地址；服务端不会返回完整地址。" : "Keep this config’s saved endpoint; the server does not return the full value.") : c("endpointDesc")} error={fieldError("/transport/endpoint")}>
+            {endpointKept ? <div className="manifest-toggle"><span className="text-sm">{zh ? "使用已保存的地址" : "Use saved endpoint"}</span><Button type="button" variant="outline" size="sm" disabled={locked} onClick={() => set(["transport", "endpoint"], "")}>{zh ? "替换地址" : "Replace endpoint"}</Button></div> : <>
+              <Input id={fieldId("/transport/endpoint")} data-manifest-path="/transport/endpoint" aria-invalid={Boolean(fieldError("/transport/endpoint"))} value={typeof transport.endpoint === "string" ? transport.endpoint : ""} disabled={locked} onBlur={() => touch("/transport/endpoint")} onChange={(event) => set(["transport", "endpoint"], event.target.value)} />
+              {initialContext.current.originalEndpointMasked && <Button type="button" size="sm" variant="ghost" disabled={locked} onClick={() => set(["transport", "endpoint"], REDACTED_ENDPOINT)}>{zh ? "保留原地址" : "Keep original endpoint"}</Button>}
+            </>}
+          </Field>
+          {mapField(["transport", "headers"], zh ? "HTTP 请求头" : "HTTP headers", transport.headers)}
+        </>}
+        {numberField(["timeout_seconds"], c("timeoutSeconds"), manifest.timeout_seconds, 1, 30)}
+        {managed && <>
+          {toggle(["auto_start"], c("autoStart"), manifest.auto_start, false, c("autoStartDesc"))}
+          <details className="manifest-section" open={Boolean(policy.enabled) || undefined}>
+            <summary>{c("restartPolicy")}</summary>
+            <div className="manifest-section-content">
+              {toggle(["restart_policy", "enabled"], zh ? "启用自动重启" : "Enable automatic restart", policy.enabled, false)}
+              <div className="manifest-form-pair">
+                {numberField(["restart_policy", "max_attempts"], c("maxAttempts"), policy.max_attempts, 0, 3)}
+                {numberField(["restart_policy", "delay_seconds"], `${c("delaySeconds")} (s)`, policy.delay_seconds, 0, 5, 0.1)}
+                {numberField(["restart_policy", "backoff_multiplier"], c("backoff"), policy.backoff_multiplier, 1, 2, 0.1)}
+                {numberField(["restart_policy", "max_delay_seconds"], `${c("maxDelay")} (s)`, policy.max_delay_seconds, 0, 60, 0.1)}
+                {numberField(["restart_policy", "reset_after_seconds"], `${c("resetAfterSeconds")} (s)`, policy.reset_after_seconds, 0, 300, 0.1)}
+              </div>
+              {toggle(["restart_policy", "restart_on_exit"], c("restartOnExit"), policy.restart_on_exit, true, c("restartOnExitDesc"))}
+              <div className="manifest-form-pair">{arrayField(["restart_policy", "exit_code_allowlist"], c("exitAllowlist"), policy.exit_code_allowlist, true)}{arrayField(["restart_policy", "exit_code_blocklist"], c("exitBlocklist"), policy.exit_code_blocklist, true)}</div>
+              {toggle(["restart_policy", "health_check", "enabled"], c("healthCheck"), health.enabled, false, c("healthCheckDesc"))}
+              <div className="manifest-form-pair">
+                {numberField(["restart_policy", "health_check", "interval_seconds"], `${c("intervalSeconds")} (s)`, health.interval_seconds, 1, 30, 0.1)}
+                {numberField(["restart_policy", "health_check", "timeout_seconds"], `${c("healthTimeoutSeconds")} (s)`, health.timeout_seconds, 1, 10, 0.1)}
+                {numberField(["restart_policy", "health_check", "failure_threshold"], c("failureThreshold"), health.failure_threshold, 1, 3)}
+              </div>
+            </div>
+          </details>
+        </>}
+        <p className="text-xs text-muted-foreground">{zh ? "未展示字段原样保留；需要维护时切换 JSON。清空可选数字会移除该字段，使用服务默认值。" : "Unshown fields are preserved; edit them in JSON. Clearing an optional number removes the field and uses the server default."}</p>
+      </div> : <Field id={fieldId("json")} label={c("rawJson")} desc={c("rawJsonDesc")}>
+        <Textarea id={fieldId("json")} data-manifest-json className="manifest-json" spellCheck={false} value={value} disabled={locked} onChange={(event) => onChange(event.target.value)} />
+      </Field>}
+    </div>
+    {footerContainer ? createPortal(footer, footerContainer) : footer}
+  </div>
 }
 
 function ValidationPanel({ validation, c }: { validation: ManifestValidationResponse; c: CopyFn }) {
-  const statusText = validation.summary.errors > 0 ? c("notRecommended") : validation.summary.warnings > 0 ? c("saveWithWarning") : c("saveOk")
-  return (
-    <div className="rounded-lg border border-border/70 bg-muted/30 p-4 text-xs">
-      <div className="mb-2.5 flex flex-wrap items-center justify-between gap-2">
-        <div className="font-semibold text-foreground">{c("backendCheck")}: {statusText}</div>
-        <div className="flex flex-wrap gap-1.5 text-xs">
-          <Badge variant={validation.summary.errors > 0 ? "danger" : "outline"}>{c("errors")} {validation.summary.errors}</Badge>
-          <Badge variant={validation.summary.warnings > 0 ? "warning" : "outline"}>{c("warnings")} {validation.summary.warnings}</Badge>
-          <Badge variant="outline">{c("info")} {validation.summary.info}</Badge>
-          <Badge variant="success">{c("ok")} {validation.summary.ok}</Badge>
-        </div>
-      </div>
-      <div className="flex max-h-60 flex-col gap-2 overflow-auto">
-        {validation.checks.map((check) => (
-          <div key={`${check.name}-${check.message}`} className="rounded-md border border-border/60 bg-card p-2.5 shadow-2xs">
-            <div className="mb-1 flex flex-wrap items-center gap-2">
-              <Badge variant={check.severity === "error" ? "danger" : check.severity === "warning" ? "warning" : check.severity === "ok" ? "success" : "outline"}>
-                {check.severity}
-              </Badge>
-              <code className="text-xs font-semibold">{check.name}</code>
-            </div>
-            <div className="text-muted-foreground">{check.message}</div>
-            {Object.keys(check.metadata || {}).length > 0 && (
-              <pre className="mt-1.5 max-h-28 overflow-auto rounded bg-muted/50 p-2 text-[11px] font-mono">
-                {JSON.stringify(check.metadata, null, 2)}
-              </pre>
-            )}
-          </div>
-        ))}
-      </div>
-    </div>
-  )
+  const status = validation.summary.errors > 0 ? c("notRecommended") : validation.summary.warnings > 0 ? c("saveWithWarning") : c("saveOk")
+  return <div className="manifest-validation" role="status">
+    <div className="flex flex-wrap items-center justify-between gap-2"><span className="text-sm">{c("backendCheck")}: {status}</span><Badge variant={validation.summary.errors > 0 ? "danger" : validation.summary.warnings > 0 ? "warning" : "success"}>{c("errors")} {validation.summary.errors} · {c("warnings")} {validation.summary.warnings}</Badge></div>
+    <details className="mt-2 text-xs"><summary className="cursor-pointer">{c("info")} / {c("ok")}</summary><ul className="mt-2 space-y-1">{validation.checks.filter((check) => check.severity === "ok" || check.severity === "info").map((check, i) => <li key={i}>{check.name} · {check.message}</li>)}</ul></details>
+  </div>
 }

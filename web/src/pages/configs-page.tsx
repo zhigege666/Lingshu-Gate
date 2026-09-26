@@ -1,6 +1,7 @@
-import { useMemo, useState } from "react"
+import { useMemo, useRef, useState } from "react"
 import { Code2, Edit3, FilePlus2, Play, Plus, RefreshCcw } from "lucide-react"
-import { Modal } from "antd"
+import { FormDialog } from "@/components/form-dialog"
+import { useConfirm } from "@/components/confirm-dialog"
 import type { McpConfig } from "@/api/client"
 import { ActionMenu, ActionMenuItem } from "@/components/action-menu"
 import { McpConfigEditor } from "@/components/mcp-config-editor"
@@ -35,6 +36,25 @@ export function ConfigsPage(props: {
   const { locale, t, configs, configErrors, selectedConfigId, configText, busy, editorOpen, onCloseEditor, onNewConfig, onReloadConfigs, onEditConfig, onApplyConfig, onDeleteConfig, onConfigTextChange, onSaveConfig } = props
   const [query, setQuery] = useState("")
   const zh = locale === "zh-CN"
+  const { confirm, confirmDialog } = useConfirm(t)
+  const [editorPending, setEditorPending] = useState(false)
+  const [editorDraftDirty, setEditorDraftDirty] = useState(false)
+  const [footerContainer, setFooterContainer] = useState<HTMLDivElement | null>(null)
+  const session = useRef({ open: false, initialText: configText })
+  if (editorOpen && !session.current.open) session.current.initialText = configText
+  session.current.open = editorOpen
+
+  async function closeEditor() {
+    if (busy || editorPending) return
+    if ((editorDraftDirty || configText !== session.current.initialText) && !(await confirm({
+      title: zh ? "放弃未保存的配置？" : "Discard unsaved config changes?",
+      description: zh ? "关闭后，本次修改将丢失。已保存配置不会改变。" : "Closing discards this draft. The saved config remains unchanged.",
+      confirmText: zh ? "放弃修改" : "Discard changes",
+      cancelText: zh ? "继续编辑" : "Keep editing",
+      destructive: true,
+    }))) return
+    onCloseEditor()
+  }
 
   const filteredConfigs = useMemo(() => {
     const needle = query.trim().toLowerCase()
@@ -130,7 +150,7 @@ export function ConfigsPage(props: {
                         </span>
                       </TableCell>
                       <TableCell className="py-3 text-right" onClick={(event) => event.stopPropagation()}>
-                        <div className="flex items-center justify-end gap-1.5">
+                        <div className="flex items-center justify-end gap-1.5 whitespace-nowrap">
                           <Button
                             size="sm"
                             variant="ghost"
@@ -165,56 +185,31 @@ export function ConfigsPage(props: {
         </CardContent>
       </Card>
 
-      <Modal
-        title={
-          <div className="flex items-center gap-3">
-            <div className="size-8 rounded-lg bg-primary/10 text-primary flex items-center justify-center">
-              <Code2 className="size-4.5" />
-            </div>
-            <div className="flex flex-col">
-              <span className="font-semibold text-base leading-none text-foreground">
-                {selectedConfigId ? `${t("edit")} · ${selectedConfigId}` : (zh ? "新建 MCP Config" : "New MCP Config")}
-              </span>
-              <span className="text-xs text-muted-foreground mt-1">
-                {zh ? "配置 MCP 服务的运行方式、连接参数、高可用策略与健康探活" : "Configure runtime mode, transport, reliability policy, and health check"}
-              </span>
-            </div>
-          </div>
-        }
+      <FormDialog
+        dirty={editorDraftDirty || configText !== session.current.initialText}
         open={editorOpen}
-        onCancel={onCloseEditor}
-        width="95vw"
-        style={{ top: "3vh", maxWidth: "1680px", paddingBottom: 0 }}
-        className="[&_.ant-modal-container]:!p-0 [&_.ant-modal-container]:!h-[94vh] [&_.ant-modal-container]:!flex [&_.ant-modal-container]:!flex-col [&_.ant-modal-container]:!overflow-hidden [&_.ant-modal-container]:!rounded-2xl [&_.ant-modal-container]:!shadow-2xl [&_.ant-modal-content]:!p-0 [&_.ant-modal-content]:!h-[94vh] [&_.ant-modal-content]:!flex [&_.ant-modal-content]:!flex-col [&_.ant-modal-content]:!overflow-hidden [&_.ant-modal-content]:!rounded-2xl [&_.ant-modal-body]:!flex-1 [&_.ant-modal-body]:!overflow-hidden [&_.ant-modal-body]:!flex [&_.ant-modal-body]:!flex-col [&_.ant-modal-body]:!p-0"
-        styles={{
-          header: {
-            padding: "16px 24px",
-            borderBottom: "1px solid hsl(var(--border))",
-            margin: 0,
-            background: "hsl(var(--card))",
-          },
-          body: {
-            flex: 1,
-            overflow: "hidden",
-            display: "flex",
-            flexDirection: "column",
-            padding: 0,
-            background: "hsl(var(--background))",
-          },
-        }}
-        footer={null}
-        destroyOnClose={false}
+        title={selectedConfigId ? `${t("edit")} · ${selectedConfigId}` : (zh ? "新建 MCP 配置" : "New MCP config")}
+        closeLabel={zh ? "关闭编辑器" : "Close editor"}
+        onClose={() => void closeEditor()}
+        pending={busy || editorPending}
+        className="manifest-dialog"
+        footer={<div ref={setFooterContainer} className="w-full" />}
       >
         <McpConfigEditor
+          key={selectedConfigId || "new"}
           locale={locale}
           selectedConfigId={selectedConfigId}
           value={configText}
           onChange={onConfigTextChange}
           onSave={onSaveConfig}
-          onClose={onCloseEditor}
+          onClose={() => void closeEditor()}
+          onPendingChange={setEditorPending}
+          onDraftDirtyChange={setEditorDraftDirty}
+          footerContainer={footerContainer}
           busy={busy}
         />
-      </Modal>
+      </FormDialog>
+      {confirmDialog}
     </div>
   )
 }

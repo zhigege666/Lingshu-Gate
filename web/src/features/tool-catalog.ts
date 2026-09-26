@@ -1,6 +1,7 @@
 import type { McpServer, ToolDefinition } from "@/api/client"
+import { getToolAccessDisplay, type ToolAccess } from "@/features/tool-access"
 
-export type ToolAccess = "read" | "write" | "unknown"
+export type { ToolAccess } from "@/features/tool-access"
 export const ALL_TOOL_SERVICES = "all"
 export const BUILTIN_TOOL_SERVICE = "builtin"
 
@@ -17,12 +18,7 @@ export function toolServiceKey(tool: ToolDefinition): string {
 // Discovery supplies the effective access decision. MCP annotations and manifest
 // defaults alone are not evidence of a reviewed read-only classification.
 export function toolAccess(tool: ToolDefinition): ToolAccess {
-  const access = tool.metadata.gate_access
-  if (access && typeof access === "object" && !Array.isArray(access)) {
-    const required = (access as Record<string, unknown>).required_access
-    if (required === "read" || required === "write") return required
-  }
-  return "unknown"
+  return getToolAccessDisplay(tool).access
 }
 
 export function toolServiceOptions(tools: ToolDefinition[], servers: Pick<McpServer, "id" | "name">[]) {

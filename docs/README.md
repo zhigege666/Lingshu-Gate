@@ -13,6 +13,7 @@ This documentation describes the current Gate product boundary. English is autho
 | [Deployment](deployment.md) | Docker Compose, native service, production hardening, backup, upgrade, and rollback |
 | [Operations](operations.md) | Health probes, logs, events, diagnostics, runtime cache, audits, and incident checks |
 | [Local development](local-development.md) | Source setup, Console build, test suites, and repository conventions |
+| [UI interaction contract](ui-interaction-contract.md) | Acceptance rules for new or migrated Console UI, editor safety, evidence, and independent review |
 | [Release artifacts](releases.md) | Platform archives, checksums, SBOM, build metadata, offline images, and publishing rules |
 
 API schemas are served by a running Gate instance at `/docs`. Security policy and reporting instructions live in [SECURITY.md](../SECURITY.md).

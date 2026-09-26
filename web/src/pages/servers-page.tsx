@@ -75,12 +75,12 @@ export function ServersPage(props: Props) {
 
   const filteredServers = useMemo(() => servers.filter(server => {
     if (filter === "running" && server.status !== "running") return false
-    if (filter === "issues" && !["failed", "unsupported"].includes(server.status) && !server.last_error && !server.restore_blocked_reason) return false
+    if (filter === "issues" && !hasServerIssue(server)) return false
     const needle = query.trim().toLowerCase()
     return !needle || [server.id, server.name, server.last_error].filter(Boolean).join(" ").toLowerCase().includes(needle)
   }), [servers, query, filter])
   const runningCount = servers.filter(server => server.status === "running").length
-  const issueCount = servers.filter(server => ["failed", "unsupported"].includes(server.status) || server.last_error || server.restore_blocked_reason).length
+  const issueCount = servers.filter(hasServerIssue).length
   const server = states.overview?.data?.server || selected
   const visible = selected && props.visibleTools ? props.visibleTools.filter(tool => tool.source === "mcp" && asRecord(tool.metadata).server_id === selected.id) : null
   const preview = visible ? toTools(visible.map(tool => asRecord(tool))) : []
@@ -126,7 +126,7 @@ export function ServersPage(props: Props) {
 
   const overview = server && <div>
     {states.overview?.error && <Alert className="service-panel-error" type="warning" showIcon title={c.loadFailed} description={states.overview.error} action={<Button onClick={() => void load("overview", true)}>{c.retry}</Button>} />}
-    {(server.last_error || server.restore_blocked_reason) && <Alert className="service-panel-error" type="error" showIcon title={c.lastError} description={server.last_error || server.restore_blocked_reason} />}
+    {(server.last_error || server.restore_blocked_reason) && <Alert className="service-panel-error" type={isPlannedDisabled(server) ? "info" : "error"} showIcon title={isPlannedDisabled(server) ? c.disabled : c.lastError} description={isPlannedDisabled(server) ? c.disabledHint : [server.last_error, server.restore_blocked_reason].find(reason => reason && reason !== "Server is disabled") || server.last_error || server.restore_blocked_reason} />}
     <div className="service-summary-grid">
       <section>
         <h2 className="service-section-title"><CodeOutlined aria-hidden="true" />{c.connection}</h2>
@@ -162,7 +162,7 @@ export function ServersPage(props: Props) {
   return <div className="server-workspace" data-selected={Boolean(selected)}>
     <aside className="service-directory" aria-label={c.directory}>
       <div className="service-directory-header">
-        <div className="service-directory-title"><h2>{c.directory}</h2><Tooltip title={c.refresh}><Button type="text" size="small" loading={props.busy} icon={<ReloadOutlined />} onClick={() => void props.onRefresh()} aria-label={c.refresh} /></Tooltip></div>
+        <div className="service-directory-title"><h2>{c.directory}</h2></div>
         <PageToolbar query={query} onQueryChange={setQuery} placeholder={c.search} clearLabel={t("clearSearch")} />
         <Segmented aria-label={c.directory} block size="large" value={filter} onChange={value => setFilter(String(value))} options={[
           { value: "all", label: c.all + " (" + servers.length + ")" },
@@ -184,11 +184,10 @@ export function ServersPage(props: Props) {
     <section className="service-detail" aria-label={selected ? selected.id : c.selectService}>
       {server ? <>
         <Button type="text" className="service-detail-back" icon={<ArrowLeftOutlined />} onClick={() => chooseServer(null)}>{c.back}</Button>
-        <div className="service-breadcrumb">{c.directory} <span aria-hidden="true">/</span> {server.id}</div>
         <PageHeader variant="detail" title={server.name || server.id} description={server.id} titleExtra={<RuntimeBadge server={server} t={t} pill />} actions={<>
-          <Button type="primary" size="large" icon={<ExportOutlined />} onClick={() => setTab("tools")}>{c.viewTools}</Button>
+          <Button type="primary" icon={<ExportOutlined />} onClick={() => setTab("tools")}>{c.viewTools}</Button>
           <Dropdown trigger={["click"]} menu={{ items: actions.map(action => ({ key: action, label: actionName(action), danger: action === "stop", disabled: actionBusy || props.busy })), onClick: ({ key }) => { if (actions.includes(key as Action)) void runAction(key as Action) } }}>
-            <Button size="large" icon={<MoreOutlined />} loading={actionBusy} disabled={actions.length === 0} aria-label={c.more} />
+            <Button icon={<MoreOutlined />} loading={actionBusy} disabled={actions.length === 0} aria-label={c.more} />
           </Dropdown>
         </>} />
         <div className="service-detail-identity"><code>{server.launch_type} / {server.transport_type}</code></div>
@@ -238,9 +237,20 @@ export function ServersPage(props: Props) {
   </div>
 }
 
+export function isPlannedDisabled(server: McpServer) {
+  const reasons = [server.last_error, server.restore_blocked_reason]
+  return !server.enabled && reasons.includes("Server is disabled")
+    && reasons.every(reason => !reason || reason === "Server is disabled")
+    && !["running", "starting", "failed", "unsupported"].includes(server.status)
+}
+
+export function hasServerIssue(server: McpServer) {
+  return !isPlannedDisabled(server) && Boolean(["failed", "unsupported"].includes(server.status) || server.last_error || server.restore_blocked_reason)
+}
+
 function RuntimeBadge({ server, t, pill = false }: { server: McpServer; t: TFunction; pill?: boolean }) {
-  const status = server.status === "running" ? "success" : ["failed", "unsupported"].includes(server.status) ? "error" : server.status === "starting" ? "processing" : "default"
-  const badge = <Badge status={status} text={localizeStatus(t, server.status)} />
+  const status = isPlannedDisabled(server) ? "default" : server.status === "running" ? "success" : ["failed", "unsupported"].includes(server.status) ? "error" : server.status === "starting" ? "processing" : "default"
+  const badge = <Badge status={status} text={localizeStatus(t, isPlannedDisabled(server) ? "disabled" : server.status)} />
   return pill ? <Tag className="service-title-state" color={status === "default" ? undefined : status}>{badge}</Tag> : badge
 }
 

@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react"
+import { useEffect, useMemo, useRef, useState } from "react"
 import { Select } from "antd"
 import { ArrowUpRight, ChevronLeft, ChevronRight, Eye, PencilLine, Play, Plug, RotateCcw, Server, Wrench } from "lucide-react"
 import type { McpServer, ToolDefinition } from "@/api/client"
@@ -13,7 +13,12 @@ import { ALL_TOOL_SERVICES, BUILTIN_TOOL_SERVICE, filterTools, paginateTools, to
 import type { TFunction } from "@/i18n"
 import "./tools-page.css"
 
+export type ToolCatalogViewState = { query: string; service: string; access: "all" | ToolAccess; page: number; pageSize: number; scrollTop: number }
+export const initialToolCatalogView: ToolCatalogViewState = { query: "", service: ALL_TOOL_SERVICES, access: "all", page: 1, pageSize: 9, scrollTop: 0 }
+
 type Props = {
+  viewState?: ToolCatalogViewState
+  onViewStateChange?: (state: ToolCatalogViewState) => void
   tools: ToolDefinition[]
   servers: McpServer[]
   loading: boolean
@@ -23,13 +28,25 @@ type Props = {
   onRefresh: () => void
 }
 
-export function ToolsPage({ tools, servers, loading, error, t, onInvoke, onRefresh }: Props) {
+export function ToolsPage({ tools, servers, loading, error, t, onInvoke, onRefresh, viewState = initialToolCatalogView, onViewStateChange }: Props) {
   const [selectedId, setSelectedId] = useState<string | null>(null)
-  const [query, setQuery] = useState("")
-  const [service, setService] = useState(ALL_TOOL_SERVICES)
-  const [access, setAccess] = useState<"all" | ToolAccess>("all")
-  const [page, setPage] = useState(1)
-  const [pageSize, setPageSize] = useState(9)
+  const [query, setQuery] = useState(viewState.query)
+  const [service, setService] = useState(viewState.service)
+  const [access, setAccess] = useState<"all" | ToolAccess>(viewState.access)
+  const [page, setPage] = useState(viewState.page)
+  const [pageSize, setPageSize] = useState(viewState.pageSize)
+  const container = useRef<HTMLDivElement>(null)
+  const latestView = useRef(viewState)
+  latestView.current = { query, service, access, page, pageSize, scrollTop: viewState.scrollTop }
+  const notifyView = useRef(onViewStateChange)
+  notifyView.current = onViewStateChange
+  useEffect(() => {
+    window.scrollTo(0, viewState.scrollTop)
+    const saveScroll = () => { if (window.location.hash === "#/tools") notifyView.current?.({ ...latestView.current, scrollTop: window.scrollY }) }
+    window.addEventListener("scroll", saveScroll, { passive: true })
+    return () => window.removeEventListener("scroll", saveScroll)
+  }, [])
+  useEffect(() => { notifyView.current?.(latestView.current) }, [query, service, access, page, pageSize])
   const services = useMemo(() => toolServiceOptions(tools, servers), [tools, servers])
   const filteredTools = useMemo(() => filterTools(tools, servers, { query, service, access }), [tools, servers, query, service, access])
   const paged = paginateTools(filteredTools, page, pageSize)
@@ -46,7 +63,7 @@ export function ToolsPage({ tools, servers, loading, error, t, onInvoke, onRefre
     setQuery(""); setService(ALL_TOOL_SERVICES); setAccess("all"); setPage(1)
   }
 
-  return <div className="tool-catalog">
+  return <div className="tool-catalog" ref={container}>
     <PageHeader
       eyebrow={t("toolRegistry")}
       title={t("tools")}
@@ -102,12 +119,12 @@ export function ToolsPage({ tools, servers, loading, error, t, onInvoke, onRefre
           return <article key={tool.id} className="tool-catalog-card" aria-label={tool.name || tool.id}>
             <div className="tool-card-heading">
               <span className="tool-card-icon"><ToolIcon aria-hidden="true" /></span>
-              <div className="tool-card-name"><h2>{tool.name || tool.id}</h2><code>{tool.id}</code></div>
+              <div className="tool-card-name"><h2>{tool.name || tool.id}</h2>{tool.name && tool.name !== tool.id && <code>{tool.id}</code>}</div>
               <Badge variant="outline" className={`tool-access-badge tool-access-${level}`}>
                 {AccessIcon && <AccessIcon aria-hidden="true" />}{accessLabel(level)}
               </Badge>
             </div>
-            <p className="tool-card-description">{tool.description || t("toolNoDescription")}</p>
+            {tool.description && <p className="tool-card-description">{tool.description}</p>}
             <div className="tool-card-permission"><span>{t("toolPermissionDeclaration")}</span><code>{tool.permission}</code></div>
             <div className="tool-card-footer">
               <span className="tool-card-service" title={serviceLabel(tool)}><Server aria-hidden="true" /><span>{serviceLabel(tool)}</span></span>

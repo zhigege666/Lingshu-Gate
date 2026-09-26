@@ -1,6 +1,7 @@
 import type { Locale } from "@/i18n"
 
 const zh = {
+  disabledHint: "此服务在配置中已停用。需要连接时，请先启用并应用配置。",
   directory: "MCP 服务", search: "搜索服务名称或 ID", all: "全部", running: "运行中", issues: "异常",
   add: "接入服务", refresh: "刷新", overview: "概览", tools: "工具", logs: "日志", configuration: "配置",
   viewTools: "查看工具", more: "更多操作", connection: "连接信息", readiness: "工具访问状态",
@@ -25,6 +26,7 @@ const zh = {
 } as const
 
 const en: Record<keyof typeof zh, string> = {
+  disabledHint: "This service is disabled in its configuration. Enable and apply the configuration before connecting.",
   directory: "MCP services", search: "Search name or ID", all: "All", running: "Running", issues: "Issues",
   add: "Connect service", refresh: "Refresh", overview: "Overview", tools: "Tools", logs: "Logs", configuration: "Configuration",
   viewTools: "View tools", more: "More actions", connection: "Connection", readiness: "Tool access",

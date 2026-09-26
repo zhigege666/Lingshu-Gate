@@ -3,12 +3,19 @@ import Ajv2019 from "ajv/dist/2019"
 import Ajv2020 from "ajv/dist/2020"
 import addFormats from "ajv-formats"
 import type { InvokeCopy } from "./copy"
+import { pathFor, pointerFor, type ValidationIssue } from "@/lib/validation"
 
 export type Schema = Record<string, unknown>
 export type Arguments = Record<string, unknown>
 export const isRecord = (value: unknown): value is Record<string, unknown> => value !== null && typeof value === "object" && !Array.isArray(value)
 export const owns = (value: object, key: string) => Object.prototype.hasOwnProperty.call(value, key)
 export const sensitiveField = (name: string, schema: Schema) => /password|passwd|secret|token|credential|authorization|cookie|api[_-]?key|private[_-]?key/i.test(name) || schema.writeOnly === true || schema.format === "password"
+
+/** New rows and leaving null must choose an allowed enum value before defaults. */
+export function emptyFieldValue(schema:Schema):unknown {
+  if (Array.isArray(schema.enum) && schema.enum.length) return schema.enum.find(value=>value !== null) ?? null
+  return schema.type === "object" || schema.properties ? {} : schema.type === "array" ? [] : schema.type === "boolean" ? false : ["integer","number"].includes(String(schema.type)) ? 0 : ""
+}
 
 /** Resolve local references for presentation, without fetching remote schemas. */
 export function resolveSchema(raw: unknown, root: Schema, seen = new Set<string>()): Schema {
@@ -48,19 +55,21 @@ export function parseArguments(text: string): ParsedArguments {
   catch { return { ok:false,error:"invalidJson" } }
 }
 export function valueAt(value: unknown,path: string[]): unknown {
-  return path.reduce<unknown>((node,key) => isRecord(node) && owns(node,key) ? node[key] : undefined,value)
+  return path.reduce<unknown>((node,key) => (isRecord(node) || Array.isArray(node)) && owns(node,key) ? (node as Record<string,unknown>)[key] : undefined,value)
 }
-const put = (object: Arguments,key: string,value: unknown) => Object.defineProperty(object,key,{value,enumerable:true,writable:true,configurable:true})
+const put = (object: object,key: string,value: unknown) => Object.defineProperty(object,key,{value,enumerable:true,writable:true,configurable:true})
 export function changeArgument(text: string,path: string[],value: unknown): string | null {
   const parsed = parseArguments(text)
   if (!parsed.ok || path.length === 0) return null
-  let node = parsed.value
+  let node: Arguments | unknown[] = parsed.value
   for (const key of path.slice(0,-1)) {
-    if (!owns(node,key) || !isRecord(node[key])) put(node,key,{})
-    node = node[key] as Arguments
+    const child=(node as Arguments)[key]
+    if (!owns(node,key) || (!isRecord(child) && !Array.isArray(child))) put(node,key,{})
+    node = (node as Arguments)[key] as Arguments | unknown[]
   }
   const key = path[path.length-1]
-  if (value === undefined) delete node[key]
+  if (value === undefined && Array.isArray(node)) node.splice(Number(key),1)
+  else if (value === undefined) delete (node as Arguments)[key]
   else put(node,key,value)
   return JSON.stringify(parsed.value,null,2)
 }
@@ -99,11 +108,15 @@ export function createArgumentExample(root: Schema,mode: "example" | "defaults" 
   return { text: JSON.stringify(isRecord(value) ? value : {},null,2), declared }
 }
 
-export function supportsField(schema: Schema,value: unknown) {
+export function supportsField(schema: Schema,value: unknown,root:Schema=schema,depth=0):boolean {
+  if (depth > 10) return false
   if (schema.unsupported || schema.oneOf || schema.anyOf || schema.allOf || schema.if || owns(schema,"const")) return false
-  if (schema.type === "object" && !Object.keys(isRecord(schema.properties) ? schema.properties : {}).length && schema.additionalProperties !== false) return false
   if (value === null) return schema.nullable === true
   if (Array.isArray(schema.enum)) return value === undefined || schema.enum.some(item=>JSON.stringify(item)===JSON.stringify(value))
+  if (schema.type === "array") return (value === undefined || Array.isArray(value)) && isRecord(schema.items) && supportsField(fieldSchema(schema.items,root),undefined,root,depth+1)
+  if (schema.type === "object" && !Object.keys(isRecord(schema.properties) ? schema.properties : {}).length && schema.additionalProperties !== false) {
+    return (value === undefined || isRecord(value)) && isRecord(schema.additionalProperties) && supportsField(fieldSchema(schema.additionalProperties,root),undefined,root,depth+1)
+  }
   if (value !== undefined) {
     if ((schema.type === "object" || schema.properties) && !isRecord(value)) return false
     if (schema.type === "integer" && (typeof value !== "number" || !Number.isInteger(value))) return false
@@ -116,9 +129,10 @@ export function supportsField(schema: Schema,value: unknown) {
 const options = { strict:false,allErrors:true,coerceTypes:false,useDefaults:false,removeAdditional:false,addUsedSchema:false,logger:false as const }
 const validators = { legacy: addFormats(new Ajv(options)), draft2019: addFormats(new Ajv2019(options)), current: addFormats(new Ajv2020(options)) }
 const compiled = new WeakMap<Schema,ValidateFunction | null>()
-export function validateArguments(schema: Schema,text: string,c: InvokeCopy): { ok:true;value:Arguments } | { ok:false;error:string } {
+export function validateArguments(schema: Schema,text: string,c: InvokeCopy,revision=0): { ok:true;value:Arguments } | { ok:false;error:string;issues:ValidationIssue[] } {
+  const failure=(messageKey:keyof InvokeCopy,source:ValidationIssue["source"])=>({ok:false as const,error:c[messageKey],issues:[{code:messageKey,messageKey,message:c[messageKey],source,severity:"error" as const,path:"",revision}]})
   const parsed=parseArguments(text)
-  if (!parsed.ok) return {ok:false,error:c[parsed.error]}
+  if (!parsed.ok) return failure(parsed.error,"syntax")
   let validate=compiled.get(schema)
   if (validate === undefined) {
     try {
@@ -129,12 +143,15 @@ export function validateArguments(schema: Schema,text: string,c: InvokeCopy): { 
     } catch { validate=null }
     compiled.set(schema,validate)
   }
-  if (!validate) return {ok:false,error:c.schemaInvalid}
+  if (!validate) return failure("schemaInvalid","schema")
   if (!validate(parsed.value)) {
-    const error=validate.errors?.[0]
-    const field=error?.params.missingProperty || error?.instancePath || c.json
-    const detail=error?.keyword === "required" ? c.requiredError : error?.keyword === "type" ? c.typeError : ["minimum","maximum","exclusiveMinimum","exclusiveMaximum"].includes(error?.keyword || "") ? c.rangeError : error?.keyword === "enum" ? c.enumError : error?.keyword === "additionalProperties" ? `${c.unknownError}: ${String(error.params.additionalProperty)}` : c.invalidValue
-    return {ok:false,error:`${String(field)}: ${detail}`}
+    const issues:ValidationIssue[]=(validate.errors || []).map(error=>{
+      const messageKey:keyof InvokeCopy=error.keyword === "required" ? "requiredError" : error.keyword === "type" ? "typeError" : ["minimum","maximum","exclusiveMinimum","exclusiveMaximum"].includes(error.keyword) ? "rangeError" : error.keyword === "enum" ? "enumError" : error.keyword === "additionalProperties" ? "unknownError" : "invalidValue"
+      const leaf=error.keyword === "required" ? error.params.missingProperty : error.keyword === "additionalProperties" ? error.params.additionalProperty : undefined
+      const path=leaf === undefined ? error.instancePath : pointerFor([...pathFor(error.instancePath),String(leaf)])
+      return {code:error.keyword,messageKey,message:c[messageKey],severity:"error",source:"schema",path,revision}
+    })
+    return {ok:false,error:issues.map(issue=>`${issue.path || c.json}: ${issue.message}`).join("; "),issues}
   }
   return {ok:true,value:parsed.value}
 }

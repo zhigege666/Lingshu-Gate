@@ -1,3 +1,5 @@
+import { usePageRefresh } from "@/components/page-refresh"
+import { QueryStatus, querySignature } from "@/components/query-status"
 import { useEffect, useMemo, useState, type ReactNode } from "react"
 import { Tabs } from "antd"
 import { api, type EventFilters, type LogFilters, type ObservabilityEvent, type ObservabilityLog } from "@/api/client"
@@ -29,8 +31,13 @@ export function LogsEventsPage({ t }: { t: TFunction }) {
   const [lastLoadedAt, setLastLoadedAt] = useState("")
   const [logFilters, setLogFilters] = useState<LogFilters>({ limit: 80 })
   const [eventFilters, setEventFilters] = useState<EventFilters>({ limit: 80 })
+  const [applied, setApplied] = useState({ logs: { limit: 80 } as LogFilters, events: { limit: 80 } as EventFilters })
   const [activeTab, setActiveTab] = useState("logs")
 
+  const filterLabels: Record<string, string> = { level: t("level"), server_id: t("serverId"), subject_id: t("serverId"), tool_id: t("toolId"), event_type: t("eventType"), source: t("source"), keyword: t("keyword"), limit: t("limit") }
+  const currentApplied = activeTab === "logs" ? applied.logs : applied.events
+  const hasAppliedFilters = Object.entries(currentApplied).some(([key, value]) => key !== "limit" && value !== undefined && value !== "")
+  const emptyLabel = busy ? t("loadingData") : error ? t("notLoaded") : hasAppliedFilters ? t("noAppliedMatches") : t("noData")
   const logEventTypes = useMemo(() => unique(logs.map((item) => item.event_type).filter(Boolean) as string[]), [logs])
   const logSources = useMemo(() => unique(logs.map((item) => item.source).filter(Boolean)), [logs])
   const eventTypes = useMemo(() => unique(events.map((item) => item.type).filter(Boolean)), [events])
@@ -47,15 +54,17 @@ export function LogsEventsPage({ t }: { t: TFunction }) {
     `${t("limit")}: ${eventFilters.limit || 80}`,
   ].filter(Boolean).join(" · ")
 
-  useEffect(() => { void loadLogsEvents() }, [])
+  usePageRefresh(() => loadLogsEvents(applied), busy)
+  useEffect(() => { void loadLogsEvents(applied) }, [])
 
-  async function loadLogsEvents() {
+  async function loadLogsEvents(snapshot = { logs: cleanFilters(logFilters), events: cleanFilters(eventFilters) }) {
     setBusy(true); setError(null)
     try {
       const [logResponse, eventResponse] = await Promise.all([
-        api.logs(cleanFilters(logFilters)),
-        api.events(cleanFilters(eventFilters)),
+        api.logs(snapshot.logs),
+        api.events(snapshot.events),
       ])
+      setApplied(snapshot)
       setLogs(logResponse.logs)
       setEvents(eventResponse.events)
       setLastLoadedAt(new Date().toISOString())
@@ -79,8 +88,9 @@ export function LogsEventsPage({ t }: { t: TFunction }) {
           { label: t("error"), value: logs.filter((item) => item.level === "error").length, tone: logs.some((item) => item.level === "error") ? "danger" : "success" },
           { label: t("updatedAt"), value: lastLoadedAt ? formatDateTime(lastLoadedAt) : t("waiting") },
         ]}
-        actions={<><Button variant="outline" onClick={resetFilters} disabled={busy}>{t("resetFilters")}</Button><Button onClick={loadLogsEvents} disabled={busy}>{t("applyFilters")}</Button></>}
+        actions={<><Button variant="outline" onClick={resetFilters} disabled={busy}>{t("resetConditions")}</Button><Button onClick={() => void loadLogsEvents()} disabled={busy}>{t("applyFilters")}</Button></>}
       />
+      <QueryStatus t={t} pendingChanges={querySignature(cleanFilters(logFilters)) !== querySignature(applied.logs) || querySignature(cleanFilters(eventFilters)) !== querySignature(applied.events)} lastLoadedAt={lastLoadedAt} summary={Object.entries(activeTab === "logs" ? applied.logs : applied.events).map(([key, value]) => `${filterLabels[key] || key}: ${value}`).join(" · ")} />
       {error && <Alert variant="destructive"><AlertDescription>{error}</AlertDescription></Alert>}
       <Card>
         <CardContent className="p-3 md:p-4" aria-busy={busy}>
@@ -105,7 +115,7 @@ export function LogsEventsPage({ t }: { t: TFunction }) {
                     <FilterInput label={t("toolId")} value={logFilters.tool_id || ""} onChange={(value) => setLogFilters((current) => ({ ...current, tool_id: value }))} placeholder="mcp.example-server.*" />
                     <LimitSelect t={t} value={logFilters.limit || 80} onChange={(value) => setLogFilters((current) => ({ ...current, limit: value }))} />
                   </AdvancedFilters>
-                  <LogTable t={t} logs={logs} onSelect={setSelectedPayload} />
+                  <LogTable t={t} logs={logs} emptyLabel={emptyLabel} onSelect={setSelectedPayload} />
                 </div>,
               },
               {
@@ -122,7 +132,7 @@ export function LogsEventsPage({ t }: { t: TFunction }) {
                     <FilterSelect t={t} label={t("source")} value={eventFilters.source || ALL_VALUE} options={eventSources} onChange={(value) => setEventFilters((current) => ({ ...current, source: fromSelectValue(value) }))} allowCustom />
                     <LimitSelect t={t} value={eventFilters.limit || 80} onChange={(value) => setEventFilters((current) => ({ ...current, limit: value }))} />
                   </AdvancedFilters>
-                  <EventTable t={t} events={events} onSelect={setSelectedPayload} />
+                  <EventTable t={t} events={events} emptyLabel={emptyLabel} onSelect={setSelectedPayload} />
                 </div>,
               },
             ]}
@@ -157,7 +167,7 @@ function LimitSelect({ t, value, onChange }: { t: TFunction; value: number; onCh
   return <label className="flex flex-col gap-1 text-xs font-medium text-muted-foreground"><span>{t("limit")}</span><Select value={String(value)} onValueChange={(next) => onChange(Number(next))}><SelectTrigger><SelectValue /></SelectTrigger><SelectContent>{LIMIT_OPTIONS.map((option) => <SelectItem key={option} value={String(option)}>{option}</SelectItem>)}</SelectContent></Select></label>
 }
 
-function EventTable({ t, events, onSelect }: { t: TFunction; events: ObservabilityEvent[]; onSelect: (value: unknown) => void }) {
+function EventTable({ t, events, emptyLabel, onSelect }: { emptyLabel: string; t: TFunction; events: ObservabilityEvent[]; onSelect: (value: unknown) => void }) {
   const { pageRows, page, setPage, pageCount, total, sortKey, sortDir, toggleSort } = usePagedSorted(events, { pageSize: 15, initialSortKey: "created_at", getSortValue: (event, key) => (event as unknown as Record<string, string>)[key] })
   const { widths, startResize } = useColumnWidths("lingshu-gate-cols-events", { created_at: 170, type: 160, source: 120 })
   // 为末列保留可读宽度；窄屏或拖宽其他列时在表格内横向滚动。
@@ -168,12 +178,12 @@ function EventTable({ t, events, onSelect }: { t: TFunction; events: Observabili
       <SortHead label={t("eventType")} sortKey="type" activeKey={sortKey} dir={sortDir} onSort={toggleSort} onResizeStart={startResize("type")} />
       <SortHead label={t("source")} sortKey="source" activeKey={sortKey} dir={sortDir} onSort={toggleSort} onResizeStart={startResize("source")} />
       <SortHead label={t("serverId")} />
-    </TableRow></TableHeader><TableBody>{total === 0 ? <TableEmptyRow colSpan={4} title={t("noData")} /> : pageRows.map((event) => <TableRow key={event.id} className="cursor-pointer" onClick={() => onSelect(event)}><TableCell className="whitespace-nowrap text-xs">{formatDateTime(event.created_at)}</TableCell><TableCell className="truncate"><code>{event.type}</code></TableCell><TableCell className="truncate">{event.source}</TableCell><TableCell className="truncate">{event.subject_id || "-"}</TableCell></TableRow>)}</TableBody></Table></div>
+    </TableRow></TableHeader><TableBody>{total === 0 ? <TableEmptyRow colSpan={4} title={emptyLabel} /> : pageRows.map((event) => <TableRow key={event.id} className="cursor-pointer" onClick={() => onSelect(event)}><TableCell className="whitespace-nowrap text-xs">{formatDateTime(event.created_at)}</TableCell><TableCell className="truncate"><button type="button" className="text-left underline underline-offset-4 focus-visible:outline focus-visible:outline-2" onClick={e => { e.stopPropagation(); onSelect(event) }}><code>{event.type}</code></button></TableCell><TableCell className="truncate">{event.source}</TableCell><TableCell className="truncate">{event.subject_id || "-"}</TableCell></TableRow>)}</TableBody></Table></div>
     <Pager t={t} page={page} pageCount={pageCount} total={total} onPage={setPage} />
   </div>
 }
 
-function LogTable({ t, logs, onSelect }: { t: TFunction; logs: ObservabilityLog[]; onSelect: (value: unknown) => void }) {
+function LogTable({ t, logs, emptyLabel, onSelect }: { emptyLabel: string; t: TFunction; logs: ObservabilityLog[]; onSelect: (value: unknown) => void }) {
   const { pageRows, page, setPage, pageCount, total, sortKey, sortDir, toggleSort } = usePagedSorted(logs, { pageSize: 15, initialSortKey: "created_at", getSortValue: (log, key) => (log as unknown as Record<string, string>)[key] })
   const { widths, startResize } = useColumnWidths("lingshu-gate-cols-logs", { created_at: 170, level: 100, server_id: 120, event_type: 150 })
   const minWidth = widths.created_at + widths.level + widths.server_id + widths.event_type + 240
@@ -184,7 +194,7 @@ function LogTable({ t, logs, onSelect }: { t: TFunction; logs: ObservabilityLog[
       <SortHead label={t("serverId")} sortKey="server_id" activeKey={sortKey} dir={sortDir} onSort={toggleSort} onResizeStart={startResize("server_id")} />
       <SortHead label={t("eventType")} onResizeStart={startResize("event_type")} />
       <SortHead label={t("description")} />
-    </TableRow></TableHeader><TableBody>{total === 0 ? <TableEmptyRow colSpan={5} title={t("noData")} /> : pageRows.map((log) => <TableRow key={log.id} className="cursor-pointer" onClick={() => onSelect(log)}><TableCell className="whitespace-nowrap text-xs">{formatDateTime(log.created_at)}</TableCell><TableCell><Badge variant={log.level === "error" ? "danger" : log.level === "warning" ? "warning" : "outline"}>{localizeStatus(t, log.level)}</Badge></TableCell><TableCell className="truncate">{log.server_id || "-"}</TableCell><TableCell className="truncate"><code>{log.event_type || "-"}</code></TableCell><TableCell className="whitespace-pre-wrap text-xs">{log.message}</TableCell></TableRow>)}</TableBody></Table></div>
+    </TableRow></TableHeader><TableBody>{total === 0 ? <TableEmptyRow colSpan={5} title={emptyLabel} /> : pageRows.map((log) => <TableRow key={log.id} className="cursor-pointer" onClick={() => onSelect(log)}><TableCell className="whitespace-nowrap text-xs">{formatDateTime(log.created_at)}</TableCell><TableCell><Badge variant={log.level === "error" ? "danger" : log.level === "warning" ? "warning" : "outline"}>{localizeStatus(t, log.level)}</Badge></TableCell><TableCell className="truncate">{log.server_id || "-"}</TableCell><TableCell className="truncate"><code>{log.event_type || "-"}</code></TableCell><TableCell className="whitespace-pre-wrap text-xs"><button type="button" className="text-left underline underline-offset-4 focus-visible:outline focus-visible:outline-2" onClick={e => { e.stopPropagation(); onSelect(log) }}>{log.message || t("detail")}</button></TableCell></TableRow>)}</TableBody></Table></div>
     <Pager t={t} page={page} pageCount={pageCount} total={total} onPage={setPage} />
   </div>
 }

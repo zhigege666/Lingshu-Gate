@@ -1,4 +1,5 @@
-import { lazy, Suspense, useEffect, useState } from "react"
+import { EditorNavigationContext, useEditorNavigationGuards } from "@/components/editor-navigation-guard"
+import { lazy, Suspense, useCallback, useEffect, useRef, useState } from "react"
 import { Activity, Braces, RefreshCcw, Shield } from "lucide-react"
 import {
   api,
@@ -12,6 +13,7 @@ import { useAuth } from "@/components/auth-gate"
 import { RouteErrorBoundary, RouteLoadingFallback } from "@/components/route-boundary"
 import { useConfirm } from "@/components/confirm-dialog"
 import { HighlightText } from "@/components/highlight-text"
+import { Alert, AlertDescription } from "@/components/ui/alert"
 import { Button } from "@/components/ui/button"
 import { CommandDialog, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from "@/components/ui/command"
 import { Toaster, type ToastState } from "@/components/ui/toast"
@@ -20,6 +22,8 @@ import { prettyJson } from "@/lib/utils"
 import { ConsoleShell } from "@/components/console-shell"
 import { useConsoleDesign } from "@/components/console-design-provider"
 import { useConsoleNavigation } from "@/routing/use-console-navigation"
+import { PageRefreshContext, type PageRefreshHandler, type RegisterPageRefresh } from "@/components/page-refresh"
+import type { ToolCatalogViewState } from "@/pages/tools-page"
 import { useConsoleRoute } from "@/routing/use-console-route"
 
 const CONSOLE_VERSION = `v${__LINGSHU_GATE_VERSION__}`
@@ -56,9 +60,44 @@ const genericTemplate = {
 
 export default function App() {
   const { user, logout } = useAuth()
-  const { view, routeBuildId, recentViews, navigate } = useConsoleRoute()
   const { locale } = useConsoleDesign()
   const t: TFunction = (key: MessageKey) => translate(locale, key)
+  const { confirm, confirmDialog } = useConfirm(t)
+  const [leaveState, setLeaveState] = useState({ dirty: false, pending: false })
+  const { providerValue: editorNavigation, anyDirty: editorDirty, anyPending: editorPending } = useEditorNavigationGuards()
+  async function requestLeave() {
+    const zh = locale === "zh-CN"
+    if (editorPending) {
+      await confirm({ title: zh ? "正在提交，请稍候" : "Submission in progress", description: zh ? "请等待当前操作完成，再关闭编辑窗口或离开页面。" : "Wait for the current operation to finish before closing the editor or leaving.", confirmText: zh ? "返回编辑" : "Return to editor", hideCancel: true })
+      return false
+    }
+    if (editorDirty && !(await confirm({ title: zh ? "放弃未保存的修改并离开？" : "Discard changes and leave?", description: zh ? "离开后，当前编辑窗口中尚未保存的输入将被清除。" : "Unsaved input in the current editor will be cleared when you leave.", confirmText: zh ? "放弃修改并离开" : "Discard and leave", cancelText: zh ? "继续编辑" : "Keep editing", destructive: true }))) return false
+    if ((leaveState.dirty || leaveState.pending) && !(await confirm({
+      title: zh ? "离开工具调用？" : "Leave tool invocation?",
+      description: leaveState.pending
+        ? (zh ? "请求可能继续执行。离开后，本次参数和结果不会保留；请勿因离开而重复提交。" : "The request may continue. Parameters and results will not be retained after leaving; do not resubmit because you left.")
+        : (zh ? "离开后，修改过的调用参数和结果不会保留。" : "Edited parameters and results will not be retained after leaving."),
+      confirmText: zh ? "离开" : "Leave", cancelText: zh ? "继续编辑" : "Stay",
+    }))) return false
+    if (configEditorOpen) { setConfigEditorOpen(false); setConfigText(prettyJson(genericTemplate)) }
+    return true
+  }
+  const { view, routeBuildId, recentViews, navigate } = useConsoleRoute(requestLeave)
+  const [toolCatalogView, setToolCatalogView] = useState<ToolCatalogViewState>({ query: "", service: "all", access: "all", page: 1, pageSize: 9, scrollTop: 0 })
+  const pageRefresh = useRef<PageRefreshHandler | null>(null)
+  const [pageBusy, setPageBusy] = useState(false)
+  const registerPageRefresh = useCallback<RegisterPageRefresh>((handler, pending) => {
+    pageRefresh.current = handler
+    setPageBusy(pending)
+    return () => { if (pageRefresh.current === handler) { pageRefresh.current = null; setPageBusy(false) } }
+  }, [])
+  useEffect(() => {
+    const beforeUnload = (event: BeforeUnloadEvent) => {
+      if (leaveState.dirty || leaveState.pending || editorDirty || editorPending) { event.preventDefault(); event.returnValue = "" }
+    }
+    window.addEventListener("beforeunload", beforeUnload)
+    return () => window.removeEventListener("beforeunload", beforeUnload)
+  }, [leaveState, editorDirty, editorPending])
   const [health, setHealth] = useState<HealthResponse | null>(null)
   const [diagnostics, setDiagnostics] = useState<DiagnosticsResponse | null>(null)
   const [servers, setServers] = useState<McpServer[]>([])
@@ -77,16 +116,16 @@ export default function App() {
   const [busy, setBusy] = useState(false)
   const [commandOpen, setCommandOpen] = useState(false)
   const [commandQuery, setCommandQuery] = useState("")
-  const { confirm, confirmDialog } = useConfirm(t)
-
-  const toast: ToastState = error ? { message: error, tone: "error" } : message ? { message, tone: "success" } : null
-  function dismissToast() { setError(null); setMessage(null) }
+  const toast: ToastState = message ? { message, tone: "success" } : null
+  function dismissToast() { setMessage(null) }
 
   useEffect(() => { void refreshAll() }, [])
   useEffect(() => {
     const onKey = (event: KeyboardEvent) => {
       if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === "k") {
         event.preventDefault()
+        // A global command must not open another modal over an active editor or confirmation.
+        if (document.querySelector('[role="dialog"][data-state="open"], [role="alertdialog"][data-state="open"], [aria-modal="true"]')) return
         setCommandOpen((open) => !open)
       }
     }
@@ -155,8 +194,38 @@ export default function App() {
     finally { setBusy(false) }
   }
 
-  function editConfig(config: McpConfig) { setSelectedConfigId(config.id); setConfigText(prettyJson(config.manifest)); setConfigEditorOpen(true); navigate("configs") }
-  function newConfig() { setSelectedConfigId(""); setConfigText(prettyJson(genericTemplate)); setConfigEditorOpen(true); navigate("configs") }
+  async function refreshCurrentPage() {
+    if (busy || pageBusy) return
+    setBusy(true); setError(null)
+    try {
+      if (pageRefresh.current) { await pageRefresh.current(); return }
+      const reads: Promise<unknown>[] = []
+      if (view === "dashboard") reads.push(api.health().then(setHealth))
+      if (can("operations.manage") && ["dashboard", "servers", "invoke", "tools"].includes(view)) {
+        reads.push(api.servers().then(data => { setServers(data.servers); setLoadErrors(data.load_errors) }))
+      }
+      if (view === "configs" && can("operations.manage")) reads.push(api.configs().then(data => { setConfigs(data.configs); setConfigErrors(data.errors) }))
+      if (view === "diagnostics" && can("operations.manage")) reads.push(api.diagnostics().then(setDiagnostics))
+      if (can("tools.read") && ["dashboard", "servers", "invoke", "tools"].includes(view)) {
+        reads.push(api.tools().then(data => { setTools(data); setToolsLoaded(true); setToolsError(null) }).catch(reason => {
+          setToolsError(reason instanceof Error ? reason.message : String(reason)); throw reason
+        }))
+      }
+      const settled = await Promise.allSettled(reads)
+      const failures = settled.filter((r): r is PromiseRejectedResult => r.status === "rejected")
+      if (failures.length) throw new Error(failures.map(r => r.reason instanceof Error ? r.reason.message : String(r.reason)).join("; "))
+    } catch (err) { setError(err instanceof Error ? err.message : String(err)) }
+    finally { setBusy(false) }
+  }
+
+  async function editConfig(config: McpConfig) {
+    if (!(await (view === "configs" ? requestLeave() : navigate("configs")))) return
+    setSelectedConfigId(config.id); setConfigText(prettyJson(config.manifest)); setConfigEditorOpen(true)
+  }
+  async function newConfig() {
+    if (!(await (view === "configs" ? requestLeave() : navigate("configs")))) return
+    setSelectedConfigId(""); setConfigText(prettyJson(genericTemplate)); setConfigEditorOpen(true)
+  }
 
   async function saveConfig(nextValue?: string) {
     const manifestText = nextValue || configText
@@ -187,7 +256,6 @@ export default function App() {
       setConfigEditorOpen(false)
       await refreshAll()
     } catch (err) {
-      setError(err instanceof Error ? err.message : String(err))
       // 保存失败交回编辑器显示，避免错误提示被 Modal 遮挡且草稿被关闭。
       throw err
     }
@@ -213,12 +281,15 @@ export default function App() {
   const allowedRecentViews = recentViews.filter((id) => id !== view && canAccessView(navById[id]))
 
   return (
+    <EditorNavigationContext.Provider value={editorNavigation}>
+    <PageRefreshContext.Provider value={registerPageRefresh}>
     <ConsoleShell
       view={view} title={currentTitle} user={user} version={CONSOLE_VERSION}
-      groups={navGroups} items={navById} busy={busy}
+      groups={navGroups} items={navById} busy={busy || pageBusy}
       onNavigate={navigate} onSearch={() => setCommandOpen(true)}
-      onRefresh={() => void refreshAll()} onLogout={() => void logout()}
+      onRefresh={() => void refreshCurrentPage()} onLogout={async () => { if (await requestLeave()) void logout() }}
     >
+      {error && <Alert variant="destructive" className="mb-4"><AlertDescription>{error}</AlertDescription></Alert>}
       {!viewAllowed && (
         <div className="rounded-xl border border-dashed bg-card p-8 text-center">
           <Shield className="mx-auto mb-3 size-8 text-muted-foreground" />
@@ -231,10 +302,10 @@ export default function App() {
         <RouteErrorBoundary key={view} locale={locale}>
           <Suspense fallback={<RouteLoadingFallback locale={locale} />}>
             {view === "dashboard" && <DashboardPage health={health} servers={servers} tools={tools} operationsAllowed={can("operations.manage")} t={t} />}
-            {view === "configs" && <ConfigsPage locale={locale} t={t} configs={configs} configErrors={configErrors} selectedConfigId={selectedConfigId} configText={configText} busy={busy} editorOpen={configEditorOpen} onCloseEditor={() => { if (!busy) setConfigEditorOpen(false) }} onNewConfig={newConfig} onReloadConfigs={reloadConfigs} onEditConfig={editConfig} onApplyConfig={applyConfig} onDeleteConfig={deleteConfig} onConfigTextChange={setConfigText} onSaveConfig={saveConfig} />}
-            {view === "servers" && <ServersPage locale={locale} t={t} servers={servers} loadErrors={loadErrors} busy={busy} visibleTools={toolsLoaded ? tools : null} toolsError={toolsError} canReadTools={can("tools.read")} canManageClassifications={can("classifications.manage")} onServerAction={serverAction} onRefresh={refreshAll} onNewConfig={newConfig} onNavigate={navigate} />}
+            {view === "configs" && <ConfigsPage locale={locale} t={t} configs={configs} configErrors={configErrors} selectedConfigId={selectedConfigId} configText={configText} busy={busy} editorOpen={configEditorOpen} onCloseEditor={() => { if (!busy) { setConfigEditorOpen(false); setConfigText(prettyJson(genericTemplate)) } }} onNewConfig={newConfig} onReloadConfigs={reloadConfigs} onEditConfig={editConfig} onApplyConfig={applyConfig} onDeleteConfig={deleteConfig} onConfigTextChange={setConfigText} onSaveConfig={saveConfig} />}
+            {view === "servers" && <ServersPage locale={locale} t={t} servers={servers} loadErrors={loadErrors} busy={busy} visibleTools={toolsLoaded ? tools : null} toolsError={toolsError} canReadTools={can("tools.read")} canManageClassifications={can("classifications.manage")} onServerAction={serverAction} onRefresh={refreshCurrentPage} onNewConfig={newConfig} onNavigate={navigate} />}
             {view === "builds" && <BuildsPage t={t} initialBuildId={routeBuildId} />}
-            {view === "credentials" && <CredentialsPage t={t} />}
+            {view === "credentials" && <CredentialsPage locale={locale} t={t} />}
             {view === "accessUsers" && <AccessUsersPage locale={locale} t={t} />}
             {view === "accessRoles" && <AccessRolesPage locale={locale} t={t} />}
             {view === "accessGrants" && <AccessGrantsPage locale={locale} t={t} />}
@@ -245,9 +316,9 @@ export default function App() {
             {view === "logs" && <LogsEventsPage t={t} />}
             {view === "runtimeCache" && <RuntimeCachePage t={t} />}
             {view === "uploads" && <UploadsPage t={t} />}
-            {view === "diagnostics" && <DiagnosticsPage diagnostics={diagnostics} t={t} onRunDiagnostics={runDiagnostics} />}
-            {view === "tools" && <ToolsPage tools={tools} servers={servers} loading={!toolsLoaded && !toolsError} error={toolsError} t={t} onRefresh={() => void refreshAll()} onInvoke={(toolId) => { setSelectedToolId(toolId); navigate("invoke") }} />}
-            {view === "invoke" && <InvokePage locale={locale} t={t} tools={tools} servers={servers} toolsLoaded={toolsLoaded} toolsError={toolsError} selectedToolId={selectedToolId} onToolChange={setSelectedToolId} onRefresh={refreshAll} />}
+            {view === "diagnostics" && <DiagnosticsPage diagnostics={diagnostics} t={t} busy={busy} onRefreshDiagnostics={async () => { setDiagnostics(await api.diagnostics()) }} onRunDiagnostics={runDiagnostics} />}
+            {view === "tools" && <ToolsPage tools={tools} servers={servers} loading={!toolsLoaded && !toolsError} error={toolsError} t={t} viewState={toolCatalogView} onViewStateChange={setToolCatalogView} onRefresh={() => void refreshCurrentPage()} onInvoke={(toolId) => { setSelectedToolId(toolId); navigate("invoke") }} />}
+            {view === "invoke" && <InvokePage locale={locale} t={t} tools={tools} servers={servers} toolsLoaded={toolsLoaded} toolsError={toolsError} selectedToolId={selectedToolId} onToolChange={setSelectedToolId} onLeaveStateChange={setLeaveState} onRefresh={refreshCurrentPage} />}
           </Suspense>
         </RouteErrorBoundary>
       )}
@@ -268,9 +339,9 @@ export default function App() {
             </CommandGroup>
           )}
           <CommandGroup heading={t("actions")}>
-            <CommandItem value="refresh 刷新" onSelect={() => { setCommandOpen(false); void refreshAll() }}><RefreshCcw /><HighlightText text={t("refresh")} query={commandQuery} /></CommandItem>
+            <CommandItem value="refresh 刷新" onSelect={() => { setCommandOpen(false); void refreshCurrentPage() }}><RefreshCcw /><HighlightText text={t("refreshCurrentPage")} query={commandQuery} /></CommandItem>
             {can("operations.manage") && <CommandItem value="new config 新建配置" onSelect={() => { setCommandOpen(false); newConfig() }}><Braces /><HighlightText text={t("genericTemplate")} query={commandQuery} /></CommandItem>}
-            {can("operations.manage") && <CommandItem value="run diagnostics 运行诊断" onSelect={() => { setCommandOpen(false); navigate("diagnostics"); void runDiagnostics() }}><Activity /><HighlightText text={t("runDiagnostics")} query={commandQuery} /></CommandItem>}
+            {can("operations.manage") && <CommandItem value="run diagnostics 运行诊断" onSelect={() => { setCommandOpen(false); void (async () => { if (await navigate("diagnostics")) await runDiagnostics() })() }}><Activity /><HighlightText text={t("runDiagnostics")} query={commandQuery} /></CommandItem>}
             <CommandItem value="openapi docs" onSelect={() => { setCommandOpen(false); window.open("/docs", "_blank", "noreferrer") }}><Braces /><HighlightText text={t("openApi")} query={commandQuery} /></CommandItem>
           </CommandGroup>
           {navGroups.map((group) => (
@@ -291,5 +362,7 @@ export default function App() {
       <Toaster toast={toast} onClose={dismissToast} />
       {confirmDialog}
     </ConsoleShell>
+    </PageRefreshContext.Provider>
+    </EditorNavigationContext.Provider>
   )
 }

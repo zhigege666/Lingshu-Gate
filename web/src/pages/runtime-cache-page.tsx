@@ -1,3 +1,5 @@
+import { Alert, AlertDescription } from "@/components/ui/alert"
+import { usePageRefresh } from "@/components/page-refresh"
 import { useEffect, useMemo, useState, type ReactNode } from "react"
 import { api, type RuntimeCacheStatus } from "@/api/client"
 import { ActionMenu, ActionMenuItem } from "@/components/action-menu"
@@ -31,6 +33,7 @@ export function RuntimeCachePage({ t }: { t: TFunction }) {
     return (status?.caches || []).filter((cache) => `${cache.name} ${cache.path}`.toLowerCase().includes(needle))
   }, [query, status?.caches])
 
+  usePageRefresh(load, busy)
   useEffect(() => { void load() }, [])
 
   async function load() {
@@ -62,7 +65,7 @@ export function RuntimeCachePage({ t }: { t: TFunction }) {
     }
   }
 
-  const toast: ToastState = error ? { message: error, tone: "error" } : message ? { message, tone: "success" } : null
+  const toast: ToastState = message ? { message, tone: "success" } : null
 
   return (
     <div className="flex flex-col gap-4">
@@ -78,18 +81,18 @@ export function RuntimeCachePage({ t }: { t: TFunction }) {
         toolbar={<PageToolbar query={query} onQueryChange={setQuery} placeholder={`${t("search")} ${t("name")} / ${t("path")}`} resultCount={filteredCaches.length} resultLabel={t("cacheCount")} clearLabel={t("clearSearch")} />}
         stats={[
           { label: t("cacheSize"), value: status ? formatBytes(status.total_size_bytes) : "-" },
-          { label: t("writable"), value: status ? String(Boolean(status.root.writable || status.root.parent_writable)) : "-", tone: !status ? "default" : status.root.writable || status.root.parent_writable ? "success" : "danger" },
+          { label: t("cacheRootWritable"), value: status ? String(Boolean(status.root.writable || status.root.parent_writable)) : "-", tone: !status ? "default" : status.root.writable || status.root.parent_writable ? "success" : "danger" },
         ]}
-        actions={<Button variant="outline" onClick={load} disabled={busy}>{t("refresh")}</Button>}
       />
 
+      {error && <Alert variant="destructive"><AlertDescription className="flex items-center justify-between gap-3"><span>{error}</span><Button variant="outline" size="sm" disabled={busy} onClick={() => void load()}>{t("retry")}</Button></AlertDescription></Alert>}
       <Card>
         <CardContent className="overflow-x-auto p-3 md:p-4">
           <Table>
-            <TableHeader><TableRow><TableHead>{t("name")}</TableHead><TableHead>{t("path")}</TableHead><TableHead>{t("cacheSize")}</TableHead><TableHead>{t("fileCount")}</TableHead><TableHead>{t("writable")}</TableHead><TableHead>{t("lastModified")}</TableHead><TableHead>{t("actions")}</TableHead></TableRow></TableHeader>
+            <TableHeader><TableRow><TableHead>{t("name")}</TableHead><TableHead>{t("path")}</TableHead><TableHead>{t("cacheSize")}</TableHead><TableHead>{t("fileCount")}</TableHead><TableHead>{t("writableOrCreatable")}</TableHead><TableHead>{t("lastModified")}</TableHead><TableHead>{t("actions")}</TableHead></TableRow></TableHeader>
             <TableBody>
               {filteredCaches.length === 0 ? <TableEmptyRow colSpan={7} title={t("noData")} /> : filteredCaches.map((cache) => <TableRow key={cache.name} className="cursor-pointer" onClick={() => setDetail(cache)}>
-                <TableCell><code>{cache.name}</code></TableCell>
+                <TableCell><button type="button" className="text-left underline underline-offset-4" onClick={e => { e.stopPropagation(); setDetail(cache) }}><code>{cache.name}</code></button></TableCell>
                 <TableCell className="max-w-md break-all text-xs">{cache.path}</TableCell>
                 <TableCell>{formatBytes(cache.size_bytes)}</TableCell>
                 <TableCell>{cache.file_count}</TableCell>
@@ -117,7 +120,7 @@ export function RuntimeCachePage({ t }: { t: TFunction }) {
             <div className="grid gap-2 md:grid-cols-2">
               <Info label={t("cacheSize")} value={formatBytes(detail?.size_bytes || 0)} />
               <Info label={t("fileCount")} value={String(detail?.file_count ?? 0)} />
-              <Info label={t("writable")} value={String(Boolean(detail?.writable || detail?.parent_writable))} />
+              <Info label={t("writableOrCreatable")} value={String(Boolean(detail?.writable || detail?.parent_writable))} />
               <Info label={t("lastModified")} value={formatDateTime(detail?.last_modified_at)} />
             </div>
             <JsonPanel data={detail} maxHeight="max-h-[320px]" />
@@ -125,7 +128,7 @@ export function RuntimeCachePage({ t }: { t: TFunction }) {
         </DialogContent>
       </Dialog>
       {confirmDialog}
-      <Toaster toast={toast} onClose={() => { setMessage(null); setError(null) }} />
+      <Toaster toast={toast} onClose={() => setMessage(null)} />
     </div>
   )
 }
