@@ -61,6 +61,16 @@ Keep `LINGSHU_GATE_LOG_PAYLOADS=false`. Normal records should contain identifier
 
 Before sharing a record, inspect nested fields and remove host paths, user data, and downstream content that the recipient does not need.
 
+## Invoking tools from the Console
+
+The invocation workspace selects an MCP service instance first, then a tool from the current identity's visible catalog. Built-in tools have their own group. Service names are supplemented by stable instance IDs; invocation still uses the original registered tool ID and the existing `/v1/invoke` authorization and audit path. No additional polling or privileged service lookup is introduced.
+
+Arguments open in a schema-driven Form view with a JSON alternative. Both views edit the same payload. Field titles, descriptions, required markers, defaults, and examples come from the selected tool's input schema. Documentation is never added to the request. Invalid JSON blocks switching to Form without discarding the input. Unsupported structures remain editable in JSON; editing supported fields preserves undeclared keys and primitive types.
+
+On first selection, declared defaults and examples are prefilled without executing the tool. **Restore defaults** uses defaults and constants only; **Fill example** also uses declared examples. Sensitive fields are excluded from automatic prefill. Missing required values must be supplied manually. Local JSON Schema validation checks supported dialects (draft-07, 2019-09, and 2020-12; 2020-12 when unspecified) before calling the existing API. Remote schema references are not fetched; unsupported or invalid schemas block the call with an error. Backend permissions, confirmations, and downstream validation remain authoritative.
+
+Drafts and results are kept separately by service identity and registered tool ID while the invocation page remains mounted. They are not written to browser storage. Leaving the page or refreshing clears them. Late responses update the original tool's result even after a service switch. A changed schema does not overwrite edited arguments; the page warns and validates against the current definition when running.
+
 ## Invocation audit
 
 `/v1/access/invocation-audits` records tool-access decisions. Use it to answer:

@@ -26,6 +26,20 @@ describe("feature API construction", () => {
     }))
   })
 
+  it("invokes the exact registered tool with arguments only and retains session credentials", async () => {
+    const fetchMock = vi.fn().mockResolvedValue(new Response('{"ok":true}', { status: 200 }))
+    vi.stubGlobal("fetch", fetchMock)
+    const args = { query: "sample", limit: 0, includeArchived: false, nested: { keep: null } }
+
+    await serversRuntimeApi.invoke("mcp.docs-test.search", args)
+
+    expect(fetchMock).toHaveBeenCalledTimes(1)
+    expect(fetchMock).toHaveBeenCalledWith("/v1/invoke", expect.objectContaining({
+      method: "POST", credentials: "include",
+      body: JSON.stringify({ tool_id: "mcp.docs-test.search", arguments: args }),
+    }))
+  })
+
   it("defaults config, deploy, and rollback side effects to false", async () => {
     const fetchMock = vi.fn().mockImplementation(async () => new Response('{"message":"ok"}', {
       status: 200,

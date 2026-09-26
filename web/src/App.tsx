@@ -1,4 +1,4 @@
-import { lazy, Suspense, useEffect, useMemo, useState } from "react"
+import { lazy, Suspense, useEffect, useState } from "react"
 import { Activity, Braces, RefreshCcw, Shield } from "lucide-react"
 import {
   api,
@@ -72,8 +72,6 @@ export default function App() {
   const [configText, setConfigText] = useState(prettyJson(genericTemplate))
   const [configEditorOpen, setConfigEditorOpen] = useState(false)
   const [selectedToolId, setSelectedToolId] = useState("")
-  const [invokeArgs, setInvokeArgs] = useState("{}")
-  const [invokeResult, setInvokeResult] = useState(t("waiting"))
   const [message, setMessage] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [busy, setBusy] = useState(false)
@@ -83,8 +81,6 @@ export default function App() {
 
   const toast: ToastState = error ? { message: error, tone: "error" } : message ? { message, tone: "success" } : null
   function dismissToast() { setError(null); setMessage(null) }
-
-  const selectedTool = useMemo(() => tools.find((tool) => tool.id === selectedToolId), [tools, selectedToolId])
 
   useEffect(() => { void refreshAll() }, [])
   useEffect(() => {
@@ -203,7 +199,6 @@ export default function App() {
   async function applyConfig(id: string) { setBusy(true); try { await api.applyConfig(id); setMessage(`applied: ${id}`); await refreshAll() } catch (err) { setError(err instanceof Error ? err.message : String(err)) } finally { setBusy(false) } }
   async function serverAction(id: string, action: "start" | "stop" | "restart") { setBusy(true); try { await api.serverAction(id, action); setMessage(`${action}: ${id}`); await refreshAll() } catch (err) { setError(err instanceof Error ? err.message : String(err)) } finally { setBusy(false) } }
   async function runDiagnostics() { setBusy(true); try { setDiagnostics(await api.runDiagnostics()); setMessage("diagnostics completed") } catch (err) { setError(err instanceof Error ? err.message : String(err)) } finally { setBusy(false) } }
-  async function invokeTool() { if (!selectedToolId) return; try { const args = JSON.parse(invokeArgs) as Record<string, unknown>; setInvokeResult("..."); setInvokeResult(prettyJson(await api.invoke(selectedToolId, args))) } catch (err) { setInvokeResult(err instanceof Error ? err.message : String(err)) } }
 
   const can = (permission: string) => user.auth_type === "disabled" || user.role === "admin" || user.roles.includes("admin") || user.permissions.includes(permission) || user.permissions.includes("*")
   const { nav, navById, navGroups, canAccessView } = useConsoleNavigation({
@@ -251,8 +246,8 @@ export default function App() {
             {view === "runtimeCache" && <RuntimeCachePage t={t} />}
             {view === "uploads" && <UploadsPage t={t} />}
             {view === "diagnostics" && <DiagnosticsPage diagnostics={diagnostics} t={t} onRunDiagnostics={runDiagnostics} />}
-            {view === "tools" && <ToolsPage tools={tools} servers={servers} loading={!toolsLoaded && !toolsError} error={toolsError} t={t} onRefresh={() => void refreshAll()} onInvoke={(toolId) => { setSelectedToolId(toolId); setInvokeArgs("{}"); setInvokeResult(t("waiting")); navigate("invoke") }} />}
-            {view === "invoke" && <InvokePage t={t} tools={tools} selectedTool={selectedTool} selectedToolId={selectedToolId} invokeArgs={invokeArgs} invokeResult={invokeResult} onToolChange={setSelectedToolId} onArgsChange={setInvokeArgs} onInvoke={invokeTool} />}
+            {view === "tools" && <ToolsPage tools={tools} servers={servers} loading={!toolsLoaded && !toolsError} error={toolsError} t={t} onRefresh={() => void refreshAll()} onInvoke={(toolId) => { setSelectedToolId(toolId); navigate("invoke") }} />}
+            {view === "invoke" && <InvokePage locale={locale} t={t} tools={tools} servers={servers} toolsLoaded={toolsLoaded} toolsError={toolsError} selectedToolId={selectedToolId} onToolChange={setSelectedToolId} onRefresh={refreshAll} />}
           </Suspense>
         </RouteErrorBoundary>
       )}
