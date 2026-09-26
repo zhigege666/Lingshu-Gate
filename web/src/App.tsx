@@ -251,7 +251,7 @@ export default function App() {
             {view === "runtimeCache" && <RuntimeCachePage t={t} />}
             {view === "uploads" && <UploadsPage t={t} />}
             {view === "diagnostics" && <DiagnosticsPage diagnostics={diagnostics} t={t} onRunDiagnostics={runDiagnostics} />}
-            {view === "tools" && <ToolsPage tools={tools} t={t} />}
+            {view === "tools" && <ToolsPage tools={tools} servers={servers} loading={!toolsLoaded && !toolsError} error={toolsError} t={t} onRefresh={() => void refreshAll()} onInvoke={(toolId) => { setSelectedToolId(toolId); setInvokeArgs("{}"); setInvokeResult(t("waiting")); navigate("invoke") }} />}
             {view === "invoke" && <InvokePage t={t} tools={tools} selectedTool={selectedTool} selectedToolId={selectedToolId} invokeArgs={invokeArgs} invokeResult={invokeResult} onToolChange={setSelectedToolId} onArgsChange={setInvokeArgs} onInvoke={invokeTool} />}
           </Suspense>
         </RouteErrorBoundary>

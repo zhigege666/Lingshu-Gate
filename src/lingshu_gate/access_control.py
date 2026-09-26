@@ -1113,16 +1113,27 @@ class AccessControlStore:
             self._synchronize_tools(connection, definitions_list)
             classifications = self._load_classifications(connection, keys)
             grants = self._effective_access_map(connection, principal, keys)
-            return [
-                definition
-                for definition in definitions_list
-                if self._evaluate(
+            visible: list[ToolDefinition] = []
+            for definition in definitions_list:
+                decision = self._evaluate(
                     principal,
                     definition,
                     classifications.get((_server_id(definition), definition.id)),
                     partial(grants.__getitem__, (_server_id(definition), definition.id)),
-                )["allowed"]
-            ]
+                )
+                if decision["allowed"]:
+                    # Return a request-local display snapshot. Never mutate the
+                    # registry definition or trust downstream access annotations.
+                    visible.append(definition.model_copy(update={
+                        "metadata": {
+                            **definition.metadata,
+                            "gate_access": {
+                                "required_access": decision["required_access"],
+                                "classification_status": decision["classification_status"],
+                            },
+                        },
+                    }))
+            return visible
 
     def evaluate(self, principal: AuthPrincipal, definition: ToolDefinition) -> dict[str, Any]:
         key = (_server_id(definition), definition.id)

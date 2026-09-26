@@ -35,6 +35,8 @@ Security fixes target the latest published release and the `main` branch. Older 
 - Keep payload logging disabled. Review logs and audit exports before sharing them.
 - Pin production container images by digest and verify release checksums, SBOM, and build metadata.
 
+The tool catalog's `metadata.gate_access` is an output-only, request-local display snapshot of the existing access decision. It is not a capability or an authorization input. Gate replaces downstream values for visible tools, preserves registry definitions, and reevaluates policy for every invocation.
+
 ## Execution boundary
 
 Project builds and managed local processes execute code with the privileges of the Gate process. They are not a sandbox for untrusted source code.

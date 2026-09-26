@@ -447,6 +447,33 @@ class DefaultAdminTest(unittest.TestCase):
         )
         return principal, definitions, str(grant["id"])
 
+    def test_discovery_access_snapshot_matches_policy_without_mutating_registry(self) -> None:
+        principal, definitions, _ = self._discovery_fixture()
+        original_metadata = dict(definitions[0].metadata)
+        visible = self.access_store.visible_tools(principal, definitions)
+        self.assertEqual(visible[0].metadata["gate_access"], {
+            "required_access": "read", "classification_status": "published",
+        })
+        self.assertEqual(definitions[0].metadata, original_metadata)
+        self.assertIsNot(visible[0], definitions[0])
+        visible[0].metadata["gate_access"]["required_access"] = "write"
+        self.assertEqual(
+            self.access_store.visible_tools(principal, definitions)[0].metadata["gate_access"]["required_access"],
+            "read",
+        )
+        self.access_store.save_grant(
+            subject_type="user", subject_id=principal.id, server_id="discovery",
+            permission_type_code="write", created_by="test-admin",
+        )
+        self.database.execute(
+            "UPDATE mcp_tool_classifications SET effective_access = 'write' WHERE tool_id = ?",
+            (definitions[0].id,),
+        )
+        updated = self.access_store.visible_tools(principal, definitions)
+        self.assertEqual(updated[0].metadata["gate_access"]["required_access"], "write")
+        self.assertTrue(definitions[0].metadata["annotations"]["readOnlyHint"])
+        self.assertEqual(self.access_store.evaluate(principal, definitions[0])["required_access"], "write")
+
     def test_large_published_catalog_uses_bounded_reads_without_classification_writes(self) -> None:
         principal, definitions, _ = self._discovery_fixture(600)
         statements: list[str] = []

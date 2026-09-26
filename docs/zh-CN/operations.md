@@ -40,6 +40,14 @@ curl --fail --silent --show-error http://127.0.0.1:8000/readyz
 
 按需读取详情可使用 `/v1/mcp/servers/{server_id}/detail?section=overview`。支持 `overview`、`tools`、`logs`、`events`、`configuration`、`recovery` 和 `cache` 分区。日志、事件和恢复记录的 `limit` 范围为 1–200，默认 80，控制台请求 40。概览只读取运行态；只有打开缓存分区或完整诊断时才统计缓存目录大小。不传 `section` 时保留原有完整响应。所有分区继续要求 `operations.manage` 权限；未返回的分区字段表示未请求，不能解释为零或健康。
 
+## 工具目录
+
+工具页采用卡片布局，支持搜索、可搜索的 MCP 服务选择、实际读写权限筛选和分页。服务选项同时显示名称和部署 ID，可区分同名的不同部署实例。具备运维权限的账号可选择尚无可见工具的已注册服务；没有运行时管理权限的账号仅看到其可见工具所属的服务。内置工具单独筛选。
+
+每张卡片可打开完整详情，或将对应的已注册工具带入调用编辑器。打开编辑器不会执行工具，并会重置上一工具的参数与结果。发现和调用继续使用现有授权校验。
+
+`/v1/tools` 和 `/v1/tools/{tool_id}` 在 `metadata.gate_access` 中返回当前请求的 `required_access` 与 `classification_status` 快照。读写标签使用该后端判定，不从 MCP 注解或 Manifest 默认声明推断。快照不会修改注册定义、发布分类或授予权限；实际调用时仍重新评估访问策略。
+
 ## 日志和事件
 
 认证 Operator 可以查询：

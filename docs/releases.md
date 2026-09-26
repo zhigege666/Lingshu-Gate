@@ -6,6 +6,8 @@ Lingshu Gate release automation produces directly runnable native packages, a Do
 
 The current source version is `0.2.0`, adding shared MCP protocol negotiation, configuration editing improvements, expanded personal API token scope selection, and unified Console navigation and page layouts. Console pages now use direct navigation links, compact toolbars, on-demand help, and responsive tables and dialogs. Runtime reporting, Python package metadata, CLI output, and release artifact names derive from the single version source in `src/lingshu_gate/_version.py`.
 
+The source Console also includes the card-based tool catalog with deployment-specific MCP filtering, effective access badges, and direct selection in the invocation editor. Tool discovery adds the request-local `metadata.gate_access` display snapshot described in [operations](operations.md#tool-catalog). This change adds no frontend dependency or database migration.
+
 ## Artifact matrix
 
 | Target | Asset | Build architecture |

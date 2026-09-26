@@ -40,6 +40,14 @@ The Console service workspace keeps the service directory beside the selected se
 
 For bounded detail reads, use `/v1/mcp/servers/{server_id}/detail?section=overview`. Supported sections are `overview`, `tools`, `logs`, `events`, `configuration`, `recovery`, and `cache`. Log, event, and recovery reads accept `limit` from 1 to 200 (default 80); the Console requests 40. Overview reads runtime status only. Cache size is calculated only when the cache section or the complete diagnostic view is requested. Omit `section` to retain the complete legacy response. All sections require the same `operations.manage` permission. Missing section fields mean not requested, not zero or healthy.
 
+## Tool catalog
+
+The Tools page displays cards with search, a searchable MCP service selector, effective read/write filters, and pagination. Service options show the deployment ID as well as its name, so deployments with the same name remain distinct. Operators can select registered services with no visible tools; accounts without runtime management access see only services represented in their visible tool catalog. Built-in tools have a separate filter.
+
+Each card opens full tool details or selects that exact registered tool in the invocation editor. Opening the editor does not execute it and resets arguments and results from the previous tool. Discovery and invocation retain the existing authorization checks.
+
+`/v1/tools` and `/v1/tools/{tool_id}` include a request-local `metadata.gate_access` snapshot with `required_access` and `classification_status`. Read/write badges use this server-side decision rather than MCP annotations or manifest defaults. The snapshot does not mutate registry definitions, publish classifications, or grant access; invocation reevaluates policy at execution time.
+
 ## Logs and events
 
 Authenticated operators can query:

@@ -44,12 +44,13 @@ def register_tool_routes(
     ) -> ToolDefinition:
         try:
             definition = registry.get_definition(tool_id)
-            if not access_store.visible_tools(principal, [definition]):
+            visible = access_store.visible_tools(principal, [definition])
+            if not visible:
                 raise HTTPException(
                     status_code=404,
                     detail=f"Tool not found: {tool_id}",
                 )
-            return definition
+            return visible[0]
         except ToolNotFoundError as exc:
             raise HTTPException(
                 status_code=404,
