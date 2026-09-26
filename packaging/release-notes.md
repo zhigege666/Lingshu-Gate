@@ -1,7 +1,10 @@
-## Lingshu Gate v0.2.1
+## Lingshu Gate v0.2.2
 
 ### English
 
+- Resolve the release-blocking history findings for an already corrected test
+  fixture with an exception pinned to exact old snapshots. Current source,
+  new commits, and release assets continue to be checked.
 - Simplify the Console overview with Gate status, server and tool summaries,
   and invocation statistics. Remove redundant controls and clarify error recovery.
 - Improve light and dark theme borders and display the full build version
@@ -18,6 +21,8 @@ the repository's artifact attestations.
 
 ### 简体中文
 
+- 为已修正的测试文件设置精确限定于旧快照的历史例外，解决阻塞发布的历史扫描问题。
+  当前源码、新提交和发布产物继续接受检查。
 - 简化 Console 首页，集中展示 Gate 状态、服务与工具概况及调用统计，
   移除重复操作，并改进错误恢复提示。
 - 增强浅色与深色主题的边框辨识度，在账户菜单中显示完整构建版本号。

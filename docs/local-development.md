@@ -131,6 +131,21 @@ uv run python scripts/quality/check_repository_identity.py --history
 
 Do not weaken, print, or duplicate the digest-backed policy rules to make a failure disappear. Resolve the reported file or artifact and rerun the check.
 
+History mode has one explicitly pinned legacy snapshot exception for
+`web/test-fixtures/mcp-config-editor.tsx`, whose current source was corrected in
+`4556352c4671efa7a810d129adf0d561b820363f`. The ledger in
+`scripts/quality/check_repository_identity.py` records seven exact old commit
+IDs, the file path, Git blob ID, content SHA-256, and only the three `TXT-001`
+findings at lines 12, 14, and 20. Every field must match. The CLI announces this
+policy when history mode is enabled; it does not remove the historical content.
+
+The exception applies only to those old snapshots. Reintroducing even identical
+bytes in another commit or path fails, including when a later commit removes
+them. Commit messages, other findings, current files, and final artifacts remain
+strict. Do not automatically expand the ledger or replace it with a branch,
+date, path, or rule-wide exclusion. Ordinary corrective commits cannot erase
+existing Git objects; this bounded record avoids rewriting shared history.
+
 ## Release checks
 
 The release workflow builds each native archive on its matching operating system and architecture. On a matching local host, a maintainer can build one target:

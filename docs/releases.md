@@ -4,7 +4,7 @@
 
 Lingshu Gate release automation produces directly runnable native packages, a Docker Compose deployment bundle, and tagged-release offline Core images. Every published asset is covered by `SHA256SUMS` and a repository build-provenance attestation.
 
-The current source version is `0.2.0`, adding shared MCP protocol negotiation, configuration editing improvements, expanded personal API token scope selection, and unified Console navigation and page layouts. Console pages now use direct navigation links, compact toolbars, on-demand help, and responsive tables and dialogs. Runtime reporting, Python package metadata, CLI output, and release artifact names derive from the single version source in `src/lingshu_gate/_version.py`.
+The current source version is `0.2.2`, resolving the historical test-fixture scan blocker and including the updated Console overview, clearer theme borders, and visible build version. Console pages use direct navigation links, compact toolbars, on-demand help, and responsive tables and dialogs. Runtime reporting, Python package metadata, CLI output, and release artifact names derive from the single version source in `src/lingshu_gate/_version.py`.
 
 The source Console also includes the card-based tool catalog with deployment-specific MCP filtering, effective access badges, and direct selection in the invocation editor. Tool discovery adds the request-local `metadata.gate_access` display snapshot described in [operations](operations.md#tool-catalog). This change adds no frontend dependency or database migration.
 
@@ -151,6 +151,12 @@ Use the `arm64` asset and tag on ARM64. Point `LINGSHU_GATE_IMAGE` at the loaded
 ## Automation behavior
 
 All tag-only container, offline-image, and publication jobs explicitly install the pinned release Python runtime before executing release scripts. A failed release tag is retained; publish a corrected source revision under a new version instead of moving the old tag.
+
+The `v0.2.1` tag points to the revision whose release failed the historical
+identity check. The recovery source uses `0.2.2` so merging it to `main` starts
+a new verified release. Retrying the old tag still checks its original source;
+the tag is not moved or deleted. See the bounded historical exception in the
+[development guide](local-development.md#identity-check).
 
 Configure the Actions secret `RELEASE_SETTINGS_TOKEN` with a fine-grained GitHub token restricted to this repository and **Administration: read-only** permission. The immutability settings endpoint requires this permission, which the default `GITHUB_TOKEN` cannot provide. This token is used only to read that setting; tag creation and workflow dispatch continue to use `GITHUB_TOKEN`. Missing credentials, denied access, or disabled immutability stop publication before tag creation.
 
