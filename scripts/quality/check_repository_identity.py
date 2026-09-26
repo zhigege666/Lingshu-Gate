@@ -60,6 +60,37 @@ class MatchBudget:
     single_words: set[str] = field(default_factory=set)
 
 
+@dataclass(frozen=True)
+class HistorySnapshotException:
+    commits: frozenset[str]
+    path: str
+    blob: str
+    sha256: str
+    findings: frozenset[tuple[str, int]]
+
+
+# One fixed test fixture remains in these immutable historical snapshots. Its
+# current source was corrected by 4556352c4671efa7a810d129adf0d561b820363f.
+# Keep every dimension pinned: no branch, date, path-wide, or rule-wide waiver.
+_HISTORY_SNAPSHOT_EXCEPTIONS = (
+    HistorySnapshotException(
+        commits=frozenset({
+            "21449a6a3164c37b1b911a8f51607e921757cdbe",
+            "2c2a0715ba71becf1bf0026a93e30980567b17f0",
+            "4c28ee565bad970c2fc6654cee39848b3b260aaf",
+            "5d0f016f02be5a963209c764f97228fdd7df084e",
+            "97a16b004dad0c84f53723651d26a553a8405121",
+            "98f3869983bf7ddfa6a2a0cf83ad24d788a863ec",
+            "f7e491dfa147304ec9f4b127c63819072dfa45bc",
+        }),
+        path="web/test-fixtures/mcp-config-editor.tsx",
+        blob="6a01a9ed9f9f45e98612de708d3697ce53ec5e65",
+        sha256="33a6376f5c30fb4f248437c736627df3ac1636a59f5d2529356d1734ec147faf",
+        findings=frozenset({("TXT-001", 12), ("TXT-001", 14), ("TXT-001", 20)}),
+    ),
+)
+
+
 # Policy values are stored only as normalized length and SHA-256. This keeps the
 # checker from reintroducing material that it is intended to reject.
 _TEXT_RULES: tuple[DigestRule, ...] = (
@@ -815,7 +846,14 @@ def _scan_history(root: Path) -> list[Violation]:
     if commit_result.returncode != 0:
         return [*violations, Violation("HISTORY-001", ".git", 1)]
 
-    seen_items: set[tuple[str, str]] = set()
+    exceptions = {
+        (commit, exception.blob, exception.path): exception
+        for exception in _HISTORY_SNAPSHOT_EXCEPTIONS
+        for commit in exception.commits
+    }
+    # An approved old occurrence must never hide reuse in another commit,
+    # regardless of the order in which Git returns commits.
+    seen_items: set[tuple[str, str, HistorySnapshotException | None]] = set()
     blob_cache: dict[str, bytes | None] = {}
     for commit in (line.strip() for line in commit_result.stdout.splitlines() if line.strip()):
         tree_result = _run_git(root, ["ls-tree", "-r", "-z", "--full-tree", commit])
@@ -831,7 +869,8 @@ def _scan_history(root: Path) -> list[Violation]:
                 continue
             blob = fields[2].decode("ascii", errors="replace")
             path = raw_path.decode("utf-8", errors="replace")
-            item = (blob, path)
+            exception = exceptions.get((commit, blob, path))
+            item = (blob, path, exception)
             if item in seen_items:
                 continue
             seen_items.add(item)
@@ -852,13 +891,17 @@ def _scan_history(root: Path) -> list[Violation]:
             elif _is_archive(relative):
                 violations.extend(_scan_archive_bytes(data, relative, location))
             else:
-                violations.extend(
-                    _scan_bytes(
-                        data,
-                        location,
-                        strict_text=_is_known_text_candidate(relative),
-                    )
+                findings = _scan_bytes(
+                    data,
+                    location,
+                    strict_text=_is_known_text_candidate(relative),
                 )
+                if exception is not None and hashlib.sha256(data).hexdigest() == exception.sha256:
+                    findings = [
+                        finding for finding in findings
+                        if (finding.rule_id, finding.line) not in exception.findings
+                    ]
+                violations.extend(findings)
     return violations
 
 
@@ -1065,6 +1108,11 @@ def _parse_args(argv: Sequence[str] | None) -> argparse.Namespace:
 
 def main(argv: Sequence[str] | None = None) -> int:
     arguments = _parse_args(argv)
+    if arguments.history and _HISTORY_SNAPSHOT_EXCEPTIONS:
+        print(
+            f"history policy: {len(_HISTORY_SNAPSHOT_EXCEPTIONS)} pinned legacy snapshot exception(s); "
+            "other commits, commit messages, current files, and artifacts remain strict"
+        )
     violations = audit_repository(
         arguments.root,
         include_history=arguments.history,

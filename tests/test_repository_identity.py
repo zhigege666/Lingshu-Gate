@@ -2,12 +2,16 @@ from __future__ import annotations
 
 import io
 import importlib.util
+import hashlib
 import subprocess
 import sys
 import tarfile
 import time
 import zipfile
+from dataclasses import replace
 from pathlib import Path
+
+import pytest
 
 
 _MODULE_PATH = Path(__file__).resolve().parents[1] / "scripts" / "quality" / "check_repository_identity.py"
@@ -68,7 +72,7 @@ def _prepare_repository(root: Path) -> None:
     )
 
 
-def _git(root: Path, *arguments: str) -> None:
+def _git(root: Path, *arguments: str) -> str:
     result = subprocess.run(
         ["git", *arguments],
         cwd=root,
@@ -77,6 +81,7 @@ def _git(root: Path, *arguments: str) -> None:
         text=True,
     )
     assert result.returncode == 0, result.stderr
+    return result.stdout.strip()
 
 
 def _add_tar_file(archive: tarfile.TarFile, name: str, data: bytes) -> None:
@@ -480,6 +485,150 @@ def test_history_scans_tracked_generated_directories(tmp_path: Path) -> None:
         violation.rule_id == "TXT-001" and violation.location.endswith(":dist/release/payload")
         for violation in violations
     )
+
+
+def _prepare_history_exception(
+    root: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    *,
+    payload: bytes | None = None,
+    message: str = "Historical fixture",
+):
+    _prepare_repository(root)
+    path = root / "fixtures" / "historical.txt"
+    path.parent.mkdir()
+    data = payload if payload is not None else f"{_restricted_token()}\n".encode()
+    path.write_bytes(data)
+    _git(root, "init", "--initial-branch=main")
+    _git(root, "config", "user.name", "Identity Test")
+    _git(root, "config", "user.email", "identity@example.invalid")
+    _git(root, "add", ".")
+    _git(root, "commit", "-m", message)
+    relative = path.relative_to(root).as_posix()
+    snapshot = identity.HistorySnapshotException(
+        commits=frozenset({_git(root, "rev-parse", "HEAD")}),
+        path=relative,
+        blob=_git(root, "rev-parse", f"HEAD:{relative}"),
+        sha256=hashlib.sha256(data).hexdigest(),
+        findings=frozenset({("TXT-001", 1)}),
+    )
+    monkeypatch.setattr(identity, "_HISTORY_SNAPSHOT_EXCEPTIONS", (snapshot,))
+    path.write_text("clean\n", encoding="utf-8")
+    _git(root, "add", relative)
+    _git(root, "commit", "-m", "Correct fixture")
+    return path, data, snapshot
+
+
+def test_pinned_historical_snapshot_passes_with_visible_policy_notice(tmp_path: Path, monkeypatch, capsys) -> None:
+    _prepare_history_exception(tmp_path, monkeypatch)
+
+    assert identity.audit_repository(tmp_path, include_history=True) == []
+    assert identity.main(["--root", str(tmp_path), "--history"]) == 0
+    output = capsys.readouterr().out
+    assert "1 pinned legacy snapshot exception(s)" in output
+    assert "repository identity check passed" in output
+    assert _restricted_token() not in output.casefold()
+
+
+@pytest.mark.parametrize(
+    ("field", "value"),
+    [
+        ("commits", frozenset({"0" * 40})),
+        ("path", "fixtures/other.txt"),
+        ("blob", "0" * 40),
+        ("sha256", "0" * 64),
+        ("findings", frozenset({("TXT-001", 2)})),
+        ("findings", frozenset({("TXT-004", 1)})),
+    ],
+    ids=["commit", "path", "blob", "content-digest", "line", "rule"],
+)
+def test_history_exception_requires_every_pinned_dimension(tmp_path: Path, monkeypatch, field, value) -> None:
+    _, _, snapshot = _prepare_history_exception(tmp_path, monkeypatch)
+    monkeypatch.setattr(identity, "_HISTORY_SNAPSHOT_EXCEPTIONS", (replace(snapshot, **{field: value}),))
+
+    violations = identity.audit_repository(tmp_path, include_history=True)
+
+    assert any(item.rule_id == "TXT-001" and item.location.endswith(":fixtures/historical.txt") for item in violations)
+
+
+@pytest.mark.parametrize("approve_first_occurrence", [True, False])
+def test_reused_blob_is_rejected_in_either_commit_order(tmp_path: Path, monkeypatch, approve_first_occurrence) -> None:
+    path, data, snapshot = _prepare_history_exception(tmp_path, monkeypatch)
+    original = next(iter(snapshot.commits))
+    path.write_bytes(data)
+    _git(tmp_path, "add", snapshot.path)
+    _git(tmp_path, "commit", "-m", "Reintroduce fixture")
+    reused = _git(tmp_path, "rev-parse", "HEAD")
+    path.write_text("clean again\n", encoding="utf-8")
+    _git(tmp_path, "add", snapshot.path)
+    _git(tmp_path, "commit", "-m", "Correct reintroduced fixture")
+    if not approve_first_occurrence:
+        snapshot = replace(snapshot, commits=frozenset({reused}))
+        monkeypatch.setattr(identity, "_HISTORY_SNAPSHOT_EXCEPTIONS", (snapshot,))
+
+    assert identity.audit_repository(tmp_path) == []
+    violations = identity.audit_repository(tmp_path, include_history=True)
+
+    rejected = reused if approve_first_occurrence else original
+    assert identity.Violation("TXT-001", f"git:{rejected[:12]}:{snapshot.path}", 1) in violations
+
+
+def test_pinned_blob_copied_to_another_path_still_fails(tmp_path: Path, monkeypatch) -> None:
+    _, data, snapshot = _prepare_history_exception(tmp_path, monkeypatch)
+    copied = tmp_path / "fixtures" / "copied.txt"
+    copied.write_bytes(data)
+    _git(tmp_path, "add", "fixtures/copied.txt")
+    _git(tmp_path, "commit", "-m", "Copy fixture")
+    copied_commit = _git(tmp_path, "rev-parse", "HEAD")
+    snapshot = replace(snapshot, commits=snapshot.commits | {copied_commit})
+    monkeypatch.setattr(identity, "_HISTORY_SNAPSHOT_EXCEPTIONS", (snapshot,))
+    _git(tmp_path, "rm", "fixtures/copied.txt")
+    _git(tmp_path, "commit", "-m", "Remove copied fixture")
+
+    violations = identity.audit_repository(tmp_path, include_history=True)
+
+    assert identity.Violation("TXT-001", f"git:{copied_commit[:12]}:fixtures/copied.txt", 1) in violations
+
+
+def test_unapproved_findings_in_the_same_snapshot_still_fail(tmp_path: Path, monkeypatch) -> None:
+    data = f"{_restricted_token()}\n{_restricted_token()}\n{_external_token()}\n".encode()
+    _, _, snapshot = _prepare_history_exception(tmp_path, monkeypatch, payload=data)
+
+    violations = identity.audit_repository(tmp_path, include_history=True)
+
+    historical = [item for item in violations if item.location.endswith(":" + snapshot.path)]
+    assert not any(item.rule_id == "TXT-001" and item.line == 1 for item in historical)
+    assert any(item.rule_id == "TXT-001" and item.line == 2 for item in historical)
+    assert any(item.rule_id != "TXT-001" and item.line == 3 for item in historical)
+
+
+def test_history_exception_never_covers_commit_messages(tmp_path: Path, monkeypatch) -> None:
+    _, _, snapshot = _prepare_history_exception(tmp_path, monkeypatch, message=_restricted_token())
+
+    violations = identity.audit_repository(tmp_path, include_history=True)
+
+    commit = next(iter(snapshot.commits))
+    assert identity.Violation("TXT-001", f"git:{commit[:12]}", 1) in violations
+
+
+def test_history_exception_never_covers_current_files(tmp_path: Path, monkeypatch) -> None:
+    path, data, snapshot = _prepare_history_exception(tmp_path, monkeypatch)
+    path.write_bytes(data)
+
+    violations = identity.audit_repository(tmp_path, include_history=True)
+
+    assert identity.Violation("TXT-001", snapshot.path, 1) in violations
+
+
+def test_history_exception_never_covers_release_artifacts(tmp_path: Path, monkeypatch) -> None:
+    root = tmp_path / "source"
+    _, data, _ = _prepare_history_exception(root, monkeypatch)
+    artifact = tmp_path / "payload.txt"
+    artifact.write_bytes(data)
+
+    violations = identity.audit_repository(root, include_history=True, artifact_paths=[artifact])
+
+    assert identity.Violation("TXT-001", "payload.txt", 1) in violations
 
 
 def test_policy_source_does_not_embed_restricted_samples() -> None:

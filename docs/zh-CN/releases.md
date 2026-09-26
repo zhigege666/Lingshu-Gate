@@ -4,7 +4,7 @@
 
 Lingshu Gate 发行自动化会生成可直接运行的原生包、Docker Compose 部署包，以及只在 Tag 发行提供的 Core 离线镜像。每个已发布资产都由 `SHA256SUMS` 和仓库 Build Provenance Attestation 覆盖。
 
-当前源码版本为 `0.2.0`，新增通用 MCP 协议协商，完善配置编辑与个人 API Token 权限范围选项，并统一控制台导航和页面布局。控制台页面采用直接导航、紧凑工具栏、按需帮助，以及适配窄屏的表格和弹窗。运行时版本信息、Python 包元数据、CLI 输出及发行产物名称统一读取 `src/lingshu_gate/_version.py` 中的唯一版本源。
+当前源码版本为 `0.2.2`，解决历史测试文件扫描阻塞，并包含更新后的首页概览、更清晰的主题边框和可见的构建版本号。控制台页面采用直接导航、紧凑工具栏、按需帮助，以及适配窄屏的表格和弹窗。运行时版本信息、Python 包元数据、CLI 输出及发行产物名称统一读取 `src/lingshu_gate/_version.py` 中的唯一版本源。
 
 当前源码控制台还包含卡片式工具目录，支持按具体 MCP 部署筛选、展示实际读写要求，并将选中工具带入调用编辑器。工具发现新增当前请求的 `metadata.gate_access` 展示快照，详见[运维指南](operations.md#工具目录)。该变更不新增前端依赖或数据库迁移。
 
@@ -151,6 +151,10 @@ ARM64 使用 `arm64` 资产和 Tag。让 `LINGSHU_GATE_IMAGE` 指向加载后的
 ## 自动化行为
 
 仅在 Tag 上运行的容器、离线镜像和发布任务，均在执行发行脚本前显式安装固定版本的发行 Python 环境。失败的发行 Tag 保留；修复后的源码使用新版本发布，不移动旧 Tag。
+
+`v0.2.1` Tag 指向因历史身份检查而发行失败的修订。恢复源码使用 `0.2.2`，合并到
+`main` 后启动新的校验和发布。重跑旧 Tag 仍会检查其原始源码；不会移动或删除旧 Tag。
+精确限定的历史例外详见[开发指南](local-development.md#身份检查)。
 
 配置 Actions Secret `RELEASE_SETTINGS_TOKEN`，使用仅限本仓库、具备 **Administration: read-only** 权限的 GitHub fine-grained token。不可变发行设置接口要求此权限，默认 `GITHUB_TOKEN` 无法提供。此令牌仅用于读取该设置；创建 Tag 和触发工作流仍使用 `GITHUB_TOKEN`。凭据缺失、访问被拒绝或未启用不可变发行都会在创建 Tag 前终止发布。
 
