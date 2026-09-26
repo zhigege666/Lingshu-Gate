@@ -1,4 +1,4 @@
-name: Backend CI
+name: Continuous integration
 
 on:
   push:
@@ -11,14 +11,14 @@ permissions:
   contents: read
 
 concurrency:
-  group: backend-${{ github.event.pull_request.number || github.ref }}
+  group: ci-${{ github.event.pull_request.number || github.ref }}
   cancel-in-progress: true
 
 jobs:
-  repository-policy:
-    name: Repository policy
+  source:
+    name: Source checks
     runs-on: ubuntu-24.04
-    timeout-minutes: 10
+    timeout-minutes: 30
     steps:
       - name: Checkout complete history
         uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
@@ -26,25 +26,11 @@ jobs:
           fetch-depth: 0
           persist-credentials: false
 
-      - name: Validate repository identity
-        run: python scripts/quality/check_repository_identity.py --history
+      - name: Validate repository identity and version
+        run: |
+          python scripts/quality/check_repository_identity.py --history
+          python -m scripts.release.check_version
 
-  test:
-    name: Python ${{ matrix.python-version }}
-    needs: repository-policy
-    runs-on: ubuntu-24.04
-    timeout-minutes: 30
-    strategy:
-      fail-fast: false
-      matrix:
-        python-version: ["3.11", "3.12", "3.13"]
-    steps:
-      - name: Checkout
-        uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
-        with:
-          persist-credentials: false
-
-      # Startup tests exercise the Console entry point, so build its static assets first.
       - name: Set up Node.js
         uses: actions/setup-node@a0853c24544627f65ddf259abe73b1d18a591444 # v5
         with:
@@ -52,16 +38,18 @@ jobs:
           cache: npm
           cache-dependency-path: web/package-lock.json
 
-      - name: Build Console fixture
+      - name: Verify and build Console once
         working-directory: web
         run: |
           npm ci
+          npm run check:ux
+          npm test
           npm run build
 
       - name: Set up Python
         uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1 # v6
         with:
-          python-version: ${{ matrix.python-version }}
+          python-version: "3.12"
 
       - name: Set up uv
         uses: astral-sh/setup-uv@37802adc94f370d6bfd71619e3f0bf239e1f3b78 # v7
@@ -78,11 +66,83 @@ jobs:
           uv export --frozen --no-dev --no-emit-project --format requirements-txt > /tmp/requirements.lock
           diff --unified requirements.lock /tmp/requirements.lock
 
-      - name: Ruff
-        run: uv run ruff check .
+      - name: Verify backend on Python 3.12
+        run: |
+          uv run --no-sync ruff check .
+          uv run --no-sync mypy
+          uv run --no-sync pytest -q
 
-      - name: Mypy baseline
-        run: uv run mypy
+      - name: Share tested Console with compatibility jobs
+        uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6
+        with:
+          name: ci-console-${{ github.sha }}
+          path: src/lingshu_gate/static/console
+          if-no-files-found: error
+          retention-days: 1
+
+  compatibility:
+    name: Python ${{ matrix.python-version }}
+    needs: source
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    strategy:
+      fail-fast: false
+      matrix:
+        python-version: ["3.11", "3.13"]
+    steps:
+      - name: Checkout
+        uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
+        with:
+          persist-credentials: false
+
+      - name: Download Console from this workflow run
+        uses: actions/download-artifact@37930b1c2abaa49bbe596cd826c3c89aef350131 # v7
+        with:
+          name: ci-console-${{ github.sha }}
+          path: src/lingshu_gate/static/console
+
+      - name: Set up Node.js for packaging script tests
+        uses: actions/setup-node@a0853c24544627f65ddf259abe73b1d18a591444 # v5
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: web/package-lock.json
+
+      - name: Install Console dependencies for license tests
+        working-directory: web
+        run: npm ci
+
+      - name: Set up Python
+        uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1 # v6
+        with:
+          python-version: ${{ matrix.python-version }}
+
+      - name: Set up uv
+        uses: astral-sh/setup-uv@37802adc94f370d6bfd71619e3f0bf239e1f3b78 # v7
+        with:
+          version: "0.11.33"
+          enable-cache: true
+          cache-dependency-glob: uv.lock
+
+      - name: Install frozen dependencies
+        run: uv sync --frozen
 
       - name: Test
-        run: uv run pytest -q
+        run: uv run --no-sync pytest -q
+
+  result:
+    name: CI result
+    if: always()
+    needs: [source, compatibility]
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+      - name: Require every source and compatibility check
+        env:
+          SOURCE_RESULT: ${{ needs.source.result }}
+          COMPATIBILITY_RESULT: ${{ needs.compatibility.result }}
+        run: |
+          if [[ "$SOURCE_RESULT" != success || "$COMPATIBILITY_RESULT" != success ]]; then
+            echo "Source and compatibility checks must both succeed"
+            exit 1
+          fi
