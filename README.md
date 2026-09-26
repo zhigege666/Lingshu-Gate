@@ -19,24 +19,19 @@ Lingshu Gate provides one authenticated MCP endpoint, a Web Console, configurati
 
 ## Console preview
 
-Screenshots from a local Gate instance, shown in Chinese. The Console also supports English.
+English screenshots from a local Gate instance. The Console also supports Chinese.
 
-<img src="docs/images/console/dashboard-light.jpg" alt="Gate dashboard in the light theme, showing gateway status, registered services, visible tools, and invocation statistics" width="1000">
+<img src="docs/images/console/en-US/dashboard-light.jpg" alt="Gate dashboard in the light theme, showing gateway status, registered services, visible tools, and invocation statistics" width="1000">
 
 *Dashboard — check gateway status, registered services, and invocation activity.*
 
-<details>
-<summary>Configuration and tool invocation</summary>
-
-<img src="docs/images/console/config-form-light.jpg" alt="MCP configuration dialog with labeled form fields and a JSON editing option" width="1000">
+<img src="docs/images/console/en-US/config-form-light.jpg" alt="MCP configuration dialog with labeled form fields and a JSON editing option" width="1000">
 
 *MCP configuration — maintain common settings in a form or switch to JSON.*
 
-<img src="docs/images/console/tool-invoke-dark.jpg" alt="Gate tool invocation in the dark theme, with form and JSON parameter modes" width="1000">
+<img src="docs/images/console/en-US/tool-invoke-dark.jpg" alt="Gate tool invocation in the dark theme, with form and JSON parameter modes" width="1000">
 
 *Tool invocation — choose a tool, review its parameters, and inspect the result after running it.*
-
-</details>
 
 ## Quick start
 
