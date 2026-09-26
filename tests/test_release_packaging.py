@@ -652,7 +652,7 @@ def test_release_is_the_only_container_publisher() -> None:
     assert "cosign sign" not in container_workflow
 
 
-def test_manual_release_publication_is_version_checked_and_fail_closed() -> None:
+def test_release_publication_is_version_checked_and_fail_closed() -> None:
     publish_workflow = (
         REPOSITORY_ROOT / ".github" / "workflows" / "publish-release.yml"
     ).read_text(encoding="utf-8")
@@ -661,7 +661,9 @@ def test_manual_release_publication_is_version_checked_and_fail_closed() -> None
     ).read_text(encoding="utf-8")
 
     assert "workflow_dispatch:" in publish_workflow
-    assert "\n  push:" not in publish_workflow
+    assert "\n  push:\n    branches:\n      - main" in publish_workflow
+    assert "needs: select" in publish_workflow
+    assert "if: needs.select.outputs.publish == 'true'" in publish_workflow
     assert "contents: write" in publish_workflow
     assert "actions: write" in publish_workflow
     assert "cancel-in-progress: false" in publish_workflow

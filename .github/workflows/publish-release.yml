@@ -1,6 +1,9 @@
 name: Publish release
 
 on:
+  push:
+    branches:
+      - main
   workflow_dispatch:
     inputs:
       tag:
@@ -10,23 +13,61 @@ on:
 
 concurrency:
   group: publish-release
+  queue: max
   cancel-in-progress: false
 
 permissions:
-  contents: write
-  actions: write
+  contents: read
 
 jobs:
+  select:
+    name: Check source version change
+    runs-on: ubuntu-22.04
+    timeout-minutes: 5
+    outputs:
+      publish: ${{ steps.release.outputs.publish }}
+      tag: ${{ steps.release.outputs.tag }}
+    steps:
+      - name: Checkout exact main revision and push history
+        uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
+        with:
+          ref: ${{ github.sha }}
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Select automatic or manual release
+        id: release
+        env:
+          RELEASE_EVENT: ${{ github.event_name }}
+          RELEASE_BEFORE: ${{ github.event.before }}
+          RELEASE_TAG: ${{ inputs.tag }}
+        run: |
+          python -m scripts.release.select_release \
+            --event "$RELEASE_EVENT" \
+            --ref "$GITHUB_REF" \
+            --sha "$GITHUB_SHA" \
+            --before "$RELEASE_BEFORE" \
+            --tag "$RELEASE_TAG" \
+            --github-output "$GITHUB_OUTPUT" \
+            --github-summary "$GITHUB_STEP_SUMMARY"
+
   publish:
     name: Create tag and dispatch verified release
+    needs: select
+    if: needs.select.outputs.publish == 'true'
     runs-on: ubuntu-22.04
     timeout-minutes: 10
+    permissions:
+      contents: write
+      actions: write
+    env:
+      RELEASE_TAG: ${{ needs.select.outputs.tag }}
     steps:
       - name: Validate dispatch source
         run: |
           set -euo pipefail
           if [[ "$GITHUB_REF" != "refs/heads/main" ]]; then
-            echo "Release publication must be dispatched from main" >&2
+            echo "Release publication must originate from main" >&2
             exit 1
           fi
 
@@ -38,8 +79,6 @@ jobs:
           persist-credentials: false
 
       - name: Validate source and release tag
-        env:
-          RELEASE_TAG: ${{ inputs.tag }}
         run: |
           set -euo pipefail
           test "$(git rev-parse HEAD)" = "$GITHUB_SHA"
@@ -80,7 +119,6 @@ jobs:
       - name: Create or verify immutable release tag
         env:
           GH_TOKEN: ${{ github.token }}
-          RELEASE_TAG: ${{ inputs.tag }}
         run: |
           set -euo pipefail
           accept_header="Accept: application/vnd.github+json"
@@ -147,7 +185,6 @@ jobs:
         id: dispatch
         env:
           GH_TOKEN: ${{ github.token }}
-          RELEASE_TAG: ${{ inputs.tag }}
         run: |
           set -euo pipefail
           dispatch_json="$(gh api \

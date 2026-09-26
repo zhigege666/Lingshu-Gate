@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import ast
 import gzip
 import hashlib
 import json
@@ -26,7 +27,6 @@ REQUIRED_LEGAL_FILES = (
     REPOSITORY_ROOT / "THIRD_PARTY_NOTICES.md",
 )
 REQUIRED_DOCUMENTATION_FILES = (REPOSITORY_ROOT / "README.md",)
-VERSION_PATTERN = re.compile(r'^__version__\s*=\s*["\']([^"\']+)["\']\s*$', re.MULTILINE)
 SEMVER_NUMBER = r"(?:0|[1-9][0-9]*)"
 SEMVER_PRERELEASE_IDENTIFIER = r"(?:0|[1-9][0-9]*|[0-9A-Za-z-]*[A-Za-z-][0-9A-Za-z-]*)"
 SAFE_VERSION_PATTERN = re.compile(
@@ -44,6 +44,34 @@ def _valid_release_version(version: str) -> bool:
     )
 
 
+def parse_version(source: str) -> str:
+    """Validate one version assignment without executing its Python source."""
+
+    try:
+        module = ast.parse(source)
+    except SyntaxError as exc:
+        raise RuntimeError("Invalid version source: cannot parse Python") from exc
+    statements = module.body
+    if statements and isinstance(statements[0], ast.Expr):
+        docstring = statements[0].value
+        if isinstance(docstring, ast.Constant) and isinstance(docstring.value, str):
+            statements = statements[1:]
+    if len(statements) != 1:
+        raise RuntimeError("Invalid version source: expected one __version__ assignment")
+    assignment = statements[0]
+    if (
+        not isinstance(assignment, ast.Assign)
+        or len(assignment.targets) != 1
+        or not isinstance(assignment.targets[0], ast.Name)
+        or assignment.targets[0].id != "__version__"
+        or not isinstance(assignment.value, ast.Constant)
+        or not isinstance(assignment.value.value, str)
+        or not _valid_release_version(assignment.value.value)
+    ):
+        raise RuntimeError("Invalid version source: expected one valid __version__ assignment")
+    return assignment.value.value
+
+
 def read_version() -> str:
     """Read and validate the single source version without importing the app."""
 
@@ -51,13 +79,10 @@ def read_version() -> str:
         source = VERSION_FILE.read_text(encoding="utf-8")
     except FileNotFoundError as exc:
         raise RuntimeError(f"Version source is missing: {VERSION_FILE}") from exc
-    match = VERSION_PATTERN.search(source)
-    if (
-        match is None
-        or not _valid_release_version(match.group(1))
-    ):
-        raise RuntimeError(f"Invalid version source: {VERSION_FILE}")
-    return match.group(1)
+    try:
+        return parse_version(source)
+    except RuntimeError as exc:
+        raise RuntimeError(f"Invalid version source: {VERSION_FILE}") from exc
 
 
 def is_prerelease(version: str) -> bool:

@@ -152,7 +152,15 @@ ARM64 使用 `arm64` 资产和 Tag。让 `LINGSHU_GATE_IMAGE` 指向加载后的
 
 配置 Actions Secret `RELEASE_SETTINGS_TOKEN`，使用仅限本仓库、具备 **Administration: read-only** 权限的 GitHub fine-grained token。不可变发行设置接口要求此权限，默认 `GITHUB_TOKEN` 无法提供。此令牌仅用于读取该设置；创建 Tag 和触发工作流仍使用 `GITHUB_TOKEN`。凭据缺失、访问被拒绝或未启用不可变发行都会在创建 Tag 前终止发布。
 
-发行工作流在影响打包的 Pull Request、手动触发和 `v*` Tag 上运行。独立的 **Publish release** 工作流是正式发行的仓库批准入口：从 `main` 触发并输入精确的 `v<version>` Tag。它会校验源码版本，在创建 Tag 前强制确认仓库已启用 Release immutability，在该次 `main` 修订上创建或验证不可移动的 Tag，再以已验证的 Tag 触发 `release.yml`。
+发行工作流在影响打包的 Pull Request、手动触发和 `v*` Tag 上运行。独立的 **Publish release** 工作流是正式发行的仓库批准入口，会检查每次推送到 `main` 的提交，同时保留从 `main` 输入精确 `v<version>` Tag 的手动触发入口。
+
+对于 `main` 推送，工作流分别解析此次推送 `before` 和 `after` 修订中唯一版本来源 `src/lingshu_gate/_version.py` 的值，只有版本发生变化才开始发布；普通提交和仅修改注释都不会发布。例如，明确将版本从 `0.2.0` 改为 `0.2.1`，会在此次推送的精确 `after` 修订上创建 `v0.2.1`。工作流不会自动递增版本号。合并自动化改动时，如果源码版本不变，不会补发 `v0.2.0`。
+
+两个入口都会校验源码版本，确认发布凭据齐备且仓库已启用 Release immutability，在选定的精确 `main` 修订上创建或验证不可移动的 Tag，再明确以已验证的 Tag 触发 `release.yml`。版本不合法、推送基准缺失或无法验证、已有 Tag 指向其他修订、凭据缺失或未启用不可变发行，都会终止发布。Tag 发行仍执行既有的全部打包、测试、Attestation 和镜像仓库发布检查。
+
+失败后，优先重跑原来的 **Publish release** 运行，保留其 `before` 修订和源码 SHA；或重跑已有 **Release artifacts** 运行中失败的 Job。手动触发 **Publish release** 仍须匹配所选 `main` 修订及其源码版本：如果 Tag 已创建且 `main` 已前进，从最新 `main` 手动触发旧 Tag 会被正确拒绝。修复源码须使用新版本；后续版本不变的推送不会自动重试失败的发行。同一提交上的同一 Tag 可以再次执行，但仍受既有的不可变 Release 和资产校验约束。这不保证发布恰好执行一次，也不会为重试而移动已有 Tag。
+
+**Publish release** 入口工作流和 `release.yml` 中的镜像仓库发布 Job 均使用 `queue: max`。每个并发组最多允许 100 个待运行项；队列满时 GitHub 会取消新增项，对应发行需要人工恢复。详见 [GitHub 并发限制](https://docs.github.com/en/actions/how-tos/write-workflows/choose-when-workflows-run/control-workflow-concurrency)。
 
 独立的 **Container images** 工作流只负责验证。推送到 `main`、Pull Request 和手动运行可以构建并扫描 Core 镜像，但该工作流不会登录镜像仓库，也不会推送任何镜像。镜像发布只保留在 `release.yml` 的已验证 Tag 链路中。
 
@@ -169,14 +177,14 @@ Pull Request 构建成功不等于已经发布。只有匹配且通过验证的 
 
 ## 版本与发行检查清单
 
-创建 Tag 前：
+将版本变更合并到 `main` 或手动开始发布前：
 
 1. 更新单一版本来源和面向用户的发行说明；
 2. 运行后端、Console、身份、打包和容器检查；
 3. 确认 `LICENSE`、`NOTICE` 和 `THIRD_PARTY_NOTICES.md` 为最新状态；
 4. 确认英文与简体中文文档匹配产物行为；
 5. 在首次创建 Release 前，为仓库启用 GitHub Release immutability；
-6. 从 `main` 触发 **Publish release** 并输入精确的 `v<version>` Tag；工作流会在不移动已有 Ref 的前提下创建或验证 Tag，然后启动已验证的 Tag 发行；
+6. 将版本变更合并到 `main`，自动启动 **Publish release**；工作流会在不移动已有 Ref 的前提下创建或验证 Tag，然后启动已验证的 Tag 发行；失败时按上面的恢复规则处理；
 7. 等待全部矩阵 Job 和发布步骤完成；
 8. 独立下载并校验至少一个原生归档、Compose 包、`SHA256SUMS` 及其 Attestation；
 9. 校验已发布容器摘要和 Release 链接。
