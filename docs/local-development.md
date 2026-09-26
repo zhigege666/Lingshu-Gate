@@ -92,6 +92,23 @@ npm --prefix web run build
 
 Do not edit generated files under `src/lingshu_gate/static/console` by hand. Change `web/` and rebuild.
 
+## Pull request checks
+
+**Continuous integration** runs repository identity, version and dependency
+checks, Ruff, Mypy, Console UX tests, TypeScript, and the production Console
+build once. It runs the full Python suite on 3.12, then shares those Console
+assets with the 3.11 and 3.13 compatibility jobs in the same workflow run.
+**CI result** always reports and fails if a source or compatibility job fails,
+is cancelled, or is skipped. CodeQL and container checks report separately.
+
+Ordinary UI and README changes do not start the five-platform native package
+matrix. Version, dependency, packaging, startup, runtime-environment, identity
+policy, or release-workflow changes still do. Packaging PRs run focused release
+tests in the pinned toolchain; formal releases independently rerun all source
+and artifact checks and build fresh assets. PR artifacts are never reused for
+publication. Container CI validates the image and Compose without repeating
+the frontend and backend suites.
+
 ## Container checks
 
 ```bash

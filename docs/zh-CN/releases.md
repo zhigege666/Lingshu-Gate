@@ -158,7 +158,7 @@ ARM64 使用 `arm64` 资产和 Tag。让 `LINGSHU_GATE_IMAGE` 指向加载后的
 
 配置 Actions Secret `RELEASE_SETTINGS_TOKEN`，使用仅限本仓库、具备 **Administration: read-only** 权限的 GitHub fine-grained token。不可变发行设置接口要求此权限，默认 `GITHUB_TOKEN` 无法提供。此令牌仅用于读取该设置；创建 Tag 和触发工作流仍使用 `GITHUB_TOKEN`。凭据缺失、访问被拒绝或未启用不可变发行都会在创建 Tag 前终止发布。
 
-发行工作流在影响打包的 Pull Request、手动触发和 `v*` Tag 上运行。独立的 **Publish release** 工作流是正式发行的仓库批准入口，会检查每次推送到 `main` 的提交，同时保留从 `main` 输入精确 `v<version>` Tag 的手动触发入口。
+发行工作流在影响版本、依赖、打包、启动入口/运行环境、身份策略或发行工作流的 Pull Request、手动触发和 `v*` Tag 上运行。普通 UI 和 README 修改使用统一 CI，不启动原生打包矩阵。打包 PR 在统一 CI 之外运行针对性的发行测试；正式发行保留独立完整源码校验，并在五个目标平台重新构建。独立的 **Publish release** 工作流是正式发行的仓库批准入口，会检查每次推送到 `main` 的提交，同时保留从 `main` 输入精确 `v<version>` Tag 的手动触发入口。
 
 对于 `main` 推送，工作流分别解析此次推送 `before` 和 `after` 修订中唯一版本来源 `src/lingshu_gate/_version.py` 的值，只有版本发生变化才开始发布；普通提交和仅修改注释都不会发布。例如，明确将版本从 `0.2.0` 改为 `0.2.1`，会在此次推送的精确 `after` 修订上创建 `v0.2.1`。工作流不会自动递增版本号。合并自动化改动时，如果源码版本不变，不会补发 `v0.2.0`。
 

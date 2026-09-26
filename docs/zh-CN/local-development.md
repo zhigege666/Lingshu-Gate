@@ -92,6 +92,18 @@ npm --prefix web run build
 
 不要手工编辑 `src/lingshu_gate/static/console` 下的生成文件。修改 `web/` 后重新构建。
 
+## Pull Request 检查
+
+**Continuous integration** 集中运行仓库身份、版本与依赖检查、Ruff、Mypy、Console
+UX 测试、TypeScript 和生产构建。Python 3.12 运行完整测试后，将本次工作流的
+Console 产物共享给 Python 3.11、3.13 兼容性任务。**CI result** 始终报告结果，
+源码或兼容性任务失败、取消、被跳过都会使汇总失败。CodeQL 和容器检查独立报告。
+
+普通 UI 和 README 修改不再启动五平台原生打包矩阵；版本、依赖、打包、启动入口、
+运行环境、身份策略和发行工作流变更仍会触发。打包 PR 在固定工具链中运行针对性的
+发行测试；正式发行独立重跑完整源码与产物检查，并重新构建资产，不复用 PR 产物发布。
+容器 CI 校验镜像与 Compose，不重复前后端测试套件。
+
 ## 容器检查
 
 ```bash

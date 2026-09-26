@@ -9,12 +9,23 @@ on:
       - ".github/workflows/release.yml"
       - "packaging/**"
       - "scripts/release/**"
-      - "src/**"
+      - "scripts/quality/**"
+      - "src/lingshu_gate/_version.py"
+      - "src/lingshu_gate/__init__.py"
+      - "src/lingshu_gate/cli.py"
+      - "src/lingshu_gate/runtime_environment.py"
+      - "src/lingshu_gate/config.py"
+      - "src/lingshu_gate/auth.py"
+      - "src/lingshu_gate/build_deploy.py"
+      - "src/lingshu_gate/build_preflight.py"
+      - "src/lingshu_gate/diagnostics.py"
       - "tests/test_release_packaging.py"
-      - "web/**"
+      - "tests/test_auto_release.py"
+      - "web/package.json"
+      - "web/package-lock.json"
+      - "web/vite.config.*"
       - "pyproject.toml"
       - "uv.lock"
-      - "README.md"
       - "LICENSE"
       - "NOTICE"
       - "THIRD_PARTY_NOTICES.md"
@@ -83,6 +94,7 @@ jobs:
           python-version: ${{ env.LINGSHU_GATE_RELEASE_PYTHON_VERSION }}
 
       - name: Validate repository identity
+        if: github.event_name != 'pull_request'
         run: python scripts/quality/check_repository_identity.py --history
 
       - name: Set up Node.js
@@ -93,10 +105,11 @@ jobs:
           cache-dependency-path: web/package-lock.json
 
       - name: Verify and build Console
+        if: github.event_name != 'pull_request'
         working-directory: web
         run: |
           npm ci
-          npm run check
+          npm run check:ux
           npm test
           npm run build
 
@@ -111,15 +124,26 @@ jobs:
         run: uv sync --frozen --group release
 
       - name: Verify pip export is synchronized
+        if: github.event_name != 'pull_request'
         run: |
           uv export --frozen --no-dev --no-emit-project --format requirements-txt > /tmp/requirements.lock
           diff --unified requirements.lock /tmp/requirements.lock
 
       - name: Verify backend and release engineering
+        if: github.event_name != 'pull_request'
         run: |
           uv run --no-sync ruff check .
           uv run --no-sync mypy
           uv run --no-sync pytest -q
+
+      - name: Install Console dependencies for release tests
+        if: github.event_name == 'pull_request'
+        working-directory: web
+        run: npm ci
+
+      - name: Verify release engineering on pull requests
+        if: github.event_name == 'pull_request'
+        run: uv run --no-sync pytest -q tests/test_release_packaging.py tests/test_auto_release.py
 
   native:
     name: Native ${{ matrix.target }}
