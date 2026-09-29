@@ -235,10 +235,10 @@ function StringMapEditor({ value, label, disabled, onChange, zh, id, credentials
     </div>
     {(key || entryValue) && <div className="flex items-center justify-between gap-2"><p className="text-xs text-muted-foreground">{zh ? "点击添加后写入配置；键名的空格和空值会原样保留。" : "Select Add to include this entry; spaces in keys and empty values are preserved."}</p><Button type="button" size="sm" variant="ghost" onClick={() => { setKey(""); setEntryValue(""); setError("") }}>{zh ? "清除待添加项" : "Clear pending entry"}</Button></div>}
     {error && <p role="alert" className="text-xs text-destructive">{error}</p>}
-    {credentials.length > 0 && <details>
-      <summary className="text-xs cursor-pointer">{zh ? "插入凭据引用" : "Insert credential reference"}</summary>
+    {credentials.length > 0 && <section>
+      <h4 className="text-xs font-medium">{zh ? "插入凭据引用" : "Insert credential reference"}</h4>
       <div className="mt-2 flex flex-wrap gap-2">{credentials.map((item) => <Button key={item.id} type="button" variant="outline" size="sm" onClick={() => add(envKeyFromCredential(item.id), credentialRef(item.id))}>{item.id}</Button>)}</div>
-    </details>}
+    </section>}
   </fieldset>
 }
 

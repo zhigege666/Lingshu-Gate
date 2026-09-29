@@ -269,7 +269,7 @@ export function AccessUsersPage({ locale, t }: { locale: Locale; t: TFunction })
                     <TableCell><div className="flex flex-wrap gap-1">{user.roles.map((role) => <Badge key={role} variant="outline">{role}</Badge>)}</div></TableCell>
                     <TableCell className="whitespace-nowrap text-xs text-muted-foreground">{formatDateTime(user.created_at)}</TableCell>
                     <TableCell onClick={(event) => event.stopPropagation()}>
-                      <ActionMenu label={t("actions")}>
+                      <ActionMenu inline label={t("actions")}>
                         <ActionMenuItem disabled={busy} onClick={() => edit(user)}>{c.edit}</ActionMenuItem>
                         {user.status === "pending" && <ActionMenuItem disabled={busy} onClick={() => void update(user, "active")}>{c.approve}</ActionMenuItem>}
                         {user.status === "disabled" ? <ActionMenuItem disabled={busy} onClick={() => void update(user, "active")}>{c.enable}</ActionMenuItem> : <ActionMenuItem destructive disabled={busy} onClick={() => void disableUser(user)}>{c.disable}</ActionMenuItem>}

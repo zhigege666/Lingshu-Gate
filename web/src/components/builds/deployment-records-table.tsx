@@ -64,7 +64,7 @@ export function DeploymentRecordsTable({ deployments, busy, selectedDeploymentId
             <TableCell>{deployment.started ? <Badge variant="success">{t("started")}</Badge> : <Badge variant="outline">{t("notStarted")}</Badge>}</TableCell>
             <TableCell className="whitespace-nowrap text-xs text-muted-foreground">{formatDateTime(deployment.created_at)}</TableCell>
             <TableCell className="text-right" onClick={(event) => event.stopPropagation()} onKeyDown={(event) => event.stopPropagation()}>
-              <ActionMenu label={tx("moreActions")}>
+              <ActionMenu inline label={t("actions")}>
                 <ActionMenuItem onClick={() => onDetail(deployment)}>{tx("view")}</ActionMenuItem>
                 <ActionMenuItem onClick={() => window.open(`/v1/mcp/servers/${encodeURIComponent(deployment.server_id)}/detail`, "_blank", "noopener,noreferrer")}>{t("viewServerDetail")}</ActionMenuItem>
                 {deployment.previous_manifest ? <ActionMenuItem disabled={busy} onClick={() => onRollback(deployment.id)}>{t("rollback")}</ActionMenuItem> : null}

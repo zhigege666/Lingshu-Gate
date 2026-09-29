@@ -286,7 +286,7 @@ export function AccessGrantsPage({ locale, t }: { locale: Locale; t: TFunction }
                     <TableCell><div className="max-w-72 truncate" title={grant.tool_id || c.wholeServer}>{grant.tool_id || c.wholeServer}</div></TableCell>
                     <TableCell><AccessBadge level={grant.base_level} labels={c} /><div className="mt-1 text-xs text-muted-foreground">{grant.permission_type_name}</div></TableCell>
                     <TableCell className="whitespace-nowrap text-xs text-muted-foreground">{grant.expires_at ? formatDateTime(grant.expires_at) : c.neverExpires}</TableCell>
-                    <TableCell><ActionMenu label={t("actions")}><ActionMenuItem destructive disabled={busy} onClick={() => void remove(grant)}>{t("delete")}</ActionMenuItem></ActionMenu></TableCell>
+                    <TableCell><ActionMenu inline label={t("actions")}><ActionMenuItem destructive disabled={busy} onClick={() => void remove(grant)}>{t("delete")}</ActionMenuItem></ActionMenu></TableCell>
                   </TableRow>)}
                 </TableBody>
               </Table>

@@ -1,9 +1,9 @@
 import { useEffect, useMemo, useState, type ReactNode } from "react"
 import {
   ArrowLeftOutlined, ArrowRightOutlined, CloudServerOutlined, CodeOutlined, ExportOutlined,
-  InfoCircleOutlined, MoreOutlined, PlusOutlined, ReloadOutlined, SearchOutlined, UnorderedListOutlined,
+  InfoCircleOutlined, PlusOutlined, ReloadOutlined, SearchOutlined, UnorderedListOutlined,
 } from "@ant-design/icons"
-import { Alert, Badge, Button, Collapse, Drawer, Dropdown, Empty, Grid, Input, Segmented, Skeleton, Table, Tabs, Tag, Tooltip, type TableColumnsType } from "antd"
+import { Alert, Badge, Button, Collapse, Drawer, Empty, Grid, Input, Segmented, Skeleton, Table, Tabs, Tag, Tooltip, type TableColumnsType } from "antd"
 import type { McpServer, McpServerDetailSlice, ToolClassification, ToolDefinition } from "@/api/client"
 import { JsonPanel } from "@/components/json-panel"
 import { PageHeader, PageToolbar } from "@/components/page-shell"
@@ -186,9 +186,7 @@ export function ServersPage(props: Props) {
         <Button type="text" className="service-detail-back" icon={<ArrowLeftOutlined />} onClick={() => chooseServer(null)}>{c.back}</Button>
         <PageHeader variant="detail" title={server.name || server.id} description={server.id} titleExtra={<RuntimeBadge server={server} t={t} pill />} actions={<>
           <Button type="primary" icon={<ExportOutlined />} onClick={() => setTab("tools")}>{c.viewTools}</Button>
-          <Dropdown trigger={["click"]} menu={{ items: actions.map(action => ({ key: action, label: actionName(action), danger: action === "stop", disabled: actionBusy || props.busy })), onClick: ({ key }) => { if (actions.includes(key as Action)) void runAction(key as Action) } }}>
-            <Button icon={<MoreOutlined />} loading={actionBusy} disabled={actions.length === 0} aria-label={c.more} />
-          </Dropdown>
+          {actions.map(action => <Button key={action} danger={action === "stop"} disabled={actionBusy || props.busy} onClick={() => void runAction(action)}>{actionName(action)}</Button>)}
         </>} />
         <div className="service-detail-identity"><code>{server.launch_type} / {server.transport_type}</code></div>
         <Tabs className="service-detail-tabs" activeKey={tab} onChange={value => setTab(value as MainTab)} items={[

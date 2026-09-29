@@ -43,8 +43,8 @@ export function BuildRecordsTable({ builds, busy, selectedBuildId, canRequestSto
   return <Card>
     <CardHeader><CardTitle>{t("buildRecords")}</CardTitle><CardDescription>{t("buildRecordsDesc")}</CardDescription></CardHeader>
     <CardContent>
-      <Table className="table-fixed">
-        <ColGroup order={["id", "runtime", "status", "created_at", "updated_at", "actions"]} widths={widths} />
+      <Table className="table-fixed" style={{ minWidth: ["id", "runtime", "status", "created_at", "updated_at"].reduce((total, key) => total + widths[key], 300) }}>
+        <ColGroup order={["id", "runtime", "status", "created_at", "updated_at", "actions"]} widths={{ ...widths, actions: 300 }} />
         <TableHeader><TableRow>
           <SortHead label={t("id")} sortKey="id" activeKey={sortKey} dir={sortDir} onSort={toggleSort} onResizeStart={startResize("id")} />
           <SortHead label={t("runtimeType")} sortKey="runtime" activeKey={sortKey} dir={sortDir} onSort={toggleSort} onResizeStart={startResize("runtime")} />
@@ -69,7 +69,7 @@ export function BuildRecordsTable({ builds, busy, selectedBuildId, canRequestSto
             <TableCell className="whitespace-nowrap text-xs text-muted-foreground">{formatDateTime(build.created_at)}</TableCell>
             <TableCell className="whitespace-nowrap text-xs text-muted-foreground">{formatDateTime(build.updated_at)}</TableCell>
             <TableCell className="text-right" onClick={(event) => event.stopPropagation()} onKeyDown={(event) => event.stopPropagation()}>
-              <ActionMenu label={tx("moreActions")}>
+              <ActionMenu inline label={t("actions")}>
                 <ActionMenuItem onClick={() => onShowBuild(build)}>{tx("view")}</ActionMenuItem>
                 <ActionMenuItem onClick={() => onLoadLogs(build)}>{tx("viewLogs")}</ActionMenuItem>
                 {canRequestStop(build) ? <ActionMenuItem disabled={busy} onClick={() => onRequestStop(build.id)}>{t("requestStop")}</ActionMenuItem> : null}

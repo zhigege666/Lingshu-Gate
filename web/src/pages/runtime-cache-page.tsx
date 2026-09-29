@@ -98,7 +98,7 @@ export function RuntimeCachePage({ t }: { t: TFunction }) {
                 <TableCell>{cache.file_count}</TableCell>
                 <TableCell>{booleanBadge(cache.writable || cache.parent_writable)}</TableCell>
                 <TableCell className="whitespace-nowrap text-xs">{formatDateTime(cache.last_modified_at)}</TableCell>
-                <TableCell onClick={(event) => event.stopPropagation()}><ActionMenu label={t("actions")}><ActionMenuItem onClick={() => setDetail(cache)}>{t("detail")}</ActionMenuItem><ActionMenuItem destructive disabled={busy} onClick={() => void clearCache(cache.name)}>{t("clearCache")}</ActionMenuItem></ActionMenu></TableCell>
+                <TableCell onClick={(event) => event.stopPropagation()}><ActionMenu inline label={t("actions")}><ActionMenuItem onClick={() => setDetail(cache)}>{t("detail")}</ActionMenuItem><ActionMenuItem destructive disabled={busy} onClick={() => void clearCache(cache.name)}>{t("clearCache")}</ActionMenuItem></ActionMenu></TableCell>
               </TableRow>)}
             </TableBody>
           </Table>

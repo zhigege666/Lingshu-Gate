@@ -68,11 +68,9 @@ export function CredentialsPage({ locale, t }: { locale: Locale; t: TFunction })
     }
   }
 
-  function edit(credential: Credential, menuItem: HTMLButtonElement) {
-    // 菜单项打开弹窗后会卸载，关闭时应回到仍在表格中的菜单按钮。
-    const menuId = menuItem.closest('[role="menu"]')?.id
-    editorReturnFocus.current = Array.from(document.querySelectorAll<HTMLButtonElement>('button[aria-controls]'))
-      .find(button => button.getAttribute("aria-controls") === menuId) || createTrigger.current
+  function edit(credential: Credential, trigger: HTMLButtonElement) {
+    // 编辑操作常驻行内，关闭弹窗后回到本次编辑按钮。
+    editorReturnFocus.current = trigger
     if (busy) return
     setFormError(null)
     setShowValidation(false)
@@ -192,7 +190,7 @@ export function CredentialsPage({ locale, t }: { locale: Locale; t: TFunction })
                   <TableCell>{credential.name}</TableCell>
                   <TableCell>{credential.description || "-"}</TableCell>
                   <TableCell className="whitespace-nowrap text-xs">{formatDateTime(credential.updated_at)}</TableCell>
-                  <TableCell onClick={(event) => event.stopPropagation()}><ActionMenu label={t("actions")}><ActionMenuItem disabled={busy} onClick={(event) => edit(credential, event.currentTarget)}>{t("edit")}</ActionMenuItem><ActionMenuItem onClick={() => void copyReference(credential.id)}>{t("copyRef")}</ActionMenuItem><ActionMenuItem onClick={() => showDetail(credential)}>{t("detail")}</ActionMenuItem><ActionMenuItem destructive disabled={busy} onClick={() => void remove(credential.id)}>{t("delete")}</ActionMenuItem></ActionMenu></TableCell>
+                  <TableCell onClick={(event) => event.stopPropagation()}><ActionMenu inline label={t("actions")}><ActionMenuItem disabled={busy} onClick={(event) => edit(credential, event.currentTarget)}>{t("edit")}</ActionMenuItem><ActionMenuItem onClick={() => void copyReference(credential.id)}>{t("copyRef")}</ActionMenuItem><ActionMenuItem onClick={() => showDetail(credential)}>{t("detail")}</ActionMenuItem><ActionMenuItem destructive disabled={busy} onClick={() => void remove(credential.id)}>{t("delete")}</ActionMenuItem></ActionMenu></TableCell>
                 </TableRow>)}
               </TableBody>
             </Table>
