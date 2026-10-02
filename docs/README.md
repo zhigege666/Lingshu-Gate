@@ -6,6 +6,9 @@ This documentation describes the current Gate product boundary. English is autho
 
 | Guide | Purpose |
 |---|---|
+| [Performance review](performance-review.md) | Reproducible synthetic benchmarks and validation limits |
+| [Retention controls](retention.md) | Separate log, event and invocation lifetimes, cleanup preview and confirmation |
+| [Invocation content recording](invocation-recording.md) | Opt-in bounded redacted content, owner isolation, audit capability and retention |
 | [Architecture](architecture.md) | Components, request paths, persistence, and trust boundaries |
 | [Configuration](configuration.md) | Environment variables, directories, manifests, credentials, and reverse proxy settings |
 | [MCP gateway](mcp-gateway.md) | Gateway endpoint, protocol negotiation, downstream HTTP/stdio, discovery, classification, and invocation |
@@ -14,6 +17,8 @@ This documentation describes the current Gate product boundary. English is autho
 | [Operations](operations.md) | Health probes, logs, events, diagnostics, runtime cache, audits, and incident checks |
 | [Local development](local-development.md) | Source setup, Console build, test suites, and repository conventions |
 | [UI interaction contract](ui-interaction-contract.md) | Acceptance rules for new or migrated Console UI, editor safety, evidence, and independent review |
+| [Browser regression](browser-regression.md) | Isolated real-backend Playwright, synthetic large lists, scenario IDs and evidence boundaries |
+| [External OAuth resource access](external-connections.md) | Default-disabled JWT verification, trust configuration, personal delegations and integration boundaries |
 | [Release artifacts](releases.md) | Platform archives, checksums, SBOM, build metadata, offline images, and publishing rules |
 
 API schemas are served by a running Gate instance at `/docs`. Security policy and reporting instructions live in [SECURITY.md](../SECURITY.md).

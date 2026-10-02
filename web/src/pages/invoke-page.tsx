@@ -3,6 +3,7 @@ import { App as AntApp, Alert, Button, Empty, Input, Segmented, Select, Spin, Ta
 import { Braces, ChevronDown, ChevronRight, Copy, FileInput, Info, Play, RotateCcw, Server } from "lucide-react"
 import { api, type McpServer, type ToolDefinition } from "@/api/client"
 import { PageHeader } from "@/components/page-shell"
+import { ResultViewer } from "@/features/invoke/result-viewer"
 import { JsonPanel } from "@/components/json-panel"
 import { ValidationErrors } from "@/components/validation-errors"
 import { pathFor, pointerFor, type ValidationIssue } from "@/lib/validation"
@@ -27,7 +28,12 @@ type InvokePageProps = {
   onLeaveStateChange?:(state:{dirty:boolean;pending:boolean})=>void
 }
 
-export function InvokePage({locale,t,tools,servers,toolsLoaded,toolsError,selectedToolId,onToolChange,onRefresh,onLeaveStateChange}:InvokePageProps) {
+// Only this lazy route needs Ant Design message/notification/modal holders.
+export function InvokePage(props: InvokePageProps) {
+  return <AntApp component={false}><InvokeWorkspace {...props} /></AntApp>
+}
+
+function InvokeWorkspace({locale,t,tools,servers,toolsLoaded,toolsError,selectedToolId,onToolChange,onRefresh,onLeaveStateChange}:InvokePageProps) {
   const c=invokeCopy(locale)
   const {message}=AntApp.useApp()
   const selectedTool=tools.find(tool=>tool.id === selectedToolId)
@@ -161,10 +167,10 @@ export function InvokePage({locale,t,tools,servers,toolsLoaded,toolsError,select
   const unavailable=Boolean(selectedToolId && !selectedTool)
   const runningHere=Boolean(draft?.pending)
   return <div className="invoke-workspace">
-    <PageHeader title={c.title} description={c.description} helpLabel={t("pageHelp")} toolbar={(toolsLoaded || toolsError) && groups.length > 0 ? <section className="invoke-target" aria-label={c.selectTarget}>
+    <PageHeader closeLabel={t("close")} title={c.title} description={c.description} helpLabel={t("pageHelp")} toolbar={(toolsLoaded || toolsError) && groups.length > 0 ? <section className="invoke-target" aria-label={c.selectTarget}>
           <div className="invoke-target-selectors">
             <div><label className="invoke-selection-label" htmlFor="invoke-service">{c.service}</label><Select id="invoke-service" showSearch optionFilterProp="label" aria-label={c.service} className="invoke-selector" value={selectedService || undefined} onChange={selectService} placeholder={c.searchServices} prefix={<Server size={16}/>} options={groups.map(group=>({value:group.key,label:group.label}))}/></div>
-            <div><label className="invoke-selection-label" htmlFor="invoke-tool">{c.tool}</label><Select id="invoke-tool" showSearch optionFilterProp="label" aria-label={c.tool} className="invoke-selector" value={selectedTool?.id} onChange={selectTool} placeholder={c.searchTools} notFoundContent={c.noTools} options={(service?.tools || []).map(tool=>({value:tool.id,label:tool.name && tool.name !== tool.id ? `${tool.name} · ${tool.id}` : tool.id}))}/></div>
+            <div><label className="invoke-selection-label" htmlFor="invoke-tool">{c.tool}</label><Select id="invoke-tool" showSearch optionFilterProp="label" aria-label={c.tool} className="invoke-selector" value={selectedTool?.id} onChange={selectTool} placeholder={c.searchTools} notFoundContent={service?.tools.length ? t("noMatchingTools") : c.noTools} options={(service?.tools || []).map(tool=>({value:tool.id,label:tool.name && tool.name !== tool.id ? `${tool.name} · ${tool.id}` : tool.id}))}/></div>
           </div>
           {selectedTool && <details className="invoke-tool-details"><summary>{c.toolDetails} <Tag color={access?.access === "write" ? "orange" : undefined}>{accessLabel}</Tag></summary><dl><dt>{c.serviceId}</dt><dd><code>{service?.id || "—"}</code></dd><dt>{c.tool}</dt><dd><code>{selectedTool.id}</code></dd></dl>{selectedTool.description && <p className="invoke-tool-description">{selectedTool.description}</p>}</details>}
         </section> : undefined}/>
@@ -172,6 +178,7 @@ export function InvokePage({locale,t,tools,servers,toolsLoaded,toolsError,select
     {!toolsLoaded && !toolsError ? <div className="invoke-loading"><Spin/><span>{c.loading}</span></div> : <>
       {unavailable && <Alert type="warning" showIcon title={c.unavailable}/>}
       {!groups.length ? <Empty description={<><strong>{c.empty}</strong><p>{c.emptyHint}</p></>}/> : <>
+        <div className="invoke-workbench"><div className="invoke-input-pane">
         <section className="invoke-parameters" aria-label={c.configure}>
           {selectedTool && draft ? <>
             <div className="invoke-editor-toolbar"><Segmented aria-label={c.editorMode} value={draft.mode} disabled={runningHere} onChange={value=>switchMode(value as "form"|"json")} options={[{value:"form",label:c.form},{value:"json",label:c.json}]}/><div className="invoke-editor-actions"><Button type="link" icon={<FileInput size={16}/>} disabled={runningHere} onClick={()=>replaceArguments("example")}>{c.example}</Button><Button type="link" icon={<RotateCcw size={16}/>} disabled={runningHere} onClick={()=>replaceArguments("defaults")}>{c.defaults}</Button>{undo?.key === key && <Button type="link" disabled={runningHere} onClick={()=>{if (blockPendingEntries()) return;patch({...undo.snapshot,error:null});setUndo(null)}}>{c.undo}</Button>}</div></div>
@@ -184,14 +191,16 @@ export function InvokePage({locale,t,tools,servers,toolsLoaded,toolsError,select
               <div className={`invoke-json-layout ${docsOpen ? "invoke-with-reference" : ""}`}><Input.TextArea id="invoke-arguments" aria-label={t("arguments")} aria-invalid={Boolean(issues.length)} aria-describedby={issues.length ? "invoke-validation-summary" : undefined} spellCheck={false} autoComplete="off" value={draft.text} disabled={runningHere} onChange={event=>patch({text:event.target.value,source:"edited",error:null})} onKeyDown={event=>{if ((event.ctrlKey || event.metaKey) && event.key === "Enter") {event.preventDefault();void run()}}}/>{docsOpen && <ArgumentReference schema={selectedTool.input_schema} c={c}/>}</div>
             </>}
             <div className="invoke-editor-footer"><p className="invoke-source-hint"><Info size={14}/><span>{hint}</span></p><Button type="text" aria-expanded={schemaOpen} onClick={()=>setSchemaOpen(!schemaOpen)} icon={schemaOpen ? <ChevronDown size={15}/> : <ChevronRight size={15}/>}>{t("inputSchema")}</Button></div>
-            {schemaOpen && <JsonPanel data={selectedTool.input_schema} maxHeight="max-h-64"/>}
+            {schemaOpen && <JsonPanel copyLabel={t("copy")} data={selectedTool.input_schema} maxHeight="max-h-64"/>}
           </> : <div className="invoke-blank">{c.noTools}</div>}
         </section>
         <div className="invoke-run-bar"><p><span>{c.target}: <code>{selectedTool?.id || service?.label || "—"}</code></span></p><Button type="primary" icon={<Play size={17}/>} loading={runningHere} disabled={!selectedTool || !toolsLoaded || Boolean(toolsError) || !parsed.ok} onClick={()=>void run()}>{runningHere ? c.running : c.run}</Button></div>
+        </div>
         <section className="invoke-result" aria-label={c.result}>
           <div className="invoke-result-heading"><div><h2>{c.result}</h2><Tag color={runningHere ? "processing" : draft?.result ? draft.result.ok ? "success" : "error" : "default"}>{runningHere ? c.running : draft?.result ? draft.result.ok ? c.success : c.failed : c.idle}</Tag></div>{draft?.result && <Button type="text" icon={<Copy size={18}/>} aria-label={c.copy} title={c.copy} disabled={runningHere} onClick={()=>void copyResult()}/>}</div>
-          <div className="invoke-result-body" aria-live="polite">{runningHere ? <div className="invoke-result-empty"><Spin size="small"/><span>{c.runningHint}</span></div> : draft?.result ? <><div className="invoke-result-target">{c.lastResult}: {draft.result.target} · <code>{draft.result.toolId}</code></div><pre>{draft.result.text}</pre></> : <p className="invoke-result-empty">{c.waitingHint}</p>}</div>
+          <div className="invoke-result-body" aria-live="polite">{runningHere ? <div className="invoke-result-empty"><Spin size="small"/><span>{c.runningHint}</span></div> : draft?.result ? <><div className="invoke-result-target">{c.lastResult}: {draft.result.target} · <code>{draft.result.toolId}</code></div><ResultViewer key={key} raw={draft.result.text} locale={locale}/></> : <p className="invoke-result-empty">{c.waitingHint}</p>}</div>
         </section>
+        </div>
       </>}
     </>}
   </div>

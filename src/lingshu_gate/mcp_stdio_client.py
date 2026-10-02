@@ -59,6 +59,10 @@ class McpProtocolError(RuntimeError):
 class StdioMcpClient:
     """Manage one stdio MCP server process and JSON-RPC session."""
 
+    def audit_redaction_values(self) -> tuple[str, ...]:
+        """Reuse already resolved credentials for bounded audit redaction."""
+        return self._redaction_values
+
     def __init__(self, manifest: McpServerManifest, settings: Settings, log_sink: LogSink | None = None) -> None:
         self.manifest = manifest
         self.settings = settings

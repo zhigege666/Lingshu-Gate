@@ -187,6 +187,12 @@ For remote access:
 
 Do not set the trusted source to `*` on an uncontrolled network, and do not expose the private Gate port beside the proxy.
 
+## External OAuth resource configuration
+
+External JWT authentication is default-disabled and limited to `/mcp`. Configure persisted trust through `GET/PUT /v1/auth/external-connection/config`, guarded by `external_connections.manage`; `LINGSHU_GATE_EXTERNAL_CONNECTION_ENABLED=true` is rejected rather than bypassing that API. Required trust includes exact issuer/JWKS pairs, allowed client IDs and audience-to-canonical-resource mappings. Enabling also requires Gate authentication. Subject links and owner-bound delegations are separate records.
+
+See [external resource access](external-connections.md) for the disabled JSON example, revision preconditions, JWT claim requirements, API paths and unsupported provider/Tunnel operations. An enabled verifier is not a successful external connection, and external JWTs do not authenticate Console APIs.
+
 ## Validation
 
 Use the Console or `POST /v1/mcp/configs/validate` before saving a manifest. Validation covers schema and local policy; a successful validation does not prove that a remote endpoint is trusted or healthy. After saving, inspect server status, discovered tools, classifications, and grants before enabling invocation.

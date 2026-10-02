@@ -1,4 +1,4 @@
-import { useCallback, useRef, useState, type ReactElement } from "react"
+import { useCallback, useRef, useState, type ReactElement, type ReactNode } from "react"
 import {
   AlertDialog,
   AlertDialogAction,
@@ -14,6 +14,7 @@ import type { TFunction } from "@/i18n"
 type ConfirmOptions = {
   title: string
   description?: string
+  details?: ReactNode
   confirmText?: string
   cancelText?: string
   destructive?: boolean
@@ -46,12 +47,13 @@ export function useConfirm(t: TFunction): { confirm: (options: ConfirmOptions) =
 
   const confirmDialog = (
     <AlertDialog open={open} onOpenChange={(next) => { if (!next) settle(false) }}>
-      <AlertDialogContent>
-        <AlertDialogHeader>
+      <AlertDialogContent className="flex max-h-[85dvh] min-w-0 flex-col overflow-hidden">
+        <AlertDialogHeader className="min-h-0 min-w-0 shrink-0 max-h-[35dvh] overflow-y-auto [overflow-wrap:anywhere]">
           <AlertDialogTitle>{options.title}</AlertDialogTitle>
-          {options.description ? <AlertDialogDescription className="whitespace-pre-line">{options.description}</AlertDialogDescription> : null}
+          {options.description ? <AlertDialogDescription className="min-w-0 whitespace-pre-line [overflow-wrap:anywhere]">{options.description}</AlertDialogDescription> : null}
         </AlertDialogHeader>
-        <AlertDialogFooter>
+        {options.details && <div className="min-h-0 min-w-0 max-h-[45dvh] flex-1 overflow-auto">{options.details}</div>}
+        <AlertDialogFooter className="min-w-0 shrink-0">
           {!options.hideCancel && <AlertDialogCancel onClick={() => settle(false)}>{options.cancelText ?? t("cancel")}</AlertDialogCancel>}
           <AlertDialogAction variant={options.destructive ? "danger" : "default"} onClick={() => settle(true)}>{options.confirmText ?? t("confirm")}</AlertDialogAction>
         </AlertDialogFooter>

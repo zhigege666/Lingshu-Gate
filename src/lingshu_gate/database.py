@@ -15,6 +15,13 @@ from lingshu_gate.persistence.migrations import (
     execute_sql_script,
 )
 
+from lingshu_gate.persistence.retention_migration import (
+    RETENTION_MIGRATION_ID, apply_retention_migration,
+)
+from lingshu_gate.persistence.audit_lookup_migration import (
+    AUDIT_LOOKUP_MIGRATION_ID, apply_audit_lookup_migration,
+)
+
 BASELINE_MIGRATION_ID = "0001_gate_baseline"
 SQLITE_BUSY_TIMEOUT_MS = 30_000
 SQLITE_LOCK_RETRY_MAX_SECONDS = SQLITE_BUSY_TIMEOUT_MS / 1_000
@@ -52,7 +59,9 @@ class SQLiteDatabase:
     def initialize(self) -> None:
         MigrationRunner(
             self.connect,
-            (Migration(BASELINE_MIGRATION_ID, self._apply_baseline_migration),),
+            (Migration(BASELINE_MIGRATION_ID, self._apply_baseline_migration),
+             Migration(RETENTION_MIGRATION_ID, apply_retention_migration),
+             Migration(AUDIT_LOOKUP_MIGRATION_ID, apply_audit_lookup_migration)),
         ).run()
 
     def _apply_baseline_migration(self, connection: sqlite3.Connection) -> None:

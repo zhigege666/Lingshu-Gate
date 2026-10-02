@@ -73,7 +73,8 @@ def test_compatibility_keeps_all_supported_python_versions_with_one_console_buil
     assert "npm test" not in compatibility_commands
 
     upload = next(step for step in source["steps"]
-                  if step.get("uses", "").startswith("actions/upload-artifact@"))["with"]
+                  if step.get("uses", "").startswith("actions/upload-artifact@")
+                  and step.get("with", {}).get("name") == "ci-console-${{ github.sha }}")["with"]
     download = next(step for step in compatibility["steps"]
                     if step.get("uses", "").startswith("actions/download-artifact@"))["with"]
     assert upload["name"] == download["name"] == "ci-console-${{ github.sha }}"

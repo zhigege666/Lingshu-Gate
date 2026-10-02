@@ -1,3 +1,5 @@
+import { FilterRadio } from "@/components/filter-radio"
+import { RemainingList, ListPagination, ListViewport, useListPage } from "@/components/list-pagination"
 import { usePageRefresh } from "@/components/page-refresh"
 import { useEffect, useMemo, useRef, useState } from "react"
 import { Plus, ShieldCheck, UserCheck, UserPlus, UserX } from "lucide-react"
@@ -126,6 +128,8 @@ export function AccessUsersPage({ locale, t }: { locale: Locale; t: TFunction })
     })
   }, [query, statusFilter, users])
 
+  const paging = useListPage(visibleUsers, JSON.stringify([query, statusFilter]))
+
   usePageRefresh(load, busy)
   useEffect(() => { void load() }, [])
 
@@ -236,33 +240,26 @@ export function AccessUsersPage({ locale, t }: { locale: Locale; t: TFunction })
 
   return (
     <div className="flex flex-col gap-4">
-      <PageHeader
+      <PageHeader closeLabel={t("close")}
         eyebrow={c.eyebrow}
         title={c.title}
         description={c.description}
         helpLabel={t("pageHelp")}
         helpContent={<><p>{c.createHint}</p><p>{c.registrationHint}</p></>}
-        toolbar={<PageToolbar query={query} onQueryChange={setQuery} placeholder={c.search} resultCount={visibleUsers.length} resultLabel={c.title} clearLabel={t("clearSearch")}>
-          <Select value={statusFilter} onValueChange={setStatusFilter}>
-            <SelectTrigger className="w-40" aria-label={c.statusFilter}><SelectValue /></SelectTrigger>
-            <SelectContent>
-              <SelectItem value="__all">{c.allStatus}</SelectItem>
-              <SelectItem value="pending">{c.pending} ({statusCounts.pending})</SelectItem>
-              <SelectItem value="active">{c.active} ({statusCounts.active})</SelectItem>
-              <SelectItem value="disabled">{c.disabled} ({statusCounts.disabled})</SelectItem>
-            </SelectContent>
-          </Select>
+        toolbar={<PageToolbar query={query} onQueryChange={setQuery} placeholder={c.search} resultCount={visibleUsers.length} resultLabel={c.title} clearLabel={t("clearSearch")} resetFilters={{ label: t("resetFilters"), disabled: !query && statusFilter === "__all", onReset: () => { setQuery(""); setStatusFilter("__all") } }}>
+          <FilterRadio label={c.statusFilter} value={statusFilter} onChange={setStatusFilter} options={[{value:"__all",label:t("all")},{value:"pending",label:`${c.pending} (${statusCounts.pending})`},{value:"active",label:`${c.active} (${statusCounts.active})`},{value:"disabled",label:`${c.disabled} (${statusCounts.disabled})`}]} />
         </PageToolbar>}
         actions={<Button onClick={openCreate} disabled={busy}><Plus />{c.newUser}</Button>}
       />
       {error && <Alert variant="destructive" role="alert"><AlertDescription>{error}</AlertDescription><Button variant="outline" size="sm" className="mt-2" disabled={busy} onClick={() => void load()}>{t("refresh")}</Button></Alert>}
       <Card>
         <CardContent className="flex flex-col gap-3 p-3 md:p-4">
-          <div className="overflow-x-auto rounded-lg border">
+          <RemainingList className="rounded-lg border">
+            <ListViewport viewport={paging.viewport} label={t("toolShowing")}>
             <Table>
               <TableHeader><TableRow><TableHead>{c.account}</TableHead><TableHead>{t("status")}</TableHead><TableHead>{c.roles}</TableHead><TableHead>{c.registeredAt}</TableHead><TableHead>{t("actions")}</TableHead></TableRow></TableHeader>
               <TableBody>
-                {visibleUsers.length === 0 ? <TableEmptyRow colSpan={5} title={busy ? t("loadingData") : error ? t("error") : c.noUsers} /> : visibleUsers.map((user) => (
+                {visibleUsers.length === 0 ? <TableEmptyRow colSpan={5} title={busy ? t("loadingData") : error ? t("error") : query.trim() || statusFilter !== "__all" ? t("noMatchingRecords") : c.noUsers} /> : paging.items.map((user) => (
                   <TableRow key={user.id} className="cursor-pointer" onClick={() => edit(user)}>
                     <TableCell><button type="button" className="text-left font-medium text-primary underline-offset-4 hover:underline focus-visible:underline" disabled={busy} onClick={() => edit(user)}>{user.display_name || user.username}</button><div className="text-xs text-muted-foreground">@{user.username}</div></TableCell>
                     <TableCell><UserStatusBadge status={user.status} labels={c} /></TableCell>
@@ -279,7 +276,9 @@ export function AccessUsersPage({ locale, t }: { locale: Locale; t: TFunction })
                 ))}
               </TableBody>
             </Table>
-          </div>
+            </ListViewport>
+            <ListPagination paging={paging} t={t} />
+          </RemainingList>
         </CardContent>
       </Card>
 

@@ -82,3 +82,13 @@ Back up key material with the encrypted data, protect the backup with equivalent
 ## Out of scope
 
 Reports about a downstream server should go to that server's maintainer unless the issue demonstrates that Gate violates its documented isolation, authorization, redaction, or lifecycle boundary.
+
+## External OAuth boundary
+
+External JWT verification is default-disabled and can be configured through authenticated management APIs. The RS256 resource-server verifier accepts external tokens only at `/mcp`; Console `/v1/*` APIs still require a Gate session or Gate API token. Invalid Authorization never falls back to a cookie. Opaque-token introspection is unsupported.
+
+Exact issuer/JWKS, audience/canonical-resource and client bindings precede current subject-link, active-user and personal-grant lookup. Ordinary role/resource access, published classification, JWT scopes and local delegation all constrain tool access, including administrators. Grant rate/concurrency enforcement is single-process and resets on restart. See [external access](docs/external-connections.md) for the full configuration, verification and revocation contract.
+
+Enabling a local record does not complete external consent or prove a provider/ChatGPT connection. Gate does not issue provider tokens, host an authorization/PKCE flow, register OAuth clients or start a tunnel. Synthetic JWT/HTTP tests do not certify a production TLS trust chain or real provider integration.
+
+Shared service credential CRUD requires `credentials.manage.system`, assigned only to the built-in administrator by default. The built-in operator does not inherit shared credential CRUD through `operations.manage`. Personal tokens and downstream credentials retain `credentials.manage.self`. External trust/subject-link management separately requires `external_connections.manage`; personal delegations are always owner-bound. Inbound JWTs, personal downstream credentials and tunnel runtime secrets remain separate.

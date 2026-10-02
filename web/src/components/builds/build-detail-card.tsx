@@ -36,11 +36,11 @@ export function BuildDetailCard({ build, logs, streamConnected, t, onCopied }: {
         <div className="grid gap-4 xl:grid-cols-2">
           <div className="flex flex-col gap-2">
             <div className="font-medium">{t("buildCommands")}</div>
-            <JsonPanel text={build.commands.length ? build.commands.map(formatCommand).join("\n") : t("noData")} maxHeight="max-h-[220px]" />
+            <JsonPanel copyLabel={t("copy")} text={build.commands.length ? build.commands.map(formatCommand).join("\n") : t("noData")} maxHeight="max-h-[220px]" />
           </div>
           <div className="flex flex-col gap-2">
             <div className="font-medium">{t("buildManifestPreview")}</div>
-            <JsonPanel data={build.manifest || {}} maxHeight="max-h-[220px]" />
+            <JsonPanel copyLabel={t("copy")} data={build.manifest || {}} maxHeight="max-h-[220px]" />
           </div>
         </div>
       </CardContent>

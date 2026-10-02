@@ -189,15 +189,35 @@ export class BuildApiError extends Error {
   }
 }
 
+export type DeliveryDraft = { upload_id: string; revision: number; manifest_patch: Record<string, unknown>; server_id: string | null; build_id: string | null; deployment_id: string | null; overwrite: boolean; start: boolean; project_root?: string; runtime_override?: string | null }
+
+export type DeploymentOptions = { server_id?: string; start?: boolean; overwrite?: boolean; manifest_patch?: Record<string, unknown>; credential_policy?: "preserve_existing" | "require_none"; expected_config_digest?: string; expected_previous_config_digest?: string | null; expected_credential_binding_digest?: string | null }
+export type DeploymentCredentialState = {
+  server_id: string
+  managed_refs: Array<{ location: string; credential_id: string; configured: boolean; updated_at: string | null }>
+  user_slots: Array<{ slot_id: string; required: boolean; injection: Record<string, unknown>; configured_for_actor: boolean; updated_at: string | null }>
+  has_credentials: boolean
+  binding_digest: string
+  missing_managed_refs: Array<{ location: string; credential_id: string }>
+  missing_required_slots: string[]
+}
+export type DeploymentPreview = { build_id: string; server_id: string; manifest: Record<string, unknown>; changed_fields: string[]; expected_previous_config_digest: string | null; expected_credential_binding_digest: string | null; credential_state: DeploymentCredentialState; config_digest: string; interrupts_existing_service: boolean; start: boolean }
+
 export type DeploymentRecord = {
   id: string
   build_id: string
   server_id: string
   status: string
   manifest: Record<string, unknown>
+  rollback_available?: boolean
   previous_manifest?: Record<string, unknown> | null
   config_path?: string | null
   started: boolean
+  config_applied?: boolean
+  runtime_started?: boolean
+  rollback_attempted?: boolean
+  rollback_succeeded?: boolean | null
+  rollback_error?: string | null
   error?: string | null
   created_at: string
   updated_at: string
@@ -227,7 +247,7 @@ export const buildApi = {
   deleteUpload: (uploadId: string) =>
     request<ProjectUpload>(`/v1/projects/uploads/${encodeURIComponent(uploadId)}`, { method: "DELETE" }),
   builds: () => request<{ builds: BuildRecord[] }>("/v1/builds"),
-  buildLogs: (buildId: string, limit = 200) => request<{ logs: BuildLog[] }>(`/v1/builds/${encodeURIComponent(buildId)}/logs?limit=${encodeURIComponent(String(limit))}`),
+  buildLogs: (buildId: string, limit = 200, cursor: { tail?: boolean; before_sequence?: number; after_sequence?: number } = {}) => request<{ logs: BuildLog[]; has_earlier?: boolean; has_later?: boolean }>(`/v1/builds/${encodeURIComponent(buildId)}/logs?${new URLSearchParams({ limit: String(limit), ...Object.fromEntries(Object.entries(cursor).map(([key, value]) => [key, String(value)])) })}`),
   deployments: () => request<{ deployments: DeploymentRecord[] }>("/v1/deployments"),
   preflightBuild: (uploadId: string, options: { runtime_override?: string | null; project_root?: string | null; refresh?: boolean } = {}) =>
     request<BuildPreflightResult>("/v1/builds/preflight", { method: "POST", body: JSON.stringify({ upload_id: uploadId, runtime_override: options.runtime_override || null, project_root: options.project_root || null, refresh: options.refresh ?? false }) }),
@@ -239,8 +259,11 @@ export const buildApi = {
     request<BuildRecord>(`/v1/builds/${encodeURIComponent(buildId)}/cancel`, { method: "POST", body: JSON.stringify({}) }),
   deleteBuild: (buildId: string) =>
     request<{ deleted: boolean; build: BuildRecord; deleted_log_count: number }>(`/v1/builds/${encodeURIComponent(buildId)}`, { method: "DELETE" }),
-  deployBuild: (buildId: string, options: { server_id?: string; start?: boolean; overwrite?: boolean } = {}) =>
-    request<DeploymentRecord>(`/v1/builds/${encodeURIComponent(buildId)}/deploy`, { method: "POST", body: JSON.stringify({ server_id: options.server_id || null, start: options.start ?? false, overwrite: options.overwrite ?? false }) }),
+  deliveryDraft: (uploadId: string) => request<DeliveryDraft>(`/v1/delivery-drafts/${encodeURIComponent(uploadId)}`),
+  saveDeliveryDraft: (uploadId: string, draft: Partial<DeliveryDraft> & { expected_revision: number }) => request<DeliveryDraft>(`/v1/delivery-drafts/${encodeURIComponent(uploadId)}`, { method: "PUT", body: JSON.stringify(draft) }),
+  previewDeployment: (buildId: string, options: DeploymentOptions = {}) => request<DeploymentPreview>(`/v1/builds/${encodeURIComponent(buildId)}/deploy/preview`, { method: "POST", body: JSON.stringify(options) }),
+  deployBuild: (buildId: string, options: DeploymentOptions = {}) =>
+    request<DeploymentRecord>(`/v1/builds/${encodeURIComponent(buildId)}/deploy`, { method: "POST", body: JSON.stringify({ ...options, server_id: options.server_id || null, start: options.start ?? false, overwrite: options.overwrite ?? false }) }),
   rollback: (deploymentId: string, start = false) =>
     request<{ deployment: DeploymentRecord; server?: Record<string, unknown> | null; message: string }>(`/v1/deployments/${encodeURIComponent(deploymentId)}/rollback`, { method: "POST", body: JSON.stringify({ start }) }),
   deleteDeployment: (deploymentId: string) =>

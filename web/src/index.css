@@ -62,14 +62,17 @@
     --warning-foreground: 0 0% 100%;
     /* Structure stays quieter than editable control boundaries. Keep in sync
        with colorBorderSecondary/colorSplit and colorBorder in the provider. */
-    --border: 216 20% 78%;
+    --border: 216 22% 86%;
     --input: 216 16% 54%;
     --ring: 217 91% 60%;
     --sidebar: 220 25% 97%;
     --sidebar-foreground: 218 37% 17%;
     --sidebar-muted: 215 16% 47%;
     --sidebar-accent: 217 80% 93%;
-    --radius: 0.375rem;
+    --radius: 0.5rem;
+    --motion-fast: 120ms;
+    --motion-normal: 180ms;
+    --motion-ease: cubic-bezier(.2, .8, .2, 1);
   }
 
   .dark {
@@ -108,7 +111,7 @@
     min-height: 100vh;
     background: hsl(var(--background));
     color: hsl(var(--foreground));
-    font-family: "Microsoft YaHei UI", "Microsoft YaHei", "PingFang SC", "Noto Sans SC", system-ui, sans-serif;
+    font-family: "Microsoft YaHei UI", "Microsoft YaHei", "PingFang SC", "Noto Sans CJK SC", "Noto Sans SC", system-ui, sans-serif;
     -webkit-font-smoothing: antialiased;
   }
   code, pre, textarea { font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", monospace; }

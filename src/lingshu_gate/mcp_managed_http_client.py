@@ -50,6 +50,11 @@ class ManagedHttpMcpClient:
             value for value in (manifest.transport.endpoint,) if value
         )
 
+    def audit_redaction_values(self) -> tuple[str, ...]:
+        """Reuse process and HTTP credentials without another secret-store read."""
+        http_values = self._http_client.audit_redaction_values() if self._http_client else ()
+        return (*self._redaction_values, *http_values)
+
     @property
     def pid(self) -> int | None:
         return self.process.pid if self.process else None

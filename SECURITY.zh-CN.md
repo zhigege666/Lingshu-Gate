@@ -82,3 +82,13 @@ Manifest 应使用 `${credential:<id>}` 引用而不是明文。用户下游值�
 ## 不在范围内
 
 如果问题只存在于某个下游服务，应报告给该服务的维护者；除非它同时证明 Gate 违反了文档约定的隔离、授权、脱敏或生命周期边界。
+
+## 外部 OAuth 边界
+
+外部 JWT 验证默认关闭，可通过鉴权管理 API 配置。RS256 资源服务器只在 `/mcp` 接受外部令牌，Console `/v1/*` API 仍要求 Gate session 或 Gate API 令牌。无效 Authorization 不会回退到 cookie，不支持 opaque-token introspection。
+
+先验证精确 issuer/JWKS、audience/规范资源和客户端绑定，再查询当前身份绑定、有效用户和个人授权。普通角色/资源权限、已发布分类、JWT scopes 与本地委托共同限制工具访问，管理员也不例外。grant 限流/并发约束仅在单进程执行，重启后重置。完整配置、验证和撤权合同见[外部资源访问](docs/zh-CN/external-connections.md)。
+
+启用本地记录不会完成外部同意流程，也不证明 provider/ChatGPT 已连接。Gate 不签发 provider 令牌、不托管 authorize/PKCE 流程、不注册 OAuth 客户端，也不启动隧道。合成 JWT/HTTP 测试不认证生产 TLS 信任链或真实 provider 接入。
+
+共享服务凭据 CRUD 要求 `credentials.manage.system`，默认仅内置管理员拥有；内置 operator 不再通过 `operations.manage` 继承该权限。个人令牌和下游凭据保留 `credentials.manage.self`。外部信任/身份绑定管理另要求 `external_connections.manage`，个人委托始终仅本人可管理。入站 JWT、个人下游凭据和隧道运行秘密保持分离。

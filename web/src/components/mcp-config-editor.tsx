@@ -28,6 +28,7 @@ type McpConfigEditorProps = {
   value: string
   onChange: (value: string) => void
   onSave: (nextValue?: string) => void | Promise<void>
+  saveLabel?: string
   onClose?: () => void
   onPendingChange?: (pending: boolean) => void
   onDraftDirtyChange?: (dirty: boolean) => void
@@ -242,7 +243,7 @@ function StringMapEditor({ value, label, disabled, onChange, zh, id, credentials
   </fieldset>
 }
 
-export function McpConfigEditor({ locale, selectedConfigId, value, onChange, onSave, onClose, onPendingChange, onDraftDirtyChange, backendPrecheck = true, loadCredentials = true, footerContainer, busy }: McpConfigEditorProps) {
+export function McpConfigEditor({ locale, selectedConfigId, value, onChange, onSave, onClose, onPendingChange, onDraftDirtyChange, backendPrecheck = true, loadCredentials = true, footerContainer, busy, saveLabel }: McpConfigEditorProps) {
   const c: CopyFn = (key) => FORM_COPY[locale][key]
   const zh = locale === "zh-CN"
   const editorId = useId()
@@ -262,6 +263,11 @@ export function McpConfigEditor({ locale, selectedConfigId, value, onChange, onS
   const revision = latest.current.revision
   const initialContext = useRef<ManifestEditContext>({ existingConfigId: selectedConfigId, originalEndpointMasked: (() => {
     try { return getRecord(parseManifest(value).transport).endpoint === REDACTED_ENDPOINT } catch { return false }
+  })(), originalMaskedMountTargets: (() => {
+    try {
+      const mounts = getRecord(parseManifest(value).launch).mounts
+      return Array.isArray(mounts) ? mounts.filter(mount => getRecord(mount).source === "***").map(mount => String(getRecord(mount).target || "")) : []
+    } catch { return [] }
   })() })
   const parsed = useMemo(() => {
     try { return { manifest: parseManifest(value), error: null, syntax: false } }
@@ -409,7 +415,7 @@ export function McpConfigEditor({ locale, selectedConfigId, value, onChange, onS
       {backendPrecheck && <Button type="button" variant="outline" disabled={locked || !manifest} onClick={() => void validate(false)}><ShieldCheck className="size-4" />{validating ? (zh ? "检查中…" : "Checking…") : c("backendPrecheck")}</Button>}
       <div className="ml-auto flex gap-2">
         {onClose && <Button type="button" variant="ghost" disabled={locked} onClick={onClose}>{zh ? "取消" : "Cancel"}</Button>}
-        <Button type="button" disabled={locked || !manifest} onClick={() => void validate(true)}><Save className="size-4" />{submitting || busy ? (zh ? "保存中…" : "Saving…") : c("saveAndApply")}</Button>
+        <Button type="button" disabled={locked || !manifest} onClick={() => void validate(true)}><Save className="size-4" />{submitting || busy ? (zh ? "保存中…" : "Saving…") : saveLabel || c("saveAndApply")}</Button>
       </div>
     </div>
   </div>

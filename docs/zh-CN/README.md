@@ -6,6 +6,9 @@
 
 | 指南 | 用途 |
 |---|---|
+| [性能评估](performance-review.md) | 可复现的合成数据基准测试与验证边界 |
+| [保留策略](retention.md) | 日志、事件、调用独立保留期限，清理预览及确认 |
+| [调用内容记录](invocation-recording.md) | 按需启用限长脱敏内容、本人隔离、审计能力及保留边界 |
 | [架构](architecture.md) | 组件、请求路径、持久化与信任边界 |
 | [配置](configuration.md) | 环境变量、目录、Manifest、凭据和反向代理设置 |
 | [MCP 网关](mcp-gateway.md) | 网关入口、协议协商、下游 HTTP/stdio、发现、分类和调用 |
@@ -14,6 +17,8 @@
 | [运维](operations.md) | 健康探针、日志、事件、诊断、运行时缓存、审计和故障检查 |
 | [本地开发](local-development.md) | 源码环境、Console 构建、测试套件和仓库约定 |
 | [UI 交互约束](ui-interaction-contract.md) | 新增或迁移 Console UI 的验收规则、编辑安全、证据与独立评审 |
+| [浏览器回归](browser-regression.md) | 隔离真实后端 Playwright、合成大列表、场景编号及证据边界 |
+| [外部 OAuth 资源访问](external-connections.md) | 默认关闭的 JWT 验证、信任配置、个人委托与实际接入边界 |
 | [发行产物](releases.md) | 平台归档、checksum、SBOM、构建元数据、离线镜像和发布规则 |
 
 运行中的 Gate 会在 `/docs` 提供 API Schema。安全策略和报告方式见 [SECURITY.zh-CN.md](../../SECURITY.zh-CN.md)。

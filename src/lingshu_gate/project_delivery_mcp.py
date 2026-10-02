@@ -13,6 +13,7 @@ import sqlite3
 import threading
 import zipfile
 from collections.abc import Callable
+from contextlib import nullcontext
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from typing import Any, Literal, TypeVar
@@ -20,6 +21,7 @@ from uuid import uuid4
 
 from pydantic import BaseModel, ConfigDict, Field, ValidationError
 
+from lingshu_gate.application.delivery_drafts import DeliveryDraftStore
 from lingshu_gate.build_deploy import (
     TERMINAL_BUILD_STATUSES,
     BuildBlocked,
@@ -30,10 +32,11 @@ from lingshu_gate.build_plan import validate_plan
 from lingshu_gate.credential_refs import extract_credential_refs
 from lingshu_gate.credential_store import CredentialStore
 from lingshu_gate.database import SQLiteDatabase
+from lingshu_gate.endpoint_security import REDACTED_ENDPOINT
 from lingshu_gate.mcp_config_store import McpConfigStore
 from lingshu_gate.mcp_manifest import McpServerManifest
 from lingshu_gate.mcp_runtime import McpManifestDigestConflict, McpRuntimeManager
-from lingshu_gate.models import ToolDefinition
+from lingshu_gate.models import DeployBuildRequest, ToolDefinition
 from lingshu_gate.observability_store import ObservabilityStore
 from lingshu_gate.project_uploads import MAX_ZIP_BYTES, ProjectUploadStore
 from lingshu_gate.registry import (
@@ -521,6 +524,7 @@ class ProjectDeliveryMcpService:
         self.credential_store = credential_store
         self.user_credential_store = user_credential_store
         self.tool_classification_reconciler = tool_classification_reconciler
+        self.delivery_drafts = DeliveryDraftStore(data_dir / "private-delivery-drafts")
         self.transfer_root = data_dir / "project-upload-transfers"
         self.transfer_root.mkdir(parents=True, exist_ok=True)
         self._transfer_lock = threading.RLock()
@@ -2118,6 +2122,104 @@ class ProjectDeliveryMcpService:
             "missing_required_slots": missing_required_slots,
         }
 
+    def console_deployment(
+        self, build_id: str, request: DeployBuildRequest, *, actor_id: str, preview: bool = False,
+    ) -> dict[str, Any]:
+        """Prepare one final manifest before any deployment side effect.
+
+        Console and MCP delivery share credential preservation and the deployment
+        lock. Preview contains redacted values; clients submit their original patch.
+        """
+        if not preview:
+            guard = getattr(self.builds, "_require_local_execution", None)
+            if callable(guard):
+                guard("deploy")
+        with self._deployment_lock, getattr(self.configs, "mutation_lock", nullcontext()):
+            build = self.builds.get_build(build_id)
+            if build["status"] != "success":
+                raise ValueError("build is not deployable")
+            candidate = json.loads(json.dumps(build.get("manifest") or {}))
+            def contains_mask(value: Any) -> bool:
+                if isinstance(value, dict):
+                    return any(contains_mask(item) for item in value.values())
+                if isinstance(value, list):
+                    return any(contains_mask(item) for item in value)
+                return value in {"***", REDACTED_ENDPOINT} if isinstance(value, str) else False
+            if contains_mask(request.manifest_patch):
+                raise ValueError("Deployment patch cannot contain redacted values; submit only changed values or credential references")
+            launch_patch = request.manifest_patch.get("launch") or {}
+            artifact_launch = candidate.get("launch") or {}
+            if isinstance(launch_patch, dict):
+                for field in ("type", "command", "cwd"):
+                    if field in launch_patch and launch_patch[field] != artifact_launch.get(field):
+                        raise ValueError(f"Deployment patch cannot replace artifact launch.{field}; edit only runtime settings")
+
+            def merge(base: dict[str, Any], patch: dict[str, Any]) -> None:
+                for key, value in patch.items():
+                    if value is None:
+                        base.pop(key, None)
+                    elif isinstance(value, dict):
+                        if not isinstance(base.get(key), dict):
+                            base[key] = {}
+                        merge(base[key], value)
+                    else:
+                        base[key] = value
+
+            merge(candidate, request.manifest_patch)
+            server_id = request.server_id or str(candidate.get("id") or "")
+            candidate["id"] = server_id
+            candidate["name"] = candidate.get("name") or server_id
+            previous = None
+            try:
+                previous = self.configs.load_manifest(server_id)
+            except KeyError:
+                pass
+            digest = _sha256_json(previous.model_dump(mode="json", exclude={"manifest_path"})) if previous else None
+            state = self._credential_state(previous, actor_id) if previous else None
+            if not preview:
+                if previous and not request.overwrite:
+                    raise ToolExecutionError("server_conflict", "Target already exists; confirm overwrite")
+                if digest != request.expected_previous_config_digest:
+                    raise ToolExecutionError("previous_config_digest_conflict", "Target configuration changed; preview and confirm again")
+            manifest, credential_state = self._prepare_deployment_manifest(
+                candidate, previous, actor_id=actor_id,
+                credential_policy=request.credential_policy,
+                expected_binding_digest=(state["binding_digest"] if preview and state and state["has_credentials"] else request.expected_credential_binding_digest),
+            )
+            if not preview:
+                if request.expected_config_digest is None:
+                    raise ToolExecutionError("config_digest_required", "Preview and confirm the candidate configuration before deployment")
+                if request.expected_config_digest != _sha256_json(manifest):
+                    raise ToolExecutionError("config_digest_conflict", "Candidate configuration changed; preview and confirm again")
+                return self.builds.deploy_build(
+                    build_id, server_id=server_id, start=request.start,
+                    overwrite=request.overwrite, owner_id=actor_id,
+                    manifest_override=manifest,
+                )
+            before = previous.model_dump(mode="json", exclude={"manifest_path"}) if previous else {}
+
+            def changes(old: dict[str, Any], new: dict[str, Any], prefix: str = "") -> list[str]:
+                paths: list[str] = []
+                for key in sorted(old.keys() | new.keys()):
+                    path = f"{prefix}.{key}" if prefix else key
+                    if isinstance(old.get(key), dict) and isinstance(new.get(key), dict):
+                        paths.extend(changes(old[key], new[key], path))
+                    elif old.get(key) != new.get(key):
+                        paths.append(path)
+                return paths
+
+            return {
+                "build_id": build_id, "server_id": server_id,
+                "manifest": McpServerManifest.model_validate(manifest).safe_dict(),
+                "changed_fields": changes(before, manifest),
+                "expected_previous_config_digest": digest,
+                "expected_credential_binding_digest": state["binding_digest"] if state and state["has_credentials"] else None,
+                "credential_state": credential_state,
+                "config_digest": _sha256_json(manifest),
+                "interrupts_existing_service": previous is not None,
+                "start": request.start,
+            }
+
     def _prepare_deployment_manifest(
         self,
         candidate: dict[str, Any],
@@ -2333,7 +2435,7 @@ class ProjectDeliveryMcpService:
             build_manifest["name"] = build_manifest.get("name") or server_id
 
             # 摘要检查与配置写入必须在同一进程内串行，避免两个不同幂等键同时覆盖目标。
-            with self._deployment_lock:
+            with self._deployment_lock, getattr(self.configs, "mutation_lock", nullcontext()):
                 previous_digest: str | None = None
                 previous_manifest: McpServerManifest | None = None
                 try:

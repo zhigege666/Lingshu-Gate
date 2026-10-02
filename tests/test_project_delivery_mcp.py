@@ -1245,6 +1245,45 @@ class ProjectDeliveryFakePipelineTest(unittest.TestCase):
         }
         self.service._claim_owner("build", build_id, self.context)
 
+    def test_console_preview_merges_without_writes_and_binds_overwrite(self) -> None:
+        from lingshu_gate.models import DeployBuildRequest
+        self.add_build("console-build", status="success")
+        request = DeployBuildRequest(manifest_patch={"launch": {"args": ["new.js"]}})
+        preview = self.service.console_deployment("console-build", request, actor_id=self.context.actor_id, preview=True)
+        self.assertEqual(preview["manifest"]["launch"]["args"], ["new.js"])
+        self.assertEqual(preview["manifest"]["launch"]["command"], "node")
+        with self.assertRaises(KeyError):
+            self.configs.load_manifest("fake-server")
+        request.expected_config_digest = preview["config_digest"]
+        self.service.console_deployment("console-build", request, actor_id=self.context.actor_id)
+        self.assertEqual(self.configs.load_manifest("fake-server").launch.args, ["new.js"])
+        request.overwrite = True
+        with self.assertRaises(ToolExecutionError) as error:
+            self.service.console_deployment("console-build", request, actor_id=self.context.actor_id)
+        self.assertEqual(error.exception.code, "previous_config_digest_conflict")
+        preview = self.service.console_deployment("console-build", request, actor_id=self.context.actor_id, preview=True)
+        request.expected_previous_config_digest = preview["expected_previous_config_digest"]
+        self.service.console_deployment("console-build", request, actor_id=self.context.actor_id)
+
+    def test_console_patch_deletion_artifact_binding_and_candidate_digest(self) -> None:
+        from lingshu_gate.models import DeployBuildRequest
+        self.add_build("console-patch", status="success")
+        self.builds.records["console-patch"]["manifest"]["launch"]["env"] = {"REMOVE": "synthetic", "KEEP": "safe"}
+        request = DeployBuildRequest(manifest_patch={"launch": {"env": {"REMOVE": None}}})
+        preview = self.service.console_deployment("console-patch", request, actor_id=self.context.actor_id, preview=True)
+        self.assertNotIn("REMOVE", preview["manifest"]["launch"]["env"])
+        self.assertIn("KEEP", preview["manifest"]["launch"]["env"])
+        request.expected_config_digest = preview["config_digest"]
+        request.manifest_patch["name"] = "changed after confirmation"
+        with self.assertRaises(ToolExecutionError) as error:
+            self.service.console_deployment("console-patch", request, actor_id=self.context.actor_id)
+        self.assertEqual(error.exception.code, "config_digest_conflict")
+        with self.assertRaises(KeyError):
+            self.configs.load_manifest("fake-server")
+        request = DeployBuildRequest(manifest_patch={"launch": {"cwd": "/synthetic-upload-source"}})
+        with self.assertRaises(ValueError, msg="Artifact path cannot be overwritten"):
+            self.service.console_deployment("console-patch", request, actor_id=self.context.actor_id, preview=True)
+
     def test_build_plan_is_stable_and_build_create_is_idempotent(self) -> None:
         plan_arguments = {"upload_id": self.upload_id}
         first_plan = self.service.build_plan(plan_arguments, self.context)

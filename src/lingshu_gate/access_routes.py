@@ -14,6 +14,7 @@ from lingshu_gate.access_control import (
     ClassificationConfirmationConflictError,
 )
 from lingshu_gate.auth import AuthPrincipal, AuthStore
+from lingshu_gate.invocation_payloads import invocation_detail
 from lingshu_gate.mcp_runtime import McpRuntimeManager
 from lingshu_gate.observability_store import ObservabilityStore
 from lingshu_gate.registry import ToolRegistry
@@ -84,6 +85,7 @@ class ClassificationConfirmItem(BaseModel):
 
 
 class ClassificationConfirmRequest(BaseModel):
+    publish: bool = False
     items: list[ClassificationConfirmItem] = Field(min_length=1, max_length=500)
     note: str | None = Field(default=None, max_length=2000)
 
@@ -123,6 +125,89 @@ def register_access_routes(
     require_viewer: Callable[[Request], AuthPrincipal],
 ) -> None:
     """注册访问治理 API；所有策略写操作在这里集中做控制面权限校验。"""
+
+    def personal_servers(principal: AuthPrincipal) -> list[dict[str, Any]]:
+        # Authorization precedes grouping, search and counts. Never serialize runtime
+        # manifests: transport URLs, headers and commands are operations-only data.
+        visible = access_store.visible_tools(principal, registry.list_definitions())
+        grouped: dict[str, dict[str, Any]] = {}
+        for tool in visible:
+            server_id = str(tool.metadata.get("server_id") or tool.source or "builtin")
+            if server_id == "builtin" or tool.source != "mcp":
+                continue
+            item = grouped.setdefault(server_id, {
+                "id": server_id, "name": server_id, "tool_count": 0,
+                "read_tool_count": 0, "write_tool_count": 0, "tools": [],
+            })
+            access = tool.metadata["gate_access"]["required_access"]
+            item["tools"].append({
+                "id": tool.id, "name": tool.name, "description": tool.description,
+                "required_access": access,
+            })
+            item["tool_count"] += 1
+            item[f"{access}_tool_count"] += 1
+        return sorted(grouped.values(), key=lambda item: item["id"])
+
+    @app.get("/v1/me/mcp-servers", tags=["personal"])
+    def list_personal_servers(
+        q: str = Query("", max_length=200),
+        offset: int = Query(0, ge=0),
+        limit: int = Query(50, ge=1, le=100),
+        principal: AuthPrincipal = Depends(require_viewer),
+    ) -> dict[str, Any]:
+        needle = q.casefold().strip()
+        servers = [item for item in personal_servers(principal)
+                   if not needle or needle in item["name"].casefold()
+                   or any(needle in tool["name"].casefold() for tool in item["tools"])]
+        return {
+            "servers": [{key: value for key, value in item.items() if key != "tools"}
+                        for item in servers[offset:offset + limit]],
+            "total": len(servers), "offset": offset, "limit": limit,
+        }
+
+    @app.get("/v1/me/mcp-servers/{server_id}", tags=["personal"])
+    def get_personal_server(
+        server_id: str,
+        principal: AuthPrincipal = Depends(require_viewer),
+    ) -> dict[str, Any]:
+        for item in personal_servers(principal):
+            if item["id"] == server_id:
+                return item
+        raise HTTPException(status_code=404, detail="MCP service not found")
+
+    @app.get("/v1/me/invocations", tags=["personal"])
+    def list_personal_invocations(
+        server_id: str | None = None,
+        tool_id: str | None = None,
+        decision: str | None = None,
+        outcome: str | None = None,
+        limit: int = Query(100, ge=1, le=500),
+        principal: AuthPrincipal = Depends(require_viewer),
+    ) -> dict[str, Any]:
+        fields = {"id", "correlation_id", "server_id", "tool_id", "required_access",
+                  "decision", "outcome", "duration_ms", "created_at"}
+        audits = access_store.list_invocation_audits(
+            user_id=principal.id, server_id=server_id, tool_id=tool_id,
+            decision=decision, outcome=outcome, limit=limit,
+        )
+        return {"audits": [{key: value for key, value in item.items() if key in fields}
+                           for item in audits]}
+
+    @app.get("/v1/me/invocations/{audit_id}", tags=["personal"])
+    def personal_invocation_detail(audit_id: str, principal: AuthPrincipal = Depends(require_viewer)) -> dict[str, Any]:
+        _require(access_store, principal, "console.view")
+        detail = invocation_detail(access_store.database, audit_id, user_id=principal.id)
+        if detail is None:
+            raise HTTPException(status_code=404, detail="Invocation not found")
+        return detail
+
+    @app.get("/v1/access/invocation-audits/{audit_id}", tags=["access"])
+    def administrative_invocation_detail(audit_id: str, principal: AuthPrincipal = Depends(require_viewer)) -> dict[str, Any]:
+        _require(access_store, principal, "audit.payload.read")
+        detail = invocation_detail(access_store.database, audit_id, user_id=None)
+        if detail is None:
+            raise HTTPException(status_code=404, detail="Invocation not found")
+        return detail
 
     @app.post("/v1/auth/register", tags=["auth"])
     def register_user(request: RegisterRequest) -> dict[str, Any]:
@@ -460,6 +545,7 @@ def register_access_routes(
                 reviewer_id=principal.id,
                 items=[item.model_dump() for item in request.items],
                 note=request.note or "",
+                publish=request.publish,
             )
         except ClassificationConfirmationConflictError as exc:
             raise HTTPException(status_code=409, detail=str(exc)) from exc

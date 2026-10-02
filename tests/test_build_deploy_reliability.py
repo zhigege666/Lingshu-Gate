@@ -379,6 +379,24 @@ class BuildDeployReliabilityTest(unittest.TestCase):
             self.database.query_one("SELECT id FROM deployments LIMIT 1")
         )
 
+    def test_returned_failed_runtime_is_not_a_successful_deployment(self) -> None:
+        self._add_success_build()
+        self.store.runtime = FakeRuntime(status="failed")
+        deployment = self.store.deploy_build("build-deploy-reliability", start=True)
+        self.assertEqual(deployment["status"], "failed")
+        self.assertTrue(deployment["rollback_attempted"])
+        self.assertTrue(deployment["rollback_succeeded"])
+        self.assertNotIn("reliability-server", self.configs.manifests)
+
+    def test_failed_compensation_response_is_not_successful_rollback(self) -> None:
+        self._add_success_build()
+        self._seed_existing_server("synthetic-value", desired_state="running")
+        self.runtime.status = "failed"
+        deployment = self.store.deploy_build("build-deploy-reliability", start=True, overwrite=True)
+        self.assertEqual(deployment["status"], "failed")
+        self.assertFalse(deployment["rollback_succeeded"])
+        self.assertIn("did not restore", deployment["rollback_error"])
+
     def test_runtime_failure_persists_successful_config_rollback(self) -> None:
         self._add_success_build()
         self.store.runtime = FakeRuntime(error="injected runtime failure")

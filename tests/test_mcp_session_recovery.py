@@ -2,6 +2,7 @@
 
 from concurrent.futures import ThreadPoolExecutor
 from contextlib import contextmanager
+from dataclasses import replace
 from unittest.mock import Mock, patch
 
 import pytest
@@ -21,7 +22,7 @@ def connected_runtime(tmp_path):
     with legacy_http_peer() as (endpoint, state):
         client = http_client(tmp_path, endpoint, "2025-03-26", {"Authorization": "Bearer test-only-secret"})
         client.start()
-        manager = McpRuntimeManager(client.settings, ToolRegistry())
+        manager = McpRuntimeManager(replace(client.settings, db_url=f"sqlite:///{tmp_path / 'gate.db'}"), ToolRegistry())
         runtime = McpServerRuntime(
             manifest=client.manifest, state=McpServerState.RUNNING,
             client=client, tools=client.list_tools(),
@@ -190,3 +191,16 @@ def test_user_session_recovery_preserves_identity_and_shared_state(tmp_path, ret
         assert runtime.client is shared_client and shared_client.session_id == shared_session
         assert runtime.state == McpServerState.RUNNING and runtime.health_status == "unknown"
         assert manager.user_credential_store.mark_used.call_count == 2
+
+
+class _CatalogMustNotBeCopied(list):
+    def __deepcopy__(self, memo):
+        raise AssertionError('Do not deepcopy the entire catalog for a single invocation')
+
+
+def test_shared_user_call_does_not_copy_catalog_and_recovery_keeps_target_snapshot(tmp_path):
+    with connected_runtime(tmp_path) as (manager, runtime, client, state):
+        runtime.tools = _CatalogMustNotBeCopied(runtime.tools)
+        result = manager.invoke_mcp_tool_for_user(runtime.manifest.id, 'echo', {}, user_id='synthetic', retry_read_only=True)
+        assert result['isError'] is False
+        assert len(state['sessions']) == 2

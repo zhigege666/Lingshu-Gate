@@ -15,7 +15,7 @@ export type PrecheckResult = { errors: string[]; warnings: string[] }
 export const REDACTED_ENDPOINT = "[REDACTED]"
 
 /** A masked endpoint is a keep instruction for this existing resource only. */
-export type ManifestEditContext = { existingConfigId: string; originalEndpointMasked: boolean }
+export type ManifestEditContext = { existingConfigId: string; originalEndpointMasked: boolean; originalMaskedMountTargets?: string[] }
 
 export function canKeepMaskedEndpoint(manifest: ManifestLike, context?: ManifestEditContext): boolean {
   return Boolean(context?.existingConfigId && context.originalEndpointMasked
@@ -230,7 +230,9 @@ export function precheckManifest(
           const source = String(mount.source || "")
           const target = String(mount.target || "")
           const absoluteSource = source.startsWith("/") || /^[A-Za-z]:[\\/]/.test(source)
-          return absoluteSource
+          const keepSource = source === "***" && Boolean(context?.existingConfigId)
+            && manifest.id === context?.existingConfigId && Boolean(context?.originalMaskedMountTargets?.includes(target))
+          return (absoluteSource || keepSource)
             && !source.includes(",")
             && target.startsWith("/")
             && !target.startsWith("//")

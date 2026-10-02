@@ -76,7 +76,7 @@ def build_mcp_server_detail(
         result["manifest"] = manifest_dict
 
     logs = observability_store.list_logs(server_id=server_id, limit=limit) if full or section == "logs" else []
-    events = observability_store.list_events(subject_id=server_id, limit=limit) if full or section == "events" else []
+    events = observability_store.list_events(server_id=server_id, limit=limit) if full or section == "events" else []
     restart_history = runtime.list_restart_history(server_id, limit=limit) if full or section == "recovery" else []
     if full or section == "logs":
         result.update(logs=logs, recent_stdout=_recent_stream(logs, "stdout"), recent_stderr=_recent_stream(logs, "stderr"))

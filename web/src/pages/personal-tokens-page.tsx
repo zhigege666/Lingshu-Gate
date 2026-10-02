@@ -1,3 +1,4 @@
+import { RemainingList, ListPagination, ListViewport, useListPage } from "@/components/list-pagination"
 import { usePageRefresh } from "@/components/page-refresh"
 import { useEffect, useMemo, useRef, useState } from "react"
 import { Copy, Pencil, Plus, ShieldCheck } from "lucide-react"
@@ -6,7 +7,7 @@ import { useAuth } from "@/components/auth-gate"
 import { FormDialog } from "@/components/form-dialog"
 import { useDraftCloseGuard } from "@/components/use-draft-close-guard"
 import { useConfirm } from "@/components/confirm-dialog"
-import { PageHeader } from "@/components/page-shell"
+import { PageHeader, PageToolbar } from "@/components/page-shell"
 import { Alert, AlertDescription } from "@/components/ui/alert"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
@@ -109,6 +110,13 @@ export function PersonalTokensPage({ locale, t }: { locale: Locale; t: TFunction
     () => getTokenScopeOptions(availableScopes, editingToken?.scopes),
     [availableScopes, editingToken],
   )
+
+  const [query, setQuery] = useState("")
+  const filteredRecords = useMemo(() => {
+    const needle = query.trim().toLowerCase()
+    return tokens.filter(item => !needle || `${item.name} ${item.token_prefix} ${item.scopes.join(" ")}`.toLowerCase().includes(needle))
+  }, [tokens, query])
+  const paging = useListPage(filteredRecords, query)
 
   usePageRefresh(load, busy)
   useEffect(() => { void load() }, [])
@@ -222,11 +230,12 @@ export function PersonalTokensPage({ locale, t }: { locale: Locale; t: TFunction
 
   return (
     <div className="flex flex-col gap-4">
-      <PageHeader
+      <PageHeader closeLabel={t("close")}
         eyebrow={c.eyebrow}
         title={c.title}
         description={c.description}
         helpLabel={t("pageHelp")}
+        toolbar={<PageToolbar query={query} onQueryChange={setQuery} placeholder={t("search")} resultCount={filteredRecords.length} resultLabel={c.title} clearLabel={t("clearSearch")} />}
         helpContent={<p>{c.scopeHint}</p>}
         stats={[{ label: c.active, value: activeCount, tone: "success" }, { label: c.expired, value: expiredCount, tone: expiredCount ? "warning" : "default" }, { label: c.revoked, value: revokedCount }]}
         actions={<Button disabled={busy} onClick={openCreate}><Plus />{c.newToken}</Button>}
@@ -234,11 +243,12 @@ export function PersonalTokensPage({ locale, t }: { locale: Locale; t: TFunction
       {error && <Alert variant="destructive" role="alert"><AlertDescription>{error}</AlertDescription><Button variant="outline" size="sm" className="mt-2" disabled={busy} onClick={() => void load()}>{t("refresh")}</Button></Alert>}
       <Card>
         <CardContent className="flex flex-col gap-3 p-3 md:p-4">
-          <div className="overflow-x-auto rounded-lg border">
+          <RemainingList className="rounded-lg border">
+            <ListViewport viewport={paging.viewport} label={t("toolShowing")}>
             <Table>
               <TableHeader><TableRow><TableHead>{c.name}</TableHead><TableHead>{c.prefix}</TableHead><TableHead>{c.scopes}</TableHead><TableHead>{c.lastUsed}</TableHead><TableHead>{c.status}</TableHead><TableHead>{t("actions")}</TableHead></TableRow></TableHeader>
               <TableBody>
-                {tokens.length === 0 ? <TableEmptyRow colSpan={6} title={busy ? t("loadingData") : error ? t("error") : c.noTokens} /> : tokens.map((token) => {
+                {filteredRecords.length === 0 ? <TableEmptyRow colSpan={6} title={busy ? t("loadingData") : error ? t("error") : query.trim() ? t("noMatchingRecords") : c.noTokens} /> : paging.items.map((token) => {
                   const status = tokenStatus(token)
                   return <TableRow key={token.id}>
                     <TableCell><div className="font-medium">{token.name}</div><div className="text-xs text-muted-foreground">{formatDateTime(token.created_at)}</div></TableCell>
@@ -251,7 +261,9 @@ export function PersonalTokensPage({ locale, t }: { locale: Locale; t: TFunction
                 })}
               </TableBody>
             </Table>
-          </div>
+            </ListViewport>
+            <ListPagination paging={paging} t={t} />
+          </RemainingList>
         </CardContent>
       </Card>
 

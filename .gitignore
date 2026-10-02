@@ -28,3 +28,6 @@ data/
 workspace/
 /local/
 /runtime/
+
+web/test-results/
+web/playwright-report/

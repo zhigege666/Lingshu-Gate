@@ -1,3 +1,7 @@
+import { FORM_COPY } from "@/features/mcp-config/copy"
+import { useRemainingViewport } from "@/components/use-remaining-viewport"
+import "./maintenance-lists.css"
+import { ListPagination, ListViewport, useListPage } from "@/components/list-pagination"
 import { useMemo, useRef, useState } from "react"
 import { Edit3, Play, Plus, RefreshCcw, Trash2 } from "lucide-react"
 import { FormDialog } from "@/components/form-dialog"
@@ -33,6 +37,7 @@ export function ConfigsPage(props: {
   onSaveConfig: (value?: string) => Promise<void>
 }) {
   const { locale, t, configs, configErrors, selectedConfigId, configText, busy, editorOpen, onCloseEditor, onNewConfig, onReloadConfigs, onEditConfig, onApplyConfig, onDeleteConfig, onConfigTextChange, onSaveConfig } = props
+  const remainingViewport = useRemainingViewport()
   const [query, setQuery] = useState("")
   const zh = locale === "zh-CN"
   const { confirm, confirmDialog } = useConfirm(t)
@@ -61,6 +66,8 @@ export function ConfigsPage(props: {
     return configs.filter((config) => `${config.id} ${config.path} ${JSON.stringify(config.manifest)}`.toLowerCase().includes(needle))
   }, [configs, query])
 
+  const paging = useListPage(filteredConfigs, query)
+
   function handleCreateNew() {
     onNewConfig()
   }
@@ -73,20 +80,20 @@ export function ConfigsPage(props: {
     const mode = runtimeModeFromManifest(config.manifest)
     switch (mode) {
       case "managed_stdio":
-        return <Badge variant="outline" className="bg-blue-500/10 text-blue-600 dark:text-blue-400 border-blue-500/20 font-mono text-[11px]">Stdio</Badge>
+        return <Badge variant="outline" className="bg-blue-500/10 text-blue-600 dark:text-blue-400 border-blue-500/20 font-mono text-[11px]">{FORM_COPY[props.locale].managedStdio}</Badge>
       case "managed_http":
-        return <Badge variant="outline" className="bg-purple-500/10 text-purple-600 dark:text-purple-400 border-purple-500/20 font-mono text-[11px]">Managed HTTP</Badge>
+        return <Badge variant="outline" className="bg-purple-500/10 text-purple-600 dark:text-purple-400 border-purple-500/20 font-mono text-[11px]">{FORM_COPY[props.locale].managedHttp}</Badge>
       case "external_http":
-        return <Badge variant="outline" className="bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border-emerald-500/20 font-mono text-[11px]">External HTTP</Badge>
+        return <Badge variant="outline" className="bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border-emerald-500/20 font-mono text-[11px]">{FORM_COPY[props.locale].externalHttp}</Badge>
       case "advanced":
       default:
-        return <Badge variant="outline" className="bg-amber-500/10 text-amber-600 dark:text-amber-400 border-amber-500/20 font-mono text-[11px]">Advanced</Badge>
+        return <Badge variant="outline" className="bg-amber-500/10 text-amber-600 dark:text-amber-400 border-amber-500/20 font-mono text-[11px]">{FORM_COPY[props.locale].advancedMode}</Badge>
     }
   }
 
   return (
-    <div className="flex flex-col gap-5">
-      <PageHeader
+    <div ref={remainingViewport} className="maintenance-list-page flex flex-col gap-5">
+      <PageHeader closeLabel={t("close")}
         eyebrow={t("configurationCenter")}
         title={t("configs")}
         description={t("configDesc")}
@@ -98,11 +105,11 @@ export function ConfigsPage(props: {
         </>}
       />
 
-      <Card className="border-border/70 shadow-xs">
-        <CardContent className="flex flex-col gap-3 p-3 md:p-4">
+      <Card className="maintenance-list-card border-border/70 shadow-xs">
+        <CardContent className="maintenance-list-content gap-3 p-3 md:p-4">
           {configErrors.map((item) => <Alert key={item} variant="destructive"><AlertDescription>{item}</AlertDescription></Alert>)}
-          <div className="overflow-x-auto rounded-lg border border-border/70">
-            <Table>
+          <ListViewport viewport={paging.viewport} label={t("configs")}>
+            <Table className="maintenance-table maintenance-config-table">
               <TableHeader>
                 <TableRow className="bg-muted/40 hover:bg-muted/40">
                   <TableHead className="w-[280px] font-semibold">{zh ? "服务与配置 ID" : "Server & Config ID"}</TableHead>
@@ -114,8 +121,8 @@ export function ConfigsPage(props: {
               </TableHeader>
               <TableBody>
                 {filteredConfigs.length === 0 ? (
-                  <TableEmptyRow colSpan={5} title={t("noData")} />
-                ) : filteredConfigs.map((config) => {
+                  <TableEmptyRow colSpan={5} title={busy ? t("loadingData") : configErrors.length ? t("error") : query.trim() && configs.length ? t("noMatchingRecords") : t("noData")} />
+                ) : paging.items.map((config) => {
                   const isSelected = selectedConfigId === config.id
                   const name = typeof config.manifest?.name === "string" ? config.manifest.name : null
                   const isAutoStart = Boolean(config.manifest?.auto_start)
@@ -128,6 +135,7 @@ export function ConfigsPage(props: {
                         <div className="flex flex-col gap-0.5">
                           <code className="font-semibold text-xs tracking-tight text-foreground">{config.id}</code>
                           {name && <span className="text-xs text-muted-foreground">{name}</span>}
+                          <div className="maintenance-row-summary">{renderRuntimeBadge(config)}<span>{zh ? "自启动" : "Auto start"}: {isAutoStart ? (zh ? "开启" : "Enabled") : (zh ? "手动" : "Disabled")}</span></div>
                         </div>
                       </TableCell>
                       <TableCell className="py-3">
@@ -184,7 +192,8 @@ export function ConfigsPage(props: {
                 })}
               </TableBody>
             </Table>
-          </div>
+          </ListViewport>
+          <ListPagination paging={paging} t={t} />
         </CardContent>
       </Card>
 

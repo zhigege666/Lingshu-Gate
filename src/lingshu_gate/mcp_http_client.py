@@ -24,6 +24,7 @@ from typing import Any
 from lingshu_gate.config import Settings
 from lingshu_gate.credential_refs import resolve_env_credential_refs
 from lingshu_gate.credential_store import CredentialStore
+from lingshu_gate.invocation_payloads import audit_header_values
 from lingshu_gate.endpoint_security import REDACTED_ENDPOINT
 from lingshu_gate.logging import log_event
 from lingshu_gate.mcp_manifest import McpServerManifest
@@ -83,6 +84,10 @@ class McpSessionExpiredError(McpProtocolError):
 
 class StreamableHttpMcpClient:
     """Talk to one external MCP server over Streamable HTTP JSON-RPC."""
+
+    def audit_redaction_values(self) -> tuple[str, ...]:
+        """Reuse already resolved credentials for bounded audit redaction."""
+        return (*self._redaction_values, *audit_header_values(self._resolved_headers))
 
     def __init__(
         self,

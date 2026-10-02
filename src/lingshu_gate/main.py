@@ -8,6 +8,10 @@ from typing import AsyncIterator
 
 from fastapi import FastAPI
 
+from lingshu_gate.external_connection_store import ExternalConnectionStore
+from lingshu_gate.external_jwt import ExternalJwtVerifier
+from lingshu_gate.transports.oauth import McpOAuthDiscoveryBoundary, OAuthProtectedResourceMetadata
+from lingshu_gate.interfaces.control_api.external_connection_routes import register_external_connection_routes
 from lingshu_gate.access_control import AccessControlStore
 from lingshu_gate.access_routes import register_access_routes
 from lingshu_gate.adapters.control_plane import (
@@ -60,6 +64,10 @@ from lingshu_gate.tool_file_mcp import ToolFileMcpService, register_tool_file_to
 from lingshu_gate.tool_files import ToolFileStore
 from lingshu_gate.user_credential_store import UserCredentialStore
 
+from lingshu_gate.retention_store import RetentionStore
+from lingshu_gate.retention_worker import RetentionWorker
+from lingshu_gate.interfaces.control_api.retention_routes import register_retention_routes
+
 logger = logging.getLogger(__name__)
 
 
@@ -78,6 +86,9 @@ def create_app() -> FastAPI:
     access_store = AccessControlStore(database)
     auth_store = AuthStore(settings, database)
     observability_store = ObservabilityStore(database)
+    retention_store = RetentionStore(database)
+    retention_worker = RetentionWorker(retention_store, enabled=settings.retention_worker_enabled,
+                                       interval_seconds=settings.retention_interval_seconds)
     project_upload_store = ProjectUploadStore(database, settings.data_dir)
     tool_file_store = ToolFileStore(database, settings.data_dir)
     user_credential_store = UserCredentialStore(database, settings.data_dir)
@@ -131,6 +142,7 @@ def create_app() -> FastAPI:
         registry,
         mcp_runtime,
         observability_store,
+        access_store,
     )
     if settings.system_debug_mcp_enabled:
         register_system_debug_tool(registry, system_debug_service)
@@ -217,12 +229,14 @@ def create_app() -> FastAPI:
                 "Memory snapshot after MCP startup",
             )
             startup_state.mark_ready()
+            retention_worker.start()
             yield
         except BaseException as exc:
             startup_failed = True
             startup_state.mark_failed(exc)
             raise
         finally:
+            await retention_worker.stop()
             if not startup_failed:
                 startup_state.mark_stopping()
             log_event(
@@ -283,6 +297,11 @@ def create_app() -> FastAPI:
     state.tool_file_store = tool_file_store
     state.startup_state = startup_state
     state.health_service = health_service
+    app.state.retention_store = retention_store
+    app.state.retention_worker = retention_worker
+    register_retention_routes(app, store=retention_store, auth_store=auth_store,
+                              access_store=access_store, observability_store=observability_store,
+                              worker_enabled=settings.retention_worker_enabled)
 
     register_meta_routes(
         app,
@@ -296,6 +315,16 @@ def create_app() -> FastAPI:
         auth_store=auth_store,
         observability_store=observability_store,
         require_viewer=require_authenticated,
+    )
+    external_connection_store = ExternalConnectionStore(database)
+    app.state.external_connection_store = external_connection_store
+    external_jwt_verifier = ExternalJwtVerifier(external_connection_store.configuration)
+    auth_store.external_connections = external_connection_store
+    auth_store.external_verifier = external_jwt_verifier
+    app.state.external_jwt_verifier = external_jwt_verifier
+    register_external_connection_routes(
+        app, auth_store=auth_store, access_store=access_store, registry=registry,
+        store=external_connection_store, observability_store=observability_store,
     )
     register_build_deploy_routes(
         app,
@@ -315,6 +344,8 @@ def create_app() -> FastAPI:
     register_observability_routes(
         app,
         observability_store=observability_store,
+        access_store=access_store,
+        mcp_runtime=mcp_runtime,
         require_operations_manager=require_operations_manager,
     )
     register_runtime_routes(
@@ -335,7 +366,8 @@ def create_app() -> FastAPI:
         app,
         credential_store=credential_store,
         observability_store=observability_store,
-        require_operations_manager=require_operations_manager,
+        require_authenticated=require_authenticated,
+        access_store=access_store,
     )
     register_tool_routes(
         app,
@@ -358,6 +390,7 @@ def create_app() -> FastAPI:
         settings=settings,
         mcp_runtime=mcp_runtime,
         observability_store=observability_store,
+        access_store=access_store,
         require_operations_manager=require_operations_manager,
     )
     register_project_routes(
@@ -366,12 +399,22 @@ def create_app() -> FastAPI:
         observability_store=observability_store,
         require_operations_manager=require_operations_manager,
     )
+    def external_oauth_discovery() -> McpOAuthDiscoveryBoundary | None:
+        config = external_connection_store.configuration()
+        resource = config.canonical_resource_url or config.endpoint
+        if not settings.auth_enabled or not config.enabled or config.validation_errors() or not resource:
+            return None
+        return McpOAuthDiscoveryBoundary(OAuthProtectedResourceMetadata(
+            resource=resource, authorization_servers=tuple(config.trusted_issuers),
+        ))
+
     register_mcp_gateway_route(
         app,
         settings,
         registry,
         access_store,
-        require_authenticated,
+        auth_store.authenticate_mcp_request,
+        oauth_boundary=external_oauth_discovery,
     )
     return app
 

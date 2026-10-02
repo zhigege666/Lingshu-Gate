@@ -34,7 +34,7 @@ export function RouteLoadingFallback({ locale }: { locale: Locale }) {
   )
 }
 
-type RouteErrorBoundaryProps = { locale: Locale; children: ReactNode }
+type RouteErrorBoundaryProps = { locale: Locale; children: ReactNode; fallback?: ReactNode }
 type RouteErrorBoundaryState = { error: Error | null }
 
 export class RouteErrorBoundary extends Component<RouteErrorBoundaryProps, RouteErrorBoundaryState> {
@@ -50,6 +50,7 @@ export class RouteErrorBoundary extends Component<RouteErrorBoundaryProps, Route
 
   render() {
     if (!this.state.error) return this.props.children
+    if (this.props.fallback !== undefined) return this.props.fallback
     const copy = routeBoundaryCopy(this.props.locale)
     return (
       <div role="alert" className="rounded-xl border border-destructive/30 bg-card p-6 shadow-sm">

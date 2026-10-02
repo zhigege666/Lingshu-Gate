@@ -1,4 +1,4 @@
-.tool-catalog { display: flex; flex-direction: column; gap: 20px; min-width: 0; }
+.tool-catalog { max-height: var(--remaining-viewport-height); display: flex; flex-direction: column; gap: 20px; min-width: 0; }
 .tool-catalog .page-header { padding: 16px; border: 1px solid hsl(var(--border)); border-radius: 6px; background: hsl(var(--card)); }
 .tool-catalog .page-toolbar-search { flex-basis: 240px; }
 .tool-catalog .tool-service-filter { width: 260px; max-width: 100%; }
@@ -49,3 +49,7 @@
   .tool-pagination-controls { width: 100%; justify-content: flex-end; }
   .tool-pagination-controls .ant-select { margin-right: auto; }
 }
+
+.tool-catalog-scroll { flex: 0 1 auto; min-height: 0; overflow: auto; min-width: 0; overscroll-behavior: contain; }
+
+.tool-catalog > .page-header, .tool-catalog-summary, .tool-catalog-pagination { flex-shrink: 0; }

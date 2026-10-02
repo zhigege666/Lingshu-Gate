@@ -36,6 +36,9 @@ export default defineConfig({
       "@": path.resolve(__dirname, "./src"),
     },
   },
+  // Keep stable identifiers: compact identity scanning must not match random
+  // minified variable names concatenated across punctuation.
+  esbuild: { minifyIdentifiers: false },
   build: {
     outDir: "../src/lingshu_gate/static/console",
     emptyOutDir: true,

@@ -54,12 +54,27 @@ describe("构建和部署行操作常驻展示", () => {
       { label: t("deployBuild"), disabled: true }, { label: "删除记录", disabled: true },
     ])
   })
-  it.each([false, true])("部署回滚仍由历史配置决定：%s", hasPrevious => {
+  it.each([false, true])("部署回滚由后端验证有效快照决定：%s", hasPrevious => {
     const buttons = rowButtons(renderToStaticMarkup(<DeploymentRecordsTable
-      deployments={[{ ...deployment, previous_manifest: hasPrevious ? { id: deployment.server_id } : null }]}
+      deployments={[{ ...deployment, previous_manifest: { id: deployment.server_id }, rollback_available: hasPrevious }]}
       busy={false} selectedDeploymentId="" onSelect={noop} onDetail={noop} onRollback={noop} onDelete={noop} t={t} />))
     expect(buttons.map(button => button.label)).toEqual([
       "查看", t("viewServerDetail"), ...(hasPrevious ? [t("rollback")] : []), "删除记录",
     ])
+  })
+})
+
+describe("紧凑的构建与部署列表工具栏", () => {
+  it.each(["zh-CN", "en-US"] as const)("%s 不重复页签标题，保留有意义的搜索和状态过滤", locale => {
+    const tr: TFunction = key => translate(locale, key)
+    const html = renderToStaticMarkup(<BuildRecordsTable builds={[build]} busy={false}
+      selectedBuildId="" canRequestStop={() => false} onShowBuild={noop} onLoadLogs={noop}
+      onRequestStop={noop} onDeploy={noop} onRetry={noop} onDelete={noop} t={tr} />)
+    expect(html).not.toContain("<h3")
+    expect(html).not.toContain(`${tr("search")} ·`)
+    expect(html).toContain(locale === "zh-CN" ? "搜索构建 ID / 上传 ID" : "Search build / upload ID")
+    expect(html).toContain(locale === "zh-CN" ? "全部状态" : "All statuses")
+    expect(html).toContain('role="region"')
+    expect(html).toContain('role="status"')
   })
 })
