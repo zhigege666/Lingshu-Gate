@@ -4,9 +4,15 @@
 
 Lingshu Gate release automation produces directly runnable native packages, a Docker Compose deployment bundle, and tagged-release offline Core images. Every published asset is covered by `SHA256SUMS` and a repository build-provenance attestation.
 
-The current source version is `0.3.0`. Console service and record actions now appear directly as buttons, alongside visible OpenAPI, sign-out, and credential-reference actions. Button groups wrap on narrow screens while existing permission checks, state restrictions, and confirmations remain unchanged. Runtime reporting, Python package metadata, CLI output, and release artifact names derive from the single version source in `src/lingshu_gate/_version.py`.
+The current source version is `0.3.1`. Console service and record actions now appear directly as buttons, alongside visible OpenAPI, sign-out, and credential-reference actions. Button groups wrap on narrow screens while existing permission checks, state restrictions, and confirmations remain unchanged. Runtime reporting, Python package metadata, CLI output, and release artifact names derive from the single version source in `src/lingshu_gate/_version.py`.
 
 The source Console also includes the card-based tool catalog with deployment-specific MCP filtering, effective access badges, and direct selection in the invocation editor. Tool discovery adds the request-local `metadata.gate_access` display snapshot described in [operations](operations.md#tool-catalog). This change adds no frontend dependency or database migration.
+
+## 0.3.1 security and release recovery
+
+This source requires PyJWT 2.14.0 or later and locks PyJWT to 2.15.1, including the fix for CVE-2026-102268. The pip requirements export is regenerated from the same uv lock file. Existing RS256-only verification and default-disabled external authentication remain unchanged.
+
+The failed `v0.3.0` tag is retained at its original revision. The corrected source uses a new `v0.3.1` tag; neither a version change nor tag creation alone means release assets have passed validation or been published.
 
 ## Artifact matrix
 
