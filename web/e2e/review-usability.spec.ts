@@ -24,10 +24,11 @@ for (const width of [1366, 390]) {
     await page.goto('/console/#/connectionInfrastructure')
     await page.getByRole('button',{name:'接入引导',exact:true}).click()
     await expect(page.getByText('在哪里找配置',{exact:true})).toBeVisible()
-    // The decorative loading icon can outlive a fast mocked response in the
-    // accessibility tree. Scope by role and visible label, not that icon name.
-    const saveAction = page.locator('.connection-guide-footer').getByRole('button')
-      .filter({ hasText: /^保存配置并继续$/ })
+    // The decorative loading icon can outlive a fast mocked response and the
+    // reused footer button's step. Scope every action by role and visible label.
+    const footerAction = (label: RegExp) => page.locator('.connection-guide-footer')
+      .getByRole('button').filter({ hasText: label })
+    const saveAction = footerAction(/^保存配置并继续$/)
     async function saveAndContinue(expectedRevision: number) {
       await expect(saveAction).not.toHaveClass(/ant-btn-loading/)
       const [response] = await Promise.all([
@@ -43,11 +44,12 @@ for (const width of [1366, 390]) {
     await expect(page.getByText('受信 issuer（每行一个 HTTPS URL）',{exact:true})).toBeVisible()
     await saveAndContinue(2)
     await expect(page.getByText('OAuth 身份绑定',{exact:true})).toBeVisible()
-    await page.getByRole('button',{name:'检查与验证',exact:true}).click()
+    await footerAction(/^检查与验证$/).click()
     await expect(page.getByText('尚未验证外部连通与 ChatGPT 调用',{exact:true})).toBeVisible()
-    await expectInViewportAndUnobscured(page.locator('.connection-guide-footer').getByRole('button',{name:'返回总览',exact:true}))
+    const backAction = footerAction(/^返回总览$/)
+    await expectInViewportAndUnobscured(backAction)
     expect(writes).toHaveLength(2)
-    await page.locator('.connection-guide-footer').getByRole('button',{name:'返回总览',exact:true}).click()
+    await backAction.click()
     await page.getByRole('button',{name:'接入引导',exact:true}).click()
     await expect(page.getByText('尚未验证外部连通与 ChatGPT 调用',{exact:true})).toBeVisible()
     expect(writes).toHaveLength(2)
