@@ -49,7 +49,7 @@ def register_mcp_gateway_route(
     registry: ToolRegistry,
     access_store: AccessControlStore,
     require_viewer: Callable[[Request], AuthPrincipal],
-    oauth_boundary: McpOAuthDiscoveryBoundary | None = None,
+    oauth_boundary: McpOAuthDiscoveryBoundary | Callable[[], McpOAuthDiscoveryBoundary | None] | None = None,
 ) -> None:
     """注册聚合 MCP 网关；发现与调用都复用统一访问策略。"""
 
@@ -166,7 +166,8 @@ def register_mcp_gateway_route(
                 )
                 tools = [item[1] for item in _gateway_tools(registry, definitions, namespace=namespace)]
             except ToolNamespaceCollisionError as exc:
-                return _namespace_collision_response(request_id, exc, settings, protocol_context)
+                return _namespace_collision_response(request_id, exc, settings, protocol_context,
+                    disclose_name=await run_in_threadpool(_can_disclose_collision, exc, registry, access_store, principal))
             result = OfficialSdkTypesAdapter.list_tools(
                 tools,
                 server_name=SERVER_NAME,
@@ -240,7 +241,8 @@ async def _call_tool(
     try:
         namespace = ToolNamespace(registry.list_definitions())
     except ToolNamespaceCollisionError as exc:
-        return _namespace_collision_response(request_id, exc, settings, protocol_context)
+        return _namespace_collision_response(request_id, exc, settings, protocol_context,
+                    disclose_name=await run_in_threadpool(_can_disclose_collision, exc, registry, access_store, principal))
     definition = namespace.resolve(tool_name)
     if definition is None:
         return _error_response(
@@ -422,11 +424,25 @@ def _error_response(
     )
 
 
+def _can_disclose_collision(
+    exc: ToolNamespaceCollisionError, registry: ToolRegistry,
+    access_store: AccessControlStore, principal: AuthPrincipal,
+) -> bool:
+    try:
+        definitions = [registry.get_definition(tool_id) for tool_id in exc.tool_ids]
+        visible = access_store.visible_tools(principal, definitions)
+        return {definition.id for definition in visible} == set(exc.tool_ids)
+    except ToolNotFoundError:
+        return False
+
+
 def _namespace_collision_response(
     request_id: Any,
     exc: ToolNamespaceCollisionError,
     settings: Settings,
     protocol_context: HttpProtocolContext,
+    *,
+    disclose_name: bool = True,
 ) -> JSONResponse:
     return _error_response(
         request_id,
@@ -435,7 +451,7 @@ def _namespace_collision_response(
         settings,
         # Do not disclose the colliding Registry ids: one of them may be hidden
         # from the current principal by access policy.
-        data={"wireName": exc.wire_name},
+        data={"wireName": exc.wire_name} if disclose_name else None,
         status_code=500,
         protocol_version=protocol_context.protocol_version,
     )

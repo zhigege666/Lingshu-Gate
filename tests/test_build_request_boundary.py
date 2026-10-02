@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import unittest
+from types import SimpleNamespace
 from typing import Any
 
 from fastapi import FastAPI
@@ -43,7 +44,8 @@ class BuildRequestBoundaryTest(unittest.TestCase):
     def setUp(self) -> None:
         self.store = RecordingBuildStore()
         app = FastAPI()
-        register_build_deploy_routes(app, self.store, lambda: None)  # type: ignore[arg-type]
+        app.state.project_delivery_service = SimpleNamespace(console_deployment=lambda build_id, body, **_: self.store.deploy_build(build_id, server_id=body.server_id, start=body.start, overwrite=body.overwrite))
+        register_build_deploy_routes(app, self.store, lambda: SimpleNamespace(id="test-operator"))  # type: ignore[arg-type]
         self.client = TestClient(app)
 
     def tearDown(self) -> None:

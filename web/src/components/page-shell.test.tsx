@@ -24,3 +24,16 @@ describe("统一页面头部", () => {
     expect(html).toContain("停止服务")
   })
 })
+
+
+describe("stable filter reset", () => {
+  it.each(["重置筛选", "Reset filters"])("keeps %s mounted outside stretching filter cells", label => {
+    for (const disabled of [true, false]) {
+      const html = renderToStaticMarkup(<PageToolbar query="" onQueryChange={() => {}} clearLabel="Clear" resetFilters={{label, disabled, onReset: () => {}}}><span>FILTERS</span></PageToolbar>)
+      expect(html).toContain("page-toolbar-reset")
+      expect(html).toContain(label)
+      expect(html.indexOf("page-toolbar-reset")).toBeLessThan(html.indexOf("page-toolbar-filters"))
+      if (disabled) expect(html).toContain("disabled")
+    }
+  })
+})

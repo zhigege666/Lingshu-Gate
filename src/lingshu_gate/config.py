@@ -4,10 +4,11 @@ from __future__ import annotations
 
 import os
 import sys
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from pathlib import Path
 
 from lingshu_gate import __version__
+from lingshu_gate.external_connection import ExternalConnectionConfig
 
 
 def _platform_paths() -> tuple[Path, Path, Path]:
@@ -66,10 +67,23 @@ class Settings:
     runtime_role: str = "local"
     mcp_gateway_enabled: bool = True
     system_debug_mcp_enabled: bool = True
+    retention_worker_enabled: bool = False
+    retention_interval_seconds: int = 3600
     docker_bin: str = "docker"
+    external_connection: ExternalConnectionConfig = field(default_factory=ExternalConnectionConfig)
+
+    def __post_init__(self) -> None:
+        if self.retention_interval_seconds < 1:
+            raise ValueError("retention_interval_seconds must be positive")
+        if self.external_connection.enabled and not self.auth_enabled:
+            raise ValueError("external connections require Gate authentication")
+        if self.external_connection.enabled and self.external_connection.validation_errors():
+            raise ValueError("external connections cannot be enabled without complete trust configuration")
 
     @classmethod
     def from_env(cls) -> "Settings":
+        if os.getenv("LINGSHU_GATE_EXTERNAL_CONNECTION_ENABLED", "false").lower() not in {"0", "false", "no", "off"}:
+            raise ValueError("external connections must be configured through the authenticated management API")
         data_dir = Path(os.getenv("LINGSHU_GATE_DATA_DIR", str(cls.data_dir))).resolve()
         runtime_role = os.getenv("LINGSHU_GATE_RUNTIME_ROLE", cls.runtime_role).strip().lower()
         if runtime_role not in {"local", "core"}:
@@ -84,6 +98,8 @@ class Settings:
             raise ValueError("LINGSHU_GATE_DB_URL must be a SQLite file URL")
         allowed_root_default = data_dir / "workspace" if "LINGSHU_GATE_DATA_DIR" in os.environ else cls.allowed_root
         return cls(
+            retention_worker_enabled=os.getenv("LINGSHU_GATE_RETENTION_WORKER_ENABLED", "false").lower() in {"1", "true", "yes", "on"},
+            retention_interval_seconds=int(os.getenv("LINGSHU_GATE_RETENTION_INTERVAL_SECONDS", "3600")),
             service_name=cls.service_name,
             version=cls.version,
             host=os.getenv("LINGSHU_GATE_HOST", cls.host),

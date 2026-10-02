@@ -6,16 +6,10 @@ Self-hosted MCP gateway and control plane for operating downstream servers with 
 
 Lingshu Gate provides one authenticated MCP endpoint, a Web Console, configuration and runtime management, encrypted credentials, tool classification, invocation audit, diagnostics, and a controlled project upload/build/deploy/start workflow.
 
-## Console preview
-
-![Lingshu Gate Web Console dashboard](docs/assets/console-dashboard.svg)
-
-The Console keeps server health, discovered tools, delivery operations, access controls, and audit entry points in one operational workspace. The screenshot uses an empty local development instance and contains no production data or credentials.
-
 ## What it provides
 
 - One Streamable HTTP MCP gateway at `POST /mcp`.
-- Generic downstream Streamable HTTP and stdio transports using protocol version `2026-07-28`.
+- Generic downstream Streamable HTTP and stdio transports with automatic negotiation and explicit protocol versions; see the [MCP gateway guide](docs/mcp-gateway.md) for supported versions.
 - Web Console and REST control API for server configuration and runtime state.
 - Authentication, RBAC, resource grants, API-token scopes, tool classification, and invocation audit.
 - Encrypted system credentials and isolated per-user downstream request bindings.
@@ -38,6 +32,15 @@ English screenshots from a local Gate instance. The Console also supports Chines
 <img src="docs/images/console/en-US/tool-invoke-dark.jpg" alt="Gate tool invocation in the dark theme, with form and JSON parameter modes" width="1000">
 
 *Tool invocation — choose a tool, review its parameters, and inspect the result after running it.*
+
+## Operations and validation
+
+- English and Chinese Console; desktop acceptance targets are 1600×900, 1920×1080, 2560×1080, and 2560×1440.
+- Large-list filtering and pagination, historical build-log windows, result-content search, and an integrated upload/configure/build/start journey.
+- Separate [runtime-log, event, and invocation retention](docs/retention.md), each defaulting to 7 days; [input/output recording](docs/invocation-recording.md) is opt-in, redacted, size-bounded, and access-controlled.
+- [Performance review and reproducible scripts](docs/performance-review.md) document workload sizes, measurement scope, and limits; the [browser regression guide](docs/browser-regression.md) covers roles and business scenarios. Unit tests, layout checks, and deployment acceptance are tracked separately; full Playwright and real ChatGPT OAuth integration acceptance remain outstanding.
+
+The previously merged [empty-instance preview](docs/assets/console-dashboard.svg) remains available as a reference; screenshots do not establish complete acceptance of the current version.
 
 ## Quick start
 
@@ -109,7 +112,7 @@ transport:
 auto_start: false
 ```
 
-`protocol_version` is explicit self-documentation; only `2026-07-28` is accepted and it is not a version-selection switch.
+Set `protocol_version` to `auto` or a supported explicit version; omission starts with `2026-07-28`. HTTP and stdio support different compatibility ranges; see [protocol negotiation](docs/mcp-gateway.md).
 
 Validate and save the manifest, inspect discovered tools, classify them as read or write, review the result, and publish only the classifications that should be callable. Access is the intersection of control permission, resource grant, published classification, and API-token scope.
 
@@ -122,6 +125,12 @@ Gate exposes confirmation-bound `gate_*` tools for resumable upload, preflight, 
 The bundled [Delivery Skill](.agents/skills/lingshu-gate-upload-build-start/SKILL.md) adds deterministic local packaging and an operator workflow around those tools. It never removes the requirement for explicit confirmation before upload, code execution, deployment, overwrite, startup, cancellation, or abandonment.
 
 See [Project delivery](docs/project-delivery.md) for the complete boundary and tool list.
+
+## Remote MCP access
+
+External OAuth access defaults to disabled. Gate supports `secure_mcp_tunnel` and `direct` HTTPS, plus the `disabled` state. The [external access and network guide](docs/external-connections.md#choosing-the-network-path) covers a private tunnel, named tunnels, frp with a public TLS proxy, existing public reverse proxies and optional ngrok. Network daemons remain operator-managed; a reverse proxy alone cannot cross NAT.
+
+Expose only MCP and required discovery paths, keep Console/management private, and validate separate per-user OAuth authorization. A machine tunnel key is not an end-user identity. Follow the guide's read-only, write and revocation acceptance sequence before deployment enablement. No external connection is enabled by following this README alone.
 
 ## Security defaults
 

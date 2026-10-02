@@ -1,4 +1,5 @@
-import { createContext, useContext, useEffect, useState, type ReactNode } from "react"
+import { authRequest, AuthRequestError } from "@/api/auth-request"
+import { createContext, useContext, useEffect, useRef, useState, type ReactNode } from "react"
 import { ShieldCheck, UserPlus } from "lucide-react"
 import { Alert, AlertDescription } from "@/components/ui/alert"
 import { Button } from "@/components/ui/button"
@@ -10,6 +11,11 @@ import { getInitialLocale, type Locale } from "@/i18n"
 const AUTH_COPY = {
   "zh-CN": {
     loading: "加载登录状态...",
+    sessionError: "无法确认登录状态，请检查连接后重试。",
+    retrySession: "重新检查登录状态",
+    timeout: "认证请求超时，结果尚未确认。请重新检查登录状态，不要重复提交。",
+    logoutError: "退出结果尚未确认，请重新检查登录状态。",
+    dismiss: "关闭提示",
     loginTitle: "登录 Lingshu Gate",
     registerTitle: "创建 Lingshu Gate 账号",
     changeTitle: "修改临时密码",
@@ -38,6 +44,11 @@ const AUTH_COPY = {
   },
   "en-US": {
     loading: "Loading session...",
+    sessionError: "Unable to confirm your session. Check the connection and retry.",
+    retrySession: "Check session again",
+    timeout: "Authentication timed out; the result is unconfirmed. Check your session instead of resubmitting.",
+    logoutError: "Sign-out is not confirmed. Check your session again.",
+    dismiss: "Dismiss message",
     loginTitle: "Sign in to Lingshu Gate",
     registerTitle: "Create a Lingshu Gate account",
     changeTitle: "Change temporary password",
@@ -80,7 +91,7 @@ export type AuthUser = {
   scopes: string[]
 }
 
-type AuthMode = "loading" | "login" | "register" | "password" | "ready"
+type AuthMode = "error" | "loading" | "login" | "register" | "password" | "ready"
 
 type AuthGateProps = {
   children: ReactNode
@@ -99,19 +110,6 @@ export function useAuth() {
   return context
 }
 
-async function authRequest<T>(path: string, body?: Record<string, unknown>, method?: string): Promise<T> {
-  const response = await fetch(path, {
-    method: method || (body ? "POST" : "GET"),
-    credentials: "include",
-    headers: body ? { "Content-Type": "application/json" } : undefined,
-    body: body ? JSON.stringify(body) : undefined,
-  })
-  const text = await response.text()
-  const data = text ? JSON.parse(text) : {}
-  if (!response.ok) throw new Error(data?.detail || `${response.status} ${response.statusText}`)
-  return data as T
-}
-
 export function AuthGate({ children }: AuthGateProps) {
   const c = AUTH_COPY[getInitialLocale()]
   const [mode, setMode] = useState<AuthMode>("loading")
@@ -123,22 +121,32 @@ export function AuthGate({ children }: AuthGateProps) {
   const [error, setError] = useState<string | null>(null)
   const [notice, setNotice] = useState<string | null>(null)
   const [busy, setBusy] = useState(false)
+  const submitting = useRef(false)
+  const sessionVersion = useRef(0)
+  function requestError(err: unknown) { return err instanceof AuthRequestError && err.timedOut ? c.timeout : err instanceof Error ? err.message : String(err) }
 
   async function loadMe() {
+    const version = ++sessionVersion.current
+    setMode("loading")
+    setError(null)
     try {
       const next = await authRequest<AuthUser>("/v1/auth/me")
+      if (version !== sessionVersion.current) return
       setUser(next)
       setMode(next.must_change_password ? "password" : "ready")
-      setError(null)
     } catch (err) {
-      setMode("login")
-      setError(null)
+      if (version !== sessionVersion.current) return
+      if (err instanceof AuthRequestError && err.status === 401) {
+        setUser(null); setMode("login"); setError(null)
+      } else { setMode("error"); setError(err instanceof AuthRequestError && err.timedOut ? c.timeout : c.sessionError) }
     }
   }
 
-  useEffect(() => { loadMe() }, [])
+  useEffect(() => { void loadMe(); return () => { sessionVersion.current += 1 } }, [])
 
   async function submit() {
+    if (submitting.current) return
+    submitting.current = true
     setBusy(true)
     setError(null)
     try {
@@ -147,15 +155,17 @@ export function AuthGate({ children }: AuthGateProps) {
       setMode(response.user.must_change_password ? "password" : "ready")
       setPassword("")
       setConfirmPassword("")
-    } catch (err) { setError(err instanceof Error ? err.message : String(err)) }
-    finally { setBusy(false) }
+    } catch (err) { setError(requestError(err)) }
+    finally { submitting.current = false; setBusy(false) }
   }
 
   async function register() {
+    if (submitting.current) return
     if (password !== confirmPassword) {
       setError(c.mismatch)
       return
     }
+    submitting.current = true
     setBusy(true)
     setError(null)
     setNotice(null)
@@ -165,15 +175,17 @@ export function AuthGate({ children }: AuthGateProps) {
       setMode("login")
       setPassword("")
       setConfirmPassword("")
-    } catch (err) { setError(err instanceof Error ? err.message : String(err)) }
-    finally { setBusy(false) }
+    } catch (err) { setError(requestError(err)) }
+    finally { submitting.current = false; setBusy(false) }
   }
 
   async function changePassword() {
+    if (submitting.current) return
     if (password !== confirmPassword) {
       setError(c.mismatch)
       return
     }
+    submitting.current = true
     setBusy(true)
     setError(null)
     try {
@@ -183,18 +195,25 @@ export function AuthGate({ children }: AuthGateProps) {
       setConfirmPassword("")
       setNotice(c.changeNotice)
       setMode("login")
-    } catch (err) { setError(err instanceof Error ? err.message : String(err)) }
-    finally { setBusy(false) }
+    } catch (err) { setError(requestError(err)) }
+    finally { submitting.current = false; setBusy(false) }
   }
 
   async function logout() {
+    if (submitting.current) return
+    submitting.current = true
+    setError(null)
     setBusy(true)
     try {
       await authRequest("/v1/auth/logout", {})
       setUser(null)
       setMode("login")
-    } catch (err) { setError(err instanceof Error ? err.message : String(err)) }
-    finally { setBusy(false) }
+    } catch (err) { setError(requestError(err)) }
+    finally { submitting.current = false; setBusy(false) }
+  }
+
+  if (mode === "error") {
+    return <div className="flex min-h-screen items-center justify-center bg-background p-5"><Card className="w-full max-w-md"><CardHeader><CardTitle>{c.sessionError}</CardTitle></CardHeader><CardContent className="space-y-4"><Alert variant="destructive"><AlertDescription>{error}</AlertDescription></Alert><Button onClick={() => void loadMe()}>{c.retrySession}</Button></CardContent></Card></div>
   }
 
   if (mode === "loading") {
@@ -233,14 +252,14 @@ export function AuthGate({ children }: AuthGateProps) {
             <CardDescription>{isRegister ? c.registerDesc : isPasswordChange ? c.changeDesc : c.loginDesc}</CardDescription>
           </CardHeader>
           <CardContent className="flex flex-col gap-4">
-            {error && <Alert variant="destructive"><AlertDescription>{error}</AlertDescription></Alert>}
+            {error && <Alert variant="destructive"><AlertDescription>{error}</AlertDescription>{error === c.timeout && <Button variant="outline" size="sm" disabled={busy} onClick={() => void loadMe()}>{c.retrySession}</Button>}</Alert>}
             {notice && <Alert><AlertDescription>{notice}</AlertDescription></Alert>}
             {isRegister && <div className="flex flex-col gap-2"><Label htmlFor="auth-display-name">{c.displayName}</Label><Input id="auth-display-name" value={displayName} onChange={(event) => setDisplayName(event.target.value)} autoComplete="name" /></div>}
-            {!isPasswordChange && <div className="flex flex-col gap-2"><Label>{c.username}</Label><Input value={username} onChange={(event) => setUsername(event.target.value)} autoComplete="username" /></div>}
-            <div className="flex flex-col gap-2"><Label>{isPasswordChange ? c.newPassword : c.password}</Label><Input type="password" value={password} onChange={(event) => setPassword(event.target.value)} autoComplete={mode === "login" ? "current-password" : "new-password"} />{mode !== "login" && <div className="text-xs text-muted-foreground">{c.passwordHint}</div>}</div>
-            {(isRegister || isPasswordChange) && <div className="flex flex-col gap-2"><Label>{c.confirmPassword}</Label><Input type="password" value={confirmPassword} onChange={(event) => setConfirmPassword(event.target.value)} autoComplete="new-password" /></div>}
+            {!isPasswordChange && <div className="flex flex-col gap-2"><Label htmlFor="auth-username">{c.username}</Label><Input id="auth-username" value={username} onChange={(event) => setUsername(event.target.value)} autoComplete="username" /></div>}
+            <div className="flex flex-col gap-2"><Label htmlFor="auth-password">{isPasswordChange ? c.newPassword : c.password}</Label><Input id="auth-password" type="password" value={password} onChange={(event) => setPassword(event.target.value)} autoComplete={mode === "login" ? "current-password" : "new-password"} />{mode !== "login" && <div className="text-xs text-muted-foreground">{c.passwordHint}</div>}</div>
+            {(isRegister || isPasswordChange) && <div className="flex flex-col gap-2"><Label htmlFor="auth-confirm-password">{c.confirmPassword}</Label><Input id="auth-confirm-password" type="password" value={confirmPassword} onChange={(event) => setConfirmPassword(event.target.value)} autoComplete="new-password" /></div>}
             <Button className="w-full" onClick={isRegister ? register : isPasswordChange ? changePassword : submit} disabled={busy || (!isPasswordChange && !username) || password.length < (mode === "login" ? 1 : 8) || ((isRegister || isPasswordChange) && !confirmPassword)}>{isRegister ? c.registerSubmit : isPasswordChange ? c.changeSubmit : c.loginSubmit}</Button>
-            {(mode === "login" || mode === "register") && <Button variant="ghost" className="w-full" onClick={() => { setMode(isRegister ? "login" : "register"); setError(null); setNotice(null) }}>{isRegister ? c.loginLink : c.registerLink}</Button>}
+            {(mode === "login" || mode === "register") && <Button variant="ghost" className="w-full" disabled={busy} onClick={() => { if (submitting.current) return; setMode(isRegister ? "login" : "register"); setError(null); setNotice(null) }}>{isRegister ? c.loginLink : c.registerLink}</Button>}
           </CardContent>
         </Card>
         </div>
@@ -249,5 +268,5 @@ export function AuthGate({ children }: AuthGateProps) {
   }
 
   if (!user) return null
-  return <AuthContext.Provider value={{ user, logout }}>{children}</AuthContext.Provider>
+  return <AuthContext.Provider value={{ user, logout }}>{children}{error && <div className="fixed bottom-4 right-4 z-[100] max-w-[calc(100vw-2rem)] sm:max-w-md"><Alert variant="destructive"><AlertDescription className="space-y-3"><p>{c.logoutError}</p><p>{error}</p><div className="flex flex-wrap gap-2"><Button size="sm" disabled={busy} onClick={() => void loadMe()}>{c.retrySession}</Button><Button size="sm" variant="outline" disabled={busy} onClick={() => setError(null)}>{c.dismiss}</Button></div></AlertDescription></Alert></div>}</AuthContext.Provider>
 }

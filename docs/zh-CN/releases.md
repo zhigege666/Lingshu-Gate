@@ -210,3 +210,9 @@ Docker Hub 版本镜像同步成功后才创建 GitHub Release。已有版本标
 Release 附件及 Attestation 验证完成后，只有被 GitHub 标记为最新稳定版的发行才更新 `docker.io/<DOCKERHUB_USERNAME>/lingshu-gate:latest`。预发布版和旧版本重跑不会移动 `latest`。发布 Job 串行执行。若更新 `latest` 失败，已发布的版本和 Release 保留，工作流失败；可重跑以重试验证和同步。GHCR、Docker Hub 和 GitHub Release 之间不是原子事务，失败时可能已有一个仓库的版本镜像发布成功。不要为重试而删除或替换已发布版本标签。
 
 Docker Hub 镜像包含 BuildKit SBOM/Provenance Manifest。GitHub 附件 Attestation 仍属于 GitHub Release 附件；可选 Cosign 签名仍针对 GHCR Digest，不额外创建 Docker Hub 签名。
+
+## 尚未发布的外部 OAuth 资源验证
+
+源码新增默认关闭、仅面向 `/mcp` 的 RS256 JWT 验证，包含管理员固定 HTTPS JWKS、规范 audience/客户端校验、持久化身份绑定及仅本人可管理的个人委托。启用且有效的本地配置会公布受保护资源元数据。当前 Gate 角色/资源、已发布分类、JWT scopes 与委托范围在派发前求交集；每 grant 限流/并发仅在单进程执行。无效 Authorization 不回退到 cookie，外部 JWT 不能登录 Console `/v1/*` API。详见[外部资源访问](external-connections.md)。
+
+此变更不部署 OAuth provider、不支持 opaque-token introspection、不实现 authorize/PKCE 流程、不注册客户端，也不启动隧道。启用记录不表示 provider 或 ChatGPT 已连接。共享凭据 CRUD 要求默认管理员能力 `credentials.manage.system`，内置 operator 不可依赖 `operations.manage` 执行这些操作；个人 `credentials.manage.self` 保持不变。

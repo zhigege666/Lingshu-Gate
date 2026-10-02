@@ -10,10 +10,10 @@ import os
 import secrets
 import sqlite3
 import stat
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
-from typing import Iterable, cast
+from typing import TYPE_CHECKING, Iterable, cast
 from uuid import uuid4
 
 from fastapi import HTTPException, Request, status
@@ -21,6 +21,11 @@ from fastapi import HTTPException, Request, status
 from lingshu_gate.config import Settings
 from lingshu_gate.database import SQLiteDatabase
 from lingshu_gate.logging import log_event
+
+
+if TYPE_CHECKING:
+    from lingshu_gate.external_connection_store import ExternalConnectionStore
+    from lingshu_gate.external_jwt import ExternalJwtVerifier
 
 
 USER_STATUSES = {"pending", "active", "disabled"}
@@ -43,6 +48,14 @@ class AuthPrincipal:
     must_change_password: bool = False
     token_id: str | None = None
     scopes: tuple[str, ...] = ()
+    delegated_scopes: tuple[str, ...] | None = None
+    external_grant_id: str | None = None
+    external_server_ids: tuple[str, ...] = ()
+    external_tool_ids: tuple[str, ...] = ()
+    external_access: tuple[str, ...] = ()
+    external_expires_at: str | None = None
+    external_rate_per_minute: int = 0
+    external_concurrency: int = 0
 
 
 def utc_now() -> datetime:
@@ -81,6 +94,8 @@ class AuthStore:
         self.cookie_name = settings.auth_session_cookie_name
         self.session_ttl_hours = settings.auth_session_ttl_hours
         self.enabled = settings.auth_enabled
+        self.external_verifier: ExternalJwtVerifier | None = None
+        self.external_connections: ExternalConnectionStore | None = None
         self.initial_admin_credentials_path = (
             settings.data_dir / INITIAL_ADMIN_CREDENTIALS_FILE
         )
@@ -539,14 +554,20 @@ class AuthStore:
             else:
                 raise ValueError("at least one scope is required")
         allowed_scopes = set(principal.permissions)
-        if principal.auth_type == "token":
-            parent_scopes = set(principal.scopes)
-            if "*" not in parent_scopes:
-                allowed_scopes &= parent_scopes
-            else:
-                allowed_scopes.add("*")
-        elif principal.role == "admin" or "admin" in principal.roles:
+        if principal.role == "admin" or "admin" in principal.roles:
             allowed_scopes.add("*")
+        ceilings: list[set[str]] = []
+        if principal.auth_type in {"token", "oauth"}:
+            ceilings.append(set(principal.scopes))
+        if principal.delegated_scopes is not None:
+            ceilings.append(set(principal.delegated_scopes))
+        for ceiling in ceilings:
+            if "*" in ceiling:
+                continue
+            if "*" in allowed_scopes:
+                allowed_scopes = ceiling
+            else:
+                allowed_scopes &= ceiling
         invalid_scopes = set(requested_scopes) - allowed_scopes
         if invalid_scopes:
             raise ValueError(f"scope exceeds user permissions: {', '.join(sorted(invalid_scopes))}")
@@ -681,7 +702,43 @@ class AuthStore:
         if row["username"] == "admin" and bool(row["must_change_password"]):
             self.initial_admin_credentials_path.unlink(missing_ok=True)
 
+    def authenticate_mcp_request(self, request: Request) -> AuthPrincipal:
+        """External JWTs authenticate only this protocol endpoint, never Console."""
+        bearer = self._bearer_token(request)
+        if self.external_connections is not None and self.external_connections.configuration().enabled and not self.enabled:
+            raise HTTPException(503, detail="external authentication requires Gate authentication")
+        if "authorization" not in request.headers:
+            return self.authenticate_request(request)
+        if bearer and bearer.startswith("lgt_") and self.enabled:
+            return self.authenticate_request(request)
+        if not bearer or bearer.count(".") != 2:
+            raise HTTPException(401, detail="unsupported authorization credential", headers={"WWW-Authenticate": "Bearer"})
+        from lingshu_gate.external_jwt import ExternalJwtError
+
+        if request.url.path != "/mcp" or not self.enabled or self.external_verifier is None or self.external_connections is None:
+            raise HTTPException(401, detail="external authentication is unavailable", headers={"WWW-Authenticate": "Bearer"})
+        try:
+            identity = self.external_verifier.verify(bearer)
+            user_id = self.external_connections.resolve_subject(identity.issuer, identity.subject)
+            grant = self.external_connections.get_active_grant(user_id, identity.client_id, utc_now())
+        except (ExternalJwtError, PermissionError, ValueError, KeyError) as exc:
+            raise HTTPException(401, detail="invalid external authorization", headers={"WWW-Authenticate": "Bearer"}) from exc
+        row = self.database.query_one("SELECT * FROM users WHERE id = ?", (user_id,))
+        if not row or row["status"] != "active":
+            raise HTTPException(401, detail="external identity is inactive", headers={"WWW-Authenticate": "Bearer"})
+        principal = self._build_principal(row, auth_type="oauth", scopes=tuple(identity.scopes))
+        access = tuple(grant["access"])
+        ceilings = tuple(scope for scope, kind in (("tools.read", "read"), ("tools.invoke", "write")) if kind in access)
+        principal = replace(principal, delegated_scopes=ceilings,
+            external_grant_id=grant["id"], external_server_ids=tuple(grant["server_allowlist"]),
+            external_tool_ids=tuple(grant["tool_allowlist"]), external_access=access,
+            external_expires_at=min(identity.expires_at, datetime.fromisoformat(grant["expires_at"])).isoformat(),
+            external_rate_per_minute=int(grant["rate_per_minute"]), external_concurrency=int(grant["concurrency"]))
+        return self._enforce_password_change(principal, request)
+
     def authenticate_request(self, request: Request) -> AuthPrincipal:
+        if "authorization" in request.headers and not self.enabled:
+            raise HTTPException(401, detail="authorization credentials require Gate authentication", headers={"WWW-Authenticate": "Bearer"})
         if not self.enabled:
             return AuthPrincipal(
                 id="system",
@@ -698,10 +755,13 @@ class AuthStore:
             )
 
         bearer = self._bearer_token(request)
-        if bearer:
-            principal = self._principal_from_api_token(bearer)
+        if "authorization" in request.headers:
+            principal = self._principal_from_api_token(bearer) if bearer else None
             if principal:
                 return self._enforce_password_change(principal, request)
+            # An explicitly supplied invalid credential must never inherit a cookie.
+            raise HTTPException(status_code=401, detail="invalid authorization credential",
+                                headers={"WWW-Authenticate": "Bearer"})
 
         session_token = request.cookies.get(self.cookie_name)
         if session_token:
@@ -767,7 +827,7 @@ class AuthStore:
         user_id = row["id"]  # type: ignore[index]
         roles = tuple(self._roles_for_user(user_id))
         if not roles:
-            raise RuntimeError(f"user has no enabled role: {user_id}")
+            raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="No enabled role is assigned; contact an administrator")
         permissions = tuple(self._permissions_for_user(user_id))
         return AuthPrincipal(
             id=user_id,
@@ -786,13 +846,11 @@ class AuthStore:
     def _user_row_to_dict(self, row: object) -> dict[str, object]:
         user_id = row["id"]  # type: ignore[index]
         roles = self._roles_for_user(user_id)
-        if not roles:
-            raise RuntimeError(f"user has no enabled role: {user_id}")
         return {
             "id": user_id,
             "username": row["username"],  # type: ignore[index]
             "display_name": row["display_name"],  # type: ignore[index]
-            "role": roles[0],
+            "role": roles[0] if roles else "",
             "roles": roles,
             "status": row["status"],  # type: ignore[index]
             "must_change_password": bool(row["must_change_password"]),  # type: ignore[index]

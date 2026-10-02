@@ -33,12 +33,20 @@ from lingshu_gate.transports.http import build_protocol_request
 
 
 class FakeRuntime:
+    def iter_manifests(self):
+        return {}
+
     def list_servers(self) -> McpServerListResponse:
         return McpServerListResponse(servers=[], load_errors=[])
 
 
 class FakeObservabilityStore:
+    def historical_server_ids(self):
+        return ["sample-service"]
+
     def list_logs(self, **kwargs: object) -> list[dict[str, object]]:
+        if kwargs.get("allowed_server_ids") == []:
+            return []
         return [
             {
                 "level": kwargs.get("level") or "error",
@@ -65,6 +73,11 @@ def deny_operator(_: Request) -> AuthPrincipal:
 
 
 class FakeAccessStore:
+    def observability_server_ids(self, principal, candidates):
+        if principal.role == "viewer":
+            raise AccessDeniedError("missing operations permission", required_access="operations.manage", granted_access="none")
+        return None
+
     def visible_tools(
         self,
         principal: AuthPrincipal,
@@ -87,7 +100,11 @@ class FakeAccessStore:
                 required_access="write",
                 granted_access="read",
             )
-        return registry.invoke(tool_id, arguments)
+        from lingshu_gate.registry import ToolInvocationContext
+        return registry.invoke(tool_id, arguments, context=ToolInvocationContext(
+            actor_id=principal.id, username=principal.username, auth_type=principal.auth_type,
+            token_id=None, correlation_id="synthetic", roles=(principal.role,),
+        ))
 
 
 class SystemDebugServiceTest(unittest.TestCase):
@@ -99,6 +116,7 @@ class SystemDebugServiceTest(unittest.TestCase):
             self.registry,
             FakeRuntime(),  # type: ignore[arg-type]
             FakeObservabilityStore(),  # type: ignore[arg-type]
+            FakeAccessStore(),  # type: ignore[arg-type]
         )
 
     def test_logs_are_redacted(self) -> None:
@@ -152,6 +170,7 @@ class McpGatewayProtocolTest(unittest.TestCase):
             registry,
             FakeRuntime(),  # type: ignore[arg-type]
             FakeObservabilityStore(),  # type: ignore[arg-type]
+            FakeAccessStore(),  # type: ignore[arg-type]
         )
         if debug_enabled:
             register_system_debug_tool(registry, service)

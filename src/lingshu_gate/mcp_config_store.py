@@ -6,12 +6,14 @@ import json
 import logging
 import os
 import tempfile
+import threading
 from pathlib import Path
 from typing import Any
 
 import yaml
 from pydantic import ValidationError
 
+from lingshu_gate.application.manifest_edit import restore_masked_mounts
 from lingshu_gate.logging import log_event
 from lingshu_gate.endpoint_security import REDACTED_ENDPOINT
 from lingshu_gate.mcp_manifest import McpServerManifest
@@ -28,6 +30,7 @@ class McpConfigStore:
 
     def __init__(self, config_dir: Path) -> None:
         self.config_dir = config_dir
+        self.mutation_lock = threading.RLock()
 
     def list_configs(self) -> McpConfigListResponse:
         configs: list[McpConfigResponse] = []
@@ -61,6 +64,10 @@ class McpConfigStore:
         return self._load_manifest(path)
 
     def save_config(self, manifest_data: dict[str, Any], *, expected_id: str | None = None, overwrite: bool = False) -> McpConfigResponse:
+        with self.mutation_lock:
+            return self._save_config(manifest_data, expected_id=expected_id, overwrite=overwrite)
+
+    def _save_config(self, manifest_data: dict[str, Any], *, expected_id: str | None = None, overwrite: bool = False) -> McpConfigResponse:
         manifest_id = str(manifest_data.get("id", ""))
         self._validate_server_id(manifest_id)
         if expected_id and manifest_id != expected_id:
@@ -82,6 +89,10 @@ class McpConfigStore:
         return self._to_response(saved, path)
 
     def delete_config(self, server_id: str) -> McpConfigResponse:
+        with self.mutation_lock:
+            return self._delete_config(server_id)
+
+    def _delete_config(self, server_id: str) -> McpConfigResponse:
         self._validate_server_id(server_id)
         path = self._find_path(server_id)
         if not path:
@@ -169,7 +180,7 @@ class McpConfigStore:
         return McpConfigResponse(id=manifest.id, path=str(path), format=suffix, manifest=manifest.safe_dict())
 
     def _preserve_masked_env(self, new_data: dict[str, Any], existing_data: dict[str, Any]) -> dict[str, Any]:
-        new_copy = dict(new_data)
+        new_copy = restore_masked_mounts(new_data, existing_data)
         new_launch = dict(new_copy.get("launch") or {})
         existing_launch = existing_data.get("launch") if isinstance(existing_data.get("launch"), dict) else {}
         for field_name in ("env", "environment"):

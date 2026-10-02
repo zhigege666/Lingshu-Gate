@@ -1,3 +1,7 @@
+import { FilterRadio } from "@/components/filter-radio"
+import "./tool-classifications-page.css"
+import { useRemainingViewport } from "@/components/use-remaining-viewport"
+import { ListPagination, ListViewport, useListPage } from "@/components/list-pagination"
 import { usePageRefresh } from "@/components/page-refresh"
 import { useEffect, useMemo, useRef, useState } from "react"
 import { BadgeCheck, CheckCheck, ListChecks, ScanSearch } from "lucide-react"
@@ -48,14 +52,15 @@ const copy = {
     batchSaved: "已批量更新",
     batchFailed: "条更新失败，请重试",
     saving: "正在保存…",
+    reviewPublish: "审核并发布",
     confirmSelected: "批量确认",
     confirmDescription: "逐条保留每个工具已保存的人工读写结论；没有人工结论时，采纳该工具的规则建议。确认后仍需单独发布才会生效。",
     confirmSaved: "已批量确认",
     confirmSkipped: "条仍待判定，已保留选择",
     confirmAvailable: "可批量确认",
-    confirmedPending: "已确认待发布",
+    confirmedPending: "待发布",
     needsConfirmation: "待确认",
-    selectVisible: "选择当前视图",
+    selectVisible: "选择本页工具",
     publishSelected: "发布所选",
     publishConfirm: "发布后会立即进入 REST 与 MCP Gateway 的运行时授权判断。请确认人工分类与风险标记已经复核。",
     edit: "人工确认",
@@ -114,14 +119,15 @@ const copy = {
     batchSaved: "Batch updated",
     batchFailed: "updates failed; retry them",
     saving: "Saving…",
+    reviewPublish: "Review and publish",
     confirmSelected: "Confirm selected",
     confirmDescription: "Keep each tool's saved human decision; when none exists, adopt that tool's rule suggestion. Confirmation stays pending until you publish it separately.",
     confirmSaved: "Batch confirmed",
     confirmSkipped: "still need a decision and remain selected",
     confirmAvailable: "Ready to confirm",
-    confirmedPending: "Confirmed · pending publish",
+    confirmedPending: "Pending publish",
     needsConfirmation: "Needs confirmation",
-    selectVisible: "Select visible tools",
+    selectVisible: "Select tools on this page",
     publishSelected: "Publish selected",
     publishConfirm: "Publishing immediately affects REST and MCP Gateway enforcement. Confirm the human classification and risk flags first.",
     edit: "Human review",
@@ -159,6 +165,7 @@ const CONFIRM_BATCH_SIZE = 500
 type ClassificationViewStatus = "__all" | "needs_confirmation" | "confirmed_pending" | "stale" | "published"
 
 export function ToolClassificationsPage({ locale, t }: { locale: Locale; t: TFunction }) {
+  const workspace = useRemainingViewport()
   const c = copy[locale]
   const [items, setItems] = useState<ToolClassification[]>([])
   const [selectedIds, setSelectedIds] = useState<string[]>([])
@@ -198,11 +205,13 @@ export function ToolClassificationsPage({ locale, t }: { locale: Locale; t: TFun
       if (serverFilter !== "__all" && item.server_id !== serverFilter) return false
       if (statusFilter !== "__all" && classificationViewStatus(item) !== statusFilter) return false
       return !needle || `${item.server_id} ${item.tool_id} ${item.tool_name}`.toLowerCase().includes(needle)
-    })
+    }).sort((a, b) => classificationOrder(a) - classificationOrder(b) || a.server_id.localeCompare(b.server_id) || a.tool_id.localeCompare(b.tool_id))
   }, [items, query, serverFilter, statusFilter])
+  const paging = useListPage(visibleItems, JSON.stringify([query, serverFilter, statusFilter]))
+  const selectedIdSet = useMemo(() => new Set(selectedIds), [selectedIds])
   const selectedItems = useMemo(
-    () => items.filter((item) => selectedIds.includes(item.id)),
-    [items, selectedIds],
+    () => items.filter((item) => selectedIdSet.has(item.id)),
+    [items, selectedIdSet],
   )
   const publishableSelectedItems = useMemo(
     () => selectedItems.filter((item) => item.status !== "published" && item.effective_access !== "unknown"),
@@ -224,8 +233,8 @@ export function ToolClassificationsPage({ locale, t }: { locale: Locale; t: TFun
     [selectedItems],
   )
   const publishedSelectedCount = selectedItems.filter((item) => item.status === "published").length
-  const selectableVisibleItems = visibleItems
-  const selectedVisibleCount = selectableVisibleItems.filter((item) => selectedIds.includes(item.id)).length
+  const selectableVisibleItems = paging.items
+  const selectedVisibleCount = selectableVisibleItems.filter((item) => selectedIdSet.has(item.id)).length
   const allVisibleSelected = selectableVisibleItems.length > 0 && selectedVisibleCount === selectableVisibleItems.length
   const someVisibleSelected = selectedVisibleCount > 0 && !allVisibleSelected
 
@@ -352,7 +361,8 @@ export function ToolClassificationsPage({ locale, t }: { locale: Locale; t: TFun
     }
   }
 
-  async function confirmSelected() {
+  async function confirmSelected(publishNow = false) {
+    if (busy || submitting.current) return
     const selected = confirmableSelectedItems
     if (!selected.length) return
     const selectedSnapshotIds = new Set(selectedItems.map((item) => item.id))
@@ -365,10 +375,12 @@ export function ToolClassificationsPage({ locale, t }: { locale: Locale; t: TFun
         ? `系统会自动拆成 ${batchCount} 批，每批最多 ${CONFIRM_BATCH_SIZE} 条并保持批内原子性；若后续批次冲突，已完成批次保留，其余选择会刷新。`
         : `The system will process ${batchCount} batches of up to ${CONFIRM_BATCH_SIZE}, atomically within each batch. If a later batch conflicts, completed batches remain confirmed and the rest refresh.`
       : ""
+    submitting.current = true
     if (!(await confirm({
-      title: `${c.confirmSelected} (${selected.length})`,
-      description: `${c.confirmDescription} ${selectionDetail} ${batchDetail}`.trim(),
-    }))) return
+      title: `${publishNow ? c.reviewPublish : c.confirmSelected} (${selected.length})`,
+      description: `${publishNow ? c.publishConfirm : c.confirmDescription} ${selectionDetail} ${batchDetail}`.trim(),
+      details: publishNow ? <ul className="space-y-2 text-sm">{selected.map(item => <li key={item.id}><strong>{item.tool_name}</strong> · {item.server_id} · {item.effective_access === "write" || (item.effective_access === "unknown" && item.suggested_access === "write") ? c.writeAccess : c.readAccess}{item.destructive ? ` · ${c.destructive}` : ""}</li>)}</ul> : undefined,
+    }))) { submitting.current = false; return }
 
     setBusy(true)
     setError(null)
@@ -380,6 +392,7 @@ export function ToolClassificationsPage({ locale, t }: { locale: Locale; t: TFun
         const batch = selected.slice(index, index + CONFIRM_BATCH_SIZE)
         const batchItemsByKey = new Map(batch.map((item) => [`${item.server_id}\u0000${item.tool_id}`, item]))
         const result = await api.confirmToolClassifications({
+          ...(publishNow ? { publish: true } : {}),
           items: batch.map((item) => ({
             server_id: item.server_id,
             tool_id: item.tool_id,
@@ -401,8 +414,8 @@ export function ToolClassificationsPage({ locale, t }: { locale: Locale; t: TFun
       await load()
       const remainingCount = remainingIds.size
       setMessage(remainingCount > 0
-        ? `${c.confirmSaved}: ${confirmedCount}；${remainingCount} ${c.confirmSkipped}`
-        : `${c.confirmSaved}: ${confirmedCount}`)
+        ? `${publishNow ? c.published : c.confirmSaved}: ${confirmedCount}；${remainingCount} ${c.confirmSkipped}`
+        : `${publishNow ? c.published : c.confirmSaved}: ${confirmedCount}`)
     } catch (err) {
       // 指纹冲突时刷新最新分类；已成功批次不再保留选择，其余工具可直接重新确认。
       setSelectedIds((current) => current.filter((id) => !confirmedIds.has(id)))
@@ -427,6 +440,7 @@ export function ToolClassificationsPage({ locale, t }: { locale: Locale; t: TFun
           ? `批量确认未全部完成，且最新工具数据刷新失败；未处理项仍保持选择，请先手动刷新再重试。${detail}`
           : `Batch confirmation did not finish and tool data could not be refreshed. Unprocessed items remain selected; refresh manually before retrying. ${detail}`)
     } finally {
+      submitting.current = false
       setBusy(false)
     }
   }
@@ -473,29 +487,29 @@ export function ToolClassificationsPage({ locale, t }: { locale: Locale; t: TFun
   // 筛选不会清空选择；明确提示视图外的已选项，避免用户误判批量操作范围。
   const hiddenSelectedCount = selectedItems.length - selectedVisibleCount
   const selectionSummary = locale === "zh-CN"
-    ? `已选 ${selectedItems.length} 项${hiddenSelectedCount > 0 ? `，其中 ${hiddenSelectedCount} 项不在当前筛选结果中` : ""}`
-    : `${selectedItems.length} selected${hiddenSelectedCount > 0 ? `, including ${hiddenSelectedCount} outside the current filters` : ""}`
+    ? `已选 ${selectedItems.length} 项${hiddenSelectedCount > 0 ? `，其中 ${hiddenSelectedCount} 项不在当前页中（跨页保留选择）` : ""}`
+    : `${selectedItems.length} selected${hiddenSelectedCount > 0 ? `, including ${hiddenSelectedCount} outside this page (selection is retained across pages)` : ""}`
   const toast: ToastState = message ? { message, tone: "success" } : null
 
   return (
-    <div className="flex flex-col gap-4">
-      <PageHeader title={c.title} description={c.description} helpLabel={t("pageHelp")}
+    <div ref={workspace} className="tool-review-workspace flex flex-col gap-4">
+      <PageHeader closeLabel={t("close")} title={c.title} description={c.description} helpLabel={t("pageHelp")}
         helpContent={<>
           <ol className="list-inside list-decimal space-y-1">{[c.step1, c.step2, c.step3, c.step4].map((step) => <li key={step}>{step}</li>)}</ol>
           <p>{c.selectionReady}</p>
           <p className="text-muted-foreground">{c.selectHint}</p>
         </>}
-        toolbar={<PageToolbar query={query} onQueryChange={setQuery} placeholder={c.search} resultCount={visibleItems.length} resultLabel={c.tool} clearLabel={t("clearSearch")}>
+        toolbar={<PageToolbar query={query} onQueryChange={setQuery} placeholder={c.search} resultCount={visibleItems.length} resultLabel={c.tool} clearLabel={t("clearSearch")} resetFilters={{ label: t("resetFilters"), disabled: !query && serverFilter === "__all" && statusFilter === "__all", onReset: () => { setQuery(""); setServerFilter("__all"); setStatusFilter("__all") } }}>
             <Select value={serverFilter} onValueChange={setServerFilter}><SelectTrigger aria-label={c.filterSource} className="w-full sm:w-44"><SelectValue /></SelectTrigger><SelectContent><SelectItem value="__all">{c.allServers}</SelectItem>{servers.map((server) => <SelectItem key={server} value={server}>{sourceOptionLabel(server, c)}</SelectItem>)}</SelectContent></Select>
-            <Select value={statusFilter} onValueChange={(value) => setStatusFilter(value as ClassificationViewStatus)}><SelectTrigger aria-label={c.filterStatus} className="w-full sm:w-44"><SelectValue /></SelectTrigger><SelectContent><SelectItem value="__all">{c.allStatuses}</SelectItem><SelectItem value="needs_confirmation">{c.needsConfirmation}</SelectItem><SelectItem value="confirmed_pending">{c.confirmedPending}</SelectItem><SelectItem value="stale">{c.stale}</SelectItem><SelectItem value="published">{c.published}</SelectItem></SelectContent></Select>
+            <FilterRadio label={t("status")} value={statusFilter} onChange={value => setStatusFilter(value as ClassificationViewStatus)} options={[{value:"__all",label:t("all")},{value:"needs_confirmation",label:c.needsConfirmation},{value:"confirmed_pending",label:c.confirmedPending},{value:"published",label:c.published},{value:"stale",label:c.stale}]} />
         </PageToolbar>}
         actions={<>
           <Button variant="outline" onClick={() => void analyze()} disabled={busy}><ScanSearch />{c.analyzeRules}</Button>
         </>}
       />
       {error && <Alert variant="destructive"><AlertDescription>{error}</AlertDescription></Alert>}
-      <Card>
-        <div className="flex flex-col gap-3 p-3 md:p-4">
+      <Card className="tool-review-card">
+        <div className="tool-review-content flex flex-col gap-3 p-3 md:p-4">
           {selectedItems.length > 0 && <div role="region" aria-label={c.selectionActions} className="flex flex-wrap items-center justify-between gap-3 rounded-lg bg-muted/50 px-3 py-2">
             <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-sm">
               <span role="status">{selectionSummary}</span>
@@ -504,15 +518,17 @@ export function ToolClassificationsPage({ locale, t }: { locale: Locale; t: TFun
             <div className="flex flex-wrap gap-2">
               <Button className="shrink-0" variant="outline" onClick={openBatchReview} disabled={busy}><ListChecks />{c.batchClassify} ({selectedItems.length})</Button>
               <Button className="shrink-0" variant="secondary" onClick={() => void confirmSelected()} disabled={busy || confirmableSelectedItems.length === 0}><BadgeCheck />{c.confirmSelected} ({confirmableSelectedItems.length})</Button>
-              <Button className="shrink-0" onClick={() => void publish()} disabled={busy || publishableSelectedItems.length === 0}><CheckCheck />{c.publishSelected} ({publishableSelectedItems.length})</Button>
+              <Button className="shrink-0" onClick={() => void confirmSelected(true)} disabled={busy || confirmableSelectedItems.length === 0}><CheckCheck />{c.reviewPublish} ({confirmableSelectedItems.length})</Button>
+              <Button className="shrink-0" variant="outline" onClick={() => void publish()} disabled={busy || publishableSelectedItems.length === 0}><CheckCheck />{c.publishSelected} ({publishableSelectedItems.length})</Button>
             </div>
           </div>}
-          <div className="overflow-x-auto rounded-lg border">
-            <Table className="min-w-[900px] [&_th]:whitespace-nowrap">
+          <ListViewport viewport={paging.viewport} label={c.tool}>
+            <Table className="tool-review-table">
+              <colgroup>{[40, 300, 136, 120, 96, 160, 176, 104].map((width, index) => <col key={index} style={{ width: index === 1 ? undefined : width }} />)}</colgroup>
               <TableHeader><TableRow><TableHead className="w-10"><input ref={(node) => { if (node) node.indeterminate = someVisibleSelected }} className="size-4 accent-primary" type="checkbox" aria-label={c.selectVisible} title={c.selectVisible} checked={allVisibleSelected} disabled={busy || selectableVisibleItems.length === 0} onChange={(event) => toggleVisibleSelected(event.target.checked)} /></TableHead><TableHead>{c.tool}</TableHead><TableHead>{c.suggestion}</TableHead><TableHead>{c.effective}</TableHead><TableHead>{c.confidence}</TableHead><TableHead>{c.flags}</TableHead><TableHead>{t("status")}</TableHead><TableHead>{t("actions")}</TableHead></TableRow></TableHeader>
               <TableBody>
-                {visibleItems.length === 0 ? <TableEmptyRow colSpan={8} title={c.noData} /> : visibleItems.map((item) => <TableRow key={item.id}>
-                  <TableCell><input className="size-4 accent-primary" type="checkbox" aria-label={`${c.selectRow}: ${item.tool_name}`} title={c.selectRow} checked={selectedIds.includes(item.id)} disabled={busy} onChange={(event) => toggleSelected(item, event.target.checked)} /></TableCell>
+                {visibleItems.length === 0 ? <TableEmptyRow colSpan={8} title={busy ? t("loadingData") : error ? t("error") : query.trim() || serverFilter !== "__all" || statusFilter !== "__all" ? t("noMatchingRecords") : c.noData} /> : paging.items.map((item) => <TableRow key={item.id}>
+                  <TableCell><input className="size-4 accent-primary" type="checkbox" aria-label={`${c.selectRow}: ${item.tool_name}`} title={c.selectRow} checked={selectedIdSet.has(item.id)} disabled={busy} onChange={(event) => toggleSelected(item, event.target.checked)} /></TableCell>
                   <TableCell>
                     <div className="flex flex-wrap items-center gap-2"><span className="font-medium">{item.tool_name}</span><SourceBadge serverId={item.server_id} labels={c} /></div>
                     <div className="mt-0.5 max-w-96 truncate text-xs text-foreground/65" title={`${item.server_id}/${item.tool_id}`}>{sourceDisplayName(item.server_id, c)} · {item.tool_id}</div>
@@ -526,7 +542,8 @@ export function ToolClassificationsPage({ locale, t }: { locale: Locale; t: TFun
                 </TableRow>)}
               </TableBody>
             </Table>
-          </div>
+          </ListViewport>
+          <ListPagination paging={paging} t={t} />
         </div>
       </Card>
 
@@ -549,7 +566,7 @@ export function ToolClassificationsPage({ locale, t }: { locale: Locale; t: TFun
           <div className="flex items-center justify-between gap-3"><Label htmlFor="classification-destructive">{c.destructive}</Label><Switch id="classification-destructive" disabled={busy} checked={destructive} onCheckedChange={setDestructive} /></div>
           <div className="flex items-center justify-between gap-3"><Label htmlFor="classification-idempotent">{c.idempotent}</Label><Switch id="classification-idempotent" disabled={busy} checked={idempotent} onCheckedChange={setIdempotent} /></div>
           <div><Label htmlFor="classification-review-note">{c.note}</Label><Textarea id="classification-review-note" className="mt-2 min-h-28" disabled={busy} value={note} onChange={(event) => setNote(event.target.value)} /></div>
-          <details><summary className="cursor-pointer text-sm font-medium">{c.evidence}</summary><div className="mt-2"><JsonPanel data={editing?.evidence || {}} maxHeight="max-h-80" /></div></details>
+          <details><summary className="cursor-pointer text-sm font-medium">{c.evidence}</summary><div className="mt-2"><JsonPanel copyLabel={t("copy")} data={editing?.evidence || {}} maxHeight="max-h-80" /></div></details>
         </div>
       </FormDialog>
       {confirmDialog}
@@ -567,12 +584,18 @@ function AccessBadge({ access, labels }: { access: ToolClassification["effective
 function StatusBadge({ item, labels }: { item: ToolClassification; labels: Record<string, string> }) {
   const status = classificationViewStatus(item)
   if (status === "published") return <Badge variant="success">{labels.published}</Badge>
-  if (status === "stale") return <Badge variant="danger">{labels.stale}</Badge>
+  if (status === "stale") {
+    const lifecycle = item.evidence?.lifecycle as { reason?: string } | undefined
+    const invalidation = item.evidence?.invalidation as { reason?: string } | undefined
+    const zh = labels.stale === "已失效"
+    const reason = lifecycle?.reason === "missing_from_latest_tools_list" ? (zh ? "最新目录中已移除" : "Removed from latest catalog") : lifecycle?.reason === "reappeared_in_tools_list" ? (zh ? "工具重新出现，需复核" : "Tool reappeared; review required") : invalidation?.reason === "tool_definition_changed" ? (zh ? "定义已变更，需重新审核" : "Definition changed; review required") : (zh ? "需重新审核，详见证据" : "Review required; inspect evidence")
+    return <div><Badge variant="danger">{labels.stale}</Badge><p className="mt-1 text-xs text-muted-foreground">{reason}</p></div>
+  }
   if (status === "confirmed_pending") return <Badge variant="outline">{labels.confirmedPending}</Badge>
   return <Badge variant="warning">{labels.needsConfirmation}</Badge>
 }
 
-function classificationViewStatus(item: ToolClassification): Exclude<ClassificationViewStatus, "__all"> {
+export function classificationViewStatus(item: ToolClassification): Exclude<ClassificationViewStatus, "__all"> {
   if (item.status === "published") return "published"
   if (item.status === "stale") return "stale"
   if (item.effective_access !== "unknown") return "confirmed_pending"
@@ -598,4 +621,8 @@ function suggestionSourceLabel(source: string, labels: Record<string, string>) {
   if (source === "annotation") return labels.sourceAnnotation
   if (source === "manual") return labels.sourceManual
   return labels.sourceRule
+}
+
+export function classificationOrder(item: ToolClassification) {
+  return { needs_confirmation: 0, confirmed_pending: 1, published: 2, stale: 3 }[classificationViewStatus(item)]
 }

@@ -1,10 +1,14 @@
-import { useEffect, useMemo, useState, type ReactNode } from "react"
+import { replaceConsoleRouteHash } from "@/routing/use-console-route"
+import "./servers-page.css"
+import { ServiceDeployments } from "@/features/servers/service-deployments"
+import { useEffect, useLayoutEffect, useMemo, useRef, useState, type ReactNode } from "react"
 import {
   ArrowLeftOutlined, ArrowRightOutlined, CloudServerOutlined, CodeOutlined, ExportOutlined,
   InfoCircleOutlined, PlusOutlined, ReloadOutlined, SearchOutlined, UnorderedListOutlined,
 } from "@ant-design/icons"
-import { Alert, Badge, Button, Collapse, Drawer, Empty, Grid, Input, Segmented, Skeleton, Table, Tabs, Tag, Tooltip, type TableColumnsType } from "antd"
+import { Alert, Badge, Button, Collapse, Drawer, Empty, Grid, Input, Pagination, Segmented, Skeleton, Table, Tabs, Tag, Tooltip, type TableColumnsType } from "antd"
 import type { McpServer, McpServerDetailSlice, ToolClassification, ToolDefinition } from "@/api/client"
+import { ServiceConfigDrawer } from "@/features/servers/service-config-drawer"
 import { JsonPanel } from "@/components/json-panel"
 import { PageHeader, PageToolbar } from "@/components/page-shell"
 import { serverCopy, type ServerCopy } from "@/features/servers/copy"
@@ -14,12 +18,13 @@ import { formatDateTime } from "@/lib/utils"
 import type { ConsoleView } from "@/routing/console-routes"
 
 type Action = "start" | "stop" | "restart"
-type MainTab = "overview" | "tools" | "logs" | "configuration"
+type MainTab = "overview" | "tools" | "logs" | "configuration" | "deployments"
 type LogTab = "logs" | "events" | "recovery"
 type RecordValue = Record<string, unknown>
 type ToolRow = { key: string; name: string; description: string; schema: RecordValue; raw: RecordValue }
 type LogRow = { key: string; time: string; level: string; type: string; message: string; raw: RecordValue }
 type Props = {
+  initialServerId?: string
   locale: Locale
   t: TFunction
   servers: McpServer[]
@@ -31,6 +36,7 @@ type Props = {
   canManageClassifications: boolean
   onServerAction: (id: string, action: Action) => Promise<void> | void
   onRefresh: () => Promise<void> | void
+  onInvoke?: (toolId: string) => void
   onNewConfig: () => void
   onNavigate: (view: ConsoleView) => void
 }
@@ -39,7 +45,26 @@ export function ServersPage(props: Props) {
   const { t, servers, locale } = props
   const c = serverCopy(locale)
   const screens = Grid.useBreakpoint()
-  const [selectedId, setSelectedId] = useState<string | null>(null)
+  const workspace = useRef<HTMLDivElement>(null)
+  useLayoutEffect(() => {
+    const node = workspace.current
+    if (!node) return
+    const measure = () => {
+      const top = Math.max(0, node.getBoundingClientRect().top + window.scrollY)
+      node.style.setProperty("--service-workspace-top", `${top}px`)
+    }
+    measure()
+    const observer = new ResizeObserver(measure)
+    const header = document.querySelector(".console-header")
+    if (header) observer.observe(header)
+    // Shell errors can appear above this workspace without a viewport resize.
+    if (node.parentElement) observer.observe(node.parentElement)
+    window.addEventListener("resize", measure)
+    return () => { observer.disconnect(); window.removeEventListener("resize", measure) }
+  }, [])
+  const [selectedId, setSelectedId] = useState<string | null>(props.initialServerId || null)
+  const [configSession, setConfigSession] = useState<{ server: McpServer; manifest: RecordValue } | null>(null)
+  const [directoryPage, setDirectoryPage] = useState(1)
   const [query, setQuery] = useState("")
   const [filter, setFilter] = useState("all")
   const [tab, setTab] = useState<MainTab>("overview")
@@ -50,7 +75,9 @@ export function ServersPage(props: Props) {
   const [actionBusy, setActionBusy] = useState(false)
   const selected = servers.find(server => server.id === selectedId) || null
   const { states, load } = useServerDetails(selected?.id || null, servers, props.canManageClassifications)
-  const activeSection: DetailSection = tab === "logs" ? logTab : tab
+  const activeSection: DetailSection = tab === "logs" ? logTab : tab === "deployments" ? "overview" : tab
+
+  useEffect(() => { if (props.initialServerId) chooseServer(props.initialServerId) }, [props.initialServerId])
 
   function chooseServer(id: string | null) {
     setSelectedId(id)
@@ -62,11 +89,13 @@ export function ServersPage(props: Props) {
 
   useEffect(() => {
     if (selectedId && !servers.some(server => server.id === selectedId)) {
+      // Route-targeted delivery results may precede the refreshed list snapshot.
+      if (selectedId === props.initialServerId) return
       chooseServer(screens.md && servers[0] ? servers[0].id : null)
     } else if (!selectedId && screens.md && servers[0]) {
       chooseServer(servers[0].id)
     }
-  }, [selectedId, servers, screens.md])
+  }, [selectedId, servers, screens.md, props.initialServerId])
   useEffect(() => {
     if (!selected) return
     void load(activeSection)
@@ -135,8 +164,8 @@ export function ServersPage(props: Props) {
           <dt>{c.process}</dt><dd><RuntimeBadge server={server} t={t} /></dd>
           <dt>{c.launch}</dt><dd>{server.launch_type}</dd>
           <dt>{c.pid}</dt><dd>{server.pid ?? "-"}</dd>
-          <dt>{c.discovered}</dt><dd>{server.tool_count}</dd>
-          <dt>{c.health}</dt><dd>{asRecord(asRecord(server.restart_policy).health_check).enabled ? localizeStatus(t, server.health_status || "unknown") : <>{c.healthOff}<span className="service-fact-note">{c.healthOffHint}</span></>}</dd>
+          <dt>{c.health}</dt><dd>{asRecord(asRecord(server.restart_policy).health_check).enabled ? localizeStatus(t, server.health_status || "unknown") : c.healthOff}</dd>
+          {!asRecord(asRecord(server.restart_policy).health_check).enabled && <dd className="service-fact-note service-fact-note-wide">{c.healthOffHint}</dd>}
         </dl>
       </section>
       <section>
@@ -144,8 +173,10 @@ export function ServersPage(props: Props) {
         <dl className="service-facts">
           <dt>{c.discovered}</dt><dd>{server.tool_count}</dd>
           <dt>{c.published}</dt><dd>{!props.canManageClassifications ? c.noClassificationAccess : states.overview?.loading ? c.loading : states.overview?.classificationError ? c.unread : published === undefined ? c.unread : <Button type="link" size="small" style={{ padding: 0, height: "auto" }} onClick={() => props.onNavigate("toolClassifications")} aria-label={`${c.openClassification} · ${published}`}>{published}<ArrowRightOutlined /></Button>}</dd>
-          <dt>{c.visible}</dt><dd>{!props.canReadTools ? c.noToolsAccess : props.toolsError ? c.visibleError : visible === null ? c.loading : visible.length}<span className="service-fact-note">{c.visibleHint}</span></dd>
-          <dt>{c.client}</dt><dd>{c.clientUnknown} <Tooltip title={c.clientHint}><InfoCircleOutlined /></Tooltip><span className="service-fact-note">{c.clientHint}</span></dd>
+          <dt>{c.visible}</dt><dd>{!props.canReadTools ? c.noToolsAccess : props.toolsError ? c.visibleError : visible === null ? c.loading : visible.length}</dd>
+          <dd className="service-fact-note service-fact-note-wide">{c.visibleHint}</dd>
+          <dt>{c.client}</dt><dd>{c.clientUnknown} <Tooltip title={c.clientHint}><InfoCircleOutlined /></Tooltip></dd>
+          <dd className="service-fact-note service-fact-note-wide">{c.clientHint}</dd>
         </dl>
       </section>
     </div>
@@ -159,12 +190,18 @@ export function ServersPage(props: Props) {
     </section>
   </div>
 
-  return <div className="server-workspace" data-selected={Boolean(selected)}>
+  return <div ref={workspace} className="server-workspace" data-selected={Boolean(selected)}>
     <aside className="service-directory" aria-label={c.directory}>
       <div className="service-directory-header">
-        <div className="service-directory-title"><h2>{c.directory}</h2></div>
-        <PageToolbar query={query} onQueryChange={setQuery} placeholder={c.search} clearLabel={t("clearSearch")} />
-        <Segmented aria-label={c.directory} block size="large" value={filter} onChange={value => setFilter(String(value))} options={[
+        <div className="service-directory-title service-directory-heading">
+          <h2>{c.directory}</h2>
+          <div className="service-directory-create-actions">
+            <Button size="small" icon={<PlusOutlined />} onClick={props.onNewConfig}>{locale === "zh-CN" ? "接入远程 MCP" : "Connect remote MCP"}</Button>
+            <Button size="small" onClick={() => props.onNavigate("uploads")}>{locale === "zh-CN" ? "从项目创建" : "From project"}</Button>
+          </div>
+        </div>
+        <PageToolbar query={query} onQueryChange={value => { setQuery(value); setDirectoryPage(1) }} placeholder={c.search} clearLabel={t("clearSearch")} resetFilters={{ label: t("resetFilters"), disabled: !query && filter === "all", onReset: () => { setQuery(""); setFilter("all"); setDirectoryPage(1) } }} />
+        <Segmented aria-label={c.directory} block size="large" value={filter} onChange={value => { setFilter(String(value)); setDirectoryPage(1) }} options={[
           { value: "all", label: c.all + " (" + servers.length + ")" },
           { value: "running", label: c.running + " (" + runningCount + ")" },
           { value: "issues", label: c.issues + " (" + issueCount + ")" },
@@ -172,19 +209,19 @@ export function ServersPage(props: Props) {
       </div>
       {props.loadErrors.length > 0 && <Alert type="error" showIcon title={c.loadFailed} description={props.loadErrors.join("; ")} />}
       <div className="service-directory-list">
-        {filteredServers.map(item => <button key={item.id} className="service-entry" data-active={item.id === selectedId} aria-pressed={item.id === selectedId} onClick={() => chooseServer(item.id)}>
+        {filteredServers.slice((Math.min(directoryPage, Math.max(1, Math.ceil(filteredServers.length / 20))) - 1) * 20, Math.min(directoryPage, Math.max(1, Math.ceil(filteredServers.length / 20))) * 20).map(item => <button key={item.id} className="service-entry" data-active={item.id === selectedId} aria-pressed={item.id === selectedId} onClick={() => { chooseServer(item.id); replaceConsoleRouteHash(`#/servers/${encodeURIComponent(item.id)}`) }}>
           <span><span className="service-entry-name" title={item.name || item.id}>{item.name || item.id}</span><span className="service-entry-subtitle" title={item.id}>{item.id}</span></span>
           <span className="service-entry-meta"><RuntimeBadge server={item} t={t} /><span className="service-entry-count">{item.tool_count}</span></span>
         </button>)}
         {filteredServers.length === 0 && <div className="inline-empty"><Empty image={Empty.PRESENTED_IMAGE_SIMPLE} description={servers.length ? c.noMatches : <>{c.emptyServices}<p className="service-fact-note">{c.emptyHint}</p></>} /></div>}
       </div>
-      <div className="service-directory-footer"><Button block icon={<PlusOutlined />} onClick={props.onNewConfig}>{c.add}</Button></div>
+      {filteredServers.length > 20 && <div className="service-directory-footer"><Pagination simple current={Math.min(directoryPage, Math.max(1, Math.ceil(filteredServers.length / 20)))} total={filteredServers.length} pageSize={20} showSizeChanger={false} onChange={setDirectoryPage} /></div>}
     </aside>
 
     <section className="service-detail" aria-label={selected ? selected.id : c.selectService}>
       {server ? <>
         <Button type="text" className="service-detail-back" icon={<ArrowLeftOutlined />} onClick={() => chooseServer(null)}>{c.back}</Button>
-        <PageHeader variant="detail" title={server.name || server.id} description={server.id} titleExtra={<RuntimeBadge server={server} t={t} pill />} actions={<>
+        <PageHeader closeLabel={t("close")} variant="detail" title={server.name || server.id} description={server.id} titleExtra={<RuntimeBadge server={server} t={t} pill />} actions={<>
           <Button type="primary" icon={<ExportOutlined />} onClick={() => setTab("tools")}>{c.viewTools}</Button>
           {actions.map(action => <Button key={action} danger={action === "stop"} disabled={actionBusy || props.busy} onClick={() => void runAction(action)}>{actionName(action)}</Button>)}
         </>} />
@@ -195,6 +232,7 @@ export function ServersPage(props: Props) {
             <div className="service-panel-toolbar"><Input value={toolQuery} onChange={event => setToolQuery(event.target.value)} placeholder={c.searchTools} aria-label={c.searchTools} prefix={<SearchOutlined />} allowClear /><Button icon={<ReloadOutlined />} onClick={() => void load("tools", true)}>{c.refresh}</Button></div>
             <Table className="service-table" columns={toolColumns} dataSource={filteredTools} size="small" tableLayout="fixed" pagination={{ defaultPageSize: 10, showSizeChanger: true, pageSizeOptions: [10, 25, 50], hideOnSinglePage: true }} scroll={{ x: 620 }} locale={{ emptyText: c.noTools }} />
           </>}</SectionContent> },
+          { key: "deployments", label: locale === "zh-CN" ? "版本与部署" : "Versions and deployments", children: <ServiceDeployments serverId={server.id} locale={locale} /> },
           { key: "logs", label: c.logs, children: <div className="service-panel-stack">
             <div className="service-panel-toolbar"><Segmented aria-label={c.logs} value={logTab} onChange={value => setLogTab(value as LogTab)} options={[{ value: "logs", label: c.serviceLogs }, { value: "events", label: c.events }, { value: "recovery", label: c.recovery }]} /><Button icon={<ReloadOutlined />} onClick={() => void load(logTab, true)} aria-label={c.refresh} /></div>
             <SectionContent state={states[logTab]} c={c} onRetry={() => void load(logTab, true)}>{data => <>
@@ -204,16 +242,16 @@ export function ServersPage(props: Props) {
           </div> },
           { key: "configuration", label: c.configuration, children: <div className="service-panel-stack">
             <SectionContent state={states.configuration} c={c} onRetry={() => void load("configuration", true)}>{data => <>
-              <h2 className="service-section-title"><CodeOutlined aria-hidden="true" />{c.manifest}</h2>
+              <div className="service-panel-toolbar"><h2 className="service-section-title"><CodeOutlined aria-hidden="true" />{c.manifest}</h2><Button type="primary" disabled={!data.manifest} onClick={() => setConfigSession({ server, manifest: data.manifest || {} })}>{locale === "zh-CN" ? "修改配置" : "Edit configuration"}</Button></div>
               <dl className="service-facts">
                 <dt>{c.desired}</dt><dd>{server.desired_state === "running" ? c.keepRunning : server.desired_state === "stopped" ? c.keepStopped : "-"}</dd>
                 <dt>{c.lastStarted}</dt><dd>{formatDateTime(server.last_started_at)}</dd>
                 <dt>{c.configPath}</dt><dd>{server.manifest_path || "-"}</dd>
               </dl>
-              <JsonPanel data={data.manifest || {}} maxHeight="max-h-[480px]" />
+              <JsonPanel copyLabel={t("copy")} data={data.manifest || {}} maxHeight="" className="service-json" />
             </>}</SectionContent>
             <Collapse onChange={keys => { if (keys.includes("cache")) void load("cache"); if (keys.includes("diagnostics")) void load("diagnostics") }} items={[
-              { key: "cache", label: c.runtimeCache, children: <><p className="service-fact-note">{c.cacheHint}</p><SectionContent state={states.cache} c={c} onRetry={() => void load("cache", true)}>{data => <JsonPanel data={data.runtime_cache || {}} />}</SectionContent></> },
+              { key: "cache", label: c.runtimeCache, children: <><p className="service-fact-note">{c.cacheHint}</p><SectionContent state={states.cache} c={c} onRetry={() => void load("cache", true)}>{data => <JsonPanel copyLabel={t("copy")} data={data.runtime_cache || {}} maxHeight="" className="service-json" />}</SectionContent></> },
               { key: "diagnostics", label: c.fullDiagnostics, children: <><p className="service-fact-note">{c.diagnosticHint}</p><SectionContent state={states.diagnostics} c={c} onRetry={() => void load("diagnostics", true)}>{data => <div className="service-panel-stack">{(data.failure_hints || []).map(hint => <Alert key={hint.code} showIcon type={hint.severity === "error" ? "error" : hint.severity === "warning" ? "warning" : "info"} title={hint.code} description={hint.message} />)}</div>}</SectionContent></> },
             ]} />
           </div> },
@@ -221,16 +259,18 @@ export function ServersPage(props: Props) {
       </> : <div className="service-unselected"><Empty image={Empty.PRESENTED_IMAGE_SIMPLE} description={c.selectService} /></div>}
     </section>
 
+    {configSession && <ServiceConfigDrawer server={configSession.server} manifest={configSession.manifest} locale={locale} t={t} onClose={() => setConfigSession(null)} onSaved={async () => { await props.onRefresh(); await load("configuration", true); await load("overview", true) }} />}
     <Drawer className="service-tool-drawer" title={selectedTool?.name || c.toolDetails} size={560} open={selectedTool !== null} onClose={() => setSelectedTool(null)} destroyOnHidden>
       {selectedTool && <div className="service-panel-stack">
+        {props.onInvoke && props.visibleTools?.filter(tool => tool.source === "mcp" && asRecord(tool.metadata).server_id === server?.id && (tool.id === selectedTool.raw.id || tool.name === selectedTool.name)).map(tool => <Button key={tool.id} type="primary" onClick={() => props.onInvoke?.(tool.id)}>{locale === "zh-CN" ? "测试工具" : "Test tool"}</Button>)}
         <p className="service-description" style={{ whiteSpace: "normal" }}>{selectedTool.description}</p>
         <h3 className="service-section-title"><CodeOutlined aria-hidden="true" />{c.inputSchema}</h3>
-        <JsonPanel data={selectedTool.schema} maxHeight="max-h-[480px]" />
-        <Collapse items={[{ key: "metadata", label: c.metadata, children: <JsonPanel data={selectedTool.raw} maxHeight="max-h-80" /> }]} />
+        <JsonPanel copyLabel={t("copy")} data={selectedTool.schema} maxHeight="max-h-[480px]" />
+        <Collapse items={[{ key: "metadata", label: c.metadata, children: <JsonPanel copyLabel={t("copy")} data={selectedTool.raw} maxHeight="max-h-80" /> }]} />
       </div>}
     </Drawer>
     <Drawer title={c.recordDetails} size={640} open={selectedRecord !== null} onClose={() => setSelectedRecord(null)} destroyOnHidden>
-      {selectedRecord && <JsonPanel data={selectedRecord} maxHeight="max-h-[calc(100vh-140px)]" />}
+      {selectedRecord && <JsonPanel copyLabel={t("copy")} data={selectedRecord} maxHeight="max-h-[calc(100vh-140px)]" />}
     </Drawer>
   </div>
 }

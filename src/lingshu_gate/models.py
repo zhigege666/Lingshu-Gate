@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from typing import Any
+from typing import Any, Literal
 
 from pydantic import BaseModel, ConfigDict, Field, StrictBool, model_validator
 
@@ -206,6 +206,11 @@ class DeployBuildRequest(BaseModel):
     server_id: str | None = None
     start: StrictBool = False
     overwrite: StrictBool = False
+    manifest_patch: dict[str, Any] = Field(default_factory=dict)
+    expected_config_digest: str | None = Field(default=None, pattern=r"^[0-9a-f]{64}$")
+    credential_policy: Literal["preserve_existing", "require_none"] = "preserve_existing"
+    expected_previous_config_digest: str | None = Field(default=None, pattern=r"^[0-9a-f]{64}$")
+    expected_credential_binding_digest: str | None = Field(default=None, pattern=r"^[0-9a-f]{64}$")
 
 
 class RollbackDeploymentRequest(BaseModel):

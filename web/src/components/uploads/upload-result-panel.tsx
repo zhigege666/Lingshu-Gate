@@ -80,13 +80,13 @@ export function UploadResultPanel({ upload, result, busy, onSaveManifest, t }: {
             <div><dt className="text-xs text-muted-foreground">{c.transport}</dt><dd>{String(asRecord(manifest.transport)?.type || "stdio")}</dd></div>
           </dl>
         </section>}
-        {analysis && Object.keys(analysis).length > 0 && <details><summary className="cursor-pointer text-sm font-medium">{c.analysis}</summary><div className="mt-2"><JsonPanel data={analysis} maxHeight="max-h-80" /></div></details>}
-        {manifest && <details><summary className="cursor-pointer text-sm font-medium">{t("manifest")}</summary><div className="mt-2"><JsonPanel data={manifest} maxHeight="max-h-80" /></div></details>}
-        {result && <details><summary className="cursor-pointer text-sm font-medium">{c.raw}</summary><div className="mt-2"><JsonPanel data={result.data} maxHeight="max-h-80" /></div></details>}
+        {analysis && Object.keys(analysis).length > 0 && <details><summary className="cursor-pointer text-sm font-medium">{c.analysis}</summary><div className="mt-2"><JsonPanel copyLabel={t("copy")} data={analysis} maxHeight="max-h-80" /></div></details>}
+        {manifest && <details><summary className="cursor-pointer text-sm font-medium">{t("manifest")}</summary><div className="mt-2"><JsonPanel copyLabel={t("copy")} data={manifest} maxHeight="max-h-80" /></div></details>}
+        {result && <details><summary className="cursor-pointer text-sm font-medium">{c.raw}</summary><div className="mt-2"><JsonPanel copyLabel={t("copy")} data={result.data} maxHeight="max-h-80" /></div></details>}
       </CardContent>
     </Card>
     <FormDialog dirty={dirty} open={editing} onClose={() => void closeEditor()} title={`${c.editConfig} · ${upload.filename}`} description={c.saveHint} closeLabel={t("close")} pending={pending} className="max-w-5xl" footer={<div className="w-full" ref={setFooterContainer} />}>
-      {editing && <McpConfigEditor locale={locale} selectedConfigId="" value={manifestText} onChange={setManifestText} onSave={save} onClose={() => void closeEditor()} busy={busy} backendPrecheck={false} loadCredentials={false} onPendingChange={setEditorPending} onDraftDirtyChange={setEditorDirty} footerContainer={footerContainer} />}
+      {editing && <McpConfigEditor locale={locale} saveLabel={locale === "zh-CN" ? "保存交付草稿" : "Save delivery draft"} selectedConfigId="" value={manifestText} onChange={setManifestText} onSave={save} onClose={() => void closeEditor()} busy={busy} backendPrecheck={false} loadCredentials={false} onPendingChange={setEditorPending} onDraftDirtyChange={setEditorDirty} footerContainer={footerContainer} />}
     </FormDialog>
     {confirmDialog}
   </>

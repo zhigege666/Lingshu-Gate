@@ -6,14 +6,18 @@ import asyncio
 import json
 from typing import Any
 
-from fastapi import Depends, FastAPI, HTTPException, Query
+from fastapi import Depends, FastAPI, HTTPException, Query, Request
 from fastapi.responses import StreamingResponse
+from starlette.concurrency import run_in_threadpool
 
+from lingshu_gate.application.delivery_drafts import DeliveryDraftRequest
 from lingshu_gate.build_deploy import (
     BuildBlocked,
     BuildDeployStore,
+    DeploymentRollbackError,
     LocalExecutionBlocked,
 )
+from lingshu_gate.registry import ToolExecutionError
 from lingshu_gate.models import (
     DeployBuildRequest,
     ResourceDeleteConflict,
@@ -29,6 +33,36 @@ def register_build_deploy_routes(
     require_operations_manager: Any,
 ) -> None:
     """Register build and deployment endpoints."""
+
+    @app.get("/v1/delivery-drafts/{upload_id}", tags=["deployments"])
+    def get_delivery_draft(upload_id: str, request: Request, principal: Any = Depends(require_operations_manager)) -> dict[str, Any]:
+        service = request.app.state.project_delivery_service
+        try:
+            service.uploads.get_upload(upload_id)
+            return service.delivery_drafts.get(upload_id, principal.id)
+        except KeyError as exc:
+            raise HTTPException(status_code=404, detail=str(exc)) from exc
+
+    @app.put("/v1/delivery-drafts/{upload_id}", tags=["deployments"])
+    def save_delivery_draft(upload_id: str, request: Request, body: DeliveryDraftRequest, principal: Any = Depends(require_operations_manager)) -> dict[str, Any]:
+        service = request.app.state.project_delivery_service
+        try:
+            service.uploads.get_upload(upload_id)
+            if body.build_id and service.builds.get_build(body.build_id)["upload_id"] != upload_id:
+                raise ValueError("Draft build does not belong to the upload")
+            if body.deployment_id:
+                deployment = service.builds.get_deployment(body.deployment_id)
+                if not body.build_id or deployment["build_id"] != body.build_id:
+                    raise ValueError("Draft deployment does not belong to the build")
+            saved = service.delivery_drafts.save(upload_id, principal.id, body)
+            service.observability.emit_event("gate.delivery.draft_saved", source="deployments", subject_type="upload", subject_id=upload_id, payload={"actor_id": principal.id, "revision": saved["revision"]})
+            return saved
+        except ToolExecutionError as exc:
+            raise HTTPException(status_code=409, detail=exc.to_payload()["error"]) from exc
+        except KeyError as exc:
+            raise HTTPException(status_code=404, detail=str(exc)) from exc
+        except ValueError as exc:
+            raise HTTPException(status_code=400, detail=str(exc)) from exc
 
     @app.get("/v1/builds", tags=["builds"], dependencies=[Depends(require_operations_manager)])
     def list_builds() -> dict[str, Any]:
@@ -122,14 +156,23 @@ def register_build_deploy_routes(
             raise HTTPException(status_code=400, detail=str(exc)) from exc
 
     @app.get("/v1/builds/{build_id}/logs", tags=["builds"], dependencies=[Depends(require_operations_manager)])
-    def list_build_logs(build_id: str, limit: int = Query(200, ge=1, le=1000)) -> dict[str, Any]:
+    def list_build_logs(build_id: str, limit: int = Query(200, ge=1, le=1000),
+                        before_sequence: int | None = Query(None, ge=0),
+                        after_sequence: int | None = Query(None, ge=-1),
+                        tail: bool = False) -> dict[str, Any]:
         try:
-            return {"logs": store.list_build_logs(build_id, limit=limit)}
+            logs = store.list_build_logs(build_id, limit=limit,
+                before_sequence=before_sequence, after_sequence=after_sequence, tail=tail)
+            bounds = store.build_log_bounds(build_id)
+            return {"logs": logs, "has_earlier": bool(logs and bounds["first"] is not None and bounds["first"] < logs[0]["sequence"]),
+                    "has_later": bool(logs and bounds["last"] is not None and bounds["last"] > logs[-1]["sequence"])}
         except KeyError as exc:
             raise HTTPException(status_code=404, detail=str(exc)) from exc
+        except ValueError as exc:
+            raise HTTPException(status_code=422, detail=str(exc)) from exc
 
     @app.get("/v1/builds/{build_id}/logs/stream", tags=["builds"], dependencies=[Depends(require_operations_manager)])
-    def stream_build_logs(build_id: str, interval_seconds: float = Query(1.0, ge=0.5, le=10.0)) -> StreamingResponse:
+    def stream_build_logs(build_id: str, interval_seconds: float = Query(1.0, ge=0.5, le=10.0), tail: bool = False) -> StreamingResponse:
         try:
             store.get_build(build_id)
         except KeyError as exc:
@@ -137,18 +180,28 @@ def register_build_deploy_routes(
 
         async def event_generator():
             last_sequence = -1
+            emitted_count = 0
+            initial = True
             while True:
                 try:
-                    build = store.get_build(build_id)
-                    logs = store.list_build_logs(build_id, limit=1000)
+                    build = await run_in_threadpool(store.get_build, build_id)
+                    if initial and tail:
+                        logs = await run_in_threadpool(store.list_build_logs, build_id, limit=200, tail=True)
+                    else:
+                        logs = await run_in_threadpool(store.list_build_logs, build_id, limit=1000, after_sequence=last_sequence)
+                    initial = False
                 except KeyError:
                     yield _sse("error", {"detail": f"build not found: {build_id}"})
                     return
-                new_logs = [log for log in logs if int(log.get("sequence") or 0) > last_sequence]
-                for log in new_logs:
-                    last_sequence = int(log.get("sequence") or last_sequence)
+                for log in logs:
+                    last_sequence = int(log["sequence"])
+                    emitted_count += 1
                     yield _sse("log", log)
-                yield _sse("status", {"build_id": build_id, "status": build.get("status"), "updated_at": build.get("updated_at"), "log_count": len(logs)})
+                # Drain a full page before publishing terminal status: clients
+                # close on that status, and must not lose logs beyond row 1000.
+                if len(logs) == 1000:
+                    continue
+                yield _sse("status", {"build_id": build_id, "status": build.get("status"), "updated_at": build.get("updated_at"), "log_count": emitted_count})
                 if build.get("status") in TERMINAL_BUILD_STATUSES:
                     return
                 await asyncio.sleep(interval_seconds)
@@ -164,20 +217,35 @@ def register_build_deploy_routes(
         except ValueError as exc:
             raise HTTPException(status_code=400, detail=str(exc)) from exc
 
+    @app.post("/v1/builds/{build_id}/deploy/preview", tags=["deployments"])
+    def preview_deployment(
+        build_id: str, request: Request, body: DeployBuildRequest,
+        principal: Any = Depends(require_operations_manager),
+    ) -> dict[str, Any]:
+        try:
+            return request.app.state.project_delivery_service.console_deployment(
+                build_id, body, actor_id=principal.id, preview=True,
+            )
+        except ToolExecutionError as exc:
+            raise HTTPException(status_code=409, detail=exc.to_payload()["error"]) from exc
+        except KeyError as exc:
+            raise HTTPException(status_code=404, detail=str(exc)) from exc
+        except ValueError as exc:
+            raise HTTPException(status_code=400, detail=str(exc)) from exc
+
     @app.post("/v1/builds/{build_id}/deploy", tags=["deployments"], dependencies=[Depends(require_operations_manager)])
     def deploy_build(
         build_id: str,
+        request: Request,
         body: DeployBuildRequest = DeployBuildRequest(),
+        principal: Any = Depends(require_operations_manager),
     ) -> dict[str, Any]:
-        server_id_raw = body.server_id
-        server_id = str(server_id_raw).strip() if server_id_raw else None
         try:
-            return store.deploy_build(
-                build_id,
-                server_id=server_id,
-                start=body.start,
-                overwrite=body.overwrite,
+            return request.app.state.project_delivery_service.console_deployment(
+                build_id, body, actor_id=principal.id,
             )
+        except ToolExecutionError as exc:
+            raise HTTPException(status_code=409, detail=exc.to_payload()["error"]) from exc
         except LocalExecutionBlocked as exc:
             raise HTTPException(status_code=409, detail=exc.detail()) from exc
         except KeyError as exc:
@@ -212,6 +280,8 @@ def register_build_deploy_routes(
     ) -> dict[str, Any]:
         try:
             return store.rollback_deployment(deployment_id, start=body.start)
+        except DeploymentRollbackError as exc:
+            raise HTTPException(status_code=409, detail=exc.detail()) from exc
         except LocalExecutionBlocked as exc:
             raise HTTPException(status_code=409, detail=exc.detail()) from exc
         except KeyError as exc:

@@ -11,6 +11,7 @@ import threading
 import time
 from collections.abc import Callable
 from concurrent.futures import ThreadPoolExecutor, as_completed
+from contextlib import nullcontext
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
@@ -21,6 +22,7 @@ from lingshu_gate.build_preflight import check_diff, compute_preflight_fingerpri
 from lingshu_gate.credential_store import CredentialStore
 from lingshu_gate.database import SQLiteDatabase
 from lingshu_gate.mcp_config_store import McpConfigStore
+from lingshu_gate.mcp_manifest import McpServerManifest
 from lingshu_gate.mcp_runtime import McpRuntimeManager, McpTargetApplyError
 from lingshu_gate.models import ResourceDeleteConflict
 from lingshu_gate.observability_store import ObservabilityStore
@@ -96,6 +98,12 @@ class DeploymentRollbackError(ValueError):
         super().__init__(f"{code}: {message}")
         self.code = code
         self.message = message
+        self.config_restored: bool | None = None
+        self.runtime_restored: bool | None = None
+
+    def detail(self) -> dict[str, Any]:
+        return {"code": self.code, "message": self.message,
+                "config_restored": self.config_restored, "runtime_restored": self.runtime_restored}
 
 
 class BuildDeployStore:
@@ -236,10 +244,21 @@ class BuildDeployStore:
         *,
         limit: int = 200,
         after_sequence: int | None = None,
+        before_sequence: int | None = None,
+        tail: bool = False,
     ) -> list[dict[str, Any]]:
         self.get_build(build_id)
         limit = max(1, min(int(limit or 200), 1000))
-        if after_sequence is None:
+        if sum((after_sequence is not None, before_sequence is not None, tail)) > 1:
+            raise ValueError("Choose only one log cursor or tail")
+        if before_sequence is not None or tail:
+            condition = " AND sequence < ?" if before_sequence is not None else ""
+            params = (build_id, before_sequence, limit) if before_sequence is not None else (build_id, limit)
+            rows = list(reversed(self.database.query_all(
+                f"SELECT * FROM build_logs WHERE build_id = ?{condition} ORDER BY sequence DESC LIMIT ?",
+                params,
+            )))
+        elif after_sequence is None:
             rows = self.database.query_all(
                 "SELECT * FROM build_logs WHERE build_id = ? ORDER BY sequence ASC LIMIT ?",
                 (build_id, limit),
@@ -251,15 +270,36 @@ class BuildDeployStore:
             )
         return [_build_log_row(row) for row in rows]
 
+    def build_log_bounds(self, build_id: str) -> dict[str, Any]:
+        row = self.database.query_one(
+            "SELECT (SELECT sequence FROM build_logs WHERE build_id=? ORDER BY sequence ASC LIMIT 1) AS first, "
+            "(SELECT sequence FROM build_logs WHERE build_id=? ORDER BY sequence DESC LIMIT 1) AS last",
+            (build_id, build_id),
+        )
+        return dict(row) if row is not None else {"first": None, "last": None}
+
     def list_deployments(self) -> list[dict[str, Any]]:
         rows = self.database.query_all("SELECT * FROM deployments ORDER BY created_at DESC LIMIT 100")
-        return [_deployment_row(row) for row in rows]
+        return [self._with_rollback_availability(_deployment_row(row)) for row in rows]
 
     def get_deployment(self, deployment_id: str) -> dict[str, Any]:
         row = self.database.query_one("SELECT * FROM deployments WHERE id = ?", (deployment_id,))
         if not row:
             raise KeyError(f"deployment not found: {deployment_id}")
-        return _deployment_row(row)
+        return self._with_rollback_availability(_deployment_row(row))
+
+    def _with_rollback_availability(self, deployment: dict[str, Any]) -> dict[str, Any]:
+        previous = deployment.get("previous_manifest")
+        available = False
+        if isinstance(previous, dict) and previous:
+            try:
+                snapshot = self._load_rollback_snapshot(str(deployment["id"]), previous)
+                manifest = McpServerManifest.model_validate(snapshot)
+                available = manifest.id == deployment.get("server_id")
+            except (ValueError, TypeError):
+                pass
+        deployment["rollback_available"] = available
+        return deployment
 
     def _rollback_snapshot_id(self, deployment_id: str) -> str:
         return f"{ROLLBACK_SNAPSHOT_PREFIX}{deployment_id}"
@@ -670,7 +710,7 @@ class BuildDeployStore:
                     build_id,
                     server_id,
                     "running",
-                    _dumps(manifest),
+                    _dumps(McpServerManifest.model_validate(manifest).safe_dict()),
                     _dumps(previous_manifest) if previous_manifest else None,
                     0,
                     0,
@@ -723,6 +763,8 @@ class BuildDeployStore:
             runtime_manifest = self.configs.load_manifest(server_id)
             server = self.runtime.apply_manifest(runtime_manifest, start=start, source="deploy")
             runtime_applied = True
+            if server.status == "failed" or (start and server.status != "running"):
+                raise RuntimeError("Runtime did not reach the requested deployment state")
             runtime_started = server.status == "running"
             started = runtime_started
             self.database.execute(
@@ -794,11 +836,14 @@ class BuildDeployStore:
                         if previous_runtime_present:
                             if previous_runtime_restore_manifest is None:
                                 raise RuntimeError("previous runtime manifest is unavailable")
-                            self.runtime.apply_manifest(
+                            restored = self.runtime.apply_manifest(
                                 previous_runtime_restore_manifest,
                                 start=previous_runtime_should_start,
                                 source="deploy_compensation",
                             )
+                            expected_statuses = {"running"} if previous_runtime_should_start else {"loaded", "stopped", "external"}
+                            if restored.status not in expected_statuses:
+                                raise RuntimeError("Runtime compensation did not restore the requested state")
                         else:
                             self.runtime.remove_manifest(server_id)
                     except Exception as compensation_exc:  # noqa: BLE001 - 合并 Runtime 补偿失败
@@ -848,22 +893,52 @@ class BuildDeployStore:
         return self.get_deployment(deployment_id)
 
     def rollback_deployment(self, deployment_id: str, *, start: bool = False) -> dict[str, Any]:
+        with getattr(self.configs, "mutation_lock", nullcontext()):
+            return self._rollback_deployment(deployment_id, start=start)
+
+    def _rollback_deployment(self, deployment_id: str, *, start: bool = False) -> dict[str, Any]:
         self._require_local_execution("deployment_rollback")
         deployment = self.get_deployment(deployment_id)
         safe_previous = deployment.get("previous_manifest")
         if not isinstance(safe_previous, dict) or not safe_previous:
             raise ValueError("deployment has no previous manifest snapshot")
         previous = self._load_rollback_snapshot(deployment_id, safe_previous)
+        validated = McpServerManifest.model_validate(previous)
+        if validated.id != deployment.get("server_id"):
+            raise ValueError("rollback snapshot target does not match deployment")
         server_id = str(previous.get("id") or deployment.get("server_id") or "")
         if not server_id:
             raise ValueError("previous manifest has no server id")
         try:
+            before_rollback = self.configs.load_manifest(server_id)
+        except KeyError:
+            before_rollback = None
+        config_changed = False
+        try:
             self.configs.save_config(previous, expected_id=server_id, overwrite=True)
+            config_changed = True
             runtime_manifest = self.configs.load_manifest(server_id)
             server = self.runtime.apply_manifest(runtime_manifest, start=start, source="deploy_rollback")
+            if server.status == "failed" or (start and server.status != "running"):
+                raise RuntimeError("Runtime did not reach the requested rollback state")
         except Exception as exc:  # noqa: BLE001 - rollback boundary should be observable
-            self.observability.add_log("error", f"Rollback failed: {exc}", source="deployments", event_type="gate.deploy.rollback_failed", payload={"deployment_id": deployment_id, "server_id": server_id})
-            raise
+            config_restored = not config_changed
+            restore_error = None
+            if config_changed:
+                try:
+                    if before_rollback is None:
+                        self.configs.delete_config(server_id)
+                    else:
+                        self.configs.save_config(before_rollback.model_dump(mode="json", exclude={"manifest_path"}), expected_id=server_id, overwrite=True)
+                    config_restored = True
+                except Exception as restore_exc:  # noqa: BLE001 - preserve both failure outcomes
+                    restore_error = str(restore_exc)
+            failure = DeploymentRollbackError("rollback_apply_failed", "Rollback failed; inspect configuration and runtime before retrying")
+            failure.config_restored = config_restored
+            if isinstance(exc, McpTargetApplyError):
+                failure.runtime_restored = bool(exc.rollback_status in {"running", "loaded", "stopped", "external"} and "target rollback failed:" not in str(exc))
+            self.observability.add_log("error", f"Rollback failed: {exc}", source="deployments", event_type="gate.deploy.rollback_failed", payload={"deployment_id": deployment_id, "server_id": server_id, "config_restored": config_restored, "runtime_restored": failure.runtime_restored, "restore_error": restore_error})
+            raise failure from exc
         started = bool(start and server.status == "running")
         self.observability.emit_event("gate.deploy.rollback", source="deployments", subject_type="deployment", subject_id=deployment_id, payload={"server_id": server_id, "started": started})
         return {"deployment": deployment, "server": server.model_dump(mode="json"), "message": "rolled_back"}

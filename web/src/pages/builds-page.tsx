@@ -1,5 +1,13 @@
-import { useEffect, useRef, useState, type ReactNode } from "react"
-import { BuildApiError, buildApi, type BuildBlockedDetail, type BuildLog, type BuildPlan, type BuildPreflightResult, type BuildPreflightTool, type BuildRecord, type DeploymentRecord, type ProjectUpload } from "@/api/builds"
+import { BuildLogWorkbench } from "@/components/builds/build-log-workbench"
+import { BUILD_LOG_WINDOW, mergeBuildLogWindow } from "@/features/build-log-window"
+import { replaceConsoleRouteHash } from "@/routing/use-console-route"
+import { rollbackResultError, rollbackStartFor } from "./builds-page-state"
+import { EditorNavigationContext } from "@/components/editor-navigation-guard"
+import { deliveryDraftRequest, manifestPatch, mergeManifestPatch } from "@/features/servers/delivery-draft"
+import { DeliveryConfigEditor } from "@/features/servers/delivery-config-editor"
+import { Select as SearchSelect } from "antd"
+import { useContext, useEffect, useRef, useState, type ReactNode } from "react"
+import { BuildApiError, buildApi, type BuildBlockedDetail, type BuildLog, type BuildPlan, type BuildPreflightResult, type BuildPreflightTool, type BuildRecord, type DeploymentRecord, type DeliveryDraft, type ProjectUpload } from "@/api/builds"
 import { BuildDetailCard } from "@/components/builds/build-detail-card"
 import { BuildHintCard } from "@/components/builds/build-hint-card"
 import { BuildLogsTable, type LogFilter } from "@/components/builds/build-logs-table"
@@ -21,7 +29,7 @@ import { Toaster, type ToastState, type ToastTone } from "@/components/ui/toast"
 import { Input } from "@/components/ui/input"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { localizeStatus, type TFunction } from "@/i18n"
-import { formatDeploymentSummary, formatRollbackSummary, resolveDeploymentTarget } from "@/features/deployment-options"
+import { formatDeploymentSummary, formatRollbackSummary } from "@/features/deployment-options"
 import { buildPageText } from "@/pages/builds-page-text"
 
 const ACTIVE_BUILD_STATUSES = new Set(["queued", "running", "cancel_requested"])
@@ -30,9 +38,19 @@ const MANUAL_RUNTIME_REQUIRED = new Set(["unknown", "ambiguous", "docker"])
 type WorkspaceSection = "workspace" | "builds" | "deployments" | "logs"
 
 export function BuildsPage({ t, initialBuildId = "" }: { t: TFunction; initialBuildId?: string }) {
+  const [deliveryDraft, setDeliveryDraft] = useState<DeliveryDraft | null>(null)
+  const latestDeliveryDraft = useRef<DeliveryDraft | null>(null)
+  const [draftError, setDraftError] = useState<string | null>(null)
+  const deploymentPending = useRef(false)
+  const buildPending = useRef(false)
+  const [editingBuildId, setEditingBuildId] = useState<string | null>(null)
+  const [configDrafts, setConfigDrafts] = useState<Record<string, Record<string, unknown>>>({})
   const [uploads, setUploads] = useState<ProjectUpload[]>([])
   const [builds, setBuilds] = useState<BuildRecord[]>([])
   const [buildLogs, setBuildLogs] = useState<BuildLog[]>([])
+  const [followLogs, setFollowLogs] = useState(true)
+  const [logWindowBusy, setLogWindowBusy] = useState(false)
+  const [logBounds, setLogBounds] = useState({ earlier: false, later: false })
   const [deployments, setDeployments] = useState<DeploymentRecord[]>([])
   const [selectedUploadId, setSelectedUploadIdState] = useState("")
   const [selectedBuildId, setSelectedBuildIdState] = useState(initialBuildId)
@@ -41,7 +59,7 @@ export function BuildsPage({ t, initialBuildId = "" }: { t: TFunction; initialBu
   const [serverId, setServerId] = useState("")
   const [deployOverwrite, setDeployOverwrite] = useState(false)
   const [deployStart, setDeployStart] = useState(false)
-  const [rollbackStart, setRollbackStart] = useState(false)
+  const [rollbackOption, setRollbackOption] = useState({ deploymentId: "", start: false })
   const [projectRoot, setProjectRoot] = useState(".")
   const [runtimeOverride, setRuntimeOverride] = useState("auto")
   const [preflight, setPreflight] = useState<BuildPreflightResult | null>(null)
@@ -57,73 +75,158 @@ export function BuildsPage({ t, initialBuildId = "" }: { t: TFunction; initialBu
   const mounted = useRef(true)
   const refreshRequest = useRef(0)
   const logRequest = useRef(0)
+  const selectionRevision = useRef(0)
+  const analysisRequest = useRef(0)
+  const appliedRouteBuild = useRef<string | null>(null)
   const selectedUploadRef = useRef(selectedUploadId)
   const selectedBuildRef = useRef(selectedBuildId)
-  function setSelectedUploadId(id: string) { selectedUploadRef.current = id; setSelectedUploadIdState(id) }
-  function setSelectedBuildId(id: string) { selectedBuildRef.current = id; setSelectedBuildIdState(id) }
+  function setSelectedUploadId(id: string) {
+    if (selectedUploadRef.current !== id) {
+      selectionRevision.current += 1
+      latestDeliveryDraft.current = null
+      setDeliveryDraft(null); setDraftError(null)
+      setProjectRoot("."); setRuntimeOverride("auto"); setServerId("")
+      setDeployOverwrite(false); setDeployStart(false); setPreflight(null); setPlan(null)
+    }
+    selectedUploadRef.current = id; setSelectedUploadIdState(id)
+  }
+  function setSelectedBuildId(id: string) {
+    if (selectedBuildRef.current !== id) { setBuildLogs([]); setFollowLogs(true); setLogBounds({ earlier: false, later: false }); selectionRevision.current += 1; setSelectedDeploymentId(""); setRollbackOption({ deploymentId: "", start: false }) }
+    selectedBuildRef.current = id; setSelectedBuildIdState(id)
+  }
   const c = uploadCopy(t)
 
   const selectedUpload = uploads.find((upload) => upload.id === selectedUploadId) || null
   const selectedBuild = builds.find((build) => build.id === selectedBuildId) || null
   const latestDeployment = deployments.find((deployment) => deployment.build_id === selectedBuildId) || null
+  const selectedDeployment = deployments.find(deployment => deployment.id === selectedDeploymentId) || null
+  const rollbackStart = rollbackStartFor(rollbackOption, selectedDeployment?.id || "")
   const selectedBuildLog = buildLogs[buildLogs.length - 1] || null
   const polling = Boolean(selectedBuild && ACTIVE_BUILD_STATUSES.has(selectedBuild.status))
   const preflightReady = preflight?.status === "ok" || preflight?.status === "warning"
   const runtimeOverrideValue = runtimeOverride === "auto" ? null : runtimeOverride
   const tx = (key: string) => buildPageText(t, key)
-  const notify = (message: string, tone: ToastTone = "info") => setToast({ message, tone })
+  const notify = (message: string, tone: ToastTone = "info") => { if (mounted.current) setToast({ message, tone }) }
   const notifyError = (err: unknown) => notify(err instanceof Error ? err.message : String(err), "error")
+  const registerExit = useContext(EditorNavigationContext)
+  const settingsDirty = Boolean(deliveryDraft && deliveryDraft.upload_id === selectedUploadId && (
+    serverId !== (deliveryDraft.server_id || "") || deployStart !== deliveryDraft.start || deployOverwrite !== deliveryDraft.overwrite
+    || projectRoot !== (deliveryDraft.project_root || ".") || runtimeOverride !== (deliveryDraft.runtime_override || "auto")))
+  useEffect(() => registerExit?.({ dirty: settingsDirty, pending: busy }), [registerExit, settingsDirty, busy])
+
 
   useEffect(() => { mounted.current = true; void refresh(initialBuildId); return () => { mounted.current = false; refreshRequest.current += 1; logRequest.current += 1 } }, [])
   usePageRefresh(() => refresh(), loading || busy)
+  useEffect(() => {
+    let active = true
+    const uploadOwner = selectedUploadId
+    setDeliveryDraft(null); setDraftError(null)
+    if (selectedUploadId) void buildApi.deliveryDraft(selectedUploadId).then(draft => {
+      if (!active || selectedUploadRef.current !== uploadOwner) return
+      adoptDeliveryDraft(draft)
+    }).catch(error => { if (active) setDraftError(String(error)) })
+    return () => { active = false }
+  }, [selectedUploadId])
+
+  // A successful revision is both the persisted baseline and the form snapshot.
+  // In particular, deployment resolves an empty target to the actual server ID.
+  // Keep the two in sync, without allowing an old task's response to own this form.
+  function adoptDeliveryDraft(draft: DeliveryDraft) {
+    if (!mounted.current || selectedUploadRef.current !== draft.upload_id) return
+    const previous = latestDeliveryDraft.current
+    if (previous?.upload_id === draft.upload_id && previous.revision > draft.revision) return
+    latestDeliveryDraft.current = draft
+    setDeliveryDraft(draft)
+    setServerId(draft.server_id || "")
+    setDeployStart(draft.start)
+    setDeployOverwrite(draft.overwrite)
+    setProjectRoot(draft.project_root || ".")
+    setRuntimeOverride(draft.runtime_override || "auto")
+    if (draft.build_id) setConfigDrafts(previous => ({ ...previous, [draft.build_id!]: draft.manifest_patch }))
+  }
+
+  async function saveDeliveryConfiguration(buildId: string, manifest: Record<string, unknown>) {
+    if (!deliveryDraft || deliveryDraft.upload_id !== selectedUploadId) throw new Error("Delivery draft is unavailable. Reload before saving.")
+    const base = builds.find(item => item.id === buildId)?.manifest
+    if (!base) throw new Error("Build manifest is unavailable")
+    const patch = manifestPatch(base, manifest)
+    const draft = await buildApi.saveDeliveryDraft(selectedUploadId, { expected_revision: deliveryDraft.revision,
+      manifest_patch: patch, server_id: serverId || null, build_id: buildId, deployment_id: selectedDeploymentId || null,
+      start: deployStart, overwrite: deployOverwrite, project_root: projectRoot, runtime_override: runtimeOverrideValue,
+    })
+    adoptDeliveryDraft(draft)
+  }
+
 
   useEffect(() => {
-    if (!initialBuildId || initialBuildId === selectedBuildId) return
+    if (!initialBuildId) { appliedRouteBuild.current = null; return }
+    if (appliedRouteBuild.current === initialBuildId) return
     const nextBuild = builds.find((build) => build.id === initialBuildId)
-    if (nextBuild) setSelectedUploadId(nextBuild.upload_id)
+    if (!nextBuild) return
+    appliedRouteBuild.current = initialBuildId
+    setSelectedUploadId(nextBuild.upload_id)
     setSelectedBuildId(initialBuildId)
     void loadBuildLogs(initialBuildId)
   }, [initialBuildId, builds])
 
   useEffect(() => {
-    if (!selectedBuildId || !polling) return undefined
+    if (!selectedBuildId || !polling || !followLogs) return undefined
     setLiveTail(false)
-    const source = new EventSource(`/v1/builds/${encodeURIComponent(selectedBuildId)}/logs/stream`)
+    const source = new EventSource(`/v1/builds/${encodeURIComponent(selectedBuildId)}/logs/stream?tail=true`)
     source.onopen = () => { if (selectedBuildRef.current === selectedBuildId) setLiveTail(true) }
+    let pendingLogs: BuildLog[] = []
+    let frame = 0
+    const flush = () => {
+      frame = 0
+      if (selectedBuildRef.current !== selectedBuildId || !pendingLogs.length) return
+      const batch = pendingLogs; pendingLogs = []
+      setBuildLogs(previous => mergeBuildLogWindow(previous, batch))
+      setLogBounds(previous => !previous.earlier && batch.some(log => log.sequence > BUILD_LOG_WINDOW) ? { ...previous, earlier: true } : previous)
+    }
     source.addEventListener("log", (event) => {
       if (selectedBuildRef.current !== selectedBuildId) return
       const log = JSON.parse((event as MessageEvent).data) as BuildLog
-      setBuildLogs((previous) => previous.some((item) => item.id === log.id) ? previous : [...previous, log].sort((a, b) => a.sequence - b.sequence))
+      pendingLogs.push(log)
+      // A background tab may suspend animation frames. Bound that queue as well.
+      if (pendingLogs.length >= BUILD_LOG_WINDOW) { cancelAnimationFrame(frame); flush() }
+      if (!frame) frame = requestAnimationFrame(flush)
     })
     source.addEventListener("status", (event) => {
       if (selectedBuildRef.current !== selectedBuildId) return
       const status = JSON.parse((event as MessageEvent).data) as { status?: string }
       if (status.status && !ACTIVE_BUILD_STATUSES.has(status.status)) {
+        cancelAnimationFrame(frame); flush()
         source.close()
         setLiveTail(false)
         void refresh(selectedBuildId)
       }
     })
-    source.onerror = () => { source.close(); setLiveTail(false) }
-    return () => { source.close(); setLiveTail(false) }
-  }, [selectedBuildId, polling])
+    source.onerror = () => { cancelAnimationFrame(frame); flush(); source.close(); setLiveTail(false) }
+    return () => { cancelAnimationFrame(frame); pendingLogs = []; source.close(); setLiveTail(false) }
+  }, [selectedBuildId, polling, followLogs])
 
-  async function loadBuildLogs(buildId: string) {
+  async function loadBuildLogs(buildId: string, cursor: { tail?: boolean; before_sequence?: number; after_sequence?: number } = { tail: true }) {
     if (!buildId) return
     const requestId = ++logRequest.current
+    setLogWindowBusy(true)
+    setFollowLogs(Boolean(cursor.tail))
     try {
-      const response = await buildApi.buildLogs(buildId, 200)
-      if (mounted.current && requestId === logRequest.current && selectedBuildRef.current === buildId) setBuildLogs(response.logs)
+      const response = await buildApi.buildLogs(buildId, BUILD_LOG_WINDOW, cursor)
+      if (mounted.current && requestId === logRequest.current && selectedBuildRef.current === buildId) {
+        setBuildLogs(previous => cursor.tail ? mergeBuildLogWindow(previous.filter(item => item.build_id === buildId), response.logs) : response.logs)
+        setLogBounds(previous => ({ earlier: Boolean(response.has_earlier) || Boolean(cursor.tail && previous.earlier), later: Boolean(response.has_later) }))
+      }
     } catch (err) {
       if (mounted.current && requestId === logRequest.current && selectedBuildRef.current === buildId) {
-        setBuildLogs([])
         notifyError(err)
       }
-    }
+    } finally { if (mounted.current && requestId === logRequest.current) setLogWindowBusy(false) }
   }
 
   async function refresh(preferredBuildId?: string, preferredUploadId?: string) {
+    if (!mounted.current) return
     const requestId = ++refreshRequest.current
+    const owner = selectionRevision.current
     setLoading(true)
     setLoadError(null)
     try {
@@ -132,11 +235,12 @@ export function BuildsPage({ t, initialBuildId = "" }: { t: TFunction; initialBu
       setUploads(uploadData.uploads)
       setBuilds(buildData.builds)
       setDeployments(deploymentData.deployments)
+      if (owner !== selectionRevision.current) return
       const preferredBuild = buildData.builds.find(build => build.id === (preferredBuildId ?? selectedBuildRef.current))
       const uploadId = preferredUploadId ?? selectedUploadRef.current
       const nextUploadId = preferredBuild?.upload_id || (uploadData.uploads.some(upload => upload.id === uploadId) ? uploadId : "")
       const nextBuild = preferredBuild || buildData.builds.find(build => build.upload_id === nextUploadId) || null
-      const nextDeployment = deploymentData.deployments.find(deployment => deployment.id === selectedDeploymentId)
+      const nextDeployment = deploymentData.deployments.find(deployment => deployment.id === selectedDeploymentId && deployment.build_id === nextBuild?.id)
         || deploymentData.deployments.find(deployment => deployment.build_id === nextBuild?.id) || null
       setSelectedUploadId(nextUploadId)
       setSelectedBuildId(nextBuild?.id || "")
@@ -147,6 +251,7 @@ export function BuildsPage({ t, initialBuildId = "" }: { t: TFunction; initialBu
       } else {
         logRequest.current += 1
         setBuildLogs([])
+        writeBuildHash("", true)
       }
     } catch (err) {
       if (mounted.current && requestId === refreshRequest.current) setLoadError(err instanceof Error ? err.message : String(err))
@@ -156,45 +261,66 @@ export function BuildsPage({ t, initialBuildId = "" }: { t: TFunction; initialBu
   }
 
   async function runPreflight(uploadId = selectedUploadId, refresh = false) {
-    if (!uploadId) return null
+    if (!uploadId || busy) return null
+    const owner = selectionRevision.current
+    const requestId = ++analysisRequest.current
+    const ownsResult = () => mounted.current && owner === selectionRevision.current && requestId === analysisRequest.current
     setBusy(true)
     try {
       const response = await buildApi.preflightBuild(uploadId, { runtime_override: runtimeOverrideValue, project_root: projectRoot || ".", refresh })
+      if (!ownsResult()) return null
       setPreflight(response)
       notify(`${tx("buildPreflight")}: ${response.status} · ${response.runtime}`, response.status === "error" ? "error" : "success")
       return response
     } catch (err) {
-      notifyError(err)
+      if (ownsResult()) notifyError(err)
       return null
     } finally {
-      setBusy(false)
+      if (mounted.current && requestId === analysisRequest.current) setBusy(false)
     }
   }
 
   async function previewPlan(uploadId = selectedUploadId, refresh = false) {
-    if (!uploadId) return null
+    if (!uploadId || busy) return null
+    const owner = selectionRevision.current
+    const requestId = ++analysisRequest.current
+    const ownsResult = () => mounted.current && owner === selectionRevision.current && requestId === analysisRequest.current
     setBusy(true)
     try {
       const response = await buildApi.planBuild(uploadId, { runtime_override: runtimeOverrideValue, project_root: projectRoot || ".", refresh })
+      if (!ownsResult()) return null
       setPreflight(response.preflight)
       setPlan(response.plan)
       notify(`${tx("buildPlan")}: ${response.plan.buildable ? tx("buildable") : tx("notBuildable")} · ${(response.plan.steps || []).length} ${tx("planSteps")}`, response.plan.buildable ? "success" : "error")
       return response
     } catch (err) {
-      notifyError(err)
+      if (ownsResult()) notifyError(err)
       return null
     } finally {
-      setBusy(false)
+      if (mounted.current && requestId === analysisRequest.current) setBusy(false)
     }
   }
 
   async function createBuild(uploadId = selectedUploadId, options: { runtimeOverride?: string | null; projectRoot?: string } = {}) {
-    if (!uploadId) return
+    if (!uploadId || busy || buildPending.current) return
     const nextRuntimeOverride = options.runtimeOverride === undefined ? runtimeOverrideValue : options.runtimeOverride
     const nextProjectRoot = options.projectRoot || projectRoot || "."
+    const owner = selectionRevision.current
+    let createdBuild: BuildRecord | null = null
+    buildPending.current = true
     setBusy(true)
     try {
+      // A row retry can have just switched uploads. Read that upload's draft,
+      // never copy the previous form's target or side-effect options into it.
+      const currentForm = uploadId === selectedUploadId
+      const sourceDraft = currentForm ? deliveryDraft : await buildApi.deliveryDraft(uploadId)
+      if (!sourceDraft || sourceDraft.upload_id !== uploadId) throw new Error("Delivery draft is unavailable. Reload before creating a build.")
+      const draftRequest = deliveryDraftRequest(sourceDraft, {
+        ...(currentForm ? { server_id: serverId.trim() || null, start: deployStart, overwrite: deployOverwrite } : {}),
+        project_root: nextProjectRoot, runtime_override: nextRuntimeOverride,
+      })
       const preflightResult = await buildApi.preflightBuild(uploadId, { runtime_override: nextRuntimeOverride, project_root: nextProjectRoot })
+      if (!mounted.current || owner !== selectionRevision.current) return
       setPreflight(preflightResult)
       if (preflightResult.status === "error") {
         notify(tx("preflightBlocked"), "error")
@@ -204,13 +330,32 @@ export function BuildsPage({ t, initialBuildId = "" }: { t: TFunction; initialBu
         notify(tx("preflightManualRuntimeRequired"), "error")
         return
       }
+      // Persist the submitted form snapshot before dispatching any build. A
+      // revision conflict leaves the local inputs intact and creates no task.
+      const preparedDraft = await buildApi.saveDeliveryDraft(uploadId, draftRequest)
+      if (!mounted.current || owner !== selectionRevision.current) return
+      adoptDeliveryDraft(preparedDraft)
       const build = await buildApi.createBuild(uploadId, { run_install: true, run_build: true, timeout_seconds: 300, runtime_override: nextRuntimeOverride, project_root: nextProjectRoot })
+      createdBuild = build
+      const updatedDraft = await buildApi.saveDeliveryDraft(uploadId, deliveryDraftRequest(preparedDraft, { build_id: build.id, deployment_id: null }))
+        .catch(error => { throw new Error(`Build ${build.id} was created, but its task context could not be saved. Refresh before retrying. ${String(error)}`) })
+      if (mounted.current && owner === selectionRevision.current) adoptDeliveryDraft(updatedDraft)
+      if (!mounted.current) return
+      if (owner !== selectionRevision.current) { await refresh(); return }
       setSelectedBuildId(build.id)
-      writeBuildHash(build.id)
-      notify(`${t("createBuild")}: ${build.status} · ${build.id.slice(0, 8)}`, "success")
+      writeBuildHash(build.id, true)
+      notify(`${t("createBuild")}: ${build.status} · ${build.id.slice(0, 8)}`, ["failed", "blocked", "cancelled"].includes(build.status) ? "error" : "success")
       await refresh(build.id)
       await loadBuildLogs(build.id)
     } catch (err) {
+      if (!mounted.current || owner !== selectionRevision.current) return
+      // The build is already dispatched even if linking the draft failed.
+      // Retain its ID and record; never silently submit another build to recover.
+      if (createdBuild) {
+        setBuilds(previous => [createdBuild!, ...previous.filter(build => build.id !== createdBuild!.id)])
+        setSelectedBuildId(createdBuild.id)
+        writeBuildHash(createdBuild.id, true)
+      }
       const detail = err instanceof BuildApiError ? err.detail : undefined
       if (detail && typeof detail === "object") {
         const blocked = detail as BuildBlockedDetail
@@ -220,6 +365,7 @@ export function BuildsPage({ t, initialBuildId = "" }: { t: TFunction; initialBu
         notifyError(err)
       }
     } finally {
+      buildPending.current = false
       setBusy(false)
     }
   }
@@ -227,9 +373,12 @@ export function BuildsPage({ t, initialBuildId = "" }: { t: TFunction; initialBu
   async function requestStopBuild(buildId = selectedBuildId) {
     if (!buildId) return
     if (!(await confirm({ title: t("requestStopBuild"), description: t("requestStopConfirm") }))) return
+    const owner = selectionRevision.current
     setBusy(true)
     try {
       const build = await buildApi.cancelBuild(buildId)
+      if (!mounted.current) return
+      if (owner !== selectionRevision.current || selectedBuildRef.current !== buildId) { await refresh(); return }
       setSelectedBuildId(build.id)
       writeBuildHash(build.id)
       notify(`${t("requestStopSent")} · ${t("stopRequestHint")}`, "info")
@@ -243,37 +392,42 @@ export function BuildsPage({ t, initialBuildId = "" }: { t: TFunction; initialBu
   }
 
   async function deployBuild(buildId = selectedBuildId) {
-    if (!buildId) return
-    const build = builds.find((item) => item.id === buildId) || null
-    const target = resolveDeploymentTarget(serverId, build?.manifest?.id, tx("unavailableTarget"))
-    const summary = formatDeploymentSummary(target, { start: deployStart, overwrite: deployOverwrite }, {
-      target: tx("deploymentTarget"),
-      overwrite: tx("overwriteExisting"),
-      start: tx("startAfterDeploy"),
-      yes: tx("enabledChoice"),
-      no: tx("disabledChoice"),
-      unresolved: tx("unavailableTarget"),
-    })
-    if (!(await confirm({ title: tx("confirmDeploymentTitle"), description: summary }))) return
+    if (!buildId || busy || deploymentPending.current) return
+    const build = builds.find(item => item.id === buildId)
+    if (buildId !== selectedBuildId && build) { await showBuild(build); return }
+    if (!deliveryDraft) return
+    const owner = selectionRevision.current
+    deploymentPending.current = true
     setBusy(true)
     try {
-      const deployment = await buildApi.deployBuild(buildId, {
-        server_id: serverId.trim() || undefined,
-        start: deployStart,
-        overwrite: deployOverwrite,
+      const options = { server_id: serverId.trim() || undefined, start: deployStart, overwrite: deployOverwrite, manifest_patch: configDrafts[buildId] || deliveryDraft.manifest_patch }
+      const preview = await buildApi.previewDeployment(buildId, options)
+      const summary = formatDeploymentSummary(preview.server_id, options, {
+        target: tx("deploymentTarget"), overwrite: tx("overwriteExisting"), start: tx("startAfterDeploy"),
+        yes: tx("enabledChoice"), no: tx("disabledChoice"), unresolved: tx("unavailableTarget"),
       })
-      notify(`${t("deployBuild")}: ${deployment.status} · ${deployment.server_id}`, deployment.status === "failed" ? "error" : "success")
-      await refresh(buildId)
-    } catch (err) {
-      notifyError(err)
-    } finally {
-      setBusy(false)
-    }
+      if (!(await confirm({ title: tx("confirmDeploymentTitle"), description: `${summary}\n${preview.changed_fields.join(", ")}\n${preview.config_digest}`, details: <JsonPanel copyLabel={t("copy")} data={{ build_id: preview.build_id, credential_state: preview.credential_state, interrupts_existing_service: preview.interrupts_existing_service, manifest: preview.manifest }} /> }))) return
+      const deployment = await buildApi.deployBuild(buildId, { ...options,
+        expected_config_digest: preview.config_digest,
+        expected_previous_config_digest: preview.expected_previous_config_digest,
+        expected_credential_binding_digest: preview.expected_credential_binding_digest,
+      })
+      const savedDraft = await buildApi.saveDeliveryDraft(build!.upload_id, deliveryDraftRequest(deliveryDraft, {
+        manifest_patch: options.manifest_patch || {}, build_id: buildId, deployment_id: deployment.id,
+        server_id: deployment.server_id, start: deployStart, overwrite: deployOverwrite, project_root: projectRoot, runtime_override: runtimeOverrideValue,
+      })).catch(error => { throw new Error(`Deployment ${deployment.id}: ${deployment.status}. Task context could not be saved; refresh before retrying. ${String(error)}`) })
+      if (mounted.current && owner === selectionRevision.current) adoptDeliveryDraft(savedDraft)
+      notify(`${t("deployBuild")}: ${deployment.status} · ${deployment.server_id}`, deployment.status === "success" ? "success" : "error")
+      await refresh(selectedBuildRef.current === buildId ? buildId : undefined)
+    } catch (err) { notifyError(err) }
+    finally { deploymentPending.current = false; setBusy(false) }
   }
 
   async function rollback(deploymentId: string) {
     const deployment = deployments.find((item) => item.id === deploymentId)
-    const summary = formatRollbackSummary(deployment?.server_id || "", rollbackStart, {
+    if (!deployment?.rollback_available || busy) return
+    const start = rollbackStartFor(rollbackOption, deploymentId)
+    const summary = formatRollbackSummary(deployment.server_id, start, {
       target: tx("deploymentTarget"),
       restore: tx("restoresSnapshot"),
       start: tx("startAfterRollback"),
@@ -284,9 +438,11 @@ export function BuildsPage({ t, initialBuildId = "" }: { t: TFunction; initialBu
     if (!(await confirm({ title: tx("confirmRollbackTitle"), description: summary, destructive: true }))) return
     setBusy(true)
     try {
-      const response = await buildApi.rollback(deploymentId, rollbackStart)
+      const response = await buildApi.rollback(deploymentId, start)
+      const outcomeError = rollbackResultError(response.server, deployment.server_id, start)
+      if (response.deployment.id !== deploymentId || outcomeError) throw new Error(outcomeError || "Rollback deployment did not match the confirmed target.")
       notify(response.message || t("rollback"), "success")
-      await refresh(selectedBuildId)
+      await refresh()
     } catch (err) {
       notifyError(err)
     } finally {
@@ -299,10 +455,13 @@ export function BuildsPage({ t, initialBuildId = "" }: { t: TFunction; initialBu
     setBusy(true)
     try {
       await buildApi.deleteUpload(upload.id)
+      if (!mounted.current) return
       notify(tx("deleteSuccess"), "success")
-      setPreflight(null)
-      setPlan(null)
-      await refresh("", "")
+      if (selectedUploadRef.current === upload.id) {
+        setSelectedUploadId(""); setSelectedBuildId(""); setSelectedDeploymentId("")
+        writeBuildHash("", true)
+      }
+      await refresh()
     } catch (err) {
       // 409 的结构化 detail.message 已由 API 层提取，直接作为 Toast 展示。
       notifyError(err)
@@ -316,8 +475,13 @@ export function BuildsPage({ t, initialBuildId = "" }: { t: TFunction; initialBu
     setBusy(true)
     try {
       await buildApi.deleteBuild(build.id)
+      if (!mounted.current) return
       notify(tx("deleteSuccess"), "success")
-      await refresh("", build.upload_id)
+      if (selectedBuildRef.current === build.id) {
+        setSelectedBuildId(""); setSelectedDeploymentId("")
+        writeBuildHash("", true)
+      }
+      await refresh()
     } catch (err) {
       notifyError(err)
     } finally {
@@ -330,9 +494,10 @@ export function BuildsPage({ t, initialBuildId = "" }: { t: TFunction; initialBu
     setBusy(true)
     try {
       await buildApi.deleteDeployment(deployment.id)
+      if (!mounted.current) return
       notify(tx("deleteSuccess"), "success")
-      setSelectedDeploymentId("")
-      await refresh(selectedBuildId, selectedUploadId)
+      setSelectedDeploymentId(current => current === deployment.id ? "" : current)
+      await refresh()
     } catch (err) {
       notifyError(err)
     } finally {
@@ -340,27 +505,31 @@ export function BuildsPage({ t, initialBuildId = "" }: { t: TFunction; initialBu
     }
   }
 
-  function retryBuild(build: BuildRecord) {
-    showBuild(build, "workspace")
+  async function retryBuild(build: BuildRecord) {
+    if (!(await showBuild(build, "workspace", true))) return
     const retryRuntime = build.runtime === "node" || build.runtime === "python" ? build.runtime : null
     void createBuild(build.upload_id, { runtimeOverride: retryRuntime, projectRoot: build.plan?.project_root_dir || "." })
   }
 
-  function showBuild(build: BuildRecord, section: WorkspaceSection = "workspace") {
+  async function showBuild(build: BuildRecord, section: WorkspaceSection = "workspace", replaceRoute = false) {
+    if (busy) return false
+    if (build.upload_id !== selectedUploadRef.current && settingsDirty && !(await confirm({ title: t("uploads") === "项目上传" ? "放弃未保存的交付选项？" : "Discard unsaved delivery options?", destructive: true }))) return false
+    if (build.upload_id !== selectedUploadRef.current) {
+      setProjectRoot("."); setRuntimeOverride("auto"); setServerId(""); setDeployOverwrite(false); setDeployStart(false); setPreflight(null); setPlan(null)
+    }
     setSelectedUploadId(build.upload_id)
     setSelectedBuildId(build.id)
     setActiveSection(section)
-    writeBuildHash(build.id)
+    writeBuildHash(build.id, replaceRoute)
     void loadBuildLogs(build.id)
+    return true
   }
 
-  function showDeployment(deployment: DeploymentRecord, detail = false) {
-    setSelectedDeploymentId(deployment.id)
+  async function showDeployment(deployment: DeploymentRecord, detail = false) {
+    if (busy) return
     const build = builds.find((item) => item.id === deployment.build_id)
-    if (build) {
-      setSelectedBuildId(build.id)
-      setSelectedUploadId(build.upload_id)
-    }
+    if (build && !(await showBuild(build, activeSection))) return
+    setSelectedDeploymentId(deployment.id)
     if (detail) setDetailDialog({ title: `${t("deploymentRecords")} · ${deployment.server_id}`, body: JSON.stringify(deployment, null, 2) })
   }
 
@@ -372,7 +541,9 @@ export function BuildsPage({ t, initialBuildId = "" }: { t: TFunction; initialBu
     notify(`${t("copied")}: ${message}`, "success")
   }
 
-  function changeSelectedUpload(uploadId: string) {
+  async function changeSelectedUpload(uploadId: string) {
+    if (uploadId === selectedUploadRef.current || busy) return
+    if (settingsDirty && !(await confirm({ title: t("uploads") === "项目上传" ? "放弃未保存的交付选项？" : "Discard unsaved delivery options?", destructive: true }))) return
     setSelectedUploadId(uploadId)
     const nextBuild = builds.find((build) => build.upload_id === uploadId) || null
     setSelectedBuildId(nextBuild?.id || "")
@@ -381,18 +552,21 @@ export function BuildsPage({ t, initialBuildId = "" }: { t: TFunction; initialBu
     if (nextBuild) {
       writeBuildHash(nextBuild.id, true)
       void loadBuildLogs(nextBuild.id)
-    }
+    } else writeBuildHash("", true)
     setRuntimeOverride("auto")
     setProjectRoot(".")
     setServerId("")
+    setDeployOverwrite(false)
+    setDeployStart(false)
     setPreflight(null)
     setPlan(null)
   }
 
   return <div className="flex flex-col gap-4">
-    <PageHeader
+    <PageHeader closeLabel={t("close")}
       eyebrow={t("projectPipeline")}
       title={t("builds")}
+      actions={<Button asChild><a href="#/uploads">{c.uploadProject}</a></Button>}
       description={t("buildDeployDesc")}
       helpLabel={t("pageHelp")}
       helpContent={<><p>{tx("projectContextDesc")}</p><p>{t("longBuildHint")}</p></>}
@@ -402,14 +576,16 @@ export function BuildsPage({ t, initialBuildId = "" }: { t: TFunction; initialBu
     />
 
     {loadError && <Alert variant="destructive" role="alert"><AlertDescription className="flex flex-wrap items-center justify-between gap-2"><span>{c.listFailed}: {loadError}</span><Button size="sm" variant="outline" disabled={loading} onClick={() => void refresh()}>{t("retry")}</Button></AlertDescription></Alert>}
+    {draftError && <Alert variant="destructive"><AlertDescription>{draftError}</AlertDescription></Alert>}
     {loading && <p role="status" className="text-sm text-muted-foreground">{c.refreshing}</p>}
 
     {activeSection === "workspace" ? <>
     {selectedUpload && <WorkflowSteps ariaLabel={t("workflowProgress")} steps={[
       { label: t("selectUpload"), state: "done" },
-      { label: tx("runPreflight"), state: preflight ? preflightReady ? "done" : "current" : selectedBuild ? "done" : "current" },
-      { label: t("createBuild"), state: selectedBuild?.status === "success" ? "done" : preflight && !preflightReady ? "next" : selectedBuild || preflightReady ? "current" : "next" },
+      { label: t("createBuild"), state: selectedBuild?.status === "success" ? "done" : "current" },
+      { label: t("manifest"), state: latestDeployment?.status === "success" || Boolean(configDrafts[selectedBuildId]) ? "done" : selectedBuild?.status === "success" ? "current" : "next" },
       { label: t("deployBuild"), state: latestDeployment?.status === "success" ? "done" : selectedBuild?.status === "success" ? "current" : "next" },
+      { label: t("start"), state: latestDeployment?.started ? "done" : latestDeployment?.status === "success" ? "current" : "next" },
     ]} />}
     <Card>
       {selectedUpload && <CardHeader className="gap-3 md:flex-row md:items-start md:justify-between">
@@ -418,10 +594,9 @@ export function BuildsPage({ t, initialBuildId = "" }: { t: TFunction; initialBu
       </CardHeader>}
       <CardContent className={`flex flex-col gap-4 ${selectedUpload ? "" : "pt-6"}`}>
         {uploads.length > 0 && <Field label={t("selectUpload")}>
-          <Select value={selectedUploadId || undefined} onValueChange={changeSelectedUpload} disabled={busy}>
-            <SelectTrigger aria-label={t("selectUpload")}><SelectValue placeholder={t("selectUpload")} /></SelectTrigger>
-            <SelectContent>{uploads.map(upload => <SelectItem key={upload.id} value={upload.id}>{upload.filename} · {upload.detected_runtime}</SelectItem>)}</SelectContent>
-          </Select>
+          <SearchSelect showSearch virtual style={{ width: "100%" }} disabled={busy} value={selectedUploadId || undefined} onChange={changeSelectedUpload}
+            aria-label={t("selectUpload")} placeholder={t("selectUpload")} optionFilterProp="label"
+            options={uploads.map(upload => ({ value: upload.id, label: `${upload.filename} · ${upload.id} · ${upload.status}` }))} />
         </Field>}
         {!selectedUpload ? <div className="flex flex-wrap items-center gap-3">
           {!loading && !loadError && <p className="text-sm text-muted-foreground">{uploads.length ? c.selectProject : c.noProjects}</p>}
@@ -431,12 +606,12 @@ export function BuildsPage({ t, initialBuildId = "" }: { t: TFunction; initialBu
             <div><dt className="text-xs text-muted-foreground">{tx("latestBuild")}</dt><dd>{selectedBuild ? `${localizeStatus(t, selectedBuild.status)} · ${selectedBuild.runtime}` : tx("noBuild")}</dd></div>
             <div><dt className="text-xs text-muted-foreground">{tx("latestDeployment")}</dt><dd>{latestDeployment ? `${localizeStatus(t, latestDeployment.status)} · ${latestDeployment.server_id}` : tx("notDeployed")}</dd></div>
           </dl>
-          <details><summary className="cursor-pointer text-sm font-medium">{tx("advancedSettings")}</summary><fieldset disabled={busy} className="mt-3 grid gap-3 md:grid-cols-3">
+          <details><summary className="cursor-pointer text-sm font-medium">{tx("advancedSettings")}</summary><fieldset disabled={busy || !deliveryDraft} className="mt-3 grid gap-3 md:grid-cols-3">
             <Field label={t("runtimeType")}><Select disabled={busy} value={runtimeOverride} onValueChange={value => { setRuntimeOverride(value); setPreflight(null); setPlan(null) }}><SelectTrigger aria-label={t("runtimeType")}><SelectValue placeholder={t("runtimeType")} /></SelectTrigger><SelectContent><SelectItem value="auto">{tx("runtimeAuto")}</SelectItem><SelectItem value="node">{tx("runtimeNode")}</SelectItem><SelectItem value="python">{tx("runtimePython")}</SelectItem></SelectContent></Select></Field>
             <Field label={tx("projectRoot")}><Input aria-label={tx("projectRoot")} placeholder={tx("projectRootPlaceholder")} value={projectRoot} onChange={event => { setProjectRoot(event.target.value); setPreflight(null); setPlan(null) }} /></Field>
             <Field label={t("overrideServerId")}><Input aria-label={t("overrideServerId")} placeholder={t("overrideServerId")} value={serverId} onChange={event => setServerId(event.target.value)} /></Field>
           </fieldset></details>
-          {selectedBuild?.status === "success" && <fieldset disabled={busy} className="border-t pt-3">
+          {selectedBuild?.status === "success" && <fieldset disabled={busy || !deliveryDraft} className="border-t pt-3">
             <legend className="mb-3 text-sm font-medium">{tx("deploymentOptions")}</legend>
             <div className="grid gap-3 md:grid-cols-3">
               <div className="text-sm"><div className="text-xs text-muted-foreground">{tx("deploymentTarget")}</div><div className="break-all font-mono">{serverId.trim() || (typeof selectedBuild.manifest?.id === "string" ? selectedBuild.manifest.id : tx("unavailableTarget"))}</div></div>
@@ -444,11 +619,18 @@ export function BuildsPage({ t, initialBuildId = "" }: { t: TFunction; initialBu
               <label className="flex items-start gap-2 text-sm"><input type="checkbox" className="mt-1" checked={deployStart} onChange={event => setDeployStart(event.target.checked)} /><span><span className="font-medium">{tx("startAfterDeploy")}</span><span className="block text-xs text-muted-foreground">{tx("startAfterDeployDesc")}</span></span></label>
             </div>
           </fieldset>}
-          <div className="flex flex-wrap items-center gap-2 border-t pt-3">
+          {settingsDirty && <Button variant="outline" disabled={busy || !selectedBuild} onClick={() => {
+            if (!selectedBuild) return
+            setBusy(true)
+            void saveDeliveryConfiguration(selectedBuild.id, mergeManifestPatch(selectedBuild.manifest || {}, configDrafts[selectedBuild.id] || deliveryDraft?.manifest_patch || {})).catch(notifyError).finally(() => setBusy(false))
+          }}>{t("uploads") === "项目上传" ? "保存交付选项" : "Save delivery options"}</Button>}
+          <div className="delivery-task-actions flex flex-wrap items-center gap-2 border-t pt-3">
             <Button variant="secondary" onClick={() => void runPreflight()} disabled={busy}>{tx("runPreflight")}</Button>
             {preflight && <Button variant="outline" onClick={() => void runPreflight(selectedUploadId, true)} disabled={busy}>{tx("forceRefresh")}</Button>}
             <Button variant="secondary" onClick={() => void previewPlan()} disabled={busy}>{tx("previewPlan")}</Button>
             <Button onClick={() => void createBuild()} disabled={busy}>{t("createBuild")}</Button>
+            {selectedBuild?.status === "success" && <Button variant="outline" disabled={busy} onClick={() => setEditingBuildId(selectedBuild.id)}>{t("edit")} · {t("manifest")}</Button>}
+            {latestDeployment?.status === "success" && <Button asChild variant="outline"><a href={`#/servers/${encodeURIComponent(latestDeployment.server_id)}`}>{t("viewServerDetail")}</a></Button>}
             {selectedBuild?.status === "success" && <Button variant="secondary" onClick={() => void deployBuild()} disabled={busy}>{t("deployBuild")}</Button>}
             {selectedBuild && canRequestStop(selectedBuild) && <Button variant="outline" onClick={() => void requestStopBuild()} disabled={busy}>{t("requestStopBuild")}</Button>}
           </div>
@@ -469,25 +651,26 @@ export function BuildsPage({ t, initialBuildId = "" }: { t: TFunction; initialBu
 
     {activeSection === "builds" ? <BuildRecordsTable builds={builds} busy={busy} selectedBuildId={selectedBuildId} canRequestStop={canRequestStop} onShowBuild={(build) => showBuild(build, "workspace")} onLoadLogs={(build) => showBuild(build, "logs")} onRequestStop={(id) => void requestStopBuild(id)} onDeploy={(id) => void deployBuild(id)} onRetry={retryBuild} onDelete={(build) => void deleteBuild(build)} t={t} /> : null}
     {activeSection === "deployments" ? <>
-      {selectedDeploymentId && <Card>
+      {selectedDeployment && <Card>
         <CardHeader><CardTitle>{tx("rollbackSummary")}</CardTitle><CardDescription>{tx("startAfterRollbackDesc")}</CardDescription></CardHeader>
         <CardContent className="grid gap-3 md:grid-cols-3">
-          <div className="rounded-md bg-muted/30 px-3 py-2 text-sm"><div className="text-xs text-muted-foreground">{tx("deploymentTarget")}</div><div className="break-all font-mono">{deployments.find((item) => item.id === selectedDeploymentId)?.server_id || tx("unavailableTarget")}</div></div>
+          <div className="rounded-md bg-muted/30 px-3 py-2 text-sm"><div className="text-xs text-muted-foreground">{tx("deploymentTarget")}</div><div className="break-all font-mono">{selectedDeployment.server_id}</div></div>
           <div className="rounded-md bg-muted/30 px-3 py-2 text-sm"><div className="text-xs text-muted-foreground">{tx("restoresSnapshot")}</div><div>{tx("enabledChoice")}</div></div>
-          <label className="flex items-start gap-2 rounded-md border px-3 py-2 text-sm"><input type="checkbox" className="mt-1" checked={rollbackStart} onChange={(event) => setRollbackStart(event.target.checked)} /><span><span className="font-medium">{tx("startAfterRollback")}</span><span className="block text-xs text-muted-foreground">{tx("startAfterRollbackDesc")}</span></span></label>
+          <label className="flex items-start gap-2 rounded-md border px-3 py-2 text-sm"><input type="checkbox" className="mt-1" checked={rollbackStart} disabled={busy || !selectedDeployment.rollback_available} onChange={(event) => setRollbackOption({ deploymentId: selectedDeployment.id, start: event.target.checked })} /><span><span className="font-medium">{tx("startAfterRollback")}</span><span className="block text-xs text-muted-foreground">{tx("startAfterRollbackDesc")}</span></span></label>
         </CardContent>
       </Card>}
       <DeploymentRecordsTable deployments={deployments} busy={busy} selectedDeploymentId={selectedDeploymentId} onSelect={(deployment) => showDeployment(deployment)} onDetail={(deployment) => showDeployment(deployment, true)} onRollback={(id) => void rollback(id)} onDelete={(deployment) => void deleteDeployment(deployment)} t={t} />
     </> : null}
-    {activeSection === "logs" ? selectedBuild ? <div className="flex flex-col gap-4"><BuildLogsTable logs={buildLogs} filter={logFilter} onFilterChange={setLogFilter} selectedBuildLabel={`${selectedBuild.id} · ${localizeStatus(t, selectedBuild.status)} · ${buildLogs.length}`} live={liveTail} t={t} /><BuildOutputPanels build={selectedBuild} log={selectedBuildLog} t={t} /></div> : <div className="flex flex-wrap items-center gap-3"><p className="text-sm text-muted-foreground">{c.selectBuild}</p><Button variant="outline" onClick={() => setActiveSection("builds")}>{tx("buildsTab")}</Button></div> : null}
+    {activeSection === "logs" ? selectedBuild ? <BuildLogWorkbench><BuildLogsTable logs={buildLogs} filter={logFilter} onFilterChange={setLogFilter} selectedBuildLabel={`${selectedBuild.id} · ${localizeStatus(t, selectedBuild.status)} · ${buildLogs.length}`} live={liveTail} t={t} windowNavigation={{ busy: logWindowBusy, following: followLogs, earlier: logBounds.earlier, later: logBounds.later, onEarlier: () => void loadBuildLogs(selectedBuildId, { before_sequence: buildLogs[0]?.sequence }), onLater: () => void loadBuildLogs(selectedBuildId, { after_sequence: buildLogs.at(-1)?.sequence }), onLatest: () => void loadBuildLogs(selectedBuildId), onPause: () => setFollowLogs(false) }} /><BuildOutputPanels build={selectedBuild} log={selectedBuildLog} t={t} /></BuildLogWorkbench> : <div className="flex flex-wrap items-center gap-3"><p className="text-sm text-muted-foreground">{c.selectBuild}</p><Button variant="outline" onClick={() => setActiveSection("builds")}>{tx("buildsTab")}</Button></div> : null}
 
     <Toaster toast={toast} onClose={() => setToast(null)} />
+    {editingBuildId && <DeliveryConfigEditor manifest={mergeManifestPatch(builds.find(item => item.id === editingBuildId)?.manifest || {}, configDrafts[editingBuildId] || deliveryDraft?.manifest_patch || {})} locale={t("uploads") === "项目上传" ? "zh-CN" : "en-US"} t={t} onClose={() => setEditingBuildId(null)} onSave={manifest => saveDeliveryConfiguration(editingBuildId, manifest)} />}
     {confirmDialog}
 
     <Dialog open={detailDialog !== null} onOpenChange={(open) => { if (!open) setDetailDialog(null) }}>
-      <DialogContent className="max-w-4xl">
+      <DialogContent closeLabel={t("close")} className="max-w-4xl">
         <DialogHeader><DialogTitle>{detailDialog?.title || ""}</DialogTitle></DialogHeader>
-        <DialogBody><JsonPanel text={detailDialog?.body} maxHeight="max-h-[60vh]" /></DialogBody>
+        <DialogBody><JsonPanel copyLabel={t("copy")} text={detailDialog?.body} maxHeight="max-h-[60vh]" /></DialogBody>
       </DialogContent>
     </Dialog>
   </div>
@@ -619,13 +802,13 @@ function BuildPlanCard({ plan, t }: { plan: BuildPlan; t: TFunction }) {
 }
 
 export function buildHash(buildId: string) {
-  return `#/builds/${encodeURIComponent(buildId)}`
+  return buildId ? `#/builds/${encodeURIComponent(buildId)}` : "#/builds"
 }
 
 function writeBuildHash(buildId: string, replace = false) {
   const hash = buildHash(buildId)
   if (replace) {
-    window.history.replaceState(null, "", hash)
+    replaceConsoleRouteHash(hash)
     return
   }
   if (window.location.hash !== hash) window.location.hash = hash

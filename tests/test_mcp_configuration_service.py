@@ -143,3 +143,24 @@ def test_apply_registers_manifest_without_starting_it() -> None:
         start=False,
         source="config_apply",
     )
+
+
+def test_existing_container_masked_mount_is_restored_before_validation(tmp_path) -> None:
+    from lingshu_gate.mcp_manifest import McpServerManifest
+    original = McpServerManifest.model_validate({
+        "id": "container-edit", "auto_start": False,
+        "launch": {"type": "managed_container", "image": "example.test/synthetic@sha256:" + "a" * 64,
+                   "mounts": [{"source": str(tmp_path), "target": "/data", "read_only": True}]},
+        "transport": {"type": "stdio"},
+    })
+    configs = McpConfigStore(tmp_path / "configs")
+    configs.save_config(original.model_dump(mode="json", exclude={"manifest_path"}))
+    service = McpConfigurationService(configs, Mock(spec=McpRuntimeManager), Mock(spec=UserCredentialStore))
+    request = McpConfigSaveRequest(manifest=original.safe_dict(), apply=False, start=False)
+    prepared = service.prepare_user_credentials(request, existing_server_id=original.id)
+    assert prepared.manifest.launch.mounts[0].source == str(tmp_path)
+    service.update(original.id, request, user_id="synthetic-user", prepared=prepared)
+    assert configs.load_manifest(original.id).launch.mounts[0].source == str(tmp_path)
+    request.manifest["launch"]["mounts"][0]["target"] = "/other"
+    with pytest.raises(ValueError, match="original server and mount target"):
+        service.prepare_user_credentials(request, existing_server_id=original.id)

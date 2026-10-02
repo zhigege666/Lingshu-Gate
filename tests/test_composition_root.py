@@ -42,7 +42,6 @@ OPERATIONS_PREFIXES = (
     "/v1/events",
     "/v1/runtime",
     "/v1/diagnostics",
-    "/v1/credentials",
     "/v1/mcp/configs",
     "/v1/mcp/servers",
     "/v1/projects",
@@ -94,6 +93,7 @@ def test_extracted_routes_preserve_authentication_boundaries() -> None:
             os.environ,
             {
                 "LINGSHU_GATE_DATA_DIR": str(root / "data"),
+                "LINGSHU_GATE_DB_URL": f"sqlite:///{root / 'data' / 'gate.db'}",
                 "LINGSHU_GATE_CONFIG_DIR": str(root / "mcp.d"),
                 "LINGSHU_GATE_ALLOWED_ROOT": str(root),
                 "LINGSHU_GATE_ADMIN_USERNAME": "composition-admin",
@@ -107,6 +107,7 @@ def test_extracted_routes_preserve_authentication_boundaries() -> None:
 
         operation_routes = 0
         tool_routes = 0
+        credential_routes = 0
         for route in app.routes:
             if not isinstance(route, APIRoute):
                 continue
@@ -117,9 +118,13 @@ def test_extracted_routes_preserve_authentication_boundaries() -> None:
             if route.path.startswith(OPERATIONS_PREFIXES):
                 operation_routes += 1
                 assert "require_operations_manager" in dependencies, route.path
+            if route.path.startswith("/v1/credentials"):
+                credential_routes += 1
+                assert "require_system_credentials" in dependencies, route.path
             if route.path.startswith("/v1/tools") or route.path == "/v1/invoke":
                 tool_routes += 1
                 assert "authenticate_request" in dependencies, route.path
 
-        assert operation_routes == 37
+        assert operation_routes == 32
+        assert credential_routes == 5
         assert tool_routes == 4

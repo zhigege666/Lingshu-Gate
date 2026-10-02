@@ -169,9 +169,9 @@
 
 .console-rail-item > span {
   min-width: 0;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+  white-space: normal;
+  overflow-wrap: break-word;
+  line-height: 1.4;
 }
 
 .console-nav-group {
@@ -998,4 +998,123 @@
 .service-directory .ant-segmented-item-selected {
   box-shadow: inset 0 0 0 1px hsl(var(--primary) / .65);
   color: hsl(var(--primary));
+}
+
+/* Services fill the space below the actual shell header/error region. Each
+   column has one vertical scroll owner; neither the page nor its panel nests it. */
+.server-workspace {
+  height: max(0px, calc(100dvh - var(--service-workspace-top, var(--console-header-height))));
+  min-height: 0;
+  align-items: stretch;
+  overflow: hidden;
+}
+.service-directory { overflow: hidden; min-height: 0; height: 100%; }
+.service-directory-header, .service-directory-footer { flex-shrink: 0; }
+.service-directory-list { min-height: 0; overflow: auto; flex: 1; overscroll-behavior: contain; }
+.service-entry { flex-shrink: 0; }
+.service-detail { display: flex; flex-direction: column; min-height: 0; height: 100%; overflow: hidden; }
+.service-detail > .page-header, .service-detail-identity, .service-detail-back { flex-shrink: 0; }
+.service-detail-tabs { flex: 1; min-height: 0; }
+.service-detail-tabs > .ant-tabs-nav { flex-shrink: 0; }
+.service-detail-tabs > .ant-tabs-body-holder { min-height: 0; overflow-y: auto; overscroll-behavior: contain; }
+.service-json pre { white-space: pre-wrap; overflow-wrap: anywhere; }
+@media (max-width: 767px) {
+  .server-workspace { display: block; }
+  .server-workspace[data-selected="true"] .service-directory,
+  .server-workspace[data-selected="false"] .service-detail { display: none; }
+  .service-directory { border: 0; }
+  .service-detail-back.ant-btn { display: inline-flex; align-self: flex-start; margin: 0 0 12px -8px; }
+  .service-directory-footer > .flex { flex-wrap: wrap; }
+}
+.service-directory-footer { display: grid; gap: 12px; }
+.delivery-records-table { max-height: calc(100dvh - 290px); min-height: 180px; overflow: auto; }
+.delivery-records-table > div { overflow: visible; }
+.delivery-records-table thead { position: sticky; top: 0; z-index: 2; background: hsl(var(--card)); }
+.delivery-records-table th:last-child, .delivery-records-table td:last-child { position: sticky; right: 0; background: hsl(var(--card)); }
+.delivery-records-table th:last-child { z-index: 3; }
+.delivery-task-actions { position: sticky; bottom: 0; z-index: 3; background: hsl(var(--card)); padding-bottom: 12px; }
+
+/* A delivery task owns the workspace; history opens separately on demand. */
+.delivery-focus-workspace { display: flex; flex-direction: column; gap: 16px; height: var(--remaining-viewport-height, calc(100dvh - 160px)); min-height: 0; }
+.delivery-focus-content { flex: 1; min-height: 0; overflow: auto; display: flex; flex-direction: column; gap: 16px; }
+.delivery-focus-content > * { flex-shrink: 0; }
+.delivery-focus-footer { display: flex; align-items: center; gap: 16px; flex-shrink: 0; border-top: 1px solid hsl(var(--border)); padding: 12px 0; background: hsl(var(--background)); }
+.delivery-focus-summary { min-width: 0; flex: 1; display: flex; flex-direction: column; font-size: 12px; }
+.delivery-focus-summary strong, .delivery-focus-summary span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.delivery-focus-summary span { color: hsl(var(--muted-foreground)); }
+@media (max-width: 767px) { .delivery-focus-footer { gap: 8px; } }
+
+.service-config-drawer .ant-drawer-body { display: flex; flex-direction: column; min-height: 0; overflow: hidden; }
+.service-config-drawer .ant-drawer-body > .ant-alert, .service-config-drawer .ant-drawer-body > .ant-radio-group { flex-shrink: 0; }
+.service-config-drawer .manifest-editor { flex: 1; max-height: none; min-height: 0; }
+.service-config-drawer .manifest-editor-body { flex: 1; }
+.delivery-focus-workspace > .page-header, .delivery-focus-workspace > .workflow-steps { flex-shrink: 0; }
+.delivery-focus-workspace > .workflow-steps { overflow-x: auto; }
+.delivery-focus-workspace > .workflow-steps .ant-steps { min-width: 600px; }
+
+/* The active delivery form is centered; diagnostics remain secondary. */
+.delivery-focus-content > * { width: 100%; max-width: 920px; margin-inline: auto; }
+.delivery-auxiliary { color: hsl(var(--muted-foreground)); font-size: 13px; }
+.delivery-auxiliary > summary { cursor: pointer; padding-block: 8px; font-weight: 500; }
+.delivery-auxiliary[open] > summary { color: hsl(var(--foreground)); }
+.workflow-steps-stacked { display: flex; align-items: flex-start; list-style: none; margin: 0; padding: 8px 0 12px; gap: 0; }
+.workflow-steps-stacked > li { display: flex; flex: 1 0 96px; position: relative; flex-direction: column; align-items: center; text-align: center; gap: 5px; color: hsl(var(--muted-foreground)); }
+.workflow-steps-stacked > li:not(:last-child)::after { content: ""; position: absolute; top: 18px; left: calc(50% + 24px); width: calc(100% - 48px); border-top: 1px solid hsl(var(--border)); }
+.workflow-step-symbol { display: flex; align-items: center; justify-content: center; width: 36px; height: 36px; border: 1px solid hsl(var(--border)); border-radius: 50%; font-size: 17px; background: hsl(var(--card)); }
+.workflow-steps-stacked strong { font-size: 13px; font-weight: 500; }
+.workflow-steps-stacked small { font-size: 11px; }
+.workflow-steps-stacked > li[data-state="done"] .workflow-step-symbol { color: hsl(var(--primary)); border-color: hsl(var(--primary) / .5); }
+.workflow-steps-stacked > li[data-state="current"] { color: hsl(var(--foreground)); }
+.workflow-steps-stacked > li[data-state="current"] .workflow-step-symbol { background: hsl(var(--primary)); border-color: hsl(var(--primary)); color: hsl(var(--primary-foreground)); }
+.workflow-steps-stacked > li[data-failed="true"] { color: hsl(var(--destructive)); }
+.workflow-steps-stacked > li[data-failed="true"] .workflow-step-symbol { border-color: hsl(var(--destructive)); background: hsl(var(--card)); color: hsl(var(--destructive)); }
+.delivery-mobile-progress { display: none; }
+@media (max-width: 767px) {
+  .delivery-focus-workspace > .workflow-steps-stacked { display: none; }
+  .delivery-mobile-progress { display: block; flex-shrink: 0; margin: 0; padding: 12px; border: 1px solid hsl(var(--border)); border-radius: 6px; font-size: 13px; }
+}
+
+/* Tool review consumes available height without padding short collections. */
+.tool-review-workspace { max-height: var(--remaining-viewport-height); min-width: 0; }
+.tool-review-workspace > .page-header { flex-shrink: 0; }
+.tool-review-workspace > [role="alert"] { flex-shrink: 0; max-height: 20dvh; overflow: auto; }
+.tool-review-card, .tool-review-content { display: flex; flex-direction: column; min-height: 0; min-width: 0; flex: 0 1 auto; }
+.tool-review-content > .bounded-list-scroll { max-height: none; min-height: 0; flex: 0 1 auto; }
+.tool-review-content > .list-pagination, .tool-review-content > [role="region"]:not(.bounded-list-scroll) { flex-shrink: 0; }
+
+/* Reset belongs to the search controls, never a stretching grid/filter cell. */
+.page-toolbar-search > .page-toolbar-reset { flex: 0 0 auto; width: auto; white-space: nowrap; }
+
+/* Low-cost interaction feedback: no row movement or continuous animation. */
+.console-rail-item { font-size: 14px; transition: background-color var(--motion-fast) var(--motion-ease), color var(--motion-fast) var(--motion-ease); }
+.console-rail-item[data-active="true"] { font-weight: 600; }
+.console-nav-group-title { font-size: 12px; letter-spacing: .02em; }
+.console-content table { font-variant-numeric: tabular-nums; }
+.console-content thead { background: hsl(var(--muted) / .55); }
+.console-content :is(button, a, input, textarea, [role="combobox"]):focus-visible { outline-color: hsl(var(--ring)); outline-offset: 3px; }
+@media (hover: hover) { .console-content tbody tr:focus-within { background: hsl(var(--accent)); } }
+@media (pointer: coarse) {
+ .console-rail-item, .filter-radio > label { min-height: 44px; }
+ .page-toolbar-reset.ant-btn { min-height: 36px; }
+}
+
+/* Compact screens keep primary controls in one row; infrequent account actions
+   stay available in the existing account menu instead of wrapping the header. */
+@media (min-width: 721px) { .console-account-menu .console-account-mobile-action { display: none; } }
+@media (max-width: 720px) {
+ .console-shell { --console-header-height: 64px; }
+ .console-header { flex-wrap: nowrap; min-height: 64px; gap: 8px; }
+ .console-header-actions { width: auto; flex-wrap: nowrap; margin-left: auto; }
+ .console-header .console-header-secondary { display: none; }
+ .console-account.ant-btn { padding-inline: 4px; gap: 0; }
+ .console-account > .anticon { display: none; }
+ .console-brand { gap: 6px; }
+}
+
+@media (max-width: 720px) {
+ .page-header-compact[data-has-actions="false"] { position: relative; }
+ .page-header-compact[data-has-actions="false"] > h1 { padding-right: 40px; }
+ .page-header-compact[data-has-actions="false"] .page-header-actions { position: absolute; top: 0; right: 0; }
+ /* A frozen action column must not cover most of a narrow table viewport. */
+ .bounded-list-actions th:last-child, .bounded-list-actions td:last-child { position: static; box-shadow: none; }
 }

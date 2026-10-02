@@ -1,0 +1,38 @@
+/* Creation stays with the service directory identity, above search and results. */
+.service-directory-heading {
+  flex-wrap: wrap;
+  align-items: flex-start;
+}
+.service-directory-heading h2 {
+  flex: 0 0 auto;
+  line-height: 30px;
+}
+.service-directory-create-actions {
+  display: flex;
+  flex: 1 1 170px;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 6px;
+  min-width: 0;
+}
+.service-directory-create-actions .ant-btn {
+  max-width: 100%;
+}
+@media (max-width: 767px) {
+  .service-directory-create-actions {
+    flex-basis: 100%;
+    justify-content: flex-start;
+  }
+}
+
+/* Query the actual detail width, not the screen behind the two sidebars. */
+.service-detail { container-type: inline-size; }
+.service-summary-grid { gap: 20px; }
+.service-summary-grid > section { min-width: 0; }
+.service-summary-grid > section + section { padding-left: 20px; }
+.service-summary-grid .service-facts { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 12px; }
+.service-facts .service-fact-note-wide { grid-column: 1 / -1; margin: -4px 0 4px; line-height: 1.65; }
+@container (max-width: 540px) {
+ .service-summary-grid { grid-template-columns: minmax(0, 1fr); gap: 20px; }
+ .service-summary-grid > section + section { padding-left: 0; border-left: 0; border-top: 1px solid hsl(var(--border)); padding-top: 20px; }
+}

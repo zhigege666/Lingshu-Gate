@@ -17,6 +17,7 @@ from typing import Any
 from lingshu_gate.config import Settings
 from lingshu_gate.database import SQLiteDatabase
 from lingshu_gate.endpoint_security import redact_endpoint
+from lingshu_gate.invocation_payloads import audit_header_values, snapshot
 from lingshu_gate.logging import log_event
 from lingshu_gate.mcp_config_loader import McpConfigLoader
 from lingshu_gate.mcp_container import docker_available
@@ -1186,7 +1187,7 @@ class McpRuntimeManager:
         client = runtime.client
         if not isinstance(client, StreamableHttpMcpClient):
             raise McpSessionExpiredError("MCP session expired; reconnect before issuing another request")
-        previous_tools = copy.deepcopy(runtime.tools)
+        previous_tool = copy.deepcopy(next((tool for tool in runtime.tools if tool.get("name") == tool_name), None))
         runtime.state = McpServerState.STARTING
         runtime.health_status = "unhealthy"
         runtime.last_error = "MCP session expired; reconnecting"
@@ -1211,7 +1212,7 @@ class McpRuntimeManager:
         runtime.last_error = None
         self._log_runtime(server_id, "info", "MCP session reconnected", "gate.mcp.session_reconnect_succeeded", {})
         # 工具元数据变化可能使已发布分类失效；必须返回入口重新鉴权。
-        old_tool = next((tool for tool in previous_tools if tool.get("name") == tool_name), None)
+        old_tool = previous_tool
         new_tool = next((tool for tool in tools if tool.get("name") == tool_name), None)
         if old_tool is None or old_tool != new_tool:
             raise ToolExecutionError(
@@ -1274,6 +1275,31 @@ class McpRuntimeManager:
         raise KeyError(f"user credential slot not found: {server_id}/{slot_id}")
 
     def invoke_mcp_tool_for_user(
+        self, server_id: str, tool_name: str, arguments: dict[str, Any], *,
+        user_id: str, retry_read_only: bool = False,
+        audit_snapshot: Callable[[dict[str, Any]], None] | None = None,
+    ) -> dict[str, Any]:
+        # Secrets stay local to this invocation and are never handed to audit storage.
+        secrets: list[str] = []
+        try:
+            output = self._invoke_mcp_tool_for_user(
+                server_id, tool_name, arguments, user_id=user_id,
+                retry_read_only=retry_read_only,
+                audit_secrets=secrets if audit_snapshot is not None else None,
+            )
+        except Exception as exc:
+            if audit_snapshot is not None and not isinstance(exc, UserCredentialBindingError):
+                audit_snapshot(snapshot({"ok": False, "output": exc.to_payload() if isinstance(exc, ToolExecutionError) else None,
+                                         "error": str(exc)}, known_secrets=secrets))
+            raise
+        else:
+            if audit_snapshot is not None:
+                audit_snapshot(snapshot({"ok": True, "output": output, "error": None}, known_secrets=secrets))
+            return output
+        finally:
+            secrets.clear()
+
+    def _invoke_mcp_tool_for_user(
         self,
         server_id: str,
         tool_name: str,
@@ -1281,6 +1307,7 @@ class McpRuntimeManager:
         *,
         user_id: str,
         retry_read_only: bool = False,
+        audit_secrets: list[str] | None = None,
     ) -> dict[str, Any]:
         """解析用户文件引用，并在需要时使用当前用户自己的下游凭据。"""
 
@@ -1290,7 +1317,13 @@ class McpRuntimeManager:
                 raise RuntimeError(f"MCP server is not running: {server_id} ({runtime.state.value})")
             manifest = runtime.manifest
             slots = list(manifest.user_credentials)
-            previous_tools = copy.deepcopy(runtime.tools)
+            # Shared calls return before user-session recovery: do not copy the
+            # entire catalog for every invocation. Only the target needs a snapshot.
+            previous_tool = copy.deepcopy(next((tool for tool in runtime.tools if tool.get("name") == tool_name), None)) if slots else None
+            if audit_secrets is not None:
+                audit_secrets.extend(audit_header_values(runtime.manifest.transport.headers))
+                if hasattr(runtime.client, "audit_redaction_values"):
+                    audit_secrets.extend(runtime.client.audit_redaction_values())
         prepared_arguments = arguments
         if "fileRef" in arguments:
             if not self.tool_file_store:
@@ -1308,7 +1341,12 @@ class McpRuntimeManager:
             except ToolFileError as exc:
                 raise RuntimeError(f"fileRef resolution failed ({exc.code}): {exc}") from exc
         if not slots:
-            return self.invoke_mcp_tool(server_id, tool_name, prepared_arguments, retry_read_only=retry_read_only)
+            try:
+                return self.invoke_mcp_tool(server_id, tool_name, prepared_arguments, retry_read_only=retry_read_only)
+            finally:
+                # Reconnection can replace/refresh the client's resolved credentials.
+                if audit_secrets is not None and hasattr(runtime.client, "audit_redaction_values"):
+                    audit_secrets.extend(runtime.client.audit_redaction_values())
         if manifest.launch.type != "external" or manifest.transport.type != "streamable_http":
             raise UserCredentialBindingError(
                 f"user credentials are not supported for {manifest.launch.type}/{manifest.transport.type}: {server_id}"
@@ -1326,6 +1364,8 @@ class McpRuntimeManager:
                 f"required user credential is missing: {server_id}/" + ", ".join(sorted(missing))
             )
 
+        if audit_secrets is not None:
+            audit_secrets.extend(values.values())
         call_manifest = manifest.model_copy(deep=True)
         headers = dict(call_manifest.transport.headers)
         used_slot_ids: list[str] = []
@@ -1349,6 +1389,8 @@ class McpRuntimeManager:
         try:
             client.start()
             session_started = True
+            if audit_secrets is not None and hasattr(client, "audit_redaction_values"):
+                audit_secrets.extend(client.audit_redaction_values())
             try:
                 return client.call_tool(tool_name, prepared_arguments)
             except McpSessionExpiredError:
@@ -1361,7 +1403,7 @@ class McpRuntimeManager:
                         "mcp_session_reconnect_failed", "User MCP session reconnect failed; the call was not replayed",
                         next_action="Check the downstream service and your credential binding.",
                     ) from exc
-                old_tool = next((tool for tool in previous_tools if tool.get("name") == tool_name), None)
+                old_tool = previous_tool
                 new_tool = next((tool for tool in tools if tool.get("name") == tool_name), None)
                 if old_tool is None or old_tool != new_tool:
                     raise ToolExecutionError(
@@ -1381,6 +1423,8 @@ class McpRuntimeManager:
                         next_action="Check the downstream service before invoking again.",
                     ) from exc
         finally:
+            if audit_secrets is not None and hasattr(client, "audit_redaction_values"):
+                audit_secrets.extend(client.audit_redaction_values())
             try:
                 client.stop()
             finally:

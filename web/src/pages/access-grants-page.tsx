@@ -1,3 +1,4 @@
+import { RemainingList, ListPagination, ListViewport, useListPage } from "@/components/list-pagination"
 import { usePageRefresh } from "@/components/page-refresh"
 import { useEffect, useMemo, useRef, useState } from "react"
 import { Plus, ShieldAlert, UsersRound } from "lucide-react"
@@ -153,6 +154,8 @@ export function AccessGrantsPage({ locale, t }: { locale: Locale; t: TFunction }
     return grants.filter((grant) => `${subjectLabel(grant, users, roles)} ${grant.server_id} ${grant.tool_id || ""} ${grant.permission_type_name}`.toLowerCase().includes(needle))
   }, [grants, query, roles, users])
 
+  const paging = useListPage(visibleGrants, query)
+
   usePageRefresh(load, busy)
   useEffect(() => { void load() }, [])
 
@@ -243,7 +246,7 @@ export function AccessGrantsPage({ locale, t }: { locale: Locale; t: TFunction }
 
   return (
     <div className="flex flex-col gap-4">
-      <PageHeader
+      <PageHeader closeLabel={t("close")}
         eyebrow={c.eyebrow}
         title={c.title}
         description={c.description}
@@ -276,11 +279,12 @@ export function AccessGrantsPage({ locale, t }: { locale: Locale; t: TFunction }
 
         <Card>
           <CardContent className="p-3 md:p-4">
-            <div className="overflow-x-auto rounded-lg border">
-              <Table>
+            <RemainingList className="rounded-lg border">
+              <ListViewport viewport={paging.viewport} label={t("toolShowing")}>
+            <Table>
                 <TableHeader><TableRow><TableHead>{c.subject}</TableHead><TableHead>{c.server}</TableHead><TableHead>{c.scope}</TableHead><TableHead>{c.permissionType}</TableHead><TableHead>{c.expiresAt}</TableHead><TableHead>{t("actions")}</TableHead></TableRow></TableHeader>
                 <TableBody>
-                  {visibleGrants.length === 0 ? <TableEmptyRow colSpan={6} title={busy ? t("loadingData") : error ? t("error") : c.noGrants} /> : visibleGrants.map((grant) => <TableRow key={grant.id}>
+                  {visibleGrants.length === 0 ? <TableEmptyRow colSpan={6} title={busy ? t("loadingData") : error ? t("error") : query.trim() ? t("noMatchingRecords") : c.noGrants} /> : paging.items.map((grant) => <TableRow key={grant.id}>
                     <TableCell><div className="font-medium">{subjectLabel(grant, users, roles)}</div><div className="text-xs text-muted-foreground">{c[grant.subject_type]}</div></TableCell>
                     <TableCell><div className="font-medium">{serverLabel(grant.server_id, c)}</div>{grant.server_id === "builtin" && <code className="text-xs text-muted-foreground">{grant.server_id}</code>}</TableCell>
                     <TableCell><div className="max-w-72 truncate" title={grant.tool_id || c.wholeServer}>{grant.tool_id || c.wholeServer}</div></TableCell>
@@ -290,7 +294,9 @@ export function AccessGrantsPage({ locale, t }: { locale: Locale; t: TFunction }
                   </TableRow>)}
                 </TableBody>
               </Table>
-            </div>
+            </ListViewport>
+            <ListPagination paging={paging} t={t} />
+            </RemainingList>
           </CardContent>
         </Card>
       {confirmDialog}

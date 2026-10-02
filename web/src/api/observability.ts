@@ -39,7 +39,11 @@ export type LogFilters = {
   limit?: number
 }
 
+export type ObservabilityMcpScope = { id: string; name: string; availability: "current" | "historical" }
+export type ObservabilityMcpScopes = { scopes: ObservabilityMcpScope[]; total: number; offset: number; limit: number; capabilities: { can_read_all: boolean; all_scope: "global" | "authorized_services" } }
+
 export type EventFilters = {
+  server_id?: string
   event_type?: string
   subject_id?: string
   source?: string
@@ -57,6 +61,8 @@ export const observabilityApi = {
   health: () => request<HealthResponse>("/healthz"),
   diagnostics: () => request<DiagnosticsResponse>("/v1/diagnostics"),
   runDiagnostics: () => request<DiagnosticsResponse>("/v1/diagnostics/run", { method: "POST" }),
-  logs: (filters: LogFilters = {}) => request<{ logs: ObservabilityLog[] }>(`/v1/logs${queryString(filters)}`),
-  events: (filters: EventFilters = {}) => request<{ events: ObservabilityEvent[] }>(`/v1/events${queryString(filters)}`),
+  logs: (filters: LogFilters = {}, signal?: AbortSignal) => request<{ logs: ObservabilityLog[] }>(`/v1/logs${queryString(filters)}`, { signal }),
+  events: (filters: EventFilters = {}, signal?: AbortSignal) => request<{ events: ObservabilityEvent[] }>(`/v1/events${queryString(filters)}`, { signal }),
+  observabilityToolScopes: (filters: { server_id: string; q?: string; tool_id?: string; limit?: number; offset?: number }, signal?: AbortSignal) => request<Omit<ObservabilityMcpScopes, "capabilities">>(`/v1/observability/tool-scopes${queryString(filters)}`, { signal }),
+  observabilityMcpScopes: (filters: { q?: string; server_id?: string; limit?: number; offset?: number } = {}, signal?: AbortSignal) => request<ObservabilityMcpScopes>(`/v1/observability/mcp-scopes${queryString(filters)}`, { signal }),
 }

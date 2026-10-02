@@ -10,7 +10,7 @@
 
 - 保留 React/Vite，以 Ant Design 为主组件基础；不为本约束引入另一套组件库。复用现有 Ajv 和领域校验适配器。专用编辑器或组件预览工具需要解决明确缺口，不是交互修复的前置条件。
 - 扩展现有主题入口：[`console-design-provider.tsx`](../../web/src/components/console-design-provider.tsx)、[`index.css`](../../web/src/index.css) 和 [`console-workspace.css`](../../web/src/console-workspace.css) 中的布局规则。不新建竞争性的 token 入口。现有 AntD tokens 与 CSS 变量的收敛必须保护受影响消费者，并作为独立迁移进行。
-- 数值以这些文件为依据，不把设计研究中的试验尺寸当作现行标准。例如，当前 AntD provider 定义了 `fontSize: 14`、`borderRadius: 6`、`controlHeight: 36`、`controlHeightSM: 30`；这些只描述 provider，不表示所有现有本地控件都与之相同。修改 token 必须明确提出并检查其消费者。
+- 数值以这些文件为依据，不把设计研究中的试验尺寸当作现行标准。例如，当前 AntD provider 定义了 `fontSize: 14`、`borderRadius: 8`、`controlHeight: 36`、`controlHeightSM: 30`；这些只描述 provider，不表示所有现有本地控件都与之相同。修改 token 必须明确提出并检查其消费者。
 - 公共组件负责表现与交互机制；领域适配器负责请求、授权、业务状态和秘密处理。行为一致时才复用，不把外观相似的页面封成万能 CRUD 组件。
 
 可编辑控件边界使用 `--input` / AntD `colorBorder`，包括调用页的可空值和仅 JSON 编辑值容器。结构分割线、表格、卡片和只读结果使用较弱的 `--border` / `colorBorderSecondary` / `colorSplit`。两种主题都要保持这些映射一致；焦点和错误指示仍使用各自的语义颜色。修改 token 后，按实际相邻背景检查渲染后的控件。构建注入的 Console 版本在桌面和移动端固定页眉中保持可见。较长的预发行版本截断时，可在账号菜单中获取完整值，无需悬停，文本在视口内换行。
@@ -68,7 +68,7 @@ Schema 变化、迟到响应和刷新不得覆盖 dirty 草稿。参数撤销不
 | 执行与导航 | 离开调用页不能被称为取消。按真实会话生命周期定义运行中或实际未保存修改的提醒；不静默重试，不将敏感草稿/结果提升为持久化历史。 |
 | 决定与权限 | 保留现有上传、构建、部署、覆盖、启动、取消、放弃、保存/应用、分类确认/发布以及 Token 扩权的独立决定。发现和展示不授予访问权。 |
 
-本地与远端筛选须说明行为。远端查询区分筛选草稿和已应用条件，显示尚未应用的变化；拟定的“重置条件”只重置草稿，直到使用“应用筛选”。本地筛选可以即时作用于已载入记录。这是迁移目标，不表示当前每页已遵守。刷新明确作用范围，不能暗中请求所有页面数据。
+本地与远端筛选须说明行为。远端查询区分筛选草稿和已应用条件，显示尚未应用的变化；“重置条件”清空草稿并立即查询默认条件；“应用筛选”提交其他草稿修改。本地筛选可以即时作用于已载入记录。这是迁移目标，不表示当前每页已遵守。刷新明确作用范围，不能暗中请求所有页面数据。
 
 ## 已迁移共享模式与消费者
 
@@ -80,8 +80,9 @@ Schema 变化、迟到响应和刷新不得覆盖 dirty 草稿。参数撤销不
 | [`EditorNavigationContext`](../../web/src/components/editor-navigation-guard.tsx) 与 [`useDraftCloseGuard`](../../web/src/components/use-draft-close-guard.ts) | 退出注册覆盖上述 12 个 `FormDialog` 实例；关闭 helper 供采用它的编辑器使用 | 每个已打开编辑器独立注册和清理退出标记；采用局部关闭 helper 的编辑器防止重复放弃提示，角色、配置和上传保留自身领域关闭处理。App 决定导航，调用方负责清理和秘密处理。调用页使用自身会话退出状态；一次性 Token 结果不视为未保存表单草稿。 |
 | [`ValidationErrors`](../../web/src/components/validation-errors.tsx) | 配置/上传中的 `McpConfigEditor`，以及调用参数编辑器 | 持续错误摘要，包含代码/来源/路径/版本及定位操作。适配器产生诊断、选择展示时机、排除过期版本，并展开/聚焦相应字段或 JSON 位置。其他有类型表单保留字段校验和持续服务器错误。 |
 | [`McpConfigEditor`](../../web/src/components/mcp-config-editor.tsx) | 配置；上传 → 另存为配置 | 共用 Manifest 表单/JSON、受支持的参数行和键值映射、待添加项保护、脱敏 endpoint 保持/替换，并配合调用方的一次性凭据提交边界。调用方提供原配置身份、保存请求和秘密生命周期。配置保留预检；上传关闭后端预检与凭据列表加载，保留独立创建请求。不支持的结构留在 JSON。 |
+| [`useListPage`、`ListViewport`、`ListPagination`](../../web/src/components/list-pagination.tsx) | 高级配置、全局凭据、下游凭据、用户、角色/权限类型、资源授权、个人令牌、运行缓存、调用审计、工具审核；日志事件仅复用滚动区域 | 对已授权且已加载的集合按每页 50 行分页，提供有界行区域、翻页/筛选滚动复位、准确加载范围及固定操作列。工具审核全选仅作用于本页，保留跨页选择。授权、远程数量限制、筛选、对象身份、确认和写操作仍由调用方负责。日志事件保留原有每页 15 行排序/分页合同。不代表服务端全集统计或浏览器验收已通过。 |
 | [`PageRefreshContext` / `usePageRefresh`](../../web/src/components/page-refresh.tsx) | 13 个页面 loader：构建、全局凭据、用户、角色、授权、工具分类、个人 Token、下游凭据、调用审计、日志事件、运行缓存、上传、诊断。App 为仪表盘、配置、服务、工具、调用提供限定范围的读取。 | 壳调用当前挂载页面的读取函数并尊重其忙碌状态。必要依赖和错误恢复由调用方定义；刷新不重挂编辑器、不轮询、不应用尚未提交的筛选，也不请求全站数据。刷新日志等明确局部动作可保留。 |
-| [`QueryStatus`](../../web/src/components/query-status.tsx) | 日志事件、调用审计 | 展示未应用变化、已应用条件和成功快照时间。页面负责筛选草稿/已应用条件、限量、请求和错误；“重置条件”只改变下一次查询。本地搜索仍仅针对已加载记录。 |
+| [`QueryStatus`](../../web/src/components/query-status.tsx) | 日志事件、调用审计 | 展示未应用变化、已应用条件和成功快照时间。页面负责筛选草稿/已应用条件、限量、请求和错误；“重置条件”清空草稿并立即重新查询默认条件。本地搜索仍仅针对已加载记录。 |
 | [`getToolAccessDisplay`](../../web/src/features/tool-access.ts) | 工具目录（经 `tool-catalog`）与调用 | 两处均从 `metadata.gate_access.required_access` 得到展示级别；仅明确 pending 分类显示待审核，unknown 保持独立。此适配器不从声明推断访问权，也不授予执行权限。 |
 
 ## 证据与评审
@@ -114,3 +115,36 @@ Schema 变化、迟到响应和刷新不得覆盖 dirty 草稿。参数撤销不
 - [Carbon 组件清单](https://carbondesignsystem.com/contributing/component-checklist/)、[token Stylelint 插件](https://github.com/carbon-design-system/stylelint-plugin-carbon-tokens)及[表格指南](https://carbondesignsystem.com/components/data-table/usage/)：token 治理、行为规格、渐进检查和密度变体。
 - [GitLab Pajamas 表单](https://design.gitlab.com/patterns/forms/)、[弹窗指南](https://design.gitlab.com/components/modal/)及[空状态](https://design.gitlab.com/patterns/empty-states/)：关联的帮助/错误、焦点与关闭行为、符合上下文的下一步。Pajamas 是托管于 GitLab 的开源项目。
 - [Ant Design 反馈](https://ant.design/docs/spec/research-message-and-feedback/)、[主题定制](https://ant.design/docs/react/customize-theme/)及[视觉回归实践](https://ant.design/docs/blog/visual-regression/)：场景化反馈、现有 token 机制和视觉变更证据。
+
+## 交付、个人发现与结果检查场景
+
+- 交付记录：页签承载列表名称和总数。搜索、状态筛选、分页位置采用一行可换行工具栏；保留行内操作，筛选后回到首页。
+- 我的 MCP：由当前账号可见工具推导服务。覆盖管理员多服务分页、只读身份、单服务读写授权和猜测未授权 ID；模拟数据不代表真实授权验证。
+- 运行结果：仅为阅读解析 MCP 文本块中嵌套的 JSON，保留完整原始响应供复制。搜索当前展示结果，提供匹配跳转且不触发新调用。覆盖文本、嵌套 JSON、大数组、空结果、失败、转义标记、无匹配和展示片段以外的匹配。不得渲染不可信 HTML 或加载返回的媒体链接。
+- 工具审核：默认按待确认、待发布、已发布、已失效排序。审核并发布需明确确认目标和权限，检查指纹，每批最多 500 条且批内原子执行。待判定项目仍禁止发布；后续批次失败应保留已完成结果并报告未完成目标。
+- 失效分类：同一工具定义反复刷新不能丢失发布状态。定义变化使旧授权失效；目录移除和重新出现需复核。展示已知原因，不能暗示工具崩溃；历史记录未保存原因时无法据此断定失效原因。
+- 日志和事件：宽屏直接展示一行可换行筛选控件，保留草稿条件与已应用条件的区别，窄屏保持标签可读。
+
+### 筛选重置回归
+
+- 所有组合筛选提供固定位置的紧凑重置入口，不因按钮出现改变列表高度。清除搜索只清搜索；重置筛选同时恢复全部条件和第一页。
+- 日志、事件和审计的重置立即查询默认条件。失败时保留错误与已应用快照，不把旧结果标成新条件。相同条件刷新保留当前页；改变条件或重置后回到第一页，不能恢复旧页码。
+
+## 视觉品质复查
+
+项目以 Awwwards、Webby 和 FWA 的设计品质为参考，不宣称获奖或达到客观最高分。保留 Gate 的操作清晰度与一步直达，对实际任务画面逐项检查：
+
+1. 排版：原生与 AntD 控件使用一致的中文无衬线字体回退；次级文字清晰、数字等宽对齐
+2. 留白：间距服务于信息分组，不制造装饰性空栏；高密度数据仍须易读
+3. 视觉层级：主操作、当前对象与结果清晰；配置说明使用完整可用行宽
+4. 色彩：深浅主题语义一致；源码颜色对比度检查不能代替实际画面检查
+5. 动效：短促反馈、不持续自动播放装饰动画；优先尊重减少动态效果设置
+6. 微交互：悬停、焦点、加载、禁用、错误可见，不造成列表抖动
+7. 响应式：按真实 CSS 视口尺寸和中英文长文案检查；iframe 布局检查不等同于实体设备、触摸或性能验收
+8. 原创性：保持 Gate 的识别性与任务导向布局，不复制奖项标识或冒称认证
+
+记录具体未解决问题，不宣称已经没有任何提升空间。每轮已发现的可用性问题须修复或明确标记阻塞，桌面、移动布局证据和未执行的自动化检查分别记录。
+
+参考：[Webby 评审标准](https://www.webbyawards.com/judging-criteria/)、[Awwwards 移动端指南](https://www.awwwards.com/mobile-excellence-guidelines.pdf)、[FWA 设计重点](https://thefwa.com/FWA25/25.html)。
+
+正式桌面验收尺寸：1600×900、1920×1080、2560×1080、2560×1440。保留窄窗口基础回退，不再扩展手机和平板专项适配。

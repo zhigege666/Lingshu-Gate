@@ -83,12 +83,15 @@ class McpOAuthDiscoveryBoundary:
 
 def register_oauth_protected_resource_routes(
     app: FastAPI,
-    boundary: McpOAuthDiscoveryBoundary,
+    boundary: McpOAuthDiscoveryBoundary | Callable[[], McpOAuthDiscoveryBoundary | None],
 ) -> None:
     """Register RFC 9728 metadata at root and MCP path-specific locations."""
 
     async def metadata_document() -> dict[str, object]:
-        return boundary.metadata.document()
+        current = boundary() if callable(boundary) else boundary
+        if current is None:
+            raise HTTPException(404, detail="OAuth resource metadata is disabled")
+        return current.metadata.document()
 
     app.add_api_route(
         "/.well-known/oauth-protected-resource",
@@ -98,7 +101,7 @@ def register_oauth_protected_resource_routes(
         include_in_schema=False,
     )
     app.add_api_route(
-        boundary.metadata_path,
+        boundary.metadata_path if isinstance(boundary, McpOAuthDiscoveryBoundary) else "/.well-known/oauth-protected-resource/mcp",
         metadata_document,
         methods=["GET"],
         tags=["mcp-authorization"],
@@ -108,7 +111,7 @@ def register_oauth_protected_resource_routes(
 
 def with_mcp_auth_challenge(
     require_principal: Callable[[Request], object],
-    boundary: McpOAuthDiscoveryBoundary | None,
+    boundary: McpOAuthDiscoveryBoundary | Callable[[], McpOAuthDiscoveryBoundary | None] | None,
 ) -> Callable[[Request], object]:
     """Wrap an existing auth dependency without changing 403 semantics."""
 
@@ -119,10 +122,8 @@ def with_mcp_auth_challenge(
             if exc.status_code != 401:
                 raise
             headers = dict(exc.headers or {})
-            headers.setdefault(
-                "WWW-Authenticate",
-                boundary.challenge(request) if boundary is not None else "Bearer",
-            )
+            current = boundary() if callable(boundary) else boundary
+            headers["WWW-Authenticate"] = current.challenge(request) if current is not None else "Bearer"
             raise HTTPException(
                 status_code=exc.status_code,
                 detail=exc.detail,

@@ -68,3 +68,14 @@
   .access-role-tip { flex-wrap: wrap; }
   .access-role-tip button { margin-left: 24px; }
 }
+
+.role-editor-basics { display: flex; flex-direction: column; gap: 14px; min-width: 0; }
+@media (min-width: 1000px) {
+  .access-editor-fields.role-editor-layout { display: grid; grid-template-columns: minmax(260px, .8fr) minmax(0, 1.8fr); gap: 24px; align-items: start; }
+  .role-editor-basics > .grid { grid-template-columns: minmax(0, 1fr); }
+}
+
+@media (min-width: 1000px) {
+  .role-permission-columns { display: block; columns: 2; column-gap: 12px; }
+  .role-permission-columns > fieldset { break-inside: avoid; margin-bottom: 12px; }
+}

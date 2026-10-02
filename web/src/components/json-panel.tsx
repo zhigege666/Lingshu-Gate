@@ -8,7 +8,7 @@ import { cn, prettyJson } from "@/lib/utils"
  * Unified read-only panel for JSON / text output with a copy button and scroll area.
  * Pass either `text` (raw string) or `data` (serialized via prettyJson).
  */
-export function JsonPanel({ text, data, maxHeight = "max-h-[420px]", className }: { text?: string; data?: unknown; maxHeight?: string; className?: string }) {
+export function JsonPanel({ text, data, maxHeight = "max-h-[420px]", className, copyLabel = "Copy" }: { text?: string; data?: unknown; maxHeight?: string; className?: string; copyLabel?: string }) {
   const [copied, setCopied] = useState(false)
   const content = text !== undefined ? text : data !== undefined ? prettyJson(data) : ""
 
@@ -24,7 +24,7 @@ export function JsonPanel({ text, data, maxHeight = "max-h-[420px]", className }
 
   return (
     <div className={cn("relative overflow-hidden rounded-lg border bg-muted", className)}>
-      <Button type="button" size="sm" variant="secondary" onClick={copy} className="absolute right-2 top-2 z-10 h-7 gap-1.5 px-2 text-xs shadow-sm" aria-label="Copy">
+      <Button type="button" size="sm" variant="secondary" onClick={copy} className="absolute right-2 top-2 z-10 h-7 gap-1.5 px-2 text-xs shadow-sm" aria-label={copyLabel}>
         {copied ? <Check /> : <Copy />}
       </Button>
       <ScrollArea className={cn("w-full", maxHeight)}>

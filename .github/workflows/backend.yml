@@ -72,6 +72,24 @@ jobs:
           uv run --no-sync mypy
           uv run --no-sync pytest -q
 
+      - name: Install browser for isolated smoke
+        working-directory: web
+        run: timeout 180 npx playwright install --with-deps chromium
+
+      - name: Test Console against isolated real backend
+        run: timeout --kill-after=5 180 npm --prefix web run e2e:smoke
+
+      - name: Retain synthetic browser failure evidence
+        if: failure()
+        uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6
+        with:
+          name: browser-failure-${{ github.sha }}
+          path: |
+            web/test-results
+            web/playwright-report
+          if-no-files-found: ignore
+          retention-days: 3
+
       - name: Share tested Console with compatibility jobs
         uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6
         with:

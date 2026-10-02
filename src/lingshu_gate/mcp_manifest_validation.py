@@ -9,6 +9,7 @@ from typing import Any, Literal
 
 from pydantic import ValidationError
 
+from lingshu_gate.application.manifest_edit import restore_masked_mounts
 from lingshu_gate.config import Settings
 from lingshu_gate.credential_refs import extract_credential_refs, scan_env_credential_refs
 from lingshu_gate.credential_store import CredentialStore
@@ -383,15 +384,20 @@ def _restore_existing_endpoint_mask(
 ) -> dict[str, Any]:
     restored = dict(manifest_data)
     transport = dict(restored.get("transport") or {})
-    if transport.get("endpoint") != REDACTED_ENDPOINT or not expected_id:
+    if not expected_id:
         return restored
     try:
         existing = config_store.load_manifest(expected_id)
     except (KeyError, ValueError):
         return restored
-    transport["endpoint"] = existing.transport.endpoint
+    if transport.get("endpoint") == REDACTED_ENDPOINT:
+        transport["endpoint"] = existing.transport.endpoint
     restored["transport"] = transport
-    return restored
+    try:
+        return restore_masked_mounts(restored, existing.model_dump(mode="json", exclude={"manifest_path"}))
+    except ValueError:
+        # Let schema validation report the invalid masked source safely.
+        return restored
 
 
 def _check(name: str, severity: CheckSeverity, message: str, metadata: dict[str, Any] | None = None) -> dict[str, Any]:

@@ -1,10 +1,14 @@
+import "./build-records-table.css"
+import { RemainingList } from "@/components/list-pagination"
+import { useMemo, useState } from "react"
+import { RecordListToolbar } from "./record-list-toolbar"
 import type { DeploymentRecord } from "@/api/builds"
 import { ActionMenu, ActionMenuItem } from "@/components/action-menu"
 import { formatDateTime, shortId } from "@/components/builds/build-utils"
 import { StatusBadge } from "@/components/builds/status-badge"
-import { Pager, SortHead, usePagedSorted } from "@/components/table-tools"
+import { SortHead, usePagedSorted } from "@/components/table-tools"
 import { Badge } from "@/components/ui/badge"
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
+import { Card, CardContent } from "@/components/ui/card"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import type { TFunction } from "@/i18n"
 import { buildPageText } from "@/pages/builds-page-text"
@@ -33,12 +37,20 @@ type DeploymentRecordsTableProps = {
 }
 
 export function DeploymentRecordsTable({ deployments, busy, selectedDeploymentId, onSelect, onDetail, onRollback, onDelete, t }: DeploymentRecordsTableProps) {
-  const { pageRows, page, setPage, pageCount, total, sortKey, sortDir, toggleSort } = usePagedSorted(deployments, { pageSize: 10, initialSortKey: "created_at", getSortValue: sortValue })
+  const [query, setQuery] = useState("")
+  const [status, setStatus] = useState("")
+  const filtered = useMemo(() => deployments.filter(row => (!status || row.status === status) && JSON.stringify(row).toLowerCase().includes(query.trim().toLowerCase())), [deployments, query, status])
+  const { pageRows, page, setPage, total, sortKey, sortDir, toggleSort } = usePagedSorted(filtered, { filterKey: JSON.stringify([query, status]), pageSize: 10, initialSortKey: "created_at", getSortValue: sortValue })
   const tx = (key: string) => buildPageText(t, key)
 
-  return <Card>
-    <CardHeader><CardTitle>{t("deploymentRecords")}</CardTitle><CardDescription>{t("deploymentRecordsDesc")}</CardDescription></CardHeader>
-    <CardContent>
+  return <Card role="region" aria-label={t("deploymentRecords")}>
+    <CardContent className="delivery-records-content">
+      <RemainingList bottomGap={40}>
+      <RecordListToolbar kind="deployment" query={query} onQueryChange={value => { setQuery(value); setPage(1) }}
+        status={status} onStatusChange={value => { setStatus(value); setPage(1) }}
+        statuses={Array.from(new Set(deployments.map(row => row.status)))} page={page} total={total}
+        filtered={Boolean(query.trim() || status)} onPage={setPage} t={t} />
+      <div className="delivery-records-table">
       <Table>
         <TableHeader><TableRow>
           <SortHead label={t("id")} sortKey="id" activeKey={sortKey} dir={sortDir} onSort={toggleSort} />
@@ -48,7 +60,7 @@ export function DeploymentRecordsTable({ deployments, busy, selectedDeploymentId
           <SortHead label={t("createdAt")} sortKey="created_at" activeKey={sortKey} dir={sortDir} onSort={toggleSort} />
           <TableHead className="text-right">{t("actions")}</TableHead>
         </TableRow></TableHeader>
-        <TableBody>{total === 0 ? <TableEmptyRow colSpan={6} title={t("noData")} /> : pageRows.map((deployment) => {
+        <TableBody>{total === 0 ? <TableEmptyRow colSpan={6} title={t(query.trim() || status ? "noMatchingRecords" : "noData")} /> : pageRows.map((deployment) => {
           const selected = deployment.id === selectedDeploymentId
           return <TableRow
             key={deployment.id}
@@ -66,15 +78,16 @@ export function DeploymentRecordsTable({ deployments, busy, selectedDeploymentId
             <TableCell className="text-right" onClick={(event) => event.stopPropagation()} onKeyDown={(event) => event.stopPropagation()}>
               <ActionMenu inline label={t("actions")}>
                 <ActionMenuItem onClick={() => onDetail(deployment)}>{tx("view")}</ActionMenuItem>
-                <ActionMenuItem onClick={() => window.open(`/v1/mcp/servers/${encodeURIComponent(deployment.server_id)}/detail`, "_blank", "noopener,noreferrer")}>{t("viewServerDetail")}</ActionMenuItem>
-                {deployment.previous_manifest ? <ActionMenuItem disabled={busy} onClick={() => onRollback(deployment.id)}>{t("rollback")}</ActionMenuItem> : null}
+                <ActionMenuItem onClick={() => window.location.assign(`#/servers/${encodeURIComponent(deployment.server_id)}`)}>{t("viewServerDetail")}</ActionMenuItem>
+                {deployment.rollback_available ? <ActionMenuItem disabled={busy} onClick={() => onRollback(deployment.id)}>{t("rollback")}</ActionMenuItem> : null}
                 <ActionMenuItem destructive disabled={busy || ACTIVE_DEPLOYMENT_STATUSES.has(deployment.status)} onClick={() => onDelete(deployment)}>{tx("deleteRecord")}</ActionMenuItem>
               </ActionMenu>
             </TableCell>
           </TableRow>
         })}</TableBody>
       </Table>
-      <Pager t={t} page={page} pageCount={pageCount} total={total} onPage={setPage} />
+      </div>
+      </RemainingList>
     </CardContent>
   </Card>
 }

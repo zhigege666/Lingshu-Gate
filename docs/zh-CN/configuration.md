@@ -187,6 +187,12 @@ ${credential:credential-id}
 
 不要在不受控网络把可信来源设为 `*`，也不要在代理之外同时暴露 Gate 私有端口。
 
+## 外部 OAuth 资源配置
+
+外部 JWT 鉴权默认关闭，且仅用于 `/mcp`。通过受 `external_connections.manage` 保护的 `GET/PUT /v1/auth/external-connection/config` 配置持久化信任；`LINGSHU_GATE_EXTERNAL_CONNECTION_ENABLED=true` 会被拒绝，不能绕过管理 API。必需项包括精确 issuer/JWKS 配对、客户端允许列表及 audience 到规范资源的映射，启用还要求 Gate 鉴权有效。身份绑定和仅本人可管理的委托是独立记录。
+
+关闭状态 JSON 示例、版本前提、JWT claim 要求、API 路径及未支持的 provider/Tunnel 操作见[外部资源访问](external-connections.md)。验证器启用不等于外部连接成功，外部 JWT 也不能登录 Console API。
+
 ## 校验
 
 保存 Manifest 前，使用 Console 或 `POST /v1/mcp/configs/validate` 校验。校验只覆盖 Schema 和本地策略；通过校验不能证明远程 Endpoint 可信或健康。保存后应检查服务状态、发现的工具、分类和授权，再允许调用。

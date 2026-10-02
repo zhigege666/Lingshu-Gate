@@ -61,6 +61,37 @@ class ToolClassificationStoreTest(unittest.TestCase):
         gc.collect()
         self.temp.cleanup()
 
+    def test_review_and_publish_is_atomic_and_unchanged_refresh_stays_published(self) -> None:
+        definition = _definition("sample", "mcp.sample.read", idempotent=True)
+        self.store.synchronize_tools([definition])
+        row = self.store.list_classifications()[0]
+        result = self.store.confirm_classifications(
+            reviewer_id="reviewer", publish=True,
+            items=[{"server_id": "sample", "tool_id": definition.id,
+                    "expected_fingerprint": row["fingerprint"]}],
+        )
+        published = result["confirmed"][0]
+        self.assertEqual(published["status"], "published")
+        self.assertIsNotNone(published["reviewed_at"])
+        for _ in range(3):
+            self.store.synchronize_tools([definition.model_copy(deep=True)])
+            self.assertEqual(self.store.list_classifications()[0], published)
+        changed = definition.model_copy(update={"description": "Changed tool behavior"})
+        self.store.synchronize_tools([changed])
+        stale = self.store.list_classifications()[0]
+        self.assertEqual(stale["status"], "stale")
+        self.assertEqual(stale["effective_access"], "unknown")
+        self.store.synchronize_tools([changed])
+        self.assertEqual(self.store.list_classifications()[0]["evidence"], stale["evidence"])
+        self.assertEqual(stale["evidence"]["invalidation"]["reason"], "tool_definition_changed")
+        with self.assertRaises(ClassificationConfirmationConflictError):
+            self.store.confirm_classifications(
+                reviewer_id="reviewer", publish=True,
+                items=[{"server_id": "sample", "tool_id": definition.id,
+                        "expected_fingerprint": row["fingerprint"]}],
+            )
+        self.assertEqual(self.store.list_classifications()[0]["status"], "stale")
+
     def test_batch_confirm_uses_each_suggestion_and_manual_value_and_skips_safely(self) -> None:
         rule_read = _definition(
             "server-a",
@@ -381,6 +412,17 @@ class ToolClassificationRouteTest(unittest.TestCase):
                     json=payload,
                 )
                 self.assertEqual(denied.status_code, 403, denied.text)
+
+    def test_combined_review_publish_route_and_permission(self) -> None:
+        row = self._classification()
+        payload = {"publish": True, "items": [{"server_id": "route-server",
+                    "tool_id": self.definition.id, "expected_fingerprint": row["fingerprint"]}]}
+        result = self.client.post("/v1/access/tool-classifications/confirm", json=payload)
+        self.assertEqual(result.status_code, 200, result.text)
+        self.assertEqual(result.json()["confirmed"][0]["status"], "published")
+        self._login("classification-viewer", "Viewer123!")
+        denied = self.client.post("/v1/access/tool-classifications/confirm", json=payload)
+        self.assertEqual(denied.status_code, 403)
 
     def test_custom_role_with_classification_permission_can_confirm(self) -> None:
         role_response = self.client.post(

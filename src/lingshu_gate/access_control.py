@@ -6,15 +6,19 @@ import hashlib
 import json
 import re
 import sqlite3
+import threading
+from collections import deque
 from collections.abc import Callable
 from datetime import datetime, timedelta, timezone
 from functools import partial
-from time import perf_counter
+from time import monotonic, perf_counter
 from typing import Any, Iterable
 from uuid import uuid4
 
 from lingshu_gate.auth import AuthPrincipal
 from lingshu_gate.database import SQLiteDatabase
+from lingshu_gate.invocation_payloads import snapshot
+from lingshu_gate.retention_store import RetentionStore
 from lingshu_gate.mcp_runtime import McpRuntimeManager
 from lingshu_gate.models import ToolDefinition, ToolInvokeResponse
 from lingshu_gate.registry import ToolExecutionError, ToolInvocationContext, ToolRegistry
@@ -69,11 +73,16 @@ CONTROL_PERMISSIONS = (
     ("grants.manage", "管理资源授权", "维护用户和角色的 MCP 授权"),
     ("classifications.manage", "管理工具分类", "分析、确认并发布 Tool 读写分类"),
     ("credentials.manage.self", "管理个人凭据", "维护自己的 Gate API Token 与下游 MCP 凭据"),
+    ("credentials.manage.system", "管理共享服务凭据", "维护共享 MCP 服务秘密，仅默认管理员拥有"),
     ("credentials.manage.all", "管理全部凭据", "查看并吊销全部用户 API Token，不读取用户下游秘密"),
+    ("retention.manage", "管理保留策略", "管理日志、事件与调用记录保留和内容记录策略"),
+    ("audit.payload.read", "查看调用内容", "读取经过脱敏和限长的其他用户调用内容"),
     ("audit.read", "查看调用审计", "查询 MCP 调用授权和结果审计"),
     ("tools.read", "读取工具", "发现并调用获准的只读 MCP Tool"),
     ("tools.invoke", "调用写工具", "调用获准的写入 MCP Tool"),
+    ("observability.read.all", "查看全部运维日志", "读取所有服务与系统级日志和事件"),
     ("operations.manage", "管理运行态", "管理 MCP 配置、服务和运行态"),
+    ("external_connections.manage", "管理外部接入", "管理默认关闭的共享接入、受信身份和授权验证配置"),
 )
 
 SYSTEM_ROLES = (
@@ -125,6 +134,9 @@ class AccessControlStore:
 
     def __init__(self, database: SQLiteDatabase) -> None:
         self.database = database
+        self._external_limit_lock = threading.Lock()
+        self._external_windows: dict[str, deque[float]] = {}
+        self._external_active: dict[str, int] = {}
         self.mcp_runtime: McpRuntimeManager | None = None
         self._seed_system_data()
 
@@ -228,10 +240,14 @@ class AccessControlStore:
         role_allows = role_allows or permission_code in set(getattr(principal, "permissions", ()))
         if not role_allows:
             return False
-        if principal.auth_type != "token":
-            return True
-        scopes = set(getattr(principal, "scopes", ()))
-        return "*" in scopes or permission_code in scopes
+        scope_limits = []
+        if principal.auth_type in {"token", "oauth"}:
+            scope_limits.append(set(getattr(principal, "scopes", ())))
+        delegated = getattr(principal, "delegated_scopes", None)
+        if delegated is not None:
+            scope_limits.append(set(delegated))
+        return all("*" in scopes or permission_code in scopes for scopes in scope_limits)
+
 
     def require_control_permission(self, principal: AuthPrincipal, permission_code: str) -> None:
         if not self.has_control_permission(principal, permission_code):
@@ -634,6 +650,11 @@ class AccessControlStore:
                 # 已发布或人工维护的同一版本不重复计算规则，也不产生更新时间写入。
                 continue
             suggestion = _suggest_tool(definition)
+            if existing and existing["fingerprint"] == fingerprint:
+                previous_evidence = _loads(existing["evidence_json"])
+                for evidence_key in ("invalidation", "lifecycle"):
+                    if evidence_key in previous_evidence:
+                        suggestion["evidence"][evidence_key] = previous_evidence[evidence_key]
             evidence_json = json.dumps(suggestion["evidence"], ensure_ascii=False)
             if not existing:
                 # Console 首次加载可能并发触发同步；由数据库原子忽略重复插入，
@@ -676,6 +697,13 @@ class AccessControlStore:
                     existing_rows[key] = dict(current)
                 continue
             if existing["fingerprint"] != fingerprint:
+                invalidation_evidence = dict(suggestion["evidence"])
+                invalidation_evidence["invalidation"] = {
+                    "reason": "tool_definition_changed", "at": now,
+                    "previous_fingerprint": existing["fingerprint"],
+                    "current_fingerprint": fingerprint,
+                }
+                evidence_json = json.dumps(invalidation_evidence, ensure_ascii=False)
                 connection.execute(
                     """
                     UPDATE mcp_tool_classifications
@@ -943,8 +971,11 @@ class AccessControlStore:
         reviewer_id: str,
         items: Iterable[dict[str, Any]],
         note: str = "",
+        publish: bool = False,
     ) -> dict[str, Any]:
         """按每条工具的人工结论或机器建议原子完成批量确认。
+
+        publish=True 时在同一事务内完成审核和发布，保留整批指纹校验。
 
         确认只生成待发布的人工结论，不直接改变运行时授权。先在同一写事务中
         校验全部目标及 fingerprint，避免部分成功或基于旧元数据误确认。
@@ -1029,6 +1060,7 @@ class AccessControlStore:
 
                 evidence = _loads(row["evidence_json"])
                 evidence["confirmation"] = {
+                    "published_together": publish,
                     "note": note_text,
                     "reviewer_id": reviewer_id,
                     "confirmed_from": confirmed_from,
@@ -1036,14 +1068,16 @@ class AccessControlStore:
                 connection.execute(
                     """
                     UPDATE mcp_tool_classifications
-                    SET effective_access = ?, status = 'pending', source = 'manual',
-                        evidence_json = ?, reviewed_by = ?, reviewed_at = NULL, updated_at = ?
+                    SET effective_access = ?, status = ?, source = 'manual',
+                        evidence_json = ?, reviewed_by = ?, reviewed_at = ?, updated_at = ?
                     WHERE id = ?
                     """,
                     (
                         effective_access,
+                        "published" if publish else "pending",
                         json.dumps(evidence, ensure_ascii=False),
                         reviewer_id,
+                        now if publish else None,
                         now,
                         row["id"],
                     ),
@@ -1156,6 +1190,16 @@ class AccessControlStore:
         """发现与调用复用同一策略；调用方只负责准备本次请求的分类及授权数据。"""
 
         server_id = _server_id(definition)
+        if principal.auth_type == "oauth":
+            required = str(classification["effective_access"]) if classification else "unknown"
+            if (not principal.external_grant_id or definition.source != "mcp"
+                    or server_id not in principal.external_server_ids
+                    or definition.id not in principal.external_tool_ids
+                    or required not in principal.external_access
+                    or not principal.external_expires_at or _is_expired(principal.external_expires_at)):
+                return {"allowed": False, "reason": "external authorization does not allow this tool",
+                        "server_id": server_id, "required_access": required, "granted_access": "none",
+                        "classification_status": classification["status"] if classification else "missing"}
         required_control_permission = definition.metadata.get("required_control_permission")
         if not isinstance(required_control_permission, str) or not required_control_permission.strip():
             required_control_permission = None
@@ -1168,7 +1212,9 @@ class AccessControlStore:
         ):
             # 分类治理工具必须在下游工具尚未发布时仍可被审核员发现；
             # 这里跳过的是 Tool 分类状态，不是控制面权限校验。
-            allowed = self.has_control_permission(principal, required_control_permission)
+            required = "read" if definition.permission.startswith("read") else "write"
+            allowed = (self.has_control_permission(principal, required_control_permission)
+                       and _token_scope_allows(principal, required))
             return {
                 "allowed": allowed,
                 "reason": (
@@ -1180,6 +1226,19 @@ class AccessControlStore:
                 "required_access": "read" if definition.permission.startswith("read") else "write",
                 "granted_access": "write" if allowed else "none",
                 "classification_status": "control_plane",
+            }
+        delegated = principal.auth_type == "oauth" or getattr(principal, "delegated_scopes", None) is not None
+        if delegated and (
+            not classification or classification["status"] != "published"
+            or classification["effective_access"] not in {"read", "write"}
+        ):
+            return {
+                "allowed": False,
+                "reason": "tool classification is not published",
+                "server_id": server_id,
+                "required_access": "unknown",
+                "granted_access": grant_lookup(),
+                "classification_status": classification["status"] if classification else "missing",
             }
         if principal.role == "admin" or "admin" in roles:
             required = (
@@ -1264,6 +1323,20 @@ class AccessControlStore:
             "classification_status": classification["status"],
         }
 
+    def observability_server_ids(self, principal: AuthPrincipal, server_ids: Iterable[str]) -> list[str] | None:
+        """Shared policy for every log/event reader; None is explicit global access."""
+        self.require_control_permission(principal, "operations.manage")
+        if self.has_control_permission(principal, "observability.read.all"):
+            return None
+        return self.authorized_server_ids(principal, server_ids)
+
+    def authorized_server_ids(self, principal: AuthPrincipal, server_ids: Iterable[str]) -> list[str]:
+        """Resolve whole-service grants; a single-tool grant never exposes all service logs."""
+        keys = [(server_id, "") for server_id in sorted(set(server_ids))]
+        with self.database.session() as connection:
+            access = self._effective_access_map(connection, principal, keys)
+        return [server_id for (server_id, _), level in access.items() if level in {"read", "write"}]
+
     def effective_access(self, principal: AuthPrincipal, server_id: str, tool_id: str) -> str:
         key = (server_id, tool_id)
         with self.database.session() as connection:
@@ -1341,9 +1414,10 @@ class AccessControlStore:
 
         if required_access not in {"read", "write"}:
             raise ValueError(f"invalid target access: {required_access}")
+        # External delegation only exposes selected downstream tools, never delivery.
+        if context.auth_type == "oauth":
+            return False
         roles = tuple(context.roles)
-        if "admin" in roles or "*" in context.permissions:
-            return True
         role = roles[0] if roles else "viewer"
         principal = AuthPrincipal(
             id=context.actor_id,
@@ -1354,11 +1428,46 @@ class AccessControlStore:
             permissions=tuple(context.permissions),
             token_id=context.token_id,
             scopes=tuple(context.scopes),
+            delegated_scopes=context.delegated_scopes,
         )
+        if not _token_scope_allows(principal, required_access):
+            return False
         if not self.has_control_permission(principal, "operations.manage"):
             return False
+        if "admin" in roles or "*" in context.permissions:
+            return True
         granted = self.effective_access(principal, server_id, "")
         return ACCESS_RANK.get(granted, 0) >= ACCESS_RANK[required_access]
+
+    def _acquire_external_invocation(self, principal: AuthPrincipal) -> str | None:
+        if principal.auth_type != "oauth":
+            return None
+        grant_id = principal.external_grant_id
+        if not grant_id or principal.external_rate_per_minute < 1 or principal.external_concurrency < 1:
+            raise AccessDeniedError("external invocation limits are unavailable", required_access="invoke", granted_access="none")
+        now = monotonic()
+        with self._external_limit_lock:
+            # Single-Core bounded retention; idle grants disappear after one minute.
+            for key in list(self._external_windows):
+                window = self._external_windows[key]
+                while window and window[0] <= now - 60:
+                    window.popleft()
+                if not window and not self._external_active.get(key, 0):
+                    del self._external_windows[key]
+                    self._external_active.pop(key, None)
+            window = self._external_windows.setdefault(grant_id, deque())
+            if len(window) >= principal.external_rate_per_minute:
+                raise AccessDeniedError("external invocation rate limit exceeded", required_access="invoke", granted_access="none")
+            if self._external_active.get(grant_id, 0) >= principal.external_concurrency:
+                raise AccessDeniedError("external invocation concurrency limit exceeded", required_access="invoke", granted_access="none")
+            window.append(now)
+            self._external_active[grant_id] = self._external_active.get(grant_id, 0) + 1
+        return grant_id
+
+    def _release_external_invocation(self, grant_id: str | None) -> None:
+        if grant_id is not None:
+            with self._external_limit_lock:
+                self._external_active[grant_id] -= 1
 
     def invoke_tool(
         self,
@@ -1389,6 +1498,15 @@ class AccessControlStore:
                 required_access=decision["required_access"],
                 granted_access=decision["granted_access"],
             )
+        recorded_input = snapshot(arguments) if RetentionStore(self.database).policy()["payload_mode"] == "redacted" else None
+        try:
+            external_lease = self._acquire_external_invocation(principal)
+        except AccessDeniedError as exc:
+            denied = {**decision, "allowed": False, "reason": exc.reason}
+            self._record_invocation_audit(principal, definition, correlation_id=correlation_id,
+                                          decision=denied, outcome="not_invoked", duration_ms=None, payload=summary)
+            raise
+        recorded_outputs: list[dict[str, Any]] = []
         started = perf_counter()
         try:
             if definition.source == "mcp" and self.mcp_runtime:
@@ -1401,6 +1519,7 @@ class AccessControlStore:
                     tool_name,
                     arguments,
                     user_id=principal.id,
+                    audit_snapshot=recorded_outputs.append if recorded_input is not None else None,
                     retry_read_only=(
                         decision["classification_status"] == "published"
                         and decision["required_access"] == "read"
@@ -1420,6 +1539,7 @@ class AccessControlStore:
                         roles=tuple(getattr(principal, "roles", ()) or (principal.role,)),
                         permissions=tuple(getattr(principal, "permissions", ())),
                         scopes=tuple(getattr(principal, "scopes", ())),
+                        delegated_scopes=getattr(principal, "delegated_scopes", None),
                     ),
                 )
         except UserCredentialBindingError as exc:
@@ -1447,6 +1567,8 @@ class AccessControlStore:
             response = ToolInvokeResponse(ok=False, tool_id=tool_id, error=str(exc), output=exc.to_payload())
         except Exception as exc:  # noqa: BLE001 - 工具边界统一返回失败响应
             response = ToolInvokeResponse(ok=False, tool_id=tool_id, error=str(exc))
+        finally:
+            self._release_external_invocation(external_lease)
         duration_ms = max(0, round((perf_counter() - started) * 1000))
         self._record_invocation_audit(
             principal,
@@ -1456,6 +1578,8 @@ class AccessControlStore:
             outcome="success" if response.ok else "error",
             duration_ms=duration_ms,
             payload=summary,
+            recorded_input=recorded_input,
+            recorded_output=(recorded_outputs[0] if recorded_outputs else snapshot({"ok": response.ok, "output": response.output, "error": response.error})) if recorded_input is not None else None,
         )
         return response
 
@@ -1469,35 +1593,44 @@ class AccessControlStore:
         outcome: str,
         duration_ms: int | None,
         payload: dict[str, Any],
+        recorded_input: dict[str, Any] | None = None,
+        recorded_output: dict[str, Any] | None = None,
     ) -> None:
-        self.database.execute(
-            """
-            INSERT INTO invocation_audits
-                (id, correlation_id, user_id, username, auth_type, api_token_id,
-                 server_id, tool_id, tool_access, required_access, granted_access,
-                 decision, reason, outcome, duration_ms, payload_json, created_at)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-            """,
-            (
-                str(uuid4()),
-                correlation_id,
-                principal.id,
-                principal.username,
-                principal.auth_type,
-                getattr(principal, "token_id", None),
-                decision["server_id"],
-                definition.id,
-                decision["required_access"],
-                decision["required_access"],
-                decision["granted_access"],
-                "allow" if decision["allowed"] else "deny",
-                decision["reason"],
-                outcome,
-                duration_ms,
-                json.dumps(payload, ensure_ascii=False),
-                iso_now(),
-            ),
-        )
+        audit_id = str(uuid4())
+        with self.database.session() as connection:
+            connection.execute(
+                """
+                INSERT INTO invocation_audits
+                    (id, correlation_id, user_id, username, auth_type, api_token_id,
+                     server_id, tool_id, tool_access, required_access, granted_access,
+                     decision, reason, outcome, duration_ms, payload_json, created_at)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                """,
+                (
+                    audit_id,
+                    correlation_id,
+                    principal.id,
+                    principal.username,
+                    principal.auth_type,
+                    getattr(principal, "token_id", None),
+                    decision["server_id"],
+                    definition.id,
+                    decision["required_access"],
+                    decision["required_access"],
+                    decision["granted_access"],
+                    "allow" if decision["allowed"] else "deny",
+                    decision["reason"],
+                    outcome,
+                    duration_ms,
+                    json.dumps(payload, ensure_ascii=False),
+                    iso_now(),
+                ),
+            )
+            if recorded_input is not None and recorded_output is not None:
+                connection.execute(
+                    "INSERT INTO invocation_payloads (audit_id, user_id, input_json, output_json) VALUES (?, ?, ?, ?)",
+                    (audit_id, principal.id, json.dumps(recorded_input), json.dumps(recorded_output)),
+                )
 
     def list_invocation_audits(
         self,
@@ -1632,16 +1765,15 @@ class AccessControlStore:
 
         user_rows = self.database.query_all(
             """
-            SELECT audit.user_id, audit.username
-            FROM invocation_audits AS audit
-            WHERE audit.id = (
-                SELECT latest.id
+            SELECT users.user_id, (
+                SELECT latest.username
                 FROM invocation_audits AS latest
-                WHERE latest.user_id = audit.user_id
+                WHERE latest.user_id = users.user_id
                 ORDER BY latest.created_at DESC, latest.id DESC
                 LIMIT 1
-            )
-            ORDER BY audit.username COLLATE NOCASE, audit.user_id
+            ) AS username
+            FROM (SELECT DISTINCT user_id FROM invocation_audits) AS users
+            ORDER BY username COLLATE NOCASE, users.user_id
             """
         )
         resource_rows = self.database.query_all(
@@ -1783,14 +1915,15 @@ def _payload_summary(arguments: dict[str, Any]) -> dict[str, Any]:
 
 
 def _token_scope_allows(principal: AuthPrincipal, required_access: str) -> bool:
-    if principal.auth_type != "token":
-        return True
-    scopes = set(getattr(principal, "scopes", ()))
-    if "*" in scopes:
-        return True
-    if required_access == "read":
-        return bool(scopes & {"tools.read", "mcp.read", "mcp.write"})
-    return bool(scopes & {"tools.invoke", "mcp.write"})
+    scope_limits = []
+    if principal.auth_type in {"token", "oauth"}:
+        scope_limits.append(set(getattr(principal, "scopes", ())))
+    delegated = getattr(principal, "delegated_scopes", None)
+    if delegated is not None:
+        scope_limits.append(set(delegated))
+    accepted = ({"tools.read", "mcp.read", "mcp.write"} if required_access == "read"
+                else {"tools.invoke", "mcp.write"})
+    return all("*" in scopes or bool(scopes & accepted) for scopes in scope_limits)
 
 
 def _principal_control_allows(principal: AuthPrincipal, permission_code: str) -> bool:

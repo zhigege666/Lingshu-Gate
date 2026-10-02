@@ -5,6 +5,8 @@ from __future__ import annotations
 import re
 from typing import Any
 
+from lingshu_gate.access_control import AccessControlStore, AccessDeniedError
+from lingshu_gate.auth import AuthPrincipal
 from lingshu_gate.config import Settings
 from lingshu_gate.diagnostics import run_diagnostics
 from lingshu_gate.mcp_runtime import McpRuntimeManager
@@ -16,7 +18,7 @@ from lingshu_gate.protocol.tool_namespace import (
     SYSTEM_DEBUG_TOOL_NAME,
 )
 from lingshu_gate.redaction import redact_text
-from lingshu_gate.registry import ToolRegistry
+from lingshu_gate.registry import ToolInvocationContext, ToolRegistry
 
 DEFAULT_LIMIT = 50
 MAX_LIMIT = 200
@@ -84,26 +86,49 @@ class SystemDebugService:
         registry: ToolRegistry,
         runtime: McpRuntimeManager,
         observability_store: ObservabilityStore,
+        access_store: AccessControlStore | None = None,
     ) -> None:
         self.settings = settings
         self.registry = registry
         self.runtime = runtime
         self.observability_store = observability_store
+        self.access_store = access_store
 
-    def invoke(self, arguments: dict[str, Any]) -> dict[str, Any]:
+    def invoke(self, arguments: dict[str, Any], context: ToolInvocationContext | None = None) -> dict[str, Any]:
         action = str(arguments.get("action") or "overview").strip()
         limit = _parse_limit(arguments.get("limit"))
         keyword = _optional_text(arguments.get("keyword"), "keyword", MAX_KEYWORD_LENGTH)
 
+        allowed_servers: list[str] | None = None
+        logs_denied = False
+        if context is not None and action in {"overview", "logs", "events", "server_detail"}:
+            if self.access_store is None:
+                raise ValueError("Operational log authorization is unavailable")
+            principal = AuthPrincipal(id=context.actor_id, username=context.username,
+                role=context.roles[0] if context.roles else "viewer", roles=context.roles,
+                permissions=context.permissions, auth_type=context.auth_type,
+                scopes=context.scopes, delegated_scopes=context.delegated_scopes)
+            candidates = set(self.runtime.iter_manifests()) | set(self.observability_store.historical_server_ids())
+            try:
+                allowed_servers = self.access_store.observability_server_ids(principal, candidates)
+            except AccessDeniedError:
+                if action != "overview":
+                    raise
+                allowed_servers, logs_denied = [], True
+            selected = _optional_text(arguments.get("server_id"), "server_id")
+            if selected and (selected not in candidates or (allowed_servers is not None and selected not in allowed_servers)):
+                raise ValueError("MCP log scope not found")
         if action == "overview":
-            result = self._overview(limit)
+            result = self._overview(limit, allowed_servers)
+            if logs_denied:
+                result["recent_error_logs_access"] = "denied"
         elif action == "server_detail":
             server_id = _required_text(arguments.get("server_id"), "server_id")
             result = self._server_detail(server_id, limit)
         elif action == "logs":
-            result = self._logs(arguments, keyword, limit)
+            result = self._logs(arguments, keyword, limit, allowed_servers)
         elif action == "events":
-            result = self._events(arguments, keyword, limit)
+            result = self._events(arguments, keyword, limit, allowed_servers)
         elif action == "diagnostics":
             result = run_diagnostics(self.settings, self.registry, self.runtime).model_dump(mode="json")
         else:
@@ -111,9 +136,9 @@ class SystemDebugService:
 
         return _sanitize(result)
 
-    def _overview(self, limit: int) -> dict[str, Any]:
+    def _overview(self, limit: int, allowed_servers: list[str] | None = None) -> dict[str, Any]:
         servers = self.runtime.list_servers().model_dump(mode="json")
-        recent_errors = self.observability_store.list_logs(level="error", limit=limit)
+        recent_errors = self.observability_store.list_logs(level="error", limit=limit, allowed_server_ids=allowed_servers)
         return {
             "service": {
                 "name": self.settings.service_name,
@@ -141,8 +166,9 @@ class SystemDebugService:
                 detail[key] = value[: min(limit, 50)]
         return detail
 
-    def _logs(self, arguments: dict[str, Any], keyword: str | None, limit: int) -> dict[str, Any]:
+    def _logs(self, arguments: dict[str, Any], keyword: str | None, limit: int, allowed_servers: list[str] | None = None) -> dict[str, Any]:
         items = self.observability_store.list_logs(
+            allowed_server_ids=allowed_servers,
             level=_optional_text(arguments.get("level"), "level"),
             server_id=_optional_text(arguments.get("server_id"), "server_id"),
             source=_optional_text(arguments.get("source"), "source"),
@@ -152,11 +178,12 @@ class SystemDebugService:
         )
         return _page("logs", items, limit)
 
-    def _events(self, arguments: dict[str, Any], keyword: str | None, limit: int) -> dict[str, Any]:
+    def _events(self, arguments: dict[str, Any], keyword: str | None, limit: int, allowed_servers: list[str] | None = None) -> dict[str, Any]:
         subject_id = _optional_text(arguments.get("server_id"), "server_id")
         items = self.observability_store.list_events(
             event_type=_optional_text(arguments.get("event_type"), "event_type"),
-            subject_id=subject_id,
+            server_id=subject_id,
+            allowed_server_ids=allowed_servers,
             source=_optional_text(arguments.get("source"), "source"),
             keyword=keyword,
             limit=min(limit + 1, MAX_LIMIT + 1),
@@ -167,7 +194,7 @@ class SystemDebugService:
 def register_system_debug_tool(registry: ToolRegistry, service: SystemDebugService) -> None:
     """Register the debug tool in the existing REST tool registry."""
 
-    registry.register(system_debug_tool_definition(), service.invoke)
+    registry.register(system_debug_tool_definition(), service.invoke, contextual=True)
 
 
 def _parse_limit(value: Any) -> int:

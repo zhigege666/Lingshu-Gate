@@ -126,3 +126,17 @@ describe("MCP config model", () => {
     ]))
   })
 })
+
+
+describe("masked container source identity", () => {
+  const manifest = { id: "container-a", launch: { type: "managed_container", image: `example.test/synthetic@sha256:${"a".repeat(64)}`,
+    mounts: [{ source: "***", target: "/workspace", read_only: true }] }, transport: { type: "stdio" } }
+  const context = { existingConfigId: "container-a", originalEndpointMasked: false, originalMaskedMountTargets: ["/workspace"] }
+  it("retains a masked source only for its original config and target", () => {
+    expect(precheckManifest(manifest, copy, context).errors).not.toContain("containerMountsError")
+    expect(precheckManifest(manifest, copy).errors).toContain("containerMountsError")
+    expect(precheckManifest({ ...manifest, id: "container-b" }, copy, context).errors).toContain("containerMountsError")
+    expect(precheckManifest(manifest, copy, { ...context, originalMaskedMountTargets: [] }).errors).toContain("containerMountsError")
+    expect(precheckManifest({ ...manifest, launch: { ...manifest.launch, mounts: [{ source: "***", target: "/different", read_only: true }] } }, copy, context).errors).toContain("containerMountsError")
+  })
+})

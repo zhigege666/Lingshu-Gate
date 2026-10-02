@@ -6,16 +6,10 @@
 
 Lingshu Gate 提供统一的认证 MCP 入口、Web Console、配置与运行时管理、加密凭据、工具分类、调用审计、诊断，以及受控的项目上传、构建、部署和启动工作流。
 
-## Console 预览
-
-![Lingshu Gate Web Console 仪表盘](docs/assets/console-dashboard.svg)
-
-Console 将服务健康状态、已发现工具、项目交付、安全访问和审计入口收拢在同一个运维工作区。截图来自无业务数据的本地开发实例，不包含生产数据或凭据。
-
 ## 核心能力
 
 - `POST /mcp` 上的统一 Streamable HTTP MCP 网关。
-- 使用协议版本 `2026-07-28` 的通用下游 Streamable HTTP 与 stdio 传输。
+- 通用下游 Streamable HTTP 与 stdio 传输，支持自动协商与显式协议版本选择，具体范围见 [MCP 网关指南](docs/zh-CN/mcp-gateway.md)。
 - 用于服务配置和运行状态管理的 Web Console 与 REST 控制 API。
 - 认证、RBAC、资源授权、API Token scope、工具分类和调用审计。
 - 加密的系统凭据与按用户隔离的下游请求绑定。
@@ -38,6 +32,15 @@ Console 将服务健康状态、已发现工具、项目交付、安全访问和
 <img src="docs/images/console/zh-CN/tool-invoke-dark.jpg" alt="深色主题的工具调用页面，提供表单和 JSON 两种参数编辑方式" width="1000">
 
 *工具调用：选择工具、检查参数，运行后查看结果。*
+
+## 运维与验收
+
+- 中文、英文 Console；桌面验收目标为 1600×900、1920×1080、2560×1080 和 2560×1440。
+- 大列表筛选与分页、构建日志历史窗口、调用结果内检索，以及集成的上传、配置、构建和启动流程。
+- [运行日志、事件和调用记录](docs/zh-CN/retention.md)分别配置保留时间，默认均为 7 天；[入参与出参记录](docs/zh-CN/invocation-recording.md)需显式启用，并受脱敏、大小限制和权限隔离约束。
+- [性能评估与复现脚本](docs/zh-CN/performance-review.md)记录测试规模、测量范围和限制；[浏览器回归指南](docs/zh-CN/browser-regression.md)覆盖角色与业务场景。单元测试、布局检查和真实部署验收分别记录；尚未完成完整 Playwright 和真实 ChatGPT OAuth 接入验收。
+
+另保留此前合并的 [空实例预览](docs/assets/console-dashboard.svg)作为参考；截图不构成当前版本的完整验收证明。
 
 ## 快速开始
 
@@ -109,7 +112,7 @@ transport:
 auto_start: false
 ```
 
-`protocol_version` 用于显式自说明；只接受 `2026-07-28`，它不是版本选择开关。
+`protocol_version` 可设为 `auto` 或受支持的显式版本；省略时优先尝试 `2026-07-28`。HTTP 与 stdio 的兼容版本范围不同，详见 [协议协商](docs/zh-CN/mcp-gateway.md)。
 
 校验并保存 Manifest，检查发现的工具，将其分类为只读或写入，人工复核后只发布允许调用的分类。最终访问权限是控制权限、资源授权、已发布分类和 API Token scope 的交集。
 
@@ -122,6 +125,12 @@ Gate 提供有确认边界的 `gate_*` 工具，用于可续传上传、预检�
 仓库自带的 [Delivery Skill](.agents/skills/lingshu-gate-upload-build-start/SKILL.md) 在这些工具之上增加确定性本地打包和操作流程。上传、代码执行、部署、覆盖、启动、取消或放弃会话之前，仍必须获得明确确认。
 
 完整边界和工具列表见 [项目交付](docs/zh-CN/project-delivery.md)。
+
+## 远程 MCP 接入
+
+外部 OAuth 接入默认关闭。Gate 支持 `secure_mcp_tunnel` 和 `direct` HTTPS，以及 `disabled` 关闭状态。[外部接入与网络指南](docs/zh-CN/external-connections.md#选择网络接入路径)覆盖私有隧道、named tunnel、frp 加公网 TLS 代理、已有公网反向代理和可选 ngrok。网络 daemon 仍由运维管理；反向代理本身不能穿 NAT。
+
+只暴露 MCP 与必要 discovery 路径，Console/管理面保持私有，并独立验证每用户 OAuth 授权。机器隧道 key 不代表最终用户。部署启用前按指南依次完成只读、写入和撤权验收；阅读本 README 不会启用任何外部连接。
 
 ## 安全默认值
 
