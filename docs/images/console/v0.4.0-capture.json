@@ -1,8 +1,8 @@
 {
   "version": "0.4.0",
-  "sourceRevision": "8b3dc8a7cbc4877c157ef82d526000a5f478d924",
-  "productSourceSha256": "60d09a7fc3a3bdbebb4476d7e383df3736bbeb636dd26b79cf90a334dbcaa59c",
-  "capturedAt": "2026-10-03T12:09:53.707Z",
+  "sourceRevision": "4816673fcac237bce398c2e3a57124616492ebce",
+  "productSourceSha256": "d8ffa0db4e85405464179f64f50d7cc2cf7d4c9e9d079d3a335eca07251c1079",
+  "capturedAt": "2026-10-03T13:19:54.057Z",
   "theme": "light",
   "sourceKind": "actual-loopback-isolated-backend",
   "syntheticOnly": true,
@@ -21,7 +21,7 @@
         "width": 1920,
         "height": 1080
       },
-      "sha256": "c85abb35270496f26779b8cd2cb1efc78dd2e5f3a298ec78627efbd4eaecf551"
+      "sha256": "e2fac0e6a47f40324c36402e2584c068b4bfd3325c9f0d4f1ac2d3724207ad09"
     },
     {
       "locale": "en-US",
@@ -45,7 +45,7 @@
         "width": 1920,
         "height": 1080
       },
-      "sha256": "5ef9944d03c2bf9dcbaa65e94139f67c8307327547c7e2c99c09e386b85e283b"
+      "sha256": "6d6ce98a4c71f51afffc0b6915c5c1ce5ef955660729d3d7060238a81d7e87e6"
     },
     {
       "locale": "en-US",
@@ -69,7 +69,7 @@
         "width": 1920,
         "height": 1080
       },
-      "sha256": "ee223ac64ed7fa37b243c6f201781f72591791688b342035b0acfdb34a650f80"
+      "sha256": "dc9d6dc807ba4bf39767d5a433ff4acf6342c10ddf602b78b59741dc82e4cc63"
     },
     {
       "locale": "en-US",
@@ -105,7 +105,7 @@
         "width": 1920,
         "height": 1080
       },
-      "sha256": "9ac45b7397e7655e2c938b50ee24902eecae3e505a349d69e27dca279e1f2a75"
+      "sha256": "8e9ae0a52f18de536a43ec6448927595d3aec6fbab0a882e007e7e75c9f3ef0a"
     },
     {
       "locale": "en-US",
@@ -129,7 +129,7 @@
         "width": 1920,
         "height": 1080
       },
-      "sha256": "9b39b1e2659b417ed6468107ce34309493593d4ca6a31b5bb1f4fa637de5ed0d"
+      "sha256": "72898d96a9dfc34d80d8e386becef527b70c5a7a7bd92efcc9d21f9f9a641943"
     },
     {
       "locale": "zh-CN",
@@ -153,7 +153,7 @@
         "width": 1920,
         "height": 1080
       },
-      "sha256": "d5012832636cd55c19214ca4bcac4b55ee228eff1b9fda3103f17f778dd39036"
+      "sha256": "c15c1f89ad9e5067f75d75b81dba665c01a7e38a1ac76ed46762eb112940cb47"
     },
     {
       "locale": "zh-CN",
@@ -177,7 +177,7 @@
         "width": 1920,
         "height": 1080
       },
-      "sha256": "3ee8288f454ed9a329144703e54e6d9f54ac01de2b4dc224989427e859bc1bcd"
+      "sha256": "c4f60a63942d3da90626cce72093d4a114cf10cb7cd358635922923f7fd76685"
     },
     {
       "locale": "zh-CN",
