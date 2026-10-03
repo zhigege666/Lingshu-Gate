@@ -1,10 +1,10 @@
 /* Stable short columns; long identities stay in their own wrapping/truncated cell. */
-.tool-review-table { min-width: 1132px; table-layout: fixed; }
+.tool-review-table { min-width: 1172px; table-layout: fixed; }
 .tool-review-table th { white-space: nowrap; }
 .tool-review-table td:nth-child(2) { overflow-wrap: anywhere; }
 .tool-review-table td:nth-child(5), .tool-review-table td:nth-child(7), .tool-review-table td:last-child, .tool-review-table td:nth-child(n+3) .inline-flex { white-space: nowrap; }
 .tool-review-table th:last-child, .tool-review-table td:last-child {
-  width: 104px; min-width: 104px; max-width: 104px;
+  width: 144px; min-width: 144px; max-width: 144px;
   position: sticky; right: 0; background: hsl(var(--card));
   box-shadow: -1px 0 hsl(var(--border));
 }
@@ -16,7 +16,7 @@
    for identities instead of freezing most of the viewport. */
 @media (min-width: 1024px) {
   .tool-review-table th:nth-child(7), .tool-review-table td:nth-child(7) {
-    position: sticky; right: 104px; background: hsl(var(--card));
+    position: sticky; right: 144px; background: hsl(var(--card));
     box-shadow: -1px 0 hsl(var(--border));
   }
   .tool-review-table td:nth-child(7) { z-index: 1; }

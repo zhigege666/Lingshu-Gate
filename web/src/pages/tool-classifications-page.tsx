@@ -524,7 +524,7 @@ export function ToolClassificationsPage({ locale, t }: { locale: Locale; t: TFun
           </div>}
           <ListViewport viewport={paging.viewport} label={c.tool}>
             <Table className="tool-review-table">
-              <colgroup>{[40, 300, 136, 120, 96, 160, 176, 104].map((width, index) => <col key={index} style={{ width: index === 1 ? undefined : width }} />)}</colgroup>
+              <colgroup>{[40, 300, 136, 120, 96, 160, 176, 144].map((width, index) => <col key={index} style={{ width: index === 1 ? undefined : width }} />)}</colgroup>
               <TableHeader><TableRow><TableHead className="w-10"><input ref={(node) => { if (node) node.indeterminate = someVisibleSelected }} className="size-4 accent-primary" type="checkbox" aria-label={c.selectVisible} title={c.selectVisible} checked={allVisibleSelected} disabled={busy || selectableVisibleItems.length === 0} onChange={(event) => toggleVisibleSelected(event.target.checked)} /></TableHead><TableHead>{c.tool}</TableHead><TableHead>{c.suggestion}</TableHead><TableHead>{c.effective}</TableHead><TableHead>{c.confidence}</TableHead><TableHead>{c.flags}</TableHead><TableHead>{t("status")}</TableHead><TableHead>{t("actions")}</TableHead></TableRow></TableHeader>
               <TableBody>
                 {visibleItems.length === 0 ? <TableEmptyRow colSpan={8} title={busy ? t("loadingData") : error ? t("error") : query.trim() || serverFilter !== "__all" || statusFilter !== "__all" ? t("noMatchingRecords") : c.noData} /> : paging.items.map((item) => <TableRow key={item.id}>
