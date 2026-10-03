@@ -221,7 +221,7 @@ Docker Hub 镜像包含 BuildKit SBOM/Provenance Manifest。GitHub 附件 Attest
 
 本版将内置 OAuth 与 Git/网络控制面整合，保留既有 API token 和外部 IdP 验证。README 按网关、RBAC、工具治理、凭据、项目交付、个人工作区、审计/保留及发行能力提供完整导航；中英文截图来自相同候选代码的合成实例。
 
-内置 OAuth 默认关闭，复用 Gate 用户与 RBAC，提供机密静态客户端、S256 PKCE、每用户工具同意、单次授权码、刷新轮换、加密 RS256 私钥和实时撤销检查。独立公网资源不要求公开 Console。保留 `0006_builtin_oauth`、`0007_session_purpose` 和 `0008_oauth_interaction_capacity` 的独立注册。外部 IdP 模式仍只负责资源验证，不托管 provider 的授权流程；两种模式均不创建隧道。详见[内置 OAuth](builtin-oauth.md)和[外部资源访问](external-connections.md)。
+内置 OAuth 默认关闭，复用 Gate 用户与 RBAC，提供机密静态客户端、S256 PKCE、每用户工具同意、单次授权码、刷新轮换、加密 RS256 私钥和实时撤销检查。独立公网资源不要求公开 Console。保留 `0006_builtin_oauth`、`0007_auth_session_purpose` 和 `0008_oauth_interaction_capacity` 的独立注册。外部 IdP 模式仍只负责资源验证，不托管 provider 的授权流程；两种模式均不创建隧道。详见[内置 OAuth](builtin-oauth.md)和[外部资源访问](external-connections.md)。
 
 系统设置新增网络与依赖页：命名代理的加密/脱敏版本、独立 Git/安装默认项、inherit/direct/profile 项目覆盖、独立依赖源、乐观锁、引用保护、审计和独立权限。Git 计划接入现有上传/预检/BuildPlan/构建/部署/启动链路，固定 commit 并限制源码快照。Node 计划识别 npm/pnpm/Yarn Classic 的明确版本与锁文件；未知或冲突返回可操作错误，不静默回退。`0004_gate_git_network` 与 OAuth 迁移同时保留。
 

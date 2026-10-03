@@ -8,7 +8,7 @@ The 0.4.0 candidate integrates the Git/network branch with main `d500116548a90e4
 
 Shared integration points retained in the combined tree:
 
-- `database.py` registers `0004_gate_git_network` and `0007_session_purpose`. The independent OAuth store registers `0006_builtin_oauth` and `0008_oauth_interaction_capacity`. Keep both registration paths and all uniquely named migrations.
+- `database.py` registers `0004_gate_git_network` and `0007_auth_session_purpose`. The independent OAuth store registers `0006_builtin_oauth` and `0008_oauth_interaction_capacity`. Keep both registration paths and all uniquely named migrations.
 - `main.py`, `access_control.py`, Console routing, navigation and translations compose both features. Settings administration, network invocation and existing delivery permissions remain separate; built-in and external OAuth retain their own guarded tabs and session purposes.
 - `build_deploy.py`, `build_preflight.py`, `build_plan.py`, `project_delivery_mcp.py`, `application/delivery_drafts.py` and the Delivery Skill extend the existing upload/build/deploy/start chain. Ownership, confirmation, digest, idempotency, token and classification checks remain required.
 - `config.py`, `mcp_manifest.py`, `mcp_manifest_validation.py`, `mcp_stdio_client.py` and `mcp_managed_http_client.py` share the reviewed administrator tool registry and exact manager pins. Read-only validation inspects metadata without executing programs; only authorized native startup performs bounded probes. Core does neither.

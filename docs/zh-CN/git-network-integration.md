@@ -8,7 +8,7 @@
 
 整合树保留以下共享修改：
 
-- `database.py` 注册 `0004_gate_git_network` 与 `0007_session_purpose`。独立 OAuth store 注册 `0006_builtin_oauth` 和 `0008_oauth_interaction_capacity`。两条注册路径和所有唯一命名迁移均须保留。
+- `database.py` 注册 `0004_gate_git_network` 与 `0007_auth_session_purpose`。独立 OAuth store 注册 `0006_builtin_oauth` 和 `0008_oauth_interaction_capacity`。两条注册路径和所有唯一命名迁移均须保留。
 - `main.py`、`access_control.py`、Console 路由、导航与翻译组合两项功能。设置管理、网络调用和现有交付权限仍独立；内置与外部 OAuth 保留各自受控标签和会话用途。
 - `build_deploy.py`、`build_preflight.py`、`build_plan.py`、`project_delivery_mcp.py`、`application/delivery_drafts.py` 与 Delivery Skill 扩展已有上传/构建/部署/启动链路。归属、确认、digest、幂等、令牌和分类检查仍必需。
 - `config.py`、`mcp_manifest.py`、`mcp_manifest_validation.py`、`mcp_stdio_client.py` 和 `mcp_managed_http_client.py` 共用管理员复核工具注册表和准确 manager pin。只读校验仅查元数据，不执行程序；仅已授权的原生启动进行有界探测。Core 均不执行。
