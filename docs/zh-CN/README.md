@@ -19,6 +19,7 @@
 | [UI 交互约束](ui-interaction-contract.md) | 新增或迁移 Console UI 的验收规则、编辑安全、证据与独立评审 |
 | [浏览器回归](browser-regression.md) | 隔离真实后端 Playwright、合成大列表、场景编号及证据边界 |
 | [外部 OAuth 资源访问](external-connections.md) | 默认关闭的 JWT 验证、信任配置、个人委托与实际接入边界 |
+| [内置 OAuth 授权](builtin-oauth.md) | 复用已有用户、静态客户端、同意、刷新/撤销与公网代理放行清单 |
 | [发行产物](releases.md) | 平台归档、checksum、SBOM、构建元数据、离线镜像和发布规则 |
 
 运行中的 Gate 会在 `/docs` 提供 API Schema。安全策略和报告方式见 [SECURITY.zh-CN.md](../../SECURITY.zh-CN.md)。

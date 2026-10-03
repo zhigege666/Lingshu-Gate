@@ -196,3 +196,7 @@ See [external resource access](external-connections.md) for the disabled JSON ex
 ## Validation
 
 Use the Console or `POST /v1/mcp/configs/validate` before saving a manifest. Validation covers schema and local policy; a successful validation does not prove that a remote endpoint is trusted or healthy. After saving, inspect server status, discovered tools, classifications, and grants before enabling invocation.
+
+## Built-in OAuth configuration
+
+Built-in OAuth is off by default and configured through permission-checked `/v1/auth/oauth/*` APIs or **Connection infrastructure → Gate built-in OAuth**. It has no environment shortcut for enablement. Save fixed HTTPS issuer/resource URLs, explicitly provision an encrypted signing key and static clients, then enable. Client secrets are returned once; signing private keys never leave encrypted storage. API tokens and external IdP verification remain available. See [the built-in OAuth guide](builtin-oauth.md) for scopes, limits and the separate public route allowlist.

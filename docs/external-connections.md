@@ -2,7 +2,7 @@
 
 [简体中文](zh-CN/external-connections.md)
 
-Gate implements a **default-disabled JWT resource server for `/mcp`**. Administrators can configure trusted issuers, public signing-key locations, client IDs, resource mappings and identity links; users can enable narrowly scoped local delegations. Enabling those records does not issue an OAuth token, complete provider consent, start a tunnel, or prove a ChatGPT connection. `connected=false`, `provider_verified=false` and `oauth_authorized=false` retain those distinctions.
+Gate offers [built-in OAuth for existing Gate users](builtin-oauth.md) and a **default-disabled external JWT resource server for `/mcp`**. This guide describes the external identity-provider mode. Administrators configure trusted issuers, public signing-key locations, client IDs, resource mappings and identity links; users enable narrowly scoped local delegations. Enabling external-mode records does not issue an OAuth token, complete provider consent, start a tunnel, or prove a ChatGPT connection. `connected=false`, `provider_verified=false` and `oauth_authorized=false` retain those distinctions. Choose built-in OAuth when no external identity provider is available.
 
 Only `/mcp` accepts external JWTs. `/v1/*`, including personal summaries, token creation and these management APIs, continues to require a Gate session or Gate API token. An invalid or malformed Authorization header never falls back to a valid session cookie. Opaque external access tokens and introspection are not supported.
 

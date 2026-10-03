@@ -10,6 +10,9 @@ from fastapi import FastAPI
 
 from lingshu_gate.external_connection_store import ExternalConnectionStore
 from lingshu_gate.external_jwt import ExternalJwtVerifier
+from lingshu_gate.oauth_server import OAuthServer
+from lingshu_gate.oauth_store import OAuthStore
+from lingshu_gate.interfaces.control_api.oauth_routes import register_oauth_routes
 from lingshu_gate.transports.oauth import McpOAuthDiscoveryBoundary, OAuthProtectedResourceMetadata
 from lingshu_gate.interfaces.control_api.external_connection_routes import register_external_connection_routes
 from lingshu_gate.access_control import AccessControlStore
@@ -322,6 +325,10 @@ def create_app() -> FastAPI:
     auth_store.external_connections = external_connection_store
     auth_store.external_verifier = external_jwt_verifier
     app.state.external_jwt_verifier = external_jwt_verifier
+    oauth_server = OAuthServer(OAuthStore(database), auth_store, access_store, registry, settings.data_dir)
+    auth_store.builtin_oauth = oauth_server
+    app.state.oauth_server = oauth_server
+    register_oauth_routes(app, server=oauth_server, observability=observability_store)
     register_external_connection_routes(
         app, auth_store=auth_store, access_store=access_store, registry=registry,
         store=external_connection_store, observability_store=observability_store,
@@ -402,10 +409,17 @@ def create_app() -> FastAPI:
     def external_oauth_discovery() -> McpOAuthDiscoveryBoundary | None:
         config = external_connection_store.configuration()
         resource = config.canonical_resource_url or config.endpoint
-        if not settings.auth_enabled or not config.enabled or config.validation_errors() or not resource:
+        builtin = oauth_server.store.config()
+        issuers = list(config.trusted_issuers) if config.enabled and not config.validation_errors() and resource else []
+        if builtin["enabled"]:
+            if issuers and resource != builtin["resource"]:
+                return None
+            resource = builtin["resource"]
+            issuers.append(builtin["issuer"])
+        if not settings.auth_enabled or not issuers or not resource:
             return None
         return McpOAuthDiscoveryBoundary(OAuthProtectedResourceMetadata(
-            resource=resource, authorization_servers=tuple(config.trusted_issuers),
+            resource=resource, authorization_servers=tuple(dict.fromkeys(issuers)),
         ))
 
     register_mcp_gateway_route(

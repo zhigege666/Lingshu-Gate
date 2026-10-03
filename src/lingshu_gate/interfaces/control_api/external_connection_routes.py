@@ -196,6 +196,11 @@ def register_external_connection_routes(app: FastAPI, *, auth_store: AuthStore,
                       principal: AuthPrincipal = Depends(require_admin)) -> dict[str, Any]:
         if body.enabled and not auth_store.enabled:
             raise HTTPException(409, detail="external connections require Gate authentication")
+        builtin = auth_store.builtin_oauth.store.config() if auth_store.builtin_oauth else None
+        if body.enabled and builtin and builtin["enabled"] and (body.canonical_resource_url or body.endpoint) != builtin["resource"]:
+            raise HTTPException(409, detail="resource_configuration_conflict")
+        if body.enabled and builtin and builtin["enabled"] and builtin["issuer"] in body.trusted_issuers:
+            raise HTTPException(409, detail="issuer_configuration_conflict")
         try:
             store.save_config(body.model_dump(exclude={"expected_revision"}), body.expected_revision)
         except DraftRevisionConflict as exc:

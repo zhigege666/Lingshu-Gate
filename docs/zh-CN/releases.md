@@ -222,3 +222,7 @@ Docker Hub 镜像包含 BuildKit SBOM/Provenance Manifest。GitHub 附件 Attest
 源码新增默认关闭、仅面向 `/mcp` 的 RS256 JWT 验证，包含管理员固定 HTTPS JWKS、规范 audience/客户端校验、持久化身份绑定及仅本人可管理的个人委托。启用且有效的本地配置会公布受保护资源元数据。当前 Gate 角色/资源、已发布分类、JWT scopes 与委托范围在派发前求交集；每 grant 限流/并发仅在单进程执行。无效 Authorization 不回退到 cookie，外部 JWT 不能登录 Console `/v1/*` API。详见[外部资源访问](external-connections.md)。
 
 此变更不部署 OAuth provider、不支持 opaque-token introspection、不实现 authorize/PKCE 流程、不注册客户端，也不启动隧道。启用记录不表示 provider 或 ChatGPT 已连接。共享凭据 CRUD 要求默认管理员能力 `credentials.manage.system`，内置 operator 不可依赖 `operations.manage` 执行这些操作；个人 `credentials.manage.self` 保持不变。
+
+## 待发布内置 OAuth 源码变更
+
+未发布源码新增默认关闭的内置授权服务，以及复用已有 Gate 用户的中英文管理/登录/同意/个人授权界面。增加迁移 `0006_builtin_oauth`、私有 `/v1/auth/oauth/*`、公网授权元数据与 `/oauth/*`，并独立打包 OAuth 资源。静态客户端、S256 单次码、刷新令牌族轮换、加密 RS256 密钥和实时策略/撤权检查保留 API token 与外部 IdP 模式。本任务不修改版本/Tag、不配置生产凭据或部署。静态编译不代表验收；安全、浏览器、打包及真实 ChatGPT/代理验证仍需分别完成。详见[内置 OAuth](builtin-oauth.md)。

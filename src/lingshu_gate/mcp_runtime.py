@@ -1154,7 +1154,9 @@ class McpRuntimeManager:
                 permission=self._permission_from_manifest(manifest),
                 input_schema=input_schema,
                 source="mcp",
-                metadata={"server_id": manifest.id, "launch_type": manifest.launch.type, "transport_type": manifest.transport.type, "original_tool_name": normalized_name, "annotations": annotations},
+                metadata={"server_id": manifest.id, "server_name": manifest.name,
+                          "launch_type": manifest.launch.type, "transport_type": manifest.transport.type,
+                          "original_tool_name": normalized_name, "annotations": annotations},
             )
 
             def handler(arguments: dict[str, Any], *, server_id: str = manifest.id, tool_name: str = normalized_name) -> dict[str, Any]:
