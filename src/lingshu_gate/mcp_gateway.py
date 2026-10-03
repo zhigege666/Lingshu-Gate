@@ -13,7 +13,7 @@ from starlette.concurrency import run_in_threadpool
 from lingshu_gate.access_control import AccessControlStore, AccessDeniedError
 from lingshu_gate.auth import AuthPrincipal
 from lingshu_gate.config import Settings
-from lingshu_gate.models import ToolDefinition
+from lingshu_gate.models import ToolDefinition, ToolInvokeResponse
 from lingshu_gate.protocol.capabilities import GatewayCapabilityPolicy
 from lingshu_gate.protocol.version import GATEWAY_HANDSHAKE_VERSIONS, MCP_PROTOCOL_VERSION
 from lingshu_gate.protocol.sdk_adapter import OfficialSdkTypesAdapter
@@ -189,6 +189,8 @@ def register_mcp_gateway_route(
                 access_store,
                 principal,
                 protocol_context,
+                request,
+                require_mcp_viewer,
             )
         return _error_response(
             request_id,
@@ -208,6 +210,8 @@ async def _call_tool(
     access_store: AccessControlStore,
     principal: AuthPrincipal,
     protocol_context: HttpProtocolContext,
+    request: Request,
+    require_principal: Callable[[Request], AuthPrincipal],
 ) -> JSONResponse:
     if not isinstance(params, dict):
         return _error_response(
@@ -255,9 +259,11 @@ async def _call_tool(
 
     try:
         invocation = await run_in_threadpool(
-            access_store.invoke_tool,
+            _invoke_authenticated_tool,
+            request,
+            require_principal,
+            access_store,
             registry,
-            principal,
             definition.id,
             arguments,
         )
@@ -296,6 +302,15 @@ async def _call_tool(
         settings,
         protocol_version=protocol_context.protocol_version,
     )
+
+
+def _invoke_authenticated_tool(request: Request, require_principal: Callable[[Request], AuthPrincipal],
+                               access_store: AccessControlStore, registry: ToolRegistry,
+                               tool_id: str, arguments: dict[str, Any]) -> ToolInvokeResponse:
+    # Re-read the inbound credential in the dispatch thread after body parsing
+    # and thread-pool admission. Never use a handshake/session-cached principal.
+    principal = require_principal(request)
+    return access_store.invoke_tool(registry, principal, tool_id, arguments)
 
 
 def _gateway_tools(

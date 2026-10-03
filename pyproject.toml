@@ -64,7 +64,7 @@ version = { attr = "lingshu_gate._version.__version__" }
 where = ["src"]
 
 [tool.setuptools.package-data]
-lingshu_gate = ["static/console/**/*"]
+lingshu_gate = ["static/console/**/*", "static/oauth/**/*"]
 
 [tool.pytest.ini_options]
 addopts = "--strict-config --strict-markers"

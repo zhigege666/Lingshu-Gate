@@ -13,6 +13,8 @@ export async function externalRequest<T>(path: string, init?: RequestInit): Prom
   return payload as T
 }
 const reasons: Record<string, [string, string]> = {
+  resource_configuration_conflict: ["内置与外部模式必须使用同一个固定 MCP 资源。", "Built-in and external modes must use the same fixed MCP resource."],
+  issuer_configuration_conflict: ["内置与外部模式不能使用相同 issuer；请分别配置可信签发方。", "Built-in and external modes cannot share an issuer. Configure distinct trusted issuers."],
   "Canonical resource must be an HTTPS URL without credentials, query or fragment.": ["canonical resource 必须为不含用户名、密码、查询参数和片段的 HTTPS URL。", "Canonical resource must be an HTTPS URL without credentials, query or fragment."],
   "At most 20 issuers and mappings are supported.": ["签发方和资源映射各最多支持 20 项。", "At most 20 issuers and mappings are supported."],
   "Issuer and audience mappings require HTTPS URLs without credentials, query or fragment.": ["签发方和 audience 映射必须为不含用户名、密码、查询参数和片段的 HTTPS URL。", "Issuer and audience mappings require HTTPS URLs without credentials, query or fragment."],

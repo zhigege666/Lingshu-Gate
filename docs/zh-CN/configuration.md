@@ -196,3 +196,7 @@ ${credential:credential-id}
 ## 校验
 
 保存 Manifest 前，使用 Console 或 `POST /v1/mcp/configs/validate` 校验。校验只覆盖 Schema 和本地策略；通过校验不能证明远程 Endpoint 可信或健康。保存后应检查服务状态、发现的工具、分类和授权，再允许调用。
+
+## 内置 OAuth 配置
+
+内置 OAuth 默认关闭，通过受权限控制的 `/v1/auth/oauth/*` API 或**连接基础设施 → Gate 内置 OAuth**配置，不提供环境变量快捷启用。保存固定 HTTPS issuer/resource，明确生成加密签名密钥并登记静态客户端，再启用。客户端密钥仅返回一次，签名私钥不离开加密存储。API token 与外部 IdP 验证继续可用。Scopes、限制及独立公网放行路径见[内置 OAuth 指南](builtin-oauth.md)。

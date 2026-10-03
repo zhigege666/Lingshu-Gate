@@ -1,7 +1,7 @@
 import { ConnectionGuide, ConnectionGuideChecks } from "@/features/external-connections/connection-guide"
-import { EditorNavigationContext } from "@/components/editor-navigation-guard"
+import { EditorNavigationContext, useEditorNavigationGuards } from "@/components/editor-navigation-guard"
 import { useContext, useEffect, useMemo, useRef, useState } from "react"
-import { Alert, Button, Input, InputNumber, Select, Switch, Tag } from "antd"
+import { Alert, Button, Input, InputNumber, Select, Switch, Tabs, Tag } from "antd"
 import { api, type ToolDefinition } from "@/api/client"
 import { externalRequest as request, activationReason, externalError } from "@/features/external-connections/api"
 import { FormDialog } from "@/components/form-dialog"
@@ -13,6 +13,7 @@ import { usePageRefresh } from "@/components/page-refresh"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { transportLabel, connectionGuideStepErrors, connectionDraft, connectionError, connectionReadiness, emptyConnection, eligibleTools, grantError, type ConnectionSnapshot, type Grant, type GrantDraft, type GrantList } from "@/features/external-connections/model"
 import { ExternalSubjectLinks } from "@/pages/external-subject-links"
+import { BuiltinOAuthGrants, BuiltinOAuthInfrastructure } from "@/pages/oauth-management"
 import type { Locale, TFunction } from "@/i18n"
 
 type Props = { locale: Locale; t: TFunction }
@@ -22,7 +23,26 @@ function ConnectionNotice({ zh }: { zh: boolean }) { return <Alert type="info" s
 function statusLabel(state: string, zh: boolean) { return zh ? ({ enabled: "已启用", active: "已启用", disabled: "已关闭", expired: "已过期", revoked: "已撤销" }[state] ?? state) : state }
 
 
-export function ConnectionInfrastructurePage({ locale, t }: Props) {
+function AuthorizationModeTabs({ locale, t, infrastructure }: Props & { infrastructure: boolean }) {
+  const [mode, setMode] = useState("builtin")
+  const guards = useEditorNavigationGuards()
+  const parent = useContext(EditorNavigationContext)
+  const { confirm, confirmDialog } = useConfirm(t)
+  const zh = locale === "zh-CN"
+  useEffect(() => parent?.({ dirty: guards.anyDirty, pending: guards.anyPending }), [parent, guards.anyDirty, guards.anyPending])
+  return <EditorNavigationContext.Provider value={guards.providerValue}><Tabs activeKey={mode} destroyOnHidden onChange={async value => {
+    if (guards.anyPending) return
+    if (guards.anyDirty && !(await confirm({ title: zh ? "放弃修改并切换授权模式？" : "Discard edits and switch authorization mode?", description: zh ? "尚未保存的当前表单将被清除。已保存的连接配置保留。" : "The current unsaved form will be cleared. Saved connection configuration is retained.", confirmText: zh ? "放弃修改" : "Discard edits", cancelText: t("cancel"), destructive: true }))) return
+    setMode(value)
+  }} items={[
+    { key: "builtin", label: zh ? "Gate 内置 OAuth" : "Gate built-in OAuth", disabled: guards.anyPending && mode !== "builtin", children: infrastructure ? <BuiltinOAuthInfrastructure locale={locale} t={t} /> : <BuiltinOAuthGrants locale={locale} t={t} /> },
+    { key: "external", label: zh ? "外部身份提供方" : "External identity provider", disabled: guards.anyPending && mode !== "external", children: infrastructure ? <ExternalConnectionInfrastructure locale={locale} t={t} /> : <ExternalIdentityGrants locale={locale} t={t} /> },
+  ]} />{confirmDialog}</EditorNavigationContext.Provider>
+}
+export function ConnectionInfrastructurePage(props: Props) { return <AuthorizationModeTabs {...props} infrastructure /> }
+export function ExternalGrantsPage(props: Props) { return <AuthorizationModeTabs {...props} infrastructure={false} /> }
+
+function ExternalConnectionInfrastructure({ locale, t }: Props) {
   const zh = locale === "zh-CN"
   const [snapshot, setSnapshot] = useState<ConnectionSnapshot | null>(null)
   const [draft, setDraft] = useState(emptyConnection)
@@ -120,7 +140,7 @@ export function ConnectionInfrastructurePage({ locale, t }: Props) {
 }
 
 const newGrant = (): GrantDraft => ({ enabled: false, client_id: "", server_allowlist: [], tool_allowlist: [], access: ["read"], expires_at: "", rate_per_minute: 30, concurrency: 1 })
-export function ExternalGrantsPage({ locale, t }: Props) {
+function ExternalIdentityGrants({ locale, t }: Props) {
   const zh = locale === "zh-CN"
   const [grants, setGrants] = useState<Grant[]>([])
   const [readiness, setReadiness] = useState({ connection_ready: false, activation_errors: [] as string[], allowed_client_ids: [] as string[] })

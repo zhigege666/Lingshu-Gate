@@ -44,6 +44,7 @@ web/vite.config.js
 web/vite.config.d.ts
 
 src/lingshu_gate/static/console/
+src/lingshu_gate/static/oauth/
 
 # The container build binds only reviewed release-license collectors and texts.
 !packaging/
