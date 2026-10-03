@@ -28,11 +28,11 @@ describe("personal workspace presentation", () => {
     const html = renderToStaticMarkup(<PersonalWorkspacePage {...props} view="myInvocations" />)
     expect(html).toContain("up to 500 loaded, not an all-time total")
   })
-  it("explains enabled token verification without implying provider sign-in", () => {
+  it("defaults to built-in grants and requires consent for scope expansion", () => {
     const html = renderToStaticMarkup(<PersonalWorkspacePage {...props} view="myConnections" />)
-    expect(html).toContain("token verification and personal grants")
-    expect(html).toContain("already-issued tokens only after verification")
-    expect(html).toContain("does not register an OAuth client")
+    expect(html).toContain("My OAuth grants")
+    expect(html).toContain("New tools and expanded access require new authorization")
+    expect(html).toContain("External identity provider")
     expect(html).not.toContain("Manage personal tokens")
   })
 })

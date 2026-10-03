@@ -57,6 +57,9 @@ COPY src ./src
 COPY --from=console-builder \
     /app/src/lingshu_gate/static/console \
     ./src/lingshu_gate/static/console
+COPY --from=console-builder \
+    /app/src/lingshu_gate/static/oauth \
+    ./src/lingshu_gate/static/oauth
 COPY --from=console-builder /app/licenses/npm ./licenses/third-party/npm
 COPY LICENSE NOTICE THIRD_PARTY_NOTICES.md ./licenses/
 

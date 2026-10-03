@@ -128,9 +128,9 @@ Gate 提供有确认边界的 `gate_*` 工具，用于可续传上传、预检�
 
 ## 远程 MCP 接入
 
-外部 OAuth 接入默认关闭。Gate 支持 `secure_mcp_tunnel` 和 `direct` HTTPS，以及 `disabled` 关闭状态。[外部接入与网络指南](docs/zh-CN/external-connections.md#选择网络接入路径)覆盖私有隧道、named tunnel、frp 加公网 TLS 代理、已有公网反向代理和可选 ngrok。网络 daemon 仍由运维管理；反向代理本身不能穿 NAT。
+OAuth 接入默认关闭。[内置 OAuth](docs/zh-CN/builtin-oauth.md)通过静态客户端、明确同意及可撤销工具范围复用已有 Gate 用户；外部身份提供方继续可选。Gate 支持 `secure_mcp_tunnel` 和 `direct` HTTPS，以及 `disabled` 关闭状态。[外部接入与网络指南](docs/zh-CN/external-connections.md#选择网络接入路径)覆盖运维管理的网络选择；反向代理本身不能穿 NAT。
 
-只暴露 MCP 与必要 discovery 路径，Console/管理面保持私有，并独立验证每用户 OAuth 授权。机器隧道 key 不代表最终用户。部署启用前按指南依次完成只读、写入和撤权验收；阅读本 README 不会启用任何外部连接。
+只暴露 MCP 与必要 discovery 路径，内置模式另按专用 `/oauth` 清单放行。Console/管理面保持私有，并独立验证每用户授权。机器隧道 key 不代表最终用户。部署启用前按所选模式指南完成只读、写入和撤权验收；阅读本 README 不会启用连接。
 
 ## 安全默认值
 

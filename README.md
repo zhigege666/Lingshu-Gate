@@ -128,9 +128,9 @@ See [Project delivery](docs/project-delivery.md) for the complete boundary and t
 
 ## Remote MCP access
 
-External OAuth access defaults to disabled. Gate supports `secure_mcp_tunnel` and `direct` HTTPS, plus the `disabled` state. The [external access and network guide](docs/external-connections.md#choosing-the-network-path) covers a private tunnel, named tunnels, frp with a public TLS proxy, existing public reverse proxies and optional ngrok. Network daemons remain operator-managed; a reverse proxy alone cannot cross NAT.
+OAuth access defaults to disabled. [Built-in OAuth](docs/builtin-oauth.md) uses existing Gate users with static clients, explicit consent and revocable tool scopes; an external identity provider remains optional. Gate supports `secure_mcp_tunnel` and `direct` HTTPS, plus the `disabled` state. The [external access and network guide](docs/external-connections.md#choosing-the-network-path) covers operator-managed network choices; a reverse proxy alone cannot cross NAT.
 
-Expose only MCP and required discovery paths, keep Console/management private, and validate separate per-user OAuth authorization. A machine tunnel key is not an end-user identity. Follow the guide's read-only, write and revocation acceptance sequence before deployment enablement. No external connection is enabled by following this README alone.
+Expose only MCP and required discovery paths, plus the dedicated `/oauth` allowlist when using built-in OAuth. Keep Console/management private and validate separate per-user authorization. A machine tunnel key is not an end-user identity. Follow the selected mode's read-only, write and revocation acceptance sequence before deployment enablement. Reading this README does not enable a connection.
 
 ## Security defaults
 

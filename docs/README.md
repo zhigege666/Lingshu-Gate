@@ -21,6 +21,7 @@ This documentation describes the current Gate product boundary. English is autho
 | [UI interaction contract](ui-interaction-contract.md) | Acceptance rules for new or migrated Console UI, editor safety, evidence, and independent review |
 | [Browser regression](browser-regression.md) | Isolated real-backend Playwright, synthetic large lists, scenario IDs and evidence boundaries |
 | [External OAuth resource access](external-connections.md) | Default-disabled JWT verification, trust configuration, personal delegations and integration boundaries |
+| [Built-in OAuth authorization](builtin-oauth.md) | Existing Gate users, static clients, consent, refresh/revoke and public proxy allowlist |
 | [Release artifacts](releases.md) | Platform archives, checksums, SBOM, build metadata, offline images, and publishing rules |
 
 API schemas are served by a running Gate instance at `/docs`. Security policy and reporting instructions live in [SECURITY.md](../SECURITY.md).

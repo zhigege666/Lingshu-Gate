@@ -209,3 +209,7 @@ ${credential:credential-id}
 系统设置 → 网络与依赖管理命名代理的不可变版本及独立 Git/安装默认项。配置要求 `system_settings.manage`；调用额外要求独立 `network.use` 与既有操作、工具和 token 权限。元数据/引用在 SQLite（`0004_gate_git_network`）；仅写代理地址使用私有加密 CredentialStore 命名空间，认证使用既有凭据 ID。默认项和配置更新需提供预期版本，不改变宿主全局 Git/npm 配置或运行时 MCP 代理变量。
 
 控制 API 包含 `/v1/system-settings/network`、其 `/profiles` 集合、配置引用/删除动作、`/v1/network/options` 与固定目标 `/v1/network/test`。HTTPS 来源计划、拉取、状态、取消以及既有摘要绑定构建服务通过 `/v1/projects/git/*` 提供；参见 [设计与支持矩阵](git-import-network.md)。默认公网 Git 为 `github.com:443`，内网主机/私有 CIDR 必须由管理员显式添加。生产组合尚无受审查安全网络适配器，真实操作仍阻断；不提供放宽 Core 或启用这些宿主联网执行路径的环境开关。
+
+## 内置 OAuth 配置
+
+内置 OAuth 默认关闭，通过受权限控制的 `/v1/auth/oauth/*` API 或**连接基础设施 → Gate 内置 OAuth**配置，不提供环境变量快捷启用。保存固定 HTTPS issuer/resource，明确生成加密签名密钥并登记静态客户端，再启用。客户端密钥仅返回一次，签名私钥不离开加密存储。API token 与外部 IdP 验证继续可用。Scopes、限制及独立公网放行路径见[内置 OAuth 指南](builtin-oauth.md)。

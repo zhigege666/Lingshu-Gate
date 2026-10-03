@@ -13,7 +13,7 @@ import stat
 from dataclasses import dataclass, replace
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
-from typing import TYPE_CHECKING, Iterable, cast
+from typing import TYPE_CHECKING, Iterable, Literal, cast
 from uuid import uuid4
 
 from fastapi import HTTPException, Request, status
@@ -26,12 +26,17 @@ from lingshu_gate.logging import log_event
 if TYPE_CHECKING:
     from lingshu_gate.external_connection_store import ExternalConnectionStore
     from lingshu_gate.external_jwt import ExternalJwtVerifier
+    from lingshu_gate.oauth_server import OAuthServer
 
 
 USER_STATUSES = {"pending", "active", "disabled"}
 INITIAL_ADMIN_CREDENTIALS_FILE = "initial-admin-credentials.json"
 BOOTSTRAP_PASSWORD_FILE_ENV = "LINGSHU_GATE_BOOTSTRAP_PASSWORD_FILE"
 MAX_BOOTSTRAP_SECRET_BYTES = 16 * 1024
+SessionPurpose = Literal["console", "oauth_consent"]
+# Valid fixed PBKDF2 encoding, with no account or usable credential behind it.
+# Missing users still perform the same 200,000-round verification/comparison.
+DUMMY_PASSWORD_HASH = "pbkdf2_sha256$" + "0" * 32 + "$" + "0" * 64
 logger = logging.getLogger(__name__)
 
 
@@ -96,6 +101,7 @@ class AuthStore:
         self.enabled = settings.auth_enabled
         self.external_verifier: ExternalJwtVerifier | None = None
         self.external_connections: ExternalConnectionStore | None = None
+        self.builtin_oauth: OAuthServer | None = None
         self.initial_admin_credentials_path = (
             settings.data_dir / INITIAL_ADMIN_CREDENTIALS_FILE
         )
@@ -414,27 +420,35 @@ class AuthStore:
             display_name=display_name,
         )
 
-    def login(self, *, username: str, password: str) -> tuple[AuthPrincipal, str, str]:
+    def login(self, *, username: str, password: str,
+              purpose: SessionPurpose = "console") -> tuple[AuthPrincipal, str, str]:
+        if purpose not in {"console", "oauth_consent"}:
+            raise ValueError("invalid session purpose")
         row = self.database.query_one("SELECT * FROM users WHERE username = ?", (username.strip(),))
-        if not row or not verify_password(password, row["password_hash"]):
+        verified = verify_password(password, row["password_hash"] if row else DUMMY_PASSWORD_HASH)
+        if not row or not verified:
             raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="invalid username or password")
         if row["status"] == "pending":
             raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="registration is pending approval")
         if row["status"] != "active":
             raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="user is disabled")
+        principal = self._build_principal(row, auth_type="session")
         token = secrets.token_urlsafe(32)
         session_id = str(uuid4())
-        expires_at = (utc_now() + timedelta(hours=self.session_ttl_hours)).isoformat()
+        lifetime = timedelta(minutes=30) if purpose == "oauth_consent" else timedelta(hours=self.session_ttl_hours)
+        expires_at = (utc_now() + lifetime).isoformat()
+        if purpose == "oauth_consent":
+            self.database.execute("DELETE FROM auth_sessions WHERE purpose='oauth_consent' AND expires_at<=?", (iso_now(),))
         self.database.execute(
-            "INSERT INTO auth_sessions (id, user_id, token_hash, expires_at, created_at) VALUES (?, ?, ?, ?, ?)",
-            (session_id, row["id"], hash_secret(token), expires_at, iso_now()),
+            "INSERT INTO auth_sessions (id, user_id, token_hash, expires_at, created_at, purpose) VALUES (?, ?, ?, ?, ?, ?)",
+            (session_id, row["id"], hash_secret(token), expires_at, iso_now(), purpose),
         )
-        return self._build_principal(row, auth_type="session"), token, expires_at
+        return principal, token, expires_at
 
-    def logout(self, token: str | None) -> None:
+    def logout(self, token: str | None, *, purpose: SessionPurpose = "console") -> None:
         if not token:
             return
-        self.database.execute("DELETE FROM auth_sessions WHERE token_hash = ?", (hash_secret(token),))
+        self.database.execute("DELETE FROM auth_sessions WHERE token_hash = ? AND purpose = ?", (hash_secret(token), purpose))
 
     def me(self, principal: AuthPrincipal) -> dict[str, object]:
         return {
@@ -715,6 +729,25 @@ class AuthStore:
             raise HTTPException(401, detail="unsupported authorization credential", headers={"WWW-Authenticate": "Bearer"})
         from lingshu_gate.external_jwt import ExternalJwtError
 
+        # The unverified issuer selects only a pinned local verifier. A failure
+        # never falls through to another trust mode or a Console cookie.
+        if self.builtin_oauth is not None and len(bearer) <= 16384:
+            import jwt
+            from lingshu_gate.oauth_server import OAuthError
+
+            try:
+                issuer = jwt.decode(bearer, options={"verify_signature": False}).get("iss")
+            except (jwt.PyJWTError, ValueError, TypeError):
+                issuer = None
+            if issuer and issuer == self.builtin_oauth.store.config()["issuer"]:
+                if request.url.path != "/mcp" or not self.enabled:
+                    raise HTTPException(401, detail="invalid OAuth authorization")
+                try:
+                    return self.builtin_oauth.verify(bearer)
+                except (OAuthError, ValueError, KeyError, PermissionError) as exc:
+                    raise HTTPException(401, detail="invalid OAuth authorization",
+                                        headers={"WWW-Authenticate": "Bearer"}) from exc
+
         if request.url.path != "/mcp" or not self.enabled or self.external_verifier is None or self.external_connections is None:
             raise HTTPException(401, detail="external authentication is unavailable", headers={"WWW-Authenticate": "Bearer"})
         try:
@@ -781,15 +814,15 @@ class AuthStore:
             )
         return principal
 
-    def _principal_from_session(self, token: str) -> AuthPrincipal | None:
+    def _principal_from_session(self, token: str, *, purpose: SessionPurpose = "console") -> AuthPrincipal | None:
         row = self.database.query_one(
             """
             SELECT users.*, auth_sessions.expires_at AS session_expires_at
             FROM auth_sessions
             JOIN users ON users.id = auth_sessions.user_id
-            WHERE auth_sessions.token_hash = ?
+            WHERE auth_sessions.token_hash = ? AND auth_sessions.purpose = ?
             """,
-            (hash_secret(token),),
+            (hash_secret(token), purpose),
         )
         if not row or row["status"] != "active" or _is_expired(row["session_expires_at"]):
             return None

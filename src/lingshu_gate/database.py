@@ -24,6 +24,9 @@ from lingshu_gate.persistence.audit_lookup_migration import (
 from lingshu_gate.persistence.git_network_migration import (
     GIT_NETWORK_MIGRATION_ID, apply_git_network_migration,
 )
+from lingshu_gate.persistence.session_purpose_migration import (
+    SESSION_PURPOSE_MIGRATION_ID, apply_session_purpose_migration,
+)
 
 BASELINE_MIGRATION_ID = "0001_gate_baseline"
 SQLITE_BUSY_TIMEOUT_MS = 30_000
@@ -65,7 +68,8 @@ class SQLiteDatabase:
             (Migration(BASELINE_MIGRATION_ID, self._apply_baseline_migration),
              Migration(RETENTION_MIGRATION_ID, apply_retention_migration),
              Migration(AUDIT_LOOKUP_MIGRATION_ID, apply_audit_lookup_migration),
-             Migration(GIT_NETWORK_MIGRATION_ID, apply_git_network_migration)),
+             Migration(GIT_NETWORK_MIGRATION_ID, apply_git_network_migration),
+             Migration(SESSION_PURPOSE_MIGRATION_ID, apply_session_purpose_migration)),
         ).run()
 
     def _apply_baseline_migration(self, connection: sqlite3.Connection) -> None:

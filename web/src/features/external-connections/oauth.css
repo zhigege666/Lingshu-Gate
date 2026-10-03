@@ -1,0 +1,25 @@
+.oauth-public { width: min(100%, 1800px); margin: 0 auto; padding: 24px clamp(16px, 3vw, 56px); color: hsl(var(--foreground)); }
+.oauth-public-header, .oauth-user, .oauth-selection, .oauth-actions { display: flex; align-items: center; justify-content: space-between; gap: 16px; flex-wrap: wrap; }
+.oauth-public-header { margin-bottom: 24px; }
+.oauth-public h1 { font-size: 24px; font-weight: 600; margin-bottom: 20px; }
+.oauth-public h2 { font-size: 18px; font-weight: 600; margin-bottom: 8px; }
+.oauth-public p { margin: 12px 0; }
+.oauth-client { border-bottom: 1px solid hsl(var(--border)); padding-bottom: 16px; margin-bottom: 20px; }
+.oauth-muted { color: hsl(var(--muted-foreground)); font-size: 12px; }
+.oauth-wrap { overflow-wrap: anywhere; }
+.oauth-login { max-width: 440px; margin: 32px auto; }
+.oauth-consent-layout { display: grid; grid-template-columns: minmax(0, 1fr) minmax(280px, 340px); gap: 28px; }
+.oauth-consent-summary { border: 1px solid hsl(var(--border)); border-radius: var(--radius); padding: 20px; height: fit-content; }
+.oauth-filters { display: grid; grid-template-columns: minmax(180px, 1fr) minmax(140px, 220px) max-content; gap: 12px; margin: 12px 0; }
+.oauth-selection { margin: 12px 0; font-size: 13px; }
+.oauth-tools { min-width: 0; }
+.oauth-loading { display: flex; align-items: center; gap: 12px; padding: 24px 0; }
+.oauth-admin-layout { display: grid; grid-template-columns: minmax(340px, 1fr) minmax(360px, 1.5fr); align-items: start; gap: 24px; }
+.oauth-admin-panel { border: 1px solid hsl(var(--border)); border-radius: var(--radius); padding: 20px; min-width: 0; }
+.oauth-admin-panel h2 { font-size: 16px; font-weight: 600; margin-bottom: 16px; }
+.oauth-endpoints { display: grid; gap: 8px; margin: 16px 0; }
+.oauth-endpoints dt { font-size: 12px; color: hsl(var(--muted-foreground)); }
+.oauth-endpoints dd { overflow-wrap: anywhere; font-size: 13px; }
+.oauth-redirect-row { display: flex; gap: 8px; margin-bottom: 8px; }
+@media (max-width: 1100px) { .oauth-admin-layout { grid-template-columns: minmax(0, 1fr); } }
+@media (max-width: 900px) { .oauth-consent-layout { grid-template-columns: minmax(0, 1fr); } .oauth-consent-summary { max-width: none; } .oauth-filters { grid-template-columns: minmax(0, 1fr) minmax(130px, 1fr); } .oauth-filters > :first-child { grid-column: 1 / -1; } }

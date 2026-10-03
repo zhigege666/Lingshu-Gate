@@ -2,7 +2,7 @@
 
 [English](../external-connections.md)
 
-Gate 实现了**默认关闭、仅用于 `/mcp` 的 JWT 资源服务器**。管理员可配置可信签发者、公钥地址、客户端 ID、资源映射及身份绑定；用户可启用受限的本地个人委托。启用这些记录不会签发 OAuth 令牌、完成 provider 同意流程、启动隧道，也不证明已连接 ChatGPT。`connected=false`、`provider_verified=false` 和 `oauth_authorized=false` 保留这些边界。
+Gate 提供[复用已有用户的内置 OAuth](builtin-oauth.md)与**默认关闭、仅用于 `/mcp` 的外部 JWT 资源服务器**。本文描述外部身份提供方模式。管理员配置可信签发者、公钥地址、客户端 ID、资源映射及身份绑定；用户启用受限的本地个人委托。启用外部模式记录不会签发 OAuth 令牌、完成 provider 同意流程、启动隧道，也不证明已连接 ChatGPT。`connected=false`、`provider_verified=false` 和 `oauth_authorized=false` 保留这些边界。没有外部身份提供方时选择内置 OAuth。
 
 只有 `/mcp` 接受外部 JWT。`/v1/*`（包括个人摘要、令牌创建及本文管理 API）仍要求 Gate session 或 Gate API 令牌。无效或格式错误的 Authorization 不会回退到有效 session cookie。不支持 opaque 外部访问令牌或 introspection。
 

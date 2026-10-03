@@ -11,10 +11,12 @@ from __future__ import annotations
 
 from collections.abc import Callable
 from dataclasses import dataclass
-from typing import Protocol
+from typing import Protocol, TypeVar
 from urllib.parse import urlsplit, urlunsplit
 
 from fastapi import FastAPI, HTTPException, Request
+
+_Principal = TypeVar("_Principal")
 
 
 class OAuthAccessTokenVerifier(Protocol):
@@ -110,12 +112,12 @@ def register_oauth_protected_resource_routes(
 
 
 def with_mcp_auth_challenge(
-    require_principal: Callable[[Request], object],
+    require_principal: Callable[[Request], _Principal],
     boundary: McpOAuthDiscoveryBoundary | Callable[[], McpOAuthDiscoveryBoundary | None] | None,
-) -> Callable[[Request], object]:
+) -> Callable[[Request], _Principal]:
     """Wrap an existing auth dependency without changing 403 semantics."""
 
-    def dependency(request: Request):
+    def dependency(request: Request) -> _Principal:
         try:
             return require_principal(request)
         except HTTPException as exc:
