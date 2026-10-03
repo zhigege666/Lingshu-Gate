@@ -54,3 +54,8 @@ Run repository identity checks and release-package verification when those scrip
 - Commands, paths, environment variables, tool IDs, archive names, and support claims must match the same tree.
 - Use neutral example hosts and IDs. Never include real secrets, personal data, local absolute paths, or unreviewed copied content.
 - Update release and security documentation when configuration, public APIs, artifacts, or trust boundaries change.
+- Every version change must also update `packaging/release-notes.md`: its version heading,
+  both English and Simplified Chinese release text, and the version overview/release summary.
+  Describe the actual changes, support boundaries, validation and known issues for that version;
+  never reuse an earlier release's heading or summary. Before publishing, compare the source
+  version, tag, notes, overview and GitHub release page, and read back the published title/body.
