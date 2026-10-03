@@ -53,6 +53,32 @@ metadata; failure cases explicitly mock that metadata. OAuth screenshots always
 mock their APIs. Screenshots establish rendered behavior, not external OAuth
 acceptance. Independent review applies to the final source head and evidence.
 
+## Recovery review correction
+
+Independent review reproduced a clipped grant-details pager in both languages
+and themes at 1600×900, 1920×1080 and 2560×1080. The outer dialog needed about
+185 px of extra scrolling; 2560×1440 already fit. Read-only grant details now
+constrain the table's internal viewport with local flex/min-height rules. The
+existing search, 50-row pagination, recorded history and Close action remain.
+No consent/reduction layout, authorization API or confirmation was changed.
+
+After the correction, all 16 desktop/language/theme combinations place the
+pager inside the initial dialog body, with zero outer overflow and successful
+hit testing. Separate geometry captures use 5,000 tools across 100 MCPs. The
+26-case personal-grant browser suite passes without retries: it checks the
+initial pager/Close geometry before clicks, stable pagination while the table
+scrolls, 50-row pages, complete-dataset search and confirmations. Four added
+cases also verify that late clipboard success/failure from closed details does
+not show feedback in another grant's details.
+
+Recovery checks: Console/OAuth builds, type/UI source checks, 391 Console unit
+tests, 107 built-in OAuth backend tests and 16 independently rerun setup/grant
+behavior cases passed. The original candidate's complete CI passed on Python
+3.11/3.12/3.13, with all five native and Compose PR jobs successful. Final-head
+CI and tagged publication still require their own results; PR package checks
+do not establish an issued release. This targeted correction does not claim a
+new complete optional layout/visual run.
+
 ## Remaining limits
 
 An initial unfiltered browser invocation stopped on two optional `@visual`

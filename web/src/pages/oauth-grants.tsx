@@ -22,6 +22,7 @@ export function BuiltinOAuthGrants({ locale, t }: { locale: Locale; t: TFunction
   const [error, setError] = useState("")
   const [formError, setFormError] = useState("")
   const [viewing, setViewing] = useState<OAuthGrant | null>(null)
+  const viewingGeneration = useRef(0)
   const viewTrigger = useRef<HTMLElement | null>(null)
   const [copyMessage, setCopyMessage] = useState("")
   const [editing, setEditing] = useState<OAuthGrant | null>(null)
@@ -43,12 +44,13 @@ export function BuiltinOAuthGrants({ locale, t }: { locale: Locale; t: TFunction
     } catch (cause) { if (current === version.current) setError(oauthError(cause, zh)) }
     finally { if (current === version.current) setBusy(false) }
   }
-  useEffect(() => { void load(); return () => { version.current++ } }, [])
+  useEffect(() => { void load(); return () => { version.current++; viewingGeneration.current++ } }, [])
   usePageRefresh(load, busy || Boolean(editing) || Boolean(viewing))
   const filtered = useMemo(() => filterGrants(grants, filter, query, snapshotAt), [grants, filter, query, snapshotAt])
   const shownPage = Math.min(page, Math.max(1, Math.ceil(filtered.length / 15)))
   function stateLabel(state: string) { return zh ? ({ active: "有效", revoked: "已撤销", expired: "已过期", disabled: "已关闭" }[state] || state) : ({ active: "Active", revoked: "Revoked", expired: "Expired", disabled: "Disabled" }[state] || state) }
-  function view(grant: OAuthGrant) { viewTrigger.current = document.activeElement instanceof HTMLElement ? document.activeElement : null; setViewing(grant); setCopyMessage("") }
+  function view(grant: OAuthGrant) { viewingGeneration.current++; viewTrigger.current = document.activeElement instanceof HTMLElement ? document.activeElement : null; setViewing(grant); setCopyMessage("") }
+  function closeView() { viewingGeneration.current++; setViewing(null); setCopyMessage("") }
   function edit(grant: OAuthGrant) {
     if (grantState(grant, Math.floor(Date.now() / 1000)) !== "active") return
     setEditing(grant); setSelected(grant.tools.map(tool => tool.id)); setExpiry(grant.expires_at); setRate(grant.rate_per_minute); setConcurrency(grant.concurrency); setFormError("")
@@ -78,8 +80,9 @@ export function BuiltinOAuthGrants({ locale, t }: { locale: Locale; t: TFunction
     finally { lock.current = false; if (current === version.current) setBusy(false) }
   }
   async function copyId(value: string) {
-    try { await navigator.clipboard.writeText(value); setCopyMessage(zh ? "标识已复制。" : "Identifier copied.") }
-    catch { setCopyMessage(zh ? "复制失败，请从只读字段手动复制。" : "Copy failed; copy from the read-only field.") }
+    const current = viewingGeneration.current
+    try { await navigator.clipboard.writeText(value); if (current === viewingGeneration.current) setCopyMessage(zh ? "标识已复制。" : "Identifier copied.") }
+    catch { if (current === viewingGeneration.current) setCopyMessage(zh ? "复制失败，请从只读字段手动复制。" : "Copy failed; copy from the read-only field.") }
   }
   return <div className="space-y-4">
     <PageHeader title={zh ? "我的 OAuth 授权" : "My OAuth grants"} closeLabel={t("close")} actions={<Button disabled={busy || Boolean(editing) || Boolean(viewing)} onClick={() => void load()}>{t("refresh")}</Button>} />
@@ -98,7 +101,7 @@ export function BuiltinOAuthGrants({ locale, t }: { locale: Locale; t: TFunction
         { title: zh ? "状态" : "State", width: 100, render: (_, grant) => <Tag color={grantState(grant, snapshotAt) === "active" ? "green" : undefined}>{stateLabel(grantState(grant, snapshotAt))}</Tag> },
         { title: t("actions"), width: 290, render: (_, grant) => <div className="flex flex-wrap gap-2"><Button size="small" disabled={busy} onClick={() => view(grant)}>{zh ? "详情" : "Details"}</Button>{grantState(grant, snapshotAt) === "active" && <><Button size="small" disabled={busy} onClick={() => edit(grant)}>{zh ? "缩小范围" : "Reduce scope"}</Button><Button size="small" danger disabled={busy} onClick={() => void revoke(grant)}>{zh ? "撤销" : "Revoke"}</Button></>}</div> },
       ]} />
-    <FormDialog open={Boolean(viewing)} title={zh ? "授权详情" : "Grant details"} closeLabel={t("close")} onClose={() => setViewing(null)} onCloseAutoFocus={event => { event.preventDefault(); if (viewTrigger.current && document.contains(viewTrigger.current)) viewTrigger.current.focus() }} className="max-w-5xl" footer={<Button onClick={() => setViewing(null)}>{t("close")}</Button>}>
+    <FormDialog open={Boolean(viewing)} title={zh ? "授权详情" : "Grant details"} closeLabel={t("close")} onClose={closeView} onCloseAutoFocus={event => { event.preventDefault(); if (viewTrigger.current && document.contains(viewTrigger.current)) viewTrigger.current.focus() }} className="max-w-5xl" bodyClassName="oauth-grant-details-body" footer={<Button onClick={closeView}>{t("close")}</Button>}>
       {viewing && <><p>{viewing.client_name} · {stateLabel(grantState(viewing, snapshotAt))}</p><p className="oauth-wrap">{viewing.resource}</p><div className="oauth-grant-identifiers"><label>Grant ID<Input readOnly value={viewing.id} /></label><Button onClick={() => void copyId(viewing.id)}>{zh ? "复制授权 ID" : "Copy grant ID"}</Button><label>Client ID<Input readOnly value={viewing.client_id} /></label><Button onClick={() => void copyId(viewing.client_id)}>{zh ? "复制客户端 ID" : "Copy client ID"}</Button></div>{copyMessage && <p role="status">{copyMessage}</p>}<p className="text-sm">{zh ? "这是已保存的工具范围；历史记录不代表当前仍获准调用。" : "This is recorded tool scope; historical records do not establish current invocation permission."}</p><OAuthToolPicker key={viewing.id} tools={viewing.tools} selected={[]} onChange={() => undefined} zh={zh} readOnly /></>}
     </FormDialog>
     <FormDialog open={Boolean(editing)} title={zh ? "查看 / 缩小授权" : "View / reduce grant"} closeLabel={t("close")} onClose={() => void close()} dirty={dirty} pending={busy} error={formError} className="max-w-5xl" footer={<><Button disabled={busy} onClick={() => void close()}>{t("close")}</Button><Button type="primary" disabled={busy || !dirty || !selected.length || !editing || grantState(editing, Math.floor(Date.now() / 1000)) !== "active"} onClick={() => void save()}>{zh ? "保存缩小后的授权" : "Save reduced grant"}</Button></>}>

@@ -13,6 +13,7 @@ type FormDialogProps = {
   pending?: boolean
   dirty?: boolean
   className?: string
+  bodyClassName?: string
   children: ReactNode
   footer: ReactNode
   error?: string | null
@@ -24,7 +25,7 @@ type FormDialogProps = {
  * Keeps actions and persistent failures outside the scrolling fields. The caller
  * owns draft protection, submission, field validation, and secret lifecycles.
  */
-export function FormDialog({ open, onClose, title, description, closeLabel, pending = false, dirty = false, className, children, footer, error, onCloseAutoFocus }: FormDialogProps) {
+export function FormDialog({ open, onClose, title, description, closeLabel, pending = false, dirty = false, className, bodyClassName, children, footer, error, onCloseAutoFocus }: FormDialogProps) {
   const descriptionId = useId()
   const registerExit = useContext(EditorNavigationContext)
   useEffect(() => {
@@ -37,7 +38,7 @@ export function FormDialog({ open, onClose, title, description, closeLabel, pend
       onEscapeKeyDown={event => { if (pending) event.preventDefault() }}
       onPointerDownOutside={event => { if (pending) event.preventDefault() }}>
       <DialogHeader className="shrink-0"><DialogTitle className="whitespace-normal leading-snug">{title}</DialogTitle>{description && <DialogDescription id={descriptionId}>{description}</DialogDescription>}</DialogHeader>
-      <DialogBody>{children}</DialogBody>
+      <DialogBody className={bodyClassName}>{children}</DialogBody>
       {error && <Alert variant="destructive" role="alert" className="max-h-[20dvh] shrink-0 overflow-y-auto"><AlertDescription>{error}</AlertDescription></Alert>}
       {footer && <DialogFooter className="shrink-0 border-t pt-4">{footer}</DialogFooter>}
     </DialogContent>

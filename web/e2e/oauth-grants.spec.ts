@@ -3,6 +3,7 @@ import { mkdirSync, readFileSync } from "node:fs"
 import path from "node:path"
 import { fileURLToPath } from "node:url"
 import type { OAuthGrant } from "../src/features/external-connections/oauth-api"
+import { expectInViewportAndUnobscured } from "./helpers"
 
 // Built Console UI, owner-scoped synthetic responses only; no real credentials.
 const assets = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../../src/lingshu_gate/static/console")
@@ -71,6 +72,27 @@ for (const size of sizes) for (const locale of ["en-US", "zh-CN"] as const) for 
     await expect(details.getByRole("textbox", { name: zh ? "搜索当前范围内的工具" : "Search tools in the current scope", exact: true })).toBeEnabled()
     await expect(details.getByRole("checkbox")).toHaveCount(0)
     await expect(details.getByRole("button", { name: zh ? "保存缩小后的授权" : "Save reduced grant", exact: true })).toHaveCount(0)
+    // Measure before any pagination click; Playwright clicking alone scrolls a clipped pager into view.
+    const body = details.locator(".oauth-grant-details-body")
+    const viewport = details.locator(".ant-table-body")
+    const pager = details.locator(".ant-pagination")
+    const next = pager.locator(".ant-pagination-next")
+    const footerClose = details.getByRole("button", { name: zh ? "关闭" : "Close", exact: true }).filter({ hasNot: page.locator("svg") })
+    await expectInViewportAndUnobscured(next)
+    await expectInViewportAndUnobscured(footerClose)
+    expect(await body.evaluate(element => ({ top: element.scrollTop, overflow: element.scrollHeight - element.clientHeight }))).toEqual({ top: 0, overflow: 0 })
+    const pagerPosition = await pager.boundingBox()
+    await viewport.evaluate(element => { element.scrollTop = element.scrollHeight })
+    expect(await viewport.evaluate(element => element.scrollTop)).toBeGreaterThan(0)
+    expect(await body.evaluate(element => element.scrollTop)).toBe(0)
+    expect(await pager.boundingBox()).toEqual(pagerPosition)
+    await expectInViewportAndUnobscured(next)
+    await next.click()
+    await expect(details.getByText("51–100 / 112", { exact: true })).toBeVisible()
+    expect(await details.locator(".ant-table-tbody tr[data-row-key]").count()).toBe(50)
+    expect(await body.evaluate(element => element.scrollTop)).toBe(0)
+    await pager.getByTitle("1", { exact: true }).click()
+    await expect(details.getByText("1–50 / 112", { exact: true })).toBeVisible()
     await capture(page, `grants-readonly-${suffix}`)
     await page.keyboard.press("Escape")
     await expect(details).toHaveCount(0)
@@ -82,6 +104,24 @@ for (const size of sizes) for (const locale of ["en-US", "zh-CN"] as const) for 
 
 for (const locale of ["en-US", "zh-CN"] as const) {
   const zh = locale === "zh-CN"
+  for (const outcome of ["success", "failure"] as const) test(`OAuth old clipboard ${outcome} does not change new grant details ${locale}`, async ({ page }) => {
+    await setup(page, locale, [grant(1), grant(2)])
+    await page.evaluate(outcome => {
+      let finish!: () => void
+      const pending = new Promise<void>((resolve, reject) => { finish = outcome === "success" ? resolve : () => reject(new Error("synthetic clipboard failure")) })
+      Object.defineProperty(navigator, "clipboard", { configurable: true, value: { writeText: () => pending } })
+      ;(window as unknown as { finishSyntheticCopy: () => void }).finishSyntheticCopy = finish
+    }, outcome)
+    await page.locator(`[data-row-key="${grant(1).id}"]`).getByRole("button", { name: zh ? "详情" : "Details", exact: true }).click()
+    const details = page.getByRole("dialog", { name: zh ? "授权详情" : "Grant details", exact: true })
+    await details.getByRole("button", { name: zh ? "复制授权 ID" : "Copy grant ID", exact: true }).click()
+    await page.keyboard.press("Escape")
+    await expect(details).toHaveCount(0)
+    await page.locator(`[data-row-key="${grant(2).id}"]`).getByRole("button", { name: zh ? "详情" : "Details", exact: true }).click()
+    await expect(details.getByLabel("Grant ID", { exact: true })).toHaveValue(grant(2).id)
+    await page.evaluate(() => (window as unknown as { finishSyntheticCopy: () => void }).finishSyntheticCopy())
+    await expect(details.locator("p[role=status]")).toHaveCount(0)
+  })
   test(`OAuth 1000 records filter before pagination and 5000 tools remain searchable ${locale} @large-data`, async ({ page }) => {
     const records = Array.from({ length: 1000 }, (_, index) => grant(index, index < 950 ? "revoked" : "active", index === 999))
     await setup(page, locale, records)

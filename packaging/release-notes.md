@@ -28,7 +28,8 @@ version visibility, built-in OAuth setup and personal grant review.
 - Default personal grants to active, with expired/revoked/all filters and
   search before pagination over the loaded owner-scoped dataset. Separate
   scope, UTC expiry, limits, state and actions. Keep history viewable in
-  searchable, paginated read-only details; active reductions and revocations
+  searchable, paginated read-only details with internal table scrolling and
+  initially visible pagination on supported desktops; active reductions and revocations
   still require confirmation and backend owner/revision checks.
 
 Validation is recorded in the paired
@@ -70,7 +71,8 @@ release assets and historical screenshot evidence remain unchanged.
   一次性密钥保留原确认，消息不包含秘密。
 - 本人授权默认有效，支持过期/撤销/全部；在完整已读取本人数据上搜索筛选后分页。
   分列展示范围、UTC 到期、配额、状态和操作。历史记录保留可搜索分页的只读详情，
-  有效授权缩小与撤销仍须确认并通过后端本人权限/版本校验。
+  详情表格内部滚动，受支持桌面首屏可见分页；有效授权缩小与撤销仍须确认并通过
+  后端本人权限/版本校验。
 
 验证详见成对的
 [0.4.1 验证记录](https://github.com/zhigege666/Lingshu-Gate/blob/v0.4.1/docs/zh-CN/release-validation-0.4.1.md)。
