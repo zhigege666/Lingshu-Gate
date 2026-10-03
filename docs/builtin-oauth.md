@@ -22,7 +22,7 @@ Client administration and signing-key operations require `external_connections.m
 
 ## Enable and connect
 
-Enable only after reviewing TLS, exact callbacks, signing-key backup, user permissions and the proxy allowlist below. Changing issuer/resource requires disabling first. Disabling revokes all token families and pending requests/codes; enabling again requires new user authorization. Old grants remain visible for review or revocation.
+Enable only after reviewing TLS, exact callbacks, signing-key backup, user permissions and the proxy allowlist below. Changing issuer/resource requires disabling first. Disabling revokes all token families and pending requests/codes; enabling again requires new user authorization. Old grant records remain available for historical review. Records reported as `disabled` offer details only, without reduction or revocation controls.
 
 Use the client setup that accepts a **predefined Client ID and client secret**, with `client_secret_basic` or `client_secret_post`. This version does not advertise CIMD, dynamic registration or `private_key_jwt`; it cannot be used through a client setup that requires one of those methods. Copy the exact callback currently shown in the ChatGPT connection management page, rather than guessing or substituting an old callback. Consult the current ChatGPT authentication and connection guidance for platform discovery and setup requirements. Compatibility with a real ChatGPT connection must be verified separately.
 
