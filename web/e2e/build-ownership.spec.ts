@@ -16,6 +16,7 @@ async function fixture(page: Page, withHistory = false, createMode: 'off' | 'suc
     const request = route.request(), path = new URL(request.url()).pathname, method = request.method()
     if (method !== 'GET') state.writes.push(`${method} ${path}`)
     if (createMode !== 'off' && method === 'POST' && path === '/v1/builds/preflight') return route.fulfill({ json: { status: 'ok', runtime: 'python', checks: [], recommendations: [], tools: {}, metadata: {} } })
+    if (createMode !== 'off' && method === 'POST' && path === '/v1/builds/plan') return route.fulfill({ json: { plan: { buildable: true, runtime: 'python', requires_safe_executor: false, steps: [], warnings: [] }, validation: { ok: true, errors: [] } } })
     if (createMode !== 'off' && method === 'PUT' && path.startsWith('/v1/delivery-drafts/')) {
       const body = request.postDataJSON(); const uploadId = path.split('/').at(-1)!; state.operations.push({ path, body })
       if (createMode === 'conflict' || createMode === 'post-conflict' && body.expected_revision === 2) return route.fulfill({ status: 409, json: { detail: { code: 'draft_revision_conflict', message: 'Synthetic draft conflict' } } })

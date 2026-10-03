@@ -54,6 +54,9 @@ test('E2E-009 @remote real loopback remote creation, connection, reconfiguration
   await page.getByRole('tabpanel', { name: /^Tools/ }).getByRole('button', { name: 'echo', exact: true }).click()
   await page.getByRole('button', { name: 'Test tool', exact: true }).click()
   await page.getByRole('button', { name: 'Run tool', exact: true }).click()
+  // Structured results initially collapse nested MCP content. Use the visible
+  // text-view control to inspect the returned content, preserving the real call.
+  await page.getByRole('button', { name: 'Text', exact: true }).click()
   await expect(page.getByText('synthetic-loopback-ok', { exact: false }).first()).toBeVisible()
   expect(peer().calls).toBe(before.calls + 1)
   expect(peer().last_call_path).toBe('/reconnected')

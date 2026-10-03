@@ -33,7 +33,9 @@ for (let index = 0; index < cases.length; index++) {
     const search = page.locator('main input[type="search"], main input[placeholder]').first()
     const next = page.getByRole('button', { name: matrix ? '下一页' : 'Next page', exact: true })
     const previous = page.getByRole('button', { name: matrix ? '上一页' : 'Previous page', exact: true })
-    const header = width === 390 ? viewport.locator('thead th').first() : viewport.locator('thead')
+    // Wide tables scroll horizontally; the pinned first column remains in view.
+    // The entire header can extend beyond the viewport without hiding context.
+    const header = viewport.locator('thead th').first()
     if (matrix) {
       await expect.poll(() => viewport.evaluate(el => {
         const owner = el.closest('.remaining-list-group, .maintenance-list-page, .tool-review-workspace')!
@@ -92,7 +94,8 @@ for (const [tab, query] of [['Build history', 'build-999'], ['Deployment history
     const rows = region.locator('tbody tr')
     await expect(rows.first()).toContainText(tab === 'Build history' ? 'build-' : 'synthetic-service')
     const search = page.locator('main input[placeholder]').first()
-    const next = page.getByRole('button', { name: 'Next', exact: true })
+    const pagination = page.locator('.record-list-pagination')
+    const next = pagination.getByTitle(matrix ? '下一页' : 'Next Page', { exact: true }).getByRole('button')
     await expectInViewportAndUnobscured(next)
     await expectInViewportAndUnobscured(rows.first().getByRole('button', { name: matrix ? '查看' : 'View', exact: true }))
     if (matrix && width === 390) {
@@ -112,7 +115,7 @@ for (const [tab, query] of [['Build history', 'build-999'], ['Deployment history
       await expectInViewportAndUnobscured(next)
     }
     await next.click()
-    await expect(page.getByRole('button', { name: 'Previous', exact: true })).toBeEnabled()
+    await expect(pagination.getByTitle(matrix ? '上一页' : 'Previous Page', { exact: true }).getByRole('button')).toBeEnabled()
     await search.fill(query)
     await expect(rows).toHaveCount(1)
     await expect(rows.first().locator('code').first()).toHaveAttribute('title', query)

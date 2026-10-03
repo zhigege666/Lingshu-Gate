@@ -431,7 +431,7 @@ export function BuildsPage({ t, initialBuildId = "" }: { t: TFunction; initialBu
   async function deployBuild(buildId = selectedBuildId) {
     if (!buildId || busy || deploymentPending.current) return
     const build = builds.find(item => item.id === buildId)
-    if (buildId !== selectedBuildId && build) { await showBuild(build); return }
+    if (build && (buildId !== selectedBuildId || build.upload_id !== selectedUploadId || activeSection === "builds")) { await showBuild(build); return }
     if (!deliveryDraft) return
     const owner = selectionRevision.current
     deploymentPending.current = true
