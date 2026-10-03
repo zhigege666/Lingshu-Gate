@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import ast
+import inspect
 import os
 import tempfile
 from pathlib import Path
@@ -36,6 +37,9 @@ EXPECTED_ROUTE_REGISTRATIONS = {
     "register_project_routes",
     "register_runtime_routes",
     "register_tool_routes",
+    "register_network_routes",
+    "register_external_connection_routes",
+    "register_oauth_routes",
 }
 OPERATIONS_PREFIXES = (
     "/v1/logs",
@@ -46,6 +50,14 @@ OPERATIONS_PREFIXES = (
     "/v1/mcp/servers",
     "/v1/projects",
 )
+NETWORK_PROJECT_PERMISSIONS = {
+    "/v1/projects/git/plan": ("operations.manage", "network.use"),
+    "/v1/projects/git/import": ("operations.manage", "network.use", "tools.invoke"),
+    "/v1/projects/git/imports/{import_id}": ("operations.manage", "network.use"),
+    "/v1/projects/git/imports/{import_id}/cancel": ("operations.manage", "network.use", "tools.invoke"),
+    "/v1/projects/git/build-plan": ("operations.manage", "network.use"),
+    "/v1/projects/git/build": ("operations.manage", "network.use", "tools.invoke"),
+}
 
 
 def _main_tree() -> ast.Module:
@@ -108,6 +120,7 @@ def test_extracted_routes_preserve_authentication_boundaries() -> None:
         operation_routes = 0
         tool_routes = 0
         credential_routes = 0
+        network_project_routes: set[str] = set()
         for route in app.routes:
             if not isinstance(route, APIRoute):
                 continue
@@ -115,7 +128,12 @@ def test_extracted_routes_preserve_authentication_boundaries() -> None:
                 getattr(dependency.call, "__name__", "")
                 for dependency in route.dependant.dependencies
             }
-            if route.path.startswith(OPERATIONS_PREFIXES):
+            if route.path.startswith("/v1/projects/git/"):
+                network_project_routes.add(route.path)
+                assert len(route.dependant.dependencies) == 1, route.path
+                dependency = route.dependant.dependencies[0].call
+                assert inspect.getclosurevars(dependency).nonlocals["permissions"] == NETWORK_PROJECT_PERMISSIONS[route.path], route.path
+            elif route.path.startswith(OPERATIONS_PREFIXES):
                 operation_routes += 1
                 assert "require_operations_manager" in dependencies, route.path
             if route.path.startswith("/v1/credentials"):
@@ -126,5 +144,6 @@ def test_extracted_routes_preserve_authentication_boundaries() -> None:
                 assert "authenticate_request" in dependencies, route.path
 
         assert operation_routes == 32
+        assert network_project_routes == set(NETWORK_PROJECT_PERMISSIONS)
         assert credential_routes == 5
         assert tool_routes == 4

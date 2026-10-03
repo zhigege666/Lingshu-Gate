@@ -18,10 +18,12 @@ from lingshu_gate.git_source import COMMIT_RE, GIT_ENVIRONMENT_POLICY, GIT_POLIC
 from lingshu_gate.network_settings import PROFILE_ID, NetworkSelection, NetworkSettingsStore, StrictModel, now, require_network_permission
 from lingshu_gate.ports.safe_network_executor import TEST_TARGETS, SafeExecutionCancelled, SafeNetworkExecutor, require_proxy_support, require_safe_executor
 from lingshu_gate.project_delivery_mcp import IDEMPOTENCY_PATTERN, ProjectDeliveryMcpService, _definition, _parse_input
-from lingshu_gate.project_uploads import MAX_EXTRACTED_BYTES, MAX_FILES, MAX_ZIP_BYTES
+from lingshu_gate.project_uploads import MAX_EXTRACTED_BYTES, MAX_FILES, MAX_ZIP_BYTES, analyze_project
 from lingshu_gate.registry import ToolExecutionError, ToolInvocationContext, ToolRegistry
 
 ACTIVE_IMPORT_STATUSES = {"queued", "running", "cancel_requested"}
+MAX_UNUSED_PLANS_PER_ACTOR = 32
+MAX_UNUSED_PLANS = 256
 
 
 class _ImportCancelled(Exception):
@@ -118,9 +120,16 @@ class GitImportService:
         digest = digest_json(plan)
         expires = (datetime.now(timezone.utc) + timedelta(minutes=30)).isoformat()
         with self.database.session() as connection:
-            connection.execute("INSERT INTO git_import_plans VALUES(?,?,?,?,?,?)", (plan_id, context.actor_id, digest, json.dumps(plan), expires, now()))
+            connection.execute("BEGIN IMMEDIATE")
             self.network._prune_references(connection)
+            unused = connection.execute("""SELECT count(*), coalesce(sum(actor_id=?),0)
+                FROM git_import_plans p WHERE NOT EXISTS (
+                    SELECT 1 FROM git_imports i WHERE i.plan_id=p.id)""", (context.actor_id,)).fetchone()
+            if unused[0] >= MAX_UNUSED_PLANS or unused[1] >= MAX_UNUSED_PLANS_PER_ACTOR:
+                raise ToolExecutionError("git_plan_capacity", "Unconsumed import plan capacity reached", next_action="Use an existing unexpired plan or wait for unused plans to expire; imports and their provenance are retained.")
+            connection.execute("INSERT INTO git_import_plans VALUES(?,?,?,?,?,?)", (plan_id, context.actor_id, digest, json.dumps(plan), expires, now()))
             self.network._retain(connection, frozen, "git_plan", plan_id)
+        self.delivery.observability.emit_event("gate.git.plan_created", source="projects", subject_type="git_plan", subject_id=plan_id, payload={"actor_id": context.actor_id, "plan_digest": digest})
         return {"status": "ready", "plan_id": plan_id, "plan_digest": digest, "expires_at": expires, "plan": plan, "validation": {"ok": True}, "confirmation_scope": "source acquisition only; build/deploy/start remain separate"}
 
     def _check_scheme(self, executor: SafeNetworkExecutor, frozen: dict[str, Any], phase: str, kind: str) -> None:
@@ -219,7 +228,9 @@ class GitImportService:
                 selected_root = self.delivery.uploads.root / upload_id / "extracted" / plan["source"]["project_root"]
                 if not selected_root.is_dir():
                     raise ValueError("selected project root is unavailable after upload validation")
-                analysis = upload["analysis"]
+                # The selected Git subdirectory is explicit. ZIP wrapper
+                # discovery must not change the inventory's coordinate root.
+                analysis = analyze_project(selected_root, discover_root=False)
                 analysis.update({"source_sha256": hashlib.sha256(content).hexdigest(), "file_list_sha256": file_digest, "source_size_bytes": len(content), "included_files": inventory, "git_source": {"repository_url": plan["source"]["repository_url"], "ref_type": plan["source"]["ref_type"], "ref": plan["source"]["ref"], "commit_sha": plan["commit_sha"], "import_id": import_id, "project_root": plan["source"]["project_root"]}, "delivery_network": plan["network"], "runtime_template": plan["source"]["runtime_template"], "project_root_dir": str(selected_root)})
                 with self.database.session() as connection:
                     connection.execute("UPDATE project_uploads SET analysis_json=?, root_dir=? WHERE id=?", (json.dumps(analysis), str(selected_root), upload_id))

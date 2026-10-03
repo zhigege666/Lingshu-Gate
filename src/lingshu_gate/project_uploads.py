@@ -104,7 +104,7 @@ class ProjectUploadStore:
     def analyze_upload(self, upload_id: str) -> dict[str, Any]:
         record = self.get_upload(upload_id)
         root = Path(record["root_dir"])
-        analysis = analyze_project(root)
+        analysis = analyze_project(root, discover_root=not bool(record["analysis"].get("git_source")))
         # Re-analysis must not discard pinned Git source/network provenance.
         for key in ("source_sha256", "source_size_bytes", "file_list_sha256", "included_files", "git_source", "delivery_network", "runtime_template"):
             if key in record["analysis"]:
@@ -210,8 +210,8 @@ class ProjectUploadStore:
         return {"id": server_id, "name": f"Uploaded {server_id}", "enabled": True, "launch": {"type": "managed_process", "command": command, "args": args, "cwd": cwd}, "transport": {"type": "stdio"}, "timeout_seconds": 120, "auto_start": False, "analysis": {"detected_runtime": runtime, "upload_id": upload_id, "draft_source": "heuristic"}}
 
 
-def analyze_project(root: Path) -> dict[str, Any]:
-    scan_root = _find_project_root(root)
+def analyze_project(root: Path, *, discover_root: bool = True) -> dict[str, Any]:
+    scan_root = _find_project_root(root) if discover_root else root
     files = _scan_files(scan_root)
     names = {item["path"] for item in files}
     detected = "unknown"

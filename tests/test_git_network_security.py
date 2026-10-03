@@ -6,6 +6,7 @@ import io
 import json
 import stat
 from dataclasses import replace
+from pathlib import Path
 from types import SimpleNamespace
 from unittest.mock import patch
 import zipfile
@@ -21,7 +22,7 @@ from lingshu_gate.auth import AuthPrincipal
 from lingshu_gate.credential_store import CredentialStore
 from lingshu_gate.database import SQLiteDatabase
 from lingshu_gate.git_import_mcp import GitImportService, ProxyTest
-from lingshu_gate.git_source import GitSourceInput, repository_rule, snapshot_inventory, validate_resolved_addresses
+from lingshu_gate.git_source import GitSourceInput, repository_rule, snapshot_inventory, validate_resolved_addresses, verify_git_snapshot
 from lingshu_gate.interfaces.control_api.network_routes import register_network_routes
 from lingshu_gate.network_settings import NetworkDefaults, NetworkSelection, NetworkSettingsStore, ProfileWrite
 from lingshu_gate.observability_store import ObservabilityStore
@@ -268,6 +269,51 @@ def test_exact_commit_plan_snapshot_and_reanalysis_preserve_provenance(services)
     assert owner[0] == services.context.actor_id
 
 
+@pytest.mark.parametrize("selected_root", [".", "repository", "repository/nested"])
+def test_git_reanalysis_keeps_explicit_inventory_root_and_detects_real_changes(services, selected_root):
+    services.executor.content = archive({
+        "README.md": b"Repository overview",
+        "repository/nested/package.json": b'{"name":"example","bin":{"example":"bin/server.mjs"}}',
+        "repository/nested/bin/server.mjs": b"export {};",
+    })
+    planned = services.imports.plan({"repository_url": URL, "project_root": selected_root}, services.context)
+    created = services.imports.create({"plan_id": planned["plan_id"], "plan_digest": planned["plan_digest"], "idempotency_key": "nested-root-import-001", "confirmed": True}, services.context)
+    services.queue.run()
+    result = services.imports.status({"import_id": created["import_id"]}, services.context)
+    assert result["status"] == "success"
+    before = services.uploads.get_upload(result["upload_id"])
+    verify_git_snapshot(before)
+    after = services.uploads.analyze_upload(result["upload_id"])
+    assert after["root_dir"] == before["root_dir"]
+    assert after["analysis"]["project_root_dir"] == before["root_dir"]
+    for field in ("git_source", "included_files", "file_list_sha256", "source_sha256", "delivery_network"):
+        assert after["analysis"][field] == before["analysis"][field]
+    verify_git_snapshot(after)
+    entrypoint = next(Path(after["root_dir"]).rglob("server.mjs"))
+    entrypoint.write_text("export const changed = true;")
+    with pytest.raises(ToolExecutionError) as error:
+        verify_git_snapshot(services.uploads.analyze_upload(result["upload_id"]))
+    assert error.value.code == "git_snapshot_changed"
+    # The default ZIP analyzer still unwraps nested projects.
+    zipped = services.uploads.save_zip(filename="nested.zip", content=services.executor.content)
+    assert zipped["root_dir"].endswith("repository/nested")
+
+
+def test_http_successful_git_plan_has_secret_safe_actor_digest_audit(services):
+    saved = profile(services)
+    app = FastAPI()
+    principal = AuthPrincipal(id=services.context.actor_id, username="operator", role="operator", permissions=services.context.permissions)
+    register_network_routes(app, network=services.network, imports=services.imports, auth=SimpleNamespace(authenticate_request=lambda request: principal), access=AccessControlStore(services.database))
+    response = TestClient(app).post("/v1/projects/git/plan", json={"repository_url": URL, "git_network": {"mode": "profile", "profile_id": saved["id"], "version": 1}})
+    assert response.status_code == 200
+    planned = response.json()
+    event = dict(services.database.query_one("SELECT * FROM events WHERE type='gate.git.plan_created'"))
+    assert event["subject_type"] == "git_plan" and event["subject_id"] == planned["plan_id"]
+    assert json.loads(event["payload_json"]) == {"actor_id": principal.id, "plan_digest": planned["plan_digest"]}
+    assert URL not in json.dumps(event) and "proxy.example.invalid" not in json.dumps(event)
+    assert services.database.query_one("SELECT digest FROM git_import_plans WHERE id=?", (planned["plan_id"],))[0] == planned["plan_digest"]
+
+
 def test_import_confirmation_digest_owner_and_idempotency_boundaries(services):
     planned = services.imports.plan({"repository_url": URL}, services.context)
     body = {"plan_id": planned["plan_id"], "plan_digest": planned["plan_digest"], "idempotency_key": "git-source-confirm-001", "confirmed": True}
@@ -425,17 +471,59 @@ def test_restart_replay_and_late_callback_never_resubmit_or_report_cancelled(ser
     assert not services.database.query_one("SELECT 1 FROM events WHERE type='gate.git.cancel_requested'")
 
 
-def test_expired_unused_plan_releases_profile_guard_but_preserves_snapshot(services):
+def test_expired_unused_plan_is_pruned_without_removing_digest_audit(services):
     saved = profile(services)
     planned = services.imports.plan({"repository_url": URL, "git_network": {"mode": "profile", "profile_id": saved["id"], "version": 1}}, services.context)
-    before = services.database.query_one("SELECT plan_json FROM git_import_plans WHERE id=?", (planned["plan_id"],))[0]
     with pytest.raises(ToolExecutionError) as protected:
         services.network.delete_profile(saved["id"], 1, "admin")
     assert protected.value.code == "network_profile_in_use"
     services.database.execute("UPDATE git_import_plans SET expires_at='2000-01-01T00:00:00+00:00' WHERE id=?", (planned["plan_id"],))
     assert services.network.delete_profile(saved["id"], 1, "admin")["deleted"]
-    assert services.database.query_one("SELECT plan_json FROM git_import_plans WHERE id=?", (planned["plan_id"],))[0] == before
+    assert services.database.query_one("SELECT 1 FROM git_import_plans WHERE id=?", (planned["plan_id"],)) is None
+    audit = services.database.query_one("SELECT payload_json FROM events WHERE type='gate.git.plan_created' AND subject_id=?", (planned["plan_id"],))
+    assert json.loads(audit[0])["plan_digest"] == planned["plan_digest"]
     assert services.database.query_one("SELECT count(*) FROM network_profile_references WHERE profile_id=?", (saved["id"],))[0] == 0
+
+
+def test_expired_unused_plan_sweep_is_bounded_and_keeps_live_plans(services):
+    saved = profile(services)
+    live = services.imports.plan({"repository_url": URL}, services.context)
+    with services.database.session() as connection:
+        connection.executemany("INSERT INTO git_import_plans VALUES(?,?,?,?,?,?)", [(f"expired-{index:04d}", "other-actor", "a" * 64, "{}", "2000-01-01T00:00:00+00:00", "2000-01-01T00:00:00+00:00") for index in range(101)])
+    services.network.references(saved["id"])
+    assert services.database.query_one("SELECT count(*) FROM git_import_plans WHERE id LIKE 'expired-%'")[0] == 1
+    assert services.database.query_one("SELECT 1 FROM git_import_plans WHERE id=?", (live["plan_id"],))
+    services.network.references(saved["id"])
+    assert services.database.query_one("SELECT count(*) FROM git_import_plans WHERE id LIKE 'expired-%'")[0] == 0
+
+
+@pytest.mark.parametrize("status", ["queued", "running", "cancel_requested", "interrupted", "unknown", "success", "failed", "cancelled"])
+def test_expired_import_referenced_plan_is_retained_for_provenance(services, status):
+    saved = profile(services)
+    planned = services.imports.plan({"repository_url": URL}, services.context)
+    created = services.imports.create({"plan_id": planned["plan_id"], "plan_digest": planned["plan_digest"], "idempotency_key": "retained-provenance-001", "confirmed": True}, services.context)
+    services.database.execute("UPDATE git_imports SET status=? WHERE id=?", (status, created["import_id"]))
+    services.database.execute("UPDATE git_import_plans SET expires_at='2000-01-01T00:00:00+00:00' WHERE id=?", (planned["plan_id"],))
+    services.network.references(saved["id"])
+    row = services.database.query_one("SELECT digest,plan_json FROM git_import_plans WHERE id=?", (planned["plan_id"],))
+    assert row["digest"] == planned["plan_digest"] and json.loads(row["plan_json"])["commit_sha"] == SHA
+
+
+def test_unused_plan_capacity_is_per_actor_and_global_with_expiry_recovery(services):
+    other = replace(services.context, actor_id="actor-two")
+    with patch("lingshu_gate.git_import_mcp.MAX_UNUSED_PLANS_PER_ACTOR", 2), patch("lingshu_gate.git_import_mcp.MAX_UNUSED_PLANS", 3):
+        first = services.imports.plan({"repository_url": URL}, services.context)
+        services.imports.plan({"repository_url": URL}, services.context)
+        with pytest.raises(ToolExecutionError) as per_actor:
+            services.imports.plan({"repository_url": URL}, services.context)
+        assert per_actor.value.code == "git_plan_capacity"
+        services.imports.plan({"repository_url": URL}, other)
+        with pytest.raises(ToolExecutionError) as global_limit:
+            services.imports.plan({"repository_url": URL}, other)
+        assert global_limit.value.code == "git_plan_capacity"
+        services.database.execute("UPDATE git_import_plans SET expires_at='2000-01-01T00:00:00+00:00' WHERE id=?", (first["plan_id"],))
+        assert services.imports.plan({"repository_url": URL}, other)["status"] == "ready"
+    assert services.database.query_one("SELECT count(*) FROM git_import_plans")[0] == 3
 
 
 def test_active_and_unknown_imports_protect_profile_after_plan_expiry(services):

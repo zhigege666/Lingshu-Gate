@@ -63,6 +63,10 @@ def redact_validation_errors(errors: Iterable[Mapping[str, Any]]) -> list[dict[s
 
 
 def redact_value(value: Any, *, key: str | None = None, known_secrets: Iterable[str] = ()) -> Any:
+    # Reserved JSON-RPC error numbers drive protocol negotiation. OAuth
+    # authorization codes, positive codes and string values stay secret.
+    if key and key.lower() == "code" and type(value) is int and -32768 <= value <= -32000 and str(value) not in known_secrets:
+        return value
     if key and SENSITIVE_KEY_PATTERN.search(key):
         return REDACTED
     if isinstance(value, dict):

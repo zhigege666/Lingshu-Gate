@@ -73,6 +73,7 @@ class CoreBuildExecutionBoundaryTest(unittest.TestCase):
             token_id=None,
             correlation_id="core-boundary-correlation",
             roles=("admin",),
+            permissions=("operations.manage", "tools.invoke", "network.use"),
         )
 
     def tearDown(self) -> None:

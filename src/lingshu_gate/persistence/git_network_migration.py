@@ -39,5 +39,7 @@ def apply_git_network_migration(connection: sqlite3.Connection) -> None:
         FOREIGN KEY(plan_id) REFERENCES git_import_plans(id)
     );
     CREATE INDEX idx_git_imports_actor ON git_imports(actor_id, created_at DESC);
+    CREATE INDEX idx_git_imports_plan ON git_imports(plan_id);
+    CREATE INDEX idx_git_plans_expiry ON git_import_plans(expires_at, id);
     CREATE INDEX idx_network_references_resource ON network_profile_references(resource_type, resource_id);
     """)

@@ -39,7 +39,7 @@ for (const [width, height] of [[1600, 900], [1920, 1080], [2560, 1080], [2560, 1
       await page.getByRole('button', { name: zh ? '网络设置' : 'Network settings', exact: true }).click()
       const drawer = page.getByRole('dialog', { name: zh ? '系统设置 · 网络与依赖' : 'System settings · Network and dependencies', exact: true })
       await expect(drawer.getByText('Synthetic network', { exact: true })).toBeVisible()
-      await drawer.getByRole('button', { name: 'Close', exact: true }).click()
+      await drawer.getByRole('button', { name: zh ? '关闭' : 'Close', exact: true }).click()
       await expect(repository).toHaveValue('https://github.com/synthetic/example')
       await expect(page.getByLabel(zh ? '项目子目录' : 'Project subdirectory', { exact: true })).toHaveValue('packages/server')
       await expectInViewportAndUnobscured(page.getByRole('button', { name: zh ? '检查并生成计划' : 'Inspect and plan', exact: true }))

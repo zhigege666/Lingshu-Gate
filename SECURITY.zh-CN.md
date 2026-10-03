@@ -91,7 +91,7 @@ Manifest 应使用 `${credential:<id>}` 引用而不是明文。用户下游值�
 
 先验证精确 issuer/JWKS、audience/规范资源和客户端绑定，再查询当前身份绑定、有效用户和个人授权。普通角色/资源权限、已发布分类、JWT scopes 与本地委托共同限制工具访问，管理员也不例外。grant 限流/并发约束仅在单进程执行，重启后重置。完整配置、验证和撤权合同见[外部资源访问](docs/zh-CN/external-connections.md)。
 
-启用本地记录不会完成外部同意流程，也不证明 provider/ChatGPT 已连接。Gate 不签发 provider 令牌、不托管 authorize/PKCE 流程、不注册 OAuth 客户端，也不启动隧道。合成 JWT/HTTP 测试不认证生产 TLS 信任链或真实 provider 接入。
+启用本地记录不会完成外部同意流程，也不证明 provider/ChatGPT 已连接。在外部 IdP 模式中，Gate 不签发 provider 令牌、不托管其 authorize/PKCE 流程，也不向该 provider 注册客户端。独立且需明确启用的内置模式托管 Gate 自身的授权服务和静态客户端注册表。两种模式均不启动隧道。合成 JWT/HTTP 测试不认证生产 TLS 信任链或真实 provider 接入。
 
 共享服务凭据 CRUD 要求 `credentials.manage.system`，默认仅内置管理员拥有；内置 operator 不再通过 `operations.manage` 继承该权限。个人令牌和下游凭据保留 `credentials.manage.self`。外部信任/身份绑定管理另要求 `external_connections.manage`，个人委托始终仅本人可管理。入站 JWT、个人下游凭据和隧道运行秘密保持分离。
 

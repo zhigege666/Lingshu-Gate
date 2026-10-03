@@ -19,6 +19,7 @@ from lingshu_gate.observability_store import ObservabilityStore
 from lingshu_gate.registry import ToolExecutionError
 
 PROFILE_ID = r"^[A-Za-z0-9][A-Za-z0-9_.-]{0,127}$"
+EXPIRED_PLAN_PRUNE_BATCH = 100
 
 
 def now() -> str:
@@ -202,8 +203,14 @@ class NetworkSettingsStore:
 
     @staticmethod
     def _prune_references(connection: Any) -> None:
-        # Retain immutable plan/version/audit snapshots. Only the live deletion
-        # guard expires. Interrupted/unknown executions require reconciliation.
+        # Import-referenced plans remain immutable provenance, including
+        # interrupted/unknown work. Expired unused plans have a bounded sweep;
+        # their secret-safe plan-created audit records remain independently.
+        connection.execute("""DELETE FROM git_import_plans WHERE id IN (
+            SELECT p.id FROM git_import_plans p
+            WHERE julianday(p.expires_at)<=julianday(?) AND NOT EXISTS (
+                SELECT 1 FROM git_imports i WHERE i.plan_id=p.id)
+            ORDER BY p.expires_at,p.id LIMIT ?)""", (now(), EXPIRED_PLAN_PRUNE_BATCH))
         connection.execute("""DELETE FROM network_profile_references AS ref WHERE
             (resource_type='git_plan' AND NOT EXISTS (
                 SELECT 1 FROM git_import_plans p WHERE p.id=ref.resource_id

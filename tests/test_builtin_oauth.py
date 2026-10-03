@@ -759,7 +759,7 @@ def test_current_resource_permissions_and_newly_discovered_tools_intersect_old_g
     client, secret = enable(gate)
     server, access, registry = gate["server"], gate["access"], gate["registry"]
     result = exchange(server, client, secret, issue_code(gate, client))
-    later = ToolDefinition(id="mcp.B.later", name="Later discovered", source="mcp", permission="read",
+    later = ToolDefinition(id="mcp.B.later", name="Later discovered", description="Synthetic newly discovered tool", source="mcp", permission="read",
                            metadata={"server_id": "B"})
     registry.register(later, lambda arguments: None)
     access.synchronize_tools(registry.list_definitions())
@@ -938,6 +938,16 @@ def test_access_log_removes_oauth_query_and_unknown_path_secrets():
     assert "private" not in text and "status_code=400" in text
     assert redact_command(["oauth", "--code", "private", "--code-verifier=private", "--csrf=private"]) == [
         "oauth", "--code", REDACTED, "--code-verifier=" + REDACTED, "--csrf=" + REDACTED]
+
+
+def test_reserved_json_rpc_errors_remain_usable_without_exposing_oauth_codes():
+    for code in (-32700, -32600, -32601, -32602, -32603, -32000):
+        safe = redact_value({"error": {"code": code, "message": "code=private code_verifier=private"}, "auth_code": code})
+        assert safe["error"]["code"] == code
+        assert "private" not in safe["error"]["message"] and safe["auth_code"] == REDACTED
+        assert redact_value({"code": code}, known_secrets=(str(code),)) == {"code": REDACTED}
+    for code in (123456, -1, -32769, "-32601", "private", True):
+        assert redact_value({"code": code}) == {"code": REDACTED}
 
 
 def test_browser_ttl_session_expiry_and_changed_consent_snapshot(gate, monkeypatch):
