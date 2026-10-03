@@ -67,6 +67,8 @@ pnpm 11.5.0 版本证据：[官方 package engines](https://github.com/pnpm/pnpm
 
 新生成的 manager 启动 Manifest 带严格 `launch.toolchain` 工具/版本约束及工具名 command。只读 Manifest 校验不执行程序，仅检查服务管理员登记路径及文件元数据，准确版本仍为未验证。仅现有 local stdio/受管 HTTP 启动客户端在已授权启动后探测登记 Node 和复核 JS CLI，再执行同一组合。项目绝对 command、项目/宿主 PATH 均不能改选探测程序或解释器。缺失/不安全注册、版本漂移或不可验证明确阻断。参见[管理员注册与旧配置兼容](configuration.md#交付网络配置)。版本探测仍为空目录、无项目凭据、五秒/128 字节上限，但这些限制不证明信任。Core 不探测或执行固定工具；不安装运行工具、不借用构建缓存、不继承交付代理、不新增远程 bridge。pnpm 11 验证实际登记 Node >=22.13；复核的直接 Node 入口及未带 pin 的旧 Manifest 保留既有授权行为，不受该 manager pin 约束。本地执行仍不是沙箱，管理员工具完整性是前提。
 
-本任务仅授权源码实现和静态检查。Python 语法/lint/types、Console 类型/源码/构建检查、diff 检查与未运行的自动化测试分别报告。不启动服务、不拉用户项目、不执行导入项目的依赖安装、不连接代理/SSH，不启动浏览器服务。布局源码适配 1600×900、1920×1080、2560×1080、2560×1440；这些尺寸的浏览器验收需后续授权，当前未验证。静态通过不代表真实拉取/install 可用。
+0.4.0 验证在隔离的合成环境中执行 Python、Console 和浏览器回归。Git/网络测试使用受控 fake adapter，不连接用户仓库、代理或 SSH。双语布局覆盖 1600×900、1920×1080、2560×1080、2560×1440；实际计数、跳过项及 CI 状态见[验证记录](release-validation.md)。这些结果不证明真实拉取/install 可用：生产安全执行器仍缺失。
+
+成功计划创建仅审计 actor、计划 ID 和 digest，不持久记录来源 URL/代理值。每轮最多清理 100 个过期未使用计划；每 actor 最多 32 个、全局最多 256 个未使用计划。任何 import 引用的计划均保留其来源，包括失败或取消状态。
 
 命令行为依据：[Git 配置](https://git-scm.com/docs/git-config)、[npm ci](https://docs.npmjs.com/cli/v11/commands/npm-ci/)、[pnpm install](https://pnpm.io/cli/install)、[Yarn Classic install](https://classic.yarnpkg.com/lang/en/docs/cli/install/)。

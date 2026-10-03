@@ -204,7 +204,7 @@ ${credential:credential-id}
 
 只读校验仅检查注册和文件元数据：有效注册给出 `version_verified=false` 警告，缺失/不安全注册给明确错误。仅现有两种 local 客户端在原有已授权启动生命周期内进行有界版本探测，并启动同一注册 Node/CLI 组合。项目 PATH 和宿主环境 PATH 均不能改选这些工具，子进程 PATH 仅包含登记工具目录。版本漂移不回退；pnpm 11 校验实际执行所用的登记 Node >=22.13。构建缓存不供应运行时，不下载/安装工具、不继承交付代理；Core 不探测或启动本地代码。
 
-不带 `launch.toolchain` 的旧 Manifest 保留现有 command/env 和授权启动行为；校验从不执行它们，也不保证准确版本。此前带 pin 的绝对 command 须改为工具名加管理员注册，或另行复核直接 Node 入口。注册表默认空，新固定版本启动在配置前 fail closed。本源码任务没有配置注册表或运行工具。
+不带 `launch.toolchain` 的旧 Manifest 保留现有 command/env 和授权启动行为；校验从不执行它们，也不保证准确版本。此前带 pin 的绝对 command 须改为工具名加管理员注册，或另行复核直接 Node 入口。注册表默认空，新固定版本启动在配置前 fail closed。合成测试使用受控夹具验证边界；未配置生产注册表、用户代理或真实依赖源。
 
 系统设置 → 网络与依赖管理命名代理的不可变版本及独立 Git/安装默认项。配置要求 `system_settings.manage`；调用额外要求独立 `network.use` 与既有操作、工具和 token 权限。元数据/引用在 SQLite（`0004_gate_git_network`）；仅写代理地址使用私有加密 CredentialStore 命名空间，认证使用既有凭据 ID。默认项和配置更新需提供预期版本，不改变宿主全局 Git/npm 配置或运行时 MCP 代理变量。
 

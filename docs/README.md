@@ -14,6 +14,7 @@ This documentation describes the current Gate product boundary. English is autho
 | [MCP gateway](mcp-gateway.md) | Gateway endpoint, protocol negotiation, downstream HTTP/stdio, discovery, classification, and invocation |
 | [Project delivery](project-delivery.md) | Upload/build/deploy/start workflow, `gate_*` tools, and bundled Delivery Skill |
 | [Git import and network settings](git-import-network.md) | Versioned delivery networking, bounded Git sources, deterministic tools and executor limits |
+| [Console delivery workspace](console-delivery.md) | Private delivery drafts, confirmation, conflicts and records |
 | [Git execution gap and rollout decision](git-executor-decision.md) | Concrete code gaps, default deployment limits and the required isolated-worker scope decision |
 | [Deployment](deployment.md) | Docker Compose, native service, production hardening, backup, upgrade, and rollback |
 | [Operations](operations.md) | Health probes, logs, events, diagnostics, runtime cache, audits, and incident checks |
@@ -23,6 +24,7 @@ This documentation describes the current Gate product boundary. English is autho
 | [External OAuth resource access](external-connections.md) | Default-disabled JWT verification, trust configuration, personal delegations and integration boundaries |
 | [Built-in OAuth authorization](builtin-oauth.md) | Existing Gate users, static clients, consent, refresh/revoke and public proxy allowlist |
 | [Release artifacts](releases.md) | Platform archives, checksums, SBOM, build metadata, offline images, and publishing rules |
+| [0.4.0 validation record](release-validation.md) | Executed checks, synthetic screenshots and remaining acceptance gaps |
 
 API schemas are served by a running Gate instance at `/docs`. Security policy and reporting instructions live in [SECURITY.md](../SECURITY.md).
 

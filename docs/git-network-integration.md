@@ -1,25 +1,21 @@
 # Git/network integration notes
 
-Functional execution remains incomplete; see [adapter and infrastructure scope decision](git-executor-decision.md). The current patch is the control/UI/plan implementation plus the proposed execution contract, not a working Git/install delivery feature.
+[简体中文](zh-CN/git-network-integration.md) · [Validation record](release-validation.md)
 
-Review fixes add persisted coordinator restart interruption/capacity release, a corrected nine-column Git import insert, live profile-reference cleanup, and exact tool pins consumed by the existing local stdio/managed HTTP clients and manifest preflight. Additional shared integration points: `mcp_manifest.py`, `mcp_manifest_validation.py`, `mcp_stdio_client.py`, `mcp_managed_http_client.py`, plus source/build deletion transactions. No auth/session code or new worker/remote runtime was changed. The build-worker decision remains pending and does not include a remote MCP runtime/bridge/deployment system.
+The 0.4.0 candidate integrates the Git/network branch with main `d500116548a90e4edaa0bfa0e0c1138afe45354a`, including built-in OAuth PR #42. The original Git branch base was `362fffccfbc28a362f7f3431759319128cdbabd1`; PR #43 retains that history through a merge of main, without rewriting the OAuth branch.
 
-The follow-up execution-boundary repair removes version probes from both read-only manifest validation routes. `config.py` adds an immutable service-owned administrator tool registry; pinned startup uses registered Node/JS CLI paths, never project commands/PATH. Validation inspects metadata only and marks versions unverified. Merge this new Settings field/environment parsing deliberately; no schema or auth/session migration is added by the repair.
+**Production Git acquisition, proxy probes, tool preparation and configured network installs remain unavailable.** Production composition supplies no `SafeNetworkExecutor`. This release contains the settings, policy, plan, API/UI and integration contract. Synthetic adapter tests do not supply a production isolation boundary. See [the execution gap](git-executor-decision.md).
 
-[简体中文](zh-CN/git-network-integration.md)
+Shared integration points retained in the combined tree:
 
-Base: `362fffccfbc28a362f7f3431759319128cdbabd1` (main). Branch: `feat/git-import-network-settings`. No commits, push, PR, deployment or real credentials.
+- `database.py` registers `0004_gate_git_network` and `0007_session_purpose`. The independent OAuth store registers `0006_builtin_oauth` and `0008_oauth_interaction_capacity`. Keep both registration paths and all uniquely named migrations.
+- `main.py`, `access_control.py`, Console routing, navigation and translations compose both features. Settings administration, network invocation and existing delivery permissions remain separate; built-in and external OAuth retain their own guarded tabs and session purposes.
+- `build_deploy.py`, `build_preflight.py`, `build_plan.py`, `project_delivery_mcp.py`, `application/delivery_drafts.py` and the Delivery Skill extend the existing upload/build/deploy/start chain. Ownership, confirmation, digest, idempotency, token and classification checks remain required.
+- `config.py`, `mcp_manifest.py`, `mcp_manifest_validation.py`, `mcp_stdio_client.py` and `mcp_managed_http_client.py` share the reviewed administrator tool registry and exact manager pins. Read-only validation inspects metadata without executing programs; only authorized native startup performs bounded probes. Core does neither.
+- Source/build deletion transactions, README/documentation indexes and `SECURITY*` retain both features' boundaries. Docker Core remains unprivileged and has no engine socket.
 
-Shared integration points to merge deliberately with the independent built-in OAuth work:
+Git review fixes preserve the explicitly selected project root through reanalysis, audit successful plan creation without recording source URLs or proxy values, sweep at most 100 expired unused plans per pass and limit unused plans to 32 per actor / 256 globally. Any referenced import retains its plan provenance, including failed or cancelled imports. Restart interruption and capacity release do not claim termination of an absent executor.
 
-- `database.py`: registers a uniquely named additive Git/network migration. Merge both migration registrations; do not replace either schema.
-- `access_control.py`: adds independent settings-management and network-invocation permission codes. Preserve OAuth permissions.
-- `main.py`: composes settings/import services and their routes/tools; no external authentication module edits.
-- Console route catalog, navigation translations and `App.tsx`: add System settings; preserve OAuth settings tabs/routes when integrating.
-- `build_deploy.py`, `build_preflight.py`, `build_plan.py`, `project_delivery_mcp.py`: extend existing delivery provenance/plans. Preserve confirmation, ownership, digest, idempotency, token and classification checks.
+Integration tests cover the real HTTP audit path, nested snapshots, manager/lockfile validation, redaction, permissions, cancellation/timeouts, reference/version retention, and failure without replacing the old deployment. OAuth string secrets remain redacted while JSON-RPC reserved negative integer error codes remain intact. Browser regressions cover explicit external-mode navigation and loading a historical build's project before deployment confirmation. Executed results and remaining real-network acceptance gaps are recorded separately in the [validation record](release-validation.md).
 
-The production safe executor is absent. This is an explicit release blocker for real Git/network execution, not a reason to loosen local/Core execution. Tests are supplied but not run in this static-only task. The final evidence record will enumerate static checks and remaining acceptance gaps.
-
-Additional shared files: `application/delivery_drafts.py` and the Console delivery draft/components add a revisioned package-manager override; the bundled Delivery Skill contract describes the same confirmed preparation stage and Git continuation. Preserve OAuth additions when merging `SECURITY*`, README/docs navigation and paired release documentation. Production composition still injects no network executor.
-
-The independent OAuth review is changing session purpose checks and interaction capacity, with further changes to `auth.py` and session migrations. This branch does not edit `auth.py`, `external_auth.py`, or OAuth/session tables. During integration, retain both sets of uniquely named migrations and preserve the revised session/scope checks when composing these routes. Review `main.py`, `database.py`, `access_control.py`, and navigation together against the final OAuth branch; this worktree has not been merged with it or functionally verified against it.
+No production deployment, user Git/proxy connection, SSH operation, external account setup or real credential provisioning is part of this release preparation. Implementing and independently reviewing an isolated worker remains a separate infrastructure decision; no local fallback or remote MCP bridge was added.

@@ -33,7 +33,7 @@ for (const [width, height] of [[2048, 1222], [1366, 768], [390, 844], [1280, 600
         await expect(page.locator('main')).toContainText('100')
         await page.getByRole('button', { name: 'Last 7 days', exact: true }).click()
         await expect(page.getByRole('button', { name: 'Last 7 days', exact: true })).toHaveAttribute('aria-pressed', 'true')
-        await expect(page.getByRole('img', { name: /^Invocation trend:/ })).toBeVisible()
+        await expect(page.getByRole('group', { name: 'Trend chart. Use left and right arrows to inspect points', exact: true })).toBeVisible()
       }
       const basename = `${view}-${width}x${height}`
       if (verifyLayout && view === 'dashboard') {

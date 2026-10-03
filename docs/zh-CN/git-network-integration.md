@@ -1,25 +1,21 @@
 # Git/网络整合记录
 
-真实执行功能仍未完成，详见 [adapter 与基础设施范围决策](git-executor-decision.md)。当前补丁包含控制/UI/计划实现与拟议执行契约，不能作为 Git/install 交付功能已可用的声明。
+[English](../git-network-integration.md) · [验证记录](release-validation.md)
 
-审核修复增加协调器重启中断/容量释放持久化、准确九列导入 INSERT、活跃代理引用清理，以及现有 local stdio/受管 HTTP 客户端和 Manifest 预检消费的准确工具 pin。新增整合交叉点：`mcp_manifest.py`、`mcp_manifest_validation.py`、`mcp_stdio_client.py`、`mcp_managed_http_client.py` 及上传/构建删除事务。未改 auth/session，未新增 worker/远程运行时。构建 worker 待决策，不包含远程 MCP runtime/bridge/部署体系。
+0.4.0 候选将 Git/网络分支与 main `d500116548a90e4edaa0bfa0e0c1138afe45354a` 整合，包含内置 OAuth PR #42。Git 分支原始基线为 `362fffccfbc28a362f7f3431759319128cdbabd1`；PR #43 通过合并 main 保留原有历史，没有改写 OAuth 分支。
 
-[English](../git-network-integration.md)
+**生产 Git 拉取、代理测试、工具准备和指定网络安装仍不可用。** 生产组合没有提供 `SafeNetworkExecutor`。本次发行包含配置、策略、计划、API/UI 及整合契约；合成 adapter 测试不提供生产隔离边界。详见[执行缺口](git-executor-decision.md)。
 
-本轮执行边界修复从两条只读 Manifest 校验路由移除版本探测。`config.py` 增加服务端管理员维护的不可变工具注册表；固定版本启动仅使用登记 Node/JS CLI，不受项目 command/PATH 影响。校验只查元数据，版本保持未验证。整合时单独合并该 Settings 字段及环境解析；本修复不增加数据库或认证/session 迁移。
+整合树保留以下共享修改：
 
-基线：main `362fffccfbc28a362f7f3431759319128cdbabd1`。分支：`feat/git-import-network-settings`。不提交、推送、开 PR、部署或配置真实凭据。
+- `database.py` 注册 `0004_gate_git_network` 与 `0007_session_purpose`。独立 OAuth store 注册 `0006_builtin_oauth` 和 `0008_oauth_interaction_capacity`。两条注册路径和所有唯一命名迁移均须保留。
+- `main.py`、`access_control.py`、Console 路由、导航与翻译组合两项功能。设置管理、网络调用和现有交付权限仍独立；内置与外部 OAuth 保留各自受控标签和会话用途。
+- `build_deploy.py`、`build_preflight.py`、`build_plan.py`、`project_delivery_mcp.py`、`application/delivery_drafts.py` 与 Delivery Skill 扩展已有上传/构建/部署/启动链路。归属、确认、digest、幂等、令牌和分类检查仍必需。
+- `config.py`、`mcp_manifest.py`、`mcp_manifest_validation.py`、`mcp_stdio_client.py` 和 `mcp_managed_http_client.py` 共用管理员复核工具注册表和准确 manager pin。只读校验仅查元数据，不执行程序；仅已授权的原生启动进行有界探测。Core 均不执行。
+- 源码/构建删除事务、README/文档索引及 `SECURITY*` 保留两项功能边界。Docker Core 仍无特权，不挂引擎 socket。
 
-请与独立内置 OAuth 任务有意识合并以下公共文件：
+Git 审核修复保留明确选择的项目根目录及其重分析，在不记录仓库 URL 或代理值的前提下审计成功计划创建，每轮最多清理 100 个过期未使用计划，并限制每用户 32 个、全局 256 个未使用计划。任何导入引用均保留计划来源，包括失败和取消的导入。重启中断和容量释放不宣称缺失执行器已终止。
 
-- `database.py`：注册唯一命名的增量 Git/网络迁移；两项迁移均保留，不替换 schema。
-- `access_control.py`：增加独立配置管理和网络调用权限，保留 OAuth 权限。
-- `main.py`：组装设置/导入服务、路由和工具，不改外部认证模块。
-- Console 路由、导航文案、`App.tsx`：增加系统设置，整合时保留 OAuth 标签/路由。
-- `build_deploy.py`、`build_preflight.py`、`build_plan.py`、`project_delivery_mcp.py`：扩展已有交付来源/计划，保留确认、归属、摘要、幂等、令牌及分类检查。
+整合测试覆盖真实 HTTP 审计路径、嵌套快照、工具/锁文件校验、脱敏、权限、取消/超时、引用/版本保留，以及失败不替换旧部署。OAuth 字符串秘密继续脱敏，JSON-RPC 保留范围中的负整数错误码保持可用。浏览器回归覆盖明确导航到外部模式，以及历史构建先加载所属项目再进入部署确认。已执行结果与真实网络验收缺口在[验证记录](release-validation.md)中分别记录。
 
-生产安全执行器缺失是真实 Git/网络执行的发布阻塞，不应放宽 local/Core 边界来绕过。本静态任务提供测试代码但不运行，最终证据记录逐项列明静态检查和验收缺口。
-
-新增共享修改：`application/delivery_drafts.py` 与 Console 交付草稿/组件增加版本化依赖工具覆盖；自带 Delivery Skill 契约描述相同的确认准备阶段和 Git 续接。合并 `SECURITY*`、README/文档导航及双语发行文档时需保留 OAuth 增量。生产组合仍不注入网络执行器。
-
-独立 OAuth 审核正在修改 session purpose 校验和交互容量，并会继续修改 `auth.py` 及 session 迁移。本分支不修改 `auth.py`、`external_auth.py` 或 OAuth/session 表。整合时保留两项任务各自唯一命名的迁移，组装这些路由时保留新的 session/scope 校验。请对最终 OAuth 分支共同复核 `main.py`、`database.py`、`access_control.py` 与导航；本工作树没有合并 OAuth 分支，也没有针对其完成行为验证。
+本次发行准备不部署生产、不连接用户 Git/代理、不执行 SSH、不配置外部账户或真实凭据。隔离 worker 的实现与独立审查仍需另行基础设施决策；没有增加本地回退或远程 MCP bridge。
