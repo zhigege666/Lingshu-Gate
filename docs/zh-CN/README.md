@@ -13,6 +13,8 @@
 | [配置](configuration.md) | 环境变量、目录、Manifest、凭据和反向代理设置 |
 | [MCP 网关](mcp-gateway.md) | 网关入口、协议协商、下游 HTTP/stdio、发现、分类和调用 |
 | [项目交付](project-delivery.md) | 上传、构建、部署、启动流程，`gate_*` 工具和自带 Delivery Skill |
+| [Git 导入与网络设置](git-import-network.md) | 交付网络版本、受控 Git 来源、确定性依赖工具与执行器边界 |
+| [Git 执行缺口与落地决策](git-executor-decision.md) | 具体代码缺口、默认部署限制及隔离 worker 范围决策 |
 | [部署](deployment.md) | Docker Compose、原生服务、生产加固、备份、升级和回滚 |
 | [运维](operations.md) | 健康探针、日志、事件、诊断、运行时缓存、审计和故障检查 |
 | [本地开发](local-development.md) | 源码环境、Console 构建、测试套件和仓库约定 |

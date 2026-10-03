@@ -41,6 +41,8 @@ The tool catalog's `metadata.gate_access` is an output-only, request-local displ
 
 Project builds and managed local processes execute code with the privileges of the Gate process. They are not a sandbox for untrusted source code.
 
+Manifest validation is read-only and never executes its command or a version probe. Pinned manager startup uses only service-administrator registered Node/JS CLI paths outside project/data/manifest directories; project command paths or PATH cannot select a probe. Protect the deployment registry and installed tools against unauthorized writes. Metadata checks and timeout/download restrictions do not prove tool integrity. Exact version probes occur only inside the existing authorized startup lifecycle; legacy unpinned manifests retain their explicit execution boundary.
+
 - Build and launch only projects whose complete source and dependency behavior you trust.
 - Review the deterministic bundle file list before upload.
 - Review the exact build plan and network-dependent installation steps before confirmation.
@@ -92,3 +94,9 @@ Exact issuer/JWKS, audience/canonical-resource and client bindings precede curre
 Enabling a local record does not complete external consent or prove a provider/ChatGPT connection. Gate does not issue provider tokens, host an authorization/PKCE flow, register OAuth clients or start a tunnel. Synthetic JWT/HTTP tests do not certify a production TLS trust chain or real provider integration.
 
 Shared service credential CRUD requires `credentials.manage.system`, assigned only to the built-in administrator by default. The built-in operator does not inherit shared credential CRUD through `operations.manage`. Personal tokens and downstream credentials retain `credentials.manage.self`. External trust/subject-link management separately requires `external_connections.manage`; personal delegations are always owner-bound. Inbound JWTs, personal downstream credentials and tunnel runtime secrets remain separate.
+
+## Git and delivery network settings
+
+Named network profiles require `system_settings.manage`; network invocation additionally requires `network.use` and the existing operation/tool/token permissions. Proxy endpoints are write-only encrypted values; authentication uses credential references. Profiles and defaults use optimistic revision checks; queued work pins immutable revisions and never falls back to direct networking. Referenced profiles cannot be silently deleted. Git/import/proxy-test/configured-install execution has no production isolated adapter and fails closed. Host subprocess environment filtering is not isolation, and Core execution remains disabled.
+
+HTTPS source plans pin a full commit, digest, exact host policy and bounded snapshot. SSH, hooks, remote helpers, redirect credential forwarding, automatic submodules/LFS, host global configuration and Docker sockets remain unsupported. Tool preparation is an explicit confirmed stage using official integrity-verified fixed versions in executor-owned caches; it never installs globally. A reviewed adapter must enforce dependency-origin/DNS/egress/resource/cancellation policy and artifact secret scanning, including through proxies. See [Git/network design](docs/git-import-network.md).

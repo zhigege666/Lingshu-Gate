@@ -22,6 +22,7 @@ from uuid import uuid4
 from pydantic import BaseModel, ConfigDict, Field, ValidationError
 
 from lingshu_gate.application.delivery_drafts import DeliveryDraftStore
+from lingshu_gate.node_toolchain import NodeToolchainOverride
 from lingshu_gate.build_deploy import (
     TERMINAL_BUILD_STATUSES,
     BuildBlocked,
@@ -45,6 +46,7 @@ from lingshu_gate.registry import (
     ToolRegistry,
 )
 from lingshu_gate.user_credential_store import UserCredentialStore
+from lingshu_gate.network_settings import require_network_permission
 
 SERVER_ID = "gate-delivery"
 MAX_CHUNK_BYTES = 512 * 1024
@@ -107,6 +109,7 @@ class BuildPreflightInput(_StrictInput):
     runtime_override: RUNTIME_VALUES | None = None
     project_root: str | None = Field(default=None, max_length=500)
     refresh: bool = False
+    package_manager_override: NodeToolchainOverride | None = None
 
 
 class BuildPlanInput(BuildPreflightInput):
@@ -118,6 +121,7 @@ class BuildCreateInput(_StrictInput):
     upload_id: str = Field(min_length=16, max_length=64)
     runtime_override: RUNTIME_VALUES | None = None
     project_root: str | None = Field(default=None, max_length=500)
+    package_manager_override: NodeToolchainOverride | None = None
     run_install: bool = True
     run_build: bool = True
     timeout_seconds: int = Field(default=300, ge=1, le=1_800)
@@ -1703,6 +1707,7 @@ class ProjectDeliveryMcpService:
                 run_install=request.run_install,
                 run_build=request.run_build,
                 refresh=refresh,
+                package_manager_override=request.package_manager_override,
             )
         except (KeyError, ValueError) as exc:
             raise ToolExecutionError(
@@ -1723,6 +1728,7 @@ class ProjectDeliveryMcpService:
             "source_sha256": source_sha256,
             "runtime_override": request.runtime_override,
             "project_root": request.project_root,
+            "package_manager_override": request.package_manager_override.model_dump() if request.package_manager_override else None,
             "run_install": request.run_install,
             "run_build": request.run_build,
             "plan": bundle.get("plan") or {},
@@ -1744,6 +1750,7 @@ class ProjectDeliveryMcpService:
                 runtime_override=request.runtime_override,
                 project_root=request.project_root,
                 refresh=request.refresh,
+                package_manager_override=request.package_manager_override,
             )
         except (KeyError, ValueError) as exc:
             raise ToolExecutionError(
@@ -1813,6 +1820,12 @@ class ProjectDeliveryMcpService:
                 )
             validation = bundle.get("validation") or {}
             plan = bundle.get("plan") or {}
+            if self.builds._requires_safe_network(plan):
+                require_network_permission(context.permissions)
+                if context.auth_type in {"token", "oauth"}:
+                    require_network_permission(context.scopes)
+                if context.delegated_scopes is not None:
+                    require_network_permission(context.delegated_scopes)
             if not validation.get("ok") or not plan.get("buildable"):
                 raise ToolExecutionError(
                     "build_plan_blocked",
@@ -1821,6 +1834,8 @@ class ProjectDeliveryMcpService:
                     details={
                         "validation": validation,
                         "preflight_status": (bundle.get("preflight") or {}).get("status"),
+                        "recommended_choices": plan.get("recommended_choices") or [],
+                        "package_manager": plan.get("package_manager"),
                     },
                 )
             try:
@@ -1832,10 +1847,13 @@ class ProjectDeliveryMcpService:
                     runtime_override=request.runtime_override,
                     project_root=request.project_root,
                     prepared_preflight=dict(bundle.get("preflight") or {}),
+                    prepared_plan=dict(bundle.get("plan") or {}),
+                    network_authorized=True,
                     source_sha256=source_sha256,
                     plan_fingerprint=plan_fingerprint,
                     operation_id=operation_id,
                     owner_id=context.actor_id,
+                    package_manager_override=request.package_manager_override,
                 )
             except LocalExecutionBlocked as exc:
                 raise ToolExecutionError(

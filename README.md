@@ -179,6 +179,7 @@ Native archives bundle Gate, not every project runtime. Downstream launch and bu
 - [Configuration](docs/configuration.md)
 - [MCP gateway and downstream servers](docs/mcp-gateway.md)
 - [Project delivery](docs/project-delivery.md)
+- [Git import and network settings](docs/git-import-network.md) — source/plan support and the unavailable safe-executor boundary
 - [Deployment](docs/deployment.md)
 - [Operations](docs/operations.md)
 - [Local development](docs/local-development.md)

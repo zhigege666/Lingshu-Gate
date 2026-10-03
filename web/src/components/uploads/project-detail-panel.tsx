@@ -1,7 +1,8 @@
 import { createPortal } from "react-dom"
 import { EditorNavigationContext } from "@/components/editor-navigation-guard"
 import { useContext, useEffect, useState } from "react"
-import type { DeploymentRecord, BuildRecord, ProjectUpload } from "@/api/builds"
+import type { DeploymentRecord, BuildRecord, PackageManagerOverride, ProjectUpload } from "@/api/builds"
+import { PackageManagerFields } from "@/components/builds/package-manager-fields"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
@@ -10,31 +11,34 @@ import { localizeStatus, type TFunction } from "@/i18n"
 import { uploadCopy } from "@/components/uploads/upload-copy"
 import { buildPageText } from "@/pages/builds-page-text"
 
-export function ProjectDetailPanel({ upload, build, deployment, busy, onBuild, onDeploy, t, actionContainer, onDraftDirtyChange, initialOptions }: {
+export function ProjectDetailPanel({ upload, build, deployment, busy, onBuild, onDeploy, t, actionContainer, onDraftDirtyChange, initialOptions, packageChoices, onSaveOptions }: {
   upload: ProjectUpload
   build: BuildRecord | null
   deployment: DeploymentRecord | null
   busy: boolean
-  onBuild: (options: { run_install: boolean; run_build: boolean; project_root: string; runtime_override: string | null; server_id: string | null }) => void
+  onBuild: (options: { run_install: boolean; run_build: boolean; project_root: string; runtime_override: string | null; server_id: string | null; package_manager_override: PackageManagerOverride | null }) => void
   onDeploy: (buildId: string, options: { server_id?: string; start: boolean; overwrite: boolean }) => void
   t: TFunction
   actionContainer?: HTMLElement | null
   onDraftDirtyChange?: (dirty: boolean) => void
-  initialOptions?: { project_root?: string; runtime_override?: string | null; server_id?: string | null; overwrite: boolean; start: boolean }
+  initialOptions?: { project_root?: string; runtime_override?: string | null; server_id?: string | null; overwrite: boolean; start: boolean; package_manager_override?: PackageManagerOverride | null }
+  packageChoices?: PackageManagerOverride[]
+  onSaveOptions?: (options: { project_root: string; runtime_override: string | null; package_manager_override: PackageManagerOverride | null }) => void
 }) {
   const [runtimeOverride, setRuntimeOverride] = useState(initialOptions?.runtime_override || "auto")
+  const [packageManagerOverride, setPackageManagerOverride] = useState<PackageManagerOverride | null>(initialOptions?.package_manager_override || null)
   const [installEnabled, setInstallEnabled] = useState(true)
   const [projectRoot, setProjectRoot] = useState(initialOptions?.project_root || ".")
   const [serverId, setServerId] = useState(initialOptions?.server_id || "")
   const [overwrite, setOverwrite] = useState(initialOptions?.overwrite || false)
   const [start, setStart] = useState(initialOptions?.start || false)
   const registerExit = useContext(EditorNavigationContext)
-  const dirty = runtimeOverride !== (initialOptions?.runtime_override || "auto") || !installEnabled || projectRoot !== (initialOptions?.project_root || ".") || serverId !== (initialOptions?.server_id || "") || overwrite !== Boolean(initialOptions?.overwrite) || start !== Boolean(initialOptions?.start)
+  const dirty = runtimeOverride !== (initialOptions?.runtime_override || "auto") || !installEnabled || projectRoot !== (initialOptions?.project_root || ".") || serverId !== (initialOptions?.server_id || "") || overwrite !== Boolean(initialOptions?.overwrite) || start !== Boolean(initialOptions?.start) || JSON.stringify(packageManagerOverride) !== JSON.stringify(initialOptions?.package_manager_override || null)
   useEffect(() => registerExit?.({ dirty, pending: false }), [registerExit, dirty])
   useEffect(() => { onDraftDirtyChange?.(dirty); return () => onDraftDirtyChange?.(false) }, [dirty, onDraftDirtyChange])
   const actions = <>
     {build?.status === "success" ? <Button disabled={busy} onClick={() => onDeploy(build.id, { server_id: serverId.trim() || undefined, start, overwrite })}>{t("deployBuild")}</Button>
-      : <Button disabled={busy || ["queued", "running"].includes(build?.status || "")} onClick={() => onBuild({ run_install: installEnabled, run_build: true, project_root: projectRoot || ".", runtime_override: runtimeOverride === "auto" ? null : runtimeOverride, server_id: serverId.trim() || null })}>{t("createBuild")}</Button>}
+      : <Button disabled={busy || ["queued", "running"].includes(build?.status || "")} onClick={() => onBuild({ run_install: installEnabled, run_build: true, project_root: projectRoot || ".", runtime_override: runtimeOverride === "auto" ? null : runtimeOverride, server_id: serverId.trim() || null, package_manager_override: packageManagerOverride })}>{t("createBuild")}</Button>}
   </>
   const c = uploadCopy(t)
   const tx = (key: string) => buildPageText(t, key)
@@ -53,6 +57,8 @@ export function ProjectDetailPanel({ upload, build, deployment, busy, onBuild, o
         <label className="mb-3 flex flex-col gap-1 text-sm"><span>{tx("deploymentTarget")}</span><Input aria-label={tx("deploymentTarget")} value={serverId} onChange={event => setServerId(event.target.value)} placeholder={manifestTarget || tx("unavailableTarget")} /><span className="text-xs text-muted-foreground">{zh ? "用于后续部署，不改变本次构建验证。" : "Used by the later deployment; does not change build validation."}</span></label>
         <details className="delivery-auxiliary"><summary>{zh ? "高级构建选项" : "Advanced build options"}</summary>
         <label className="mb-2 flex items-center gap-2 text-sm"><input type="checkbox" disabled={build?.status === "success"} checked={installEnabled} onChange={(event) => setInstallEnabled(event.target.checked)} /> {c.install}</label>
+        <PackageManagerFields value={packageManagerOverride} onChange={setPackageManagerOverride} choices={packageChoices} disabled={busy || build?.status === "success"} zh={zh} />
+        {onSaveOptions && dirty && build?.status !== "success" && <Button type="button" variant="outline" className="mt-2" onClick={() => onSaveOptions({ project_root: projectRoot || ".", runtime_override: runtimeOverride === "auto" ? null : runtimeOverride, package_manager_override: packageManagerOverride })}>{zh ? "保存构建选项" : "Save build options"}</Button>}
         <div className="text-xs text-muted-foreground">{c.buildHint}</div>
         </details>
       </fieldset>

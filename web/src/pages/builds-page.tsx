@@ -8,7 +8,11 @@ import { DeliveryConfigEditor } from "@/features/servers/delivery-config-editor"
 import { Select as SearchSelect } from "antd"
 import { useContext, useEffect, useRef, useState, type ReactNode } from "react"
 import { BuildApiError, buildApi, type BuildBlockedDetail, type BuildLog, type BuildPlan, type BuildPreflightResult, type BuildPreflightTool, type BuildRecord, type DeploymentRecord, type DeliveryDraft, type ProjectUpload } from "@/api/builds"
+import { networkApi } from "@/api/network"
 import { BuildDetailCard } from "@/components/builds/build-detail-card"
+import { PackageManagerFields } from "@/components/builds/package-manager-fields"
+import { confirmedBuildAttempt, type BuildAttempt } from "@/features/network/build-attempt"
+import type { PackageManagerOverride } from "@/api/builds"
 import { BuildHintCard } from "@/components/builds/build-hint-card"
 import { BuildLogsTable, type LogFilter } from "@/components/builds/build-logs-table"
 import { BuildOutputPanels } from "@/components/builds/build-output-panels"
@@ -40,6 +44,7 @@ type WorkspaceSection = "workspace" | "builds" | "deployments" | "logs"
 export function BuildsPage({ t, initialBuildId = "" }: { t: TFunction; initialBuildId?: string }) {
   const [deliveryDraft, setDeliveryDraft] = useState<DeliveryDraft | null>(null)
   const latestDeliveryDraft = useRef<DeliveryDraft | null>(null)
+  const buildAttempts = useRef(new Map<string, BuildAttempt>())
   const [draftError, setDraftError] = useState<string | null>(null)
   const deploymentPending = useRef(false)
   const buildPending = useRef(false)
@@ -62,6 +67,7 @@ export function BuildsPage({ t, initialBuildId = "" }: { t: TFunction; initialBu
   const [rollbackOption, setRollbackOption] = useState({ deploymentId: "", start: false })
   const [projectRoot, setProjectRoot] = useState(".")
   const [runtimeOverride, setRuntimeOverride] = useState("auto")
+  const [packageManagerOverride, setPackageManagerOverride] = useState<PackageManagerOverride | null>(null)
   const [preflight, setPreflight] = useState<BuildPreflightResult | null>(null)
   const [plan, setPlan] = useState<BuildPlan | null>(null)
   const [detailDialog, setDetailDialog] = useState<{ title: string; body: string } | null>(null)
@@ -86,6 +92,7 @@ export function BuildsPage({ t, initialBuildId = "" }: { t: TFunction; initialBu
       latestDeliveryDraft.current = null
       setDeliveryDraft(null); setDraftError(null)
       setProjectRoot("."); setRuntimeOverride("auto"); setServerId("")
+      setPackageManagerOverride(null)
       setDeployOverwrite(false); setDeployStart(false); setPreflight(null); setPlan(null)
     }
     selectedUploadRef.current = id; setSelectedUploadIdState(id)
@@ -111,7 +118,8 @@ export function BuildsPage({ t, initialBuildId = "" }: { t: TFunction; initialBu
   const registerExit = useContext(EditorNavigationContext)
   const settingsDirty = Boolean(deliveryDraft && deliveryDraft.upload_id === selectedUploadId && (
     serverId !== (deliveryDraft.server_id || "") || deployStart !== deliveryDraft.start || deployOverwrite !== deliveryDraft.overwrite
-    || projectRoot !== (deliveryDraft.project_root || ".") || runtimeOverride !== (deliveryDraft.runtime_override || "auto")))
+    || projectRoot !== (deliveryDraft.project_root || ".") || runtimeOverride !== (deliveryDraft.runtime_override || "auto")
+    || JSON.stringify(packageManagerOverride) !== JSON.stringify(deliveryDraft.package_manager_override || null)))
   useEffect(() => registerExit?.({ dirty: settingsDirty, pending: busy }), [registerExit, settingsDirty, busy])
 
 
@@ -142,6 +150,7 @@ export function BuildsPage({ t, initialBuildId = "" }: { t: TFunction; initialBu
     setDeployOverwrite(draft.overwrite)
     setProjectRoot(draft.project_root || ".")
     setRuntimeOverride(draft.runtime_override || "auto")
+    setPackageManagerOverride(draft.package_manager_override || null)
     if (draft.build_id) setConfigDrafts(previous => ({ ...previous, [draft.build_id!]: draft.manifest_patch }))
   }
 
@@ -153,7 +162,17 @@ export function BuildsPage({ t, initialBuildId = "" }: { t: TFunction; initialBu
     const draft = await buildApi.saveDeliveryDraft(selectedUploadId, { expected_revision: deliveryDraft.revision,
       manifest_patch: patch, server_id: serverId || null, build_id: buildId, deployment_id: selectedDeploymentId || null,
       start: deployStart, overwrite: deployOverwrite, project_root: projectRoot, runtime_override: runtimeOverrideValue,
+      package_manager_override: packageManagerOverride,
     })
+    adoptDeliveryDraft(draft)
+  }
+
+  async function saveBuildOptions() {
+    if (!deliveryDraft) return
+    const draft = await buildApi.saveDeliveryDraft(selectedUploadId, deliveryDraftRequest(deliveryDraft, {
+      server_id: serverId || null, start: deployStart, overwrite: deployOverwrite, project_root: projectRoot,
+      runtime_override: runtimeOverrideValue, package_manager_override: packageManagerOverride,
+    }))
     adoptDeliveryDraft(draft)
   }
 
@@ -267,7 +286,7 @@ export function BuildsPage({ t, initialBuildId = "" }: { t: TFunction; initialBu
     const ownsResult = () => mounted.current && owner === selectionRevision.current && requestId === analysisRequest.current
     setBusy(true)
     try {
-      const response = await buildApi.preflightBuild(uploadId, { runtime_override: runtimeOverrideValue, project_root: projectRoot || ".", refresh })
+      const response = await buildApi.preflightBuild(uploadId, { runtime_override: runtimeOverrideValue, project_root: projectRoot || ".", refresh, package_manager_override: packageManagerOverride })
       if (!ownsResult()) return null
       setPreflight(response)
       notify(`${tx("buildPreflight")}: ${response.status} · ${response.runtime}`, response.status === "error" ? "error" : "success")
@@ -287,7 +306,7 @@ export function BuildsPage({ t, initialBuildId = "" }: { t: TFunction; initialBu
     const ownsResult = () => mounted.current && owner === selectionRevision.current && requestId === analysisRequest.current
     setBusy(true)
     try {
-      const response = await buildApi.planBuild(uploadId, { runtime_override: runtimeOverrideValue, project_root: projectRoot || ".", refresh })
+      const response = await buildApi.planBuild(uploadId, { runtime_override: runtimeOverrideValue, project_root: projectRoot || ".", refresh, package_manager_override: packageManagerOverride })
       if (!ownsResult()) return null
       setPreflight(response.preflight)
       setPlan(response.plan)
@@ -316,10 +335,10 @@ export function BuildsPage({ t, initialBuildId = "" }: { t: TFunction; initialBu
       const sourceDraft = currentForm ? deliveryDraft : await buildApi.deliveryDraft(uploadId)
       if (!sourceDraft || sourceDraft.upload_id !== uploadId) throw new Error("Delivery draft is unavailable. Reload before creating a build.")
       const draftRequest = deliveryDraftRequest(sourceDraft, {
-        ...(currentForm ? { server_id: serverId.trim() || null, start: deployStart, overwrite: deployOverwrite } : {}),
+        ...(currentForm ? { server_id: serverId.trim() || null, start: deployStart, overwrite: deployOverwrite, package_manager_override: packageManagerOverride } : {}),
         project_root: nextProjectRoot, runtime_override: nextRuntimeOverride,
       })
-      const preflightResult = await buildApi.preflightBuild(uploadId, { runtime_override: nextRuntimeOverride, project_root: nextProjectRoot })
+      const preflightResult = await buildApi.preflightBuild(uploadId, { runtime_override: nextRuntimeOverride, project_root: nextProjectRoot, package_manager_override: draftRequest.package_manager_override })
       if (!mounted.current || owner !== selectionRevision.current) return
       setPreflight(preflightResult)
       if (preflightResult.status === "error") {
@@ -335,7 +354,25 @@ export function BuildsPage({ t, initialBuildId = "" }: { t: TFunction; initialBu
       const preparedDraft = await buildApi.saveDeliveryDraft(uploadId, draftRequest)
       if (!mounted.current || owner !== selectionRevision.current) return
       adoptDeliveryDraft(preparedDraft)
-      const build = await buildApi.createBuild(uploadId, { run_install: true, run_build: true, timeout_seconds: 300, runtime_override: nextRuntimeOverride, project_root: nextProjectRoot })
+      const buildOptions = { run_install: true, run_build: true, runtime_override: nextRuntimeOverride, project_root: nextProjectRoot, package_manager_override: preparedDraft.package_manager_override }
+      let build: BuildRecord
+      const preview = await buildApi.planBuild(uploadId, buildOptions)
+      setPlan(preview.plan)
+      if (!preview.plan.buildable) throw new Error(preview.plan.warnings.join("; ") || "build_plan_blocked")
+      if (preview.plan.requires_safe_executor) {
+        const bundle = await networkApi.planBuild(uploadId, buildOptions)
+        if (!bundle.validation.ok || !bundle.plan.buildable) throw new Error(bundle.plan.warnings.join("; ") || "build_plan_blocked")
+        if (!(await confirm({ title: t("uploads") === "项目上传" ? "确认执行此安装与构建计划？" : "Confirm this installation and build plan?", description: `${bundle.source_sha256}\n${bundle.plan_fingerprint}`, details: <JsonPanel copyLabel={t("copy")} data={bundle.plan} /> }))) return
+        const attempt = confirmedBuildAttempt(buildAttempts.current.get(uploadId), bundle.plan_fingerprint, builds, () => `git-build-${crypto.randomUUID()}`)
+        buildAttempts.current.set(uploadId, attempt)
+        const created = await networkApi.build(bundle, buildOptions, attempt.key)
+        attempt.buildId = created.build_id
+        const record = (await buildApi.builds()).builds.find(item => item.id === created.build_id)
+        if (!record) throw new Error(`Build ${created.build_id} was created; refresh before retrying.`)
+        build = record
+      } else {
+        build = await buildApi.createBuild(uploadId, { ...buildOptions, timeout_seconds: 300 })
+      }
       createdBuild = build
       const updatedDraft = await buildApi.saveDeliveryDraft(uploadId, deliveryDraftRequest(preparedDraft, { build_id: build.id, deployment_id: null }))
         .catch(error => { throw new Error(`Build ${build.id} was created, but its task context could not be saved. Refresh before retrying. ${String(error)}`) })
@@ -610,6 +647,7 @@ export function BuildsPage({ t, initialBuildId = "" }: { t: TFunction; initialBu
             <Field label={t("runtimeType")}><Select disabled={busy} value={runtimeOverride} onValueChange={value => { setRuntimeOverride(value); setPreflight(null); setPlan(null) }}><SelectTrigger aria-label={t("runtimeType")}><SelectValue placeholder={t("runtimeType")} /></SelectTrigger><SelectContent><SelectItem value="auto">{tx("runtimeAuto")}</SelectItem><SelectItem value="node">{tx("runtimeNode")}</SelectItem><SelectItem value="python">{tx("runtimePython")}</SelectItem></SelectContent></Select></Field>
             <Field label={tx("projectRoot")}><Input aria-label={tx("projectRoot")} placeholder={tx("projectRootPlaceholder")} value={projectRoot} onChange={event => { setProjectRoot(event.target.value); setPreflight(null); setPlan(null) }} /></Field>
             <Field label={t("overrideServerId")}><Input aria-label={t("overrideServerId")} placeholder={t("overrideServerId")} value={serverId} onChange={event => setServerId(event.target.value)} /></Field>
+            <div className="md:col-span-3"><PackageManagerFields value={packageManagerOverride} onChange={value => { setPackageManagerOverride(value); setPreflight(null); setPlan(null) }} choices={plan?.recommended_choices || preflight?.metadata.node_package_manager?.recommended_choices || []} disabled={busy} zh={t("uploads") === "项目上传"} /></div>
           </fieldset></details>
           {selectedBuild?.status === "success" && <fieldset disabled={busy || !deliveryDraft} className="border-t pt-3">
             <legend className="mb-3 text-sm font-medium">{tx("deploymentOptions")}</legend>
@@ -619,10 +657,9 @@ export function BuildsPage({ t, initialBuildId = "" }: { t: TFunction; initialBu
               <label className="flex items-start gap-2 text-sm"><input type="checkbox" className="mt-1" checked={deployStart} onChange={event => setDeployStart(event.target.checked)} /><span><span className="font-medium">{tx("startAfterDeploy")}</span><span className="block text-xs text-muted-foreground">{tx("startAfterDeployDesc")}</span></span></label>
             </div>
           </fieldset>}
-          {settingsDirty && <Button variant="outline" disabled={busy || !selectedBuild} onClick={() => {
-            if (!selectedBuild) return
+          {settingsDirty && <Button variant="outline" disabled={busy || !deliveryDraft} onClick={() => {
             setBusy(true)
-            void saveDeliveryConfiguration(selectedBuild.id, mergeManifestPatch(selectedBuild.manifest || {}, configDrafts[selectedBuild.id] || deliveryDraft?.manifest_patch || {})).catch(notifyError).finally(() => setBusy(false))
+            void (selectedBuild ? saveDeliveryConfiguration(selectedBuild.id, mergeManifestPatch(selectedBuild.manifest || {}, configDrafts[selectedBuild.id] || deliveryDraft?.manifest_patch || {})) : saveBuildOptions()).catch(notifyError).finally(() => setBusy(false))
           }}>{t("uploads") === "项目上传" ? "保存交付选项" : "Save delivery options"}</Button>}
           <div className="delivery-task-actions flex flex-wrap items-center gap-2 border-t pt-3">
             <Button variant="secondary" onClick={() => void runPreflight()} disabled={busy}>{tx("runPreflight")}</Button>

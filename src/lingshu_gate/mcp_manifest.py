@@ -9,6 +9,7 @@ from typing import Any, Literal
 from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
 from lingshu_gate.endpoint_security import redact_endpoint, validate_streamable_http_endpoint
+from lingshu_gate.node_toolchain import supported_version
 from lingshu_gate.protocol.version import resolve_downstream_protocol_version
 from lingshu_gate.subprocess_environment import validate_docker_child_environment_names
 
@@ -141,6 +142,20 @@ class ContainerMount(BaseModel):
         return str(target)
 
 
+class RuntimeToolchain(BaseModel):
+    """Exact installed local tool required for a reviewed project start script."""
+
+    model_config = ConfigDict(extra="forbid", hide_input_in_errors=True, validate_assignment=True)
+    manager: Literal["npm", "pnpm", "yarn"]
+    version: str = Field(pattern=r"^\d+\.\d+\.\d+$", max_length=32)
+
+    @model_validator(mode="after")
+    def validate_version(self) -> "RuntimeToolchain":
+        if not supported_version(self.manager, self.version):
+            raise ValueError("Runtime package manager version is unsupported")
+        return self
+
+
 class LaunchConfig(BaseModel):
     """How Gate obtains and starts an MCP server."""
 
@@ -152,6 +167,7 @@ class LaunchConfig(BaseModel):
     cwd: str | None = None
     env: dict[str, str] = Field(default_factory=dict)
     package: PackageConfig | None = None
+    toolchain: RuntimeToolchain | None = None
     image: str | None = None
     mounts: list[ContainerMount] = Field(default_factory=list)
     environment: dict[str, str] = Field(default_factory=dict)
@@ -159,6 +175,9 @@ class LaunchConfig(BaseModel):
 
     @model_validator(mode="after")
     def validate_launch(self) -> "LaunchConfig":
+        if self.toolchain:
+            if self.type != "managed_process" or self.package or self.command != self.toolchain.manager:
+                raise ValueError("Pinned runtime toolchain requires the exact symbolic manager command; paths, aliases and dynamic packages are not accepted")
         if self.type == "managed_process" and not self.command:
             raise ValueError("launch.command is required when launch.type=managed_process")
         if self.type == "managed_container":

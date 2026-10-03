@@ -222,3 +222,13 @@ Docker Hub 镜像包含 BuildKit SBOM/Provenance Manifest。GitHub 附件 Attest
 源码新增默认关闭、仅面向 `/mcp` 的 RS256 JWT 验证，包含管理员固定 HTTPS JWKS、规范 audience/客户端校验、持久化身份绑定及仅本人可管理的个人委托。启用且有效的本地配置会公布受保护资源元数据。当前 Gate 角色/资源、已发布分类、JWT scopes 与委托范围在派发前求交集；每 grant 限流/并发仅在单进程执行。无效 Authorization 不回退到 cookie，外部 JWT 不能登录 Console `/v1/*` API。详见[外部资源访问](external-connections.md)。
 
 此变更不部署 OAuth provider、不支持 opaque-token introspection、不实现 authorize/PKCE 流程、不注册客户端，也不启动隧道。启用记录不表示 provider 或 ChatGPT 已连接。共享凭据 CRUD 要求默认管理员能力 `credentials.manage.system`，内置 operator 不可依赖 `operations.manage` 执行这些操作；个人 `credentials.manage.self` 保持不变。
+
+## 尚未发布的 Git/网络源码增量
+
+只读 Manifest 校验不再执行版本探测。固定版本本地启动要求服务管理员登记复核 Node/JS CLI 路径，拒绝项目执行路径，工具选择不受项目/宿主 PATH 影响。校验明确版本未验证；准确探测仅在已授权启动内进行。不固定版本的旧 Manifest 保留现有命令行为。本修复只有源码/静态证据，回归测试与实际启动仍未运行。
+
+独立源码审核修复 Git 导入九列 INSERT、重启中断持久化与协调器容量释放（不宣称执行已终止）、过期/已删除资源引用保护清理（仍保护未知任务），并在现有 local 客户端执行准确 manager 启动 pin。不新增 worker、远程 MCP runtime、bridge 或部署体系。本静态任务中回归测试仍未运行。
+
+系统设置新增网络与依赖、命名代理的加密脱敏版本、独立 Git/安装默认项与权限边界。Git 来源计划以完整 commit 和有界快照接入既有上传、预检、BuildPlan、构建、部署和启动流程。Node 计划验证 npm/pnpm/Yarn Classic 锁文件，显式准备精确版本工具；锁文件歧义返回可保存的项目覆盖选择。增量迁移为 `0004_gate_git_network`，需与 OAuth 迁移分别合并注册。本次源码增量不提升版本、不生成发行包、不部署、不验证真实网络。
+
+生产隔离网络执行器尚不存在：真实拉取、代理测试、工具准备与指定网络安装仍阻断。静态检查不能证明下载、安装或运行时支持。依赖工具缓存不进入产物，交付网络不传给运行时 MCP。发行验收需另行审查执行器、验证版本完整性和运行时工具可用性、运行离线自动化测试，并获得受控网络与浏览器验收授权。参见 [设计](git-import-network.md) 与 [整合记录](git-network-integration.md)。

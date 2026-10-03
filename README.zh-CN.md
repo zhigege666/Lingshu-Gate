@@ -179,6 +179,7 @@ Tag 发行还提供 `amd64` 和 `arm64` 的 Linux Core 离线镜像，以及应�
 - [配置](docs/zh-CN/configuration.md)
 - [MCP 网关与下游服务](docs/zh-CN/mcp-gateway.md)
 - [项目交付](docs/zh-CN/project-delivery.md)
+- [Git 导入与网络设置](docs/zh-CN/git-import-network.md) — 源码/计划支持与安全执行器缺失边界
 - [部署](docs/zh-CN/deployment.md)
 - [运维](docs/zh-CN/operations.md)
 - [本地开发](docs/zh-CN/local-development.md)

@@ -105,6 +105,10 @@ class ProjectUploadStore:
         record = self.get_upload(upload_id)
         root = Path(record["root_dir"])
         analysis = analyze_project(root)
+        # Re-analysis must not discard pinned Git source/network provenance.
+        for key in ("source_sha256", "source_size_bytes", "file_list_sha256", "included_files", "git_source", "delivery_network", "runtime_template"):
+            if key in record["analysis"]:
+                analysis[key] = record["analysis"][key]
         project_root = Path(str(analysis.get("project_root_dir") or root))
         now = iso_now()
         self.database.execute("UPDATE project_uploads SET status = ?, root_dir = ?, detected_runtime = ?, analysis_json = ?, updated_at = ? WHERE id = ?", ("analyzed", str(project_root), analysis["detected_runtime"], json.dumps(analysis, ensure_ascii=False), now, upload_id))
@@ -154,6 +158,7 @@ class ProjectUploadStore:
             with self.database.connect() as connection:
                 connection.execute("DELETE FROM preflight_cache WHERE upload_id = ?", (upload_id,))
                 connection.execute("DELETE FROM project_uploads WHERE id = ?", (upload_id,))
+                connection.execute("DELETE FROM network_profile_references WHERE resource_type='upload' AND resource_id=?", (upload_id,))
                 connection.commit()
         except Exception:
             if trash_dir is not None and trash_dir.exists() and not upload_dir.exists():

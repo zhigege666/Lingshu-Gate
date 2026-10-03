@@ -11,6 +11,7 @@ from fastapi.responses import StreamingResponse
 from starlette.concurrency import run_in_threadpool
 
 from lingshu_gate.application.delivery_drafts import DeliveryDraftRequest
+from lingshu_gate.node_toolchain import NodeToolchainOverride
 from lingshu_gate.build_deploy import (
     BuildBlocked,
     BuildDeployStore,
@@ -74,7 +75,7 @@ def register_build_deploy_routes(
         if not upload_id:
             raise HTTPException(status_code=400, detail="upload_id is required")
         try:
-            return store.preflight_upload(upload_id, runtime_override=_runtime_override(body), project_root=_optional_string(body.get("project_root")), refresh=_as_bool(body.get("refresh", False)))
+            return store.preflight_upload(upload_id, runtime_override=_runtime_override(body), project_root=_optional_string(body.get("project_root")), refresh=_as_bool(body.get("refresh", False)), package_manager_override=_package_manager_override(body))
         except KeyError as exc:
             raise HTTPException(status_code=404, detail=str(exc)) from exc
         except ValueError as exc:
@@ -95,9 +96,10 @@ def register_build_deploy_routes(
                     "run_install",
                     "run_build",
                     "refresh",
+                    "package_manager_override",
                 },
             )
-            return store.plan_upload(upload_id, runtime_override=_runtime_override(body), project_root=_optional_string(body.get("project_root")), run_install=_as_bool(body.get("run_install", True)), run_build=_as_bool(body.get("run_build", True)), refresh=_as_bool(body.get("refresh", False)))
+            return store.plan_upload(upload_id, runtime_override=_runtime_override(body), project_root=_optional_string(body.get("project_root")), run_install=_as_bool(body.get("run_install", True)), run_build=_as_bool(body.get("run_build", True)), refresh=_as_bool(body.get("refresh", False)), package_manager_override=_package_manager_override(body))
         except KeyError as exc:
             raise HTTPException(status_code=404, detail=str(exc)) from exc
         except ValueError as exc:
@@ -118,6 +120,7 @@ def register_build_deploy_routes(
                     "run_install",
                     "run_build",
                     "timeout_seconds",
+                    "package_manager_override",
                 },
             )
             return store.build_upload(
@@ -127,9 +130,12 @@ def register_build_deploy_routes(
                 timeout_seconds=_as_int(body.get("timeout_seconds", 300), default=300),
                 runtime_override=_runtime_override(body),
                 project_root=_optional_string(body.get("project_root")),
+                package_manager_override=_package_manager_override(body),
             )
         except LocalExecutionBlocked as exc:
             raise HTTPException(status_code=409, detail=exc.detail()) from exc
+        except ToolExecutionError as exc:
+            raise HTTPException(status_code=409, detail=exc.to_payload()["error"]) from exc
         except BuildBlocked as exc:
             raise HTTPException(status_code=422, detail={"code": exc.code, "message": exc.message, "runtime": exc.preflight.get("runtime"), "preflight": exc.preflight}) from exc
         except KeyError as exc:
@@ -297,6 +303,16 @@ def _sse(event: str, payload: dict[str, Any]) -> str:
 def _runtime_override(body: dict[str, Any]) -> str | None:
     value = body.get("runtime_override", body.get("runtime"))
     return _optional_string(value)
+
+
+def _package_manager_override(body: dict[str, Any]) -> NodeToolchainOverride | None:
+    value = body.get("package_manager_override")
+    if value is None:
+        return None
+    try:
+        return NodeToolchainOverride.model_validate(value)
+    except ValueError:
+        raise ValueError("Invalid package manager override; use a supported exact version and matching lockfile") from None
 
 
 def _optional_string(value: Any) -> str | None:

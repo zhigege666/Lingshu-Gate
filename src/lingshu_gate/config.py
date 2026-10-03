@@ -2,10 +2,13 @@
 
 from __future__ import annotations
 
+import json
 import os
 import sys
+from collections.abc import Mapping
 from dataclasses import dataclass, field
 from pathlib import Path
+from types import MappingProxyType
 
 from lingshu_gate import __version__
 from lingshu_gate.external_connection import ExternalConnectionConfig
@@ -65,6 +68,8 @@ class Settings:
     mcp_allowed_origins: str = ""
     # local 可执行受管进程；安全 Core 只连接 external HTTP MCP。
     runtime_role: str = "local"
+    # Service-owned administrator registry, never populated from a Manifest.
+    runtime_toolchain_paths: Mapping[str, str] = field(default_factory=dict)
     mcp_gateway_enabled: bool = True
     system_debug_mcp_enabled: bool = True
     retention_worker_enabled: bool = False
@@ -73,6 +78,14 @@ class Settings:
     external_connection: ExternalConnectionConfig = field(default_factory=ExternalConnectionConfig)
 
     def __post_init__(self) -> None:
+        if not isinstance(self.runtime_toolchain_paths, Mapping) or any(
+            name not in {"node", "npm", "pnpm", "yarn"}
+            or not isinstance(path, str) or not Path(path).is_absolute()
+            or any(ord(character) < 32 for character in path)
+            for name, path in self.runtime_toolchain_paths.items()
+        ):
+            raise ValueError("runtime_toolchain_paths must map node/npm/pnpm/yarn to administrator-reviewed absolute paths")
+        object.__setattr__(self, "runtime_toolchain_paths", MappingProxyType(dict(self.runtime_toolchain_paths)))
         if self.retention_interval_seconds < 1:
             raise ValueError("retention_interval_seconds must be positive")
         if self.external_connection.enabled and not self.auth_enabled:
@@ -140,6 +153,7 @@ class Settings:
                 cls.mcp_allowed_origins,
             ),
             runtime_role=runtime_role,
+            runtime_toolchain_paths=json.loads(os.getenv("LINGSHU_GATE_RUNTIME_TOOLCHAIN_PATHS", "{}")),
             mcp_gateway_enabled=os.getenv(
                 "LINGSHU_GATE_MCP_GATEWAY_ENABLED",
                 str(cls.mcp_gateway_enabled),

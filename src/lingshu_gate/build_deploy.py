@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import json
 import os
+import re
 import signal
 import shutil
 import subprocess
@@ -19,6 +20,9 @@ from uuid import uuid4
 
 from lingshu_gate.build_plan import build_plan, finalize_manifest, plan_commands, plan_waves, validate_plan
 from lingshu_gate.build_preflight import check_diff, compute_preflight_fingerprint, fingerprint_key, preflight_diff, run_build_preflight, scope_key as compute_scope_key, tools_signature
+from lingshu_gate.node_toolchain import NodeToolchainOverride, node_requirement, node_version_supported
+from lingshu_gate.network_artifact import NETWORK_ARTIFACT_LIMITS, export_network_artifact
+from lingshu_gate.git_source import verify_git_snapshot
 from lingshu_gate.credential_store import CredentialStore
 from lingshu_gate.database import SQLiteDatabase
 from lingshu_gate.mcp_config_store import McpConfigStore
@@ -27,6 +31,9 @@ from lingshu_gate.mcp_runtime import McpRuntimeManager, McpTargetApplyError
 from lingshu_gate.models import ResourceDeleteConflict
 from lingshu_gate.observability_store import ObservabilityStore
 from lingshu_gate.project_uploads import ProjectUploadStore
+from lingshu_gate.network_settings import NetworkSelection, NetworkSettingsStore
+from lingshu_gate.ports.safe_network_executor import SafeNetworkExecutor, require_proxy_support, require_safe_executor
+from lingshu_gate.registry import ToolExecutionError
 
 IGNORED_COPY_DIRS = {".git", "node_modules", ".venv", "venv", "target", "__pycache__"}
 ARTIFACT_IGNORED_COPY_DIRS = {".git", ".venv", "venv", "target", "__pycache__"}
@@ -119,6 +126,8 @@ class BuildDeployStore:
         observability: ObservabilityStore,
         *,
         runtime_role: str = "local",
+        network_settings: NetworkSettingsStore | None = None,
+        safe_network_executor: SafeNetworkExecutor | None = None,
     ) -> None:
         self.database = database
         self.data_dir = data_dir
@@ -127,6 +136,8 @@ class BuildDeployStore:
         self.runtime = runtime
         self.observability = observability
         self.runtime_role = runtime_role.strip().lower()
+        self.network_settings = network_settings
+        self.safe_network_executor = safe_network_executor
         # Only the single-process local role may execute uploaded code.
         # Unknown/future roles remain fail-closed until they gain a dedicated
         # worker execution contract.
@@ -226,6 +237,7 @@ class BuildDeployStore:
                 deleted_log_count = int(row["count"] or 0) if row else 0
                 connection.execute("DELETE FROM build_logs WHERE build_id = ?", (build_id,))
                 connection.execute("DELETE FROM builds WHERE id = ?", (build_id,))
+                connection.execute("DELETE FROM network_profile_references WHERE resource_type='build' AND resource_id=?", (build_id,))
                 connection.commit()
         except Exception:
             if trash_dir is not None and trash_dir.exists() and not build_dir.exists():
@@ -402,7 +414,7 @@ class BuildDeployStore:
                 referenced.add(server_id)
         return sorted(referenced)
 
-    def preflight_upload(self, upload_id: str, *, runtime_override: str | None = None, project_root: str | None = None, refresh: bool = False) -> dict[str, Any]:
+    def preflight_upload(self, upload_id: str, *, runtime_override: str | None = None, project_root: str | None = None, refresh: bool = False, package_manager_override: NodeToolchainOverride | None = None) -> dict[str, Any]:
         """Run Build preflight without creating a Build job, using a cache-first path.
 
         The result is cached by a structural fingerprint (key files + file count +
@@ -411,7 +423,14 @@ class BuildDeployStore:
         """
 
         upload = self.uploads.get_upload(upload_id)
+        if upload.get("status") == "git_import_incomplete":
+            raise ToolExecutionError("git_import_incomplete", "Git source publication is incomplete", next_action="Reconcile the original import; do not build this snapshot.")
         fingerprint = compute_preflight_fingerprint(upload, runtime_override=runtime_override, project_root=project_root)
+        frozen_network = self._upload_network(upload)
+        isolated_toolchain = self._requires_safe_network({"source_provenance": (upload.get("analysis") or {}).get("git_source"), "delivery_network": frozen_network})
+        fingerprint["delivery_network"] = frozen_network
+        fingerprint["isolated_toolchain"] = isolated_toolchain
+        fingerprint["package_manager_override"] = package_manager_override.model_dump() if package_manager_override else None
         fingerprint["tool_probe_mode"] = (
             "version" if self.local_execution_enabled else "path"
         )
@@ -430,7 +449,7 @@ class BuildDeployStore:
         previous_result = previous["result"] if previous else {}
         tools_cache = None
         reused_tools = False
-        if previous_fingerprint and tools_signature(previous_fingerprint) == tools_signature(fingerprint):
+        if not refresh and previous_fingerprint and tools_signature(previous_fingerprint) == tools_signature(fingerprint):
             previous_tools = previous_result.get("tools")
             if isinstance(previous_tools, dict):
                 tools_cache = previous_tools
@@ -442,7 +461,10 @@ class BuildDeployStore:
             project_root=project_root,
             tools_cache=tools_cache,
             probe_tool_versions=self.local_execution_enabled,
+            package_manager_override=package_manager_override,
+            isolated_toolchain=isolated_toolchain,
         )
+        result["delivery_network"] = frozen_network
         diff = {**preflight_diff(previous_fingerprint, fingerprint), **check_diff(previous_result.get("checks") if isinstance(previous_result.get("checks"), list) else [], result.get("checks") or []), "reused_tools": reused_tools}
         self._store_preflight_cache(upload_id, cache_key, scope_key, fingerprint, result)
         self.observability.emit_event("gate.build.preflight", source="builds", subject_type="upload", subject_id=upload_id, payload={"runtime": result.get("runtime"), "status": result.get("status"), "project_root_dir": result.get("project_root_dir"), "cache_hit": False, "reused_tools": reused_tools, "affected_checks": len(diff.get("affected_checks") or [])})
@@ -485,17 +507,39 @@ class BuildDeployStore:
         plan_fingerprint: str = "",
         operation_id: str | None = None,
         owner_id: str | None = None,
+        prepared_plan: dict[str, Any] | None = None,
+        network_authorized: bool = False,
+        package_manager_override: NodeToolchainOverride | None = None,
     ) -> dict[str, Any]:
         """Create a queued build and execute it in the background."""
 
         self._require_local_execution("build")
         upload = self.uploads.get_upload(upload_id)
+        verify_git_snapshot(upload)
+        if upload.get("status") == "git_import_incomplete":
+            raise ToolExecutionError("git_import_incomplete", "Git source publication is incomplete", next_action="Reconcile the original import before building.")
         preflight = prepared_preflight or run_build_preflight(
             upload,
             runtime_override=runtime_override,
             project_root=project_root,
+            package_manager_override=package_manager_override,
+            isolated_toolchain=self._requires_safe_network({"source_provenance": (upload.get("analysis") or {}).get("git_source"), "delivery_network": self._upload_network(upload)}),
         )
         runtime = str(preflight.get("runtime") or upload.get("detected_runtime") or "unknown")
+        plan = prepared_plan or self._delivery_plan(upload, preflight, run_install=run_install, run_build=run_build)
+        validation = validate_plan(plan)
+        if not plan.get("buildable") or not validation["ok"]:
+            raise BuildBlocked("build_plan_blocked", "; ".join(list(plan.get("warnings") or []) + list(validation["errors"])), preflight)
+        if self._requires_safe_network(plan):
+            if not network_authorized:
+                raise ToolExecutionError("network_permission_denied", "Configured delivery networking requires network.use and a confirmed plan", next_action="Use the digest-bound delivery tools or Git Console flow.")
+            require_safe_executor(self.safe_network_executor)
+            if self.network_settings is None:
+                raise ToolExecutionError("safe_executor_unavailable", "An execution network policy store is unavailable", next_action="Configure the reviewed executor composition before queuing work.")
+        if self.network_settings and plan.get("delivery_network"):
+            self.network_settings.validate_frozen(plan["delivery_network"])
+        if (upload.get("analysis") or {}).get("git_source") and (not source_sha256 or not plan_fingerprint):
+            raise ToolExecutionError("git_build_confirmation_required", "Git source builds require a confirmed digest-bound plan", next_action="Use gate_build_plan and gate_build_create or the Git delivery Console flow.")
 
         guard = _evaluate_build_guard(preflight, runtime)
         if guard is not None:
@@ -529,11 +573,6 @@ class BuildDeployStore:
                 owner_id=owner_id,
             )
 
-        plan = build_plan(
-            preflight,
-            run_install=run_install,
-            run_build=run_build,
-        )
         validation = validate_plan(plan)
         if not validation["ok"]:
             return self._record_build(
@@ -571,6 +610,8 @@ class BuildDeployStore:
             operation_id=operation_id,
             owner_id=owner_id,
         )
+        if self.network_settings and plan.get("delivery_network"):
+            self.network_settings.retain(plan["delivery_network"], "build", build_id)
         self._insert_build_log(build_id, sequence=0, phase="preflight", level="info" if preflight.get("status") == "ok" else "warning", message=f"Build preflight completed: status={preflight.get('status')} runtime={runtime}", command=[], result={"returncode": 0, "stdout": _dumps(preflight), "stderr": "", "started_at": iso_now(), "finished_at": iso_now(), "duration_ms": 0})
         self._insert_build_log(build_id, sequence=1, phase="plan", level="info", message=f"Build plan compiled and validated: {len(plan.get('steps') or [])} step(s)", command=[], result={"returncode": 0, "stdout": _dumps(plan), "stderr": "", "started_at": iso_now(), "finished_at": iso_now(), "duration_ms": 0})
         self._insert_build_log(build_id, sequence=2, phase="queue", level="info", message="Build queued and waiting for background worker", command=[], result=None)
@@ -587,6 +628,7 @@ class BuildDeployStore:
         run_install: bool = True,
         run_build: bool = True,
         refresh: bool = False,
+        package_manager_override: NodeToolchainOverride | None = None,
     ) -> dict[str, Any]:
         """Preview the Build Plan (IR) without executing a build.
 
@@ -594,11 +636,34 @@ class BuildDeployStore:
         inspect the exact command sequence and manifest strategy beforehand.
         """
 
-        preflight = self.preflight_upload(upload_id, runtime_override=runtime_override, project_root=project_root, refresh=refresh)
-        plan = build_plan(preflight, run_install=run_install, run_build=run_build)
+        preflight = self.preflight_upload(upload_id, runtime_override=runtime_override, project_root=project_root, refresh=refresh, package_manager_override=package_manager_override)
+        plan = self._delivery_plan(self.uploads.get_upload(upload_id), preflight, run_install=run_install, run_build=run_build)
         validation = validate_plan(plan)
         self.observability.emit_event("gate.build.plan", source="builds", subject_type="upload", subject_id=upload_id, payload={"runtime": plan.get("runtime"), "buildable": plan.get("buildable"), "plan_steps": len(plan.get("steps") or []), "plan_valid": validation["ok"]})
         return {"preflight": preflight, "plan": plan, "validation": {"ok": validation["ok"], "errors": validation["errors"]}}
+
+    def _delivery_plan(self, upload: dict[str, Any], preflight: dict[str, Any], *, run_install: bool, run_build: bool) -> dict[str, Any]:
+        plan = build_plan(preflight, run_install=run_install, run_build=run_build)
+        analysis = upload.get("analysis") or {}
+        if analysis.get("git_source"):
+            plan["source_provenance"] = {"git_source": analysis["git_source"], "file_list_sha256": analysis.get("file_list_sha256")}
+        if self.network_settings:
+            plan["delivery_network"] = preflight.get("delivery_network") or self._upload_network(upload)
+        plan["requires_safe_executor"] = self._requires_safe_network(plan)
+        if plan["requires_safe_executor"] and plan.get("artifact"):
+            plan["artifact"]["network_limits"] = dict(NETWORK_ARTIFACT_LIMITS)
+        return plan
+
+    def _upload_network(self, upload: dict[str, Any]) -> dict[str, Any]:
+        verify_git_snapshot(upload)
+        return (upload.get("analysis") or {}).get("delivery_network") or (self.network_settings.freeze(NetworkSelection(mode="direct"), NetworkSelection()) if self.network_settings else {})
+
+    @staticmethod
+    def _requires_safe_network(plan: dict[str, Any]) -> bool:
+        if plan.get("source_provenance") or any(step.get("id") == "node-toolchain" for step in plan.get("steps") or []):
+            return True
+        network = plan.get("delivery_network") or {}
+        return bool(network and ((network.get("install") or {}).get("mode") == "profile" or network.get("npm_registry") != "https://registry.npmjs.org/" or network.get("python_index") != "https://pypi.org/simple/" or network.get("npm_credential_ref") or network.get("python_credential_ref")))
 
     def cancel_build(self, build_id: str) -> dict[str, Any]:
         build = self.get_build(build_id)
@@ -956,6 +1021,7 @@ class BuildDeployStore:
         try:
             self._raise_if_cancel_requested(build_id)
             self._set_build_status(build_id, "running")
+            verify_git_snapshot(upload)
             shutil.copytree(upload_root, source_dir, ignore=shutil.ignore_patterns(*IGNORED_COPY_DIRS), dirs_exist_ok=True)
             environment = _build_subprocess_environment(source_dir.parent)
             self._insert_build_log(build_id, sequence=self._next_build_log_sequence(build_id), phase="prepare", level="info", message=f"Build worker started for runtime={runtime} via IR plan ({len(commands)} step(s))", command=[], result=None)
@@ -966,7 +1032,22 @@ class BuildDeployStore:
             else:
                 self._execute_plan_dag(build_id, plan, plan_steps, step_states, source_dir, timeout_seconds, logs, environment)
             self._raise_if_cancel_requested(build_id)
-            _copy_artifact(source_dir, artifact_dir)
+            if self._requires_safe_network(plan):
+                scan_material: dict[str, Any] = {}
+                try:
+                    if self.network_settings is None:
+                        raise ValueError("network_artifact_policy_unavailable")
+                    for phase in ("git", "install"):
+                        scan_material.update({f"{phase}.{key}": value for key, value in self.network_settings.execution_material(plan["delivery_network"], phase).items()})
+                    for prefix in ("npm", "python"):
+                        scan_material[prefix] = self.network_settings.credentials.resolve_value(plan["delivery_network"].get(f"{prefix}_credential_ref"))
+                    export_network_artifact(source_dir, artifact_dir, ignored=ARTIFACT_IGNORED_COPY_DIRS, forbidden_values=[value for value in scan_material.values() if isinstance(value, str)], cancelled=lambda: self._is_cancel_requested(build_id))
+                except InterruptedError:
+                    raise BuildCancelled("build cancelled during artifact export") from None
+                finally:
+                    scan_material.clear()
+            else:
+                _copy_artifact(source_dir, artifact_dir)
             manifest = finalize_manifest(plan, upload, build_id, artifact_dir)
             entrypoint = _entrypoint(manifest)
         except BuildCancelled as exc:
@@ -1032,16 +1113,74 @@ class BuildDeployStore:
             step_states[index]["status"] = "running"
             step_states[index]["started_at"] = iso_now()
             self._persist_step_states(build_id, step_states)
-        result = _run_command(
-            command,
-            source_dir,
-            timeout_seconds,
-            environment,
-            cancel_requested=lambda: self._is_cancel_requested(build_id),
-        )
+        plan = self.get_build(build_id).get("plan") or {}
+        if self._requires_safe_network(plan):
+            executor = require_safe_executor(self.safe_network_executor)
+            if self.network_settings is None:
+                raise ToolExecutionError("safe_executor_unavailable", "Network policy store is unavailable")
+            network = plan["delivery_network"]
+            selected = network["install"]
+            scheme = self.network_settings._version(selected["profile_id"], selected["version"])["scheme"] if selected["mode"] == "profile" else None
+            kind = str((plan.get("package_manager") or {}).get("name") or "python")
+            require_proxy_support(executor, kind, scheme)
+            material = self.network_settings.execution_material(network, "install")
+            for prefix in ("npm", "python"):
+                material[f"{prefix}_credential"] = self.network_settings.credentials.resolve_value(network.get(f"{prefix}_credential_ref"))
+            failure_code = "safe_network_execution_failed"
+            try:
+                manager = plan.get("package_manager") or {}
+                descriptor = {**network, "package_manager": manager}
+                if step.get("id") == "node-toolchain":
+                    specification = manager["preparation"]
+                    result = executor.prepare_package_manager(specification, network=descriptor, material=material, timeout_seconds=min(timeout_seconds, specification["limits"]["timeout_seconds"]), cancel_requested=lambda: self._is_cancel_requested(build_id))
+                else:
+                    result = executor.run_command(command, cwd=source_dir, environment=environment, network=descriptor, material=material, timeout_seconds=timeout_seconds, cancel_requested=lambda: self._is_cancel_requested(build_id))
+                if manager and result.get("returncode") == 0 and result.get("package_manager_version") != manager["version"]:
+                    failure_code = "package_manager_version_changed"
+                    raise RuntimeError("package_manager_version_changed")
+                executed_node_version = str(result.get("node_version") or "").removeprefix("v")
+                if manager and result.get("returncode") == 0 and not node_version_supported(manager["name"], manager["version"], executed_node_version):
+                    failure_code = "package_manager_node_incompatible"
+                    raise RuntimeError("package_manager_node_incompatible")
+                tool_source = None
+                if step.get("id") == "node-toolchain" and result.get("returncode") == 0:
+                    integrity = result.get("source_integrity")
+                    if not isinstance(integrity, str) or not re.fullmatch(r"sha512-[A-Za-z0-9+/]{86}==", integrity):
+                        failure_code = "package_manager_integrity_unverified"
+                        raise RuntimeError("package_manager_integrity_missing")
+                    tool_source = {"method": "official_distribution", "official_metadata_url": manager["preparation"]["official_metadata_url"], "source_integrity": integrity}
+                # Untrusted command output is not persisted for credential-bearing
+                # egress. Only bounded structural status crosses this boundary.
+                result = {key: result.get(key) for key in ("returncode", "duration_ms", "started_at", "finished_at", "cancelled", "timed_out")}
+                result.update({"stdout": "[safe executor output suppressed]", "stderr": ""})
+                if manager and result.get("returncode") == 0:
+                    result["package_manager"] = {"name": manager["name"], "version": manager["version"]}
+                    if node_requirement(manager["name"], manager["version"]) == ">=22.13":
+                        result["package_manager"]["node_version"] = executed_node_version
+                    if tool_source:
+                        result["package_manager"]["source"] = tool_source
+            except Exception:
+                raise RuntimeError(failure_code) from None
+            finally:
+                material.clear()
+        else:
+            manager = plan.get("package_manager") or {}
+            if manager:
+                if node_requirement(manager["name"], manager["version"]) == ">=22.13":
+                    node_check = _run_command(["node", "--version"], source_dir, min(timeout_seconds, 5), environment, cancel_requested=lambda: self._is_cancel_requested(build_id))
+                    if node_check.get("returncode") != 0 or not node_version_supported(manager["name"], manager["version"], str(node_check.get("stdout") or "").strip()):
+                        raise RuntimeError("package_manager_node_incompatible")
+                version_check = _run_command([manager["name"], "--version"], source_dir, min(timeout_seconds, 5), {**environment, "COREPACK_ENABLE_NETWORK": "0", "COREPACK_ENABLE_AUTO_PIN": "0"}, cancel_requested=lambda: self._is_cancel_requested(build_id))
+                if version_check.get("returncode") != 0 or str(version_check.get("stdout") or "").strip().removeprefix("v") != manager["version"]:
+                    raise RuntimeError("package_manager_version_changed")
+            result = _run_command(command, source_dir, timeout_seconds, environment, cancel_requested=lambda: self._is_cancel_requested(build_id))
+            if manager and result.get("returncode") == 0:
+                result["package_manager"] = {"name": manager["name"], "version": manager["version"]}
         with self._step_lock:
             state = step_states[index]
             state["returncode"] = result["returncode"]
+            if result.get("package_manager"):
+                state["package_manager"] = result["package_manager"]
             state["duration_ms"] = result["duration_ms"]
             state["finished_at"] = result["finished_at"]
             state["status"] = (

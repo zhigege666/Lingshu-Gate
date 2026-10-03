@@ -82,6 +82,8 @@ CONTROL_PERMISSIONS = (
     ("tools.invoke", "调用写工具", "调用获准的写入 MCP Tool"),
     ("observability.read.all", "查看全部运维日志", "读取所有服务与系统级日志和事件"),
     ("operations.manage", "管理运行态", "管理 MCP 配置、服务和运行态"),
+    ("system_settings.manage", "管理系统设置", "管理交付网络配置；不授予网络调用权限"),
+    ("network.use", "调用交付网络", "使用已审查的 Git/依赖网络；不授予配置权限"),
     ("external_connections.manage", "管理外部接入", "管理默认关闭的共享接入、受信身份和授权验证配置"),
 )
 

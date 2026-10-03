@@ -60,6 +60,7 @@ const ServersPage = lazy(() => import("@/pages/servers-page").then((module) => (
 const ToolsPage = lazy(() => import("@/pages/tools-page").then((module) => ({ default: module.ToolsPage })))
 const ToolClassificationsPage = lazy(() => import("@/pages/tool-classifications-page").then((module) => ({ default: module.ToolClassificationsPage })))
 const UploadsPage = lazy(() => import("@/pages/uploads-page").then((module) => ({ default: module.UploadsPage })))
+const SystemSettingsPage = lazy(() => import("@/pages/system-settings-page").then((module) => ({ default: module.SystemSettingsPage })))
 
 const genericTemplate = {
   id: "mcp-server",
@@ -407,6 +408,7 @@ export default function App() {
             {view === "logs" && <LogsEventsPage t={t} canManageRetention={can("retention.manage")} />}
             {view === "runtimeCache" && <RuntimeCachePage locale={locale} t={t} />}
             {view === "uploads" && <UploadsPage t={t} />}
+            {view === "systemSettings" && <SystemSettingsPage t={t} />}
             {view === "diagnostics" && <DiagnosticsPage diagnostics={diagnostics} t={t} busy={busy} onRefreshDiagnostics={async () => { setDiagnostics(await api.diagnostics()) }} onRunDiagnostics={runDiagnostics} />}
             {view === "tools" && <ToolsPage tools={tools} servers={servers} loading={!toolsLoaded && !toolsError} error={toolsError} t={t} viewState={toolCatalogView} onViewStateChange={setToolCatalogView} onRefresh={() => void refreshCurrentPage()} onInvoke={async toolId => { if (await navigate("invoke")) setSelectedToolId(toolId) }} />}
             {view === "invoke" && <InvokePage locale={locale} t={t} tools={tools} servers={servers} toolsLoaded={toolsLoaded} toolsError={toolsError} selectedToolId={selectedToolId} onToolChange={setSelectedToolId} onLeaveStateChange={setLeaveState} onRefresh={refreshCurrentPage} />}

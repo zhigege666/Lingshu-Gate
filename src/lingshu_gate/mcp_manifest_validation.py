@@ -22,6 +22,7 @@ from lingshu_gate.mcp_config_store import McpConfigStore
 from lingshu_gate.mcp_manifest import McpServerManifest
 from lingshu_gate.mcp_runtime_cache import McpRuntimeCacheResolver
 from lingshu_gate.redaction import redact_validation_errors
+from lingshu_gate.runtime_toolchain import RuntimeToolchainError, inspect_runtime_toolchain
 
 CheckSeverity = Literal["error", "warning", "info", "ok"]
 SENSITIVE_ENV_PATTERN = ("KEY", "TOKEN", "SECRET", "PASSWORD", "PASS", "CREDENTIAL", "AUTH", "COOKIE")
@@ -103,11 +104,17 @@ def _check_launch(
         command = launch.command or ""
         if not command:
             checks.append(_check("launch.command", "error", "managed_process requires launch.command"))
-        else:
+        elif not launch.toolchain:
             resolved = shutil.which(command)
             severity: CheckSeverity = "ok" if resolved else "warning"
             checks.append(_check("launch.command", severity, f"command={command}" + (f" -> {resolved}" if resolved else " not found in current PATH"), {"command": command, "resolved": resolved}))
-        if launch.command in {"npx", "npm"}:
+        if launch.toolchain:
+            try:
+                inspect_runtime_toolchain(launch, settings)
+                checks.append(_check("launch.toolchain", "warning", "Administrator tool registrations are available; exact versions are unverified until authorized startup. Validation executes no program.", {"manager": launch.toolchain.manager, "version": launch.toolchain.version, "version_verified": False}))
+            except RuntimeToolchainError as exc:
+                checks.append(_check("launch.toolchain", "error", str(exc), {"code": exc.code}))
+        if launch.command in {"npx", "npm"} and not launch.toolchain:
             package_name = _first_npx_package(launch.args)
             if launch.package and launch.package.name:
                 package_name = launch.package.name

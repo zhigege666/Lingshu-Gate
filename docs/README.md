@@ -13,6 +13,8 @@ This documentation describes the current Gate product boundary. English is autho
 | [Configuration](configuration.md) | Environment variables, directories, manifests, credentials, and reverse proxy settings |
 | [MCP gateway](mcp-gateway.md) | Gateway endpoint, protocol negotiation, downstream HTTP/stdio, discovery, classification, and invocation |
 | [Project delivery](project-delivery.md) | Upload/build/deploy/start workflow, `gate_*` tools, and bundled Delivery Skill |
+| [Git import and network settings](git-import-network.md) | Versioned delivery networking, bounded Git sources, deterministic tools and executor limits |
+| [Git execution gap and rollout decision](git-executor-decision.md) | Concrete code gaps, default deployment limits and the required isolated-worker scope decision |
 | [Deployment](deployment.md) | Docker Compose, native service, production hardening, backup, upgrade, and rollback |
 | [Operations](operations.md) | Health probes, logs, events, diagnostics, runtime cache, audits, and incident checks |
 | [Local development](local-development.md) | Source setup, Console build, test suites, and repository conventions |
