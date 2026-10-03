@@ -1,4 +1,6 @@
 import { authRequest, AuthRequestError } from "@/api/auth-request"
+import { fetchGateVersion } from "@/api/gate-version"
+import { gateVersionText, type GateVersionState } from "@/features/gate-version"
 import { createContext, useContext, useEffect, useRef, useState, type ReactNode } from "react"
 import { ShieldCheck, UserPlus } from "lucide-react"
 import { Alert, AlertDescription } from "@/components/ui/alert"
@@ -6,7 +8,7 @@ import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
-import { getInitialLocale, type Locale } from "@/i18n"
+import { getInitialLocale, translate, type Locale } from "@/i18n"
 
 const AUTH_COPY = {
   "zh-CN": {
@@ -100,6 +102,7 @@ type AuthGateProps = {
 type AuthContextValue = {
   user: AuthUser
   logout: () => Promise<void>
+  runtimeVersion: GateVersionState
 }
 
 const AuthContext = createContext<AuthContextValue | null>(null)
@@ -111,7 +114,10 @@ export function useAuth() {
 }
 
 export function AuthGate({ children }: AuthGateProps) {
-  const c = AUTH_COPY[getInitialLocale()]
+  const locale = getInitialLocale()
+  const c = AUTH_COPY[locale]
+  const [runtimeVersion, setRuntimeVersion] = useState<GateVersionState>({ status: "loading" })
+  const versionText = gateVersionText(runtimeVersion, locale)
   const [mode, setMode] = useState<AuthMode>("loading")
   const [user, setUser] = useState<AuthUser | null>(null)
   const [displayName, setDisplayName] = useState("")
@@ -143,6 +149,17 @@ export function AuthGate({ children }: AuthGateProps) {
   }
 
   useEffect(() => { void loadMe(); return () => { sessionVersion.current += 1 } }, [])
+
+  // Independent of session/loading/submission. Mode changes never replay this read.
+  useEffect(() => {
+    let active = true
+    const controller = new AbortController()
+    void fetchGateVersion(controller.signal).then(
+      version => { if (active) setRuntimeVersion({ status: "ready", version }) },
+      () => { if (active) setRuntimeVersion({ status: "unavailable" }) },
+    )
+    return () => { active = false; controller.abort() }
+  }, [])
 
   async function submit() {
     if (submitting.current) return
@@ -239,14 +256,19 @@ export function AuthGate({ children }: AuthGateProps) {
               <div className="flex items-center gap-3"><UserPlus className="size-5" />{c.lifecycleFeature}</div>
             </div>
           </div>
-          <div className="text-xs text-primary-foreground/60">Lingshu Gate · MCP Gateway</div>
+          <div className="space-y-2 text-xs">
+            <div className="text-primary-foreground/60">Lingshu Gate · MCP Gateway</div>
+            <p className="w-fit max-w-full break-all rounded-md bg-background px-2 py-1 text-foreground" aria-live="polite" data-gate-version>
+              {runtimeVersion.status === "ready" && `${translate(locale, "version")} `}<span className="font-mono">{versionText}</span>
+            </p>
+          </div>
         </section>
         <div className="flex items-center justify-center p-5 sm:p-8">
         <Card className="w-full max-w-md border-border/80 shadow-xl shadow-primary/5">
           <CardHeader>
             <div className="mb-3 flex items-center gap-3 lg:hidden">
               <div className="flex size-10 items-center justify-center rounded-xl border bg-background shadow-sm"><img src="/console/lingshu-gate-icon.svg" alt="Lingshu Gate" className="size-6" /></div>
-              <div className="text-sm font-semibold">Lingshu Gate</div>
+              <div className="min-w-0"><div className="text-sm font-semibold">Lingshu Gate</div><p className="break-all text-xs text-muted-foreground" aria-live="polite" data-gate-version>{runtimeVersion.status === "ready" && `${translate(locale, "version")} `}<span className="font-mono">{versionText}</span></p></div>
             </div>
             <CardTitle>{isRegister ? c.registerTitle : isPasswordChange ? c.changeTitle : c.loginTitle}</CardTitle>
             <CardDescription>{isRegister ? c.registerDesc : isPasswordChange ? c.changeDesc : c.loginDesc}</CardDescription>
@@ -268,5 +290,5 @@ export function AuthGate({ children }: AuthGateProps) {
   }
 
   if (!user) return null
-  return <AuthContext.Provider value={{ user, logout }}>{children}{error && <div className="fixed bottom-4 right-4 z-[100] max-w-[calc(100vw-2rem)] sm:max-w-md"><Alert variant="destructive"><AlertDescription className="space-y-3"><p>{c.logoutError}</p><p>{error}</p><div className="flex flex-wrap gap-2"><Button size="sm" disabled={busy} onClick={() => void loadMe()}>{c.retrySession}</Button><Button size="sm" variant="outline" disabled={busy} onClick={() => setError(null)}>{c.dismiss}</Button></div></AlertDescription></Alert></div>}</AuthContext.Provider>
+  return <AuthContext.Provider value={{ user, logout, runtimeVersion }}>{children}{error && <div className="fixed bottom-4 right-4 z-[100] max-w-[calc(100vw-2rem)] sm:max-w-md"><Alert variant="destructive"><AlertDescription className="space-y-3"><p>{c.logoutError}</p><p>{error}</p><div className="flex flex-wrap gap-2"><Button size="sm" disabled={busy} onClick={() => void loadMe()}>{c.retrySession}</Button><Button size="sm" variant="outline" disabled={busy} onClick={() => setError(null)}>{c.dismiss}</Button></div></AlertDescription></Alert></div>}</AuthContext.Provider>
 }

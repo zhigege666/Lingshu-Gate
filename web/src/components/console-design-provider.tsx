@@ -14,9 +14,9 @@ type ConsoleDesign = {
 
 const ConsoleDesignContext = createContext<ConsoleDesign | null>(null)
 
-export function ConsoleDesignProvider({ children }: { children: ReactNode }) {
+export function ConsoleDesignProvider({ children, initialLocale }: { children: ReactNode; initialLocale?: Locale }) {
   const [mode, setMode] = useState<ThemeMode>(getInitialTheme)
-  const [locale, setLocaleState] = useState<Locale>(getInitialLocale)
+  const [locale, setLocaleState] = useState<Locale>(() => initialLocale ?? getInitialLocale())
   useEffect(() => { applyTheme(mode) }, [mode])
   useEffect(() => { document.documentElement.lang = locale }, [locale])
   const theme = useMemo<ThemeConfig>(() => ({

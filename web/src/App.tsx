@@ -10,6 +10,7 @@ import {
   type ToolDefinition,
 } from "@/api/client"
 import { useAuth } from "@/components/auth-gate"
+import { gateVersionText } from "@/features/gate-version"
 import { RouteErrorBoundary, RouteLoadingFallback } from "@/components/route-boundary"
 import { useConfirm } from "@/components/confirm-dialog"
 import { HighlightText } from "@/components/highlight-text"
@@ -40,7 +41,6 @@ const ConnectionInfrastructurePage = lazy(() => import("@/pages/external-connect
 const PersonalWorkspacePage = lazy(() => import("@/pages/personal-workspace-page").then(module => ({ default: module.PersonalWorkspacePage })))
 
 const initialPersonalWorkspaceView: PersonalWorkspaceViewState = { query: "", page: 1, selectedId: "", detailPage: 1, scrollTop: 0 }
-const CONSOLE_VERSION = `v${__LINGSHU_GATE_VERSION__}`
 
 const AccessGrantsPage = lazy(() => import("@/pages/access-grants-page").then((module) => ({ default: module.AccessGrantsPage })))
 const AccessRolesPage = lazy(() => import("@/pages/access-roles-page").then((module) => ({ default: module.AccessRolesPage })))
@@ -74,7 +74,7 @@ const genericTemplate = {
 }
 
 export default function App() {
-  const { user, logout } = useAuth()
+  const { user, logout, runtimeVersion } = useAuth()
   const { locale } = useConsoleDesign()
   const t: TFunction = (key: MessageKey) => translate(locale, key)
   const { confirm, confirmDialog } = useConfirm(t)
@@ -374,7 +374,7 @@ export default function App() {
     <EditorNavigationContext.Provider value={editorNavigation}>
     <PageRefreshContext.Provider value={registerPageRefresh}>
     <ConsoleShell
-      view={view} title={currentTitle} user={user} version={CONSOLE_VERSION}
+      view={view} title={currentTitle} user={user} version={gateVersionText(runtimeVersion, locale)}
       groups={navGroups} items={navById} busy={busy || pageBusy}
       onNavigate={navigate} onSearch={() => setCommandOpen(true)}
       onRefresh={() => void refreshCurrentPage()} onLogout={async () => { if (await requestLeave()) void logout() }}
