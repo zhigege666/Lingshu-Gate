@@ -1,11 +1,13 @@
 import { useRemainingViewport } from "@/components/use-remaining-viewport"
 import { UploadOutlined, FileSearchOutlined, BuildOutlined, CloudUploadOutlined, PlayCircleOutlined } from "@ant-design/icons"
-import { Drawer } from "antd"
+import { Drawer, Segmented } from "antd"
+import { GitImportForm } from "@/features/network/git-import-form"
+import { networkApi } from "@/api/network"
 import { EditorNavigationContext } from "@/components/editor-navigation-guard"
 import { JsonPanel } from "@/components/json-panel"
 import { deliveryDraftRequest, manifestPatch, mergeManifestPatch } from "@/features/servers/delivery-draft"
 import { useContext, useEffect, useMemo, useRef, useState } from "react"
-import { buildApi, type BuildRecord, type DeploymentRecord, type ProjectUpload, type DeliveryDraft } from "@/api/builds"
+import { buildApi, type BuildRecord, type DeploymentRecord, type ProjectUpload, type DeliveryDraft, type PackageManagerOverride } from "@/api/builds"
 import { useConfirm } from "@/components/confirm-dialog"
 import { usePageRefresh } from "@/components/page-refresh"
 import { PageHeader, PageToolbar, WorkflowSteps } from "@/components/page-shell"
@@ -13,6 +15,7 @@ import { UploadForm } from "@/components/uploads/upload-form"
 import { UploadList } from "@/components/uploads/upload-list"
 import { UploadResultPanel } from "@/components/uploads/upload-result-panel"
 import { ProjectDetailPanel } from "@/components/uploads/project-detail-panel"
+import { confirmedBuildAttempt, type BuildAttempt } from "@/features/network/build-attempt"
 import { uploadCopy } from "@/components/uploads/upload-copy"
 import { asRecord, completeUploadAction, resultForUpload, type UploadAction, type UploadResults } from "@/components/uploads/upload-state"
 import { Alert, AlertDescription } from "@/components/ui/alert"
@@ -33,10 +36,14 @@ export function UploadsPage({ t }: { t: TFunction }) {
   const workspace = useRemainingViewport<HTMLDivElement>(12)
   const manifestBases = useRef<Record<string, Record<string, unknown>>>({})
   const [historyOpen, setHistoryOpen] = useState(false)
+  const [sourceMode, setSourceMode] = useState<"zip" | "git">("zip")
+  const [gitState, setGitState] = useState({ dirty: false, pending: false })
   const [taskResetVersion, setTaskResetVersion] = useState(0)
   const [selectionDirty, setSelectionDirty] = useState(false)
   const [actionContainer, setActionContainer] = useState<HTMLDivElement | null>(null)
   const [drafts, setDrafts] = useState<Record<string, DeliveryDraft>>({})
+  const [packageChoices, setPackageChoices] = useState<Record<string, PackageManagerOverride[]>>({})
+  const buildAttempts = useRef(new Map<string, BuildAttempt>())
   const [busy, setBusy] = useState(false)
   const [completedBuildTarget, setCompletedBuildTarget] = useState<string | null>(null)
   const [loading, setLoading] = useState(true)
@@ -75,7 +82,7 @@ export function UploadsPage({ t }: { t: TFunction }) {
   }, [completedBuildTarget, busy, selectionDirty])
 
   async function requestSelection(upload: ProjectUpload | null) {
-    if (busy) return false
+    if (busy || gitState.pending) return false
     if (upload && upload.id === selection?.id) { setHistoryOpen(false); return true }
     if ((selectionDirty || selectedFile) && !(await confirm({ title: zh ? "放弃当前未保存的交付输入？" : "Discard unsaved delivery input?", destructive: true }))) return false
     setSelectionDirty(false); setSelectedFile(null); selectUpload(upload); setHistoryOpen(false)
@@ -194,17 +201,37 @@ export function UploadsPage({ t }: { t: TFunction }) {
     setDrafts(previous => ({ ...previous, [uploadId]: saved }))
   }
 
-  async function buildProject(uploadId: string, options: { run_install: boolean; run_build: boolean; project_root: string; runtime_override?: string | null; server_id?: string | null }) {
+  async function buildProject(uploadId: string, options: { run_install: boolean; run_build: boolean; project_root: string; runtime_override?: string | null; server_id?: string | null; package_manager_override?: PackageManagerOverride | null }) {
     if (running.current || busy) return
     const existingDraft = drafts[uploadId] || await run(uploadId, "build", () => buildApi.deliveryDraft(uploadId))
     if (!existingDraft) return
     const configuredDraft = await run(uploadId, "build", () => buildApi.saveDeliveryDraft(uploadId, deliveryDraftRequest(existingDraft, {
       project_root: options.project_root, runtime_override: options.runtime_override === undefined ? existingDraft.runtime_override : options.runtime_override,
       server_id: options.server_id === undefined ? existingDraft.server_id : options.server_id,
+      package_manager_override: options.package_manager_override === undefined ? existingDraft.package_manager_override : options.package_manager_override,
     })))
     if (!configuredDraft) return
     setDrafts(previous => ({ ...previous, [uploadId]: configuredDraft }))
-    const build = await run(uploadId, "build", () => buildApi.createBuild(uploadId, { ...options, project_root: configuredDraft.project_root || ".", runtime_override: configuredDraft.runtime_override, timeout_seconds: 300 }))
+    const build = await run(uploadId, "build", async () => {
+      const buildOptions = { run_install: options.run_install, run_build: options.run_build, project_root: configuredDraft.project_root || ".", runtime_override: configuredDraft.runtime_override, package_manager_override: configuredDraft.package_manager_override }
+      const preview = await buildApi.planBuild(uploadId, buildOptions)
+      setPackageChoices(previous => ({ ...previous, [uploadId]: preview.plan.recommended_choices || [] }))
+      if (!preview.plan.buildable) throw new Error(preview.plan.warnings.join("; ") || "build_plan_blocked")
+      const upload = uploads.find(item => item.id === uploadId)
+      if (preview.plan.requires_safe_executor) {
+        const bundle = await networkApi.planBuild(uploadId, buildOptions)
+        if (!bundle.validation.ok || !bundle.plan.buildable) throw new Error(bundle.plan.warnings.join("; ") || "build_plan_blocked")
+        if (!(await confirm({ title: zh ? "确认执行此安装与构建计划？" : "Confirm this installation and build plan?", description: `${bundle.source_sha256}\n${bundle.plan_fingerprint}`, details: <JsonPanel copyLabel={t("copy")} data={{ plan: bundle.plan, included_files: upload?.analysis.included_files, file_list_sha256: upload?.analysis.file_list_sha256 }} /> }))) return null
+        const attempt = confirmedBuildAttempt(buildAttempts.current.get(uploadId), bundle.plan_fingerprint, builds, () => `git-build-${crypto.randomUUID()}`)
+        buildAttempts.current.set(uploadId, attempt)
+        const created = await networkApi.build(bundle, buildOptions, attempt.key)
+        attempt.buildId = created.build_id
+        const record = (await buildApi.builds()).builds.find(item => item.id === created.build_id)
+        if (!record) throw new Error(`Build ${created.build_id} was created; refresh before retrying.`)
+        return record
+      }
+      return buildApi.createBuild(uploadId, { ...buildOptions, timeout_seconds: 300 })
+    })
     if (build && mounted.current) {
       setBuilds(previous => [build, ...previous.filter(item => item.id !== build.id)])
       const draft = configuredDraft
@@ -217,6 +244,16 @@ export function UploadsPage({ t }: { t: TFunction }) {
       }
       setCompletedBuildTarget(build.id)
     }
+  }
+
+  async function saveBuildOptions(uploadId: string, options: Partial<DeliveryDraft>) {
+    const current = drafts[uploadId]
+    if (!current) return
+    const saved = await run(uploadId, "save", () => buildApi.saveDeliveryDraft(uploadId, deliveryDraftRequest(current, options)))
+    if (!saved || !mounted.current) return
+    setDrafts(previous => ({ ...previous, [uploadId]: saved }))
+    setSelectionDirty(false)
+    setTaskResetVersion(value => value + 1)
   }
 
   async function deployProject(buildId: string, options: { server_id?: string; start: boolean; overwrite: boolean }) {
@@ -264,7 +301,7 @@ export function UploadsPage({ t }: { t: TFunction }) {
 
   return <div ref={workspace} className="delivery-focus-workspace">
     <PageHeader closeLabel={t("close")} eyebrow={t("projectDelivery")} title={t("uploads")} description={t("uploadDesc")} helpLabel={t("pageHelp")}
-      actions={<><Button variant="outline" onClick={() => setHistoryOpen(true)}>{zh ? "查看上传记录" : "View upload history"}</Button><Button asChild variant="outline"><a href={selectedBuild ? `#/builds/${encodeURIComponent(selectedBuild.id)}` : "#/builds"}>{t("builds")}</a></Button></>} />
+      actions={<><Button variant="outline" disabled={gitState.pending} onClick={() => setHistoryOpen(true)}>{zh ? "查看上传记录" : "View upload history"}</Button><Button asChild variant="outline"><a href={selectedBuild ? `#/builds/${encodeURIComponent(selectedBuild.id)}` : "#/builds"}>{t("builds")}</a></Button></>} />
     <p className="delivery-mobile-progress" role="status">{zh ? "当前步骤" : "Current step"} {selectedDeployment?.status === "success" ? 5 : selectedBuild?.status === "success" ? 4 : selection ? 3 : 1}/5 · {selectedDeployment?.status === "success" ? t("start") : selectedBuild?.status === "success" ? (zh ? "部署" : "Deploy") : selection ? (zh ? "构建" : "Build") : (zh ? "上传" : "Upload")} · {currentStepStatus}</p>
     <WorkflowSteps stacked stateLabels={zh ? { done: "已完成", current: "当前步骤", next: "未开始" } : { done: "Completed", current: "Current step", next: "Not started" }} responsive={false} ariaLabel={t("workflowProgress")} steps={[
       { icon: <UploadOutlined />, statusLabel: selection ? completedStatus : (zh ? "待上传" : "Awaiting upload"), label: zh ? "上传" : "Upload", state: selection ? "done" : "current" },
@@ -276,9 +313,13 @@ export function UploadsPage({ t }: { t: TFunction }) {
     <div className="delivery-focus-content">
       {loadError && <Alert variant="destructive" role="alert"><AlertDescription className="flex flex-wrap items-center justify-between gap-2"><span>{c.loadingFailed}: {loadError}</span><Button size="sm" variant="outline" disabled={loading} onClick={() => void loadUploads()}>{t("retry")}</Button></AlertDescription></Alert>}
       {visibleActionError && <Alert variant="destructive" role="alert"><AlertDescription>{visibleActionError}</AlertDescription></Alert>}
-      {!selection ? <UploadForm busy={busy} selectedFile={selectedFile} onFileChange={setSelectedFile} onUpload={() => void uploadZip()} t={t} actionContainer={actionContainer} /> : <>
+      {!selection ? <>
+        <Segmented aria-label={zh ? "项目来源" : "Project source"} disabled={busy || gitState.pending} value={sourceMode} options={[{ value: "zip", label: "ZIP" }, { value: "git", label: zh ? "Git 仓库" : "Git repository" }]} onChange={value => setSourceMode(value as "zip" | "git")} />
+        <div hidden={sourceMode !== "zip"}><UploadForm busy={busy} selectedFile={selectedFile} onFileChange={setSelectedFile} onUpload={() => void uploadZip()} t={t} actionContainer={sourceMode === "zip" ? actionContainer : undefined} /></div>
+        <div hidden={sourceMode !== "git"}><GitImportForm t={t} onState={setGitState} onImported={upload => { setUploads(previous => [upload, ...previous.filter(item => item.id !== upload.id)]); selectUpload(upload); setGitState({ dirty: false, pending: false }) }} /></div>
+      </> : <>
         {!loading && !loadError && !uploads.some(upload => upload.id === selection.id) && <Alert><AlertDescription>{c.removed}</AlertDescription></Alert>}
-        <ProjectDetailPanel key={`project:${selection.id}:${drafts[selection.id] ? "ready" : "loading"}:${taskResetVersion}`} upload={selection} build={selectedBuild} deployment={selectedDeployment} busy={busy || !drafts[selection.id]} initialOptions={drafts[selection.id]} onDraftDirtyChange={setSelectionDirty} actionContainer={actionContainer} onBuild={options => void buildProject(selection.id, options)} onDeploy={(id, options) => void deployProject(id, options)} t={t} />
+        <ProjectDetailPanel key={`project:${selection.id}:${drafts[selection.id] ? "ready" : "loading"}:${taskResetVersion}`} upload={selection} build={selectedBuild} deployment={selectedDeployment} busy={busy || !drafts[selection.id]} initialOptions={drafts[selection.id]} packageChoices={packageChoices[selection.id]} onSaveOptions={options => void saveBuildOptions(selection.id, options)} onDraftDirtyChange={setSelectionDirty} actionContainer={actionContainer} onBuild={options => void buildProject(selection.id, options)} onDeploy={(id, options) => void deployProject(id, options)} t={t} />
         <details className="delivery-auxiliary"><summary>{zh ? "分析结果与运行配置" : "Analysis and runtime configuration"}</summary>
         <div className="flex flex-wrap gap-2 py-3"><Button variant="outline" disabled={busy} onClick={() => void draftUpload(selection.id)}>{t("draftManifest")}</Button></div>
         <UploadResultPanel key={`result:${selection.id}`} upload={selection} result={result} busy={busy} onSaveManifest={(manifest, values) => saveManifest(selection.id, manifest, values)} t={t} />
@@ -287,7 +328,7 @@ export function UploadsPage({ t }: { t: TFunction }) {
     </div>
     <footer className="delivery-focus-footer">
       <Button variant="outline" disabled={!selection || busy} onClick={() => void requestSelection(null)}>{zh ? "上一步" : "Previous"}</Button>
-      <div className="delivery-focus-summary"><strong>{selection?.filename || selectedFile?.name || (zh ? "选择 ZIP 项目" : "Select a ZIP project")}</strong>{selection && <span>{selection.id}</span>}</div>
+      <div className="delivery-focus-summary"><strong>{selection?.filename || selectedFile?.name || (sourceMode === "git" ? (zh ? "检查 Git 来源" : "Inspect Git source") : (zh ? "选择 ZIP 项目" : "Select a ZIP project"))}</strong>{selection && <span>{selection.id}</span>}</div>
       <div ref={setActionContainer} className="flex flex-wrap gap-2" />
     </footer>
     <Drawer zIndex={40} open={historyOpen} title={zh ? "上传记录" : "Upload history"} size={760} onClose={() => setHistoryOpen(false)}>

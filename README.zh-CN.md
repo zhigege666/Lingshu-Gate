@@ -1,46 +1,79 @@
 # Lingshu Gate
 
-一个可自托管的 MCP 网关与控制平面，通过明确的访问、审计和交付边界管理下游服务。
+面向自托管 MCP 服务的聚合网关与控制面，让身份、工具权限、凭据、审计和项目交付保留明确边界。
 
-[English](README.md) · [中文文档](docs/zh-CN/README.md) · [安全策略](SECURITY.zh-CN.md) · [贡献指南](CONTRIBUTING.zh-CN.md)
+[English](README.md) · [完整文档](docs/zh-CN/README.md) · [安全](SECURITY.zh-CN.md) · [参与开发](CONTRIBUTING.md)
 
-Lingshu Gate 提供统一的认证 MCP 入口、Web Console、配置与运行时管理、加密凭据、工具分类、调用审计、诊断，以及受控的项目上传、构建、部署和启动工作流。
+适用于集中管理多个 MCP 服务、向远程 MCP 客户端提供受控工具访问，以及在可信原生主机上交付项目。通过一个 MCP Gateway、Web Console 和控制 API 管理服务与用户。
 
-## 核心能力
+**0.4.0 状态：内置 OAuth 需明确启用。Git/代理规则、计划和界面已实现，但生产安全执行器尚未实现；真实拉取、代理测试、工具准备和指定网络安装仍阻断。不是配置后即可使用的功能。**
 
-- `POST /mcp` 上的统一 Streamable HTTP MCP 网关。
-- 通用下游 Streamable HTTP 与 stdio 传输，支持自动协商与显式协议版本选择，具体范围见 [MCP 网关指南](docs/zh-CN/mcp-gateway.md)。
-- 用于服务配置和运行状态管理的 Web Console 与 REST 控制 API。
-- 认证、RBAC、资源授权、API Token scope、工具分类和调用审计。
-- 加密的系统凭据与按用户隔离的下游请求绑定。
-- 日志、事件、健康探针、诊断和受限的运行时缓存管理。
-- 项目上传、预检、确定性构建计划、构建、部署、启动和工具刷新。
-- 仓库自带的 Delivery Skill：`.agents/skills/lingshu-gate-upload-build-start/`，通过 `gate_*` 交付工具执行有确认边界的自动化。
+## 现有功能
 
-## 界面预览
+| 功能 | 能力与边界 | 指南 |
+|---|---|---|
+| MCP 聚合网关与传输 | 统一认证的 Model Context Protocol 入口；无状态 JSON `/mcp`、Streamable HTTP 远程 MCP、原生 stdio、明确版本与有界旧协议协商。聚合工具，不提供通用 resource/prompt 托管。 | [指南](docs/zh-CN/mcp-gateway.md) |
+| 用户与 RBAC | 本地登录、注册审核、自定义角色和权限类型、服务/工具授权与到期、限定范围的个人 API 令牌及用户状态管理。 | [指南](docs/zh-CN/configuration.md) |
+| 工具权限治理 | 发现 → 规则分析 → 人工审核 → 发布；读写、破坏性与幂等分类、指纹检查、批量审核和过期定义对账。发现不授予权限。 | [指南](docs/zh-CN/mcp-gateway.md) |
+| 内置 OAuth 与远程访问 | 明确启用的授权码流程，面向 OAuth 2.1 / PKCE 客户端：机密静态客户端、S256、每用户工具同意、加密 RS256 签名密钥、刷新轮换与撤销。独立公网同意页；不支持 DCR/CIMD，不宣称全面规范合规。 | [指南](docs/zh-CN/builtin-oauth.md) |
+| 外部身份提供方 | 可选外部 RS256 JWT 校验，精确 issuer/JWKS/audience/resource/client 绑定、身份映射和仅本人可管理的委托。支持直连 HTTPS 或管理员维护的隧道配置；Gate 不创建隧道。 | [指南](docs/zh-CN/external-connections.md) |
+| 服务配置与生命周期 | Manifest 表单/JSON 编辑、静态校验、应用/重载、启动/停止/连接、分区详情、健康、日志与重启历史。原生托管容器要求明确复核的 digest 固定镜像。 | [指南](docs/zh-CN/configuration.md) |
+| 工具目录与调试 | 按服务筛选的工具目录与有效权限标识；Schema 驱动的表单/JSON 参数、默认值/示例、结果复核与本地结果内容搜索。执行时仍重新校验权限。 | [指南](docs/zh-CN/operations.md) |
+| 加密凭据 | 共享凭据引用、私有的每用户 HTTP 下游绑定、脱敏元数据和仅一次展示的令牌/密钥。共享 stdio 进程不接收每用户凭据。 | [指南](docs/zh-CN/configuration.md) |
+| 可信项目交付 | ZIP 分析与可续传 MCP 上传、预检、摘要绑定 BuildPlan、有界构建日志/取消、部署预览与覆盖保护、启动及工具对账。原生执行要求信任项目源码，并非不可信代码沙箱。 | [指南](docs/zh-CN/project-delivery.md) |
+| 私有草稿与恢复 | 加密且带版本的交付草稿、独立的上传/构建/部署/启动确认、幂等 MCP 写操作及受保护的手动回滚。替换可中断服务，不做无缝会话迁移。 | [指南](docs/zh-CN/console-delivery.md) |
+| Git、代理与依赖源——部分实现 | HTTPS 固定 commit 计划、源码限制、命名代理加密版本、独立 Git/安装默认项、inherit/direct/profile 覆盖及独立 npm/Python 源。已实现 npm/pnpm/Yarn Classic 计划校验。生产拉取、测试、工具准备和指定网络安装均阻断：安全执行器尚未实现。 | [指南](docs/zh-CN/git-import-network.md) |
+| 个人工作区与文件引用 | 我的 MCP、连接、授权、调用、API 令牌和下游凭据；仅对明确支持的工具提供短期、用户/目标绑定的 `fileRef` 上传。 | [指南](docs/zh-CN/mcp-gateway.md) |
+| 审计与可观测性 | 工具授权决策审计、调用统计、按权限限定的服务/工具日志范围、事件、诊断、内存/环境摘要、运行缓存及存活/启动/就绪探针。 | [指南](docs/zh-CN/operations.md) |
+| 内容记录与保留策略 | 可选开启的脱敏、有界调用入出参记录；独立日志/事件/调用保留策略、清理预览和作业记录。7 天只是默认策略，定时 retention worker 默认关闭。 | [指南](docs/zh-CN/retention.md) |
+| Console、API、自动化与发行包 | 中英文、明暗主题、桌面布局、筛选/分页、私有 REST/OpenAPI 和 CLI；带确认边界的 `gate_*` 工具与 Delivery Skill。原生包、Docker Core、离线镜像、校验和、SBOM 及备份/升级流程。 | [指南](docs/zh-CN/releases.md) |
 
-以下为本地运行 Gate 的中文界面截图；Console 也支持英文。
+完整操作入口见下方文档索引。[调用内容记录](docs/zh-CN/invocation-recording.md) · [Git 执行缺口](docs/zh-CN/git-executor-decision.md)
 
-<img src="docs/images/console/zh-CN/dashboard-light.jpg" alt="浅色主题的 Gate 仪表盘，展示网关状态、已注册服务、可见工具和调用统计" width="1000">
+## Console 截图
 
-*仪表盘：查看网关状态、已注册服务与调用活动。*
+以下截图由 0.4.0 候选代码在隔离的本地测试实例中分别切换中英文拍摄，使用合成用户、服务和项目；没有真实外部账户、用户代理或生产凭据。Git 阻断和 OAuth 关闭状态如实展示。截图是界面证据，不是生产接入验收。[拍摄与验证记录](docs/zh-CN/release-validation.md)。
 
-<img src="docs/images/console/zh-CN/config-form-light.jpg" alt="MCP 配置弹窗，通过有标签的表单字段编辑，也可切换 JSON" width="1000">
+<img src="docs/images/console/zh-CN/v0.4.0-overview.png" alt="总览与调用统计" width="1000">
 
-*MCP 配置：通过表单维护常用设置，也可切换到 JSON。*
+*总览与调用统计 · 合成测试实例*
 
-<img src="docs/images/console/zh-CN/tool-invoke-dark.jpg" alt="深色主题的工具调用页面，提供表单和 JSON 两种参数编辑方式" width="1000">
+<img src="docs/images/console/zh-CN/v0.4.0-tool-catalog.png" alt="MCP 工具目录与有效权限" width="1000">
 
-*工具调用：选择工具、检查参数，运行后查看结果。*
+*MCP 工具目录与有效权限 · 合成测试实例*
 
-## 运维与验收
+<details>
+<summary>审核、个人工作区、交付、Git、网络、OAuth 与工具调试</summary>
 
-- 中文、英文 Console；桌面验收目标为 1600×900、1920×1080、2560×1080 和 2560×1440。
-- 大列表筛选与分页、构建日志历史窗口、调用结果内检索，以及集成的上传、配置、构建和启动流程。
-- [运行日志、事件和调用记录](docs/zh-CN/retention.md)分别配置保留时间，默认均为 7 天；[入参与出参记录](docs/zh-CN/invocation-recording.md)需显式启用，并受脱敏、大小限制和权限隔离约束。
-- [性能评估与复现脚本](docs/zh-CN/performance-review.md)记录测试规模、测量范围和限制；[浏览器回归指南](docs/zh-CN/browser-regression.md)覆盖角色与业务场景。单元测试、布局检查和真实部署验收分别记录；尚未完成完整 Playwright 和真实 ChatGPT OAuth 接入验收。
+<img src="docs/images/console/zh-CN/v0.4.0-classification.png" alt="工具分类审核与发布" width="1000">
 
-另保留此前合并的 [空实例预览](docs/assets/console-dashboard.svg)作为参考；截图不构成当前版本的完整验收证明。
+*工具分类审核与发布 · 合成测试实例*
+
+<img src="docs/images/console/zh-CN/v0.4.0-personal.png" alt="个人 MCP 工作区" width="1000">
+
+*个人 MCP 工作区 · 合成测试实例*
+
+<img src="docs/images/console/zh-CN/v0.4.0-delivery.png" alt="可信 ZIP 项目交付工作区" width="1000">
+
+*可信 ZIP 项目交付工作区 · 合成测试实例*
+
+<img src="docs/images/console/zh-CN/v0.4.0-git-import.png" alt="Git 来源表单与执行器未实现的阻断状态" width="1000">
+
+*Git 来源表单与执行器未实现的阻断状态 · 合成测试实例*
+
+<img src="docs/images/console/zh-CN/v0.4.0-network-settings.png" alt="系统设置：网络配置与依赖源" width="1000">
+
+*系统设置：网络配置与依赖源 · 合成测试实例*
+
+<img src="docs/images/console/zh-CN/v0.4.0-oauth.png" alt="内置 OAuth 管理，默认关闭" width="1000">
+
+*内置 OAuth 管理，默认关闭 · 合成测试实例*
+
+<img src="docs/images/console/zh-CN/v0.4.0-tool-invoke.png" alt="工具调试与结果复核" width="1000">
+
+*工具调试与结果复核 · 合成测试实例*
+
+</details>
 
 ## 快速开始
 
@@ -118,19 +151,11 @@ auto_start: false
 
 本机 stdio 配置、凭据引用、生命周期行为和网关请求见 [MCP 网关与下游服务](docs/zh-CN/mcp-gateway.md)。
 
-## 项目交付
+## 项目交付与远程访问
 
-Gate 提供有确认边界的 `gate_*` 工具，用于可续传上传、预检、构建计划、构建执行、部署、启动和启动后的工具对账。每项写操作都绑定幂等键；源文件、计划、配置、凭据和工具快照摘要用于阻止静默漂移。
+上传、预检、构建、部署、覆盖、启动、取消和放弃各自保留权限与确认；MCP 写操作还绑定幂等键和摘要。Console 可保存加密私有草稿，预览部署差异，并在受保护快照可用时明确执行手动回滚。参见[交付指南](docs/zh-CN/project-delivery.md)、[Console 交付](docs/zh-CN/console-delivery.md)和仓库自带 [Delivery Skill](.agents/skills/lingshu-gate-upload-build-start/SKILL.md)。
 
-仓库自带的 [Delivery Skill](.agents/skills/lingshu-gate-upload-build-start/SKILL.md) 在这些工具之上增加确定性本地打包和操作流程。上传、代码执行、部署、覆盖、启动、取消或放弃会话之前，仍必须获得明确确认。
-
-完整边界和工具列表见 [项目交付](docs/zh-CN/project-delivery.md)。
-
-## 远程 MCP 接入
-
-OAuth 接入默认关闭。[内置 OAuth](docs/zh-CN/builtin-oauth.md)通过静态客户端、明确同意及可撤销工具范围复用已有 Gate 用户；外部身份提供方继续可选。Gate 支持 `secure_mcp_tunnel` 和 `direct` HTTPS，以及 `disabled` 关闭状态。[外部接入与网络指南](docs/zh-CN/external-connections.md#选择网络接入路径)覆盖运维管理的网络选择；反向代理本身不能穿 NAT。
-
-只暴露 MCP 与必要 discovery 路径，内置模式另按专用 `/oauth` 清单放行。Console/管理面保持私有，并独立验证每用户授权。机器隧道 key 不代表最终用户。部署启用前按所选模式指南完成只读、写入和撤权验收；阅读本 README 不会启用连接。
+远程访问可使用 Gate API 令牌、内置 OAuth 或外部 RS256 IdP；OAuth 默认关闭。内置模式复用 Gate 用户，在单独的公网页面登录与同意工具范围；外部模式只验证 provider 签发的令牌。`direct` HTTPS 和 `secure_mcp_tunnel` 是管理员维护的网络选择，反向代理不能单独穿透 NAT，机器隧道密钥不能替代用户身份。参见[内置 OAuth](docs/zh-CN/builtin-oauth.md)与[外部身份/网络接入](docs/zh-CN/external-connections.md)。Console 和 `/v1` 保持私有，仅公开所选模式所需的 MCP、发现与 `/oauth` 路径。
 
 ## 安全默认值
 
@@ -173,16 +198,34 @@ Tag 发行还提供 `amd64` 和 `arm64` 的 Linux Core 离线镜像，以及应�
 
 原生归档只捆绑 Gate，不会捆绑所有项目运行时。下游启动和构建能否跨平台运行，仍取决于项目自身的工具链、命令、路径和依赖；预检会在执行前报告缺失项。
 
+## 支持边界
+
+- 入站 `/mcp` 是无状态 JSON；不提供 GET/SSE、旧式独立 HTTP+SSE、通用 resources/prompts 或未经请求的服务端消息。下游 POST SSE 响应能力不扩大入站范围。
+- SQLite 与配额为单 Core/单进程边界，不提供多租户或分布式配额保证。Core 不执行本地 build/deploy/start，不挂容器引擎 socket。原生可信项目执行不等于代码隔离。
+- Git SSH、自动 hooks/submodule/LFS 和重定向凭据转发不支持。交付代理不会自动传入运行时 MCP，也不修改宿主全局 Git/npm 设置；准确版本 manager 运行要求管理员受审查的 Node/CLI 注册表，不自动安装工具。
+- 已实现的自动化测试使用合成隔离环境；真实 ChatGPT/OAuth、用户 Git/代理与生产升级验收需要另行完成。不同平台的原生产物和镜像以该 Tag 的发布工作流实际结果为准。
+
 ## 文档
 
-- [架构](docs/zh-CN/architecture.md)
-- [配置](docs/zh-CN/configuration.md)
-- [MCP 网关与下游服务](docs/zh-CN/mcp-gateway.md)
-- [项目交付](docs/zh-CN/project-delivery.md)
-- [部署](docs/zh-CN/deployment.md)
-- [运维](docs/zh-CN/operations.md)
-- [本地开发](docs/zh-CN/local-development.md)
-- [发行产物](docs/zh-CN/releases.md)
+- [MCP 网关、协议、工具权限与文件引用](docs/zh-CN/mcp-gateway.md)
+- [用户、配置、凭据与运行策略](docs/zh-CN/configuration.md)
+- [内置 OAuth 管理与同意](docs/zh-CN/builtin-oauth.md)
+- [外部身份与远程网络接入](docs/zh-CN/external-connections.md)
+- [项目交付 API/工具与 Delivery Skill](docs/zh-CN/project-delivery.md)
+- [Console 交付、私有草稿与回滚](docs/zh-CN/console-delivery.md)
+- [Git 计划、网络配置与依赖源](docs/zh-CN/git-import-network.md)
+- [未实现的 Git 执行器与上线决策](docs/zh-CN/git-executor-decision.md)
+- [服务运维、调试、审计与诊断](docs/zh-CN/operations.md)
+- [调用入出参记录](docs/zh-CN/invocation-recording.md)
+- [保留策略与确认清理](docs/zh-CN/retention.md)
+- [部署、备份、升级与恢复](docs/zh-CN/deployment.md)
+- [发行包、校验和与 SBOM](docs/zh-CN/releases.md)
+- [架构与安全边界](docs/zh-CN/architecture.md)
+- [开发、API 与自动化检查](docs/zh-CN/local-development.md)
+- [合成浏览器回归场景](docs/zh-CN/browser-regression.md)
+- [有界性能测量](docs/zh-CN/performance-review.md)
+- [UI 与可访问性验收约定](docs/zh-CN/ui-interaction-contract.md)
+- [0.4.0 验证与截图来源](docs/zh-CN/release-validation.md)
 
 ## 开源协议
 

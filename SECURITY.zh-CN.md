@@ -41,6 +41,8 @@ Lingshu Gate 位于认证用户与可执行下游服务之间。其配置、数�
 
 项目构建和受管本机进程会以 Gate 进程的权限执行代码，不能作为不可信源码的沙箱。
 
+Manifest 校验只读，不执行其 command 或版本探测。固定 manager 启动仅使用服务管理员登记、位于项目/Data/Manifest 目录之外的 Node/JS CLI；项目执行路径或 PATH 不能改选探测程序。部署注册表与安装工具须防止未授权写入；元数据、超时和禁止下载不能证明工具完整性。准确版本探测仅发生在原有已授权启动生命周期内；未固定版本的旧 Manifest 保留既有显式执行边界。
+
 - 只构建和启动完整源码及依赖行为都可信的项目。
 - 上传前复核确定性压缩包中的完整文件列表。
 - 确认前复核准确的构建计划和需要访问网络的依赖安装步骤。
@@ -89,15 +91,21 @@ Manifest 应使用 `${credential:<id>}` 引用而不是明文。用户下游值�
 
 先验证精确 issuer/JWKS、audience/规范资源和客户端绑定，再查询当前身份绑定、有效用户和个人授权。普通角色/资源权限、已发布分类、JWT scopes 与本地委托共同限制工具访问，管理员也不例外。grant 限流/并发约束仅在单进程执行，重启后重置。完整配置、验证和撤权合同见[外部资源访问](docs/zh-CN/external-connections.md)。
 
-启用本地记录不会完成外部同意流程，也不证明 provider/ChatGPT 已连接。Gate 不签发 provider 令牌、不托管 authorize/PKCE 流程、不注册 OAuth 客户端，也不启动隧道。合成 JWT/HTTP 测试不认证生产 TLS 信任链或真实 provider 接入。
+启用本地记录不会完成外部同意流程，也不证明 provider/ChatGPT 已连接。在外部 IdP 模式中，Gate 不签发 provider 令牌、不托管其 authorize/PKCE 流程，也不向该 provider 注册客户端。独立且需明确启用的内置模式托管 Gate 自身的授权服务和静态客户端注册表。两种模式均不启动隧道。合成 JWT/HTTP 测试不认证生产 TLS 信任链或真实 provider 接入。
 
 共享服务凭据 CRUD 要求 `credentials.manage.system`，默认仅内置管理员拥有；内置 operator 不再通过 `operations.manage` 继承该权限。个人令牌和下游凭据保留 `credentials.manage.self`。外部信任/身份绑定管理另要求 `external_connections.manage`，个人委托始终仅本人可管理。入站 JWT、个人下游凭据和隧道运行秘密保持分离。
+
+## Git 与交付网络设置
+
+命名网络配置要求 `system_settings.manage`；网络调用额外要求 `network.use` 与既有操作、工具和 token 权限。代理地址仅写入并加密，认证仅使用凭据引用。配置与默认项使用乐观版本检查；排队工作固定不可变版本，失败不静默直连。引用中的配置不能悄然删除。生产环境尚无 Git、代理测试及指定网络安装所需的隔离执行器，相关操作明确阻断。宿主子进程环境过滤不等于隔离，Core 执行仍被禁止。
+
+HTTPS 来源计划固定完整 commit、摘要、精确主机策略与有界快照。SSH、hooks、远程 helper、重定向转发凭据、自动 submodule/LFS、宿主全局配置和 Docker socket 均不支持。工具准备是显式确认阶段，在执行器专属缓存中准备通过官方完整性校验的固定版本，不做全局安装。受审查适配器必须约束依赖来源、DNS、出口、资源、取消和产物秘密扫描，代理出口也需遵循。参见 [Git/网络设计](docs/zh-CN/git-import-network.md)。
 
 ## 内置 OAuth 边界
 
 默认关闭的内置服务复用已有 Gate 密码/RBAC 身份，使用每用户明确工具同意、机密静态客户端、S256 PKCE 和本地 RS256 验证。授权服务令牌仅认证 `/mcp`。每请求重新读取用户、客户端、授权和刷新令牌族状态，保存的工具快照与当前权限/发布状态取交集；扩大分类或发现工具不能扩大既有授权。SQLite 事务串行处理单次授权码和刷新轮换；已用刷新令牌重放撤销整族，即使返回错误也提交撤销。访问令牌最长 10 分钟、授权码 60 秒、刷新令牌族绝对 30 天，均受授权到期约束。
 
-只存秘密摘要和加密私钥，保护并与数据库一起备份 `data_dir/oauth-signing.key`。专用浏览器 Cookie 使用 Secure/HttpOnly/SameSite=Lax，路径为 `/oauth`；浏览器 POST 检查精确 Origin 和请求 CSRF。公网界面独立打包，不要求公开 Console 或 `/v1`。[内置 OAuth](docs/zh-CN/builtin-oauth.md)说明请求边界、准入限制、TTL 和安全错误。Gate 过滤 OAuth 访问日志查询，边缘代理/追踪系统须另行排除请求秘密。此为第一版实现，当前只有静态检查和未执行安全/浏览器测试代码，不能视为 OAuth 验收。CIMD、匿名 DCR、多租户和隧道管理不在范围内。
+只存秘密摘要和加密私钥，保护并与数据库一起备份 `data_dir/oauth-signing.key`。专用浏览器 Cookie 使用 Secure/HttpOnly/SameSite=Lax，路径为 `/oauth`；浏览器 POST 检查精确 Origin 和请求 CSRF。公网界面独立打包，不要求公开 Console 或 `/v1`。[内置 OAuth](docs/zh-CN/builtin-oauth.md)说明请求边界、准入限制、TTL 和安全错误。Gate 过滤 OAuth 访问日志查询，边缘代理/追踪系统须另行排除请求秘密。已执行的合成安全/浏览器证据见[发行验证](docs/zh-CN/release-validation.md)，不认证真实 TLS、provider 或 ChatGPT 接入。CIMD、匿名 DCR、多租户和隧道管理不在范围内。
 
 SQLite 会话用途强制区分 Console/公网同意登录，即使双向复制 Cookie 值也不能越过边界。已发布版本的会话迁移为 Console 会话，公网登录只签发同意用途会话。未知用户名执行与错误密码相同的 PBKDF2 校验工作。匿名浏览器请求使用有界、加密、短期票据，不占已登录待处理池。已登录准入有用户/客户端/全局上限，完成立即释放槽位，匿名/已登录/协议限流预算分离。公网登录和协议端点的分布式滥用仍需边缘控制；这些边界不保证可用性。
 

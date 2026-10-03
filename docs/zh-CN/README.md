@@ -13,6 +13,9 @@
 | [配置](configuration.md) | 环境变量、目录、Manifest、凭据和反向代理设置 |
 | [MCP 网关](mcp-gateway.md) | 网关入口、协议协商、下游 HTTP/stdio、发现、分类和调用 |
 | [项目交付](project-delivery.md) | 上传、构建、部署、启动流程，`gate_*` 工具和自带 Delivery Skill |
+| [Git 导入与网络设置](git-import-network.md) | 交付网络版本、受控 Git 来源、确定性依赖工具与执行器边界 |
+| [Console 交付工作区](console-delivery.md) | 私有交付草稿、确认、冲突恢复与交付记录 |
+| [Git 执行缺口与落地决策](git-executor-decision.md) | 具体代码缺口、默认部署限制及隔离 worker 范围决策 |
 | [部署](deployment.md) | Docker Compose、原生服务、生产加固、备份、升级和回滚 |
 | [运维](operations.md) | 健康探针、日志、事件、诊断、运行时缓存、审计和故障检查 |
 | [本地开发](local-development.md) | 源码环境、Console 构建、测试套件和仓库约定 |
@@ -21,6 +24,7 @@
 | [外部 OAuth 资源访问](external-connections.md) | 默认关闭的 JWT 验证、信任配置、个人委托与实际接入边界 |
 | [内置 OAuth 授权](builtin-oauth.md) | 复用已有用户、静态客户端、同意、刷新/撤销与公网代理放行清单 |
 | [发行产物](releases.md) | 平台归档、checksum、SBOM、构建元数据、离线镜像和发布规则 |
+| [0.4.0 验证记录](release-validation.md) | 已执行检查、合成截图与剩余验收缺口 |
 
 运行中的 Gate 会在 `/docs` 提供 API Schema。安全策略和报告方式见 [SECURITY.zh-CN.md](../../SECURITY.zh-CN.md)。
 

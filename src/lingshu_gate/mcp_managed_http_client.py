@@ -20,6 +20,7 @@ from lingshu_gate.mcp_http_client import StreamableHttpMcpClient
 from lingshu_gate.mcp_manifest import McpServerManifest
 from lingshu_gate.mcp_runtime_cache import McpRuntimeCacheResolver
 from lingshu_gate.redaction import redact_command, redact_text, redact_value
+from lingshu_gate.runtime_toolchain import resolve_runtime_toolchain
 from lingshu_gate.subprocess_environment import build_subprocess_environment
 
 logger = logging.getLogger(__name__)
@@ -270,6 +271,8 @@ class ManagedHttpMcpClient:
             )
         )
         command = cache_plan.command or [launch.command, *launch.args]
+        if launch.toolchain:
+            command = resolve_runtime_toolchain(launch, env, settings=self.settings)
         safe_command = redact_command(command)
         cwd = Path(launch.cwd).resolve() if launch.cwd else None
         log_event(

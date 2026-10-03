@@ -40,6 +40,7 @@ for (const [width, height] of [[2048, 1119], [1188, 761], [1366, 768], [390, 844
   mkdirSync(output!, { recursive: true })
   for (const view of ['downstreamCredentials', 'myConnections']) {
     await page.goto(`/console/#/${view}`)
+    if (view === 'myConnections') await page.getByRole('tab', { name: '外部身份提供方', exact: true }).click()
     const viewport = page.locator('.bounded-list-scroll')
     await expect(viewport.locator('tbody tr').first()).toContainText('synthetic')
     measures.push({ view, geometry: await expectUsesSpace(viewport) })
@@ -53,14 +54,16 @@ for (const [width, height] of [[2048, 1119], [1188, 761], [1366, 768], [390, 844
         return { text: el.textContent?.trim(), lines: ys.size }
       }).filter(item => item.lines > 1))
       expect(wrapping).toEqual([])
-      await expect(viewport.locator('tbody tr').first()).toContainText('Authorization Header')
+      await expect(viewport.locator('tbody tr').first()).toContainText('Authorization · HTTP Header')
       await expect(viewport.locator('tbody tr').first()).toContainText('必填')
       await expect(viewport.locator('tbody tr').first()).toContainText('已配置')
-      for (const column of [2, 3, 4]) {
+      // The compact table combines configured/required state in one column.
+      for (const column of [2]) {
         await viewport.evaluate((el, index) => { el.scrollLeft = (el.querySelectorAll('thead th')[index] as HTMLElement).offsetLeft }, column)
         await expectInViewportAndUnobscured(viewport.locator('tbody tr').first().locator('td').nth(column).locator('.rounded-full'))
         await page.screenshot({ path: join(output!, `downstream-short-column-${column}-${width}x${height}.png`) })
       }
+      await expectInViewportAndUnobscured(viewport.locator('tbody tr').first().locator('td').last().getByRole('button').first())
       await viewport.evaluate(el => { el.scrollLeft = 0 })
     }
     const next = page.getByRole('button', { name: '下一页', exact: true })
@@ -72,6 +75,7 @@ for (const [width, height] of [[2048, 1119], [1188, 761], [1366, 768], [390, 844
     await expect.poll(() => viewport.evaluate(el => el.scrollTop)).toBe(0)
   }
   await page.goto('/console/#/connectionInfrastructure')
+  await page.getByRole('tab', { name: '外部身份提供方', exact: true }).click()
   const section = page.getByRole('region', { name: 'OAuth 身份绑定', exact: true })
   const identityViewport = section.locator('.bounded-list-scroll')
   await expect(identityViewport.locator('tbody tr').first()).toContainText('synthetic-subject-0')
@@ -101,8 +105,10 @@ for (const [width, height] of [[2048, 1119], [1188, 761], [1366, 768], [390, 844
   await drawer.getByRole('button', { name: /Close|关闭/, exact: true }).click()
   await page.goto('/console/#/builds/build-0')
   await page.getByRole('tab', { name: /日志与输出/ }).click()
-  const logViewport = page.locator('.bounded-list-scroll').filter({ has: page.getByText('Synthetic build log 0', { exact: true }) })
+  // Log workspaces initially follow the latest page of the bounded window.
+  const logViewport = page.locator('.bounded-list-scroll').filter({ has: page.getByText('Synthetic build log 199', { exact: true }) })
   await expect(logViewport).toBeVisible()
+  expect(await logViewport.locator('tbody tr').count()).toBeLessThanOrEqual(50)
   await logViewport.evaluate(el => { window.scrollBy(0, el.getBoundingClientRect().top - (document.querySelector('header')?.getBoundingClientRect().height || 0) - 100) })
   measures.push({ view: 'buildLogs', geometry: await expectUsesSpace(logViewport, 44) })
   await logViewport.evaluate(el => { el.scrollTop = el.scrollHeight })
@@ -119,8 +125,13 @@ for (const width of [1366, 390]) test(`Subject below-fold diagnostic ${width} @l
   await page.setViewportSize({ width, height: width === 390 ? 844 : 768 })
   await page.addInitScript(() => localStorage.setItem('lingshu-gate-console-locale', 'zh-CN'))
   const links = Array.from({ length: 200 }, (_, i) => ({ id: `synthetic-link-${i}`, issuer: 'https://synthetic.invalid', subject: `synthetic-subject-${i}`, user_id: `synthetic-user-${i}`, enabled: false, revision: 1 }))
-  await page.route('**/v1/auth/external-subject-links', route => route.fulfill({ json: { links } }))
+  await page.route('**/v1/auth/external-subject-links*', route => {
+    const query = new URL(route.request().url()).searchParams
+    const offset = Number(query.get('offset') || 0), limit = Number(query.get('limit') || 50)
+    return route.fulfill({ json: { links: links.slice(offset, offset + limit), total: links.length, offset, limit } })
+  })
   await page.goto('/console/#/connectionInfrastructure')
+  await page.getByRole('tab', { name: '外部身份提供方', exact: true }).click()
   const section = page.getByRole('region', { name: 'OAuth 身份绑定', exact: true })
   await expect(section.locator('tbody tr').first()).toContainText('synthetic-subject-0')
   const data = await section.evaluate(async section => {

@@ -5,7 +5,8 @@ export function deliveryDraftRequest(draft: DeliveryDraft, changes: Partial<Deli
   const value = { ...draft, ...changes }
   return { expected_revision: draft.revision, manifest_patch: value.manifest_patch,
     server_id: value.server_id, build_id: value.build_id, deployment_id: value.deployment_id,
-    overwrite: value.overwrite, start: value.start, project_root: value.project_root, runtime_override: value.runtime_override }
+    overwrite: value.overwrite, start: value.start, project_root: value.project_root, runtime_override: value.runtime_override,
+    package_manager_override: value.package_manager_override || null }
 }
 
 function record(value: unknown): value is Record<string, unknown> {

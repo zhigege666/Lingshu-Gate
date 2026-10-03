@@ -10,15 +10,19 @@ import subprocess
 from pathlib import Path
 from typing import Any
 
+from lingshu_gate.node_toolchain import NodeToolchainOverride, inspect_node_toolchain, node_bin_entrypoint
+from lingshu_gate.subprocess_environment import build_subprocess_environment
+
 SUPPORTED_RUNTIME_OVERRIDES = {"node", "python"}
 NODE_ENTRYPOINTS = ["dist/index.js", "index.js", "src/index.js"]
 PYTHON_ENTRYPOINTS = ["server.py", "main.py", "app.py"]
-TOOL_NAMES = ["node", "npm", "npx", "python", "python3", "pip", "pip3"]
+TOOL_NAMES = ["node", "npm", "npx", "pnpm", "yarn", "python", "python3", "pip", "pip3"]
 PROJECT_MARKERS = ("package.json", "pyproject.toml", "requirements.txt", "Dockerfile")
 DESCEND_IGNORED_DIRS = {".git", "node_modules", ".venv", "venv", "dist", "build", "target", "__pycache__"}
 FINGERPRINT_KEY_FILES = [
     "package.json",
     "package-lock.json",
+    "npm-shrinkwrap.json",
     "pnpm-lock.yaml",
     "yarn.lock",
     "pyproject.toml",
@@ -90,6 +94,7 @@ def scope_key(upload_id: str, fingerprint: dict[str, Any]) -> str:
             "upload_id": upload_id,
             "project_root": fingerprint.get("project_root"),
             "runtime_override": fingerprint.get("runtime_override"),
+            "package_manager_override": fingerprint.get("package_manager_override"),
             "tool_probe_mode": fingerprint.get("tool_probe_mode", "version"),
         }
     )
@@ -155,6 +160,8 @@ def run_build_preflight(
     project_root: str | None = None,
     tools_cache: dict[str, Any] | None = None,
     probe_tool_versions: bool = True,
+    package_manager_override: NodeToolchainOverride | None = None,
+    isolated_toolchain: bool = False,
 ) -> dict[str, Any]:
     checks: list[dict[str, Any]] = []
     upload_root = Path(str(upload.get("root_dir") or ""))
@@ -184,8 +191,8 @@ def run_build_preflight(
         checks.append(_check("project_root.selected", "ok", "Selected project root exists", str(selected_root)))
         files = _scan_files(selected_root)
 
-    if tools_cache and all(name in tools_cache for name in TOOL_NAMES):
-        tools = {name: tools_cache[name] for name in TOOL_NAMES}
+    if tools_cache:
+        tools = {name: tools_cache.get(name) or {"command": name, "available": False, "path": "", "version": "", "error": "not cached"} for name in TOOL_NAMES}
     elif not probe_tool_versions:
         tools = {name: _locate_tool(name) for name in TOOL_NAMES}
     else:
@@ -197,6 +204,8 @@ def run_build_preflight(
     raw_scripts = package_json.get("scripts")
     scripts: dict[str, Any] = raw_scripts if isinstance(raw_scripts, dict) else {}
     node_install_metadata = _node_install_metadata(package_json, scripts)
+    node_package_manager = inspect_node_toolchain(selected_root, package_json, files, tools, package_manager_override, isolated_toolchain=isolated_toolchain) if package_json else {}
+    bin_entrypoint = node_bin_entrypoint(package_json)
     python_entrypoint = _first_existing(selected_root, PYTHON_ENTRYPOINTS)
     candidates: list[str] = []
     if "package.json" in files:
@@ -217,7 +226,13 @@ def run_build_preflight(
             checks.append(_check("runtime.override", "ok", "Runtime was manually selected", override))
 
     if runtime == "node":
-        _append_node_checks(checks, selected_root, files, scripts, tools, bool(override))
+        _append_node_checks(checks, selected_root, files, scripts, tools, bool(override), isolated_toolchain, bin_entrypoint)
+        for message in node_package_manager.get("errors", []):
+            checks.append(_check("node.package_manager", "warning", message))
+        for message in node_package_manager.get("warnings", []):
+            checks.append(_check("node.package_manager.selection", "warning", message))
+        if bin_entrypoint and (selected_root / bin_entrypoint).is_file():
+            checks.append(_check("node.bin", "ok", "Node bin entrypoint found", bin_entrypoint))
     elif runtime == "python":
         _append_python_checks(checks, selected_root, files, python_entrypoint, tools, bool(override))
     elif runtime == "ambiguous":
@@ -257,6 +272,8 @@ def run_build_preflight(
             "has_requirements": "requirements.txt" in files,
             "has_dockerfile": "Dockerfile" in files,
             "package_scripts": sorted(str(key) for key in scripts.keys()),
+            "node_package_manager": node_package_manager,
+            "node_bin_entrypoint": bin_entrypoint,
             **node_install_metadata,
             "node_entrypoint": _first_existing(selected_root, NODE_ENTRYPOINTS) or "",
             "python_entrypoint": python_entrypoint or "",
@@ -265,18 +282,20 @@ def run_build_preflight(
     }
 
 
-def _append_node_checks(checks: list[dict[str, Any]], root: Path, files: set[str], scripts: dict[str, Any], tools: dict[str, dict[str, Any]], manual: bool) -> None:
+def _append_node_checks(checks: list[dict[str, Any]], root: Path, files: set[str], scripts: dict[str, Any], tools: dict[str, dict[str, Any]], manual: bool, isolated_toolchain: bool = False, bin_entrypoint: str = "") -> None:
     if "package.json" in files:
         checks.append(_check("node.package_json", "ok", "package.json found", str(root / "package.json")))
     else:
         checks.append(_check("node.package_json", "warning" if manual else "error", "package.json missing", str(root / "package.json")))
     interesting = [name for name in ["build", "start", "dev", "serve"] if name in scripts]
     checks.append(_check("node.package_scripts", "ok" if interesting else "warning", "package.json scripts inspected", ", ".join(interesting) or "no build/start/dev/serve script"))
-    checks.append(_check("node.entrypoint", "ok" if "start" in scripts or _first_existing(root, NODE_ENTRYPOINTS) else "warning", "Node entrypoint check", "scripts.start or dist/index.js/index.js/src/index.js"))
-    if not tools["node"]["available"]:
+    checks.append(_check("node.entrypoint", "ok" if "start" in scripts or _first_existing(root, ([bin_entrypoint] if bin_entrypoint else []) + NODE_ENTRYPOINTS) else "warning", "Node entrypoint check", bin_entrypoint or "scripts.start or dist/index.js/index.js/src/index.js"))
+    if isolated_toolchain:
+        checks.append(_check("node.executor_toolchain", "warning", "Actual Node engines and tool cache will be verified by the isolated executor; host tools are not execution evidence"))
+    elif not tools["node"]["available"]:
         checks.append(_check("node.required_tool.node", "error", "node is required", "install Node.js"))
-    if not tools["npm"]["available"]:
-        checks.append(_check("node.required_tool.npm", "error", "npm is required", "install npm"))
+    # The chosen package manager is validated by the generated plan. A missing
+    # optional npm must not block a pnpm/yarn or copy-only project.
     if not tools["npx"]["available"]:
         checks.append(_check("node.required_tool.npx", "warning", "npx is recommended", "install npx"))
 
@@ -364,7 +383,7 @@ def _probe_tool(command: str) -> dict[str, Any]:
         result["error"] = "not found"
         return result
     try:
-        completed = subprocess.run([command, "--version"], capture_output=True, text=True, timeout=5, check=False)
+        completed = subprocess.run([command, "--version"], capture_output=True, text=True, timeout=5, check=False, env=build_subprocess_environment({"COREPACK_ENABLE_NETWORK": "0", "COREPACK_ENABLE_AUTO_PIN": "0"}))
         version = (completed.stdout or completed.stderr or "").strip().splitlines()
         result["version"] = version[0][:200] if version else f"returncode={completed.returncode}"
     except Exception as exc:  # noqa: BLE001

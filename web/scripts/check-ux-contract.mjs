@@ -19,6 +19,7 @@ const pageNames = [
   "logs-events-page.tsx",
   "runtime-cache-page.tsx",
   "uploads-page.tsx",
+  "system-settings-page.tsx",
   "tool-classifications-page.tsx",
   "access-users-page.tsx",
   "access-roles-page.tsx",

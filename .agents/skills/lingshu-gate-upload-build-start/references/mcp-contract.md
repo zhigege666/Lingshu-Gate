@@ -8,7 +8,7 @@
 | `gate_project_upload_chunk` | Write | `transfer_id`, `offset`, `data_base64`, `chunk_sha256`, `idempotency_key` | `accepted_bytes`, `next_offset`, `complete` |
 | `gate_project_upload_commit` | Write | `transfer_id`, `idempotency_key` | `upload.id`, `source_sha256`, `source_size_bytes` |
 | `gate_project_upload_abort` | Destructive write | `transfer_id`, `idempotency_key`, `confirmed` | `status=aborted`, `transfer_id` |
-| `gate_build_preflight` | Read | `upload_id`, `runtime_override?`, `project_root?`, `refresh?` | `status`, `checks`, `tools` |
+| `gate_build_preflight` | Read | `upload_id`, `runtime_override?`, `project_root?`, `package_manager_override?`, `refresh?` | `status`, `checks`, `tools` |
 | `gate_build_plan` | Read | Preflight fields, `run_install`, `run_build` | `plan`, `validation`, `plan_fingerprint` |
 | `gate_build_create` | Execution write | `upload_id`, `runtime_override?`, `project_root?`, `run_install`, `run_build`, `timeout_seconds`, `source_sha256`, `plan_fingerprint`, `idempotency_key`, `confirmed` | `build_id`, `status`, `poll_after_ms` |
 | `gate_build_status` | Read | `build_id`, `after_sequence`, `log_limit` | `terminal`, `logs`, `next_sequence` |
@@ -41,3 +41,9 @@ Every write also requires the caller to have `tools.invoke`, `operations.manage`
 `operation_interrupted` means that the original operation's completion state is unknown and the request must not be replayed automatically. Retain its `operation_id`, reconcile any already-known resource identifiers or operator audit state, and require an operator decision before a new key is used. `upload_transfer_state_conflict` and `upload_commit_recovery_conflict` likewise require state reconciliation instead of a blind restart. These are the common codes the Skill needs to route; they are not an exhaustive list of dynamic preflight failures.
 
 Errors use an MCP tool result with `isError=true` and `structuredContent.error`, containing `code`, `message`, `retryable`, `next_action`, and `details`. Do not interpret a business failure as a JSON-RPC protocol error.
+
+## Git/network increment
+
+`gate_project_git_plan` accepts the controlled HTTPS source selection and returns `plan_id`, `plan_digest`, full `commit_sha`, expiry and fixed network versions, or a structured blocker. `gate_project_git_import` accepts only that plan ID/digest, `idempotency_key` and `confirmed=true`; `gate_project_git_status` reads the actor-owned `import_id`; `gate_project_git_cancel` requires its own confirmation/key. Network use requires `network.use` in addition to existing control/token/delegation permissions. None of these tools deploys or starts a server.
+
+Preflight/plan/create accept optional `package_manager_override={name, version, lockfile}` and bind it to the build fingerprint. Plans expose `recommended_choices` for real lock conflicts and `node-toolchain` preparation for missing/unverified tools. npm 9–11, pnpm 8–11, Yarn Classic 1.22 are the bounded command families; pnpm 11 requires actual Node >=22.13. Yarn Berry and pnpm 12 are unsupported. `safe_executor_unavailable`, `git_host_not_allowed`, `git_plan_conflict`, `git_credential_changed`, `network_permission_denied`, `proxy_scheme_unsupported` and `network_test_rate_limited` require explicit correction/review; no direct/tool-version fallback is allowed.

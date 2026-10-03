@@ -82,7 +82,13 @@ for (const [width, height] of [[1188, 761], [390, 844]]) test(`E2E-${width === 1
   await page.getByRole('button', { name: '重置条件', exact: true }).click()
   await page.getByRole('button', { name: '重置条件', exact: true }).click()
   await expect(tool).toBeDisabled()
-  expect(logQueries).toHaveLength(beforeReset)
+  // Reset applies the default read query immediately; each click is a bounded
+  // GET and must clear both tool and service scope without any mutation.
+  await expect.poll(() => logQueries.length).toBe(beforeReset + 2)
+  for (const request of logQueries.slice(beforeReset)) {
+    expect(new URL(request).searchParams.has('tool_id')).toBe(false)
+    expect(new URL(request).searchParams.has('server_id')).toBe(false)
+  }
   await page.getByRole('button', { name: '应用筛选', exact: true }).click()
   await expect.poll(() => new URL(logQueries.at(-1)!).searchParams.has('tool_id')).toBe(false)
   expect(requested.every(url => mcps.some(item => item.id === new URL(url).searchParams.get('server_id')))).toBe(true)

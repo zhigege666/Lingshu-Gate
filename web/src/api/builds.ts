@@ -34,6 +34,9 @@ export type BuildPlanManifest = {
 }
 
 export type BuildPlan = {
+  requires_safe_executor?: boolean
+  package_manager?: NodePackageManager | null
+  recommended_choices?: PackageManagerOverride[]
   ir_version: number
   runtime: string
   buildable: boolean
@@ -46,6 +49,7 @@ export type BuildPlan = {
 }
 
 export type BuildStepState = {
+  package_manager?: { name: string; version: string; node_version?: string; source?: { method: string; official_metadata_url: string; source_integrity: string } }
   index: number
   id: string
   phase: string
@@ -122,6 +126,7 @@ export type BuildPreflightMetadata = {
   package_scripts?: string[]
   python_entrypoint?: string
   file_count?: number
+  node_package_manager?: NodePackageManager
 }
 
 export type BuildPreflightCacheInfo = {
@@ -189,7 +194,9 @@ export class BuildApiError extends Error {
   }
 }
 
-export type DeliveryDraft = { upload_id: string; revision: number; manifest_patch: Record<string, unknown>; server_id: string | null; build_id: string | null; deployment_id: string | null; overwrite: boolean; start: boolean; project_root?: string; runtime_override?: string | null }
+export type PackageManagerOverride = { name: "npm" | "pnpm" | "yarn"; version: string; lockfile?: "package-lock.json" | "npm-shrinkwrap.json" | "pnpm-lock.yaml" | "yarn.lock" | null }
+export type NodePackageManager = PackageManagerOverride & { observed_version?: string; expected_version?: string; lockfile_version?: string; lockfile_sha256?: string; requires_prepare?: boolean; warnings?: string[]; errors?: string[]; recommended_choices?: PackageManagerOverride[] }
+export type DeliveryDraft = { upload_id: string; revision: number; manifest_patch: Record<string, unknown>; server_id: string | null; build_id: string | null; deployment_id: string | null; overwrite: boolean; start: boolean; project_root?: string; runtime_override?: string | null; package_manager_override?: PackageManagerOverride | null }
 
 export type DeploymentOptions = { server_id?: string; start?: boolean; overwrite?: boolean; manifest_patch?: Record<string, unknown>; credential_policy?: "preserve_existing" | "require_none"; expected_config_digest?: string; expected_previous_config_digest?: string | null; expected_credential_binding_digest?: string | null }
 export type DeploymentCredentialState = {
@@ -249,12 +256,12 @@ export const buildApi = {
   builds: () => request<{ builds: BuildRecord[] }>("/v1/builds"),
   buildLogs: (buildId: string, limit = 200, cursor: { tail?: boolean; before_sequence?: number; after_sequence?: number } = {}) => request<{ logs: BuildLog[]; has_earlier?: boolean; has_later?: boolean }>(`/v1/builds/${encodeURIComponent(buildId)}/logs?${new URLSearchParams({ limit: String(limit), ...Object.fromEntries(Object.entries(cursor).map(([key, value]) => [key, String(value)])) })}`),
   deployments: () => request<{ deployments: DeploymentRecord[] }>("/v1/deployments"),
-  preflightBuild: (uploadId: string, options: { runtime_override?: string | null; project_root?: string | null; refresh?: boolean } = {}) =>
-    request<BuildPreflightResult>("/v1/builds/preflight", { method: "POST", body: JSON.stringify({ upload_id: uploadId, runtime_override: options.runtime_override || null, project_root: options.project_root || null, refresh: options.refresh ?? false }) }),
-  planBuild: (uploadId: string, options: { runtime_override?: string | null; project_root?: string | null; refresh?: boolean; run_install?: boolean; run_build?: boolean } = {}) =>
-    request<{ preflight: BuildPreflightResult; plan: BuildPlan }>("/v1/builds/plan", { method: "POST", body: JSON.stringify({ upload_id: uploadId, runtime_override: options.runtime_override || null, project_root: options.project_root || null, run_install: options.run_install ?? true, run_build: options.run_build ?? true, refresh: options.refresh ?? false }) }),
-  createBuild: (uploadId: string, options: { run_install?: boolean; run_build?: boolean; timeout_seconds?: number; runtime_override?: string | null; project_root?: string | null } = {}) =>
-    request<BuildRecord>("/v1/builds", { method: "POST", body: JSON.stringify({ upload_id: uploadId, run_install: options.run_install ?? true, run_build: options.run_build ?? true, timeout_seconds: options.timeout_seconds ?? 300, runtime_override: options.runtime_override || null, project_root: options.project_root || null }) }),
+  preflightBuild: (uploadId: string, options: { runtime_override?: string | null; project_root?: string | null; refresh?: boolean; package_manager_override?: PackageManagerOverride | null } = {}) =>
+    request<BuildPreflightResult>("/v1/builds/preflight", { method: "POST", body: JSON.stringify({ upload_id: uploadId, runtime_override: options.runtime_override || null, project_root: options.project_root || null, refresh: options.refresh ?? false, package_manager_override: options.package_manager_override || null }) }),
+  planBuild: (uploadId: string, options: { runtime_override?: string | null; project_root?: string | null; refresh?: boolean; run_install?: boolean; run_build?: boolean; package_manager_override?: PackageManagerOverride | null } = {}) =>
+    request<{ preflight: BuildPreflightResult; plan: BuildPlan }>("/v1/builds/plan", { method: "POST", body: JSON.stringify({ upload_id: uploadId, runtime_override: options.runtime_override || null, project_root: options.project_root || null, run_install: options.run_install ?? true, run_build: options.run_build ?? true, refresh: options.refresh ?? false, package_manager_override: options.package_manager_override || null }) }),
+  createBuild: (uploadId: string, options: { run_install?: boolean; run_build?: boolean; timeout_seconds?: number; runtime_override?: string | null; project_root?: string | null; package_manager_override?: PackageManagerOverride | null } = {}) =>
+    request<BuildRecord>("/v1/builds", { method: "POST", body: JSON.stringify({ upload_id: uploadId, run_install: options.run_install ?? true, run_build: options.run_build ?? true, timeout_seconds: options.timeout_seconds ?? 300, runtime_override: options.runtime_override || null, project_root: options.project_root || null, package_manager_override: options.package_manager_override || null }) }),
   cancelBuild: (buildId: string) =>
     request<BuildRecord>(`/v1/builds/${encodeURIComponent(buildId)}/cancel`, { method: "POST", body: JSON.stringify({}) }),
   deleteBuild: (buildId: string) =>

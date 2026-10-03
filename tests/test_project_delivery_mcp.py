@@ -14,6 +14,7 @@ from pathlib import Path
 from types import SimpleNamespace
 from unittest.mock import Mock, patch
 
+from lingshu_gate.build_deploy import BuildDeployStore
 from lingshu_gate.database import SQLiteDatabase
 from lingshu_gate.project_delivery_mcp import (
     PROJECT_DELIVERY_TOOL_DEFINITIONS,
@@ -248,6 +249,8 @@ class FakeRuntime:
 class FakeBuildStore:
     """只返回受控记录，不创建构建线程，也不执行计划命令。"""
 
+    _requires_safe_network = staticmethod(BuildDeployStore._requires_safe_network)
+
     def __init__(
         self,
         database: SQLiteDatabase,
@@ -275,6 +278,7 @@ class FakeBuildStore:
                 "runtime": "node",
                 "buildable": True,
                 "project_root_dir": "project",
+                "package_manager": {"name": "npm", "version": "11.9.0", "supported": True, "lockfile": "package-lock.json", "requires_prepare": False},
                 "steps": [
                     {
                         "id": "node-install",

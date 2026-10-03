@@ -52,7 +52,7 @@ for (const [width, height] of [[1188, 761], [2048, 1119], [1366, 768], [390, 844
       await expect(page.locator('main .ant-spin-spinning')).toHaveCount(0)
       const table = page.locator('main .ant-table-wrapper')
       await expect(table).toBeVisible()
-      if (amount === 0) await expect(table.locator('.ant-empty')).toBeVisible()
+      if (amount === 0) await expect(table.getByRole('cell', { name: '暂无数据', exact: true })).toBeVisible()
       else await expect(table.getByRole('button', { name: '合成服务 0', exact: true })).toBeVisible()
       const body = table.locator('.ant-table-body')
       const bounds = await table.evaluate(el => ({ height: el.getBoundingClientRect().height, width: el.getBoundingClientRect().width }))

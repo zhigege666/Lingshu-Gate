@@ -76,7 +76,7 @@ export function BuildRecordsTable({ builds, busy, selectedBuildId, canRequestSto
             onKeyDown={(event) => { if (event.key === "Enter" || event.key === " ") { event.preventDefault(); onShowBuild(build) } }}
           >
             <TableCell><code className="text-xs" title={build.id}>{shortId(build.id)}</code><div className="text-xs text-muted-foreground" title={build.upload_id}>{t("uploadId")}: {shortId(build.upload_id)}</div></TableCell>
-            <TableCell>{build.runtime}</TableCell>
+            <TableCell>{build.runtime}{build.steps?.find(step => step.package_manager)?.package_manager && <div className="break-all text-xs text-muted-foreground">{build.steps.find(step => step.package_manager)!.package_manager!.name}@{build.steps.find(step => step.package_manager)!.package_manager!.version}</div>}</TableCell>
             <TableCell><StatusBadge value={build.status} t={t} /></TableCell>
             <TableCell className="whitespace-nowrap text-xs text-muted-foreground">{formatDateTime(build.created_at)}</TableCell>
             <TableCell className="whitespace-nowrap text-xs text-muted-foreground">{formatDateTime(build.updated_at)}</TableCell>

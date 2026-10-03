@@ -23,6 +23,7 @@ Lingshu Gate 从 `LINGSHU_GATE_*` 环境变量读取运行配置。原生包启�
 | `LINGSHU_GATE_REQUEST_TIMEOUT_SECONDS` | `30` | `30` | 下游请求时间上限 |
 | `LINGSHU_GATE_STARTUP_TIMEOUT_SECONDS` | `30` | `30` | 下游启动和发现时间上限 |
 | `LINGSHU_GATE_MCP_GATEWAY_ENABLED` | `true` | `true` | 控制 `/mcp` 路由 |
+| `LINGSHU_GATE_RUNTIME_TOOLCHAIN_PATHS` | `{}` | 未设置 | 服务端管理员维护的 JSON 注册表，登记复核过的绝对 Node 与 npm/pnpm/Yarn JS CLI 路径，仅用于固定版本本地启动，不由项目提供 |
 
 协议版本 `2026-07-28` 由发行版固定，不是运行时调优项。
 
@@ -195,7 +196,19 @@ ${credential:credential-id}
 
 ## 校验
 
-保存 Manifest 前，使用 Console 或 `POST /v1/mcp/configs/validate` 校验。校验只覆盖 Schema 和本地策略；通过校验不能证明远程 Endpoint 可信或健康。保存后应检查服务状态、发现的工具、分类和授权，再允许调用。
+保存 Manifest 前，使用 Console 或 `POST /v1/mcp/configs/validate` 校验。新建/已有配置的两条校验路由只检查 Schema、本地策略和文件元数据，不执行 Manifest command 或任何版本探测。准确工具版本明确保持未验证，直到已授权启动；校验不授予启动权限，也不证明远程 Endpoint 可信或健康。保存后应检查服务状态、发现的工具、分类和授权，再允许调用。
+
+## 交付网络配置
+
+新生成的 manager 本地启动配置带 `launch.toolchain: {manager, version}`，command 仅为工具名 `npm`、`pnpm` 或 `yarn`。带 pin 的绝对/相对执行路径和别名均拒绝。服务管理员通过 `LINGSHU_GATE_RUNTIME_TOOLCHAIN_PATHS` 登记 `node` 与所选 manager：Node 为受审查的绝对原生 `node`/`node.exe`；manager 为受审查的绝对官方 JS CLI 入口（`.js`、`.cjs`、`.mjs`），不使用 shell/Corepack launcher。工具链接解析后须在项目根、Data 和 Manifest 目录之外，注册表和安装文件须防止项目或未授权写入。登记是管理员信任决策，文件名/超时不能证明信任。项目 API 不更新注册表；部署配置修改后需重启 Gate。
+
+只读校验仅检查注册和文件元数据：有效注册给出 `version_verified=false` 警告，缺失/不安全注册给明确错误。仅现有两种 local 客户端在原有已授权启动生命周期内进行有界版本探测，并启动同一注册 Node/CLI 组合。项目 PATH 和宿主环境 PATH 均不能改选这些工具，子进程 PATH 仅包含登记工具目录。版本漂移不回退；pnpm 11 校验实际执行所用的登记 Node >=22.13。构建缓存不供应运行时，不下载/安装工具、不继承交付代理；Core 不探测或启动本地代码。
+
+不带 `launch.toolchain` 的旧 Manifest 保留现有 command/env 和授权启动行为；校验从不执行它们，也不保证准确版本。此前带 pin 的绝对 command 须改为工具名加管理员注册，或另行复核直接 Node 入口。注册表默认空，新固定版本启动在配置前 fail closed。合成测试使用受控夹具验证边界；未配置生产注册表、用户代理或真实依赖源。
+
+系统设置 → 网络与依赖管理命名代理的不可变版本及独立 Git/安装默认项。配置要求 `system_settings.manage`；调用额外要求独立 `network.use` 与既有操作、工具和 token 权限。元数据/引用在 SQLite（`0004_gate_git_network`）；仅写代理地址使用私有加密 CredentialStore 命名空间，认证使用既有凭据 ID。默认项和配置更新需提供预期版本，不改变宿主全局 Git/npm 配置或运行时 MCP 代理变量。
+
+控制 API 包含 `/v1/system-settings/network`、其 `/profiles` 集合、配置引用/删除动作、`/v1/network/options` 与固定目标 `/v1/network/test`。HTTPS 来源计划、拉取、状态、取消以及既有摘要绑定构建服务通过 `/v1/projects/git/*` 提供；参见 [设计与支持矩阵](git-import-network.md)。默认公网 Git 为 `github.com:443`，内网主机/私有 CIDR 必须由管理员显式添加。生产组合尚无受审查安全网络适配器，真实操作仍阻断；不提供放宽 Core 或启用这些宿主联网执行路径的环境开关。
 
 ## 内置 OAuth 配置
 

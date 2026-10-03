@@ -10,6 +10,9 @@ import { copyText, formatCommand, formatDateTime } from "@/components/builds/bui
 export function BuildDetailCard({ build, logs, streamConnected, t, onCopied }: { build: BuildRecord | null; logs: BuildLog[]; streamConnected: boolean; t: TFunction; onCopied: (message: string) => void }) {
   const c = uploadCopy(t)
   if (!build) return null
+  const observedManager = build.steps?.find(step => step.package_manager)?.package_manager
+  const plannedManager = build.plan?.package_manager
+  const zh = t("uploads") === "项目上传"
   return (
     <Card>
       <CardHeader>
@@ -20,6 +23,9 @@ export function BuildDetailCard({ build, logs, streamConnected, t, onCopied }: {
         <dl className="grid gap-3 text-sm sm:grid-cols-2 xl:grid-cols-4">
           <Info label={t("status")} value={localizeStatus(t, build.status)} />
           <Info label={t("runtimeType")} value={build.runtime} />
+          {observedManager && <Info label={zh ? "执行时验证的包管理器" : "Package manager verified at execution"} value={`${observedManager.name} ${observedManager.version}`} />}
+          {!observedManager && plannedManager && <Info label={zh ? "计划时观察的包管理器" : "Package manager observed at planning"} value={`${plannedManager.name} ${plannedManager.version || "unknown"}`} />}
+          {plannedManager?.lockfile && <Info label={zh ? "冻结安装锁文件" : "Frozen installation lockfile"} value={`${plannedManager.lockfile} · ${plannedManager.lockfile_sha256}`} />}
           <Info label={t("start")} value={build.entrypoint || "-"} />
           <Info label={c.liveConnection} value={streamConnected ? c.connected : c.disconnected} />
           <Info label={t("uploadId")} value={build.upload_id} />

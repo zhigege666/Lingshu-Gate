@@ -23,6 +23,7 @@ Lingshu Gate reads runtime configuration from `LINGSHU_GATE_*` environment varia
 | `LINGSHU_GATE_REQUEST_TIMEOUT_SECONDS` | `30` | `30` | Bound for downstream requests |
 | `LINGSHU_GATE_STARTUP_TIMEOUT_SECONDS` | `30` | `30` | Bound for downstream startup and discovery |
 | `LINGSHU_GATE_MCP_GATEWAY_ENABLED` | `true` | `true` | Controls the `/mcp` route |
+| `LINGSHU_GATE_RUNTIME_TOOLCHAIN_PATHS` | `{}` | Unset | Service-owned JSON registry of reviewed absolute Node and npm/pnpm/Yarn JS CLI paths for pinned local startup; never supplied by a project |
 
 Protocol version `2026-07-28` is fixed by the release. It is not a runtime tuning option.
 
@@ -195,7 +196,19 @@ See [external resource access](external-connections.md) for the disabled JSON ex
 
 ## Validation
 
-Use the Console or `POST /v1/mcp/configs/validate` before saving a manifest. Validation covers schema and local policy; a successful validation does not prove that a remote endpoint is trusted or healthy. After saving, inspect server status, discovered tools, classifications, and grants before enabling invocation.
+Use the Console or `POST /v1/mcp/configs/validate` before saving a manifest. Both new/existing-manifest validation routes check schema, local policy and file metadata without executing the manifest command or any version probe. Tool versions remain explicitly unverified until authorized startup; validation is not a startup permission or proof of remote endpoint trust/health. After saving, inspect server status, discovered tools, classifications, and grants before enabling invocation.
+
+## Delivery network configuration
+
+Generated manager-based local launches carry `launch.toolchain: {manager, version}` and the symbolic command `npm`, `pnpm` or `yarn`. Absolute/relative executable paths and aliases with a pin are rejected. The service administrator registers `node` and the selected manager using `LINGSHU_GATE_RUNTIME_TOOLCHAIN_PATHS`: Node is the reviewed absolute native `node`/`node.exe` binary; manager values are reviewed absolute official JS CLI entrypoints (`.js`, `.cjs` or `.mjs`), not shell/Corepack launchers. Resolve tool symlinks outside the project root, data directory and manifest directory; protect the registry and installed files against project or unauthorized writes. Registration is an administrator trust decision, not proof established by a filename or timeout. No project API updates this registry; changing deployment configuration requires restarting Gate.
+
+Read-only validation checks only registrations and file metadata. Valid registrations produce a warning with `version_verified=false`; missing/unsafe registrations produce actionable errors. Only the two existing local clients, within their existing authorized startup lifecycle, run a bounded version probe and launch the same registered Node/CLI pair. Neither manifest PATH nor ambient host PATH chooses those tools; child PATH is limited to registered tool directories. Version drift fails without fallback; pnpm 11 checks the registered Node actually used for execution is >=22.13. Build caches do not provision the runtime, and there is no runtime download/install or delivery-proxy inheritance. Core cannot probe or start local code.
+
+Legacy manifests without `launch.toolchain` retain their existing command/env and authorized startup behavior; validation never executes them and provides no exact-version guarantee. Previously supplied absolute commands with a toolchain pin must be migrated to a symbolic manager plus the administrator registry, or to a separately reviewed direct Node entrypoint. Registry defaults are empty, so new pinned launches fail closed until provisioned. Synthetic tests exercise the boundary using controlled fixtures; no production registry, user proxy or real dependency source was configured.
+
+System settings → Network and dependencies manages named immutable proxy revisions and separate Git/install defaults. Configuration requires `system_settings.manage`; invocation requires independent `network.use` plus existing operation/tool/token authority. Metadata/references are in SQLite (`0004_gate_git_network`); write-only proxy endpoints use a private encrypted CredentialStore namespace and authentication uses existing credential IDs. Defaults/profile updates require the expected revision. Settings never change host global Git/npm configuration or runtime MCP proxy variables.
+
+Control APIs are `/v1/system-settings/network`, its `/profiles` collection, profile reference/delete actions, `/v1/network/options`, and fixed-target `/v1/network/test`. HTTPS source planning/acquisition/status/cancel and the existing digest-bound build service are presented under `/v1/projects/git/*`; see [design and support matrix](git-import-network.md). The public Git default is `github.com:443`; an administrator must explicitly add internal host/private CIDR policy. Production composition has no reviewed safe network adapter and real operations remain blocked. There is no environment switch that relaxes Core or enables host network execution for these paths.
 
 ## Built-in OAuth configuration
 

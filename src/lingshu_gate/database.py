@@ -21,6 +21,9 @@ from lingshu_gate.persistence.retention_migration import (
 from lingshu_gate.persistence.audit_lookup_migration import (
     AUDIT_LOOKUP_MIGRATION_ID, apply_audit_lookup_migration,
 )
+from lingshu_gate.persistence.git_network_migration import (
+    GIT_NETWORK_MIGRATION_ID, apply_git_network_migration,
+)
 from lingshu_gate.persistence.session_purpose_migration import (
     SESSION_PURPOSE_MIGRATION_ID, apply_session_purpose_migration,
 )
@@ -65,6 +68,7 @@ class SQLiteDatabase:
             (Migration(BASELINE_MIGRATION_ID, self._apply_baseline_migration),
              Migration(RETENTION_MIGRATION_ID, apply_retention_migration),
              Migration(AUDIT_LOOKUP_MIGRATION_ID, apply_audit_lookup_migration),
+             Migration(GIT_NETWORK_MIGRATION_ID, apply_git_network_migration),
              Migration(SESSION_PURPOSE_MIGRATION_ID, apply_session_purpose_migration)),
         ).run()
 

@@ -52,6 +52,7 @@ test('E2E-004 @permissions personal routes use authorized summaries and self rec
     await expect(page.locator('main')).toBeVisible()
   }
   await page.goto('/console/#/myConnections')
+  await page.getByRole('tab', { name: 'External identity provider', exact: true }).click()
   await expectInViewportAndUnobscured(page.getByRole('button', { name: 'New personal grant', exact: true }))
   await expect(page.getByText('Gate OAuth token verification and personal grants')).toBeVisible()
   expect(managedRequests).toEqual([])
@@ -75,6 +76,7 @@ test('E2E-006 @permissions real disabled scope draft save, ownership deny and re
   await login(page, 'viewer')
   await page.setViewportSize({ width: 1280, height: 600 })
   await page.goto('/console/#/myConnections')
+  await page.getByRole('tab', { name: 'External identity provider', exact: true }).click()
   const create = page.getByRole('button', { name: 'New personal grant', exact: true })
   await expectInViewportAndUnobscured(create)
   await create.click()

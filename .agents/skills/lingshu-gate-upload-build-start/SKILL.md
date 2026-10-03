@@ -44,7 +44,7 @@ The `begin` call binds explicit confirmation for the upload stage. `chunk` and `
 
 1. 调用 `gate_build_preflight`。`status=error`、所选运行时无效或项目根不安全时停止；`status=warning` 时逐项核对与所选运行时相关的检查。仅缺少另一运行时的可选工具（例如 Node 项目缺少 Python/pip）不构成阻断，须说明警告来源。
 2. 根据项目依赖、安装生命周期脚本、构建脚本和用户授权设置 `run_install`、`run_build` 后调用 `gate_build_plan`。无依赖且无安装生命周期脚本、无构建脚本的 Node 项目使用 `false`、`false`；不得为了获得部署所需的 `build_id` 而执行无关安装或编译。
-3. 仅在计划的 `validation.ok=true`、`plan.buildable=true`、运行时与项目入口匹配，且计划中的命令处于已授权范围内时继续。若警告指向计划实际使用的命令或启动入口不可用，停止并报告；其他非阻断警告记录后继续。
+3. 仅在计划的 `validation.ok=true`、`plan.buildable=true`、运行时与项目入口匹配，且计划中的命令处于已授权范围内时继续。若警告指向计划实际使用的命令或启动入口不可用，停止并报告；仅当缺失依赖工具由计划明确列出的固定版本 node-toolchain 准备阶段处理、受审查隔离执行器可用、所选 Node 版本满足要求且用户确认包含该准备阶段时，可继续；其他非阻断警告记录后继续。
 4. 展示准确的运行时、`project_root`、步骤与命令、依赖安装行为、超时、`source_sha256` 和 `plan_fingerprint`。
 5. `steps=[]` 时说明 Gate 只执行 `copy_tree` 制品封装，以生成部署接口需要的 `build_id`，不会安装依赖或编译源码；存在命令时说明会执行上传包中的代码，依赖安装可能访问网络。
 
@@ -97,3 +97,9 @@ When a server is running but its tool set may have changed:
 The final report must include the source SHA-256, file-list SHA-256, plan fingerprint, `credential_state.binding_digest`, `tool_snapshot_digest`, transfer/upload/build/deployment/server identifiers, classification-change counts, each stage's state, final log cursor, whether any idempotent request was replayed, and verified versus unverified items. When deployment and process startup succeeded but discovery or classification review remains incomplete, use this exact acceptance conclusion: "Deployment and process startup succeeded; delivery acceptance remains incomplete." Never output secrets, base64 chunks, complete stdout/stderr, or internal absolute filesystem paths.
 
 Before running the complete delivery sequence, read [workflow.md](references/workflow.md). When constructing tool calls or handling failures, read [mcp-contract.md](references/mcp-contract.md) for exact fields and stable error codes.
+
+## Git source continuation
+
+For an explicitly requested Git source, use `gate_project_git_plan` first. Only HTTPS is supported; inspect the exact full commit, host policy, network revisions, digest and deadlines. `safe_executor_unavailable` or `runtime_role_execution_blocked` stops execution; never use host Git/Core privilege or HTTP proxy variables as an SSH substitute. `gate_project_git_import` requires a separate source-acquisition confirmation and idempotency key. Poll/cancel the existing import ID; do not re-resolve a moving ref or replay an uncertain write. The resulting owned upload continues through the same preflight/BuildPlan/build/deploy/start workflow and independent confirmations. Review source inventory/digests before install/build; source scanning remains heuristic.
+
+Node manager selection is bounded to exact npm 9–11, pnpm 8–11 and Yarn Classic 1.22 versions with compatible locks; pnpm 11 additionally requires actual Node >=22.13. Yarn Berry/pnpm 12 have no fallback. Multiple locks with a unique declaration/explicit override are preserved with a warning; genuine conflicts return `recommended_choices`. Save a chosen `package_manager_override` in the actor's revisioned delivery draft and pass it unchanged in plan/create. `node-toolchain` verifies/prepares the exact official distribution in an executor-owned version/integrity cache before frozen installs, with the selected install proxy/registry, no tool lifecycle/global configuration or unplanned Corepack/pnpm/Yarn/Node download. Show this stage and project/dependency lifecycle execution in build confirmation. Build-cache tools and networking are not automatically forwarded to runtime MCP; confirm runtime prerequisites before start.

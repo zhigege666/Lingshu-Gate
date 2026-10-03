@@ -29,6 +29,9 @@ from lingshu_gate.build_deploy import BuildDeployStore
 from lingshu_gate.build_deploy_routes import register_build_deploy_routes
 from lingshu_gate.config import Settings
 from lingshu_gate.credential_store import CredentialStore
+from lingshu_gate.network_settings import NetworkSettingsStore
+from lingshu_gate.git_import_mcp import GitImportService, register_git_import_tools
+from lingshu_gate.interfaces.control_api.network_routes import register_network_routes
 from lingshu_gate.database import SQLiteDatabase
 from lingshu_gate.interfaces.control_api import (
     register_auth_routes,
@@ -96,6 +99,7 @@ def create_app() -> FastAPI:
     tool_file_store = ToolFileStore(database, settings.data_dir)
     user_credential_store = UserCredentialStore(database, settings.data_dir)
     credential_store = CredentialStore(settings.data_dir)
+    network_settings_store = NetworkSettingsStore(database, settings.data_dir, credential_store, observability_store)
     mcp_config_store = McpConfigStore(settings.config_dir)
 
     mcp_runtime = McpRuntimeManager(
@@ -121,6 +125,7 @@ def create_app() -> FastAPI:
         mcp_runtime,
         observability_store,
         runtime_role=settings.runtime_role,
+        network_settings=network_settings_store,
     )
     project_delivery_service = ProjectDeliveryMcpService(
         database,
@@ -136,6 +141,8 @@ def create_app() -> FastAPI:
         tool_classification_reconciler=access_store.reconcile_server_tools,
     )
     register_project_delivery_tools(registry, project_delivery_service)
+    git_import_service = GitImportService(project_delivery_service, network_settings_store)
+    register_git_import_tools(registry, git_import_service)
 
     tool_file_service = ToolFileMcpService(tool_file_store)
     register_tool_file_tools(registry, tool_file_service)
@@ -296,10 +303,13 @@ def create_app() -> FastAPI:
     state.tool_classification_service = tool_classification_service
     state.build_deploy_store = build_deploy_store
     state.project_delivery_service = project_delivery_service
+    state.network_settings_store = network_settings_store
+    state.git_import_service = git_import_service
     state.system_debug_service = system_debug_service
     state.tool_file_store = tool_file_store
     state.startup_state = startup_state
     state.health_service = health_service
+    register_network_routes(app, network=network_settings_store, imports=git_import_service, auth=auth_store, access=access_store)
     app.state.retention_store = retention_store
     app.state.retention_worker = retention_worker
     register_retention_routes(app, store=retention_store, auth_store=auth_store,

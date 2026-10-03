@@ -9,7 +9,8 @@
 .access-role-tabs button:focus-visible { outline: 2px solid hsl(var(--ring)); outline-offset: -3px; }
 .access-role-tabs button span { padding: 0 5px; border-radius: 4px; background: hsl(var(--muted)); color: hsl(var(--muted-foreground)); font-size: 11px; }
 .access-role-filters { margin-bottom: 18px; flex-wrap: wrap; }
-.access-role-filters .page-toolbar-search { min-width: 180px; }
+.access-role-filters .page-toolbar-search { min-width: min(100%, 300px); flex: 1 1 300px; flex-wrap: wrap; }
+.access-role-filters .page-toolbar-search > .ant-input-affix-wrapper { flex: 1 1 180px; min-width: min(100%, 180px); }
 .access-role-filters .page-toolbar-filters { flex: 1 1 auto; }
 .access-role-filters .access-filter-select { width: auto; min-width: 108px; }
 .access-role-filters .access-create { margin-left: auto; }

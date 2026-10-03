@@ -11,6 +11,7 @@ from typing import Any
 from pydantic import BaseModel, ConfigDict, Field, StrictBool
 
 from lingshu_gate.credential_store import CredentialStore
+from lingshu_gate.node_toolchain import NodeToolchainOverride
 from lingshu_gate.registry import ToolExecutionError
 
 _SENSITIVE_NAME = re.compile(r"password|passwd|secret|token|authorization|cookie|api[_-]?key|private[_-]?key", re.I)
@@ -28,6 +29,7 @@ class DeliveryDraftRequest(BaseModel):
     start: StrictBool = False
     project_root: str | None = None
     runtime_override: str | None = None
+    package_manager_override: NodeToolchainOverride | None = None
 
 
 class DeliveryDraftStore:

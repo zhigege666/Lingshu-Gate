@@ -22,6 +22,7 @@ for (const width of [1366, 390]) {
     })
     await page.route('**/v1/auth/external-subject-links*', route=>route.fulfill({json:{links:[],total:0}}))
     await page.goto('/console/#/connectionInfrastructure')
+    await page.getByRole('tab', { name: '外部身份提供方', exact: true }).click()
     await page.getByRole('button',{name:'接入引导',exact:true}).click()
     await expect(page.getByText('在哪里找配置',{exact:true})).toBeVisible()
     // The decorative loading icon can outlive a fast mocked response and the

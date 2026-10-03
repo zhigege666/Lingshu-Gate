@@ -4,7 +4,7 @@
 
 Lingshu Gate 发行自动化会生成可直接运行的原生包、Docker Compose 部署包，以及只在 Tag 发行提供的 Core 离线镜像。每个已发布资产都由 `SHA256SUMS` 和仓库 Build Provenance Attestation 覆盖。
 
-当前源码版本为 `0.3.1`。控制台服务与记录操作改为直接显示按钮，OpenAPI、退出登录及凭据引用操作也保持可见。按钮组在窄屏下支持换行，原有权限检查、状态限制和确认流程保持不变。运行时版本信息、Python 包元数据、CLI 输出及发行产物名称统一读取 `src/lingshu_gate/_version.py` 中的唯一版本源。
+当前源码版本为 `0.4.0`。控制台服务与记录操作改为直接显示按钮，OpenAPI、退出登录及凭据引用操作也保持可见。按钮组在窄屏下支持换行，原有权限检查、状态限制和确认流程保持不变。运行时版本信息、Python 包元数据、CLI 输出及发行产物名称统一读取 `src/lingshu_gate/_version.py` 中的唯一版本源。
 
 当前源码控制台还包含卡片式工具目录，支持按具体 MCP 部署筛选、展示实际读写要求，并将选中工具带入调用编辑器。工具发现新增当前请求的 `metadata.gate_access` 展示快照，详见[运维指南](operations.md#工具目录)。该变更不新增前端依赖或数据库迁移。
 
@@ -217,12 +217,16 @@ Release 附件及 Attestation 验证完成后，只有被 GitHub 标记为最新
 
 Docker Hub 镜像包含 BuildKit SBOM/Provenance Manifest。GitHub 附件 Attestation 仍属于 GitHub Release 附件；可选 Cosign 签名仍针对 GHCR Digest，不额外创建 Docker Hub 签名。
 
-## 尚未发布的外部 OAuth 资源验证
+## 0.4.0 功能与边界
 
-源码新增默认关闭、仅面向 `/mcp` 的 RS256 JWT 验证，包含管理员固定 HTTPS JWKS、规范 audience/客户端校验、持久化身份绑定及仅本人可管理的个人委托。启用且有效的本地配置会公布受保护资源元数据。当前 Gate 角色/资源、已发布分类、JWT scopes 与委托范围在派发前求交集；每 grant 限流/并发仅在单进程执行。无效 Authorization 不回退到 cookie，外部 JWT 不能登录 Console `/v1/*` API。详见[外部资源访问](external-connections.md)。
+本版将内置 OAuth 与 Git/网络控制面整合，保留既有 API token 和外部 IdP 验证。README 按网关、RBAC、工具治理、凭据、项目交付、个人工作区、审计/保留及发行能力提供完整导航；中英文截图来自相同候选代码的合成实例。
 
-此变更不部署 OAuth provider、不支持 opaque-token introspection、不实现 authorize/PKCE 流程、不注册客户端，也不启动隧道。启用记录不表示 provider 或 ChatGPT 已连接。共享凭据 CRUD 要求默认管理员能力 `credentials.manage.system`，内置 operator 不可依赖 `operations.manage` 执行这些操作；个人 `credentials.manage.self` 保持不变。
+内置 OAuth 默认关闭，复用 Gate 用户与 RBAC，提供机密静态客户端、S256 PKCE、每用户工具同意、单次授权码、刷新轮换、加密 RS256 私钥和实时撤销检查。独立公网资源不要求公开 Console。保留 `0006_builtin_oauth`、`0007_auth_session_purpose` 和 `0008_oauth_interaction_capacity` 的独立注册。外部 IdP 模式仍只负责资源验证，不托管 provider 的授权流程；两种模式均不创建隧道。详见[内置 OAuth](builtin-oauth.md)和[外部资源访问](external-connections.md)。
 
-## 待发布内置 OAuth 源码变更
+系统设置新增网络与依赖页：命名代理的加密/脱敏版本、独立 Git/安装默认项、inherit/direct/profile 项目覆盖、独立依赖源、乐观锁、引用保护、审计和独立权限。Git 计划接入现有上传/预检/BuildPlan/构建/部署/启动链路，固定 commit 并限制源码快照。Node 计划识别 npm/pnpm/Yarn Classic 的明确版本与锁文件；未知或冲突返回可操作错误，不静默回退。`0004_gate_git_network` 与 OAuth 迁移同时保留。
 
-未发布源码新增默认关闭的内置授权服务，以及复用已有 Gate 用户的中英文管理/登录/同意/个人授权界面。增加迁移 `0006_builtin_oauth`、私有 `/v1/auth/oauth/*`、公网授权元数据与 `/oauth/*`，并独立打包 OAuth 资源。静态客户端、S256 单次码、刷新令牌族轮换、加密 RS256 密钥和实时策略/撤权检查保留 API token 与外部 IdP 模式。本任务不修改版本/Tag、不配置生产凭据或部署。静态编译不代表验收；安全、浏览器、打包及真实 ChatGPT/代理验证仍需分别完成。详见[内置 OAuth](builtin-oauth.md)。
+**生产安全网络执行器尚未实现，真实 Git 拉取、代理测试、工具准备和指定网络安装继续阻断。** 不放宽 Docker Core、不挂引擎 socket、不回退宿主全局设置。只读 Manifest 校验不执行版本探测；已授权原生启动仅使用管理员复核注册的准确工具。合成测试不认证实际工具下载/安装或运行时隔离。详见[设计与支持矩阵](git-import-network.md)、[整合记录](git-network-integration.md)和[执行器缺口](git-executor-decision.md)。
+
+审核修复还包括嵌套源码根目录一致性、Git 计划成功审计、过期未使用计划的有界清理和配额、保留已使用计划来源，以及 JSON-RPC 保留范围负整数错误码与 OAuth 秘密脱敏的兼容。浏览器修复保持外部接入引导可达、历史构建先加载项目再部署，以及角色搜索框可编辑；不会跳过确认、扩大权限或盲重放写操作。
+
+[验证记录](release-validation.md)区分静态检查、已执行自动化、合成浏览器、真实网络未验证及发行工作流结果。PR 的原生矩阵/Compose 校验不代表已发布；Tag、离线镜像、SBOM、校验和与 GitHub Release 必须在既有工作流实际完成后分别确认。没有生产部署、用户 Git/代理/SSH、外部账号或真实凭据联调。

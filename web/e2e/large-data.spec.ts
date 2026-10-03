@@ -118,6 +118,7 @@ test('E2E-121 @large-data advanced configs render 50 of 100 manifests', async ({
 
 test('E2E-122 @large-data 200 disabled personal scope drafts render one page', async ({ page }) => {
   await page.goto('/console/#/myConnections')
+  await page.getByRole('tab', { name: 'External identity provider', exact: true }).click()
   const rows = page.locator('tbody tr:visible')
   await expect(rows.first()).toContainText('synthetic-client')
   expect(await rows.count()).toBeLessThanOrEqual(50)

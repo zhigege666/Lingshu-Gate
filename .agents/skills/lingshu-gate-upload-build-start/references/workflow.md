@@ -53,3 +53,7 @@ Completion requires all of the following:
 6. Classification reconciliation returns `effective_permissions_expanded=false` and `counts.needs_review=0`; retired tools remain inactive.
 
 If the process is running but item 5 or 6 is not verified, use this acceptance conclusion: "The server process is running; delivery acceptance is partially complete." Do not claim that startup or automated delivery is complete.
+
+## Confirmed tool preparation and Git acquisition
+
+A requested HTTPS Git source is resolved/planned before a separate confirmed acquisition. The imported snapshot joins the existing owned upload and keeps install/build/deploy/start/cancel boundaries. Missing dependency tools may proceed only through the exact-version preparation step shown in the confirmed plan and a reviewed isolated executor. This explicit step includes official source/integrity, selected install egress, deadline and executor cache scope. An unavailable adapter, unsupported manager/lock or incompatible Node version stops work; no host bootstrap or silent replacement is allowed. Project overrides remain actor-owned revisioned drafts, not global configuration.
