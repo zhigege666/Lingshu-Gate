@@ -1,88 +1,89 @@
-## Lingshu Gate v0.4.0
+## Lingshu Gate v0.4.1
 
 ### English
 
-0.4.0 combines opt-in built-in OAuth with initial Git/network delivery settings
-and planning. Production Git/network execution remains blocked pending a safe
-executor.
+0.4.1 fixes authorization requests carrying `ui_locales` and improves sign-in
+version visibility, built-in OAuth setup and personal grant review.
 
-- Add opt-in Gate built-in OAuth authorization with confidential static clients,
-  authorization codes and PKCE S256, per-user tool consent, encrypted RS256
-  signing keys, refresh rotation and revocation. The public consent UI has its
-  own asset bundle. OAuth remains disabled until an administrator explicitly
-  configures and enables it; DCR and CIMD are not supported.
-- Add **System settings → Network and dependencies**, named encrypted proxy
-  profiles, immutable configuration revisions, separate Git/install defaults,
-  project `inherit` / `direct` / `profile` choices, and separate administration
-  and invocation permissions. Registry/index settings are separate from proxies;
-  proxy values are not ordinary API responses or runtime MCP defaults.
-- Integrate Git source forms and confirmed plans with the existing Project
-  Delivery flow. Add fixed-commit provenance, controlled snapshot rules,
-  credential references, cancellation/timeouts, reference checks, and
-  deterministic supported npm/pnpm/Yarn lockfile planning. Pulling, installing,
-  deploying and starting retain their independent permission/confirmation
-  boundaries; failed builds preserve the previous deployment.
-- **Git/network execution is only partially implemented. The production
-  `SafeNetworkExecutor` is absent, so real Git resolution/fetch, proxy probes,
-  package-tool preparation and configured network installs fail closed.**
-  Saving configuration cannot enable them. HTTP proxies do not provide Git SSH
-  support, and no host sandbox or container-socket boundary has been relaxed.
-- Expand both READMEs with 18 actual screenshots (nine per language), provenance
-  and paired guides. Keep blocked Git and disabled OAuth states visible. Fix
-  the clipped English classification-review action and cover it in both
-  languages at all four desktop acceptance sizes.
+- Accept a bounded optional `ui_locales` preference list, choose a supported
+  English/Simplified Chinese UI hint, and preserve the existing preference for
+  unsupported languages. Keep this hint outside the authorization ticket;
+  unknown/duplicate parameters, query/field limits, exact client/callback,
+  issuer/resource/scope and PKCE checks retain their existing boundaries.
+- Show the running backend version on sign-in/registration and in Console using
+  the existing public health metadata. A bounded, credential-free read has
+  localized loading/failure states and never blocks sign-in or substitutes a
+  frontend build version.
+- Explain that the MCP resource URL is the client's connection address, not an
+  OAuth callback. Suggest issuer + `/mcp` only while editing an empty or previous
+  automatic value; preserve manual edits and loaded configuration.
+- Show four setup steps and prevent new enablement without freshly read active
+  signing-key metadata. Saving disabled URLs remains available without a key.
+  The key shortcut only focuses the existing confirmed operation. Re-read
+  server state after key operations, preserve dirty drafts on retry, and keep
+  explicit disablement available when an enabled service's metadata fails.
+- Replace page-wide success banners with the existing dismissible, four-second,
+  polite status message. Persistent errors and one-time-secret confirmations
+  remain; no secret is included in a message.
+- Default personal grants to active, with expired/revoked/all filters and
+  search before pagination over the loaded owner-scoped dataset. Separate
+  scope, UTC expiry, limits, state and actions. Keep history viewable in
+  searchable, paginated read-only details; active reductions and revocations
+  still require confirmation and backend owner/revision checks.
 
-Validation: the release source passes 1,044 Python tests on each of Python
-3.11/3.12/3.13 and 325 Console unit tests. The local default browser run passed
-108 cases with 38 opt-in skips. **Eight optional layout/visual scenarios still
-fail** (ranking/axis, narrow personal drawer, log-height budget and desktop
-login baseline); they were neither waived nor reported passing. See the
-[validation record](https://github.com/zhigege666/Lingshu-Gate/blob/v0.4.0/docs/release-validation.md).
-Synthetic fixtures do not establish real user Git/proxy/SSH, ChatGPT/external
-OAuth, public TLS or production-upgrade acceptance. Rollback may interrupt a
-service; uninterrupted session migration is not claimed.
+Validation is recorded in the paired
+[0.4.1 validation record](https://github.com/zhigege666/Lingshu-Gate/blob/v0.4.1/docs/release-validation-0.4.1.md).
+Synthetic authorization/browser coverage does not establish full real ChatGPT,
+external-client, public TLS or production-upgrade acceptance. The complete optional
+layout/visual suite was not run. An initial unfiltered invocation stopped on
+two optional reset-layout cases (2 px movement against a < 2 px limit); those
+failures remain recorded. No baselines were regenerated, and previously
+recorded 0.4.0 optional failures are not represented as passing.
 
-Assets cover five native targets (Linux x86_64/ARM64, Windows x86_64 and macOS
-x86_64/ARM64), Compose, two offline Core images, an application SPDX inventory,
-container digest metadata and `SHA256SUMS` (11 assets). Native packages include
-`BUILD-INFO.json`, SPDX inventories and notices. Verify downloads with the
-checksums and repository build-provenance attestations. Formal job results are
-available in the
-[tagged release workflow](https://github.com/zhigege666/Lingshu-Gate/actions/runs/37127029127).
+**Git/network execution remains partial:** the production `SafeNetworkExecutor`
+is absent. Real Git acquisition, proxy tests, package-tool preparation and
+configured network installs fail closed. No real proxy, SSH key, token, tunnel
+or remote-control configuration was created. DCR/CIMD remain unsupported.
+
+The normal release workflow produces five native targets (Linux x86_64/ARM64,
+Windows x86_64, macOS x86_64/ARM64), Compose, two offline Core images, application
+SPDX, container digest metadata and `SHA256SUMS` (11 assets). Verify downloads
+against checksums and repository build-provenance attestations. Existing 0.4.0
+release assets and historical screenshot evidence remain unchanged.
 
 ### 简体中文
 
-0.4.0 整合需显式启用的内置 OAuth，以及 Git/网络交付的初步设置与计划能力。
-生产 Git/网络执行仍因缺少安全执行器而阻断。
+0.4.1 修复携带 `ui_locales` 的授权请求，并改善登录版本展示、内置 OAuth 配置
+及本人授权查看流程。
 
-- 新增需显式启用的 Gate 内置 OAuth：静态机密客户端、授权码与 PKCE S256、
-  按用户选择工具的授权、加密 RS256 签名密钥、刷新轮换和撤销，以及独立的公开授权
-  页面资源包。管理员完成配置并启用前保持关闭；不支持 DCR/CIMD。
-- 新增“系统设置 → 网络与依赖”：命名加密代理配置、不可变配置版本、Git 拉取与
-  依赖安装独立默认值，以及项目 `inherit` / `direct` / `profile` 选择。
-  配置管理权限与使用权限分离，registry/index 与代理分开；普通 API 不返回代理值，
-  默认不会向运行时 MCP 传递代理。
-- Git 来源表单和需确认的计划接入已有项目交付流程，补充固定提交来源记录、受控
-  快照规则、凭据引用、取消/超时、引用检查及受支持 npm/pnpm/Yarn 锁文件的确定性
-  计划。拉取、安装、部署、启动保留独立权限和确认；构建失败保留旧部署。
-- **Git/网络执行仅部分实现：生产 `SafeNetworkExecutor` 尚未实现，真实 Git
-  解析/拉取、代理测试、包管理器准备及使用网络配置的安装均 fail closed。**
-  仅保存配置无法启用执行；HTTP 代理不等于支持 Git SSH，未放宽宿主沙箱或挂载
-  容器引擎 socket。
-- 中英文 README 增加 18 张真实截图（每种语言九张）、来源记录和成对指南，展示
-  Git 阻断与 OAuth 关闭状态。修复英文工具分类审核操作被裁切，并增加中英文、
-  四种桌面尺寸的回归覆盖。
+- 接受有界的可选 `ui_locales` 偏好列表，选择支持的英语/简体中文提示；不支持的
+  语言保留既有界面偏好。提示与授权票据分离；未知/重复参数、查询/字段限制、
+  精确客户端/回调、Issuer/resource/scope 和 PKCE 校验保留原边界。
+- 登录/注册页与 Console 使用既有公开健康元数据展示运行中的后端版本。有界、
+  不带凭据的请求提供本地化读取/失败状态，不阻断登录，也不以前端构建版本替代。
+- 明确 MCP 资源 URL 是客户端连接地址，不是 OAuth 回调。只在编辑空值或上次
+  自动填写值时建议 Issuer + `/mcp`，保留手动修改和加载的配置。
+- 展示四步配置，并在未重新读取确认活动签名密钥时禁止新启用。关闭状态保存地址
+  无需密钥；密钥快捷入口仅定位原有需确认操作。密钥操作后重读服务器状态，重试
+  保留未保存地址；已启用服务读取失败时仍可通过确认明确关闭。
+- 成功反馈改为现有的可关闭、四秒消退、礼貌播报的轻量消息。错误持续可见，
+  一次性密钥保留原确认，消息不包含秘密。
+- 本人授权默认有效，支持过期/撤销/全部；在完整已读取本人数据上搜索筛选后分页。
+  分列展示范围、UTC 到期、配额、状态和操作。历史记录保留可搜索分页的只读详情，
+  有效授权缩小与撤销仍须确认并通过后端本人权限/版本校验。
 
-验证：发行源码在 Python 3.11/3.12/3.13 上分别通过 1,044 项测试，Console 单元测试
-通过 325 项；本地默认浏览器测试通过 108 项、跳过 38 项可选测试。**另有八项可选
-布局/视觉测试仍失败**，涉及排行高度/时间轴、窄屏个人工具抽屉、日志高度预算和
-桌面登录基线，未豁免或宣称通过。详见
-[验证记录](https://github.com/zhigege666/Lingshu-Gate/blob/v0.4.0/docs/zh-CN/release-validation.md)。
-合成测试不代表真实用户 Git/代理/SSH、ChatGPT/外部 OAuth、公开 TLS 或生产升级
-已验收；回滚可能中断服务，不宣称无缝会话迁移。
+验证详见成对的
+[0.4.1 验证记录](https://github.com/zhigege666/Lingshu-Gate/blob/v0.4.1/docs/zh-CN/release-validation-0.4.1.md)。
+合成授权/浏览器覆盖不代表真实 ChatGPT、外部客户端、公开 TLS 或生产升级完整
+验收。未运行完整可选布局/视觉套件；首次未筛选调用在两项可选重置布局案例失败
+后停止（位移 2 px，要求小于 2 px），失败如实保留。未更新基线，此前记录的
+0.4.0 可选失败不宣称通过。
 
-资产包括五种原生目标（Linux x86_64/ARM64、Windows x86_64、macOS x86_64/ARM64）、
-Compose、两个离线 Core 镜像、应用 SPDX 清单、镜像摘要和 `SHA256SUMS`，共 11 个。
-原生包内含 `BUILD-INFO.json`、SPDX 清单及声明。使用前请核验校验和及仓库构建来源
-证明；正式任务结果见
-[tag 发行工作流](https://github.com/zhigege666/Lingshu-Gate/actions/runs/37127029127)。
+**Git/网络执行仍为部分实现：**生产 `SafeNetworkExecutor` 尚未实现，真实 Git
+拉取、代理测试、包管理器准备和指定网络安装保持关闭式失败。未创建真实代理、
+SSH 密钥、token、隧道或远控配置；仍不支持 DCR/CIMD。
+
+正常发行工作流生成五种原生目标（Linux x86_64/ARM64、Windows x86_64、
+macOS x86_64/ARM64）、Compose、两个离线 Core 镜像、应用 SPDX、镜像摘要与
+`SHA256SUMS`，共 11 个资产。下载后须核验校验和及仓库构建来源证明。既有 0.4.0
+发行资产和历史截图证据保持原样。

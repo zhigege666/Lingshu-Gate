@@ -16,6 +16,28 @@ function context(loggedIn = true) {
 }
 
 for (const locale of ["en-US", "zh-CN"]) {
+  test(`OAuth ui_locales hint selects language without changing authorization ${locale}`, async ({ page }) => {
+    const previous = locale === "zh-CN" ? "en-US" : "zh-CN"
+    await assets(page, previous)
+    const requests: string[] = []
+    await page.route("**/oauth/context?**", route => { requests.push(route.request().url()); return route.fulfill({ json: context(false) }) })
+    await page.goto(`/oauth/consent#request=${requestId}&ui_locales=${locale}`)
+    await expect(page.getByRole("heading", { name: locale === "zh-CN" ? "授权连接" : "Authorize connection", exact: true })).toBeVisible()
+    await expect(page.getByLabel(locale === "zh-CN" ? "用户名" : "Username", { exact: true })).toBeVisible()
+    expect(requests.every(url => new URL(url).searchParams.get("request_id") === requestId && !new URL(url).searchParams.has("ui_locales"))).toBe(true)
+    // A transient authorization hint does not overwrite the user's preference.
+    expect(await page.evaluate(() => localStorage.getItem("lingshu-gate-console-locale"))).toBe(previous)
+  })
+}
+test("OAuth unsupported locale preserves the existing language without an authorization error", async ({ page }) => {
+  await assets(page, "en-US")
+  await page.route("**/oauth/context?**", route => route.fulfill({ json: context(false) }))
+  await page.goto(`/oauth/consent#request=${requestId}&ui_locales=fr-CA`)
+  await expect(page.getByRole("heading", { name: "Authorize connection", exact: true })).toBeVisible()
+  await expect(page.getByLabel("Username", { exact: true })).toBeVisible()
+})
+
+for (const locale of ["en-US", "zh-CN"]) {
   test(`OAuth direct access filters and reset preserve selected scope ${locale} @large-data`, async ({ page }) => {
     const zh = locale === "zh-CN"
     await page.setViewportSize({ width: 1600, height: 900 })

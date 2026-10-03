@@ -11,7 +11,7 @@ import time
 from collections import deque
 from pathlib import Path
 from typing import Any
-from urllib.parse import parse_qsl, unquote
+from urllib.parse import parse_qsl, unquote, urlencode
 
 from fastapi import Depends, FastAPI, HTTPException, Request
 from fastapi.responses import FileResponse, JSONResponse, RedirectResponse, Response
@@ -191,6 +191,19 @@ def parse_fields(value: str, allowed: set[str], maximum_value: int = 2048) -> di
     return dict(pairs)
 
 
+def authorization_ui_locale(value: str) -> str | None:
+    """Bounded, optional language hint; never part of the authorization envelope."""
+    if len(value) > 128:
+        raise OAuthError("invalid_request")
+    supported = {"zh": "zh-CN", "zh-cn": "zh-CN", "zh-hans": "zh-CN", "zh-hans-cn": "zh-CN",
+                 "en": "en-US", "en-us": "en-US"}
+    for tag in value.split(" "):
+        if locale := supported.get(tag.lower()):
+            return locale
+    # Unrecognized or malformed tags do not change the existing UI preference.
+    return None
+
+
 def client_auth(request: Request, fields: dict[str, str]) -> tuple[str, str]:
     header = request.headers.get("authorization")
     if header is not None:
@@ -362,7 +375,8 @@ def register_oauth_routes(app: FastAPI, *, server: OAuthServer, observability: O
         if len(request.scope.get("query_string", b"")) > 8192:
             raise OAuthError("request_too_large", 413)
         params = parse_fields(request.url.query, {"client_id", "redirect_uri", "response_type", "scope",
-                                                "resource", "code_challenge", "code_challenge_method", "state"})
+                                                "resource", "code_challenge", "code_challenge_method", "state", "ui_locales"})
+        ui_locale = authorization_ui_locale(params.pop("ui_locales", ""))
         browser = request.cookies.get(BROWSER_COOKIE) or secrets.token_urlsafe(32)
         try:
             interaction = server.start_authorization(params, browser)
@@ -372,7 +386,8 @@ def register_oauth_routes(app: FastAPI, *, server: OAuthServer, observability: O
             if client and params.get("redirect_uri") in json.loads(client["redirect_uris_json"]):
                 return RedirectResponse(callback(params, config["issuer"], error=error.code), status_code=303, headers=SAFE_HEADERS)
             raise
-        response = RedirectResponse(config["issuer"] + "/oauth/consent#request=" + interaction, status_code=303, headers=SAFE_HEADERS)
+        fragment = urlencode({"request": interaction, **({"ui_locales": ui_locale} if ui_locale else {})})
+        response = RedirectResponse(config["issuer"] + "/oauth/consent#" + fragment, status_code=303, headers=SAFE_HEADERS)
         response.set_cookie(BROWSER_COOKIE, browser, secure=True, httponly=True, samesite="lax",
                             path="/oauth", max_age=INTERACTION_TTL)
         return response

@@ -16,7 +16,7 @@ import time
 from concurrent.futures import ThreadPoolExecutor
 from contextlib import contextmanager
 from datetime import datetime, timezone
-from urllib.parse import parse_qs, urlsplit
+from urllib.parse import parse_qs, urlencode, urlsplit
 
 import jwt
 import pytest
@@ -156,6 +156,21 @@ def test_default_disabled_has_no_keys_clients_or_metadata(gate):
     # Migration re-entry preserves data and does not generate any credentials.
     OAuthStore(gate["db"])
     assert not server.key_path.exists()
+
+
+def test_admin_can_save_urls_without_keys_but_cannot_enable_without_an_active_key(gate):
+    server = gate["server"]
+    _, session, _ = gate["auth"].login(username="synthetic-admin", password=PASSWORD)
+    with TestClient(gate["app"], base_url=ISSUER) as client:
+        client.cookies.set(gate["auth"].cookie_name, session)
+        payload = {"enabled": False, "issuer": ISSUER, "resource": RESOURCE, "expected_revision": 0}
+        saved = client.put("/v1/auth/oauth/config", json=payload, headers={"Origin": ISSUER})
+        assert saved.status_code == 200 and saved.json()["revision"] == 1
+        assert saved.json()["signing_keys"] == []
+        rejected = client.put("/v1/auth/oauth/config", json={**payload, "enabled": True, "expected_revision": 1}, headers={"Origin": ISSUER})
+        assert rejected.status_code == 409 and rejected.json()["error"] == "signing_key_required"
+        assert server.store.config() == {"enabled": False, "issuer": ISSUER, "resource": RESOURCE, "revision": 1}
+        assert not server.key_path.exists() and not server.store.clients()
 
 
 def test_legacy_console_session_purpose_migration_preserves_identity_and_expiry(tmp_path):
@@ -839,10 +854,14 @@ def test_revoke_is_client_bound_and_unknown_token_is_success(gate):
         server.verify(result["access_token"])
 
 
-def test_public_login_consent_csrf_cancel_repeat_and_console_isolation(gate):
+@pytest.mark.parametrize("ui_locales", [None, "zh-CN", "en-US"])
+def test_public_login_consent_csrf_cancel_repeat_and_console_isolation(gate, ui_locales):
     client_info, secret = enable(gate)
+    authorize_params = parameters(client_info)
+    if ui_locales is not None:
+        authorize_params["ui_locales"] = ui_locales
     with TestClient(gate["app"], base_url=ISSUER) as client:
-        response = client.get("/oauth/authorize", params=parameters(client_info), follow_redirects=False)
+        response = client.get("/oauth/authorize", params=authorize_params, follow_redirects=False)
         assert response.status_code == 303
         request_id = parse_qs(urlsplit(response.headers["location"]).fragment)["request"][0]
         assert "Secure" in response.headers["set-cookie"] and "HttpOnly" in response.headers["set-cookie"]
@@ -869,7 +888,7 @@ def test_public_login_consent_csrf_cancel_repeat_and_console_isolation(gate):
         assert token.status_code == 200, token.text
         assert token.headers["cache-control"] == "no-store"
         # Cancel returns the exact registered callback, state and issuer.
-        response = client.get("/oauth/authorize", params=parameters(client_info), follow_redirects=False)
+        response = client.get("/oauth/authorize", params=authorize_params, follow_redirects=False)
         request_id = parse_qs(urlsplit(response.headers["location"]).fragment)["request"][0]
         context = client.get("/oauth/context", params={"request_id": request_id}).json()
         denied = client.post("/oauth/decision", json={"request_id": request_id, "csrf": context["csrf"], "deny": True}, headers={"Origin": ISSUER})
@@ -898,6 +917,75 @@ def test_http_boundaries_management_permissions_duplicates_sizes_and_host(gate):
         safe_error = client.get("/oauth/authorize", params=parameters(client_info, code_challenge_method="plain"), follow_redirects=False)
         assert safe_error.status_code == 303 and parse_qs(urlsplit(safe_error.headers["location"]).query)["iss"] == [ISSUER]
         assert principal.id == gate["admin"]["id"]
+
+
+@pytest.mark.parametrize("hint,expected", [(None, None), ("zh-CN", "zh-CN"), ("en-US", "en-US"),
+    ("fr-CA en-US zh-CN", "en-US"), ("de-DE zh-Hans-CN en-US", "zh-CN"),
+    ("fr-CA de-DE", None), ("zh_CN", None), ("<script>", None), ("", None)])
+def test_authorization_ui_locales_reaches_consent_without_entering_the_security_envelope(gate, hint, expected):
+    info, _ = enable(gate)
+    values = parameters(info)
+    if hint is not None:
+        values["ui_locales"] = hint
+    with TestClient(gate["app"], base_url=ISSUER) as client:
+        response = client.get("/oauth/authorize", params=values, follow_redirects=False)
+        assert response.status_code == 303
+        location = urlsplit(response.headers["location"])
+        assert location.scheme + "://" + location.netloc == ISSUER and location.path == "/oauth/consent"
+        fields = parse_qs(location.fragment)
+        assert fields.get("ui_locales") == ([expected] if expected else None)
+        ticket = fields["request"][0]
+        payload = gate["server"]._ticket(ticket, client.cookies.get(BROWSER_COOKIE))
+        assert payload["request"] == {**parameters(info), "scopes": ["tools.invoke", "tools.read"],
+                                      "client_revision": info["revision"], "configuration_revision": 2, "issuer": ISSUER}
+        assert "ui_locales" not in json.dumps(payload)
+        assert client.get("/oauth/consent").status_code == 200
+        context = client.get("/oauth/context", params={"request_id": ticket})
+        assert context.status_code == 200 and context.json()["resource"] == RESOURCE
+        assert context.json()["client"]["id"] == info["id"] and context.json()["user"] is None
+
+
+@pytest.mark.parametrize("mutation,error,status", [("missing_resource", "invalid_target", 303),
+    ("wrong_pkce", "invalid_authorization_request", 303), ("bad_challenge", "invalid_authorization_request", 303),
+    ("bad_redirect", "invalid_client_or_redirect", 400), ("unknown_parameter", "invalid_request", 400),
+    ("duplicate_locale", "invalid_request", 400), ("duplicate_state", "invalid_request", 400),
+    ("long_locale", "invalid_request", 400), ("long_state", "invalid_request", 400),
+    ("too_many_fields", "invalid_request", 400), ("large_query", "request_too_large", 413)])
+def test_ui_locales_never_relaxes_authorization_and_parser_boundaries(gate, mutation, error, status):
+    info, _ = enable(gate)
+    values = {**parameters(info), "ui_locales": "zh-CN"}
+    if mutation == "missing_resource":
+        values.pop("resource")
+    elif mutation == "wrong_pkce":
+        values["code_challenge_method"] = "plain"
+    elif mutation == "bad_challenge":
+        values["code_challenge"] = "short"
+    elif mutation == "bad_redirect":
+        values["redirect_uri"] = "https://other.example.test/callback"
+    elif mutation == "unknown_parameter":
+        values["unsupported"] = "synthetic"
+    elif mutation == "long_locale":
+        values["ui_locales"] = "z" * 129
+    elif mutation == "long_state":
+        values["state"] = "s" * 2049
+    pairs = list(values.items())
+    if mutation == "duplicate_locale":
+        pairs.append(("ui_locales", "en-US"))
+    elif mutation == "duplicate_state":
+        pairs.append(("state", "synthetic-second-state"))
+    elif mutation == "too_many_fields":
+        pairs.extend(("ui_locales", "en-US") for _ in range(12))
+    elif mutation == "large_query":
+        pairs.append(("ui_locales", "s" * 8193))
+    with TestClient(gate["app"], base_url=ISSUER) as client:
+        response = client.get("/oauth/authorize?" + urlencode(pairs), follow_redirects=False)
+        assert response.status_code == status
+        if status == 303:
+            query = parse_qs(urlsplit(response.headers["location"]).query)
+            assert query["error"] == [error] and query["iss"] == [ISSUER] and query["state"] == ["synthetic-state"]
+        else:
+            assert response.json()["error"] == error and "location" not in response.headers
+        assert not gate["db"].query_all("SELECT * FROM gate_oauth_interactions")
 
 
 def test_api_token_and_external_jwt_modes_remain_available(gate):

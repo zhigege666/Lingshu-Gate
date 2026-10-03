@@ -1,7 +1,7 @@
 export type OAuthTool = { id: string; name: string; server_id: string; server_name?: string | null; access: "read" | "write"; snapshot: string; currently_authorized?: boolean }
 export type OAuthClient = { id: string; name: string; redirect_uris: string[]; scopes: string[]; enabled: boolean; revision: number; created_at: number }
 export type OAuthConfig = { enabled: boolean; issuer: string; resource: string; revision: number; metadata_url: string; authorization_endpoint: string; token_endpoint: string; jwks_uri: string; signing_keys: { kid: string; active: boolean; retire_at: number | null }[] }
-export type OAuthGrant = { id: string; client_id: string; client_name: string; resource: string; scopes: string[]; tools: OAuthTool[]; state: string; expires_at: number; rate_per_minute: number; concurrency: number; revision: number; scope_currently_authorized: boolean; effective_tool_count: number }
+export type OAuthGrant = { id: string; client_id: string; client_name: string; resource: string; scopes: string[]; tools: OAuthTool[]; state: string; created_at?: number; expires_at: number; rate_per_minute: number; concurrency: number; revision: number; scope_currently_authorized: boolean; effective_tool_count: number }
 export type ConsentContext = { csrf: string; completed: boolean; phase: "preauth" | "authenticated" | "completed"; expires_at: number; client: { id: string; name: string }; resource: string; scopes: string[]; user: { id: string; username: string; display_name: string } | null; tools: OAuthTool[]; max_grant_days: number; access_seconds: number; refresh_days: number }
 export class OAuthRequestError extends Error {
   constructor(public code: string, public status = 0) { super(code) }
