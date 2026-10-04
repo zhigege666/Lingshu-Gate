@@ -28,6 +28,7 @@ from lingshu_gate.invocation_payloads import audit_header_values
 from lingshu_gate.endpoint_security import REDACTED_ENDPOINT
 from lingshu_gate.logging import log_event
 from lingshu_gate.mcp_manifest import McpServerManifest
+from lingshu_gate.mcp_http_trust import require_mcp_http_endpoint
 from lingshu_gate.mcp_stdio_client import McpProtocolError
 from lingshu_gate.protocol.lifecycle import discovery_requires_initialize, initialize_params, parse_initialize_result
 from lingshu_gate.protocol.version import (
@@ -131,6 +132,7 @@ class StreamableHttpMcpClient:
         return None
 
     def start(self) -> None:
+        require_mcp_http_endpoint(self.manifest.id, self.endpoint, settings=self.settings)
         if self.initialized:
             return
         if not self.endpoint:
@@ -312,6 +314,7 @@ class StreamableHttpMcpClient:
                 method="DELETE",
             )
             try:
+                require_mcp_http_endpoint(self.manifest.id, self.endpoint, settings=self.settings)
                 with self._opener.open(request, timeout=min(self.manifest.timeout_seconds or self.settings.mcp_request_timeout_seconds, 5)):
                     pass
             except urllib.error.HTTPError as exc:
@@ -365,6 +368,7 @@ class StreamableHttpMcpClient:
         request_id: int | None,
         protocol_headers: dict[str, str],
     ) -> dict[str, Any] | None:
+        require_mcp_http_endpoint(self.manifest.id, self.endpoint, settings=self.settings)
         deadline = time.monotonic() + max(float(timeout), 0.001)
         body = json.dumps(message, ensure_ascii=False, separators=(",", ":")).encode("utf-8")
         headers = self._http_headers(protocol_headers)

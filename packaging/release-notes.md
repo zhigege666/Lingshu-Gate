@@ -1,91 +1,62 @@
-## Lingshu Gate v0.4.1
+## Lingshu Gate v0.4.2
 
 ### English
 
-0.4.1 fixes authorization requests carrying `ui_locales` and improves sign-in
-version visibility, built-in OAuth setup and personal grant review.
+0.4.2 adds explicitly authorized downstream HTTP MCP connections for trusted
+internal RFC1918 IPv4 addresses and exact ports.
 
-- Accept a bounded optional `ui_locales` preference list, choose a supported
-  English/Simplified Chinese UI hint, and preserve the existing preference for
-  unsupported languages. Keep this hint outside the authorization ticket;
-  unknown/duplicate parameters, query/field limits, exact client/callback,
-  issuer/resource/scope and PKCE checks retain their existing boundaries.
-- Show the running backend version on sign-in/registration and in Console using
-  the existing public health metadata. A bounded, credential-free read has
-  localized loading/failure states and never blocks sign-in or substitutes a
-  frontend build version.
-- Explain that the MCP resource URL is the client's connection address, not an
-  OAuth callback. Suggest issuer + `/mcp` only while editing an empty or previous
-  automatic value; preserve manual edits and loaded configuration.
-- Show four setup steps and prevent new enablement without freshly read active
-  signing-key metadata. Saving disabled URLs remains available without a key.
-  The key shortcut only focuses the existing confirmed operation. Re-read
-  server state after key operations, preserve dirty drafts on retry, and keep
-  explicit disablement available when an enabled service's metadata fails.
-- Replace page-wide success banners with the existing dismissible, four-second,
-  polite status message. Persistent errors and one-time-secret confirmations
-  remain; no secret is included in a message.
-- Default personal grants to active, with expired/revoked/all filters and
-  search before pagination over the loaded owner-scoped dataset. Separate
-  scope, UTC expiry, limits, state and actions. Keep history viewable in
-  searchable, paginated read-only details with internal table scrolling and
-  initially visible pagination on supported desktops; active reductions and revocations
-  still require confirmation and backend owner/revision checks.
+- Permit declarations only in `10.0.0.0/8`, `172.16.0.0/12` and
+  `192.168.0.0/16`, using canonical IPv4 literals. A manifest does not grant
+  trust. The separate SQLite policy starts empty and binds the service ID,
+  address and actual port, including port 80 when omitted.
+- Require a live active Gate administrator with `operations.manage`, explicit
+  confirmation and an expected policy revision. Ordinary operators and OAuth
+  connections cannot self-approve. Record an audit event without credentials.
+- Add an inline **Authorize this address** action to the existing configuration
+  editor. Confirm the exact service, IP and port; retain the configuration draft.
+  Editing the draft invalidates confirmation. Authorization uses a separate API,
+  does not save or start the service, and rechecks the unchanged draft afterward.
+- Recheck current policy before precheck/save/apply/connect/reconnect and every
+  downstream request. Revoked or unreadable trust fails closed. Reject public,
+  link-local, metadata, DNS and noncanonical HTTP targets. Keep all redirects
+  blocked, HTTPS certificate verification and existing loopback behavior.
 
-Validation is recorded in the paired
-[0.4.1 validation record](https://github.com/zhigege666/Lingshu-Gate/blob/v0.4.1/docs/release-validation-0.4.1.md).
-Synthetic authorization/browser coverage does not establish full real ChatGPT,
-external-client, public TLS or production-upgrade acceptance. The complete optional
-layout/visual suite was not run. An initial unfiltered invocation stopped on
-two optional reset-layout cases (2 px movement against a < 2 px limit); those
-failures remain recorded. No baselines were regenerated, and previously
-recorded 0.4.0 optional failures are not represented as passing.
+HTTP is unencrypted; use this feature only on a trusted internal network.
+This release does not change startup policy or broaden tool, resource, OAuth
+or API-token grants. The production `SafeNetworkExecutor` remains absent;
+real Git acquisition, proxy tests and configured network installs remain blocked.
+No production trust records, credentials or deployment permissions are created.
+Validation and remaining limits are recorded in the paired
+[0.4.2 validation record](https://github.com/zhigege666/Lingshu-Gate/blob/v0.4.2/docs/release-validation-0.4.2.md).
 
-**Git/network execution remains partial:** the production `SafeNetworkExecutor`
-is absent. Real Git acquisition, proxy tests, package-tool preparation and
-configured network installs fail closed. No real proxy, SSH key, token, tunnel
-or remote-control configuration was created. DCR/CIMD remain unsupported.
-
-The normal release workflow produces five native targets (Linux x86_64/ARM64,
+The existing release workflow builds all five native targets (Linux x86_64/ARM64,
 Windows x86_64, macOS x86_64/ARM64), Compose, two offline Core images, application
-SPDX, container digest metadata and `SHA256SUMS` (11 assets). Verify downloads
-against checksums and repository build-provenance attestations. Existing 0.4.0
-release assets and historical screenshot evidence remain unchanged.
+SPDX, image digest metadata and `SHA256SUMS` (11 assets), with build-provenance
+attestations. All release jobs must succeed before publication. Verify downloaded
+packages against checksums and attestations. Historical releases stay immutable.
 
 ### 简体中文
 
-0.4.1 修复携带 `ui_locales` 的授权请求，并改善登录版本展示、内置 OAuth 配置
-及本人授权查看流程。
+0.4.2 支持明确授权的内网 HTTP MCP 连接，限定受信任 RFC1918 IPv4 地址与精确端口。
 
-- 接受有界的可选 `ui_locales` 偏好列表，选择支持的英语/简体中文提示；不支持的
-  语言保留既有界面偏好。提示与授权票据分离；未知/重复参数、查询/字段限制、
-  精确客户端/回调、Issuer/resource/scope 和 PKCE 校验保留原边界。
-- 登录/注册页与 Console 使用既有公开健康元数据展示运行中的后端版本。有界、
-  不带凭据的请求提供本地化读取/失败状态，不阻断登录，也不以前端构建版本替代。
-- 明确 MCP 资源 URL 是客户端连接地址，不是 OAuth 回调。只在编辑空值或上次
-  自动填写值时建议 Issuer + `/mcp`，保留手动修改和加载的配置。
-- 展示四步配置，并在未重新读取确认活动签名密钥时禁止新启用。关闭状态保存地址
-  无需密钥；密钥快捷入口仅定位原有需确认操作。密钥操作后重读服务器状态，重试
-  保留未保存地址；已启用服务读取失败时仍可通过确认明确关闭。
-- 成功反馈改为现有的可关闭、四秒消退、礼貌播报的轻量消息。错误持续可见，
-  一次性密钥保留原确认，消息不包含秘密。
-- 本人授权默认有效，支持过期/撤销/全部；在完整已读取本人数据上搜索筛选后分页。
-  分列展示范围、UTC 到期、配额、状态和操作。历史记录保留可搜索分页的只读详情，
-  详情表格内部滚动，受支持桌面首屏可见分页；有效授权缩小与撤销仍须确认并通过
-  后端本人权限/版本校验。
+- 仅允许 `10.0.0.0/8`、`172.16.0.0/12`、`192.168.0.0/16` 内的规范 IPv4
+  字面地址声明。Manifest 不授予信任；独立 SQLite 策略默认空，绑定服务 ID、
+  地址和实际端口，省略端口时使用 80。
+- 要求实时有效的 Gate 管理员身份及 `operations.manage`、明确确认和预期策略
+  版本。普通操作员与 OAuth 连接不能自行批准；审计事件不包含凭据。
+- 在现有配置编辑器加入内联“授权此地址”，确认精确服务、IP 和端口，保留草稿。
+  修改草稿即使旧确认失效；授权使用独立 API，不保存、不启动服务，成功后重检
+  同一份草稿。
+- 预检查、保存、应用、连接、重连与每次下游请求前重检当前策略。撤销或读取失败
+  即拒绝；禁止公网、链路本地、metadata、DNS 和非规范 HTTP 目标。所有重定向
+  仍禁止，HTTPS 证书验证及现有回环行为保留。
 
-验证详见成对的
-[0.4.1 验证记录](https://github.com/zhigege666/Lingshu-Gate/blob/v0.4.1/docs/zh-CN/release-validation-0.4.1.md)。
-合成授权/浏览器覆盖不代表真实 ChatGPT、外部客户端、公开 TLS 或生产升级完整
-验收。未运行完整可选布局/视觉套件；首次未筛选调用在两项可选重置布局案例失败
-后停止（位移 2 px，要求小于 2 px），失败如实保留。未更新基线，此前记录的
-0.4.0 可选失败不宣称通过。
+HTTP 不加密，仅用于受信任内网。本版不改变自启策略，也不扩大工具、资源、OAuth
+或 API token 授权。生产 `SafeNetworkExecutor` 尚未实现，真实 Git 拉取、代理测试
+和指定网络安装保持阻断。不创建生产信任记录、凭据或部署权限。验证与限制见成对的
+[0.4.2 验证记录](https://github.com/zhigege666/Lingshu-Gate/blob/v0.4.2/docs/zh-CN/release-validation-0.4.2.md)。
 
-**Git/网络执行仍为部分实现：**生产 `SafeNetworkExecutor` 尚未实现，真实 Git
-拉取、代理测试、包管理器准备和指定网络安装保持关闭式失败。未创建真实代理、
-SSH 密钥、token、隧道或远控配置；仍不支持 DCR/CIMD。
-
-正常发行工作流生成五种原生目标（Linux x86_64/ARM64、Windows x86_64、
-macOS x86_64/ARM64）、Compose、两个离线 Core 镜像、应用 SPDX、镜像摘要与
-`SHA256SUMS`，共 11 个资产。下载后须核验校验和及仓库构建来源证明。既有 0.4.0
-发行资产和历史截图证据保持原样。
+沿用发行工作流构建五种原生目标（Linux x86_64/ARM64、Windows x86_64、macOS
+x86_64/ARM64）、Compose、两个离线 Core 镜像、应用 SPDX、镜像摘要与 SHA256SUMS，
+共 11 项资产及构建来源证明；全部发行任务成功后才发布。下载后须核验校验和与
+来源证明。历史发行保持不可变。

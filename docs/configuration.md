@@ -63,6 +63,32 @@ For unattended provisioning, configure an administrator username and inject the 
 
 Manifests are YAML or JSON objects stored in `mcp.d`. The file name is not the identity; `id` is. IDs must match `^[A-Za-z0-9_.-]+$` and remain stable because grants, credentials, runtime state, and audits reference them.
 
+### Private HTTP trust
+
+HTTPS and canonical loopback HTTP retain their existing behavior. Other HTTP
+endpoints require a literal IPv4 address in `10.0.0.0/8`, `172.16.0.0/12` or
+`192.168.0.0/16` and a separate administrator-approved record binding the exact
+MCP service ID, IP and actual port. A manifest is a declaration, never its own
+trust approval. There are no default trusted private origins. DNS names,
+noncanonical IPs, public, link-local, metadata and other reserved ranges cannot
+enter this allowlist. User information, query strings, fragments and unsafe URL
+syntax remain forbidden. Redirects remain blocked and HTTPS uses normal TLS
+certificate verification.
+
+In the existing configuration editor, an administrator can select **Authorize this
+address** below the endpoint and explicitly confirm the service ID, IP and port.
+HTTP is unencrypted; use this only for a trusted internal network. Authorization
+uses the separate `/v1/mcp/http-trust/{server_id}` API, not normal manifest save.
+Its PUT requires `origins`, `expected_revision` and `confirmed=true`. Live admin
+role and `operations.manage`, same-origin session mutation protection, revision
+CAS and audit checks apply. An operator with only `operations.manage` or an OAuth
+connection cannot change this policy. Changing the draft invalidates the inline
+confirmation. Approval preserves the draft and revalidates it without connecting.
+Precheck, save, apply, connect, reconnect and requests read the current policy;
+removal or read failure denies subsequent use. Ordinary users receive the result
+for their proposed address and contact-administrator guidance, not other trusted
+origin records. No global trust-settings page is added by this change.
+
 ### External Streamable HTTP
 
 ```yaml
@@ -185,6 +211,17 @@ For remote access:
 4. Set `LINGSHU_GATE_TRUSTED_PROXY_IPS` to the actual proxy IP or smallest internal CIDR. Its default is `127.0.0.1`.
 5. Make the proxy replace, not append to, client-provided `Forwarded` and `X-Forwarded-*` headers.
 6. Apply request-size limits and timeouts appropriate for upload and streaming endpoints.
+
+Session PUTs for HTTP trust compare the browser Origin with the scheme,
+Host and port visible to Gate. For an HTTPS proxy to an HTTP backend, the proxy
+must preserve the external `Host` (including a nondefault port), replace
+`X-Forwarded-Proto` with `https`, and connect from an actual IP included in
+`LINGSHU_GATE_TRUSTED_PROXY_IPS`. The default trusts only `127.0.0.1`; a container
+bridge or remote proxy usually needs explicit configuration. `Forwarded` or
+`X-Forwarded-Host` alone cannot substitute for this setup, and the application
+does not use arbitrary forwarded headers to bypass Origin checks. An internal
+rewritten Host, untrusted peer or cross-site Origin is rejected; fix the proxy
+configuration instead of disabling same-origin checks.
 
 Do not set the trusted source to `*` on an uncontrolled network, and do not expose the private Gate port beside the proxy.
 

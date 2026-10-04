@@ -59,3 +59,5 @@ Run repository identity checks and release-package verification when those scrip
   Describe the actual changes, support boundaries, validation and known issues for that version;
   never reuse an earlier release's heading or summary. Before publishing, compare the source
   version, tag, notes, overview and GitHub release page, and read back the published title/body.
+
+- Keep the single source version, paired README overview, paired CHANGELOG and release notes synchronized for every release. Sign-in and Console show the running backend health version; never substitute a separately hardcoded frontend version.

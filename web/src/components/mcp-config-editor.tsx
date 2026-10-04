@@ -3,6 +3,7 @@ import { Braces, Plus, Save, ShieldCheck, Trash2 } from "lucide-react"
 import { createPortal } from "react-dom"
 import { api, type Credential, type ManifestValidationResponse } from "@/api/client"
 import { ValidationErrors } from "@/components/validation-errors"
+import { McpHttpTrustControl } from "@/components/mcp-http-trust-control"
 import { Alert, AlertDescription } from "@/components/ui/alert"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
@@ -36,6 +37,7 @@ type McpConfigEditorProps = {
   loadCredentials?: boolean
   footerContainer?: HTMLElement | null
   busy: boolean
+  canManageHttpTrust?: boolean
 }
 
 const FORM_COPY = {
@@ -243,7 +245,7 @@ function StringMapEditor({ value, label, disabled, onChange, zh, id, credentials
   </fieldset>
 }
 
-export function McpConfigEditor({ locale, selectedConfigId, value, onChange, onSave, onClose, onPendingChange, onDraftDirtyChange, backendPrecheck = true, loadCredentials = true, footerContainer, busy, saveLabel }: McpConfigEditorProps) {
+export function McpConfigEditor({ locale, selectedConfigId, value, onChange, onSave, onClose, onPendingChange, onDraftDirtyChange, backendPrecheck = true, loadCredentials = true, footerContainer, busy, saveLabel, canManageHttpTrust = false }: McpConfigEditorProps) {
   const c: CopyFn = (key) => FORM_COPY[locale][key]
   const zh = locale === "zh-CN"
   const editorId = useId()
@@ -255,9 +257,12 @@ export function McpConfigEditor({ locale, selectedConfigId, value, onChange, onS
   const [requestError, setRequestError] = useState<string | null>(null)
   const [validating, setValidating] = useState(false)
   const [submitting, setSubmitting] = useState(false)
+  const [trustBusy, setTrustBusy] = useState(false)
   const [credentials, setCredentials] = useState<Credential[]>([])
   const [pendingEntries, setPendingEntries] = useState<Set<string>>(new Set())
   const requestPending = useRef(false)
+  const validationRevision = useRef(-1)
+  const precheckSequence = useRef(0)
   const latest = useRef({ value, revision: 0 })
   if (latest.current.value !== value) latest.current = { value, revision: latest.current.revision + 1 }
   const revision = latest.current.revision
@@ -274,7 +279,7 @@ export function McpConfigEditor({ locale, selectedConfigId, value, onChange, onS
     catch (err) { return { manifest: null, syntax: err instanceof SyntaxError, error: err instanceof SyntaxError ? JSON_SYNTAX_MESSAGE[zh ? "zh-CN" : "en"] : (zh ? "配置必须是 JSON 对象。当前输入已保留。" : "The configuration must be a JSON object. Your input has been retained.") } }
   }, [value, zh])
   const manifest = parsed.manifest
-  const locked = busy || validating || submitting
+  const locked = busy || validating || submitting || trustBusy
   const rawChecks = manifest ? precheckManifest(manifest, (key) => key, initialContext.current) : { errors: [], warnings: [] }
   const issues: ValidationIssue[] = [
     ...rawChecks.errors.map((key) => ({ code: key, messageKey: key, message: c(key as CopyKey), severity: "error" as const, source: "domain" as const, path: PRECHECK_PATHS[key as ManifestPrecheckMessageKey], revision })),
@@ -385,6 +390,8 @@ export function McpConfigEditor({ locale, selectedConfigId, value, onChange, onS
   async function check(snapshot: ManifestLike, snapshotRevision: number) {
     const result = await api.validateConfig(withoutUserCredentialValues(snapshot), selectedConfigId || null)
     if (latest.current.revision !== snapshotRevision) return null
+    validationRevision.current = snapshotRevision
+    precheckSequence.current += 1
     setValidation(result)
     return result
   }
@@ -458,6 +465,11 @@ export function McpConfigEditor({ locale, selectedConfigId, value, onChange, onS
               <Input id={fieldId("/transport/endpoint")} data-manifest-path="/transport/endpoint" aria-invalid={Boolean(fieldError("/transport/endpoint"))} value={typeof transport.endpoint === "string" ? transport.endpoint : ""} disabled={locked} onBlur={() => touch("/transport/endpoint")} onChange={(event) => set(["transport", "endpoint"], event.target.value)} />
               {initialContext.current.originalEndpointMasked && <Button type="button" size="sm" variant="ghost" disabled={locked} onClick={() => set(["transport", "endpoint"], REDACTED_ENDPOINT)}>{zh ? "保留原地址" : "Keep original endpoint"}</Button>}
             </>}
+            <McpHttpTrustControl serverId={typeof manifest.id === "string" ? manifest.id : ""} endpoint={transport.endpoint}
+              draftRevision={revision} precheckSequence={precheckSequence.current} canManage={canManageHttpTrust} locked={locked} zh={zh}
+              approved={Boolean(validationRevision.current === revision && validation?.checks.some(item => item.name === "transport.http_trust" && item.metadata?.authorized === true))}
+              denied={Boolean(validationRevision.current === revision && validation?.checks.some(item => item.metadata?.code === "private_http_untrusted"))}
+              onBusyChange={setTrustBusy} onApproved={async () => { await check(manifest, revision) }} />
           </Field>
           {mapField(["transport", "headers"], zh ? "HTTP 请求头" : "HTTP headers", transport.headers)}
         </>}

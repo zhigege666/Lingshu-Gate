@@ -9,8 +9,9 @@ import { configurationResultError } from "./configuration-result"
 import type { Locale, TFunction } from "@/i18n"
 
 /** Service-owned edit session. Snapshot is never replaced by background refresh. */
-export function ServiceConfigDrawer({ server, manifest, locale, t, onClose, onSaved }: {
+export function ServiceConfigDrawer({ server, manifest, canManageHttpTrust = false, locale, t, onClose, onSaved }: {
   server: McpServer; manifest: Record<string, unknown>; locale: Locale; t: TFunction
+  canManageHttpTrust?: boolean
   onClose: () => void; onSaved: () => Promise<void>
 }) {
   const zh = locale === "zh-CN"
@@ -67,7 +68,7 @@ export function ServiceConfigDrawer({ server, manifest, locale, t, onClose, onSa
         { value: true, label: zh ? "保存并应用启动" : "Save, apply and start" },
         { value: false, label: zh ? "仅保存（未生效）" : "Save only (not applied)" },
       ]} />
-      <McpConfigEditor locale={locale} selectedConfigId={server.id} value={value} onChange={setValue} onSave={save}
+      <McpConfigEditor canManageHttpTrust={canManageHttpTrust} locale={locale} selectedConfigId={server.id} value={value} onChange={setValue} onSave={save}
         onClose={() => void close()} onPendingChange={setPending} onDraftDirtyChange={setEntryDirty}
         footerContainer={footer} busy={false} saveLabel={action} />
     </Drawer>

@@ -63,6 +63,26 @@ lingshu-gate/
 
 Manifest 是存放在 `mcp.d` 中的 YAML 或 JSON 对象。文件名不是身份，`id` 才是。ID 必须匹配 `^[A-Za-z0-9_.-]+$`，并保持稳定，因为授权、凭据、运行状态和审计都会引用它。
 
+### 内网 HTTP 信任
+
+HTTPS 和规范回环 HTTP 保留原行为。其他 HTTP 地址必须是 `10.0.0.0/8`、
+`172.16.0.0/12` 或 `192.168.0.0/16` 中的字面 IPv4，并由管理员独立批准精确
+MCP 服务 ID、IP 和实际端口。Manifest 只是声明，不能自行批准信任。默认没有
+受信内网地址。DNS 名称、非规范 IP、公网、链路本地、metadata 和其他保留地址
+不能进入白名单。用户信息、查询串、fragment 和不安全 URL 语法仍被拒绝。
+重定向仍禁止，HTTPS 保留正常 TLS 证书验证。
+
+管理员可在现有配置编辑器的地址控件下选择“授权此地址”，明确确认服务 ID、IP
+和端口。HTTP 不加密，仅用于受信任内网。授权使用独立
+`/v1/mcp/http-trust/{server_id}` API，不随普通 Manifest 保存写入；PUT 要求
+`origins`、`expected_revision` 和 `confirmed=true`。实时 admin 角色与
+`operations.manage`、会话写入的同源保护、revision CAS 和审计共同生效。
+只有 `operations.manage` 的 operator 或 OAuth 连接不能修改此策略。草稿变化
+使内联确认失效；授权成功后保留草稿并重新预检查，不建立连接。预检查、保存、
+应用、连接、重连和请求均读取当前策略，移除信任或读取失败后拒绝后续使用。
+普通用户仅得到拟用地址的判断和联系管理员说明，不返回其他受信目标记录。
+本次不增加全局信任设置页面。
+
 ### 外部 Streamable HTTP
 
 ```yaml
@@ -185,6 +205,14 @@ ${credential:credential-id}
 4. 把 `LINGSHU_GATE_TRUSTED_PROXY_IPS` 设置为实际代理 IP 或最小内部 CIDR；默认值为 `127.0.0.1`。
 5. 让代理覆盖而不是追加客户端传入的 `Forwarded` 和 `X-Forwarded-*` Header。
 6. 为上传和流式端点设置合适的请求大小及超时限制。
+
+信任策略的会话 PUT 会比较浏览器 Origin 与服务实际看到的 scheme/Host/端口。
+HTTPS 反代到 HTTP 后端时，代理必须保留外部 `Host`（含非默认端口），覆盖
+`X-Forwarded-Proto: https`，且代理的实际后端连接 IP 必须包含在
+`LINGSHU_GATE_TRUSTED_PROXY_IPS`。默认仅信任 `127.0.0.1`；容器桥接地址或远端
+代理通常需要明确配置。只发送 `Forwarded` 或 `X-Forwarded-Host` 不能替代这些
+条件，应用不会用任意转发头绕过 Origin 校验。代理改写 Host 为后端地址、来源未
+受信或跨站 Origin 会被拒绝；应修正代理配置，不应关闭同源检查。
 
 不要在不受控网络把可信来源设为 `*`，也不要在代理之外同时暴露 Gate 私有端口。
 

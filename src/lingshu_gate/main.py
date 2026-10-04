@@ -24,6 +24,7 @@ from lingshu_gate.adapters.control_plane import (
 )
 from lingshu_gate.application.health import HealthService, StartupState
 from lingshu_gate.application.mcp_configuration import McpConfigurationService
+from lingshu_gate.mcp_http_trust import McpHttpTrustStore
 from lingshu_gate.auth import AuthStore
 from lingshu_gate.build_deploy import BuildDeployStore
 from lingshu_gate.build_deploy_routes import register_build_deploy_routes
@@ -100,7 +101,7 @@ def create_app() -> FastAPI:
     user_credential_store = UserCredentialStore(database, settings.data_dir)
     credential_store = CredentialStore(settings.data_dir)
     network_settings_store = NetworkSettingsStore(database, settings.data_dir, credential_store, observability_store)
-    mcp_config_store = McpConfigStore(settings.config_dir)
+    mcp_config_store = McpConfigStore(settings.config_dir, http_trust_store=McpHttpTrustStore(database))
 
     mcp_runtime = McpRuntimeManager(
         settings,

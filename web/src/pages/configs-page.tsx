@@ -26,6 +26,7 @@ export function ConfigsPage(props: {
   selectedConfigId: string
   configText: string
   busy: boolean
+  canManageHttpTrust?: boolean
   editorOpen: boolean
   onCloseEditor: () => void
   onNewConfig: () => void
@@ -219,6 +220,7 @@ export function ConfigsPage(props: {
           onDraftDirtyChange={setEditorDraftDirty}
           footerContainer={footerContainer}
           busy={busy}
+          canManageHttpTrust={props.canManageHttpTrust}
         />
       </FormDialog>
       {confirmDialog}

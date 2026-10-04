@@ -34,6 +34,7 @@ type Props = {
   toolsError: string | null
   canReadTools: boolean
   canManageClassifications: boolean
+  canManageHttpTrust?: boolean
   onServerAction: (id: string, action: Action) => Promise<void> | void
   onRefresh: () => Promise<void> | void
   onInvoke?: (toolId: string) => void
@@ -259,7 +260,7 @@ export function ServersPage(props: Props) {
       </> : <div className="service-unselected"><Empty image={Empty.PRESENTED_IMAGE_SIMPLE} description={c.selectService} /></div>}
     </section>
 
-    {configSession && <ServiceConfigDrawer server={configSession.server} manifest={configSession.manifest} locale={locale} t={t} onClose={() => setConfigSession(null)} onSaved={async () => { await props.onRefresh(); await load("configuration", true); await load("overview", true) }} />}
+    {configSession && <ServiceConfigDrawer canManageHttpTrust={props.canManageHttpTrust} server={configSession.server} manifest={configSession.manifest} locale={locale} t={t} onClose={() => setConfigSession(null)} onSaved={async () => { await props.onRefresh(); await load("configuration", true); await load("overview", true) }} />}
     <Drawer className="service-tool-drawer" title={selectedTool?.name || c.toolDetails} size={560} open={selectedTool !== null} onClose={() => setSelectedTool(null)} destroyOnHidden>
       {selectedTool && <div className="service-panel-stack">
         {props.onInvoke && props.visibleTools?.filter(tool => tool.source === "mcp" && asRecord(tool.metadata).server_id === server?.id && (tool.id === selectedTool.raw.id || tool.name === selectedTool.name)).map(tool => <Button key={tool.id} type="primary" onClick={() => props.onInvoke?.(tool.id)}>{locale === "zh-CN" ? "测试工具" : "Test tool"}</Button>)}

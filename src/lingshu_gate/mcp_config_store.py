@@ -17,6 +17,7 @@ from lingshu_gate.application.manifest_edit import restore_masked_mounts
 from lingshu_gate.logging import log_event
 from lingshu_gate.endpoint_security import REDACTED_ENDPOINT
 from lingshu_gate.mcp_manifest import McpServerManifest
+from lingshu_gate.mcp_http_trust import McpHttpTrustStore, require_mcp_http_endpoint
 from lingshu_gate.models import McpConfigListResponse, McpConfigResponse
 from lingshu_gate.redaction import redact_text, redact_validation_errors
 
@@ -28,8 +29,9 @@ SECRET_MASK = "***"
 class McpConfigStore:
     """Read and write MCP Server Manifest files in config_dir."""
 
-    def __init__(self, config_dir: Path) -> None:
+    def __init__(self, config_dir: Path, *, http_trust_store: McpHttpTrustStore | None = None) -> None:
         self.config_dir = config_dir
+        self.http_trust_store = http_trust_store
         self.mutation_lock = threading.RLock()
 
     def list_configs(self) -> McpConfigListResponse:
@@ -81,12 +83,17 @@ class McpConfigStore:
             manifest_data = self._preserve_masked_env(manifest_data, existing_raw)
 
         manifest = _validate_manifest(manifest_data)
+        self.check_http_trust(manifest)
         self.config_dir.mkdir(parents=True, exist_ok=True)
         path = existing_path or self.config_dir / f"{manifest.id}.yaml"
         self._write_manifest(path, manifest.model_dump(mode="json", exclude={"manifest_path"}))
         saved = self._load_manifest(path)
         log_event(logger, logging.INFO, "gate.mcp.config_saved", "MCP config saved", server_id=saved.id, path=str(path), overwrite=bool(existing_path))
         return self._to_response(saved, path)
+
+    def check_http_trust(self, manifest: McpServerManifest) -> None:
+        if manifest.transport.endpoint:
+            require_mcp_http_endpoint(manifest.id, manifest.transport.endpoint, self.http_trust_store)
 
     def delete_config(self, server_id: str) -> McpConfigResponse:
         with self.mutation_lock:

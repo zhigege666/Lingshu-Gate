@@ -24,6 +24,7 @@ from lingshu_gate.mcp_container import docker_available
 from lingshu_gate.mcp_managed_http_client import ManagedHttpMcpClient
 from lingshu_gate.mcp_manifest import McpServerManifest
 from lingshu_gate.mcp_http_client import McpSessionExpiredError, StreamableHttpMcpClient
+from lingshu_gate.mcp_http_trust import require_mcp_http_endpoint
 from lingshu_gate.mcp_restart_history import McpRestartHistoryStore
 from lingshu_gate.mcp_runtime_state_store import (
     DesiredState,
@@ -307,6 +308,8 @@ class McpRuntimeManager:
         )
         candidate.manifest_path = manifest.manifest_path
         server_id = candidate.id
+        if candidate.transport.endpoint:
+            require_mcp_http_endpoint(server_id, candidate.transport.endpoint, settings=self.settings)
 
         with self._manager_lock:
             previous = self._servers.get(server_id)
