@@ -2,6 +2,7 @@ export type ManifestLike = Record<string, unknown> & {
   id?: unknown
   name?: unknown
   auto_start?: unknown
+  startup_policy?: unknown
   timeout_seconds?: unknown
   launch?: Record<string, unknown>
   transport?: Record<string, unknown>
@@ -89,6 +90,10 @@ export type ManifestPrecheckMessageKey =
   | "endpointRequired"
   | "endpointInvalid"
   | "timeoutWarning"
+  | "restartUnsupported"
+  | "healthRestartUnsupported"
+  | "toolchainModeUnsupported"
+  | "legacyExternalAutoStart"
 
 const SENSITIVE_ENV_PATTERN = /(KEY|TOKEN|SECRET|PASSWORD|PASS|CREDENTIAL|AUTH|COOKIE)/i
 const CONTAINER_IMAGE_DIGEST_PATTERN = /^[a-z0-9][a-z0-9._:/-]*@sha256:[a-f0-9]{64}$/
@@ -162,7 +167,12 @@ export function changeRuntimeMode(manifest: ManifestLike, mode: RuntimeMode): Ma
   if (mode === "advanced") return manifest
   let next = patchManifestField(manifest, ["launch", "type"], { kind: "set", value: mode === "external_http" ? "external" : "managed_process" })
   next = patchManifestField(next, ["transport", "type"], { kind: "set", value: mode === "managed_stdio" ? "stdio" : "streamable_http" })
-  return mode === "managed_stdio" ? patchManifestField(next, ["transport", "endpoint"], { kind: "remove" }) : next
+  return next
+}
+
+/** An explicit switch edit opts into startup policy; ordinary edits do not. */
+export function changeStartupPolicy(manifest: ManifestLike, autoStart: boolean): ManifestLike {
+  return { ...manifest, auto_start: autoStart, startup_policy: "gate_start_v1" }
 }
 
 export function parseHttpUrl(value: string): URL | null {
@@ -218,6 +228,7 @@ export function precheckManifest(
     const command = String(launch.command || "").trim()
     if (!launchType) errors.push(copy("launchTypeRequired"))
     if (launchType === "managed_process" && !command) errors.push(copy("commandRequired"))
+    if (launch.toolchain && launchType !== "managed_process") errors.push(copy("toolchainModeUnsupported"))
     if (launchType === "managed_container") {
       const image = String(launch.image || "")
       if (!CONTAINER_IMAGE_DIGEST_PATTERN.test(image)) errors.push(copy("containerImageDigestError"))
@@ -269,6 +280,14 @@ export function precheckManifest(
     if (transportType === "streamable_http" && !transport.endpoint) errors.push(copy("streamableEndpointError"))
   }
 
+  const launchType = String(launch?.type || "")
+  const transportType = String(transport?.type || "")
+  const restartSupported = launchType === "managed_process" && ["stdio", "streamable_http"].includes(transportType)
+    || launchType === "managed_container" && transportType === "stdio"
+  const policy = getRecord(manifest.restart_policy)
+  if (!restartSupported && policy.enabled === true) errors.push(copy("restartUnsupported"))
+  if (!restartSupported && getRecord(policy.health_check).enabled === true) errors.push(copy("healthRestartUnsupported"))
+  if (launchType === "external" && manifest.auto_start === true && manifest.startup_policy !== "gate_start_v1") errors.push(copy("legacyExternalAutoStart"))
   const runtimeMode = runtimeModeFromManifest(manifest)
   const endpoint = String(transport?.endpoint || "").trim()
   if (transport?.endpoint === REDACTED_ENDPOINT && !canKeepMaskedEndpoint(manifest, context)
@@ -282,5 +301,12 @@ export function precheckManifest(
   if (!Number.isFinite(timeout) || timeout <= 0) warnings.push(copy("timeoutWarning"))
   return { errors, warnings }
 }
-import type { ManifestValidationCheck } from "@/api/client"
+import type { ManifestValidationCheck, ManifestValidationResponse } from "@/api/client"
+
+/** A failure flag or error check always dominates success-looking counters. */
+export function manifestValidationStatus(result: ManifestValidationResponse): "error" | "warning" | "success" {
+  if (!result.ok || !result.can_apply || result.summary.errors > 0 || result.checks.some(check => check.severity === "error")) return "error"
+  if (result.summary.warnings > 0 || result.checks.some(check => check.severity === "warning")) return "warning"
+  return "success"
+}
 import { pointerFor, type ValidationIssue } from "@/lib/validation"

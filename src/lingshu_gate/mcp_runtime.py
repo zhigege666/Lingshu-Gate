@@ -257,17 +257,23 @@ class McpRuntimeManager:
         self.load_errors: list[str] = []
         self._manager_lock = threading.RLock()
 
-    def load_manifests(self) -> None:
+    def load_manifests(self, *, restore_startup_policy: bool = True) -> None:
         loader = McpConfigLoader(self.settings.config_dir)
         result = loader.load()
         with self._manager_lock:
+            previous_intents = {server_id: runtime.desired_intent for server_id, runtime in self._servers.items()}
             self.load_errors = result.errors
             self._servers.clear()
             for manifest in result.manifests:
+                intent: McpRuntimeIntent | None
                 state = McpServerState.LOADED if manifest.enabled else McpServerState.STOPPED
                 if manifest.launch.type == "external":
                     state = McpServerState.EXTERNAL
-                intent = self.state_store.resolve(manifest.id, auto_start=manifest.auto_start)
+                if restore_startup_policy and manifest.startup_policy == "gate_start_v1":
+                    intent = McpRuntimeIntent(manifest.id, "running" if manifest.enabled and manifest.auto_start else "stopped", "gate_start_policy", None)
+                else:
+                    intent = previous_intents.get(manifest.id) if not restore_startup_policy else None
+                    intent = intent or self.state_store.resolve(manifest.id, auto_start=manifest.auto_start)
                 self._servers[manifest.id] = McpServerRuntime(
                     manifest=manifest,
                     state=state,
@@ -283,7 +289,7 @@ class McpRuntimeManager:
         with self._manager_lock:
             log_event(logger, logging.INFO, "gate.mcp.runtime_reload_started", "Reloading MCP runtime manifests", server_id=server_id_to_start, start=start)
             self._stop_all_locked()
-            self.load_manifests()
+            self.load_manifests(restore_startup_policy=False)
             if server_id_to_start:
                 self._set_desired_state_locked(server_id_to_start, "running" if start else "stopped", source="config_apply")
             self.reconcile_desired_states()

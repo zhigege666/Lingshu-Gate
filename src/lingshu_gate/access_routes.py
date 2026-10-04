@@ -442,6 +442,7 @@ def register_access_routes(
                     "server_id": str(item.metadata.get("server_id") or item.source or "builtin"),
                     "tool_id": item.id,
                     "tool_name": item.name,
+                    "registry_source": item.source,
                     "classification": classifications.get(
                         (str(item.metadata.get("server_id") or item.source or "builtin"), item.id),
                         {},

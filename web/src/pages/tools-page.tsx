@@ -11,13 +11,15 @@ import { Button } from "@/components/ui/button"
 import { Dialog, DialogBody, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import { Skeleton } from "@/components/ui/skeleton"
 import { DEFAULT_TOOL_PAGE_SIZE, ALL_TOOL_SERVICES, BUILTIN_TOOL_SERVICE, filterTools, paginateTools, toolAccess, toolServerId, toolServiceOptions, type ToolAccess } from "@/features/tool-catalog"
-import type { TFunction } from "@/i18n"
+import { builtinOriginBadge, toolOriginName } from "@/features/tool-origin"
+import type { Locale, TFunction } from "@/i18n"
 import "./tools-page.css"
 
 export type ToolCatalogViewState = { query: string; service: string; access: "all" | ToolAccess; page: number; pageSize: number; scrollTop: number; selectedId?: string | null }
 export const initialToolCatalogView: ToolCatalogViewState = { query: "", service: ALL_TOOL_SERVICES, access: "all", page: 1, pageSize: DEFAULT_TOOL_PAGE_SIZE, scrollTop: 0 }
 
 type Props = {
+  locale?: Locale
   viewState?: ToolCatalogViewState
   onViewStateChange?: (state: ToolCatalogViewState) => void
   tools: ToolDefinition[]
@@ -29,7 +31,7 @@ type Props = {
   onRefresh: () => void
 }
 
-export function ToolsPage({ tools, servers, loading, error, t, onInvoke, onRefresh, viewState = initialToolCatalogView, onViewStateChange }: Props) {
+export function ToolsPage({ tools, servers, loading, error, t, onInvoke, onRefresh, locale = "en-US", viewState = initialToolCatalogView, onViewStateChange }: Props) {
   const [selectedId, setSelectedId] = useState<string | null>(viewState.selectedId ?? null)
   const [query, setQuery] = useState(viewState.query)
   const [service, setService] = useState(viewState.service)
@@ -63,7 +65,7 @@ export function ToolsPage({ tools, servers, loading, error, t, onInvoke, onRefre
   const filtered = Boolean(query || service !== ALL_TOOL_SERVICES || access !== "all")
   const accessLabel = (value: ToolAccess) => t(value === "read" ? "toolReadOnly" : value === "write" ? "toolWrite" : "toolAccessUnknown")
   const serviceLabel = (tool: ToolDefinition) => {
-    if (tool.source === "builtin") return t("builtinTools")
+    if (tool.source === "builtin") return toolOriginName(tool, locale) || t("builtinTools")
     const id = toolServerId(tool)
     const name = servers.find(server => server.id === id)?.name
     return id && name && name !== id ? `${name} · ${id}` : id || tool.source
@@ -132,6 +134,7 @@ export function ToolsPage({ tools, servers, loading, error, t, onInvoke, onRefre
               <Badge variant="outline" className={`tool-access-badge tool-access-${level}`}>
                 {AccessIcon && <AccessIcon aria-hidden="true" />}{accessLabel(level)}
               </Badge>
+              {tool.source === "builtin" && <Badge variant="outline">{builtinOriginBadge(locale)}</Badge>}
             </div>
             {tool.description && <p className="tool-card-description">{tool.description}</p>}
             <div className="tool-card-permission"><span>{t("toolPermissionDeclaration")}</span><code>{tool.permission}</code></div>

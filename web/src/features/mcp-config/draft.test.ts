@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest"
 import { changeRuntimeMode, manifestFingerprint, updateManifestPath } from "./draft"
-import { parseManifest, precheckManifest } from "./model"
+import { changeRuntimeMode as editorChangeRuntimeMode, parseManifest, precheckManifest } from "./model"
 
 const source = {
   id: "graph", enabled: true, timeout_seconds: 30,
@@ -33,12 +33,14 @@ describe("配置草稿契约", () => {
     const fixed = updateManifestPath(invalid, ["transport", "endpoint"], source.transport.endpoint)
     expect(precheckManifest(fixed, key => key)).toEqual({ errors: [], warnings: [] })
   })
-  it("普通编辑不启用重启策略；显式切换外部模式才清除不兼容启动配置", () => {
+  it("使用编辑器同一实现，切换模式保留原字段并明确报告不兼容重启项", () => {
     const managed = { ...source, launch: { type: "managed_process", command: "node", args: ["server"], env: { KEY: "${credential:graph}" } }, restart_policy: { enabled: true, health_check: { enabled: true, interval_seconds: 60 } } }
+    expect(changeRuntimeMode).toBe(editorChangeRuntimeMode)
     const changed = changeRuntimeMode(managed, "external_http")
-    expect(changed.launch).toEqual({ type: "external" })
-    expect(changed.restart_policy).toEqual({ enabled: false, health_check: { enabled: false, interval_seconds: 60 } })
+    expect(changed.launch).toEqual({ ...managed.launch, type: "external" })
+    expect(changed.restart_policy).toEqual(managed.restart_policy)
     expect(changed.transport).toEqual(source.transport)
+    expect(precheckManifest(changed, key => key).errors).toEqual(["restartUnsupported", "healthRestartUnsupported"])
     expect(managed.restart_policy.enabled).toBe(true)
   })
   it("仅格式化不会变脏；删除可选值不影响其他字段", () => {

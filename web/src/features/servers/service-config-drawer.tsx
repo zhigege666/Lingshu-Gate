@@ -1,17 +1,17 @@
-import { useContext, useEffect, useRef, useState } from "react"
-import { Alert, Drawer, Radio } from "antd"
+import { useRef, useState } from "react"
+import { Radio } from "antd"
 import { api, type McpServer } from "@/api/client"
 import { McpConfigEditor } from "@/components/mcp-config-editor"
-import { EditorNavigationContext } from "@/components/editor-navigation-guard"
+import { FormDialog } from "@/components/form-dialog"
 import { useConfirm } from "@/components/confirm-dialog"
 import { useDraftCloseGuard } from "@/components/use-draft-close-guard"
 import { configurationResultError } from "./configuration-result"
 import type { Locale, TFunction } from "@/i18n"
 
 /** Service-owned edit session. Snapshot is never replaced by background refresh. */
-export function ServiceConfigDrawer({ server, manifest, canManageHttpTrust = false, locale, t, onClose, onSaved }: {
+export function ServiceConfigDrawer({ server, manifest, configDigest, canManageHttpTrust = false, locale, t, onClose, onSaved }: {
   server: McpServer; manifest: Record<string, unknown>; locale: Locale; t: TFunction
-  canManageHttpTrust?: boolean
+  configDigest?: string; canManageHttpTrust?: boolean
   onClose: () => void; onSaved: () => Promise<void>
 }) {
   const zh = locale === "zh-CN"
@@ -19,13 +19,12 @@ export function ServiceConfigDrawer({ server, manifest, canManageHttpTrust = fal
   const [value, setValue] = useState(initial)
   const [pending, setPending] = useState(false)
   const [entryDirty, setEntryDirty] = useState(false)
-  const [apply, setApply] = useState(true)
+  const [apply, setApply] = useState(false)
   const [footer, setFooter] = useState<HTMLDivElement | null>(null)
+  const [returnFocus] = useState(() => document.activeElement instanceof HTMLElement ? document.activeElement : null)
   const saving = useRef(false)
   const { confirm, confirmDialog } = useConfirm(t)
-  const register = useContext(EditorNavigationContext)
   const dirty = entryDirty || value !== initial
-  useEffect(() => register?.({ dirty, pending }), [register, dirty, pending])
   const close = useDraftCloseGuard({ dirty, pending, locale, confirm, onClose })
   const action = apply ? server.launch_type === "external"
     ? (zh ? "保存并重新连接" : "Save and reconnect")
@@ -52,7 +51,7 @@ export function ServiceConfigDrawer({ server, manifest, canManageHttpTrust = fal
       }
       delete parsed.user_credential_values
       setValue(JSON.stringify(parsed, null, 2))
-      const response = await api.updateConfig(server.id, parsed, apply, apply, credentials)
+      const response = await api.updateConfig(server.id, parsed, apply, apply, credentials, configDigest)
       const error = configurationResultError(response, server.id, apply, zh)
       if (error) throw new Error(error)
       await onSaved()
@@ -60,18 +59,23 @@ export function ServiceConfigDrawer({ server, manifest, canManageHttpTrust = fal
     } finally { saving.current = false }
   }
   return <>
-    <Drawer className="service-config-drawer" zIndex={40} open title={`${zh ? "修改配置" : "Edit configuration"} · ${server.id}`} size={760}
-      onClose={() => void close()} maskClosable={!pending} keyboard={!pending} closable={!pending}
-      footer={<div ref={setFooter} />}>
-      <Alert type="info" showIcon title={zh ? "保存与运行状态" : "Save and runtime state"} description={zh ? "仅保存不会改变当前运行实例。保存并启动/重启会应用新配置；失败时请检查服务状态，勿盲目重试。" : "Saving alone does not change the current runtime. Saving and starting/restarting applies the configuration. If activation fails, inspect the service before retrying."} />
-      <Radio.Group value={apply} onChange={event => setApply(event.target.value as boolean)} disabled={pending} style={{ marginBlock: 16 }} options={[
-        { value: true, label: zh ? "保存并应用启动" : "Save, apply and start" },
-        { value: false, label: zh ? "仅保存（未生效）" : "Save only (not applied)" },
-      ]} />
-      <McpConfigEditor canManageHttpTrust={canManageHttpTrust} locale={locale} selectedConfigId={server.id} value={value} onChange={setValue} onSave={save}
+    <FormDialog className="service-config-dialog" bodyClassName="service-config-dialog-body" open
+      title={`${zh ? "修改配置" : "Edit configuration"} · ${server.id}`} closeLabel={t("close")}
+      onClose={() => void close()} dirty={dirty} pending={pending}
+      onCloseAutoFocus={event => { event.preventDefault(); if (returnFocus?.isConnected) returnFocus.focus() }}
+      footer={<div ref={setFooter} className="w-full" />}>
+      <div className="service-config-save-intent">
+        <Radio.Group aria-label={zh ? "保存方式" : "Save behavior"} value={apply} onChange={event => setApply(event.target.value as boolean)} disabled={pending} options={[
+          { value: true, label: zh ? "保存并应用启动" : "Save, apply and start" },
+          { value: false, label: zh ? "仅保存（未生效）" : "Save only (not applied)" },
+        ]} />
+        <p className="text-xs text-muted-foreground">{zh ? "仅保存不会改变当前实例；应用启动会连接/重启服务，仍须确认。静态校验不测试网络连通性。" : "Saving alone keeps the current instance. Applying and starting connects/restarts the service and requires confirmation. Static validation does not test connectivity."}</p>
+      </div>
+      <McpConfigEditor locale={locale} selectedConfigId={server.id} value={value} onChange={setValue} onSave={save}
+        canManageHttpTrust={canManageHttpTrust}
         onClose={() => void close()} onPendingChange={setPending} onDraftDirtyChange={setEntryDirty}
-        footerContainer={footer} busy={false} saveLabel={action} />
-    </Drawer>
+        footerContainer={footer} busy={false} saveLabel={zh ? "保存配置" : "Save configuration"} />
+    </FormDialog>
     {confirmDialog}
   </>
 }

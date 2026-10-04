@@ -14,6 +14,7 @@ import {
 import { ActionMenu, ActionMenuItem } from "@/components/action-menu"
 import { FormDialog } from "@/components/form-dialog"
 import { useDraftCloseGuard } from "@/components/use-draft-close-guard"
+import { builtinOriginBadge, grantOriginName } from "@/features/tool-origin"
 import { useConfirm } from "@/components/confirm-dialog"
 import { PageHeader, PageToolbar } from "@/components/page-shell"
 import { Alert, AlertDescription } from "@/components/ui/alert"
@@ -264,7 +265,7 @@ export function AccessGrantsPage({ locale, t }: { locale: Locale; t: TFunction }
               <Field label={c.subjectType} id="grant-subjectType"><Select disabled={busy} value={form.subject_type} onValueChange={(value) => changeSubjectType(value as "user" | "role")}><SelectTrigger id="grant-subjectType"><SelectValue /></SelectTrigger><SelectContent><SelectItem value="user"><span className="flex items-center gap-2"><UsersRound className="size-4" />{c.user}</span></SelectItem><SelectItem value="role"><span className="flex items-center gap-2"><ShieldAlert className="size-4" />{c.role}</span></SelectItem></SelectContent></Select></Field>
               <Field label={c.subject} id="grant-subject"><Select disabled={busy} value={form.subject_id} onValueChange={(subject_id) => setForm((current) => ({ ...current, subject_id }))}><SelectTrigger id="grant-subject"><SelectValue placeholder={c.selectSubject} /></SelectTrigger><SelectContent>{subjectOptions.map((subject) => <SelectItem key={subject.id} value={subject.id}>{subject.label}</SelectItem>)}</SelectContent></Select></Field>
             </div>
-            <Field label={c.server} id="grant-server"><Select disabled={busy} value={form.server_id} onValueChange={changeServer}><SelectTrigger id="grant-server"><SelectValue placeholder={c.selectServer} /></SelectTrigger><SelectContent>{servers.map((server) => <SelectItem key={server} value={server}>{serverLabel(server, c)}</SelectItem>)}</SelectContent></Select></Field>
+            <Field label={c.server} id="grant-server"><Select disabled={busy} value={form.server_id} onValueChange={changeServer}><SelectTrigger id="grant-server"><SelectValue placeholder={c.selectServer} /></SelectTrigger><SelectContent>{servers.map((server) => <SelectItem key={server} value={server}>{grantOriginName(resources, server, null, locale) || server} · {server}</SelectItem>)}</SelectContent></Select></Field>
             <div className="grid gap-4 sm:grid-cols-2">
               <Field label={c.scope} id="grant-scope"><Select disabled={busy} value={scope} onValueChange={(value) => setScope(value as "server" | "tool")}><SelectTrigger id="grant-scope"><SelectValue /></SelectTrigger><SelectContent><SelectItem value="server">{c.wholeServer}</SelectItem><SelectItem value="tool">{c.singleTool}</SelectItem></SelectContent></Select></Field>
               {scope === "tool" && <Field label={c.tool} id="grant-tool"><Select disabled={busy} value={form.tool_id || ""} onValueChange={(tool_id) => setForm((current) => ({ ...current, tool_id }))}><SelectTrigger id="grant-tool"><SelectValue placeholder={c.selectTool} /></SelectTrigger><SelectContent>{serverTools.map((resource) => <SelectItem key={resource.tool_id} value={resource.tool_id}>{resource.tool_name} · {resource.tool_id}</SelectItem>)}</SelectContent></Select></Field>}
@@ -286,7 +287,7 @@ export function AccessGrantsPage({ locale, t }: { locale: Locale; t: TFunction }
                 <TableBody>
                   {visibleGrants.length === 0 ? <TableEmptyRow colSpan={6} title={busy ? t("loadingData") : error ? t("error") : query.trim() ? t("noMatchingRecords") : c.noGrants} /> : paging.items.map((grant) => <TableRow key={grant.id}>
                     <TableCell><div className="font-medium">{subjectLabel(grant, users, roles)}</div><div className="text-xs text-muted-foreground">{c[grant.subject_type]}</div></TableCell>
-                    <TableCell><div className="font-medium">{serverLabel(grant.server_id, c)}</div>{grant.server_id === "builtin" && <code className="text-xs text-muted-foreground">{grant.server_id}</code>}</TableCell>
+                    <TableCell><div className="font-medium">{grantOriginName(resources, grant.server_id, grant.tool_id, locale) || grant.server_id}</div>{grantOriginName(resources, grant.server_id, grant.tool_id, locale) && <div className="flex items-center gap-2"><Badge variant="outline">{builtinOriginBadge(locale)}</Badge><code className="text-xs text-muted-foreground">{grant.server_id}</code></div>}</TableCell>
                     <TableCell><div className="max-w-72 truncate" title={grant.tool_id || c.wholeServer}>{grant.tool_id || c.wholeServer}</div></TableCell>
                     <TableCell><AccessBadge level={grant.base_level} labels={c} /><div className="mt-1 text-xs text-muted-foreground">{grant.permission_type_name}</div></TableCell>
                     <TableCell className="whitespace-nowrap text-xs text-muted-foreground">{grant.expires_at ? formatDateTime(grant.expires_at) : c.neverExpires}</TableCell>
@@ -332,10 +333,6 @@ function classificationStatusLabel(status: AccessResource["classification_status
   if (status === "stale") return labels.staleStatus
   if (status === "missing") return labels.missingStatus
   return labels.pendingStatus
-}
-
-function serverLabel(serverId: string, labels: Record<string, string>) {
-  return serverId === "builtin" ? labels.gateBuiltin : serverId
 }
 
 function subjectLabel(grant: ResourceGrant, users: AccessUser[], roles: AccessRole[]) {

@@ -63,6 +63,25 @@ For unattended provisioning, configure an administrator username and inject the 
 
 Manifests are YAML or JSON objects stored in `mcp.d`. The file name is not the identity; `id` is. IDs must match `^[A-Za-z0-9_.-]+$` and remain stable because grants, credentials, runtime state, and audits reference them.
 
+### Gate startup policy
+
+`enabled=false` prevents every start or connection. `startup_policy` defaults
+to `legacy_restore`, preserving historical restoration of the last saved runtime
+intent. Editing a name, address or other ordinary field does not migrate it.
+Explicitly changing **Start automatically when Gate starts** writes
+`startup_policy=gate_start_v1`. On the next Gate process start, `auto_start=true`
+starts the managed MCP process or connects to the existing external service;
+`false` leaves it stopped. Manual start/stop then controls that running Gate
+process without changing the next startup policy. Saving alone does not apply,
+start or stop the current runtime. The Console explains legacy policy until an
+explicit switch edit. Unsupported process restart/health flags are rejected on
+new writes rather than silently disabled. Existing files remain readable.
+
+Configuration editing reads the saved manifest separately from the running
+manifest. The edit session includes its digest as `expected_config_digest`;
+stale updates fail with HTTP 409 and retain the user's draft. Existing API callers
+can omit this optional concurrency field. SQLite still requires a single Core.
+
 ### Private HTTP trust
 
 HTTPS and canonical loopback HTTP retain their existing behavior. Other HTTP
@@ -75,7 +94,7 @@ enter this allowlist. User information, query strings, fragments and unsafe URL
 syntax remain forbidden. Redirects remain blocked and HTTPS uses normal TLS
 certificate verification.
 
-In the existing configuration editor, an administrator can select **Authorize this
+In the configuration Dialog, an administrator can select **Authorize this
 address** below the endpoint and explicitly confirm the service ID, IP and port.
 HTTP is unencrypted; use this only for a trusted internal network. Authorization
 uses the separate `/v1/mcp/http-trust/{server_id}` API, not normal manifest save.

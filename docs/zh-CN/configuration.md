@@ -63,6 +63,21 @@ lingshu-gate/
 
 Manifest 是存放在 `mcp.d` 中的 YAML 或 JSON 对象。文件名不是身份，`id` 才是。ID 必须匹配 `^[A-Za-z0-9_.-]+$`，并保持稳定，因为授权、凭据、运行状态和审计都会引用它。
 
+### Gate 启动策略
+
+`enabled=false` 阻止所有启动和连接。`startup_policy` 缺省为
+`legacy_restore`，保留历史的“恢复上次保存运行意图”行为；修改名称、地址或其他
+普通字段不迁移策略。明确修改“Gate 启动时自动启动”开关才写入
+`startup_policy=gate_start_v1`。下次 Gate 进程启动时，`auto_start=true` 启动受管
+MCP 进程或连接已有外部服务，`false` 保持停止。此后的手动启停只控制本轮 Gate
+运行，不改变下次启动策略。仅保存不应用、不启动、不停止当前实例。Console
+会解释旧策略，直到用户明确修改开关。新写入拒绝不受支持的进程重启/探活配置，
+不静默关闭；既有文件仍可读取。
+
+配置编辑读取已保存 Manifest，与运行中 Manifest 分开。编辑会话通过
+`expected_config_digest` 提交摘要；旧会话更新返回 HTTP 409，保留用户草稿。
+既有 API 调用者仍可省略这个可选并发字段。SQLite 仍要求单 Core。
+
 ### 内网 HTTP 信任
 
 HTTPS 和规范回环 HTTP 保留原行为。其他 HTTP 地址必须是 `10.0.0.0/8`、
@@ -72,7 +87,7 @@ MCP 服务 ID、IP 和实际端口。Manifest 只是声明，不能自行批准�
 不能进入白名单。用户信息、查询串、fragment 和不安全 URL 语法仍被拒绝。
 重定向仍禁止，HTTPS 保留正常 TLS 证书验证。
 
-管理员可在现有配置编辑器的地址控件下选择“授权此地址”，明确确认服务 ID、IP
+管理员可在配置 Dialog 的地址控件下选择“授权此地址”，明确确认服务 ID、IP
 和端口。HTTP 不加密，仅用于受信任内网。授权使用独立
 `/v1/mcp/http-trust/{server_id}` API，不随普通 Manifest 保存写入；PUT 要求
 `origins`、`expected_revision` 和 `confirmed=true`。实时 admin 角色与

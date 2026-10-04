@@ -128,6 +128,7 @@ export default function App() {
   const [configs, setConfigs] = useState<McpConfig[]>([])
   const [configErrors, setConfigErrors] = useState<string[]>([])
   const [selectedConfigId, setSelectedConfigId] = useState("")
+  const [selectedConfigDigest, setSelectedConfigDigest] = useState<string | undefined>()
   const [configText, setConfigText] = useState(prettyJson(genericTemplate))
   const [configEditorOpen, setConfigEditorOpen] = useState(false)
   const [selectedToolId, setSelectedToolId] = useState("")
@@ -290,11 +291,11 @@ export default function App() {
 
   async function editConfig(config: McpConfig) {
     if (!(await (view === "configs" ? requestLeave() : navigate("configs")))) return
-    setSelectedConfigId(config.id); setConfigText(prettyJson(config.manifest)); setConfigEditorOpen(true)
+    setSelectedConfigId(config.id); setSelectedConfigDigest(config.digest); setConfigText(prettyJson(config.manifest)); setConfigEditorOpen(true)
   }
   async function newConfig() {
     if (!(await (view === "configs" ? requestLeave() : navigate("configs")))) return
-    setSelectedConfigId(""); setConfigText(prettyJson(genericTemplate)); setConfigEditorOpen(true)
+    setSelectedConfigId(""); setSelectedConfigDigest(undefined); setConfigText(prettyJson(genericTemplate)); setConfigEditorOpen(true)
   }
 
   async function saveConfig(nextValue?: string) {
@@ -319,7 +320,7 @@ export default function App() {
       // 一次性秘密不得继续留在编辑器状态或后续 Manifest 查询中。
       setConfigText(prettyJson(manifest))
       const response = selectedConfigId
-        ? await api.updateConfig(selectedConfigId, manifest, false, false, userCredentialValues)
+        ? await api.updateConfig(selectedConfigId, manifest, false, false, userCredentialValues, selectedConfigDigest)
         : await api.createConfig(manifest, false, false, userCredentialValues)
       if (response.config?.id !== String(manifest.id || selectedConfigId)) throw new Error(locale === "zh-CN" ? "保存结果未知，请刷新配置后核对。" : "Save result unknown. Refresh the configuration to reconcile.")
       setMessage(`${locale === "zh-CN" ? "已保存，尚未应用到服务" : "Saved; not applied to the service"}: ${response.config.id}`)
@@ -411,7 +412,7 @@ export default function App() {
             {view === "uploads" && <UploadsPage t={t} />}
             {view === "systemSettings" && <SystemSettingsPage t={t} />}
             {view === "diagnostics" && <DiagnosticsPage diagnostics={diagnostics} t={t} busy={busy} onRefreshDiagnostics={async () => { setDiagnostics(await api.diagnostics()) }} onRunDiagnostics={runDiagnostics} />}
-            {view === "tools" && <ToolsPage tools={tools} servers={servers} loading={!toolsLoaded && !toolsError} error={toolsError} t={t} viewState={toolCatalogView} onViewStateChange={setToolCatalogView} onRefresh={() => void refreshCurrentPage()} onInvoke={async toolId => { if (await navigate("invoke")) setSelectedToolId(toolId) }} />}
+            {view === "tools" && <ToolsPage locale={locale} tools={tools} servers={servers} loading={!toolsLoaded && !toolsError} error={toolsError} t={t} viewState={toolCatalogView} onViewStateChange={setToolCatalogView} onRefresh={() => void refreshCurrentPage()} onInvoke={async toolId => { if (await navigate("invoke")) setSelectedToolId(toolId) }} />}
             {view === "invoke" && <InvokePage locale={locale} t={t} tools={tools} servers={servers} toolsLoaded={toolsLoaded} toolsError={toolsError} selectedToolId={selectedToolId} onToolChange={setSelectedToolId} onLeaveStateChange={setLeaveState} onRefresh={refreshCurrentPage} />}
           </Suspense>
         </RouteErrorBoundary>

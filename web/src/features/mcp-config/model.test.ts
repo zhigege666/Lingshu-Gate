@@ -6,8 +6,10 @@ import {
   patchManifestField,
   canKeepMaskedEndpoint,
   changeRuntimeMode,
+  changeStartupPolicy,
   REDACTED_ENDPOINT,
   manifestValidationIssues,
+  manifestValidationStatus,
   sensitiveEnvKeys,
   withoutUserCredentialValues,
   type ManifestPrecheckMessageKey,
@@ -69,6 +71,32 @@ describe("MCP config model", () => {
     expect(changeRuntimeMode(original, "managed_http")).toEqual({ ...original, launch: { ...original.launch, type: "managed_process" } })
   })
 
+  it("round-trips HTTP to stdio without losing endpoints, headers, falsy or unsupported draft fields", () => {
+    const original = { id: "round-trip", enabled: false, launch: { type: "managed_process", command: "node", args: ["server"], future: { count: 0, value: "" } }, transport: { type: "streamable_http", endpoint: "https://example.test/mcp", headers: { "X-Trace": "${credential:demo}" } }, timeout_seconds: 30 }
+    const stdio = changeRuntimeMode(original, "managed_stdio")
+    expect(stdio.transport).toEqual({ ...original.transport, type: "stdio" })
+    expect(changeRuntimeMode(stdio, "managed_http")).toEqual(original)
+    expect(stdio.enabled).toBe(false)
+    expect(stdio.launch).toEqual(original.launch)
+  })
+
+  it("retains a pinned toolchain during a mode change and reports its incompatible runtime", () => {
+    const original = { id: "pinned", launch: { type: "managed_process", command: "node", toolchain: { manager: "node", version: "22" } }, transport: { type: "streamable_http", endpoint: "https://example.test/mcp" }, timeout_seconds: 30 }
+    const external = changeRuntimeMode(original, "external_http")
+    expect(external.launch?.toolchain).toEqual(original.launch.toolchain)
+    expect(precheckManifest(external, copy).errors).toContain("toolchainModeUnsupported")
+  })
+
+  it("migrates startup policy only after an explicit switch edit", () => {
+    const original = { id: "legacy", auto_start: false, launch: { type: "external" }, transport: { type: "streamable_http", endpoint: "https://example.test/mcp" }, timeout_seconds: 30 }
+    expect(patchManifestField(original, ["name"], { kind: "set", value: "Renamed" })).not.toHaveProperty("startup_policy")
+    const changed = changeStartupPolicy(original, true)
+    expect(changed).toEqual({ ...original, auto_start: true, startup_policy: "gate_start_v1" })
+    expect(precheckManifest(changed, copy).errors).toEqual([])
+    expect(changeStartupPolicy(changed, false)).toEqual({ ...original, auto_start: false, startup_policy: "gate_start_v1" })
+    expect(original.auto_start).toBe(false)
+  })
+
   it("changes only the edited path, preserving missing fields, falsy values, unknown siblings and argument order", () => {
     const original = { id: "demo", name: "", launch: { type: "managed_process", command: "server", args: ["", " space ", "--flag"], env: { PADDED: " value ", EMPTY: "", EQUALS: "a=b" }, custom: null }, transport: { type: "stdio", future: { enabled: false, count: 0 } }, restart_policy: { delay_seconds: 0 }, unknown: [false, 0, null, ""] }
     const result = patchManifestField(original, ["launch", "command"], { kind: "set", value: "next" })
@@ -124,6 +152,21 @@ describe("MCP config model", () => {
       "containerMountsError",
       "containerEnvironmentProtected",
     ]))
+  })
+})
+
+describe("manifest validation status", () => {
+  const passed = { ok: true, can_apply: true, manifest_id: "demo", summary: { errors: 0, warnings: 0, info: 0, ok: 1 }, checks: [] }
+  it("lets failure flags and checks dominate success counters", () => {
+    expect(manifestValidationStatus({ ...passed, ok: false })).toBe("error")
+    expect(manifestValidationStatus({ ...passed, can_apply: false })).toBe("error")
+    expect(manifestValidationStatus({ ...passed, checks: [{ name: "transport.endpoint", severity: "error", message: "Invalid endpoint", metadata: {} }] })).toBe("error")
+    expect(manifestValidationStatus({ ...passed, summary: { ...passed.summary, errors: 1, warnings: 2 } })).toBe("error")
+  })
+  it("distinguishes warning and pass, including an empty informational list", () => {
+    expect(manifestValidationStatus(passed)).toBe("success")
+    expect(manifestValidationStatus({ ...passed, summary: { ...passed.summary, warnings: 1 } })).toBe("warning")
+    expect(manifestValidationStatus({ ...passed, checks: [{ name: "launch.cwd", severity: "warning", message: "Path unavailable", metadata: {} }] })).toBe("warning")
   })
 })
 

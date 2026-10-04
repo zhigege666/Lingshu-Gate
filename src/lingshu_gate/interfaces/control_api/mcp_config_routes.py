@@ -14,7 +14,7 @@ from lingshu_gate.application.mcp_configuration import (
 from lingshu_gate.auth import AuthPrincipal, AuthStore
 from lingshu_gate.config import Settings
 from lingshu_gate.interfaces.control_api.dependencies import AuthDependency
-from lingshu_gate.mcp_config_store import McpConfigStore
+from lingshu_gate.mcp_config_store import McpConfigConflict, McpConfigStore
 from lingshu_gate.mcp_http_trust import McpHttpTrustConflict, McpHttpTrustDenied, McpHttpTrustUpdate
 from lingshu_gate.mcp_manifest_validation import validate_mcp_manifest
 from lingshu_gate.models import (
@@ -245,6 +245,8 @@ def register_mcp_config_routes(
                 user_id=principal.id,
                 prepared=prepared,
             )
+        except McpConfigConflict as exc:
+            raise HTTPException(status_code=409, detail=_safe_error_detail(exc)) from exc
         except KeyError as exc:
             raise HTTPException(status_code=404, detail=_safe_error_detail(exc)) from exc
         except ValueError as exc:
