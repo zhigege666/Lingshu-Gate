@@ -1,20 +1,23 @@
 export type OAuthTool = { id: string; name: string; server_id: string; server_name?: string | null; access: "read" | "write"; snapshot: string; currently_authorized?: boolean }
-export type OAuthClient = { id: string; name: string; redirect_uris: string[]; scopes: string[]; enabled: boolean; revision: number; created_at: number }
+export type OAuthClient = { id: string; name: string; redirect_uris: string[]; scopes: string[]; resources?: string[]; enabled: boolean; revision: number; created_at: number }
 export type OAuthConfig = { enabled: boolean; issuer: string; resource: string; revision: number; metadata_url: string; authorization_endpoint: string; token_endpoint: string; jwks_uri: string; signing_keys: { kid: string; active: boolean; retire_at: number | null }[] }
-export type OAuthGrant = { id: string; client_id: string; client_name: string; resource: string; scopes: string[]; tools: OAuthTool[]; state: string; created_at?: number; expires_at: number; rate_per_minute: number; concurrency: number; revision: number; scope_currently_authorized: boolean; effective_tool_count: number }
+export type OAuthGrant = { id: string; client_id: string; client_name: string; resource: string; resource_kind?: "business" | "management"; management_targets?: Record<string, string[]>; target_revision?: number; scopes: string[]; tools: OAuthTool[]; state: string; created_at?: number; expires_at: number; rate_per_minute: number; concurrency: number; revision: number; scope_currently_authorized: boolean; effective_tool_count: number }
 export type ScopeSnapshot = Pick<OAuthTool, "id" | "server_id" | "access" | "snapshot"> & Partial<Pick<OAuthTool, "name" | "server_name">>
 export type OAuthScopeOptions = { csrf: string; expires_at: number; grant_revision: number; scopes: string[]; effective_scopes: string[]; family_scope_limits: { scopes: string[]; count: number }[]; tools: OAuthTool[] }
 export type OAuthScopePreview = { confirmation: string; confirmation_expires_at: number; expires_at: number; tool_ids: string[]; added: string[]; removed: string[]; previous_tools: ScopeSnapshot[]; tools: OAuthTool[]; rate_per_minute: number; concurrency: number }
-export type ConsentContext = { csrf: string; completed: boolean; phase: "preauth" | "authenticated" | "completed"; expires_at: number; client: { id: string; name: string }; resource: string; scopes: string[]; user: { id: string; username: string; display_name: string } | null; tools: OAuthTool[]; max_grant_days: number; access_seconds: number; refresh_days: number }
+export type ConsentContext = { csrf: string; completed: boolean; phase: "preauth" | "authenticated" | "completed"; expires_at: number; client: { id: string; name: string }; resource: string; resource_kind?: "business" | "management"; scopes: string[]; user: { id: string; username: string; display_name: string } | null; tools: OAuthTool[]; max_grant_days: number; access_seconds: number; refresh_days: number }
+export type OAuthManagementConfig = { enabled: boolean; active: boolean; revision: number; resource: string }
+export type ManagementTargetOptions = { csrf: string; expires_at: number; expected_revision: number; expected_target_revision: number; targets: Record<string, string[]>; scopes: string[]; tool_ids: string[] }
+export type ManagementTargetPreview = { confirmation: string; confirmation_expires_at: number; expected_revision: number; expected_target_revision: number; previous_targets: Record<string, string[]>; targets: Record<string, string[]>; scopes_unchanged: boolean; tools_unchanged: boolean }
 export class OAuthRequestError extends Error {
   constructor(public code: string, public status = 0) { super(code) }
 }
-export async function oauthRequest<T>(path: string, body?: unknown, method = "POST"): Promise<T> {
+export async function oauthRequest<T>(path: string, body?: unknown, method = "POST", headers: Record<string, string> = {}): Promise<T> {
   const controller = new AbortController()
   const timeout = window.setTimeout(() => controller.abort(), 15000)
   try {
     const response = await fetch(path, { credentials: "same-origin", cache: "no-store", signal: controller.signal,
-      method: body === undefined ? "GET" : method, headers: body === undefined ? {} : { "Content-Type": "application/json" },
+      method: body === undefined ? "GET" : method, headers: { ...(body === undefined ? {} : { "Content-Type": "application/json" }), ...headers },
       body: body === undefined ? undefined : JSON.stringify(body) })
     let payload: Record<string, unknown>
     try { payload = await response.json() } catch { throw new OAuthRequestError("invalid_response", response.status) }
@@ -26,6 +29,12 @@ export async function oauthRequest<T>(path: string, body?: unknown, method = "PO
   } finally { window.clearTimeout(timeout) }
 }
 const errors: Record<string, [string, string]> = {
+  oauth_management_disabled: ["管理员尚未启用独立的管理 OAuth 资源。", "The separate management OAuth resource has not been enabled."],
+  management_admin_required: ["管理连接需要当前有效的管理员身份和 operations.manage 权限。", "A management connection requires a currently active administrator with operations.manage permission."],
+  invalid_management_targets: ["逐项填写精确服务 ID 和创建/更新操作；不支持重复 ID、通配符或其他操作。", "Enter exact server IDs and create/update actions. Duplicate IDs, wildcards and other actions are unsupported."],
+  invalid_management_confirmation: ["目标确认不属于此会话或已过期。重新读取并核对目标。", "Target confirmation belongs to another session or expired. Reload and review the targets."],
+  management_confirmation_changed: ["授权或目标版本已改变，或确认被替换。重新读取目标并确认。", "The grant or target revision changed, or confirmation was replaced. Reload targets and confirm again."],
+  management_scope_insufficient: ["当前管理员缺少此次管理操作需要的权限。", "The current administrator lacks permission for this management action."],
   oauth_disabled: ["管理员尚未启用内置 OAuth。", "Built-in OAuth has not been enabled by an administrator."],
   invalid_client_configuration: ["填写客户端名称、精确 HTTPS 回调和允许范围；回调不可含片段、通配符或 OAuth 响应参数。", "Enter a client name, exact HTTPS callbacks and allowed scopes. Callbacks cannot contain fragments, wildcards or OAuth response parameters."],
   invalid_configuration: ["Issuer 必须是无末尾斜线的 HTTPS 域名；资源必须是固定 HTTPS URL。", "Issuer must be an HTTPS origin without a trailing slash; resource must be a fixed HTTPS URL."],
