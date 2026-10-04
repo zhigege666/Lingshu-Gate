@@ -20,6 +20,7 @@ from starlette.concurrency import run_in_threadpool
 
 from lingshu_gate.access_control import AccessDeniedError
 from lingshu_gate.auth import AuthPrincipal, hash_secret
+from lingshu_gate.interfaces.control_api.console_security import console_origin_allowed
 from lingshu_gate.oauth_server import (
     BROWSER_COOKIE, INTERACTION_TTL, MAX_INTERACTION_TICKET, MAX_TOOLS, SESSION_COOKIE, OAuthError, OAuthServer, callback, tool_scope_matches,
 )
@@ -260,8 +261,7 @@ def register_oauth_routes(app: FastAPI, *, server: OAuthServer, observability: O
         if request.method not in {"GET", "HEAD"} and principal.auth_type == "session":
             # Console uses its private origin. This header is browser-controlled;
             # no CORS is offered. It is not used to derive any issuer/resource URL.
-            origin = request.headers.get("origin")
-            if not origin or origin != f"{request.url.scheme}://{request.url.netloc}":
+            if not console_origin_allowed(request):
                 raise OAuthError("invalid_origin", 403)
         return principal
 
@@ -275,18 +275,13 @@ def register_oauth_routes(app: FastAPI, *, server: OAuthServer, observability: O
         principal = owner(request)
         if principal.auth_type != "session" or not request.cookies.get(server.auth.cookie_name):
             raise OAuthError("session_required", 403)
-        if request.headers.get("sec-fetch-site") in {"cross-site", "none"}:
-            raise OAuthError("invalid_origin", 403)
-        origin = request.headers.get("origin")
-        if origin is not None and origin != f"{request.url.scheme}://{request.url.netloc}":
+        if not console_origin_allowed(request, required=request.method not in {"GET", "HEAD"}):
             raise OAuthError("invalid_origin", 403)
         return principal
 
     def browser_post(request: Request) -> str:
         config = server.ready_config()
-        if request.headers.get("origin") != config["issuer"]:
-            raise OAuthError("invalid_origin", 403)
-        if request.headers.get("sec-fetch-site") in {"cross-site", "none"}:
+        if not console_origin_allowed(request, expected_origin=config["issuer"]):
             raise OAuthError("invalid_origin", 403)
         return request.cookies.get(BROWSER_COOKIE, "")
 

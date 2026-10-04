@@ -9,8 +9,12 @@
 - 基线：已发布 main `5fc3aaba94955e243598783166479136797733e4`；独立分支 `recovery/stage1-after-v043`。
 - Header 提交：`4c61cb4fa9301805386122e27a2e88098c0770fc`；账户名称一次、翻译角色标签、版本/API/退出唯一入口，可访问受控菜单与焦点恢复。
 - Header 浏览器证据：五项通过，包含 1600×900、1920×1080、2560×1080、2560×1440，中英与明暗共 16 种桌面组合。截图存在和浏览器检查不能替代独立像素复核。
-- 外部配置：一个应用服务、薄 REST/MCP 适配器、迁移 `0010_gate_external_mcp_config`，复用现有配置保存、幂等、runtime 与分类服务。不绕过 UI 保存语义或 Git 执行 guard。
-- 首次外部/OAuth 合并回归通过 125 项。加固后后端全量 1314 项通过、3 项跳过；前端检查/构建及 69 个文件的 422 项测试通过；最终 Header 浏览器 5 项通过。最后补齐过期计划保留清理后，外部/OAuth/迁移定向回归 161 项通过，lint、mypy（112 个源文件）、身份及 Compose 检查通过。应按这些范围复核 exact candidate；测试日志不是发行包核验。
+- 外部配置：一个应用服务、薄 REST/MCP 适配器、迁移 `0010_gate_external_mcp_config` 与 `0011_gate_console_csrf`，复用现有配置保存、幂等、runtime 与分类服务。不绕过 UI 保存语义或 Git 执行 guard。
+- 最终受审代码后端全量 1338 项通过、3 项跳过，耗时 310.06 秒。三个跳过均来自 `tests/test_mcp_playwright_interop.py`，原因是未提供指定 peer 安装；未安装依赖消除跳过。前端检查/构建及 69 个文件的 422 项测试通过。浏览器 6 项通过，耗时 20.9 秒：五项 Header、16 张桌面截图及真实 Chromium 同源 CSRF POST/修改请求体/重放用例。lint、mypy（115 个源文件）、身份、Compose 与 diff 检查通过。测试日志不是发行包核验。
+
+本轮修复要求会话 REST 写入使用共享的严格 Console Origin/会话绑定及五分钟一次性 CSRF 票据，API bearer 验证保持独立。取票使用 POST，让浏览器自动提供 Origin。无 client 清理路径先查操作归属；运行时应用中断保留未知/对账状态；连接/刷新共享一次严格快照和首次分类计数；取消在排队锁与 SQLite 写事务内重查终态。合成回归覆盖缺失/跨源/重放/其他会话/到期票据、无 client 后继、未知取消及完成/取消竞态。
+
+[管理员 OAuth 设计](oauth-external-management-design.md)保留明确 `operations.manage`、当前 admin/角色与 JWT/client/grant/family 上限、精确四个 builtin、预先授权的准确新建/更新目标，尚未实现授权。客户端元数据/challenge 机制已按官方文档核验；真实 ChatGPT 管理 scope 请求尚未观察，需要独立获准的非生产测试。
 
 ## 复核顺序
 

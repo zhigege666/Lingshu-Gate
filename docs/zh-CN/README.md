@@ -14,6 +14,7 @@
 | [MCP 网关](mcp-gateway.md) | 网关入口、协议协商、下游 HTTP/stdio、发现、分类和调用 |
 | [项目交付](project-delivery.md) | 上传、构建、部署、启动流程，`gate_*` 工具和自带 Delivery Skill |
 | [外部 MCP 配置](external-mcp-configuration.md) | 管理员现有 HTTP MCP 离线计划/应用/状态/取消；开发候选 |
+| [管理员 OAuth 配置设计](oauth-external-management-design.md) | 明确管理 scope、精确目标及客户端 scope 请求证据；尚未启用 |
 | [Git 导入与网络设置](git-import-network.md) | 交付网络版本、受控 Git 来源、确定性依赖工具与执行器边界 |
 | [Console 交付工作区](console-delivery.md) | 私有交付草稿、确认、冲突恢复与交付记录 |
 | [Git 执行缺口与落地决策](git-executor-decision.md) | 具体代码缺口、默认部署限制及隔离 worker 范围决策 |

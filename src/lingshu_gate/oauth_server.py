@@ -30,6 +30,7 @@ from cryptography.hazmat.primitives.kdf.hkdf import HKDF
 
 from lingshu_gate.access_control import AccessControlStore
 from lingshu_gate.auth import AuthPrincipal, AuthStore, hash_secret
+from lingshu_gate.application.console_session_security import live_console_session, session_binding, session_binding_matches
 from lingshu_gate.external_connection import _https_resource
 from lingshu_gate.observability_store import ObservabilityStore
 from lingshu_gate.oauth_store import OAuthStore
@@ -406,8 +407,8 @@ class OAuthServer:
         return current
 
     def _console_owner(self, principal: AuthPrincipal, session: str) -> AuthPrincipal:
-        current = self.auth._principal_from_session(session)
-        if current is None or current.id != principal.id:
+        current = live_console_session(self.auth, principal, session)
+        if current is None:
             raise OAuthError("session_required", 403)
         return self._fresh_owner(current)
 
@@ -441,7 +442,7 @@ class OAuthServer:
     @staticmethod
     def _scope_binding(principal: AuthPrincipal, session: str, grant: dict[str, Any], client: Any,
                        config: dict[str, Any], catalog: dict[str, dict[str, Any]]) -> dict[str, Any]:
-        return {"user_id": principal.id, "session_hash": hash_secret(session), "grant_id": grant["id"],
+        return {**session_binding(principal, session), "grant_id": grant["id"],
                 "grant_revision": grant["revision"], "client_id": client["id"], "client_revision": client["revision"],
                 "configuration_revision": config["revision"], "resource": grant["resource"],
                 "catalog_digest": OAuthServer._catalog_digest(catalog)}
@@ -453,9 +454,8 @@ class OAuthServer:
             if not 40 <= len(token) <= MAX_INTERACTION_TICKET:
                 raise OAuthError(code, 403)
             payload = json.loads(self._ticket_cipher().decrypt(token.encode(), ttl=SCOPE_CONFIRMATION_TTL))
-            if (payload["purpose"] != purpose or payload["user_id"] != principal.id
-                    or payload["grant_id"] != grant_id or payload["expires_at"] <= int(time.time())
-                    or not hmac.compare_digest(payload["session_hash"], hash_secret(session))):
+            if (payload["purpose"] != purpose or not session_binding_matches(payload, principal, session)
+                    or payload["grant_id"] != grant_id or payload["expires_at"] <= int(time.time())):
                 raise OAuthError(code, 403)
             return dict(payload)
         except (InvalidToken, ValueError, TypeError, KeyError, UnicodeError) as exc:

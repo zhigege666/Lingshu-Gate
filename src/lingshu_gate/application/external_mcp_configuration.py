@@ -412,29 +412,25 @@ class ExternalMcpConfigurationService:
                     result["connection_state"] = "connecting"
                     self._progress(operation_id, result)
                     reconciliation: dict[str, Any] = {}
+                    discovery: dict[str, Any] = {}
                     def reconcile(definitions: list[Any]) -> None:
                         self._check(context, cancel, deadline)
                         reconciliation.clear()
                         reconciliation.update(self.access.reconcile_server_tools(manifest.id, definitions, context.actor_id))
                     server = self.runtime.connect_external_if_manifest_digest(manifest.id, plan["manifest_digest"], cancel=cancel, deadline=deadline,
-                        operation_id=operation_id, before_connect=lambda: self._check(context, cancel, deadline), before_replace=reconcile)
+                        operation_id=operation_id, before_connect=lambda: self._check(context, cancel, deadline), before_replace=reconcile,
+                        discovery=discovery)
                     if server.status != "running":
                         self._check(context, cancel, deadline)
                         raise _error("external_config_connect_failed", "Configuration saved; the external connection did not become ready.")
-                    result.update(connection_state="connected", discovery_state="succeeded", tool_count=server.tool_count,
+                    result.update(connection_state="connected", discovery_state="succeeded", **discovery,
                                   counts=reconciliation["counts"],
                                   classification_state="needs_review" if reconciliation["counts"]["needs_review"] else "ready")
                     self._progress(operation_id, result)
                     self._check(context, cancel, deadline)
-                    if plan["refresh_tools"]:
-                        result["discovery_state"] = "refreshing"
-                        self._progress(operation_id, result)
-                        refreshed = self.runtime.refresh_server_tools(manifest.id, before_replace=reconcile, cancel=cancel, deadline=deadline,
-                            before_discovery=lambda: self._check(context, cancel, deadline))
-                        result.update(tool_snapshot_digest=refreshed["tool_snapshot_digest"],
-                                      counts=reconciliation["counts"],
-                                      discovery_state="succeeded",
-                                      classification_state="needs_review" if reconciliation["counts"]["needs_review"] else "ready")
+                    # Initialization already performed strict discovery and the
+                    # classification gate. An explicit refresh uses that same
+                    # snapshot, never a second list that erases new/changed counts.
                 self._check(context, cancel, deadline)
                 result["status"] = "success"
         except InterruptedError:
@@ -457,7 +453,7 @@ class ExternalMcpConfigurationService:
                 result["discovery_state"] = "failed"
         finally:
             if runtime_applying and not loaded:
-                result.update(connection_state="unknown", discovery_state="unknown", requires_reconciliation=True)
+                result.update(connection_state="unknown", discovery_state="unknown", cleanup_state="unknown", requires_reconciliation=True)
             if result["status"] != "success" and loaded:
                 try:
                     closed = self.runtime.disconnect_external_operation(plan["server_id"], plan["manifest_digest"], operation_id,
@@ -469,7 +465,7 @@ class ExternalMcpConfigurationService:
                         result.update(connection_state="superseded", requires_reconciliation=True)
                 except Exception:
                     result.update(connection_state="unknown", cleanup_state="unknown", requires_reconciliation=True)
-            elif result["status"] == "cancelled":
+            elif result["status"] == "cancelled" and not runtime_applying:
                 result["connection_state"] = "not_connected"
             result.update(terminal=True, next_action=("Review and publish tool classifications separately; discovery grants no access."
                           if result["status"] == "success" else "Read the saved configuration and operation; use an update plan with its current digest for recovery."))
@@ -541,17 +537,25 @@ class ExternalMcpConfigurationService:
         if not body.confirmed:
             raise _error("confirmation_required", "Confirm cancellation; any saved configuration remains.")
         def action(cancel_operation_id: str) -> tuple[dict[str, Any], str]:
-            current = self.status({"operation_id": body.operation_id}, context)
-            with _control_lock(self._lock):
-                if not current["terminal"]:
-                    self.database.execute("UPDATE external_mcp_config_operations SET cancel_requested=1 WHERE id=? AND actor_id=?",
-                                          (body.operation_id, context.actor_id))
+            # Recover a lost worker conservatively before taking the queue lock.
+            self.status({"operation_id": body.operation_id}, context)
+            with _control_lock(self._lock), self.database.session() as connection:
+                self._authorize(context, write=True)
+                connection.execute("BEGIN IMMEDIATE")
+                current = connection.execute("SELECT status FROM external_mcp_config_operations WHERE id=? AND actor_id=?",
+                                             (body.operation_id, context.actor_id)).fetchone()
+                if current is None:
+                    raise _error("external_config_operation_unavailable", "Operation is unavailable for this actor.")
+                terminal = current["status"] in TERMINAL
+                if not terminal:
+                    connection.execute("UPDATE external_mcp_config_operations SET cancel_requested=1 WHERE id=? AND actor_id=?",
+                                       (body.operation_id, context.actor_id))
                     event = self._cancels.get(body.operation_id)
                     if event is not None:
                         event.set()
             return {"operation_id": cancel_operation_id, "target_operation_id": body.operation_id,
-                    "status": "already_terminal" if current["terminal"] else "cancel_requested",
-                    "terminal": current["terminal"], "next_action": "Poll the target operation; in-flight HTTP ends within its request deadline. Saved configuration is retained."}, body.operation_id
+                    "status": "already_terminal" if terminal else "cancel_requested",
+                    "terminal": terminal, "next_action": "Read or poll the target operation; this response does not prove a remote process stopped. Saved configuration is retained."}, body.operation_id
         return self.delivery._run_idempotent(context, "gate_mcp_config_cancel", body.idempotency_key, arguments, "mcp_config_operation", action)
 
     def shutdown(self) -> None:
