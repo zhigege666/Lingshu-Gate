@@ -474,6 +474,40 @@ class DefaultAdminTest(unittest.TestCase):
         self.assertTrue(definitions[0].metadata["annotations"]["readOnlyHint"])
         self.assertEqual(self.access_store.evaluate(principal, definitions[0])["required_access"], "write")
 
+    def test_output_contract_change_invalidates_published_classification_and_access_snapshot(self) -> None:
+        principal, definitions, _ = self._discovery_fixture()
+        self.assertEqual(len(self.access_store.visible_tools(principal, definitions)), 2)
+        changed = definitions[0].model_copy(update={"metadata": {**definitions[0].metadata, "outputSchema": {}}})
+        self.assertEqual([item.id for item in self.access_store.visible_tools(principal, [changed])], [])
+        row = self.access_store.list_classifications(server_id="discovery")[0]
+        self.assertEqual(row["status"], "stale")
+        self.assertEqual(row["effective_access"], "unknown")
+        self.assertEqual(row["evidence"]["invalidation"]["changed_fields"], ["output_schema"])
+        self.assertNotEqual(row["evidence"]["invalidation"]["previous_fingerprint"], row["fingerprint"])
+        registry = ToolRegistry()
+        handler = unittest.mock.Mock(return_value={})
+        registry.register(changed, handler)
+        with self.assertRaises(AccessDeniedError):
+            self.access_store.invoke_tool(registry, principal, changed.id, {})
+        handler.assert_not_called()
+        # A second request must retain the explanation, not restore publication.
+        self.assertEqual(self.access_store.visible_tools(principal, [changed]), [])
+        self.assertEqual(self.access_store.list_classifications(server_id="discovery")[0]["evidence"]["invalidation"]["changed_fields"], ["output_schema"])
+
+    def test_legacy_classification_upgrade_explains_unrecorded_prior_contract(self) -> None:
+        principal, definitions, _ = self._discovery_fixture(1)
+        old = self.access_store.list_classifications(server_id="discovery")[0]
+        evidence = old["evidence"]
+        evidence.pop("definition_snapshot")
+        self.database.execute("UPDATE mcp_tool_classifications SET evidence_json = ? WHERE id = ?",
+                              (json.dumps(evidence), old["id"]))
+        changed = definitions[0].model_copy(update={"metadata": {**definitions[0].metadata, "outputSchema": {"type": "object"}}})
+        self.assertEqual(self.access_store.visible_tools(principal, [changed]), [])
+        invalidation = self.access_store.list_classifications(server_id="discovery")[0]["evidence"]["invalidation"]
+        self.assertTrue(invalidation["previous_definition_unrecorded"])
+        self.assertTrue(invalidation["output_schema_recorded"])
+        self.assertEqual(invalidation["changed_fields"], [])
+
     def test_large_published_catalog_uses_bounded_reads_without_classification_writes(self) -> None:
         principal, definitions, _ = self._discovery_fixture(600)
         statements: list[str] = []

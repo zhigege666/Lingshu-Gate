@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Downstream output schemas are retained in tool registration and discovery digests, including an explicit empty schema. Contract drift invalidates published classifications and access snapshots; Console names changed fields, or states that historical field differences are unavailable. Review and publication remain manual.
+
 - Source acquisition/validation adds bounded SHA-1 Git object export, shared streaming ZIP scans and normalized dependency/offline-worker contract fixtures. Production Git transport, full lockfile graphs and rootless offline installation/build remain unavailable; no executor is injected. [Execution gap](docs/git-executor-decision.md).
 - Console presents one account name, translated role tags, one backend version, and one entry for API/logout; keyboard dismissal restores focus.
 - Administrator external HTTP configuration adds shared REST/MCP offline plan, digest-bound confirmed apply, actor-owned status and cancellation. Saved configuration is retained on connection failure; initial and refreshed discovery quarantine changed classifications without granting access.

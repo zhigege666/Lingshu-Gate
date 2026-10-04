@@ -1123,7 +1123,8 @@ class McpRuntimeManager:
     def _tool_snapshot_digest(records: list[ToolRecord]) -> str:
         snapshot = [{"id": record.definition.id, "name": record.definition.name,
                      "description": record.definition.description, "input_schema": record.definition.input_schema,
-                     "annotations": record.definition.metadata.get("annotations", {})} for record in records]
+                     "annotations": record.definition.metadata.get("annotations", {}),
+                     "output_schema": record.definition.metadata.get("outputSchema")} for record in records]
         return hashlib.sha256(json.dumps(snapshot, ensure_ascii=False, sort_keys=True, separators=(",", ":")).encode()).hexdigest()
 
     def refresh_server_tools(
@@ -1252,6 +1253,11 @@ class McpRuntimeManager:
                         f"MCP tool annotations must be an object: {normalized_name}"
                     )
                 annotations = {}
+            output_metadata: dict[str, Any] = {}
+            if "outputSchema" in tool:
+                if not isinstance(tool["outputSchema"], dict):
+                    raise ValueError(f"MCP tool outputSchema must be an object: {normalized_name}")
+                output_metadata["outputSchema"] = tool["outputSchema"]
             definition = ToolDefinition(
                 id=tool_id,
                 name=tool.get("title") or normalized_name,
@@ -1261,7 +1267,8 @@ class McpRuntimeManager:
                 source="mcp",
                 metadata={"server_id": manifest.id, "server_name": manifest.name,
                           "launch_type": manifest.launch.type, "transport_type": manifest.transport.type,
-                          "original_tool_name": normalized_name, "annotations": annotations},
+                          "original_tool_name": normalized_name, "annotations": annotations,
+                          **output_metadata},
             )
 
             def handler(arguments: dict[str, Any], *, server_id: str = manifest.id, tool_name: str = normalized_name) -> dict[str, Any]:

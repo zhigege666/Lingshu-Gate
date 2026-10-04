@@ -4,6 +4,10 @@
 
 Lingshu Gate reads runtime configuration from `LINGSHU_GATE_*` environment variables. Native package launchers provide package-local directories; Docker Compose provides container paths and safe network defaults.
 
+## Output-contract upgrade
+
+Tool registration now retains downstream `outputSchema`, including `{}`, and includes it in discovery digests. Existing published classifications for tools with a newly recorded output contract become stale and unavailable to classification-gated connections until an administrator reviews and separately publishes them. Grants are not expanded or rewritten, and instances are not modified. Classification evidence shows changed field names and before/after digests. Older records without field digests explicitly report that historical differences cannot be reconstructed; inspect the current contract before publishing. Missing output schemas remain distinct from explicit empty schemas.
+
 ## Common settings
 
 | Variable | Native default | Docker value | Notes |

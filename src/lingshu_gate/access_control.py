@@ -702,10 +702,20 @@ class AccessControlStore:
                 continue
             if existing["fingerprint"] != fingerprint:
                 invalidation_evidence = dict(suggestion["evidence"])
+                previous_snapshot = _loads(existing["evidence_json"]).get("definition_snapshot")
+                current_snapshot = invalidation_evidence["definition_snapshot"]
                 invalidation_evidence["invalidation"] = {
                     "reason": "tool_definition_changed", "at": now,
                     "previous_fingerprint": existing["fingerprint"],
                     "current_fingerprint": fingerprint,
+                    "changed_fields": sorted(
+                        field for field, digest in current_snapshot.items()
+                        if isinstance(previous_snapshot, dict) and previous_snapshot.get(field) != digest
+                    ),
+                    "previous_definition_unrecorded": not isinstance(previous_snapshot, dict),
+                    "output_schema_recorded": isinstance(definition.metadata.get("outputSchema"), dict),
+                    "previous_definition_snapshot": previous_snapshot if isinstance(previous_snapshot, dict) else None,
+                    "current_definition_snapshot": current_snapshot,
                 }
                 evidence_json = json.dumps(invalidation_evidence, ensure_ascii=False)
                 connection.execute(
@@ -1845,8 +1855,8 @@ def _server_id(definition: ToolDefinition) -> str:
     return definition.source or "builtin"
 
 
-def _tool_fingerprint(definition: ToolDefinition) -> str:
-    payload = {
+def _tool_fingerprint_payload(definition: ToolDefinition) -> dict[str, Any]:
+    return {
         "id": definition.id,
         "name": definition.name,
         "description": definition.description,
@@ -1859,8 +1869,20 @@ def _tool_fingerprint(definition: ToolDefinition) -> str:
         "sensitive_input_fields": definition.metadata.get("sensitive_input_fields"),
         "sensitive_output_fields": definition.metadata.get("sensitive_output_fields"),
     }
-    raw = json.dumps(payload, ensure_ascii=False, sort_keys=True, separators=(",", ":"))
+
+
+def _tool_fingerprint(definition: ToolDefinition) -> str:
+    raw = json.dumps(_tool_fingerprint_payload(definition), ensure_ascii=False, sort_keys=True, separators=(",", ":"))
     return hashlib.sha256(raw.encode("utf-8")).hexdigest()
+
+
+def _tool_definition_snapshot(definition: ToolDefinition) -> dict[str, str]:
+    # Field digests explain contract drift without returning full schemas in every row.
+    return {
+        field: hashlib.sha256(json.dumps(value, ensure_ascii=False, sort_keys=True,
+                                        separators=(",", ":")).encode("utf-8")).hexdigest()
+        for field, value in _tool_fingerprint_payload(definition).items()
+    }
 
 
 def _suggest_tool(definition: ToolDefinition) -> dict[str, Any]:
@@ -1898,6 +1920,7 @@ def _suggest_tool(definition: ToolDefinition) -> dict[str, Any]:
         "open_world": open_world,
         "evidence": {
             "annotations": annotations,
+            "definition_snapshot": _tool_definition_snapshot(definition),
             "rule": {
                 "read_hits": read_hits,
                 "write_hits": write_hits,
