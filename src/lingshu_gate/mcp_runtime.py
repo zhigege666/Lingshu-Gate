@@ -714,6 +714,7 @@ class McpRuntimeManager:
         self, server_id: str, expected_digest: str, *, cancel: threading.Event, deadline: float, operation_id: str,
         before_connect: Callable[[], None],
         before_replace: Callable[[list[ToolDefinition]], None],
+        discovery: dict[str, Any],
     ) -> McpServerStatusResponse:
         """A confirmed external connection; this never starts a remote process."""
         with operation_lock(self._manager_lock, cancel=cancel, deadline=deadline):
@@ -727,7 +728,7 @@ class McpRuntimeManager:
                 before_connect()
                 self._set_desired_state_locked(server_id, "running", source="external_config_connect")
                 return self._connect_external_locked(server_id, runtime, cancel=cancel, deadline=deadline,
-                                                     operation_id=operation_id, before_replace=before_replace)
+                                                     operation_id=operation_id, before_replace=before_replace, discovery=discovery)
 
     def disconnect_external_operation(
         self, server_id: str, expected_digest: str, operation_id: str, *, deadline: float,
@@ -738,12 +739,12 @@ class McpRuntimeManager:
             with operation_lock(runtime.lock, cancel=None, deadline=deadline):
                 if self._manifest_digest(runtime.manifest) != expected_digest:
                     return False
+                if runtime.connection_operation_id != operation_id:
+                    return False
                 if runtime.client is None:
                     self._set_desired_state_locked(server_id, "stopped", source="external_config_cleanup")
                     self._stop_runtime_locked(server_id, runtime, clear_error=False)
                     return True
-                if runtime.connection_operation_id != operation_id:
-                    return False
                 client = runtime.client
                 if not isinstance(client, StreamableHttpMcpClient):
                     return False
@@ -757,6 +758,7 @@ class McpRuntimeManager:
         cancel: threading.Event | None = None, deadline: float | None = None,
         operation_id: str | None = None,
         before_replace: Callable[[list[ToolDefinition]], None] | None = None,
+        discovery: dict[str, Any] | None = None,
     ) -> McpServerStatusResponse:
         """Connect to an external MCP server. Caller must hold runtime.lock."""
         manifest = runtime.manifest
@@ -780,7 +782,9 @@ class McpRuntimeManager:
             with client.operation_bounds(cancel, deadline) if cancel is not None and deadline is not None else nullcontext():
                 client.start()
                 runtime.tools = client.list_tools()
-            self._register_mcp_tools(runtime, before_replace=before_replace, strict=before_replace is not None)
+            snapshot = self._register_mcp_tools(runtime, before_replace=before_replace, strict=before_replace is not None)
+            if discovery is not None:
+                discovery.update(snapshot)
             runtime.state = McpServerState.RUNNING
             runtime.last_started_at = _now()
             log_event(logger, logging.INFO, "gate.mcp.server_running", "External MCP server is connected", server_id=server_id, endpoint=safe_endpoint, tool_count=len(runtime.tools))
@@ -1100,7 +1104,7 @@ class McpRuntimeManager:
         return max(0.0, delay)
 
     def _register_mcp_tools(self, runtime: McpServerRuntime, *,
-                            before_replace: Callable[[list[ToolDefinition]], None] | None = None, strict: bool = False) -> None:
+                            before_replace: Callable[[list[ToolDefinition]], None] | None = None, strict: bool = False) -> dict[str, Any]:
         manifest = runtime.manifest
         records = self._mcp_tool_records(runtime, runtime.tools, strict=strict)
         if before_replace is not None:
@@ -1113,6 +1117,14 @@ class McpRuntimeManager:
         )
         log_event(logger, logging.INFO, "gate.mcp.tools_registered", "MCP tools registered into Gate registry", server_id=manifest.id, tool_count=len(records))
         self._log_runtime(manifest.id, "info", "MCP tools registered into Gate registry", "gate.mcp.tools_registered", {"tool_count": len(records)})
+        return {"tool_count": len(records), "tool_snapshot_digest": self._tool_snapshot_digest(records)}
+
+    @staticmethod
+    def _tool_snapshot_digest(records: list[ToolRecord]) -> str:
+        snapshot = [{"id": record.definition.id, "name": record.definition.name,
+                     "description": record.definition.description, "input_schema": record.definition.input_schema,
+                     "annotations": record.definition.metadata.get("annotations", {})} for record in records]
+        return hashlib.sha256(json.dumps(snapshot, ensure_ascii=False, sort_keys=True, separators=(",", ":")).encode()).hexdigest()
 
     def refresh_server_tools(
         self,
@@ -1154,24 +1166,7 @@ class McpRuntimeManager:
                 )
             discovered = runtime.client.list_tools()
             records = self._mcp_tool_records(runtime, discovered, strict=True)
-            snapshot_payload = [
-                {
-                    "id": record.definition.id,
-                    "name": record.definition.name,
-                    "description": record.definition.description,
-                    "input_schema": record.definition.input_schema,
-                    "annotations": record.definition.metadata.get("annotations", {}),
-                }
-                for record in records
-            ]
-            snapshot_digest = hashlib.sha256(
-                json.dumps(
-                    snapshot_payload,
-                    ensure_ascii=False,
-                    sort_keys=True,
-                    separators=(",", ":"),
-                ).encode("utf-8")
-            ).hexdigest()
+            snapshot_digest = self._tool_snapshot_digest(records)
             definitions = [record.definition for record in records]
             if before_replace is not None:
                 # 分类门禁先于 Registry 提交：门禁失败最多收紧旧分类，不能让新工具

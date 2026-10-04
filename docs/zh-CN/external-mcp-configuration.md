@@ -32,7 +32,7 @@
 | `gate_mcp_config_status` | `GET /v1/mcp/external-configs/targets/{server_id}` | 脱敏配置及当前 Gate 连接状态 |
 | `gate_mcp_config_cancel` | `POST /v1/mcp/external-configs/operations/{operation_id}/cancel` | 明确请求取消；保留已保存配置 |
 
-会话 REST 适配器拒绝显式跨源 Origin 或 cross-site fetch 修改。应用层对两个适配器执行同一管理边界。
+Console 会话 REST 写入必须携带与 Console 完全相同的 `Origin`，拒绝 cross-site/`none` fetch，并消费绑定当前有效 Console 会话、动作路径和请求摘要的五分钟一次性 CSRF 票据。此边界复用 OAuth Console 的 Origin/会话绑定辅助函数，不依赖启用 OAuth 或生成签名 key。每次 plan/apply/cancel POST 前，携同一 Origin 获取 `POST /v1/mcp/external-configs/csrf?action=plan|apply|cancel&request_digest=...`；cancel 还需 `operation_id`。摘要是请求体按键排序、紧凑分隔符、不转义 Unicode 的 UTF-8 JSON 的 SHA-256。将返回的 `csrf` 放入 `X-CSRF-Token`。票据不可缓存、到期失效，不能重放或跨会话、动作、请求体复用。传输失败重试时获取新票据，保留原业务参数和幂等键。Gate API bearer token 仍走独立身份/scope 校验，不使用浏览器 CSRF 票据。两个适配器的管理权限都由同一应用服务核验。
 
 1. 新建选择未占用目标 ID。更新先查询目标状态，保留 `config_digest`：已保存原始文件的 SHA-256。不能用旧交付状态工具的规范化 manifest digest 替代。
 2. 计划明确 `mode=create|update`、manifest，更新传 `expected_config_digest`。默认 `connect=false`、`refresh_tools=false`、`probe=false`。刷新要求连接，明确连接要求 manifest 已启用。
@@ -41,7 +41,7 @@
 5. 使用相同计划 ID/digest、动作、`confirmed=true` 和新幂等键应用。计划绑定 actor、Console 会话或 API token/委托、规范化 manifest、目标、旧文件摘要、凭据版本、动作及期限。计划只能使用一次；新建/更新在现有配置修改锁内执行 CAS。
 6. 轮询直到 `terminal=true`。传输中断后保留准确参数和幂等键重试；不能再新建一次修复连接失败。输入变化需要重新核对计划与键。
 
-工具刷新把新增、变化及退役定义交给现有分类审核，返回快照与计数，不发布分类或扩大授权。连接及初始发现成功也不能证明权限已经可用。
+连接在替换注册表前完成一次严格初始发现及分类核对。`connect=true,refresh_tools=true` 复用同一 records、快照及首次新增/变化/退役计数，不再次发送 `tools/list`，也不发布分类或扩大授权。连接及初始发现成功不能证明权限已经可用。
 
 ## 完成与恢复
 
@@ -55,7 +55,9 @@
 | `operation_id` / `terminal` | 持久操作标识及观察到的完成状态 |
 | `cleanup_state` / `requires_reconciliation` | 本次是否安全断开，或需人工核查 |
 
-终态为 `success`、`partial`、`failed`、`cancelled`、`timed_out`、`interrupted`。保存成功而连接失败属于部分完成，保留配置。查询目标后，用当前 digest 核对更新。取消是独立确认的幂等写；`cancel_requested` 不等于取消完成。失败/取消只清理本次 Gate HTTP 连接，不断开后继连接、不停止远程进程，也不删除配置或授权历史。
+终态为 `success`、`partial`、`failed`、`cancelled`、`timed_out`、`interrupted`。保存成功而连接失败属于部分完成，保留配置。查询目标后，用当前 digest 核对更新。取消是独立确认的幂等写，在排队锁及 SQLite 写事务内重查目标终态；`cancel_requested` 不等于取消完成。失败/取消只清理本次 Gate HTTP 连接，不断开后继连接、不停止远程进程；即使没有 client，也先校验操作归属。运行时应用中断保留未知连接/发现/清理及对账要求，不删除配置或授权历史，也不声称远端进程已停止。
+
+管理员 OAuth 支持在本候选中仍属于设计，尚未实现授权；见 [scope/目标增量方案](oauth-external-management-design.md)。当前仍拒绝普通 OAuth 管理调用。
 
 操作终态与幂等完成在一个 SQLite 事务中提交。重启、工作线程丢失或完成事务失败会转为 `interrupted`，状态未知且需要对账。恢复不自动重放、重连或停止。文件、HTTP 与 SQLite 仍不是分布式事务。
 

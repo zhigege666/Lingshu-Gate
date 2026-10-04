@@ -32,7 +32,7 @@ New manifests default to `enabled=true`, `auto_start=false`, `startup_policy=gat
 | `gate_mcp_config_status` | `GET /v1/mcp/external-configs/targets/{server_id}` | Redacted configuration and current Gate connection state |
 | `gate_mcp_config_cancel` | `POST /v1/mcp/external-configs/operations/{operation_id}/cancel` | Explicit cancellation request; saved configuration remains |
 
-The session REST adapter denies a supplied cross-origin mutation Origin or cross-site fetch. The application service enforces the same management boundary for both adapters.
+Console session REST writes require the exact Console `Origin`, reject cross-site/`none` fetches, and consume a five-minute single-use CSRF ticket bound to the live Console session, action path and request digest. This shares the OAuth Console Origin/session binding helpers, without enabling OAuth or generating a signing key. Before each plan/apply/cancel POST, obtain `POST /v1/mcp/external-configs/csrf?action=plan|apply|cancel&request_digest=...` with that same Origin; cancel also requires its `operation_id`. The digest is SHA-256 of the UTF-8 JSON body with sorted keys, compact separators and unescaped Unicode. Send the returned `csrf` as `X-CSRF-Token`. Tickets are not cached, expire, and cannot be replayed or moved across sessions/actions/bodies. A transport retry obtains a fresh ticket and retains the original business arguments/idempotency key. Gate API bearer tokens retain their separate authentication/scope checks and do not use browser CSRF tickets. The application service enforces the management boundary for both adapters.
 
 1. For create, select an unused target ID. For update, read target status and retain `config_digest`, the SHA-256 of the raw saved file. Do not substitute the canonical digest returned by the older delivery status tool.
 2. Call plan with explicit `mode=create|update`, a manifest, and `expected_config_digest` for update. Defaults are `connect=false`, `refresh_tools=false`, `probe=false`. `refresh_tools=true` requires `connect=true`; a requested connection requires an enabled manifest.
@@ -41,7 +41,7 @@ The session REST adapter denies a supplied cross-origin mutation Origin or cross
 5. Apply with the exact plan ID/digest and action flags, `confirmed=true`, and a fresh idempotency key. The plan binds actor, Console session or API token/delegation, normalized manifest, target, prior file digest, credential revisions, action choices and expiry. It is single-use; creation and update use CAS under the existing configuration mutation lock.
 6. Poll operation status until `terminal=true`. Retry the same request with the same arguments/key after a transport interruption; never issue another create to repair connection failure. Changed inputs need a new reviewed plan/key.
 
-Tool refresh reconciles new/changed/retired definitions into existing classification review, returns the snapshot/counts, and does not publish classifications or expand grants. A successful connection and initial discovery do not establish usable permissions.
+Connection performs one strict initial discovery and classification reconciliation before registry replacement. When `connect=true,refresh_tools=true`, the refresh result reuses those exact records, snapshot and first new/changed/retired counts; it does not make a second `tools/list` call. It does not publish classifications or expand grants. A successful connection and initial discovery do not establish usable permissions.
 
 ## Completion and recovery
 
@@ -55,7 +55,9 @@ Read these fields together:
 | `operation_id` / `terminal` | Durable operation identity and observed completion |
 | `cleanup_state` / `requires_reconciliation` | Whether this attempt disconnected cleanly or needs an operator check |
 
-Terminal states are `success`, `partial`, `failed`, `cancelled`, `timed_out`, and `interrupted`. Persistence success plus failed connection is a partial result, with the saved configuration retained. Read target status, then review an update using its current digest. Cancel uses a separate confirmed idempotent write; `cancel_requested` is not completed cancellation. Failure/cancellation closes only this attempt's Gate HTTP connection, never a successor connection or remote process. It does not delete a configuration or grant history.
+Terminal states are `success`, `partial`, `failed`, `cancelled`, `timed_out`, and `interrupted`. Persistence success plus failed connection is a partial result, with the saved configuration retained. Read target status, then review an update using its current digest. Cancel uses a separate confirmed idempotent write and rechecks the target's terminal state under the queue lock and SQLite writer transaction; `cancel_requested` is not completed cancellation. Failure/cancellation closes only this attempt's Gate HTTP connection, never a successor connection or remote process. Ownership is checked even when no client exists. Interrupted runtime application retains unknown connection/discovery/cleanup and required reconciliation. It does not delete a configuration or grant history or claim that a remote process stopped.
+
+Administrator OAuth support is still a design, not implemented authority in this candidate. See [the scope/target proposal](oauth-external-management-design.md). Ordinary OAuth remains denied here.
 
 The operation result and idempotency completion commit in one SQLite transaction. Restart, a lost worker or a failed completion transaction becomes `interrupted` with unknown state and required reconciliation. Nothing is replayed, reconnected or stopped automatically during recovery. Configuration files, HTTP state and SQLite still do not form a distributed transaction.
 

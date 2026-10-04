@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import json
+import hashlib
 import threading
 import time
 from dataclasses import replace
@@ -43,7 +44,7 @@ def gate(tmp_path, monkeypatch):
     client = TestClient(app)
     client.cookies.set(auth.cookie_name, cookie)
     calls = []
-    mode = {"failure": None, "wait": None, "discover_count": 0, "refresh_failure": None, "schema": {"type": "object"}}
+    mode = {"failure": None, "wait": None, "discover_count": 0, "schema": {"type": "object"}}
 
     class FakeHttp(StreamableHttpMcpClient):
         def start(self):
@@ -57,8 +58,6 @@ def gate(tmp_path, monkeypatch):
         def list_tools(self):
             calls.append(("discover", self.manifest.id))
             mode["discover_count"] += 1
-            if mode["discover_count"] > 1 and mode["refresh_failure"]:
-                raise mode["refresh_failure"]
             if mode["wait"] is not None:
                 started, release = mode["wait"]
                 started.set()
@@ -93,6 +92,16 @@ def apply_arguments(plan, key="synthetic-apply-1"):
             "refresh_tools": plan["refresh_tools"], "idempotency_key": key, "confirmed": True}
 
 
+def session_headers(gate, body, *, action="plan", operation_id=None):
+    digest = hashlib.sha256(json.dumps(body, ensure_ascii=False, sort_keys=True, separators=(",", ":")).encode()).hexdigest()
+    query = {"action": action, "request_digest": digest}
+    if operation_id is not None:
+        query["operation_id"] = operation_id
+    response = gate["client"].post("/v1/mcp/external-configs/csrf", params=query, headers={"Origin": "http://testserver"})
+    assert response.status_code == 200 and response.headers["cache-control"] == "no-store"
+    return {"Origin": "http://testserver", "X-CSRF-Token": response.json()["csrf"]}
+
+
 def wait(gate, operation_id):
     cutoff = time.monotonic() + 5
     while time.monotonic() < cutoff:
@@ -122,6 +131,8 @@ def test_connect_discover_requires_review_and_idempotent_replay_does_not_create_
     assert result["status"] == "success" and result["config_applied"] is True
     assert result["connection_state"] == "connected" and result["discovery_state"] == "succeeded"
     assert result["classification_state"] == "needs_review" and result["counts"]["needs_review"] == 1
+    assert result["counts"]["new"] == 1 and len(result["tool_snapshot_digest"]) == 64
+    assert sum(action == "discover" for action, _ in gate["calls"]) == 1
     assert result["effective_permissions_expanded"] is False and result["remote_process_started"] is False
     before = list(gate["calls"])
     replay = gate["service"].apply(args, gate["context"])
@@ -196,7 +207,8 @@ def test_non_admin_and_connection_scope_limits_are_enforced(gate):
 
 def test_rest_session_api_token_and_mcp_token_share_the_same_plan_contract(gate):
     client, auth, principal = gate["client"], gate["auth"], gate["principal"]
-    plan = client.post("/v1/mcp/external-configs/plan", json={"mode": "create", "manifest": manifest()})
+    body = {"mode": "create", "manifest": manifest()}
+    plan = client.post("/v1/mcp/external-configs/plan", json=body, headers=session_headers(gate, body))
     assert plan.status_code == 200
     forbidden = client.post("/v1/mcp/external-configs/apply", json=apply_arguments(plan.json()), headers={"Origin": "https://other.example.test"})
     assert forbidden.status_code == 403
@@ -206,6 +218,9 @@ def test_rest_session_api_token_and_mcp_token_share_the_same_plan_contract(gate)
         denied = token_client.post("/v1/mcp/external-configs/plan", json={"mode": "create", "manifest": manifest()},
                                   headers={"Authorization": "Bearer " + limited["token"]})
         assert denied.status_code == 403
+        token_rest = token_client.post("/v1/mcp/external-configs/plan", json=body,
+            headers={"Authorization": "Bearer " + full["token"], "Origin": "https://other.example.test", "Sec-Fetch-Site": "cross-site"})
+        assert token_rest.status_code == 200 and token_rest.json()["manifest_digest"] == plan.json()["manifest_digest"]
         params, headers = build_protocol_request("tools/call", {"name": "gate_mcp_config_plan", "arguments": {"mode": "create", "manifest": manifest()}},
                                                 client_name="Synthetic", client_version="1", protocol_version=MCP_PROTOCOL_VERSION)
         result = token_client.post("/mcp", headers={**headers, "Authorization": "Bearer " + full["token"]},
@@ -392,9 +407,14 @@ def test_masked_saved_target_is_editable_without_reading_endpoint_or_credentials
 
 
 @pytest.mark.parametrize("cleanup", ["normal", "superseded", "failure"])
-def test_refresh_failure_closes_only_own_connection_and_reports_unknown_cleanup(gate, monkeypatch, cleanup):
+def test_post_discovery_failure_closes_only_own_connection_and_reports_unknown_cleanup(gate, monkeypatch, cleanup):
     service, runtime = gate["service"], gate["app"].state.mcp_runtime
-    gate["mode"]["refresh_failure"] = RuntimeError("Synthetic refresh failure")
+    original_progress = service._progress
+    def fail_after_discovery(operation_id, result):
+        if result["connection_state"] == "connected":
+            raise RuntimeError("Synthetic failure after committed discovery")
+        original_progress(operation_id, result)
+    monkeypatch.setattr(service, "_progress", fail_after_discovery)
     if cleanup != "normal":
         original = runtime.disconnect_external_operation
         def cleanup_connection(server_id, digest, operation_id, *, deadline):
@@ -407,7 +427,7 @@ def test_refresh_failure_closes_only_own_connection_and_reports_unknown_cleanup(
     plan = planned(gate, connect=True, refresh_tools=True)
     result = wait(gate, service.apply(apply_arguments(plan), gate["context"])["operation_id"])
     assert result["config_applied"] and result["status"] == "partial"
-    assert result["discovery_state"] == "failed"
+    assert result["discovery_state"] == "succeeded" and result["counts"]["new"] == 1
     assert result["connection_state"] == {"normal": "disconnected", "superseded": "superseded", "failure": "unknown"}[cleanup]
     if cleanup != "normal":
         assert result["requires_reconciliation"]
@@ -510,9 +530,10 @@ def test_additive_migration_can_be_reopened_without_losing_existing_auth_and_pla
     assert len(reopened.query_all("SELECT id FROM schema_migrations WHERE id='0010_gate_external_mcp_config'")) == 1
 
 
-def test_initial_discovery_without_extra_refresh_quarantines_changed_published_schema(gate):
+@pytest.mark.parametrize("refresh", [False, True])
+def test_initial_discovery_quarantines_changed_published_schema_without_a_second_list(gate, refresh):
     service = gate["service"]
-    plan = planned(gate, connect=True)
+    plan = planned(gate, connect=True, refresh_tools=refresh)
     result = wait(gate, service.apply(apply_arguments(plan), gate["context"])["operation_id"])
     assert result["counts"]["new"] == 1 and result["classification_state"] == "needs_review"
     assert sum(action == "discover" for action, _ in gate["calls"]) == 1
@@ -524,10 +545,12 @@ def test_initial_discovery_without_extra_refresh_quarantines_changed_published_s
     gate["mode"]["schema"] = {"type": "object", "properties": {"synthetic_changed": {"type": "string"}}}
     edited = {**manifest(), "name": "Synthetic changed schema target"}
     updated = service.plan({"mode": "update", "manifest": edited, "expected_config_digest": result["config_digest"],
-                            "connect": True, "refresh_tools": False}, gate["context"])
+                            "connect": True, "refresh_tools": refresh}, gate["context"])
     after = wait(gate, service.apply(apply_arguments(updated, "synthetic-schema-update"), gate["context"])["operation_id"])
     classification = service.access.list_classifications(server_id=plan["server_id"])[0]
     assert after["status"] == "success" and after["counts"]["changed"] == 1
+    assert after["tool_snapshot_digest"] != result["tool_snapshot_digest"]
+    assert sum(action == "discover" for action, _ in gate["calls"]) == 2
     assert classification["status"] == "stale" and classification["effective_access"] == "unknown"
     assert after["effective_permissions_expanded"] is False
 
@@ -544,3 +567,162 @@ def test_expired_consumed_plan_follows_existing_operation_retention(gate):
     assert not service.database.query_one("SELECT id FROM external_mcp_config_operations WHERE id=?", (result["operation_id"],))
     service.plan({"mode": "create", "manifest": manifest("synthetic-after-retention")}, gate["context"])
     assert not service.database.query_one("SELECT id FROM external_mcp_config_plans WHERE id=?", (plan["plan_id"],))
+
+
+@pytest.mark.parametrize("action", ["plan", "apply", "cancel"])
+def test_rest_session_mutations_require_origin_and_single_use_request_bound_csrf(gate, action):
+    client = gate["client"]
+    operation_id = None
+    if action == "plan":
+        body = {"mode": "create", "manifest": manifest()}
+    elif action == "apply":
+        body = apply_arguments(planned(gate))
+    else:
+        operation_id = gate["service"].apply(apply_arguments(planned(gate)), gate["context"])["operation_id"]
+        wait(gate, operation_id)
+        body = {"idempotency_key": "synthetic-rest-cancel", "confirmed": True}
+    path = (f"/v1/mcp/external-configs/operations/{operation_id}/cancel" if action == "cancel"
+            else f"/v1/mcp/external-configs/{action}")
+    headers = session_headers(gate, body, action=action, operation_id=operation_id)
+    assert client.post(path, json=body, headers={"X-CSRF-Token": headers["X-CSRF-Token"]}).status_code == 403
+    assert client.post(path, json=body, headers={"Origin": "http://testserver"}).json()["detail"]["code"] == "invalid_csrf"
+    assert client.post(path, json=body, headers={**headers, "Origin": "https://other.example.test"}).status_code == 403
+    accepted = client.post(path, json=body, headers=headers)
+    assert accepted.status_code == 200
+    replay = client.post(path, json=body, headers=headers)
+    assert replay.status_code == 403 and replay.json()["detail"]["code"] == "invalid_csrf"
+    if action == "apply":
+        wait(gate, accepted.json()["operation_id"])
+        retry = client.post(path, json=body, headers=session_headers(gate, body, action=action))
+        assert retry.status_code == 200 and retry.json()["idempotent_replay"] is True
+
+
+@pytest.mark.parametrize("headers", [{}, {"Origin": "null"}, {"Origin": "http://testserver/"},
+    {"Origin": "http://testserver", "Sec-Fetch-Site": "cross-site"},
+    {"Origin": "http://testserver", "Sec-Fetch-Site": "none"}])
+def test_csrf_issuance_and_mutation_reject_missing_or_unsafe_browser_origin(gate, headers):
+    body = {"mode": "create", "manifest": manifest()}
+    response = gate["client"].post("/v1/mcp/external-configs/csrf", params={"action": "plan", "request_digest": "a" * 64}, headers=headers)
+    assert response.status_code == 403
+    ticket = session_headers(gate, body)
+    response = gate["client"].post("/v1/mcp/external-configs/plan", json=body, headers={**headers, "X-CSRF-Token": ticket["X-CSRF-Token"]})
+    assert response.status_code == 403 and not gate["calls"]
+
+
+@pytest.mark.parametrize("change", ["body", "action", "new_session", "other_user", "expired", "logout"])
+def test_csrf_cannot_cross_request_action_session_actor_or_expiry(gate, change):
+    body = {"mode": "create", "manifest": manifest()}
+    headers = session_headers(gate, body, action="apply" if change == "action" else "plan")
+    if change == "body":
+        body = {**body, "connect": True}
+    elif change in {"new_session", "other_user"}:
+        username = gate["principal"].username
+        if change == "other_user":
+            username = gate["auth"].create_user(username="synthetic-csrf-other", password=PASSWORD, role="admin")["username"]
+        _, cookie, _ = gate["auth"].login(username=username, password=PASSWORD)
+        gate["client"].cookies.set(gate["auth"].cookie_name, cookie)
+    elif change == "expired":
+        gate["service"].database.execute("UPDATE console_csrf_tickets SET expires_at=0")
+    elif change == "logout":
+        gate["service"].database.execute("DELETE FROM auth_sessions WHERE id=?", (gate["context"].session_id,))
+        assert not gate["service"].database.query_all("SELECT * FROM console_csrf_tickets")
+    response = gate["client"].post("/v1/mcp/external-configs/plan", json=body, headers=headers)
+    assert response.status_code == (401 if change == "logout" else 403)
+    assert not gate["service"].database.query_all("SELECT * FROM external_mcp_config_plans") and not gate["calls"]
+
+
+def test_single_use_csrf_survives_reopen_and_concurrent_consumption(gate):
+    from concurrent.futures import ThreadPoolExecutor
+    from lingshu_gate.application.console_session_security import ConsoleCsrfError, ConsoleSessionCsrf
+    from lingshu_gate.auth import AuthStore
+    from lingshu_gate.database import SQLiteDatabase
+    auth, principal = gate["auth"], gate["principal"]
+    session = gate["client"].cookies.get(auth.cookie_name)
+    issuer = ConsoleSessionCsrf(auth)
+    ticket = issuer.issue(principal, session, "synthetic-target", "a" * 64)
+    settings = gate["service"].settings
+    reopened = AuthStore(settings, SQLiteDatabase(settings.db_url, settings.data_dir))
+    consumer = ConsoleSessionCsrf(reopened)
+    def consume():
+        try:
+            consumer.consume(principal, session, ticket["csrf"], "synthetic-target", "a" * 64)
+            return "accepted"
+        except ConsoleCsrfError as exc:
+            return exc.code
+    with ThreadPoolExecutor(max_workers=2) as pool:
+        outcomes = list(pool.map(lambda _: consume(), range(2)))
+    assert sorted(outcomes) == ["accepted", "invalid_csrf"]
+
+
+def test_console_csrf_capacity_and_expiry_are_bounded(gate):
+    from lingshu_gate.application.console_session_security import ConsoleCsrfError, ConsoleSessionCsrf, MAX_SESSION_CSRF
+    csrf = ConsoleSessionCsrf(gate["auth"])
+    session = gate["client"].cookies.get(gate["auth"].cookie_name)
+    for _ in range(MAX_SESSION_CSRF):
+        csrf.issue(gate["principal"], session, "synthetic-target", "a" * 64)
+    with pytest.raises(ConsoleCsrfError, match="csrf_capacity"):
+        csrf.issue(gate["principal"], session, "synthetic-target", "a" * 64)
+    gate["service"].database.execute("UPDATE console_csrf_tickets SET expires_at=0")
+    csrf.issue(gate["principal"], session, "synthetic-target", "a" * 64)
+    assert len(gate["service"].database.query_all("SELECT * FROM console_csrf_tickets")) == 1
+
+
+@pytest.mark.parametrize("owner,state,closed", [("successor", "failed", False), ("successor", "starting", False),
+                                              (None, "loaded", False), ("synthetic-owner", "failed", True)])
+def test_cleanup_without_a_client_still_requires_exact_operation_ownership(gate, owner, state, closed):
+    from lingshu_gate.mcp_runtime import McpServerState
+    service, runtime = gate["service"], gate["app"].state.mcp_runtime
+    plan = planned(gate)
+    wait(gate, service.apply(apply_arguments(plan), gate["context"])["operation_id"])
+    target = runtime._servers[plan["server_id"]]
+    with runtime._manager_lock, target.lock:
+        target.connection_operation_id = owner
+        target.state = McpServerState(state)
+        runtime._set_desired_state_locked(plan["server_id"], "running", source="synthetic-successor")
+    assert target.client is None
+    result = runtime.disconnect_external_operation(plan["server_id"], plan["manifest_digest"], "synthetic-owner", deadline=time.monotonic() + 1)
+    assert result is closed
+    assert runtime.state_store.get(plan["server_id"]).desired_state == ("stopped" if closed else "running")
+    assert target.connection_operation_id == (None if closed else owner)
+    assert target.state == (McpServerState.STOPPED if closed else McpServerState(state))
+    assert not gate["calls"]
+
+
+def test_cancellation_during_runtime_apply_retains_unknown_state_and_reconciliation(gate, monkeypatch):
+    service, runtime = gate["service"], gate["app"].state.mcp_runtime
+    original = runtime.apply_external_configuration
+    def cancelled_after_apply(manifest, **kwargs):
+        original(manifest, **kwargs)
+        kwargs["cancel"].set()
+        raise InterruptedError("Synthetic interrupted runtime apply")
+    monkeypatch.setattr(runtime, "apply_external_configuration", cancelled_after_apply)
+    plan = planned(gate, connect=True)
+    result = wait(gate, service.apply(apply_arguments(plan), gate["context"])["operation_id"])
+    assert result["status"] == "cancelled" and result["config_applied"] is True
+    assert result["connection_state"] == result["discovery_state"] == result["cleanup_state"] == "unknown"
+    assert result["requires_reconciliation"] is True and not gate["calls"]
+
+
+def test_cancel_rechecks_completion_after_the_initial_status_read(gate, monkeypatch):
+    service = gate["service"]
+    started, release = threading.Event(), threading.Event()
+    gate["mode"]["wait"] = (started, release)
+    operation = service.apply(apply_arguments(planned(gate, connect=True)), gate["context"])
+    operation_id = operation["operation_id"]
+    worker = service._threads[operation_id]
+    assert started.wait(2)
+    original = service.status
+    def stale_status(arguments, ctx):
+        observed = original(arguments, ctx)
+        assert observed["terminal"] is False
+        release.set()
+        worker.join(2)
+        assert not worker.is_alive()
+        return observed
+    monkeypatch.setattr(service, "status", stale_status)
+    cancelled = service.cancel({"operation_id": operation_id, "idempotency_key": "synthetic-terminal-race", "confirmed": True}, gate["context"])
+    assert cancelled["status"] == "already_terminal" and cancelled["terminal"] is True
+    row = service.database.query_one("SELECT status,cancel_requested FROM external_mcp_config_operations WHERE id=?", (operation_id,))
+    assert row["status"] == "success" and row["cancel_requested"] == 0
+    assert original({"operation_id": operation_id}, gate["context"])["connection_state"] == "connected"
+    assert not any(action == "disconnect" for action, _ in gate["calls"])
