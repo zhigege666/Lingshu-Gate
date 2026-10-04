@@ -10,6 +10,8 @@
 
 0.4.3 支持本人在 Gate 明确确认，为现有 OAuth 连接增加 MCP 和工具，无需客户端再次 OAuth。同一令牌在原始 OAuth scope 内跟随 live grant，scope 更窄的令牌族保留其限制。同时修复配置 Form/JSON 编辑与同步、明确 Gate 启动/重启自启选择、新配置默认启用但不自动启动、应用但不启动的状态反馈、内置工具来源、范围弹窗，以及精确 HTTP 旧版协商与实际版本展示。客户端缓存工具列表可能需要刷新，真实 ChatGPT 刷新行为尚未联调。见[发行摘要](packaging/release-notes.md)。
 
+**未发布开发：**管理员外部 HTTP 配置增加独立且默认关闭的 `/mcp/manage` OAuth 资源，要求明确 scope、四个已同意配置工具及精确创建/更新目标。Console 确认修改目标保留令牌 scope 上限并使旧计划失效。真实客户端管理 scope 请求与真实 peer 验收仍未验证，安全 Git 执行器仍未实现。参见[管理契约](docs/zh-CN/oauth-external-management-design.md)与[外部配置流程](docs/zh-CN/external-mcp-configuration.md)。
+
 ## 现有功能
 
 | 功能 | 能力与边界 | 指南 |

@@ -10,6 +10,8 @@ Use Gate to manage multiple MCP servers, give remote MCP clients controlled tool
 
 0.4.3 supports adding MCPs and tools to an existing OAuth connection by explicit confirmation in Gate, without another client OAuth flow. The same token follows its live grant within its original OAuth scopes; token families with narrower scopes retain those limits. It also restores consistent configuration Form/JSON editing, explicit Gate-start/restart startup choices, enabled defaults with auto-start off, accurate apply-without-start feedback, correct built-in tool origins, bounded scope dialogs and precise HTTP legacy negotiation with the actual negotiated version. Client tool caches may need refreshing; real ChatGPT refresh behavior remains unverified. See the [release summary](packaging/release-notes.md).
 
+**Unreleased development:** Administrator external HTTP configuration now has a separate, default-off `/mcp/manage` OAuth resource with explicit scopes, four consented configuration tools and exact create/update targets. Console-confirmed target edits preserve token scope ceilings and invalidate old plans. Real-client management-scope requests and real-peer acceptance remain unverified; the safe Git executor remains unimplemented. See the [management contract](docs/oauth-external-management-design.md) and [external configuration workflow](docs/external-mcp-configuration.md).
+
 ## Features
 
 | Feature | Capability and boundary | Guide |
