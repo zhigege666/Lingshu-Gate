@@ -2,6 +2,7 @@
 
 ## Unreleased
 
+- Source acquisition/validation adds bounded SHA-1 Git object export, shared streaming ZIP scans and normalized dependency/offline-worker contract fixtures. Production Git transport, full lockfile graphs and rootless offline installation/build remain unavailable; no executor is injected. [Execution gap](docs/git-executor-decision.md).
 - Console presents one account name, translated role tags, one backend version, and one entry for API/logout; keyboard dismissal restores focus.
 - Administrator external HTTP configuration adds shared REST/MCP offline plan, digest-bound confirmed apply, actor-owned status and cancellation. Saved configuration is retained on connection failure; initial and refreshed discovery quarantine changed classifications without granting access.
 - Live administrator sessions, token scopes, role permissions and credential revisions are rechecked. Plans retain CAS and idempotent completion; attempts enforce cooperative deadlines, cancellation and connection ownership. The Delivery Skill documents separate ZIP, Git and external HTTP paths.

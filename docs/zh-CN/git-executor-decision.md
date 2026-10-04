@@ -2,9 +2,25 @@
 
 [English](../git-executor-decision.md) · [Git/网络契约](git-import-network.md)
 
-本文是提案，不是已安装的执行器或隔离证据。功能尚未完成：同时缺具体 adapter 代码和隔离运行环境。在现有 Gate 旁安装 Git、pnpm 或 Docker 不能补齐。
+本文不表示已有安装的执行器或隔离证据。未发布的源码获取/校验模块已基于可信后端契约实现，但生产 Git transport/隔离 adapter 和隔离运行环境仍缺失。在现有 Gate 旁安装 Git、pnpm 或 Docker 不能补齐。
 
-当前待批准范围仅涉及 Git 拉取、依赖安装和构建。远程 MCP 运行时、stdio bridge 或新部署体系不在此范围，需另行明确决策。下文较广的运行讨论仅指出潜在后续缺口，不授权实现；现有 local 运行工具 pin 修复不新增 worker。
+第一阶段仅涉及 Git 获取和离线依赖/构建契约，首个隔离后端选择 Linux rootless OCI。远程 MCP 运行时、stdio bridge 或新部署体系不在此范围，需另行明确决策。下文较广的运行讨论仅指出潜在后续缺口，不授权实现；现有 local 运行工具 pin 修复不新增 worker。
+
+## 首个获取/校验切片（未发布）
+
+`ports/git_acquisition.py:TrustedGitBackend` 只提供有界安全 ref 解析和准确 commit 对象访问，是契约，不是 Git transport、pack 解码器或 CLI 实现。`git_acquisition.py:VerifiedGitAcquisition` 消费该契约，校验原始 SHA-1 commit/tree/blob 的类型、声明长度和对象摘要，生成 `VerifiedSourceSnapshot`。当前仓库仍只支持小写 40 位完整 SHA-1 ID；明确拒绝 SHA-256 仓库，不转换算法。兼容性摘要比较不是 SHA-1 碰撞检测，未来受审后端必须提供可识别碰撞的 Git 解码。获取时不再次解析移动 branch/tag。
+
+检查根 tree 的全部后代，包括用户选定项目之外。导出直接读取对象，不 checkout，不运行 hooks/filters，不获取 submodule/LFS，不应用 attributes 替换或忽略规则。symlink、gitlink/submodule 配置、LFS pointer、不明确/不安全路径、敏感路径和扫描发现的凭据都明确拒绝。有效源码保留既有 ZIP 接口和 Core 文件清单/上传复验。内容扫描是有界启发式，不能证明不存在未知或混淆秘密。
+
+限制在对象读取前和解析/复制中执行：对象读取/tree entry 各 10,000，commit metadata 64 KiB、单 tree 4 MiB、对象展开总量 216 MiB、源码 3,000 文件、展开源码 200 MiB、ZIP 输出 50 MiB、读取块 64 KiB。解析/fetch/export 上限 15/120/30 秒，零重试，检查单调 deadline。未来 transport 还必须在接收/解码中独立约束 50 MiB 压缩传输量；本片没有真实 transport，不能据此证明该保证。请求只能收紧，不能放宽这些上限。ZIP 内容也逐块扫描，覆盖跨块秘密。
+
+`ExecutorReadiness` 要求实际 Linux/rootless、namespace、委派的 CPU/memory/pids 控制器和整组终止证据，以及各阶段网络证据；CLI 或能力集合不够。仅来源 adapter 不能满足 `SafeNetworkExecutor`，生产组合仍不注入执行器，设置仍显示不可用。scanner 取消在可信后端清理确认整组终止之前属于未知结果；不确定完成不发布快照。
+
+`offline_build_contract.py` 定义不可变规范化依赖节点、完整 root/edge 闭包检查、精确 HTTPS origin 绑定、明确 SHA-256/384/512 SRI 和有界流式内容校验。它不解析 npm/pnpm/Yarn lockfile，也不能证明生产者没有漏掉 lockfile 依赖；完整图 adapter 仍缺失。缺失/弱/多选 integrity 及未审 Git/file/link 来源明确拒绝，不重写。不实现依赖下载器、缓存安装或 lifecycle 执行器。
+
+`OfflineBuildRequest` 只带来源/文件清单/工具/图/缓存摘要、有界命令/资源限制和小型非网络环境 allowlist，不包含 credential material、代理、实时 registry、镜像选择或宿主路径。命令即使有 `--offline`，也必须有实际网络 namespace 断开证据。既有安全构建协调器未改，也尚未接入未来契约；后续离线派发移除 material 仍待实现。
+
+合成对象/图/worker fixture 不运行 Git、网络、容器，不下载镜像/工具，不用 SSH 或真实凭据。这只验证模块，不代表 Git 联网或离线安装/构建验收。开发环境只读探测发现 Docker/runc CLI，但 cgroup v2 只读，没有可写的委派/终止控制，因此 rootless OCI 不可验收。不注入后端。
 
 ## 现有执行路径
 
@@ -16,6 +32,7 @@
 | `build_deploy.py:build_upload`、`_run_build_job`、`_execute_plan_dag`、`_run_single_step` | 既有队列/IR/协调/持久化；安全计划转交可选端口，旧直连走 `_run_command`。必须复用此链路。 |
 | `build_deploy.py:_build_subprocess_environment`、`_run_command` | 专用目录、净化环境、宿主 `subprocess.Popen`、输出/时间限制、进程组终止；没有文件系统/网络/cgroup 隔离，子孙进程可逃离进程组。 |
 | `ports/safe_network_executor.py:SafeNetworkExecutor` | `resolve_commit`、`export_snapshot`、`probe`、`prepare_package_manager`、`run_command` 五方法仅协议定义，缺具体实现。 |
+| `git_acquisition.py`、`ports/git_acquisition.py`、`offline_build_contract.py` | 已有有界原始对象导出、规范化依赖图与离线请求校验；可信 transport、完整 lock 图 adapter、缓存安装与真实离线 worker 尚缺。 |
 | `main.py:create_app` | 两个服务都不注入执行器，缺 factory/配置/readiness/生命周期。 |
 | `git_import_mcp.py:GitImportService._executor` | Core 先被角色阻断，原生再被缺少 adapter 阻断。 |
 | `network_settings.py:NetworkSettingsStore.settings` | 状态硬编码 false，需真实可信 adapter readiness。 |
@@ -33,7 +50,7 @@
 | 默认 Core + 远程 worker | 上述代码，加认证阶段 RPC、源码/产物传输、持久化操作对账、远程部署/启动目标 | Core 外独立 worker 服务、mTLS/信任/秘密供应、镜像与缓存维护、配额及监控 | Core 协调全流程，不执行项目代码，不控制引擎。 |
 | 独立 VM worker | 相同远程阶段/日志/摘要契约，构建作业使用运维供应的可丢弃 VM 边界 | VM 镜像、生命周期/配额、验证 guest 隔离、受控出口及清理；供应成本更高 | 可选更强主机分离方式；不是另一条 host-shell 回退，也未实现 adapter。 |
 
-若默认 Docker 产品必须有全流程，建议远程 worker；接受仅原生交付则原生优先改动较小。当前进程内 `cwd`/结果端口及本地 guard 不能表示远程产物和运行目标，需先选择范围。尚未新增 daemon、引擎暴露、Core 权限、服务部署或真实凭据。
+首个隔离后端是 Linux rootless OCI。若默认 Docker 产品必须有全流程，远程 worker 仍需另行决定；当前进程内 `cwd`/结果端口及本地 guard 不能表示远程产物和运行目标。尚未新增 daemon、引擎暴露、Core 权限、服务部署或真实凭据。
 
 ## 安全边界提案
 
@@ -52,7 +69,7 @@ worker 在 Core 外使用独立账户，只有该账户接触受审查引擎；C
 1. 严格配置/readiness/阶段/源码/产物契约及真实 factory，保留旧 local 行为和 Core 宿主 guard。
 2. 具体有界 TLS/DNS/重定向 Git/测试/官方工具获取、不可变缓存及隔离冻结安装/构建，补离线 transport/container/journal 测试；区分代码/配置缺失与运行条件缺失。
 3. Core 范围在现协调器扩展远程制品/目标，只允许验证过的远程 dispatch，禁止宿主回退，保留单独确认的部署/启动/回滚。
-4. 提供操作者复核的镜像/服务供应文档；当前只做静态检查，不启动 daemon/引擎/网络服务/Git/install/部署。
+4. 提供操作者复核的镜像/服务供应文档；首片仅本地代码/fixture，不启动 daemon/引擎/网络服务/Git/install/部署。
 5. 后续验收真实 namespace/controller、DNS/代理凭据、快照、工具 integrity、所有锁流程、恶意 lifecycle、超时/取消/重启、旧部署/回滚及双语桌面布局。
 
 提案运行条件参考 [Podman run](https://docs.podman.io/en/latest/markdown/podman-run.1.html)和 [Docker rootless 资源限制](https://docs.docker.com/engine/security/rootless/tips/#limiting-resources)。namespace/网络选项与主机 controller 委派需实际验证，不代表本分支已有运行沙箱。

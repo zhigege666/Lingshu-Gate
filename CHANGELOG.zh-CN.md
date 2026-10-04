@@ -2,6 +2,7 @@
 
 ## 未发布
 
+- 来源获取/校验新增有界 SHA-1 Git 对象导出、共用流式 ZIP 扫描与规范化依赖/离线 worker 契约 fixture。生产 Git transport、完整 lockfile 图与 rootless 离线安装/构建仍不可用，不注入执行器。[执行缺口](docs/zh-CN/git-executor-decision.md)。
 - Console 只展示一次账户名称、翻译后的角色标签、后端版本和 API/退出入口；键盘关闭恢复焦点。
 - 管理员外部 HTTP 配置提供共用 REST/MCP 离线计划、摘要绑定确认应用、本人状态与取消。连接失败保留配置；初次和再次发现都隔离变化分类，不扩大访问。
 - 流程校验当前管理会话/token/权限、凭据版本与 CAS，限制协作期限，保护连接所有权并原子提交完成日志。自带 Skill 分别路由 ZIP、Git 与外部来源。
