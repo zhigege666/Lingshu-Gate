@@ -16,6 +16,7 @@ from lingshu_gate.access_control import (
 from lingshu_gate.auth import AuthPrincipal, AuthStore
 from lingshu_gate.invocation_payloads import invocation_detail
 from lingshu_gate.mcp_runtime import McpRuntimeManager
+from lingshu_gate.models import ToolDefinition
 from lingshu_gate.observability_store import ObservabilityStore
 from lingshu_gate.registry import ToolRegistry
 from lingshu_gate.user_credential_store import UserCredentialStore
@@ -442,6 +443,7 @@ def register_access_routes(
                     "server_id": str(item.metadata.get("server_id") or item.source or "builtin"),
                     "tool_id": item.id,
                     "tool_name": item.name,
+                    "registry_source": item.source,
                     "classification": classifications.get(
                         (str(item.metadata.get("server_id") or item.source or "builtin"), item.id),
                         {},
@@ -488,11 +490,12 @@ def register_access_routes(
         principal: AuthPrincipal = Depends(require_viewer),
     ) -> dict[str, Any]:
         _require(access_store, principal, "classifications.manage")
-        access_store.synchronize_tools(registry.list_definitions())
+        definitions = registry.list_definitions()
+        access_store.synchronize_tools(definitions)
         return {
-            "classifications": access_store.list_classifications(
-                server_id=server_id,
-                status=status,
+            "classifications": _with_registry_origins(
+                access_store.list_classifications(server_id=server_id, status=status),
+                definitions,
             )
         }
 
@@ -502,12 +505,13 @@ def register_access_routes(
         principal: AuthPrincipal = Depends(require_viewer),
     ) -> dict[str, Any]:
         _require(access_store, principal, "classifications.manage")
-        definitions = [
+        definitions = registry.list_definitions()
+        analyzed_definitions = [
             item
-            for item in registry.list_definitions()
+            for item in definitions
             if not request.server_id or item.metadata.get("server_id") == request.server_id
         ]
-        return {"classifications": access_store.analyze_tools(definitions)}
+        return {"classifications": _with_registry_origins(access_store.analyze_tools(analyzed_definitions), definitions)}
 
     @app.put("/v1/access/tool-classifications/{server_id}/{tool_id}", tags=["access"])
     def update_tool_classification(
@@ -518,7 +522,7 @@ def register_access_routes(
     ) -> dict[str, Any]:
         _require(access_store, principal, "classifications.manage")
         try:
-            return access_store.set_classification(
+            classification = access_store.set_classification(
                 server_id=server_id,
                 tool_id=tool_id,
                 access=request.access,
@@ -527,6 +531,7 @@ def register_access_routes(
                 reviewer_id=principal.id,
                 note=request.note,
             )
+            return _with_registry_origins([classification], registry.list_definitions())[0]
         except KeyError as exc:
             raise HTTPException(status_code=404, detail=str(exc)) from exc
         except ValueError as exc:
@@ -539,14 +544,16 @@ def register_access_routes(
     ) -> dict[str, Any]:
         _require(access_store, principal, "classifications.manage")
         # 直接调用 API 时也先同步最新 Tool 元数据，让 expected_fingerprint 能拦截旧页面提交。
-        access_store.synchronize_tools(registry.list_definitions())
+        definitions = registry.list_definitions()
+        access_store.synchronize_tools(definitions)
         try:
-            return access_store.confirm_classifications(
+            result = access_store.confirm_classifications(
                 reviewer_id=principal.id,
                 items=[item.model_dump() for item in request.items],
                 note=request.note or "",
                 publish=request.publish,
             )
+            return {**result, "confirmed": _with_registry_origins(result["confirmed"], definitions)}
         except ClassificationConfirmationConflictError as exc:
             raise HTTPException(status_code=409, detail=str(exc)) from exc
         except ValueError as exc:
@@ -559,10 +566,13 @@ def register_access_routes(
     ) -> dict[str, Any]:
         _require(access_store, principal, "classifications.manage")
         return {
-            "classifications": access_store.publish_classifications(
-                reviewer_id=principal.id,
-                server_id=request.server_id,
-                tool_ids=request.tool_ids,
+            "classifications": _with_registry_origins(
+                access_store.publish_classifications(
+                    reviewer_id=principal.id,
+                    server_id=request.server_id,
+                    tool_ids=request.tool_ids,
+                ),
+                registry.list_definitions(),
             )
         }
 
@@ -757,6 +767,26 @@ def register_access_routes(
             raise HTTPException(status_code=404, detail=str(exc)) from exc
         except ValueError as exc:
             raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+
+def _with_registry_origins(
+    classifications: list[dict[str, Any]],
+    definitions: list[ToolDefinition],
+) -> list[dict[str, Any]]:
+    """Project live origins without changing stored recommendation sources or policy."""
+
+    origins: dict[tuple[str, str], set[str]] = {}
+    for definition in definitions:
+        server_id = definition.metadata.get("server_id")
+        # Match the classification store's server-key normalization.
+        server_id = server_id.strip() if isinstance(server_id, str) and server_id.strip() else definition.source or "builtin"
+        origins.setdefault((server_id, definition.id), set()).add(definition.source)
+    result = []
+    for classification in classifications:
+        sources = origins.get((classification["server_id"], classification["tool_id"]), set())
+        source = next(iter(sources)) if len(sources) == 1 else None
+        result.append({**classification, "registry_source": source})
+    return result
 
 
 def _require_secure_secret_transport(request: Request) -> None:

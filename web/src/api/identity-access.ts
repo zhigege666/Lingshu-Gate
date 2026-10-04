@@ -96,6 +96,7 @@ export type ResourceGrantSaveRequest = {
 }
 
 export type AccessResource = {
+  registry_source?: string
   server_id: string
   tool_id: string
   tool_name: string
@@ -108,6 +109,7 @@ export type ToolClassification = {
   server_id: string
   tool_id: string
   tool_name: string
+  registry_source?: string | null
   fingerprint: string
   suggested_access: "read" | "write" | "unknown"
   effective_access: "read" | "write" | "unknown"

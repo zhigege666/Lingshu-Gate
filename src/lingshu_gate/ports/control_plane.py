@@ -69,6 +69,7 @@ class McpConfigurationRepository(Protocol):
         *,
         expected_id: str | None = None,
         overwrite: bool = False,
+        expected_digest: str | None = None,
     ) -> McpConfigResponse: ...
 
     def delete_config(self, server_id: str) -> McpConfigResponse: ...

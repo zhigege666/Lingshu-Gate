@@ -15,6 +15,7 @@ from lingshu_gate.access_control import (
     AccessControlStore,
     ClassificationConfirmationConflictError,
 )
+from lingshu_gate.access_routes import _with_registry_origins
 from lingshu_gate.auth import AuthStore
 from lingshu_gate.config import Settings
 from lingshu_gate.database import SQLiteDatabase
@@ -43,6 +44,32 @@ def _definition(
             },
         },
     )
+
+
+class ToolClassificationOriginProjectionTest(unittest.TestCase):
+    def test_missing_or_mixed_origins_never_inherit_recommendation_source(self) -> None:
+        row = {"server_id": "gate-control", "tool_id": "gate_synthetic", "source": "builtin", "status": "pending"}
+        builtin = ToolDefinition(id="gate_synthetic", name="Synthetic", description="Synthetic origin fixture", source="builtin", metadata={"server_id": "gate-control"})
+        downstream = builtin.model_copy(update={"source": "mcp"})
+        for definitions in ([], [builtin, downstream]):
+            with self.subTest(definitions=definitions):
+                projected = _with_registry_origins([row], definitions)[0]
+                self.assertIsNone(projected["registry_source"])
+                self.assertEqual(projected["source"], "builtin")
+                self.assertEqual(projected["status"], "pending")
+                self.assertNotIn("registry_source", row)
+
+    def test_projection_matches_store_server_keys_and_exact_tool_ids(self) -> None:
+        spaced = _definition("  gate-control  ", "gate_synthetic")
+        fallback = spaced.model_copy(update={"id": "gate_fallback", "metadata": {"server_id": " "}})
+        rows = [
+            {"server_id": "gate-control", "tool_id": "gate_synthetic", "source": "manual"},
+            {"server_id": "mcp", "tool_id": "gate_fallback", "source": "rule"},
+            {"server_id": "gate-control", "tool_id": "missing", "source": "annotation"},
+        ]
+        projected = _with_registry_origins(rows, [spaced, fallback])
+        self.assertEqual([row["registry_source"] for row in projected], ["mcp", "mcp", None])
+        self.assertEqual([row["source"] for row in projected], ["manual", "rule", "annotation"])
 
 
 class ToolClassificationStoreTest(unittest.TestCase):
@@ -372,6 +399,65 @@ class ToolClassificationRouteTest(unittest.TestCase):
             for item in response.json()["classifications"]
             if item["tool_id"] == self.definition.id
         )
+
+    def test_list_and_filtered_analysis_project_all_four_builtin_groups_without_publication(self) -> None:
+        response = self.client.get("/v1/access/tool-classifications")
+        self.assertEqual(response.status_code, 200, response.text)
+        rows = response.json()["classifications"]
+        groups = {"builtin", "gate-control", "gate-delivery", "gate-tool-files"}
+        builtin_rows = [row for row in rows if row["registry_source"] == "builtin"]
+        self.assertTrue(groups <= {row["server_id"] for row in builtin_rows})
+        for row in builtin_rows:
+            self.assertIn(row["source"], {"rule", "annotation"})
+            self.assertEqual(row["status"], "pending")
+            self.assertEqual(row["effective_access"], "unknown")
+
+        analyzed = self.client.post("/v1/access/tool-classifications/analyze", json={"server_id": "route-server"})
+        self.assertEqual(analyzed.status_code, 200, analyzed.text)
+        analyzed_rows = analyzed.json()["classifications"]
+        self.assertTrue(groups <= {row["server_id"] for row in analyzed_rows if row["registry_source"] == "builtin"})
+        self.assertTrue(all(row["status"] == "pending" for row in analyzed_rows))
+        self.assertTrue(all("registry_source" not in row for row in self.client.app.state.access_store.list_classifications()))
+
+    def test_downstream_id_lookalike_retains_origin_through_review_and_missing_catalog(self) -> None:
+        spoof = _definition("gate-control", "gate_synthetic_read", idempotent=True)
+        self.client.app.state.registry.register(spoof, lambda _: {"ok": True})
+        listed = self.client.get("/v1/access/tool-classifications", params={"server_id": "gate-control"})
+        self.assertEqual(listed.status_code, 200, listed.text)
+        row = next(row for row in listed.json()["classifications"] if row["tool_id"] == spoof.id)
+        self.assertEqual(row["registry_source"], "mcp")
+        self.assertEqual(row["status"], "pending")
+        updated = self.client.put(
+            f"/v1/access/tool-classifications/gate-control/{spoof.id}",
+            json={"access": "read", "destructive": False, "idempotent": True},
+        )
+        self.assertEqual(updated.status_code, 200, updated.text)
+        self.assertEqual(updated.json()["registry_source"], "mcp")
+        self.assertEqual(updated.json()["source"], "manual")
+        confirmed = self.client.post(
+            "/v1/access/tool-classifications/confirm",
+            json={"items": [{"server_id": "gate-control", "tool_id": spoof.id, "expected_fingerprint": row["fingerprint"]}]},
+        )
+        self.assertEqual(confirmed.status_code, 200, confirmed.text)
+        self.assertEqual(confirmed.json()["confirmed"][0]["registry_source"], "mcp")
+        self.assertEqual(confirmed.json()["confirmed"][0]["status"], "pending")
+        published = self.client.post(
+            "/v1/access/tool-classifications/publish", json={"server_id": "gate-control", "tool_ids": [spoof.id]},
+        )
+        self.assertEqual(published.status_code, 200, published.text)
+        published_row = next(row for row in published.json()["classifications"] if row["tool_id"] == spoof.id)
+        self.assertEqual(published_row["registry_source"], "mcp")
+        self.assertEqual(published_row["source"], "manual")
+        self.client.app.state.registry.unregister_by_metadata("server_id", "gate-control", source="mcp")
+        missing = self.client.get("/v1/access/tool-classifications", params={"server_id": "gate-control"})
+        self.assertEqual(missing.status_code, 200, missing.text)
+        missing_row = next(row for row in missing.json()["classifications"] if row["tool_id"] == spoof.id)
+        self.assertIsNone(missing_row["registry_source"])
+        self.assertEqual(missing_row["source"], "manual")
+
+        self._login("classification-viewer", "Viewer123!")
+        denied = self.client.get("/v1/access/tool-classifications")
+        self.assertEqual(denied.status_code, 403, denied.text)
 
     def test_confirm_route_maps_conflict_keeps_pending_and_requires_permission(self) -> None:
         classification = self._classification()

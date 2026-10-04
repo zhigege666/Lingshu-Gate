@@ -86,6 +86,14 @@ class RevokeRequest(StrictRequest):
     expected_revision: int = Field(ge=1)
 
 
+class ScopePreviewRequest(NarrowRequest):
+    csrf: str = Field(min_length=40, max_length=MAX_INTERACTION_TICKET)
+
+
+class ScopeUpdateRequest(NarrowRequest):
+    confirmation: str = Field(min_length=40, max_length=MAX_INTERACTION_TICKET)
+
+
 class OAuthRateBoundary:
     """Bounded single-Core admission; never trusts arbitrary X-Forwarded-For."""
     def __init__(self) -> None:
@@ -263,6 +271,17 @@ def register_oauth_routes(app: FastAPI, *, server: OAuthServer, observability: O
     def owner(request: Request) -> AuthPrincipal:
         return require_permission(request, "credentials.manage.self")
 
+    def scope_owner(request: Request) -> AuthPrincipal:
+        principal = owner(request)
+        if principal.auth_type != "session" or not request.cookies.get(server.auth.cookie_name):
+            raise OAuthError("session_required", 403)
+        if request.headers.get("sec-fetch-site") in {"cross-site", "none"}:
+            raise OAuthError("invalid_origin", 403)
+        origin = request.headers.get("origin")
+        if origin is not None and origin != f"{request.url.scheme}://{request.url.netloc}":
+            raise OAuthError("invalid_origin", 403)
+        return principal
+
     def browser_post(request: Request) -> str:
         config = server.ready_config()
         if request.headers.get("origin") != config["issuer"]:
@@ -348,6 +367,30 @@ def register_oauth_routes(app: FastAPI, *, server: OAuthServer, observability: O
         event("grant_narrowed", principal, grant_id)
         current = await run_in_threadpool(server.catalog, principal, ["tools.read", "tools.invoke"])
         return describe_grant(grant, current)
+
+    @app.get("/v1/auth/oauth/grants/{grant_id}/scope-options", tags=["oauth-management"])
+    def scope_options(grant_id: str, request: Request, principal: AuthPrincipal = Depends(scope_owner)) -> JSONResponse:
+        rate.check(request, "grant-scope-options", 30, principal)
+        return JSONResponse(server.scope_options(principal, grant_id, request.cookies[server.auth.cookie_name]), headers=SAFE_HEADERS)
+
+    @app.post("/v1/auth/oauth/grants/{grant_id}/scope-preview", tags=["oauth-management"])
+    async def preview_scope(grant_id: str, request: Request, principal: AuthPrincipal = Depends(scope_owner)) -> JSONResponse:
+        rate.check(request, "grant-scope-preview", 30, principal)
+        body = await read_json(request, ScopePreviewRequest, 2 * 1024 * 1024)
+        result = await run_in_threadpool(server.preview_scope, principal, grant_id, request.cookies[server.auth.cookie_name],
+                                        body.csrf, body.expected_revision, body.tool_ids, body.expires_at,
+                                        body.rate_per_minute, body.concurrency)
+        return JSONResponse(result, headers=SAFE_HEADERS)
+
+    @app.post("/v1/auth/oauth/grants/{grant_id}/scope", tags=["oauth-management"])
+    async def update_scope(grant_id: str, request: Request, principal: AuthPrincipal = Depends(scope_owner)) -> JSONResponse:
+        rate.check(request, "grant-scope-update", 30, principal)
+        body = await read_json(request, ScopeUpdateRequest, 2 * 1024 * 1024)
+        grant = await run_in_threadpool(server.update_scope, principal, grant_id, request.cookies[server.auth.cookie_name],
+                                       body.confirmation, body.expected_revision, body.tool_ids, body.expires_at,
+                                       body.rate_per_minute, body.concurrency)
+        current = await run_in_threadpool(server.catalog, principal, ["tools.read", "tools.invoke"])
+        return JSONResponse(describe_grant(grant, current), headers=SAFE_HEADERS)
 
     @app.post("/v1/auth/oauth/grants/{grant_id}/revoke", tags=["oauth-management"])
     async def revoke_grant(grant_id: str, request: Request, principal: AuthPrincipal = Depends(owner)) -> dict[str, Any]:

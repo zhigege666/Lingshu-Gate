@@ -25,7 +25,7 @@ Lingshu Gate 从 `LINGSHU_GATE_*` 环境变量读取运行配置。原生包启�
 | `LINGSHU_GATE_MCP_GATEWAY_ENABLED` | `true` | `true` | 控制 `/mcp` 路由 |
 | `LINGSHU_GATE_RUNTIME_TOOLCHAIN_PATHS` | `{}` | 未设置 | 服务端管理员维护的 JSON 注册表，登记复核过的绝对 Node 与 npm/pnpm/Yarn JS CLI 路径，仅用于固定版本本地启动，不由项目提供 |
 
-协议版本 `2026-07-28` 由发行版固定，不是运行时调优项。
+Gate 当前 MCP 协议版本为 `2026-07-28`。下游 Manifest 可使用自动协商或明确支持的版本，详见下文；没有全局运行时版本开关。
 
 布尔值使用应用已经实现的格式，建议写 `true`/`false`。无效数值或不支持的部署角色会阻止启动，不会被静默忽略。
 
@@ -63,6 +63,33 @@ lingshu-gate/
 
 Manifest 是存放在 `mcp.d` 中的 YAML 或 JSON 对象。文件名不是身份，`id` 才是。ID 必须匹配 `^[A-Za-z0-9_.-]+$`，并保持稳定，因为授权、凭据、运行状态和审计都会引用它。
 
+### Gate 启动策略
+
+Console 正常新建 MCP 模板默认 `enabled=true`、
+`startup_policy=gate_start_v1`、`auto_start=false`。启用允许之后启动，
+不代表应用草稿或立即连接。用户仍可明确停用草稿；已有配置和导入 JSON
+中明确的 `enabled=false` 会保留，切换运行方式也不会覆盖。停用提示会打开
+现有编辑器，不自动启用、保存或更改 HTTP 信任。应用但不启动可以返回
+`loaded`、`external` 或 `stopped`；成功要求配置身份匹配，并确认运行实例
+没有启动。
+
+`enabled=false` 阻止所有启动和连接。`startup_policy` 缺省为
+`legacy_restore`，保留历史的“恢复上次保存运行意图”行为；修改名称、地址或其他
+普通字段不迁移策略。明确修改“Gate 启动时自动启动”开关才写入
+`startup_policy=gate_start_v1`。下次 Gate 进程启动时，`auto_start=true` 启动受管
+MCP 进程或连接已有外部服务，`false` 保持停止。此后的手动启停只控制本轮 Gate
+运行，不改变下次启动策略。仅保存不应用、不启动、不停止当前实例。Console
+会解释旧策略，直到用户明确修改开关。新写入拒绝不受支持的进程重启/探活配置，
+不静默关闭；既有文件仍可读取。
+
+同一 Gate 进程内重载 Manifest 保留当前运行意图。新保存的 `gate_start_v1`
+服务保持停止，直到用户显式启动或下次 Gate 进程启动；普通重载不初始化启动
+开关，也不恢复更早进程保存的运行意图。旧策略的重载行为不变。
+
+配置编辑读取已保存 Manifest，与运行中 Manifest 分开。编辑会话通过
+`expected_config_digest` 提交摘要；旧会话更新返回 HTTP 409，保留用户草稿。
+既有 API 调用者仍可省略这个可选并发字段。SQLite 仍要求单 Core。
+
 ### 内网 HTTP 信任
 
 HTTPS 和规范回环 HTTP 保留原行为。其他 HTTP 地址必须是 `10.0.0.0/8`、
@@ -72,7 +99,7 @@ MCP 服务 ID、IP 和实际端口。Manifest 只是声明，不能自行批准�
 不能进入白名单。用户信息、查询串、fragment 和不安全 URL 语法仍被拒绝。
 重定向仍禁止，HTTPS 保留正常 TLS 证书验证。
 
-管理员可在现有配置编辑器的地址控件下选择“授权此地址”，明确确认服务 ID、IP
+管理员可在配置 Dialog 的地址控件下选择“授权此地址”，明确确认服务 ID、IP
 和端口。HTTP 不加密，仅用于受信任内网。授权使用独立
 `/v1/mcp/http-trust/{server_id}` API，不随普通 Manifest 保存写入；PUT 要求
 `origins`、`expected_revision` 和 `confirmed=true`。实时 admin 角色与
@@ -101,7 +128,11 @@ timeout_seconds: 30
 auto_start: false
 ```
 
-该 Manifest 字段用于显式自说明，只接受 `2026-07-28`，不能选择其他协议模式。
+省略 `protocol_version` 或设为 `auto` 时，先尝试当前 `server/discover`。明确指定 `2026-07-28` 时要求该协议，不回退。HTTP 支持明确指定旧版 `2025-03-26`、`2025-06-18`、`2025-11-25`，从 `initialize` 开始；只在下游确实需要时明确选版。
+
+HTTP 自动协商保留已有精确“不支持发现”JSON-RPC 错误识别，并识别一种初始 HTTP 400 响应：类型为 `application/json`、有效 JSON-RPC 2.0 错误封包、ID 为 null 或匹配请求、整数错误码 `-32000`、消息为 `Bad Request: Server not initialized`（忽略大小写和首尾空白）。只有尚无会话的首次自动发现探测可使用该信号，最多尝试一次旧版初始化，从 `2025-11-25` 开始并接受支持的协商版本。各握手阶段共用启动超时；认证、TLS/信任、网络、限流、服务端和畸形响应失败保留原错误。初始协商不执行或重放工具调用。
+
+服务详情仅在握手成功后展示实际协商版本，未知时不显示版本值。配置变更仍需正常保存、应用和连接；展示元数据不授予访问权。
 
 静态 Header 可以包含 `${credential:<id>}` 引用。Gate 只在下游请求中解析它，并在 API 响应和日志中掩码显示。
 
@@ -132,7 +163,7 @@ timeout_seconds: 30
 auto_start: false
 ```
 
-Stdio Manifest 同样只接受 `2026-07-28`。
+Stdio 同样接受省略/`auto`、明确指定 `2026-07-28` 及上述三个旧版；另外仅 Stdio 支持明确指定 `2024-11-05`。自动协商要求已识别的不支持发现信号；现代协议错误 `-32022` 不代表旧版协商。
 
 使用经过复核且位于 Allowed Root 内的绝对 `cwd`。避免 Shell Wrapper，直接配置可执行文件和参数列表。在命令、凭据和工具定义完成复核前，应保持 Auto Start 关闭。
 

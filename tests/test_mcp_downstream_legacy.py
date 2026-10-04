@@ -22,7 +22,8 @@ from lingshu_gate.protocol.version import LEGACY_PROTOCOL_VERSIONS, MCP_PROTOCOL
 
 @contextmanager
 def legacy_http_peer(*, session=True, sse=False, negotiated=None, auth_status=None,
-                     discovery_error=(-32601, "Method not found"), modern=False):
+                     discovery_error=(-32601, "Method not found"), modern=False,
+                     discovery_status=200, discovery_id="request"):
     state = {"messages": [], "sessions": {}, "expired": False, "expired_sessions": set(), "writes": 0}
 
     class Handler(BaseHTTPRequestHandler):
@@ -49,12 +50,12 @@ def legacy_http_peer(*, session=True, sse=False, negotiated=None, auth_status=No
                 return
             method = message["method"]
             if method == "server/discover":
-                payload = {"jsonrpc": "2.0", "id": message["id"]}
+                payload = {"jsonrpc": "2.0", "id": message["id"] if discovery_id == "request" else discovery_id}
                 if modern:
                     payload["result"] = {"supportedVersions": [MCP_PROTOCOL_VERSION], "capabilities": {"tools": {}}}
                 else:
                     payload["error"] = {"code": discovery_error[0], "message": discovery_error[1]}
-                self.respond(200, payload)
+                self.respond(discovery_status, payload)
                 return
             owner = self.headers.get("Authorization")
             if method == "initialize":
@@ -318,7 +319,7 @@ def test_malformed_initialize_result_is_sanitized(tmp_path, result):
 
 @pytest.mark.parametrize("version", [None, "auto"])
 @pytest.mark.parametrize("error", [(-32601, "Method not found"), (-32602, "Invalid request parameters"),
-                                  (-32022, "Unsupported protocol version"), (-32000, "Unknown method: server/discover")])
+                                  (-32000, "Unknown method: server/discover")])
 def test_auto_http_negotiates_without_changing_manifest(tmp_path, version, error):
     with legacy_http_peer(discovery_error=error) as (endpoint, state):
         client = http_client(tmp_path, endpoint, version)

@@ -19,7 +19,7 @@ from lingshu_gate.mcp_container import (
     resolve_docker_binary,
 )
 from lingshu_gate.mcp_config_store import McpConfigStore
-from lingshu_gate.mcp_manifest import McpServerManifest
+from lingshu_gate.mcp_manifest import McpServerManifest, manifest_runtime_conflicts
 from lingshu_gate.mcp_runtime_cache import McpRuntimeCacheResolver
 from lingshu_gate.redaction import redact_validation_errors
 from lingshu_gate.runtime_toolchain import RuntimeToolchainError, inspect_runtime_toolchain
@@ -78,8 +78,11 @@ def validate_mcp_manifest(settings: Settings, config_store: McpConfigStore, mani
     _check_timeout(manifest, checks)
     _check_permissions(manifest, checks)
     _check_env(manifest, credential_store, checks)
+    conflicts = manifest_runtime_conflicts(validation_data)
+    checks.extend(_check(path, "error", message) for path, message in conflicts.items())
     _check_auto_start(manifest, checks)
-    _check_restart_policy(manifest, checks)
+    if not any(path.startswith("restart_policy.") for path in conflicts):
+        _check_restart_policy(manifest, checks)
 
     return _response(manifest.id, checks)
 
@@ -302,8 +305,10 @@ def _check_env(manifest: McpServerManifest, credential_store: CredentialStore, c
 
 
 def _check_auto_start(manifest: McpServerManifest, checks: list[dict[str, Any]]) -> None:
-    if manifest.launch.type == "external" and manifest.auto_start:
-        checks.append(_check("auto_start", "warning", "external servers cannot be auto-started by Gate"))
+    if manifest.startup_policy == "legacy_restore":
+        checks.append(_check("startup_policy", "info", "Legacy policy restores the last saved runtime intent. Explicitly change the startup switch to select gate_start_v1."))
+    elif manifest.launch.type == "external" and manifest.auto_start:
+        checks.append(_check("auto_start", "info", "Gate startup connects to the existing external service; it does not start a remote process."))
     elif manifest.auto_start and manifest.launch.command in {"npx", "npm"}:
         checks.append(_check("auto_start", "info", "auto_start is enabled for dynamic npm/npx server; first startup may be slower"))
     else:

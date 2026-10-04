@@ -21,6 +21,7 @@ export function OAuthConsentPage() {
   const [terminal, setTerminal] = useState(false)
   const lock = useRef(false)
   const version = useRef(0)
+  const actionGeneration = useRef(0)
   const userId = useRef<string | null>(null)
   const offeredSnapshots = useRef(new Map<string, string>())
 
@@ -48,32 +49,39 @@ export function OAuthConsentPage() {
       }
     } finally { if (current === version.current) setLoading(false) }
   }
-  useEffect(() => { void refresh(); return () => { version.current++ } }, [])
+  useEffect(() => { void refresh(); return () => { version.current++; actionGeneration.current++ } }, [])
 
   async function act(action: "login" | "logout" | "decision", deny = false) {
     if (lock.current || !context) return
+    const current = ++actionGeneration.current
+    version.current++
     lock.current = true
     setBusy(true); setError("")
     try {
       const base = { request_id: requestId, csrf: context.csrf }
       if (action === "login") {
-        adopt(await oauthRequest<ConsentContext>("/oauth/login", { ...base, username, password }))
+        const next = await oauthRequest<ConsentContext>("/oauth/login", { ...base, username, password })
+        if (current !== actionGeneration.current) return
+        adopt(next)
         setPassword("")
       } else if (action === "logout") {
         await oauthRequest("/oauth/logout", base)
+        if (current !== actionGeneration.current) return
         userId.current = null; setSelected([]); setPassword("")
         await refresh()
       } else {
         const result = await oauthRequest<{ redirect: string }>("/oauth/decision", { ...base, deny, tool_ids: deny ? [] : selected, grant_days: days, rate_per_minute: rate, concurrency })
+        if (current !== actionGeneration.current) return
         setTerminal(true)
         // The server returns only the pre-registered exact HTTPS callback.
         window.location.assign(result.redirect)
       }
     } catch (cause) {
+      if (current !== actionGeneration.current) return
       setError(oauthError(cause, zh))
       if (cause instanceof OAuthRequestError && cause.code === "login_required") setContext(current => current ? { ...current, user: null } : current)
       if (cause instanceof OAuthRequestError && ["authorization_completed", "authorization_expired", "authorization_changed"].includes(cause.code)) setTerminal(true)
-    } finally { lock.current = false; setBusy(false) }
+    } finally { lock.current = false; if (current === actionGeneration.current) setBusy(false) }
   }
 
   return <main className="oauth-public">
@@ -96,7 +104,7 @@ export function OAuthConsentPage() {
           <Form.Item label={zh ? "授权有效期" : "Grant validity"}><Select aria-label={zh ? "授权有效期" : "Grant validity"} disabled={busy} value={days} onChange={setDays} options={[1, 7, 30].map(value => ({ value, label: zh ? `${value} 天` : `${value} days` }))} /></Form.Item>
           <Form.Item label={zh ? "每分钟调用上限" : "Calls per minute"}><InputNumber aria-label={zh ? "每分钟调用上限" : "Calls per minute"} disabled={busy} min={1} max={10000} precision={0} value={rate} onChange={value => setRate(value ?? 1)} /></Form.Item>
           <Form.Item label={zh ? "并发调用上限" : "Concurrent calls"}><InputNumber aria-label={zh ? "并发调用上限" : "Concurrent calls"} disabled={busy} min={1} max={100} precision={0} value={concurrency} onChange={value => setConcurrency(value ?? 1)} /></Form.Item>
-        </Form><p>{zh ? `到期：${new Date(Date.now() + days * 86400000).toLocaleString(locale)}` : `Expires: ${new Date(Date.now() + days * 86400000).toLocaleString(locale)}`}</p><p>{zh ? `访问令牌最长 ${context.access_seconds / 60} 分钟；刷新令牌族最长 ${context.refresh_days} 天，均不超过授权到期时间。` : `Access tokens last up to ${context.access_seconds / 60} minutes; refresh families last up to ${context.refresh_days} days. Both stop at grant expiry.`}</p><p className="oauth-muted">{zh ? "你可在内部控制台的“我的连接”中缩小或撤销授权。调用仍受当前角色和资源权限约束；配额在单 Core 进程中计数，重启后重置。" : "Reduce or revoke this grant under My connections in the private console. Calls remain subject to current role and resource permissions. Quotas are counted in one Core process and reset on restart."}</p><div className="oauth-actions"><Button disabled={busy} onClick={() => void act("decision", true)}>{zh ? "取消" : "Cancel"}</Button><Button type="primary" loading={busy} disabled={!selected.length || Boolean(error)} onClick={() => void act("decision")}>{zh ? `允许 ${selected.length} 个工具` : `Allow ${selected.length} tools`}</Button></div></aside>
+        </Form><p>{zh ? "到期（UTC）：" : "Expires (UTC): "}{new Date(Date.now() + days * 86400000).toISOString().slice(0, 19).replace("T", " ")}</p><p>{zh ? `访问令牌最长 ${context.access_seconds / 60} 分钟；刷新令牌族最长 ${context.refresh_days} 天，均不超过授权到期时间。` : `Access tokens last up to ${context.access_seconds / 60} minutes; refresh families last up to ${context.refresh_days} days. Both stop at grant expiry.`}</p><p className="oauth-muted">{zh ? "你可在内部控制台的“我的连接”中确认增加或减少现有 OAuth scope 内的工具，或撤销授权。调用仍受当前角色和资源权限约束；配额在单 Core 进程中计数，重启后重置。" : "Confirm additions or removals within existing OAuth scopes, or revoke this grant, under My connections in the private console. Calls remain subject to current role and resource permissions. Quotas are counted in one Core process and reset on restart."}</p><div className="oauth-actions"><Button disabled={busy} onClick={() => void act("decision", true)}>{zh ? "取消" : "Cancel"}</Button><Button type="primary" loading={busy} disabled={!selected.length || Boolean(error)} onClick={() => void act("decision")}>{zh ? `允许 ${selected.length} 个工具` : `Allow ${selected.length} tools`}</Button></div></aside>
       </div>}
     </>}
   </main>

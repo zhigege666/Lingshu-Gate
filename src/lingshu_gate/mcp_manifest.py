@@ -6,9 +6,10 @@ import re
 from pathlib import Path, PurePosixPath
 from typing import Any, Literal
 
-from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
+from pydantic import BaseModel, ConfigDict, Field, TypeAdapter, ValidationError, field_validator, model_validator
 
 from lingshu_gate.endpoint_security import redact_endpoint, validate_streamable_http_endpoint
+from lingshu_gate.mcp_http_trust import McpHttpTrustStore, require_mcp_http_endpoint
 from lingshu_gate.node_toolchain import supported_version
 from lingshu_gate.protocol.version import resolve_downstream_protocol_version
 from lingshu_gate.subprocess_environment import validate_docker_child_environment_names
@@ -245,6 +246,8 @@ class TransportConfig(BaseModel):
     def validate_endpoint(cls, value: str | None) -> str | None:
         if value is None:
             return None
+        # Syntax is a declaration. Persistence, apply and the client separately
+        # require current server-owned trust before using private HTTP.
         return validate_streamable_http_endpoint(value, allow_rfc1918_declaration=True)
 
     @model_validator(mode="after")
@@ -308,6 +311,9 @@ class McpServerManifest(BaseModel):
     user_credentials: list[UserCredentialSlot] = Field(default_factory=list)
     roots: list[str] = Field(default_factory=list)
     auto_start: bool = False
+    # Missing policy keeps historical restore-last-state semantics. Editors only
+    # select v1 when the user explicitly changes the startup switch.
+    startup_policy: Literal["legacy_restore", "gate_start_v1"] = "legacy_restore"
     restart_policy: RestartPolicy = Field(default_factory=RestartPolicy)
     manifest_path: Path | None = None
 
@@ -315,7 +321,7 @@ class McpServerManifest(BaseModel):
     def validate_manifest(self) -> "McpServerManifest":
         if self.transport.type == "stdio" and self.launch.type not in {"managed_process", "managed_container"}:
             raise ValueError("transport.type=stdio requires launch.type=managed_process or managed_container")
-        if self.launch.type == "external" and self.auto_start:
+        if self.launch.type == "external" and self.auto_start and self.startup_policy == "legacy_restore":
             self.auto_start = False
         restart_supported = (
             self.launch.type == "managed_process"
@@ -363,3 +369,53 @@ class McpServerManifest(BaseModel):
             if transport.get("headers"):
                 transport["headers"] = {key: "***" for key in transport["headers"]}
         return data
+
+
+_BOOLEAN_FLAG = TypeAdapter(bool)
+
+
+def manifest_runtime_conflicts(data: dict[str, Any]) -> dict[str, str]:
+    """Describe requested flags that legacy loading would silently disable.
+
+    Reading historical manifests keeps its existing normalization. New edits
+    must explicitly resolve these flags rather than save a different draft.
+    Messages contain field names only, never manifest or endpoint values.
+    """
+
+    def enabled(value: Any) -> bool:
+        try:
+            return _BOOLEAN_FLAG.validate_python(value)
+        except ValidationError:
+            return False  # The manifest schema reports invalid flag types.
+
+    launch = data.get("launch")
+    transport = data.get("transport")
+    if not isinstance(launch, dict) or not isinstance(transport, dict):
+        return {}
+    conflicts: dict[str, str] = {}
+    if launch.get("type") == "external" and enabled(data.get("auto_start", False)) and data.get("startup_policy", "legacy_restore") != "gate_start_v1":
+        conflicts["auto_start"] = "automatic external connection requires startup_policy=gate_start_v1; legacy_restore retains historical behavior."
+    restart_supported = (
+        launch.get("type") == "managed_process"
+        and transport.get("type") in {"stdio", "streamable_http"}
+    ) or (launch.get("type") == "managed_container" and transport.get("type") == "stdio")
+    policy = data.get("restart_policy")
+    if not restart_supported and isinstance(policy, dict):
+        if enabled(policy.get("enabled", False)):
+            conflicts["restart_policy.enabled"] = "this runtime does not support automatic process restart; set restart_policy.enabled=false."
+        health = policy.get("health_check")
+        if isinstance(health, dict) and enabled(health.get("enabled", False)):
+            conflicts["restart_policy.health_check.enabled"] = "this runtime does not support restart health checks; set restart_policy.health_check.enabled=false."
+    return conflicts
+
+
+def validate_manifest_for_write(data: dict[str, Any], *, http_trust_store: McpHttpTrustStore | None = None) -> McpServerManifest:
+    """Validate new writes without silently normalizing requested runtime flags."""
+
+    manifest = McpServerManifest.model_validate(data)
+    if manifest.transport.endpoint:
+        require_mcp_http_endpoint(manifest.id, manifest.transport.endpoint, http_trust_store)
+    conflicts = manifest_runtime_conflicts(data)
+    if conflicts:
+        raise ValueError("Unsupported runtime settings: " + "; ".join(f"{path}: {message}" for path, message in conflicts.items()))
+    return manifest

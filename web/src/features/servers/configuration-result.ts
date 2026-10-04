@@ -9,3 +9,18 @@ export function configurationResultError(response: ApplyResponse, serverId: stri
   }
   return null
 }
+
+/** Apply replaces the runtime without starting: loaded/external are valid idle states. */
+export function configurationApplyResultError(response: ApplyResponse, serverId: string, zh = false): string | null {
+  const unknown = zh ? "配置应用状态未知，请查看服务状态。" : "Configuration application state is unknown. Inspect the service."
+  const server = response.server
+  if (response.config?.id !== serverId || server?.id !== serverId) return unknown
+  const idle = server.status === "stopped"
+    || server.status === "loaded" && ["managed_process", "managed_container"].includes(server.launch_type)
+    || server.status === "external" && server.launch_type === "external"
+  const error = server.last_error && !(server.enabled === false && server.last_error === "Server is disabled")
+    ? server.last_error : null
+  if (error) return error
+  if (!idle || server.desired_state !== "stopped" || server.effective_should_run !== false || server.pid != null) return unknown
+  return null
+}

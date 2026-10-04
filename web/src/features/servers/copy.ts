@@ -1,11 +1,12 @@
 import type { Locale } from "@/i18n"
 
 const zh = {
-  disabledHint: "此服务在配置中已停用。需要连接时，请先启用并应用配置。",
+  disabledHint: "此服务在配置中已停用。请在编辑器中启用，并确认保存和应用方式；仅保存不会连接或启动。",
+  editAndEnable: "编辑并启用",
   directory: "MCP 服务", search: "搜索服务名称或 ID", all: "全部", running: "运行中", issues: "异常",
   add: "接入服务", refresh: "刷新", overview: "概览", tools: "工具", logs: "日志", configuration: "配置",
   viewTools: "查看工具", more: "更多操作", connection: "连接信息", readiness: "工具访问状态",
-  transport: "传输方式", process: "运行状态", launch: "运行类型", pid: "进程 ID", discovered: "已发现工具",
+  transport: "传输方式", protocolVersion: "协商协议版本", process: "运行状态", launch: "运行类型", pid: "进程 ID", discovered: "已发现工具",
   health: "健康检查", healthOff: "未启用", healthOffHint: "当前未配置健康检查，运行状态不代表业务调用已验证。",
   published: "已发布分类", visible: "当前登录身份可见", client: "客户端加载", clientUnknown: "未验证",
   clientHint: "此处无法确认客户端是否已加载工具，请在对应客户端验证。",
@@ -26,11 +27,12 @@ const zh = {
 } as const
 
 const en: Record<keyof typeof zh, string> = {
-  disabledHint: "This service is disabled in its configuration. Enable and apply the configuration before connecting.",
+  disabledHint: "This service is disabled in its configuration. Enable it in the editor and confirm how to save and apply; saving alone does not connect or start it.",
+  editAndEnable: "Edit and enable",
   directory: "MCP services", search: "Search name or ID", all: "All", running: "Running", issues: "Issues",
   add: "Connect service", refresh: "Refresh", overview: "Overview", tools: "Tools", logs: "Logs", configuration: "Configuration",
   viewTools: "View tools", more: "More actions", connection: "Connection", readiness: "Tool access",
-  transport: "Transport", process: "Runtime status", launch: "Launch type", pid: "Process ID", discovered: "Discovered tools",
+  transport: "Transport", protocolVersion: "Negotiated protocol", process: "Runtime status", launch: "Launch type", pid: "Process ID", discovered: "Discovered tools",
   health: "Health checks", healthOff: "Not enabled", healthOffHint: "Health checks are not configured. Running status does not verify business calls.",
   published: "Published classifications", visible: "Visible to signed-in user", client: "Client loading", clientUnknown: "Not verified",
   clientHint: "Gate cannot confirm whether a client loaded the tools. Verify in that client.",

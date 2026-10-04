@@ -1044,10 +1044,6 @@
 .delivery-focus-summary span { color: hsl(var(--muted-foreground)); }
 @media (max-width: 767px) { .delivery-focus-footer { gap: 8px; } }
 
-.service-config-drawer .ant-drawer-body { display: flex; flex-direction: column; min-height: 0; overflow: hidden; }
-.service-config-drawer .ant-drawer-body > .ant-alert, .service-config-drawer .ant-drawer-body > .ant-radio-group { flex-shrink: 0; }
-.service-config-drawer .manifest-editor { flex: 1; max-height: none; min-height: 0; }
-.service-config-drawer .manifest-editor-body { flex: 1; }
 .delivery-focus-workspace > .page-header, .delivery-focus-workspace > .workflow-steps { flex-shrink: 0; }
 .delivery-focus-workspace > .workflow-steps { overflow-x: auto; }
 .delivery-focus-workspace > .workflow-steps .ant-steps { min-width: 600px; }

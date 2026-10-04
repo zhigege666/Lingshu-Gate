@@ -64,7 +64,8 @@ export function ServersPage(props: Props) {
     return () => { observer.disconnect(); window.removeEventListener("resize", measure) }
   }, [])
   const [selectedId, setSelectedId] = useState<string | null>(props.initialServerId || null)
-  const [configSession, setConfigSession] = useState<{ server: McpServer; manifest: RecordValue } | null>(null)
+  const [configSession, setConfigSession] = useState<{ server: McpServer; manifest: RecordValue; configDigest?: string } | null>(null)
+  const [requestedConfigId, setRequestedConfigId] = useState<string | null>(null)
   const [directoryPage, setDirectoryPage] = useState(1)
   const [query, setQuery] = useState("")
   const [filter, setFilter] = useState("all")
@@ -81,6 +82,7 @@ export function ServersPage(props: Props) {
   useEffect(() => { if (props.initialServerId) chooseServer(props.initialServerId) }, [props.initialServerId])
 
   function chooseServer(id: string | null) {
+    setRequestedConfigId(null)
     setSelectedId(id)
     setTab("overview")
     setToolQuery("")
@@ -102,6 +104,13 @@ export function ServersPage(props: Props) {
     void load(activeSection)
     if (activeSection !== "overview") void load("overview")
   }, [selected?.id, activeSection, servers, load])
+
+  useEffect(() => {
+    const detail = states.configuration
+    if (!requestedConfigId || requestedConfigId !== selected?.id || detail?.loading || !detail?.data?.manifest || detail.data.server.id !== requestedConfigId) return
+    setConfigSession({ server: detail.data.server, manifest: detail.data.manifest, configDigest: detail.data.config_digest })
+    setRequestedConfigId(null)
+  }, [requestedConfigId, selected?.id, states.configuration])
 
   const filteredServers = useMemo(() => servers.filter(server => {
     if (filter === "running" && server.status !== "running") return false
@@ -156,12 +165,14 @@ export function ServersPage(props: Props) {
 
   const overview = server && <div>
     {states.overview?.error && <Alert className="service-panel-error" type="warning" showIcon title={c.loadFailed} description={states.overview.error} action={<Button onClick={() => void load("overview", true)}>{c.retry}</Button>} />}
-    {(server.last_error || server.restore_blocked_reason) && <Alert className="service-panel-error" type={isPlannedDisabled(server) ? "info" : "error"} showIcon title={isPlannedDisabled(server) ? c.disabled : c.lastError} description={isPlannedDisabled(server) ? c.disabledHint : [server.last_error, server.restore_blocked_reason].find(reason => reason && reason !== "Server is disabled") || server.last_error || server.restore_blocked_reason} />}
+    {(server.last_error || server.restore_blocked_reason) && <Alert className="service-panel-error" type={isPlannedDisabled(server) ? "info" : "error"} showIcon title={isPlannedDisabled(server) ? c.disabled : c.lastError} description={isPlannedDisabled(server) ? c.disabledHint : [server.last_error, server.restore_blocked_reason].find(reason => reason && reason !== "Server is disabled") || server.last_error || server.restore_blocked_reason}
+      action={isPlannedDisabled(server) ? <Button disabled={props.busy || Boolean(requestedConfigId)} onClick={() => { setRequestedConfigId(server.id); setTab("configuration"); void load("configuration", true) }}>{c.editAndEnable}</Button> : undefined} />}
     <div className="service-summary-grid">
       <section>
         <h2 className="service-section-title"><CodeOutlined aria-hidden="true" />{c.connection}</h2>
         <dl className="service-facts">
           <dt>{c.transport}</dt><dd>{server.transport_type}</dd>
+          <dt>{c.protocolVersion}</dt><dd>{server.negotiated_protocol_version || "—"}</dd>
           <dt>{c.process}</dt><dd><RuntimeBadge server={server} t={t} /></dd>
           <dt>{c.launch}</dt><dd>{server.launch_type}</dd>
           <dt>{c.pid}</dt><dd>{server.pid ?? "-"}</dd>
@@ -227,7 +238,7 @@ export function ServersPage(props: Props) {
           {actions.map(action => <Button key={action} danger={action === "stop"} disabled={actionBusy || props.busy} onClick={() => void runAction(action)}>{actionName(action)}</Button>)}
         </>} />
         <div className="service-detail-identity"><code>{server.launch_type} / {server.transport_type}</code></div>
-        <Tabs className="service-detail-tabs" activeKey={tab} onChange={value => setTab(value as MainTab)} items={[
+        <Tabs className="service-detail-tabs" activeKey={tab} onChange={value => { if (value !== "configuration") setRequestedConfigId(null); setTab(value as MainTab) }} items={[
           { key: "overview", label: c.overview, children: overview },
           { key: "tools", label: c.tools + " " + server.tool_count, children: <SectionContent state={states.tools} c={c} onRetry={() => void load("tools", true)}>{() => <>
             <div className="service-panel-toolbar"><Input value={toolQuery} onChange={event => setToolQuery(event.target.value)} placeholder={c.searchTools} aria-label={c.searchTools} prefix={<SearchOutlined />} allowClear /><Button icon={<ReloadOutlined />} onClick={() => void load("tools", true)}>{c.refresh}</Button></div>
@@ -243,7 +254,7 @@ export function ServersPage(props: Props) {
           </div> },
           { key: "configuration", label: c.configuration, children: <div className="service-panel-stack">
             <SectionContent state={states.configuration} c={c} onRetry={() => void load("configuration", true)}>{data => <>
-              <div className="service-panel-toolbar"><h2 className="service-section-title"><CodeOutlined aria-hidden="true" />{c.manifest}</h2><Button type="primary" disabled={!data.manifest} onClick={() => setConfigSession({ server, manifest: data.manifest || {} })}>{locale === "zh-CN" ? "修改配置" : "Edit configuration"}</Button></div>
+              <div className="service-panel-toolbar"><h2 className="service-section-title"><CodeOutlined aria-hidden="true" />{c.manifest}</h2><Button type="primary" disabled={!data.manifest} onClick={() => setConfigSession({ server, manifest: data.manifest || {}, configDigest: data.config_digest })}>{locale === "zh-CN" ? "修改配置" : "Edit configuration"}</Button></div>
               <dl className="service-facts">
                 <dt>{c.desired}</dt><dd>{server.desired_state === "running" ? c.keepRunning : server.desired_state === "stopped" ? c.keepStopped : "-"}</dd>
                 <dt>{c.lastStarted}</dt><dd>{formatDateTime(server.last_started_at)}</dd>
@@ -260,7 +271,7 @@ export function ServersPage(props: Props) {
       </> : <div className="service-unselected"><Empty image={Empty.PRESENTED_IMAGE_SIMPLE} description={c.selectService} /></div>}
     </section>
 
-    {configSession && <ServiceConfigDrawer canManageHttpTrust={props.canManageHttpTrust} server={configSession.server} manifest={configSession.manifest} locale={locale} t={t} onClose={() => setConfigSession(null)} onSaved={async () => { await props.onRefresh(); await load("configuration", true); await load("overview", true) }} />}
+    {configSession && <ServiceConfigDrawer server={configSession.server} manifest={configSession.manifest} configDigest={configSession.configDigest} canManageHttpTrust={props.canManageHttpTrust} locale={locale} t={t} onClose={() => setConfigSession(null)} onSaved={async () => { await props.onRefresh(); await load("configuration", true); await load("overview", true) }} />}
     <Drawer className="service-tool-drawer" title={selectedTool?.name || c.toolDetails} size={560} open={selectedTool !== null} onClose={() => setSelectedTool(null)} destroyOnHidden>
       {selectedTool && <div className="service-panel-stack">
         {props.onInvoke && props.visibleTools?.filter(tool => tool.source === "mcp" && asRecord(tool.metadata).server_id === server?.id && (tool.id === selectedTool.raw.id || tool.name === selectedTool.name)).map(tool => <Button key={tool.id} type="primary" onClick={() => props.onInvoke?.(tool.id)}>{locale === "zh-CN" ? "测试工具" : "Test tool"}</Button>)}

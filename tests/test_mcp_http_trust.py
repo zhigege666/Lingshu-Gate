@@ -158,6 +158,18 @@ def test_http_admin_entry_defaults_empty_rejects_operator_and_cross_site_then_li
             assert denied.status_code == 403
             assert "OAuth" in denied.json()["detail"]
         assert app.state.mcp_config_store.http_trust_store.get("synthetic-private")["revision"] == 1
+        app.state.mcp_runtime.load_manifests()
+        before = client.get("/v1/mcp/configs/synthetic-private").json()
+        saved_only = {**_manifest(), "enabled": False, "auto_start": True, "startup_policy": "gate_start_v1"}
+        with patch.object(app.state.mcp_runtime, "start_server") as start:
+            assert client.put("/v1/mcp/configs/synthetic-private", json={"manifest": saved_only, "apply": False, "start": False, "expected_config_digest": before["digest"]}).status_code == 200
+            detail = client.get("/v1/mcp/servers/synthetic-private/detail?section=configuration").json()
+            assert detail["manifest"]["enabled"] is False
+            assert detail["manifest"]["startup_policy"] == "gate_start_v1"
+            assert detail["server"]["enabled"] is True
+            assert detail["config_digest"] != before["digest"]
+            assert client.put("/v1/mcp/configs/synthetic-private", json={"manifest": _manifest(), "expected_config_digest": before["digest"]}).status_code == 409
+            start.assert_not_called()
         app.state.access_store.set_user_roles(str(admin["id"]), ["operator"])
         assert client.put("/v1/mcp/http-trust/synthetic-private", json=_request(1, []).model_dump()).status_code == 403
         assert app.state.mcp_config_store.http_trust_store.get("synthetic-private")["revision"] == 1

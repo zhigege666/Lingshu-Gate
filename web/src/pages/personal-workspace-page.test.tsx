@@ -28,10 +28,12 @@ describe("personal workspace presentation", () => {
     const html = renderToStaticMarkup(<PersonalWorkspacePage {...props} view="myInvocations" />)
     expect(html).toContain("up to 500 loaded, not an all-time total")
   })
-  it("defaults to built-in grants and requires consent for scope expansion", () => {
+  it("defaults to built-in grants and requires Gate confirmation within existing OAuth scopes", () => {
     const html = renderToStaticMarkup(<PersonalWorkspacePage {...props} view="myConnections" />)
     expect(html).toContain("My OAuth grants")
-    expect(html).toContain("New tools and expanded access require new authorization")
+    expect(html).toContain("Explicit confirmation in Gate")
+    expect(html).toContain("within existing OAuth scopes")
+    expect(html).toContain("without another client OAuth flow")
     expect(html).toContain("External identity provider")
     expect(html).not.toContain("Manage personal tokens")
   })

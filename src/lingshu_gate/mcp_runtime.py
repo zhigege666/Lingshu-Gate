@@ -193,12 +193,18 @@ class McpServerRuntime:
             self.docker_binary,
         )
         effective_should_run = intent.desired_state == "running" and blocked_reason is None
+        negotiated_version = None
+        if self.client and getattr(self.client, "initialized", False):
+            candidate_version = getattr(self.client, "protocol_version", None)
+            if isinstance(candidate_version, str):
+                negotiated_version = candidate_version
         return McpServerStatusResponse(
             id=self.manifest.id,
             name=self.manifest.name,
             enabled=self.manifest.enabled,
             launch_type=self.manifest.launch.type,
             transport_type=self.manifest.transport.type,
+            negotiated_protocol_version=negotiated_version,
             endpoint=redact_endpoint(self.manifest.transport.endpoint),
             status=self.state.value,
             pid=self.pid,
@@ -257,17 +263,28 @@ class McpRuntimeManager:
         self.load_errors: list[str] = []
         self._manager_lock = threading.RLock()
 
-    def load_manifests(self) -> None:
+    def load_manifests(self, *, restore_startup_policy: bool = True) -> None:
         loader = McpConfigLoader(self.settings.config_dir)
         result = loader.load()
         with self._manager_lock:
+            previous_intents = {server_id: runtime.desired_intent for server_id, runtime in self._servers.items()}
             self.load_errors = result.errors
             self._servers.clear()
             for manifest in result.manifests:
+                intent: McpRuntimeIntent | None
                 state = McpServerState.LOADED if manifest.enabled else McpServerState.STOPPED
                 if manifest.launch.type == "external":
                     state = McpServerState.EXTERNAL
-                intent = self.state_store.resolve(manifest.id, auto_start=manifest.auto_start)
+                if manifest.startup_policy == "gate_start_v1":
+                    if restore_startup_policy:
+                        intent = McpRuntimeIntent(manifest.id, "running" if manifest.enabled and manifest.auto_start else "stopped", "gate_start_policy", None)
+                    else:
+                        # A newly saved configuration has no intent in this Gate process.
+                        # Only boot initializes auto_start; reload must not revive old history.
+                        intent = previous_intents.get(manifest.id) or McpRuntimeIntent(manifest.id, "stopped", "config_loaded", None)
+                else:
+                    intent = previous_intents.get(manifest.id) if not restore_startup_policy else None
+                    intent = intent or self.state_store.resolve(manifest.id, auto_start=manifest.auto_start)
                 self._servers[manifest.id] = McpServerRuntime(
                     manifest=manifest,
                     state=state,
@@ -283,7 +300,7 @@ class McpRuntimeManager:
         with self._manager_lock:
             log_event(logger, logging.INFO, "gate.mcp.runtime_reload_started", "Reloading MCP runtime manifests", server_id=server_id_to_start, start=start)
             self._stop_all_locked()
-            self.load_manifests()
+            self.load_manifests(restore_startup_policy=False)
             if server_id_to_start:
                 self._set_desired_state_locked(server_id_to_start, "running" if start else "stopped", source="config_apply")
             self.reconcile_desired_states()

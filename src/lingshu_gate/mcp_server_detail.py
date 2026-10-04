@@ -8,6 +8,7 @@ from typing import Any, Literal
 
 from lingshu_gate.config import Settings
 from lingshu_gate.mcp_runtime import McpRuntimeManager
+from lingshu_gate.mcp_config_store import McpConfigStore
 from lingshu_gate.mcp_runtime_cache import McpRuntimeCacheResolver
 from lingshu_gate.observability_store import ObservabilityStore
 
@@ -74,6 +75,10 @@ def build_mcp_server_detail(
     manifest_dict = manifest.safe_dict() if manifest is not None else {}
     if full or section == "configuration":
         result["manifest"] = manifest_dict
+    if section == "configuration":
+        saved = McpConfigStore(settings.config_dir).get_config(server_id)
+        result["manifest"] = saved.manifest
+        result["config_digest"] = saved.digest
 
     logs = observability_store.list_logs(server_id=server_id, limit=limit) if full or section == "logs" else []
     events = observability_store.list_events(server_id=server_id, limit=limit) if full or section == "events" else []
