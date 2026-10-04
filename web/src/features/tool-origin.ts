@@ -1,4 +1,4 @@
-import type { AccessResource, ToolDefinition } from "@/api/client"
+import type { AccessResource, ToolClassification, ToolDefinition } from "@/api/client"
 import type { Locale } from "@/i18n"
 
 const BUILTIN_NAMES = {
@@ -22,6 +22,23 @@ export function toolOriginName(tool: ToolDefinition, locale: Locale): string | n
 export function grantOriginName(resources: AccessResource[], serverId: string, toolId: string | null | undefined, locale: Locale): string | null {
   const selected = resources.filter(item => item.server_id === serverId && (!toolId || item.tool_id === toolId))
   return selected.length && selected.every(item => item.registry_source === "builtin") ? builtinOriginName("builtin", serverId, locale) : null
+}
+
+type ClassificationOrigin = Pick<ToolClassification, "server_id" | "registry_source">
+
+export function classificationOriginName(item: ClassificationOrigin, locale: Locale): string | null {
+  return builtinOriginName(item.registry_source, item.server_id, locale)
+}
+
+/** A service filter represents every record in that service, including stale ones. */
+export function classificationServerRegistrySource(items: ClassificationOrigin[], serverId: string): string | null {
+  const selected = items.filter(item => item.server_id === serverId)
+  const source = selected[0]?.registry_source
+  return source && selected.every(item => item.registry_source === source) ? source : null
+}
+
+export function classificationServerOriginName(items: ClassificationOrigin[], serverId: string, locale: Locale): string | null {
+  return builtinOriginName(classificationServerRegistrySource(items, serverId), serverId, locale)
 }
 
 export const builtinOriginBadge = (locale: Locale) => locale === "zh-CN" ? "系统内置" : "Built in"

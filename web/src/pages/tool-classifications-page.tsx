@@ -23,6 +23,7 @@ import { Textarea } from "@/components/ui/textarea"
 import { Toaster, type ToastState } from "@/components/ui/toast"
 import type { Locale, TFunction } from "@/i18n"
 import { TableEmptyRow } from "@/pages/page-utils"
+import { builtinOriginBadge, classificationOriginName, classificationServerOriginName, classificationServerRegistrySource } from "@/features/tool-origin"
 
 const copy = {
   "zh-CN": {
@@ -79,8 +80,8 @@ const copy = {
     selectionReady: "勾选工具后可批量分类或发布已确认记录",
     selectionActions: "所选工具操作",
     clearSelection: "取消选择",
-    sourceBuiltin: "Lingshu Gate 内置",
     sourceMcp: "下游 MCP",
+    sourceUnknown: "来源未确认",
     readAccess: "只读",
     writeAccess: "读写",
     sourceRule: "内部规则",
@@ -146,8 +147,8 @@ const copy = {
     selectionReady: "Select tools to classify in bulk or publish reviewed records",
     selectionActions: "Selected tool actions",
     clearSelection: "Clear selection",
-    sourceBuiltin: "Lingshu Gate built-in",
     sourceMcp: "Downstream MCP",
+    sourceUnknown: "Origin unavailable",
     readAccess: "Read",
     writeAccess: "Read + write",
     sourceRule: "Local rule",
@@ -188,6 +189,7 @@ export function ToolClassificationsPage({ locale, t }: { locale: Locale; t: TFun
   const [message, setMessage] = useState<string | null>(null)
   const { confirm, confirmDialog } = useConfirm(t)
   const submitting = useRef(false)
+  const reviewTrigger = useRef<HTMLButtonElement | null>(null)
   const closeBatch = useDraftCloseGuard({
     dirty: batchOpen && (batchAccess !== "read" || batchNote !== ""), pending: busy, locale, confirm,
     onClose: () => { setBatchOpen(false); setBatchItems([]); setFormError(null) },
@@ -204,9 +206,9 @@ export function ToolClassificationsPage({ locale, t }: { locale: Locale; t: TFun
     return items.filter((item) => {
       if (serverFilter !== "__all" && item.server_id !== serverFilter) return false
       if (statusFilter !== "__all" && classificationViewStatus(item) !== statusFilter) return false
-      return !needle || `${item.server_id} ${item.tool_id} ${item.tool_name}`.toLowerCase().includes(needle)
+      return !needle || `${sourceDisplayName(item, locale)} ${item.server_id} ${item.tool_id} ${item.tool_name}`.toLowerCase().includes(needle)
     }).sort((a, b) => classificationOrder(a) - classificationOrder(b) || a.server_id.localeCompare(b.server_id) || a.tool_id.localeCompare(b.tool_id))
-  }, [items, query, serverFilter, statusFilter])
+  }, [items, query, serverFilter, statusFilter, locale])
   const paging = useListPage(visibleItems, JSON.stringify([query, serverFilter, statusFilter]))
   const selectedIdSet = useMemo(() => new Set(selectedIds), [selectedIds])
   const selectedItems = useMemo(
@@ -271,8 +273,9 @@ export function ToolClassificationsPage({ locale, t }: { locale: Locale; t: TFun
     }
   }
 
-  function openReview(item: ToolClassification) {
+  function openReview(item: ToolClassification, trigger: HTMLButtonElement) {
     if (busy) return
+    reviewTrigger.current = trigger
     const nextAccess = item.effective_access !== "unknown" ? item.effective_access : item.suggested_access
     setEditing(item)
     setAccess(nextAccess)
@@ -500,7 +503,10 @@ export function ToolClassificationsPage({ locale, t }: { locale: Locale; t: TFun
           <p className="text-muted-foreground">{c.selectHint}</p>
         </>}
         toolbar={<PageToolbar query={query} onQueryChange={setQuery} placeholder={c.search} resultCount={visibleItems.length} resultLabel={c.tool} clearLabel={t("clearSearch")} resetFilters={{ label: t("resetFilters"), disabled: !query && serverFilter === "__all" && statusFilter === "__all", onReset: () => { setQuery(""); setServerFilter("__all"); setStatusFilter("__all") } }}>
-            <Select value={serverFilter} onValueChange={setServerFilter}><SelectTrigger aria-label={c.filterSource} className="w-full sm:w-44"><SelectValue /></SelectTrigger><SelectContent><SelectItem value="__all">{c.allServers}</SelectItem>{servers.map((server) => <SelectItem key={server} value={server}>{sourceOptionLabel(server, c)}</SelectItem>)}</SelectContent></Select>
+            <Select value={serverFilter} onValueChange={setServerFilter}><SelectTrigger aria-label={c.filterSource} className="w-full sm:w-44"><SelectValue /></SelectTrigger><SelectContent><SelectItem value="__all">{c.allServers}</SelectItem>{servers.map((server) => {
+              const name = classificationServerOriginName(items, server, locale)
+              return <SelectItem key={server} value={server}><span className="inline-flex items-center gap-2"><span>{name ? `${name} (${server})` : server}</span><SourceBadge registrySource={classificationServerRegistrySource(items, server)} locale={locale} labels={c} /></span></SelectItem>
+            })}</SelectContent></Select>
             <FilterRadio label={t("status")} value={statusFilter} onChange={value => setStatusFilter(value as ClassificationViewStatus)} options={[{value:"__all",label:t("all")},{value:"needs_confirmation",label:c.needsConfirmation},{value:"confirmed_pending",label:c.confirmedPending},{value:"published",label:c.published},{value:"stale",label:c.stale}]} />
         </PageToolbar>}
         actions={<>
@@ -530,15 +536,15 @@ export function ToolClassificationsPage({ locale, t }: { locale: Locale; t: TFun
                 {visibleItems.length === 0 ? <TableEmptyRow colSpan={8} title={busy ? t("loadingData") : error ? t("error") : query.trim() || serverFilter !== "__all" || statusFilter !== "__all" ? t("noMatchingRecords") : c.noData} /> : paging.items.map((item) => <TableRow key={item.id}>
                   <TableCell><input className="size-4 accent-primary" type="checkbox" aria-label={`${c.selectRow}: ${item.tool_name}`} title={c.selectRow} checked={selectedIdSet.has(item.id)} disabled={busy} onChange={(event) => toggleSelected(item, event.target.checked)} /></TableCell>
                   <TableCell>
-                    <div className="flex flex-wrap items-center gap-2"><span className="font-medium">{item.tool_name}</span><SourceBadge serverId={item.server_id} labels={c} /></div>
-                    <div className="mt-0.5 max-w-96 truncate text-xs text-foreground/65" title={`${item.server_id}/${item.tool_id}`}>{sourceDisplayName(item.server_id, c)} · {item.tool_id}</div>
+                    <div className="flex flex-wrap items-center gap-2"><span className="font-medium">{item.tool_name}</span><SourceBadge registrySource={item.registry_source} locale={locale} labels={c} /></div>
+                    <div className="mt-0.5 max-w-96 truncate text-xs text-foreground/65" title={`${item.server_id}/${item.tool_id}`}>{sourceDisplayName(item, locale)} · {item.tool_id}</div>
                   </TableCell>
                   <TableCell><AccessBadge access={item.suggested_access} labels={c} /><div className="mt-1 text-xs text-foreground/65">{suggestionSourceLabel(item.source, c)}</div></TableCell>
                   <TableCell><AccessBadge access={item.effective_access} labels={c} /></TableCell>
                   <TableCell className="font-mono text-xs">{Math.round(item.confidence * 100)}%</TableCell>
                   <TableCell><div className="flex flex-wrap gap-1">{item.destructive && <Badge variant="danger">{c.destructive}</Badge>}{item.idempotent && <Badge variant="outline">{c.idempotent}</Badge>}{!item.destructive && !item.idempotent && <span className="text-xs text-foreground/65">{c.noRiskFlag}</span>}</div></TableCell>
                   <TableCell><StatusBadge item={item} labels={c} /></TableCell>
-                  <TableCell><Button className="min-h-9" size="sm" variant="outline" disabled={busy} onClick={() => openReview(item)}>{c.edit}</Button></TableCell>
+                  <TableCell><Button className="min-h-9" size="sm" variant="outline" disabled={busy} onClick={event => openReview(item, event.currentTarget)}>{c.edit}</Button></TableCell>
                 </TableRow>)}
               </TableBody>
             </Table>
@@ -558,10 +564,12 @@ export function ToolClassificationsPage({ locale, t }: { locale: Locale; t: TFun
       </FormDialog>
 
       <FormDialog dirty={JSON.stringify({ access, destructive, idempotent, note }) !== reviewInitial} open={editing !== null} onClose={() => void closeReview()}
-        title={c.edit} description={editing ? `${sourceDisplayName(editing.server_id, c)} · ${editing.tool_id}` : ""}
+        onCloseAutoFocus={event => { event.preventDefault(); reviewTrigger.current?.focus() }}
+        title={c.edit} description={editing ? `${sourceDisplayName(editing, locale)} · ${editing.tool_id}` : ""}
         closeLabel={t("cancel")} pending={busy} className="max-w-3xl" error={formError}
         footer={<><Button variant="outline" onClick={() => void closeReview()} disabled={busy}>{t("cancel")}</Button><Button onClick={() => void saveReview()} disabled={busy || access === "unknown"}>{busy ? c.saving : c.saveDecision}</Button></>}>
         <div className="flex flex-col gap-4">
+          {editing && <div><div className="flex flex-wrap items-center gap-2"><span className="font-medium">{editing.tool_name}</span><SourceBadge registrySource={editing.registry_source} locale={locale} labels={c} /></div><p className="mt-1 break-all font-mono text-xs text-muted-foreground">{editing.server_id}/{editing.tool_id}</p></div>}
           <div><Label htmlFor="classification-review-access">{c.effective}</Label><Select value={access} disabled={busy} onValueChange={(value) => setAccess(value as typeof access)}><SelectTrigger id="classification-review-access" aria-label={c.effective} className="mt-2"><SelectValue /></SelectTrigger><SelectContent><SelectItem value="read">{c.readAccess}</SelectItem><SelectItem value="write">{c.writeAccess}</SelectItem><SelectItem value="unknown">{c.unknown}</SelectItem></SelectContent></Select></div>
           <div className="flex items-center justify-between gap-3"><Label htmlFor="classification-destructive">{c.destructive}</Label><Switch id="classification-destructive" disabled={busy} checked={destructive} onCheckedChange={setDestructive} /></div>
           <div className="flex items-center justify-between gap-3"><Label htmlFor="classification-idempotent">{c.idempotent}</Label><Switch id="classification-idempotent" disabled={busy} checked={idempotent} onCheckedChange={setIdempotent} /></div>
@@ -602,19 +610,13 @@ export function classificationViewStatus(item: ToolClassification): Exclude<Clas
   return "needs_confirmation"
 }
 
-function SourceBadge({ serverId, labels }: { serverId: string; labels: Record<string, string> }) {
-  if (serverId === "builtin") return <Badge variant="secondary">{labels.sourceBuiltin}</Badge>
-  return <Badge variant="outline">{labels.sourceMcp}</Badge>
+function SourceBadge({ registrySource, locale, labels }: { registrySource: ToolClassification["registry_source"]; locale: Locale; labels: Record<string, string> }) {
+  if (registrySource === "builtin") return <Badge variant="secondary">{builtinOriginBadge(locale)}</Badge>
+  return <Badge variant="outline">{registrySource === "mcp" ? labels.sourceMcp : labels.sourceUnknown}</Badge>
 }
 
-function sourceDisplayName(serverId: string, labels: Record<string, string>) {
-  if (serverId === "builtin") return labels.sourceBuiltin
-  return serverId
-}
-
-function sourceOptionLabel(serverId: string, labels: Record<string, string>) {
-  const displayName = sourceDisplayName(serverId, labels)
-  return displayName === serverId ? serverId : `${displayName} (${serverId})`
+function sourceDisplayName(item: ToolClassification, locale: Locale) {
+  return classificationOriginName(item, locale) ?? item.server_id
 }
 
 function suggestionSourceLabel(source: string, labels: Record<string, string>) {

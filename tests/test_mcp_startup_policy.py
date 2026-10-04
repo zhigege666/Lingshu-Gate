@@ -147,3 +147,48 @@ def test_explicit_in_process_reload_keeps_the_current_manual_stop(tmp_path: Path
         manager.reload_manifests()
     start.assert_not_called()
     assert manager.get_server("synthetic-startup").desired_state == "stopped"
+
+
+@pytest.mark.parametrize("external", [False, True])
+@pytest.mark.parametrize("stored_intent", [None, "running"])
+def test_new_service_saved_after_boot_waits_for_explicit_start_or_next_boot(
+    tmp_path: Path, external: bool, stored_intent: str | None,
+) -> None:
+    settings, store, states = _setup(tmp_path)
+    manager = McpRuntimeManager(settings, ToolRegistry(), state_store=states)
+    manager.load_manifests()
+    store.save_config(_manifest(external=external, auto_start=True))
+    if stored_intent:
+        states.set("synthetic-startup", "running", source="user")
+    before = states.get("synthetic-startup")
+
+    with patch.object(manager, "start_server", side_effect=lambda server_id: manager.get_server(server_id)) as start:
+        manager.reload_manifests()
+        start.assert_not_called()
+        assert manager.get_server("synthetic-startup").desired_state == "stopped"
+        assert states.get("synthetic-startup") == before
+        manager.request_start("synthetic-startup")
+        start.assert_called_once_with("synthetic-startup")
+    assert manager.get_server("synthetic-startup").desired_state == "running"
+
+    restarted = McpRuntimeManager(settings, ToolRegistry(), state_store=states)
+    restarted.load_manifests()
+    with patch.object(restarted, "start_server") as start_at_boot:
+        restarted.reconcile_desired_states()
+    start_at_boot.assert_called_once_with("synthetic-startup")
+    assert restarted.get_server("synthetic-startup").desired_state_source == "gate_start_policy"
+
+
+@pytest.mark.parametrize("auto_start", [False, True])
+def test_legacy_new_service_reload_retains_manifest_default(tmp_path: Path, auto_start: bool) -> None:
+    settings, store, states = _setup(tmp_path)
+    manager = McpRuntimeManager(settings, ToolRegistry(), state_store=states)
+    manager.load_manifests()
+    store.save_config(_manifest(external=False, auto_start=auto_start, policy="legacy_restore"))
+    with patch.object(manager, "start_server") as start:
+        manager.reload_manifests()
+    if auto_start:
+        start.assert_called_once_with("synthetic-startup")
+    else:
+        start.assert_not_called()
+    assert manager.get_server("synthetic-startup").desired_state_source == "manifest_default"

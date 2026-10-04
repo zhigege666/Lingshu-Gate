@@ -77,6 +77,11 @@ start or stop the current runtime. The Console explains legacy policy until an
 explicit switch edit. Unsupported process restart/health flags are rejected on
 new writes rather than silently disabled. Existing files remain readable.
 
+Reloading manifests within the same Gate process retains current runtime intent.
+A newly saved `gate_start_v1` service stays stopped until an explicit start or
+the next Gate process boot; reload does not initialize its startup switch or
+restore an earlier process's saved intent. Legacy reload behavior is unchanged.
+
 Configuration editing reads the saved manifest separately from the running
 manifest. The edit session includes its digest as `expected_config_digest`;
 stale updates fail with HTTP 409 and retain the user's draft. Existing API callers

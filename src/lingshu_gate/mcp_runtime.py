@@ -269,8 +269,13 @@ class McpRuntimeManager:
                 state = McpServerState.LOADED if manifest.enabled else McpServerState.STOPPED
                 if manifest.launch.type == "external":
                     state = McpServerState.EXTERNAL
-                if restore_startup_policy and manifest.startup_policy == "gate_start_v1":
-                    intent = McpRuntimeIntent(manifest.id, "running" if manifest.enabled and manifest.auto_start else "stopped", "gate_start_policy", None)
+                if manifest.startup_policy == "gate_start_v1":
+                    if restore_startup_policy:
+                        intent = McpRuntimeIntent(manifest.id, "running" if manifest.enabled and manifest.auto_start else "stopped", "gate_start_policy", None)
+                    else:
+                        # A newly saved configuration has no intent in this Gate process.
+                        # Only boot initializes auto_start; reload must not revive old history.
+                        intent = previous_intents.get(manifest.id) or McpRuntimeIntent(manifest.id, "stopped", "config_loaded", None)
                 else:
                     intent = previous_intents.get(manifest.id) if not restore_startup_policy else None
                     intent = intent or self.state_store.resolve(manifest.id, auto_start=manifest.auto_start)
