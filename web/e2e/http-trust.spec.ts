@@ -127,3 +127,81 @@ test('E2E-213 @full changing the draft service ID invalidates HTTP trust confirm
   await expect(confirmation).toContainText('10.23.45.67')
   expect(writes).toBe(0)
 })
+
+
+test('E2E-214 @full current denial overrides cached authorization and reloads each new revision before confirmation', async ({ page }) => {
+  let policy = { server_id: server.id, revision: 1, origins: [{ ip: '10.23.45.67', port: 8080 }] as Array<{ ip: string; port: number }> }
+  let reads = 0, writes = 0
+  let releaseRead: (() => void) | undefined
+  const delayedRead = new Promise<void>(resolve => { releaseRead = resolve })
+  await page.route('**/v1/mcp/http-trust/*', async route => {
+    if (route.request().method() === 'GET') {
+      reads++
+      if (reads === 2) await delayedRead
+      return route.fulfill({ json: policy })
+    }
+    writes++
+    const body = route.request().postDataJSON()
+    expect(body.expected_revision).toBe(3)
+    expect(body.confirmed).toBe(true)
+    expect(body.origins).toEqual([{ ip: '10.23.45.67', port: 8080 }])
+    policy = { ...policy, revision: 4, origins: body.origins }
+    return route.fulfill({ json: policy })
+  })
+  const editor = await openHttpEditor(page)
+  await page.route('**/v1/mcp/configs/*/validate', route => {
+    const authorized = policy.origins.length > 0
+    return route.fulfill({ json: { ok: authorized, can_apply: authorized, manifest_id: server.id,
+      summary: { errors: authorized ? 0 : 1, warnings: 0, info: 0, ok: authorized ? 1 : 0 },
+      checks: authorized ? [{ name: 'transport.http_trust', severity: 'ok', message: 'Synthetic current trust', metadata: { authorized: true } }]
+        : [{ name: 'transport.endpoint', severity: 'error', message: 'Synthetic revoked trust', metadata: { code: 'private_http_untrusted' } }] } })
+  })
+  await expect(editor.getByText('This internal address is authorized.', { exact: true })).toBeVisible()
+  await editor.getByRole('button', { name: 'Backend Precheck', exact: true }).click()
+  await expect(editor.getByText('Backend Precheck: Can save', { exact: true })).toBeVisible()
+  policy = { ...policy, revision: 2, origins: [] }
+  await editor.getByRole('button', { name: 'Backend Precheck', exact: true }).click()
+  await expect.poll(() => reads).toBe(2)
+  await expect(editor.getByText('This internal address is authorized.', { exact: true })).toHaveCount(0)
+  const authorize = editor.getByRole('button', { name: 'Authorize this address', exact: true })
+  await expect(authorize).toBeDisabled()
+  expect(writes).toBe(0)
+  releaseRead!()
+  await expect(authorize).toBeEnabled()
+  await expect(editor.getByText('This internal address is not authorized.', { exact: true })).toBeVisible()
+  await authorize.click()
+  await expect(editor.getByRole('group', { name: 'Confirm internal address authorization' })).toBeVisible()
+  policy = { ...policy, revision: 3 }
+  await editor.getByRole('button', { name: 'Backend Precheck', exact: true }).click()
+  await expect.poll(() => reads).toBe(3)
+  await expect(editor.getByRole('group', { name: 'Confirm internal address authorization' })).toHaveCount(0)
+  await authorize.click()
+  await editor.getByRole('button', { name: 'Confirm address authorization', exact: true }).click()
+  await expect(editor.getByText('This internal address is authorized.', { exact: true })).toBeVisible()
+  expect(writes).toBe(1)
+})
+
+test('E2E-215 @full revoked cached trust with a failed refresh remains denied until explicit read retry', async ({ page }) => {
+  let reads = 0, writes = 0
+  await page.route('**/v1/mcp/http-trust/*', route => {
+    if (route.request().method() !== 'GET') { writes++; return route.fulfill({ status: 500, json: { detail: 'Unexpected write' } }) }
+    reads++
+    if (reads === 2) return route.fulfill({ status: 503, json: { detail: 'Synthetic unavailable current trust' } })
+    return route.fulfill({ json: { server_id: server.id, revision: reads === 1 ? 1 : 2, origins: reads === 1 ? [{ ip: '10.23.45.67', port: 8080 }] : [] } })
+  })
+  const editor = await openHttpEditor(page)
+  await expect(editor.getByText('This internal address is authorized.', { exact: true })).toBeVisible()
+  await page.route('**/v1/mcp/configs/*/validate', route => route.fulfill({ json: { ok: false, can_apply: false, manifest_id: server.id,
+    summary: { errors: 1, warnings: 0, info: 0, ok: 0 }, checks: [{ name: 'transport.endpoint', severity: 'error', message: 'Synthetic revoked trust', metadata: { code: 'private_http_untrusted' } }] } }))
+  await editor.getByRole('button', { name: 'Backend Precheck', exact: true }).click()
+  await expect(editor.getByRole('alert').filter({ hasText: 'Synthetic unavailable current trust' })).toBeVisible()
+  await expect(editor.getByText('This internal address is authorized.', { exact: true })).toHaveCount(0)
+  await expect(editor.getByRole('button', { name: 'Authorize this address', exact: true })).toBeDisabled()
+  expect(reads).toBe(2)
+  expect(writes).toBe(0)
+  await editor.getByRole('button', { name: 'Reload authorization state', exact: true }).click()
+  await expect(editor.getByRole('button', { name: 'Authorize this address', exact: true })).toBeEnabled()
+  await expect(editor.getByText('This internal address is not authorized.', { exact: true })).toBeVisible()
+  expect(reads).toBe(3)
+  expect(writes).toBe(0)
+})

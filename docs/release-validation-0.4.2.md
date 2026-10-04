@@ -7,7 +7,8 @@ identities; no production trust policy or grant was changed.
 Executed locally for the isolated candidate:
 
 - 89 backend HTTP trust, endpoint security and current-protocol cases passed.
-- Six corrected browser cases and one separate service-ID invalidation case passed.
+- Nine current browser cases passed, including cached authorization after revocation, renewed denial invalidating confirmation and failed-read explicit retry.
+- Sixty HTTP trust/CLI cases passed, including ten HTTPS-proxy-to-HTTP-backend Origin cases.
 - 407 frontend unit cases passed; Console and OAuth production builds passed.
 - Ruff, Mypy (107 source files), TypeScript, source UI contract, repository
   identity, version/tag consistency and Compose syntax checks passed.
@@ -32,3 +33,5 @@ this patch does not claim the complete optional UI suite passed.
 HTTP is unencrypted and limited to explicitly approved canonical RFC1918
 IPv4 literals and exact ports. OAuth/ordinary operators cannot approve trust.
 The production SafeNetworkExecutor remains absent; no grants are expanded.
+
+Proxy regression uses the existing Uvicorn ProxyHeadersMiddleware: preserve external Host/port and trust only configured peer IPs. Correct HTTPS same-origin requests pass; spoofed forwarded headers, an internal rewritten Host and cross-site Origin are denied. The backend Origin check was unchanged; see [reverse proxy configuration](configuration.md#reverse-proxy).

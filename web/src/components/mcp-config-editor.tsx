@@ -262,6 +262,7 @@ export function McpConfigEditor({ locale, selectedConfigId, value, onChange, onS
   const [pendingEntries, setPendingEntries] = useState<Set<string>>(new Set())
   const requestPending = useRef(false)
   const validationRevision = useRef(-1)
+  const precheckSequence = useRef(0)
   const latest = useRef({ value, revision: 0 })
   if (latest.current.value !== value) latest.current = { value, revision: latest.current.revision + 1 }
   const revision = latest.current.revision
@@ -390,6 +391,7 @@ export function McpConfigEditor({ locale, selectedConfigId, value, onChange, onS
     const result = await api.validateConfig(withoutUserCredentialValues(snapshot), selectedConfigId || null)
     if (latest.current.revision !== snapshotRevision) return null
     validationRevision.current = snapshotRevision
+    precheckSequence.current += 1
     setValidation(result)
     return result
   }
@@ -464,7 +466,7 @@ export function McpConfigEditor({ locale, selectedConfigId, value, onChange, onS
               {initialContext.current.originalEndpointMasked && <Button type="button" size="sm" variant="ghost" disabled={locked} onClick={() => set(["transport", "endpoint"], REDACTED_ENDPOINT)}>{zh ? "保留原地址" : "Keep original endpoint"}</Button>}
             </>}
             <McpHttpTrustControl serverId={typeof manifest.id === "string" ? manifest.id : ""} endpoint={transport.endpoint}
-              draftRevision={revision} canManage={canManageHttpTrust} locked={locked} zh={zh}
+              draftRevision={revision} precheckSequence={precheckSequence.current} canManage={canManageHttpTrust} locked={locked} zh={zh}
               approved={Boolean(validationRevision.current === revision && validation?.checks.some(item => item.name === "transport.http_trust" && item.metadata?.authorized === true))}
               denied={Boolean(validationRevision.current === revision && validation?.checks.some(item => item.metadata?.code === "private_http_untrusted"))}
               onBusyChange={setTrustBusy} onApproved={async () => { await check(manifest, revision) }} />

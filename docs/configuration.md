@@ -212,6 +212,17 @@ For remote access:
 5. Make the proxy replace, not append to, client-provided `Forwarded` and `X-Forwarded-*` headers.
 6. Apply request-size limits and timeouts appropriate for upload and streaming endpoints.
 
+Session PUTs for HTTP trust compare the browser Origin with the scheme,
+Host and port visible to Gate. For an HTTPS proxy to an HTTP backend, the proxy
+must preserve the external `Host` (including a nondefault port), replace
+`X-Forwarded-Proto` with `https`, and connect from an actual IP included in
+`LINGSHU_GATE_TRUSTED_PROXY_IPS`. The default trusts only `127.0.0.1`; a container
+bridge or remote proxy usually needs explicit configuration. `Forwarded` or
+`X-Forwarded-Host` alone cannot substitute for this setup, and the application
+does not use arbitrary forwarded headers to bypass Origin checks. An internal
+rewritten Host, untrusted peer or cross-site Origin is rejected; fix the proxy
+configuration instead of disabling same-origin checks.
+
 Do not set the trusted source to `*` on an uncontrolled network, and do not expose the private Gate port beside the proxy.
 
 ## External OAuth resource configuration

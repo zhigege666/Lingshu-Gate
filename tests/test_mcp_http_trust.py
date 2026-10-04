@@ -210,3 +210,41 @@ def test_http_allowlist_retains_https_tls_verification_and_no_redirect_handler(t
     redirect = next(handler for handler in client._opener.handlers if isinstance(handler, urllib.request.HTTPRedirectHandler))
     request = urllib.request.Request("https://service.example.test/mcp")
     assert redirect.redirect_request(request, None, 302, "synthetic redirect", {}, "http://10.23.45.67/mcp") is None
+
+
+@pytest.mark.parametrize(("proxy", "peer", "authority", "origin", "forwarded", "expected"), [
+    (None, "127.0.0.1", "gate.example.test", "https://gate.example.test", {"X-Forwarded-Proto": "https"}, 200),
+    ("10.0.0.12", "10.0.0.12", "gate.example.test", "https://gate.example.test", {"X-Forwarded-Proto": "https"}, 200),
+    ("10.0.0.12", "10.0.0.12", "gate.example.test:8443", "https://gate.example.test:8443", {"X-Forwarded-Proto": "https"}, 200),
+    (None, "10.0.0.12", "gate.example.test", "https://gate.example.test", {"X-Forwarded-Proto": "https", "X-Forwarded-For": "127.0.0.1"}, 403),
+    ("10.0.0.12", "10.0.0.99", "gate.example.test", "https://gate.example.test", {"X-Forwarded-Proto": "https", "X-Forwarded-Host": "gate.example.test", "X-Forwarded-For": "10.0.0.12"}, 403),
+    ("10.0.0.12", "10.0.0.12", "gate-internal.example.test:8000", "https://gate.example.test", {"X-Forwarded-Proto": "https", "X-Forwarded-Host": "gate.example.test"}, 403),
+    ("10.0.0.12", "10.0.0.12", "gate.example.test", "https://other.example.test", {"X-Forwarded-Proto": "https"}, 403),
+    ("10.0.0.12", "10.0.0.12", "gate.example.test", "https://gate.example.test", {"Forwarded": "proto=https;host=gate.example.test"}, 403),
+    ("10.0.0.12", "10.0.0.12", "gate.example.test", "https://gate.example.test", {"X-Forwarded-Proto": "https", "Sec-Fetch-Site": "cross-site"}, 403),
+    ("10.0.0.12", "10.0.0.12", "gate.example.test", "http://gate.example.test", {"X-Forwarded-Proto": "https"}, 403),
+])
+def test_https_proxy_to_http_backend_preserves_origin_without_trusting_spoofed_headers(tmp_path: Path, monkeypatch, proxy, peer, authority, origin, forwarded, expected) -> None:
+    from uvicorn.middleware.proxy_headers import ProxyHeadersMiddleware
+    for name, value in {"DATA_DIR": str(tmp_path / "data"), "CONFIG_DIR": str(tmp_path / "mcp.d"), "ALLOWED_ROOT": str(tmp_path), "AUTH_ENABLED": "true", "AUTH_COOKIE_SECURE": "true", "ADMIN_USERNAME": "synthetic-proxy-bootstrap", "ADMIN_PASSWORD": "Synthetic-Proxy-Bootstrap-123!", "BOOTSTRAP_PASSWORD_FILE": ""}.items():
+        monkeypatch.setenv(f"LINGSHU_GATE_{name}", value)
+    monkeypatch.delenv("LINGSHU_GATE_TRUSTED_PROXY_IPS", raising=False)
+    if proxy is not None:
+        monkeypatch.setenv("LINGSHU_GATE_TRUSTED_PROXY_IPS", proxy)
+    from lingshu_gate.main import create_app
+    app = create_app()
+    app.state.auth_store.create_user(username="synthetic-proxy-admin", password="Synthetic-Proxy-Admin-123!", role="admin")
+    settings = Settings.from_env()
+    assert settings.trusted_proxy_ips == (proxy or "127.0.0.1")
+    # Match the existing CLI/Uvicorn middleware; only the backend hop is HTTP.
+    wrapped = ProxyHeadersMiddleware(app, trusted_hosts=settings.trusted_proxy_ips)
+    with TestClient(wrapped, base_url=f"http://{authority}", client=(peer, 51300)) as client:
+        login = client.post("/v1/auth/login", json={"username": "synthetic-proxy-admin", "password": "Synthetic-Proxy-Admin-123!"})
+        assert login.status_code == 200
+        assert "secure" in login.headers["set-cookie"].lower()
+        # Model the proxy forwarding the cookie from the external HTTPS browser.
+        cookie = "; ".join(f"{key}={value}" for key, value in login.cookies.items())
+        response = client.put("/v1/mcp/http-trust/synthetic-private", json=_request().model_dump(), headers={**forwarded, "Origin": origin, "Cookie": cookie})
+        assert response.status_code == expected
+        policy = app.state.mcp_config_store.http_trust_store.get("synthetic-private")
+        assert policy["revision"] == (1 if expected == 200 else 0)

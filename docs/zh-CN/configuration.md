@@ -206,6 +206,14 @@ ${credential:credential-id}
 5. 让代理覆盖而不是追加客户端传入的 `Forwarded` 和 `X-Forwarded-*` Header。
 6. 为上传和流式端点设置合适的请求大小及超时限制。
 
+信任策略的会话 PUT 会比较浏览器 Origin 与服务实际看到的 scheme/Host/端口。
+HTTPS 反代到 HTTP 后端时，代理必须保留外部 `Host`（含非默认端口），覆盖
+`X-Forwarded-Proto: https`，且代理的实际后端连接 IP 必须包含在
+`LINGSHU_GATE_TRUSTED_PROXY_IPS`。默认仅信任 `127.0.0.1`；容器桥接地址或远端
+代理通常需要明确配置。只发送 `Forwarded` 或 `X-Forwarded-Host` 不能替代这些
+条件，应用不会用任意转发头绕过 Origin 校验。代理改写 Host 为后端地址、来源未
+受信或跨站 Origin 会被拒绝；应修正代理配置，不应关闭同源检查。
+
 不要在不受控网络把可信来源设为 `*`，也不要在代理之外同时暴露 Gate 私有端口。
 
 ## 外部 OAuth 资源配置

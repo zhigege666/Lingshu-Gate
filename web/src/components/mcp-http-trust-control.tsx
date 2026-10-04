@@ -7,8 +7,8 @@ type Policy = { revision: number; origins: Array<{ ip: string; port: number }> }
 type Intent = Policy & { serverId: string; ip: string; port: number; draftRevision: number }
 
 /** Inline confirmation keeps the draft and the Dialog's single scroll region. */
-export function McpHttpTrustControl({ serverId, endpoint, draftRevision, canManage, locked, zh, approved = false, denied = false, onBusyChange, onApproved }: {
-  serverId: string; endpoint: unknown; draftRevision: number; canManage: boolean; locked: boolean; zh: boolean; approved?: boolean; denied?: boolean
+export function McpHttpTrustControl({ serverId, endpoint, draftRevision, canManage, locked, zh, approved = false, denied = false, precheckSequence = 0, onBusyChange, onApproved }: {
+  serverId: string; endpoint: unknown; draftRevision: number; canManage: boolean; locked: boolean; zh: boolean; approved?: boolean; denied?: boolean; precheckSequence?: number
   onBusyChange: (busy: boolean) => void; onApproved: () => Promise<unknown>
 }) {
   const origin = privateHttpOrigin(endpoint)
@@ -22,6 +22,7 @@ export function McpHttpTrustControl({ serverId, endpoint, draftRevision, canMana
   const latest = useRef({ targetKey, draftRevision })
   latest.current = { targetKey, draftRevision }
   const busy = useRef(false)
+  const deniedCheck = denied ? precheckSequence : 0
 
   useEffect(() => { setIntent(null); setError(null) }, [draftRevision])
   useEffect(() => {
@@ -36,11 +37,11 @@ export function McpHttpTrustControl({ serverId, endpoint, draftRevision, canMana
     }).catch(err => { if (!controller.signal.aborted && latest.current.targetKey === targetKey) setError(err instanceof Error ? err.message : (zh ? "无法读取地址授权。" : "Could not read address authorization.")) })
       .finally(() => { if (active && latest.current.targetKey === targetKey) setLoading(false); window.clearTimeout(timer) })
     return () => { active = false; controller.abort(); window.clearTimeout(timer) }
-  }, [targetKey, canManage, serverId, zh, readAttempt]) // targetKey binds the exact origin; editing other fields only invalidates confirmation.
+  }, [targetKey, canManage, serverId, zh, readAttempt, deniedCheck, denied]) // Each explicit denial invalidates cached policy once; failed reads require an explicit retry.
   useEffect(() => () => onBusyChange(false), [onBusyChange])
 
   if (!origin) return null
-  const authorized = approved || Boolean(policy?.origins.some(item => item.ip === origin.ip && item.port === origin.port))
+  const authorized = !denied && (approved || Boolean(policy?.origins.some(item => item.ip === origin.ip && item.port === origin.port)))
   async function authorize() {
     if (!intent || busy.current || locked || latest.current.draftRevision !== intent.draftRevision || latest.current.targetKey !== targetKey) return
     const selected = intent

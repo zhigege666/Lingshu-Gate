@@ -6,7 +6,8 @@
 隔离候选已在本地执行：
 
 - 后端 HTTP 信任、地址安全与当前协议 89 项通过。
-- 修正后浏览器 6 项通过；服务 ID 变化失效单独 1 项通过。
+- 最新浏览器 9 项通过，含撤销后的旧授权缓存失效、重复拒绝清除旧确认、读取失败显式重试。
+- HTTP 信任/CLI 60 项通过，含 10 项受信 HTTPS 反代到 HTTP 后端的 Origin 场景。
 - 前端单元 407 项通过，Console 与 OAuth 生产构建通过。
 - Ruff、Mypy（107 个源码文件）、TypeScript、源码 UI 契约、仓库身份、版本/tag
   一致性和 Compose 语法检查通过。
@@ -25,3 +26,5 @@ CAS 失败恢复以及操作员提示且不读取信任记录。首次运行 5 �
 
 HTTP 不加密，仅限明确批准的规范 RFC1918 IPv4 和精确端口；OAuth/普通操作员
 不能批准信任。生产 SafeNetworkExecutor 仍缺失，本版不扩大授权。
+
+反代回归使用既有 Uvicorn ProxyHeadersMiddleware，保留外部 Host/端口并仅信任明确配置的代理 IP；正常 HTTPS 同源通过，伪造转发头、内部 Host 改写和跨站 Origin 拒绝。Origin 后端检查未放松；条件详见[反代配置](configuration.md#反向代理)。
