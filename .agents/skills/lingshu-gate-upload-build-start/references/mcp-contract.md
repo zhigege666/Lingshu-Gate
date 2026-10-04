@@ -1,5 +1,18 @@
 # MCP tool contract quick reference
 
+## External HTTP tools
+
+| Tool | Type | Inputs | Outputs |
+|---|---|---|---|
+| `gate_mcp_config_plan` | Read/precheck; explicit remote probe optional | `mode`, `manifest`, update `expected_config_digest`, `connect=false`, `refresh_tools=false`, `probe=false`, `probe_confirmed=false`, `timeout_seconds=30` (1–120) | `status=ready|blocked`, plan/manifest digests, plan ID/expiry, redacted manifest, validation/probe, exact actions |
+| `gate_mcp_config_apply` | Confirmed write | `plan_id`, `plan_digest`, unchanged `connect`/`refresh_tools`, `idempotency_key`, `confirmed=true` | operation ID, queued state; terminal state on idempotent replay |
+| `gate_mcp_config_status` | Read | Exactly one `operation_id` or `server_id` | Actor-owned operation progress/terminal or redacted target/config digest/current Gate connection; target discovery is `not_observed` |
+| `gate_mcp_config_cancel` | Confirmed destructive control write | `operation_id`, `idempotency_key`, `confirmed=true` | cancellation operation ID, target operation ID, requested/already-terminal state |
+
+Requires a live administrator management connection, `operations.manage`, and `tools.invoke` for apply/cancel/probe. An ordinary OAuth bearer is denied. Plan lifetime is five minutes; update compares the raw saved file digest. Unknown fields, local execution/path input, inline secrets and permission changes are rejected. Existing credential refs and private-HTTP trust are retained; neither is created here.
+
+Terminal states: `success`, `partial`, `failed`, `cancelled`, `timed_out`, `interrupted`. Read `config_applied`, `config_digest`, `connection_state`, `discovery_state`, `cleanup_state` and `requires_reconciliation`; no one boolean establishes total success. `external_config_plan_conflict`, `config_digest_conflict`, `external_config_credential_changed` require a new reviewed plan. Missing authority/session/token fails closed. `operation_interrupted` means no automatic replay; saved target state must be reconciled. The 1:1 `instance_id=server_id` is not multi-instance support.
+
 ## Tools
 
 | Tool | Type | Key inputs | Key outputs |

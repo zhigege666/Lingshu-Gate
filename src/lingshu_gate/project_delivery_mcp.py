@@ -725,8 +725,9 @@ class ProjectDeliveryMcpService:
         result: dict[str, Any],
         resource_type: str,
         resource_id: str | None,
+        connection: sqlite3.Connection | None = None,
     ) -> None:
-        with self.database.connect() as connection:
+        with self.database.connect() if connection is None else nullcontext(connection) as connection:
             updated = connection.execute(
                 """
                 UPDATE mcp_idempotent_operations

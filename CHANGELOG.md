@@ -1,5 +1,12 @@
 # Changelog
 
+## Unreleased
+
+- Console presents one account name, translated role tags, one backend version, and one entry for API/logout; keyboard dismissal restores focus.
+- Administrator external HTTP configuration adds shared REST/MCP offline plan, digest-bound confirmed apply, actor-owned status and cancellation. Saved configuration is retained on connection failure; initial and refreshed discovery quarantine changed classifications without granting access.
+- Live administrator sessions, token scopes, role permissions and credential revisions are rechecked. Plans retain CAS and idempotent completion; attempts enforce cooperative deadlines, cancellation and connection ownership. The Delivery Skill documents separate ZIP, Git and external HTTP paths.
+- [External configuration contract](docs/external-mcp-configuration.md). Multi-instance routing, fixed authorized catalog entries, real-peer integration and Git executor implementation remain pending; this entry makes no publication claim.
+
 ## 0.4.3
 
 - Explicit owner confirmation in Gate adds, reconfirms or removes MCPs/tools on the existing OAuth grant. The same bearer and refresh family follow the live tool list within unchanged OAuth scope ceilings; no repeated client OAuth flow is needed for same-scope tools.

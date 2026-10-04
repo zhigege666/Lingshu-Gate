@@ -61,6 +61,7 @@ class AuthPrincipal:
     external_expires_at: str | None = None
     external_rate_per_minute: int = 0
     external_concurrency: int = 0
+    session_id: str | None = None
 
 
 def utc_now() -> datetime:
@@ -443,7 +444,7 @@ class AuthStore:
             "INSERT INTO auth_sessions (id, user_id, token_hash, expires_at, created_at, purpose) VALUES (?, ?, ?, ?, ?, ?)",
             (session_id, row["id"], hash_secret(token), expires_at, iso_now(), purpose),
         )
-        return principal, token, expires_at
+        return replace(principal, session_id=session_id), token, expires_at
 
     def logout(self, token: str | None, *, purpose: SessionPurpose = "console") -> None:
         if not token:
@@ -817,7 +818,8 @@ class AuthStore:
     def _principal_from_session(self, token: str, *, purpose: SessionPurpose = "console") -> AuthPrincipal | None:
         row = self.database.query_one(
             """
-            SELECT users.*, auth_sessions.expires_at AS session_expires_at
+            SELECT users.*, auth_sessions.expires_at AS session_expires_at,
+                   auth_sessions.id AS auth_session_id
             FROM auth_sessions
             JOIN users ON users.id = auth_sessions.user_id
             WHERE auth_sessions.token_hash = ? AND auth_sessions.purpose = ?
@@ -826,7 +828,7 @@ class AuthStore:
         )
         if not row or row["status"] != "active" or _is_expired(row["session_expires_at"]):
             return None
-        return self._build_principal(row, auth_type="session")
+        return replace(self._build_principal(row, auth_type="session"), session_id=str(row["auth_session_id"]))
 
     def _principal_from_api_token(self, token: str) -> AuthPrincipal | None:
         row = self.database.query_one(

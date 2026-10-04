@@ -14,12 +14,14 @@ from __future__ import annotations
 
 import json
 import logging
+import threading
 import time
 import urllib.error
 import urllib.request
 from collections.abc import Callable, Iterable
+from contextlib import contextmanager
 from itertools import count
-from typing import Any
+from typing import Any, Iterator
 
 from lingshu_gate.config import Settings
 from lingshu_gate.credential_refs import resolve_env_credential_refs
@@ -126,6 +128,26 @@ class StreamableHttpMcpClient:
         )
         self.credential_store = CredentialStore(settings.data_dir)
         self._opener = urllib.request.build_opener(_NoRedirectHandler())
+        self._operation_cancel: threading.Event | None = None
+        self._operation_deadline: float | None = None
+
+    @contextmanager
+    def operation_bounds(self, cancel: threading.Event, deadline: float) -> Iterator[None]:
+        """Bound one confirmed connection/discovery, never later business calls."""
+        previous = self._operation_cancel, self._operation_deadline
+        self._operation_cancel, self._operation_deadline = cancel, deadline
+        try:
+            self._check_operation()
+            yield
+            self._check_operation()
+        finally:
+            self._operation_cancel, self._operation_deadline = previous
+
+    def _check_operation(self) -> None:
+        if self._operation_cancel is not None and self._operation_cancel.is_set():
+            raise InterruptedError("External MCP connection operation cancelled")
+        if self._operation_deadline is not None:
+            _remaining_seconds(self._operation_deadline)
 
     @property
     def pid(self) -> int | None:
@@ -335,7 +357,10 @@ class StreamableHttpMcpClient:
             )
             try:
                 require_mcp_http_endpoint(self.manifest.id, self.endpoint, settings=self.settings)
-                with self._opener.open(request, timeout=min(self.manifest.timeout_seconds or self.settings.mcp_request_timeout_seconds, 5)):
+                cleanup_timeout = float(min(self.manifest.timeout_seconds or self.settings.mcp_request_timeout_seconds, 5))
+                if self._operation_deadline is not None:
+                    cleanup_timeout = min(cleanup_timeout, _remaining_seconds(self._operation_deadline))
+                with self._opener.open(request, timeout=cleanup_timeout):
                     pass
             except urllib.error.HTTPError as exc:
                 exc.close()
@@ -388,8 +413,11 @@ class StreamableHttpMcpClient:
         request_id: int | None,
         protocol_headers: dict[str, str],
     ) -> dict[str, Any] | None:
+        self._check_operation()
         require_mcp_http_endpoint(self.manifest.id, self.endpoint, settings=self.settings)
         deadline = time.monotonic() + max(float(timeout), 0.001)
+        if self._operation_deadline is not None:
+            deadline = min(deadline, self._operation_deadline)
         body = json.dumps(message, ensure_ascii=False, separators=(",", ":")).encode("utf-8")
         headers = self._http_headers(protocol_headers)
         if self.settings.mcp_log_payloads:
@@ -441,6 +469,7 @@ class StreamableHttpMcpClient:
                 "MCP HTTP request exceeded its absolute deadline"
             ) from exc
         with response:
+            self._check_operation()
             if message.get("method") == "initialize" and self.protocol_version != MCP_PROTOCOL_VERSION:
                 session_id = response.headers.get("Mcp-Session-Id")
                 if session_id is not None:
@@ -457,6 +486,7 @@ class StreamableHttpMcpClient:
             raw = _read_bounded_response(response, deadline).decode(
                 "utf-8", "ignore"
             ).strip()
+            self._check_operation()
             if not raw:
                 return None
             try:
@@ -513,6 +543,7 @@ class StreamableHttpMcpClient:
             return None
 
         while True:
+            self._check_operation()
             chunk = _read_response_chunk(response, deadline)
             if not chunk:
                 break

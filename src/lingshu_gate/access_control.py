@@ -1547,6 +1547,7 @@ class AccessControlStore:
                         permissions=tuple(getattr(principal, "permissions", ())),
                         scopes=tuple(getattr(principal, "scopes", ())),
                         delegated_scopes=getattr(principal, "delegated_scopes", None),
+                        session_id=getattr(principal, "session_id", None),
                     ),
                 )
         except UserCredentialBindingError as exc:

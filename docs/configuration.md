@@ -61,6 +61,8 @@ For unattended provisioning, configure an administrator username and inject the 
 
 ## Downstream manifests
 
+An administrator can plan and register an existing external HTTP MCP through the shared REST/MCP [external configuration workflow](external-mcp-configuration.md). It preserves existing managed credential references, uses a raw-file digest for update CAS, and separates saving, current connection/discovery and future startup policy. This development addition installs no Git executor or remote process runtime.
+
 Manifests are YAML or JSON objects stored in `mcp.d`. The file name is not the identity; `id` is. IDs must match `^[A-Za-z0-9_.-]+$` and remain stable because grants, credentials, runtime state, and audits reference them.
 
 ### Gate startup policy
