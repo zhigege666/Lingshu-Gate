@@ -18,6 +18,7 @@ from uuid import uuid4
 
 from lingshu_gate.auth import AuthPrincipal
 from lingshu_gate.database import SQLiteDatabase
+from lingshu_gate.domain.oauth_management import MANAGEMENT_READ_TOOLS, MANAGEMENT_TOOL_IDS, management_resource, management_tool_snapshot
 from lingshu_gate.invocation_payloads import snapshot
 from lingshu_gate.retention_store import RetentionStore
 from lingshu_gate.mcp_runtime import McpRuntimeManager
@@ -1198,6 +1199,27 @@ class AccessControlStore:
 
         server_id = _server_id(definition)
         if principal.auth_type == "oauth":
+            if principal.oauth_builtin and principal.oauth_resource and principal.oauth_resource.endswith("/mcp/manage"):
+                config_row = self.database.query_one("SELECT payload_json FROM gate_oauth_config WHERE id=1")
+                config = json.loads(config_row["payload_json"]) if config_row else {}
+                management = self.database.query_one("SELECT enabled FROM gate_oauth_management_config WHERE id=1")
+                required = "read" if definition.id in MANAGEMENT_READ_TOOLS else "write"
+                allowed = bool(config.get("enabled") and management and management["enabled"]
+                    and principal.oauth_resource == management_resource(config.get("resource", ""))
+                    and principal.oauth_issuer == config.get("issuer")
+                    and "admin" in principal.roles and "operations.manage" in principal.permissions
+                    and principal.external_grant_id and principal.oauth_family_id and principal.oauth_client_id
+                    and principal.external_expires_at and not _is_expired(principal.external_expires_at)
+                    and definition.source == "builtin" and server_id == "gate_mcp_configuration"
+                    and definition.id in MANAGEMENT_TOOL_IDS and definition.id in principal.external_tool_ids
+                    and dict(principal.oauth_tool_snapshots).get(definition.id) == management_tool_snapshot(definition)
+                    and "operations.manage" in principal.scopes
+                    and principal.delegated_scopes is not None and "operations.manage" in principal.delegated_scopes
+                    and (required == "read" or ("tools.invoke" in principal.scopes
+                         and "tools.invoke" in principal.delegated_scopes and "tools.invoke" in principal.permissions)))
+                return {"allowed": allowed, "reason": "management grant matched" if allowed else "management grant does not allow this tool",
+                        "server_id": server_id, "required_access": required, "granted_access": required if allowed else "none",
+                        "classification_status": "management_resource"}
             required = str(classification["effective_access"]) if classification else "unknown"
             if (not principal.external_grant_id or definition.source != "mcp"
                     or server_id not in principal.external_server_ids
@@ -1548,6 +1570,15 @@ class AccessControlStore:
                         scopes=tuple(getattr(principal, "scopes", ())),
                         delegated_scopes=getattr(principal, "delegated_scopes", None),
                         session_id=getattr(principal, "session_id", None),
+                        oauth_builtin=principal.oauth_builtin,
+                        oauth_issuer=principal.oauth_issuer,
+                        oauth_resource=principal.oauth_resource,
+                        oauth_client_id=principal.oauth_client_id,
+                        oauth_grant_id=principal.external_grant_id if principal.oauth_builtin else None,
+                        oauth_family_id=principal.oauth_family_id,
+                        oauth_token_expires_at=principal.oauth_token_expires_at,
+                        oauth_target_revision=principal.oauth_target_revision,
+                        oauth_tool_snapshots=principal.oauth_tool_snapshots,
                     ),
                 )
         except UserCredentialBindingError as exc:

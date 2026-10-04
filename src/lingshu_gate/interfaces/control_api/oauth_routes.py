@@ -59,6 +59,20 @@ class ManagementConfigRequest(StrictRequest):
     expected_revision: int = Field(ge=0)
 
 
+class ManagementTargetsRequest(StrictRequest):
+    expected_revision: int = Field(ge=1)
+    expected_target_revision: int = Field(ge=1)
+    targets: dict[str, list[str]] = Field(max_length=MAX_MANAGEMENT_TARGETS)
+
+
+class ManagementTargetsPreview(ManagementTargetsRequest):
+    csrf: str = Field(min_length=40, max_length=MAX_INTERACTION_TICKET)
+
+
+class ManagementTargetsUpdate(ManagementTargetsRequest):
+    confirmation: str = Field(min_length=40, max_length=MAX_INTERACTION_TICKET)
+
+
 class ClientUpdate(ClientRequest):
     enabled: StrictBool
     expected_revision: int = Field(ge=1)
@@ -312,9 +326,14 @@ def register_oauth_routes(app: FastAPI, *, server: OAuthServer, observability: O
         return JSONResponse(server.store.management_config(), headers=SAFE_HEADERS)
 
     @app.post("/v1/auth/oauth/management/csrf", tags=["oauth-management"])
-    def management_ticket(request: Request, principal: AuthPrincipal = Depends(management_owner)) -> JSONResponse:
+    async def management_ticket(request: Request, principal: AuthPrincipal = Depends(management_owner)) -> JSONResponse:
         fields = parse_fields(request.url.query, {"action", "request_digest"})
         digest = fields.get("request_digest", "")
+        if fields.get("action") == "config" and not digest:
+            # Bind the exact typed snapshot without requiring WebCrypto on a
+            # private Console origin. The subsequent write still consumes once.
+            body = await read_json(request, ManagementConfigRequest)
+            digest = hash_secret(json.dumps(body.model_dump(), sort_keys=True, separators=(",", ":"), ensure_ascii=False))
         if fields.get("action") != "config" or len(digest) != 64 or any(char not in "0123456789abcdef" for char in digest):
             raise OAuthError("invalid_request")
         try:
@@ -389,23 +408,62 @@ def register_oauth_routes(app: FastAPI, *, server: OAuthServer, observability: O
         return JSONResponse(result, headers=SAFE_HEADERS)
 
     def describe_grant(grant: dict[str, Any], current: dict[str, dict[str, Any]]) -> dict[str, Any]:
-        client = server.store.database.query_one("SELECT name,enabled,scopes_json FROM gate_oauth_clients WHERE id=?", (grant["client_id"],))
-        safe = {key: value for key, value in grant.items() if key not in {"tools_json", "scopes_json"}}
+        client = server.store.database.query_one("SELECT name,enabled,scopes_json,resources_json FROM gate_oauth_clients WHERE id=?", (grant["client_id"],))
+        management = grant["target_revision"] > 0
+        safe = {key: value for key, value in grant.items() if key not in {"tools_json", "scopes_json", "management_targets_json"}}
         state = ("revoked" if grant["revoked_at"] is not None else "expired" if grant["expires_at"] <= int(time.time())
-                 else "disabled" if not client or not client["enabled"] or not server.store.config()["enabled"] else "active")
+                 else "disabled" if not client or not client["enabled"] or not server.store.config()["enabled"]
+                 or (management and (grant["resource"] != server.store.management_config()["resource"]
+                     or not server.store.management_config()["active"] or "management" not in json.loads(client["resources_json"])))
+                 or (not management and (grant["resource"] != server.store.config()["resource"] or "business" not in json.loads(client["resources_json"]))) else "active")
         scopes = set(json.loads(client["scopes_json"])) if client else set()
         tools = [{**value, "server_name": current[key]["server_name"] if key in current else value.get("server_name"),
                   "currently_authorized": key in current and tool_scope_matches(value, current[key])
-                  and ("tools.read" if value["access"] == "read" else "tools.invoke") in scopes}
+                  and (("operations.manage" if management else "tools.read") if value["access"] == "read" else "tools.invoke") in scopes}
                  for key, value in grant["tools"].items()]
         return {**safe, "tools": tools, "client_name": client["name"] if client else grant["client_id"],
-                "state": state, "effective_tool_count": sum(bool(item["currently_authorized"]) for item in tools),
+                "resource_kind": "management" if management else "business", "state": state, "effective_tool_count": sum(bool(item["currently_authorized"]) for item in tools),
                 "scope_currently_authorized": all(item["currently_authorized"] for item in tools)}
+
+    def grant_catalog(principal: AuthPrincipal, grant: dict[str, Any]) -> dict[str, dict[str, Any]]:
+        if grant["target_revision"] > 0:
+            try:
+                return server.catalog(principal, ["operations.manage", "tools.invoke"], resource=grant["resource"])
+            except OAuthError:
+                return {}
+        return server.catalog(principal, ["tools.read", "tools.invoke"])
 
     @app.get("/v1/auth/oauth/grants", tags=["oauth-management"])
     def grants(principal: AuthPrincipal = Depends(owner)) -> dict[str, Any]:
-        current = server.catalog(principal, ["tools.read", "tools.invoke"])
-        return {"grants": [describe_grant(grant, current) for grant in server.store.grants(principal.id)]}
+        catalogs: dict[str, dict[str, dict[str, Any]]] = {}
+        result = []
+        for grant in server.store.grants(principal.id):
+            key = grant["resource"] if grant["target_revision"] > 0 else "business"
+            if key not in catalogs:
+                catalogs[key] = grant_catalog(principal, grant)
+            result.append(describe_grant(grant, catalogs[key]))
+        return {"grants": result}
+
+    @app.get("/v1/auth/oauth/grants/{grant_id}/management-targets", tags=["oauth-management"])
+    def management_targets(grant_id: str, request: Request, principal: AuthPrincipal = Depends(management_owner)) -> JSONResponse:
+        rate.check(request, "management-target-options", 30, principal)
+        return JSONResponse(server.management_target_options(principal, request.cookies[server.auth.cookie_name], grant_id), headers=SAFE_HEADERS)
+
+    @app.post("/v1/auth/oauth/grants/{grant_id}/management-targets/preview", tags=["oauth-management"])
+    async def management_targets_preview(grant_id: str, request: Request, principal: AuthPrincipal = Depends(management_owner)) -> JSONResponse:
+        rate.check(request, "management-target-preview", 30, principal)
+        body = await read_json(request, ManagementTargetsPreview, 2 * 1024 * 1024)
+        result = await run_in_threadpool(server.preview_management_targets, principal, request.cookies[server.auth.cookie_name], grant_id,
+            body.csrf, body.expected_revision, body.expected_target_revision, body.targets)
+        return JSONResponse(result, headers=SAFE_HEADERS)
+
+    @app.post("/v1/auth/oauth/grants/{grant_id}/management-targets", tags=["oauth-management"])
+    async def management_targets_save(grant_id: str, request: Request, principal: AuthPrincipal = Depends(management_owner)) -> JSONResponse:
+        rate.check(request, "management-target-update", 30, principal)
+        body = await read_json(request, ManagementTargetsUpdate, 2 * 1024 * 1024)
+        grant = await run_in_threadpool(server.update_management_targets, principal, request.cookies[server.auth.cookie_name], grant_id,
+            body.confirmation, body.expected_revision, body.expected_target_revision, body.targets)
+        return JSONResponse(describe_grant(grant, grant_catalog(principal, grant)), headers=SAFE_HEADERS)
 
     @app.patch("/v1/auth/oauth/grants/{grant_id}", tags=["oauth-management"])
     async def narrow_grant(grant_id: str, request: Request, principal: AuthPrincipal = Depends(owner)) -> dict[str, Any]:
@@ -413,7 +471,7 @@ def register_oauth_routes(app: FastAPI, *, server: OAuthServer, observability: O
         grant = await run_in_threadpool(server.narrow_grant, principal.id, grant_id, body.expected_revision, body.tool_ids,
                                    body.expires_at, body.rate_per_minute, body.concurrency)
         event("grant_narrowed", principal, grant_id)
-        current = await run_in_threadpool(server.catalog, principal, ["tools.read", "tools.invoke"])
+        current = await run_in_threadpool(grant_catalog, principal, grant)
         return describe_grant(grant, current)
 
     @app.get("/v1/auth/oauth/grants/{grant_id}/scope-options", tags=["oauth-management"])
@@ -437,7 +495,7 @@ def register_oauth_routes(app: FastAPI, *, server: OAuthServer, observability: O
         grant = await run_in_threadpool(server.update_scope, principal, grant_id, request.cookies[server.auth.cookie_name],
                                        body.confirmation, body.expected_revision, body.tool_ids, body.expires_at,
                                        body.rate_per_minute, body.concurrency)
-        current = await run_in_threadpool(server.catalog, principal, ["tools.read", "tools.invoke"])
+        current = await run_in_threadpool(grant_catalog, principal, grant)
         return JSONResponse(describe_grant(grant, current), headers=SAFE_HEADERS)
 
     @app.post("/v1/auth/oauth/grants/{grant_id}/revoke", tags=["oauth-management"])
@@ -445,7 +503,7 @@ def register_oauth_routes(app: FastAPI, *, server: OAuthServer, observability: O
         body = await read_json(request, RevokeRequest)
         grant = await run_in_threadpool(server.narrow_grant, principal.id, grant_id, body.expected_revision, [], 0, 0, 0, revoke=True)
         event("grant_revoked", principal, grant_id)
-        current = await run_in_threadpool(server.catalog, principal, ["tools.read", "tools.invoke"])
+        current = await run_in_threadpool(grant_catalog, principal, grant)
         return describe_grant(grant, current)
 
     @app.get("/.well-known/oauth-authorization-server", include_in_schema=False)
@@ -540,12 +598,12 @@ def register_oauth_routes(app: FastAPI, *, server: OAuthServer, observability: O
 
     @app.post("/oauth/logout", include_in_schema=False)
     async def logout(request: Request) -> JSONResponse:
-        principal = await run_in_threadpool(server.session_principal, request.cookies.get(SESSION_COOKIE))
-        rate.check(request, "logout", 30, principal)
         browser = browser_post(request)
         body = await read_json(request, InteractionRequest)
         with server.store.transaction() as connection:
-            server.interaction(connection, body.request_id, browser, body.csrf)
+            _, authorization = server.interaction(connection, body.request_id, browser, body.csrf)
+        principal = await run_in_threadpool(server.session_principal, request.cookies.get(SESSION_COOKIE), resource=authorization["resource"])
+        rate.check(request, "logout", 30, principal)
         await run_in_threadpool(server.release_interaction, body.request_id, browser, body.csrf)
         server.auth.logout(request.cookies.get(SESSION_COOKIE), purpose="oauth_consent")
         response = JSONResponse({"logged_out": True}, headers=SAFE_HEADERS)

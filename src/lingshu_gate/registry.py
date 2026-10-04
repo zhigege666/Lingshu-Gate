@@ -36,6 +36,15 @@ class ToolInvocationContext:
     scopes: tuple[str, ...] = ()
     delegated_scopes: tuple[str, ...] | None = None
     session_id: str | None = None
+    oauth_builtin: bool = False
+    oauth_issuer: str | None = None
+    oauth_resource: str | None = None
+    oauth_client_id: str | None = None
+    oauth_grant_id: str | None = None
+    oauth_family_id: str | None = None
+    oauth_token_expires_at: int = 0
+    oauth_target_revision: int = 0
+    oauth_tool_snapshots: tuple[tuple[str, str], ...] = ()
 
 
 class ToolExecutionError(RuntimeError):

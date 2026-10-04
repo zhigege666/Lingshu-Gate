@@ -5,6 +5,7 @@ import hashlib
 import json
 import logging
 import re
+import sqlite3
 import threading
 import time
 from datetime import datetime, timedelta, timezone
@@ -151,9 +152,22 @@ class ExternalMcpConfigurationService:
             connection.execute("UPDATE mcp_idempotent_operations SET status='failed',error_json=?,updated_at=? WHERE id=? AND status='pending'",
                                (_json(error.to_payload()), _now(), operation_id))
 
-    def _authorize(self, context: ToolInvocationContext, *, write: bool = False) -> None:
+    def _authorize(self, context: ToolInvocationContext, *, write: bool = False, tool_id: str = "gate_mcp_config_status",
+                   target_id: str | None = None, action: str | None = None, connection: sqlite3.Connection | None = None) -> None:
+        if context.auth_type == "oauth":
+            from fastapi import HTTPException
+            from lingshu_gate.oauth_server import OAuthError
+
+            if self.auth.builtin_oauth is None or not context.oauth_builtin:
+                raise _error("external_config_admin_required", "A separately consented built-in management OAuth connection is required.")
+            try:
+                self.auth.builtin_oauth.management_authority(context, tool_id, write=write, target_id=target_id,
+                                                           action=action, connection=connection)
+            except (OAuthError, HTTPException, ValueError, KeyError, TypeError):
+                raise _error("external_config_oauth_denied", "The live management grant does not allow this tool, target or action; review the connection in Gate.") from None
+            return
         if context.auth_type not in {"session", "token"}:
-            raise _error("external_config_admin_required", "Use an administrator Console session or an explicitly scoped Gate API token; OAuth is not a management connection.")
+            raise _error("external_config_admin_required", "Use an active administrator management connection.")
         try:
             user = self.auth.get_user(context.actor_id)
         except KeyError:
@@ -190,7 +204,41 @@ class ExternalMcpConfigurationService:
     def _principal_digest(context: ToolInvocationContext) -> str:
         return _digest({"actor_id": context.actor_id, "auth_type": context.auth_type, "token_id": context.token_id,
                         "scopes": sorted(context.scopes), "delegated_scopes": context.delegated_scopes,
-                        "session_id": context.session_id})
+                        "session_id": context.session_id, **({"oauth_connection": ExternalMcpConfigurationService._connection_digest(context),
+                        "target_revision": context.oauth_target_revision, "tool_snapshots": context.oauth_tool_snapshots} if context.auth_type == "oauth" else {})})
+
+    @staticmethod
+    def _connection_digest(context: ToolInvocationContext) -> str:
+        return _digest({"actor_id": context.actor_id, "issuer": context.oauth_issuer, "resource": context.oauth_resource,
+                        "client_id": context.oauth_client_id, "grant_id": context.oauth_grant_id, "family_id": context.oauth_family_id})
+
+    def _idempotent_arguments(self, arguments: dict[str, Any], context: ToolInvocationContext) -> dict[str, Any]:
+        return {"request": arguments, "management_binding": self._principal_digest(context)} if context.auth_type == "oauth" else arguments
+
+    def _plan_authority(self, body: ExternalConfigApplyInput, context: ToolInvocationContext,
+                        connection: sqlite3.Connection | None = None) -> dict[str, Any]:
+        row = (connection.execute("SELECT * FROM external_mcp_config_plans WHERE id=? AND actor_id=?", (body.plan_id, context.actor_id)).fetchone()
+               if connection is not None else self.database.query_one("SELECT * FROM external_mcp_config_plans WHERE id=? AND actor_id=?", (body.plan_id, context.actor_id)))
+        if row is None or row["digest"] != body.plan_digest or row["principal_digest"] != self._principal_digest(context):
+            raise _error("external_config_plan_conflict", "The plan is unavailable for this management connection.")
+        plan = json.loads(row["plan_json"])
+        if _digest(plan) != row["digest"] or (body.connect, body.refresh_tools) != (plan["connect"], plan["refresh_tools"]):
+            raise _error("external_config_plan_conflict", "Stored plan or requested actions differ from the reviewed plan.")
+        self._authorize(context, write=True, tool_id="gate_mcp_config_apply", target_id=plan["server_id"], action=plan["mode"], connection=connection)
+        return plan
+
+    def _operation_authority(self, operation_id: str, context: ToolInvocationContext, *, tool_id: str,
+                             write: bool = False, connection: sqlite3.Connection | None = None) -> Any:
+        sql = "SELECT e.*,p.plan_json FROM external_mcp_config_operations e JOIN external_mcp_config_plans p ON p.id=e.plan_id WHERE e.id=? AND e.actor_id=?"
+        row = (connection.execute(sql, (operation_id, context.actor_id)).fetchone() if connection is not None
+               else self.database.query_one(sql, (operation_id, context.actor_id)))
+        if row is None:
+            raise _error("external_config_operation_unavailable", "Operation is unavailable for this management connection.")
+        plan = json.loads(row["plan_json"])
+        if context.auth_type == "oauth" and plan.get("oauth_connection_digest") != self._connection_digest(context):
+            raise _error("external_config_operation_unavailable", "Operation is unavailable for this management connection.")
+        self._authorize(context, tool_id=tool_id, write=write, target_id=plan["server_id"], action=plan["mode"] if write else None, connection=connection)
+        return row
 
     def _config_digest(self, server_id: str) -> str | None:
         try:
@@ -251,7 +299,10 @@ class ExternalMcpConfigurationService:
 
     def plan(self, arguments: dict[str, Any], context: ToolInvocationContext) -> dict[str, Any]:
         body = _parse_input(ExternalConfigPlanInput, arguments)
-        self._authorize(context, write=body.probe)
+        target = body.manifest.get("id")
+        if context.auth_type == "oauth" and (not isinstance(target, str) or not re.fullmatch(r"[A-Za-z0-9][A-Za-z0-9_.-]{0,127}", target)):
+            raise _error("external_config_oauth_denied", "An exact authorized server ID is required.")
+        self._authorize(context, write=body.probe, tool_id="gate_mcp_config_plan", target_id=target if isinstance(target, str) else None, action=body.mode)
         if body.refresh_tools and not body.connect:
             raise _error("external_config_invalid", "Tool refresh requires an explicitly requested connection.")
         if body.probe and not body.probe_confirmed:
@@ -274,7 +325,9 @@ class ExternalMcpConfigurationService:
             client = StreamableHttpMcpClient(manifest, self.settings)
             try:
                 with client.operation_bounds(threading.Event(), time.monotonic() + min(body.timeout_seconds, 30)):
+                    self._authorize(context, write=True, tool_id="gate_mcp_config_plan", target_id=manifest.id, action=body.mode)
                     client.start()
+                    self._authorize(context, write=True, tool_id="gate_mcp_config_plan", target_id=manifest.id, action=body.mode)
                     count = len(client.list_tools())
                 probe = {"status": "reachable", "network_contacted": True, "tool_count": count, "registry_changed": False}
             except Exception:
@@ -283,15 +336,18 @@ class ExternalMcpConfigurationService:
             finally:
                 client.stop()
         expires = (datetime.now(timezone.utc) + timedelta(minutes=5)).isoformat()
-        self._authorize(context, write=body.probe)
+        self._authorize(context, write=body.probe, tool_id="gate_mcp_config_plan", target_id=manifest.id, action=body.mode)
         payload = {"mode": body.mode, "manifest": manifest.model_dump(mode="json", exclude={"manifest_path"}),
                    "manifest_digest": self.runtime._manifest_digest(manifest), "server_id": manifest.id,
                    "expected_config_digest": actual, "credential_revisions": self._credential_revisions(manifest),
                    "connect": body.connect, "refresh_tools": body.refresh_tools,
                    "timeout_seconds": body.timeout_seconds, "expires_at": expires}
+        if context.auth_type == "oauth":
+            payload.update(oauth_connection_digest=self._connection_digest(context), target_revision=context.oauth_target_revision)
         plan_id, digest = uuid4().hex, _digest(payload)
         with self.database.session() as connection:
             connection.execute("BEGIN IMMEDIATE")
+            self._authorize(context, write=body.probe, tool_id="gate_mcp_config_plan", target_id=manifest.id, action=body.mode, connection=connection)
             # Retain plans while the operation journal needs them; prune expired
             # orphans after its existing retention removes the operation.
             connection.execute("DELETE FROM external_mcp_config_plans WHERE expires_at<? AND NOT EXISTS "
@@ -311,10 +367,19 @@ class ExternalMcpConfigurationService:
 
     def apply(self, arguments: dict[str, Any], context: ToolInvocationContext) -> dict[str, Any]:
         body = _parse_input(ExternalConfigApplyInput, arguments)
-        self._authorize(context, write=True)
+        self._authorize(context, write=True, tool_id="gate_mcp_config_apply")
         if not body.confirmed:
             raise _error("confirmation_required", "Confirm the exact external configuration and connection plan.")
-        operation_id, replay = self.delivery._reserve_operation(context, "gate_mcp_config_apply", body.idempotency_key, arguments)
+        if context.auth_type == "oauth":
+            self._plan_authority(body, context)
+        operation_id, replay = self.delivery._reserve_operation(context, "gate_mcp_config_apply", body.idempotency_key, self._idempotent_arguments(arguments, context))
+        if context.auth_type == "oauth":
+            try:
+                self._plan_authority(body, context)
+            except ToolExecutionError as exc:
+                if replay is None:
+                    self.delivery._fail_operation(operation_id, exc)
+                raise
         if isinstance(replay, dict):
             return replay
         if isinstance(replay, ToolExecutionError):
@@ -329,6 +394,8 @@ class ExternalMcpConfigurationService:
         try:
             with _control_lock(self._lock), self.database.session() as connection:
                 connection.execute("BEGIN IMMEDIATE")
+                if context.auth_type == "oauth":
+                    self._plan_authority(body, context, connection)
                 if len(self._threads) >= 4:
                     raise _error("external_config_busy", "External configuration queue is full; query existing operations before retrying.")
                 row = connection.execute("SELECT * FROM external_mcp_config_plans WHERE id=? AND actor_id=?", (body.plan_id, context.actor_id)).fetchone()
@@ -373,9 +440,9 @@ class ExternalMcpConfigurationService:
         self.database.execute("UPDATE external_mcp_config_operations SET status=?,result_json=?,updated_at=? WHERE id=?",
                               (result["status"], _json(result), _now(), operation_id))
 
-    def _check(self, context: ToolInvocationContext, cancel: threading.Event, deadline: float) -> None:
+    def _check(self, context: ToolInvocationContext, cancel: threading.Event, deadline: float, plan: dict[str, Any]) -> None:
         check_operation(cancel, deadline)
-        self._authorize(context, write=True)
+        self._authorize(context, write=True, tool_id="gate_mcp_config_apply", target_id=plan["server_id"], action=plan["mode"])
         check_operation(cancel, deadline)
 
     def _run(self, operation_id: str, plan: dict[str, Any], context: ToolInvocationContext, cancel: threading.Event, deadline: float,
@@ -387,7 +454,7 @@ class ExternalMcpConfigurationService:
         try:
             self._progress(operation_id, result)
             with operation_lock(self.configs.mutation_lock, cancel=cancel, deadline=deadline):
-                self._check(context, cancel, deadline)
+                self._check(context, cancel, deadline, plan)
                 manifest = validate_manifest_for_write(plan["manifest"], http_trust_store=self.configs.http_trust_store)
                 if self._credential_revisions(manifest) != plan["credential_revisions"]:
                     raise _error("external_config_credential_changed", "Managed credential bindings changed after planning.")
@@ -396,16 +463,17 @@ class ExternalMcpConfigurationService:
                 request = McpConfigSaveRequest(manifest=plan["manifest"], apply=False, start=False,
                                                expected_config_digest=plan["expected_config_digest"])
                 prepared = self.configuration.prepare_user_credentials(request, existing_server_id=manifest.id if plan["mode"] == "update" else None)
+                self._check(context, cancel, deadline, plan)
                 if plan["mode"] == "create":
                     self.configuration.create(request, user_id=context.actor_id, prepared=prepared)
                 else:
                     self.configuration.update(manifest.id, request, user_id=context.actor_id, prepared=prepared)
                 result.update(config_applied=True, config_digest=self._config_digest(manifest.id))
                 self._progress(operation_id, result)
-                self._check(context, cancel, deadline)
+                self._check(context, cancel, deadline, plan)
                 runtime_applying = True
                 self.runtime.apply_external_configuration(self.configs.load_manifest(manifest.id), cancel=cancel, deadline=deadline,
-                                                          before_apply=lambda: self._check(context, cancel, deadline))
+                                                          before_apply=lambda: self._check(context, cancel, deadline, plan))
                 loaded = True
                 runtime_applying = False
                 if plan["connect"]:
@@ -414,24 +482,24 @@ class ExternalMcpConfigurationService:
                     reconciliation: dict[str, Any] = {}
                     discovery: dict[str, Any] = {}
                     def reconcile(definitions: list[Any]) -> None:
-                        self._check(context, cancel, deadline)
+                        self._check(context, cancel, deadline, plan)
                         reconciliation.clear()
                         reconciliation.update(self.access.reconcile_server_tools(manifest.id, definitions, context.actor_id))
                     server = self.runtime.connect_external_if_manifest_digest(manifest.id, plan["manifest_digest"], cancel=cancel, deadline=deadline,
-                        operation_id=operation_id, before_connect=lambda: self._check(context, cancel, deadline), before_replace=reconcile,
+                        operation_id=operation_id, before_connect=lambda: self._check(context, cancel, deadline, plan), before_replace=reconcile,
                         discovery=discovery)
                     if server.status != "running":
-                        self._check(context, cancel, deadline)
+                        self._check(context, cancel, deadline, plan)
                         raise _error("external_config_connect_failed", "Configuration saved; the external connection did not become ready.")
                     result.update(connection_state="connected", discovery_state="succeeded", **discovery,
                                   counts=reconciliation["counts"],
                                   classification_state="needs_review" if reconciliation["counts"]["needs_review"] else "ready")
                     self._progress(operation_id, result)
-                    self._check(context, cancel, deadline)
+                    self._check(context, cancel, deadline, plan)
                     # Initialization already performed strict discovery and the
                     # classification gate. An explicit refresh uses that same
                     # snapshot, never a second list that erases new/changed counts.
-                self._check(context, cancel, deadline)
+                self._check(context, cancel, deadline, plan)
                 result["status"] = "success"
         except InterruptedError:
             result.update(status="cancelled", error_code="external_config_cancelled")
@@ -490,9 +558,14 @@ class ExternalMcpConfigurationService:
                     self._threads.pop(operation_id, None)
 
     def status(self, arguments: dict[str, Any], context: ToolInvocationContext) -> dict[str, Any]:
+        return self._status(arguments, context)
+
+    def _status(self, arguments: dict[str, Any], context: ToolInvocationContext, *,
+               _tool_id: str = "gate_mcp_config_status", _write: bool = False) -> dict[str, Any]:
         body = _parse_input(ExternalConfigStatusInput, arguments)
-        self._authorize(context)
+        self._authorize(context, tool_id=_tool_id, write=_write)
         if body.server_id is not None:
+            self._authorize(context, tool_id=_tool_id, write=_write, target_id=body.server_id)
             with _control_lock(self.configs.mutation_lock):
                 try:
                     config = self.configs.get_config(body.server_id)
@@ -514,10 +587,7 @@ class ExternalMcpConfigurationService:
                         "connection_state": "not_loaded" if runtime is None else "stale_config" if not matches else "connected" if runtime.status == "running" else "disconnected",
                         "discovery_state": "not_observed", "remote_process_started": False,
                         "effective_permissions_expanded": False}
-        row = self.database.query_one("SELECT result_json,cancel_requested FROM external_mcp_config_operations WHERE id=? AND actor_id=?",
-                                      (body.operation_id, context.actor_id))
-        if row is None:
-            raise _error("external_config_operation_unavailable", "Operation is unavailable for this actor.")
+        row = self._operation_authority(str(body.operation_id), context, tool_id=_tool_id, write=_write)
         result = json.loads(row["result_json"])
         if not result.get("terminal"):
             with _control_lock(self._lock):
@@ -525,23 +595,25 @@ class ExternalMcpConfigurationService:
                 lost_worker = worker is None or (worker.ident is not None and not worker.is_alive())
             if lost_worker:
                 self._interrupt_unfinished(str(body.operation_id))
-                row = self.database.query_one("SELECT result_json,cancel_requested FROM external_mcp_config_operations WHERE id=? AND actor_id=?",
-                                              (body.operation_id, context.actor_id))
-                if row is None:
-                    raise _error("external_config_operation_unavailable", "Operation is unavailable for this actor.")
+                row = self._operation_authority(str(body.operation_id), context, tool_id=_tool_id, write=_write)
+        self._operation_authority(str(body.operation_id), context, tool_id=_tool_id, write=_write)
         return {**json.loads(row["result_json"]), "cancel_requested": bool(row["cancel_requested"])}
 
     def cancel(self, arguments: dict[str, Any], context: ToolInvocationContext) -> dict[str, Any]:
         body = _parse_input(ExternalConfigCancelInput, arguments)
-        self._authorize(context, write=True)
+        self._authorize(context, write=True, tool_id="gate_mcp_config_cancel")
         if not body.confirmed:
             raise _error("confirmation_required", "Confirm cancellation; any saved configuration remains.")
+        self._operation_authority(body.operation_id, context, tool_id="gate_mcp_config_cancel", write=True)
         def action(cancel_operation_id: str) -> tuple[dict[str, Any], str]:
             # Recover a lost worker conservatively before taking the queue lock.
-            self.status({"operation_id": body.operation_id}, context)
+            if context.auth_type == "oauth":
+                self._status({"operation_id": body.operation_id}, context, _tool_id="gate_mcp_config_cancel", _write=True)
+            else:
+                self.status({"operation_id": body.operation_id}, context)
             with _control_lock(self._lock), self.database.session() as connection:
-                self._authorize(context, write=True)
                 connection.execute("BEGIN IMMEDIATE")
+                self._operation_authority(body.operation_id, context, tool_id="gate_mcp_config_cancel", write=True, connection=connection)
                 current = connection.execute("SELECT status FROM external_mcp_config_operations WHERE id=? AND actor_id=?",
                                              (body.operation_id, context.actor_id)).fetchone()
                 if current is None:
@@ -556,7 +628,10 @@ class ExternalMcpConfigurationService:
             return {"operation_id": cancel_operation_id, "target_operation_id": body.operation_id,
                     "status": "already_terminal" if terminal else "cancel_requested",
                     "terminal": terminal, "next_action": "Read or poll the target operation; this response does not prove a remote process stopped. Saved configuration is retained."}, body.operation_id
-        return self.delivery._run_idempotent(context, "gate_mcp_config_cancel", body.idempotency_key, arguments, "mcp_config_operation", action)
+        result = self.delivery._run_idempotent(context, "gate_mcp_config_cancel", body.idempotency_key,
+            self._idempotent_arguments(arguments, context), "mcp_config_operation", action)
+        self._operation_authority(body.operation_id, context, tool_id="gate_mcp_config_cancel", write=True)
+        return result
 
     def shutdown(self) -> None:
         """Request cancellation only for this process's outstanding operations."""
