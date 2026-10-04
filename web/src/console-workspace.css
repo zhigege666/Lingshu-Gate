@@ -108,7 +108,7 @@
   overflow-wrap: anywhere;
 }
 
-.console-account-version {
+.console-account-roles {
   display: flex;
   flex-direction: column;
   gap: .25rem;
@@ -116,12 +116,10 @@
   user-select: text;
 }
 
-.console-account-version code {
-  color: hsl(var(--foreground));
-  font-size: .8125rem;
-  line-height: 1.5;
-  white-space: normal;
-  overflow-wrap: anywhere;
+.console-account-roles > div {
+  display: flex;
+  flex-wrap: wrap;
+  gap: .25rem;
 }
 
 .console-mobile-menu.ant-btn {
@@ -1094,14 +1092,12 @@
  .page-toolbar-reset.ant-btn { min-height: 36px; }
 }
 
-/* Compact screens keep primary controls in one row; infrequent account actions
-   stay available in the existing account menu instead of wrapping the header. */
-@media (min-width: 721px) { .console-account-menu .console-account-mobile-action { display: none; } }
+/* Compact screens keep the same actions and use an icon for the OpenAPI link. */
 @media (max-width: 720px) {
  .console-shell { --console-header-height: 64px; }
  .console-header { flex-wrap: nowrap; min-height: 64px; gap: 8px; }
  .console-header-actions { width: auto; flex-wrap: nowrap; margin-left: auto; }
- .console-header .console-header-secondary { display: none; }
+ .console-openapi-label { display: none; }
  .console-account.ant-btn { padding-inline: 4px; gap: 0; }
  .console-account > .anticon { display: none; }
  .console-brand { gap: 6px; }

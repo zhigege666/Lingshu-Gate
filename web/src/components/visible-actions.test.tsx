@@ -23,11 +23,12 @@ function Shell({ authType }: { authType: string }) {
 }
 
 describe("账号与上传操作直接展示", () => {
-  it.each(["session", "disabled"])("%s 账号首屏展示适用操作", authType => {
+  it.each(["session", "disabled"])("%s 首屏保留 OpenAPI，退出只在账号菜单", authType => {
     const html = renderToStaticMarkup(<Shell authType={authType} />)
     const header = html.match(/<header\b[\s\S]*?<\/header>/)?.[0] || ""
     expect(header).toContain("OpenAPI")
-    expect(header.includes("退出登录")).toBe(authType !== "disabled")
+    expect(header).not.toContain("退出登录")
+    expect(header.match(/>Example</g)).toHaveLength(1)
   })
   it.each([false, true])("上传行按钮直接展示并保留忙碌禁用：%s", busy => {
     const html = renderToStaticMarkup(<UploadList
