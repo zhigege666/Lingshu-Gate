@@ -596,7 +596,7 @@ function StatusBadge({ item, labels }: { item: ToolClassification; labels: Recor
   if (status === "stale") {
     const zh = labels.stale === "已失效"
     const reason = classificationChangeReason(item, zh)
-    return <div><Badge variant="danger">{labels.stale}</Badge><p className="mt-1 text-xs text-muted-foreground">{reason}</p></div>
+    return <div><Badge variant="danger">{labels.stale}</Badge><p className="tool-invalidation-reason mt-1 text-xs text-muted-foreground">{reason}</p></div>
   }
   if (status === "confirmed_pending") return <Badge variant="outline">{labels.confirmedPending}</Badge>
   return <Badge variant="warning">{labels.needsConfirmation}</Badge>

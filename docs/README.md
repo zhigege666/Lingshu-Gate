@@ -6,6 +6,7 @@ This documentation describes the current Gate product boundary. English is autho
 
 | Guide | Purpose |
 |---|---|
+| [MCP groups](mcp-groups.md) | Administrator metadata collections, many-to-many members and unchanged instance authorization |
 | [Performance review](performance-review.md) | Reproducible synthetic benchmarks and validation limits |
 | [Retention controls](retention.md) | Separate log, event and invocation lifetimes, cleanup preview and confirmation |
 | [Invocation content recording](invocation-recording.md) | Opt-in bounded redacted content, owner isolation, audit capability and retention |

@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Administrator MCP groups organize existing instances through stable IDs, many-to-many membership, revision CAS, strict session CSRF and atomic audit. The existing MCP page adds a centered group editor with complete metadata search/pagination and cross-page selection. Archive/delete changes only metadata; no permissions, configurations or runtime state expand. Logical aggregation and Agent routing remain pending. [Group contract](docs/mcp-groups.md).
+
 - Downstream output schemas are retained in tool registration and discovery digests, including an explicit empty schema. Contract drift invalidates published classifications and access snapshots; Console names changed fields, or states that historical field differences are unavailable. Review and publication remain manual.
 
 - Source acquisition/validation adds bounded SHA-1 Git object export, shared streaming ZIP scans and normalized dependency/offline-worker contract fixtures. Production Git transport, full lockfile graphs and rootless offline installation/build remain unavailable; no executor is injected. [Execution gap](docs/git-executor-decision.md).

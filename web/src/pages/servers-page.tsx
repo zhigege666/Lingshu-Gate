@@ -1,6 +1,8 @@
 import { replaceConsoleRouteHash } from "@/routing/use-console-route"
 import "./servers-page.css"
 import { ServiceDeployments } from "@/features/servers/service-deployments"
+import { McpGroupsView } from "@/features/servers/groups-view"
+import { groupCopy } from "@/features/servers/group-copy"
 import { useEffect, useLayoutEffect, useMemo, useRef, useState, type ReactNode } from "react"
 import {
   ArrowLeftOutlined, ArrowRightOutlined, CloudServerOutlined, CodeOutlined, ExportOutlined,
@@ -35,6 +37,7 @@ type Props = {
   canReadTools: boolean
   canManageClassifications: boolean
   canManageHttpTrust?: boolean
+  canManageGroups?: boolean
   onServerAction: (id: string, action: Action) => Promise<void> | void
   onRefresh: () => Promise<void> | void
   onInvoke?: (toolId: string) => void
@@ -45,6 +48,9 @@ type Props = {
 export function ServersPage(props: Props) {
   const { t, servers, locale } = props
   const c = serverCopy(locale)
+  const gc = groupCopy(locale)
+  const [directoryView, setDirectoryView] = useState("instances")
+  const [groupBusy, setGroupBusy] = useState(false)
   const screens = Grid.useBreakpoint()
   const workspace = useRef<HTMLDivElement>(null)
   useLayoutEffect(() => {
@@ -100,10 +106,10 @@ export function ServersPage(props: Props) {
     }
   }, [selectedId, servers, screens.md, props.initialServerId])
   useEffect(() => {
-    if (!selected) return
+    if (!selected || directoryView !== "instances") return
     void load(activeSection)
     if (activeSection !== "overview") void load("overview")
-  }, [selected?.id, activeSection, servers, load])
+  }, [selected?.id, activeSection, servers, load, directoryView])
 
   useEffect(() => {
     const detail = states.configuration
@@ -202,7 +208,10 @@ export function ServersPage(props: Props) {
     </section>
   </div>
 
-  return <div ref={workspace} className="server-workspace" data-selected={Boolean(selected)}>
+  return <>
+    {props.canManageGroups && <div className="mcp-group-view-switch"><Segmented aria-label={`${gc.groups} / ${gc.instances}`} disabled={groupBusy} value={directoryView} onChange={value => setDirectoryView(String(value))} options={[{ value: "instances", label: gc.instances }, { value: "groups", label: gc.groups }]} /></div>}
+    <div ref={workspace} className="server-workspace" data-selected={directoryView === "instances" && Boolean(selected)}>
+    {directoryView === "groups" && props.canManageGroups ? <McpGroupsView locale={locale} t={t} serverIds={new Set(servers.map(item => item.id))} onBusyChange={setGroupBusy} onSelectInstance={id => { chooseServer(id); setDirectoryView("instances"); replaceConsoleRouteHash(`#/servers/${encodeURIComponent(id)}`) }} /> : <>
     <aside className="service-directory" aria-label={c.directory}>
       <div className="service-directory-header">
         <div className="service-directory-title service-directory-heading">
@@ -270,6 +279,7 @@ export function ServersPage(props: Props) {
         ]} />
       </> : <div className="service-unselected"><Empty image={Empty.PRESENTED_IMAGE_SIMPLE} description={c.selectService} /></div>}
     </section>
+    </>}
 
     {configSession && <ServiceConfigDrawer server={configSession.server} manifest={configSession.manifest} configDigest={configSession.configDigest} canManageHttpTrust={props.canManageHttpTrust} locale={locale} t={t} onClose={() => setConfigSession(null)} onSaved={async () => { await props.onRefresh(); await load("configuration", true); await load("overview", true) }} />}
     <Drawer className="service-tool-drawer" title={selectedTool?.name || c.toolDetails} size={560} open={selectedTool !== null} onClose={() => setSelectedTool(null)} destroyOnHidden>
@@ -284,7 +294,8 @@ export function ServersPage(props: Props) {
     <Drawer title={c.recordDetails} size={640} open={selectedRecord !== null} onClose={() => setSelectedRecord(null)} destroyOnHidden>
       {selectedRecord && <JsonPanel copyLabel={t("copy")} data={selectedRecord} maxHeight="max-h-[calc(100vh-140px)]" />}
     </Drawer>
-  </div>
+    </div>
+  </>
 }
 
 export function isPlannedDisabled(server: McpServer) {

@@ -22,3 +22,9 @@
   .tool-review-table td:nth-child(7) { z-index: 1; }
   .tool-review-table th:nth-child(7) { z-index: 3; }
 }
+.tool-review-content .tool-invalidation-reason {
+  white-space: normal;
+  overflow: visible;
+  overflow-wrap: anywhere;
+  text-overflow: clip;
+}

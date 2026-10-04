@@ -2,6 +2,8 @@
 
 ## 未发布
 
+- 管理员 MCP 组以稳定 ID、多对多成员、revision CAS、严格会话 CSRF 和同事务审计整理已有实例。现有 MCP 页新增居中组编辑器，完整搜索/分页元数据并保留跨页选择。归档/删除只改变元数据，不扩大权限、配置或运行状态。逻辑聚合与 Agent 路由仍未实现。[组契约](docs/zh-CN/mcp-groups.md)。
+
 - 下游输出 schema 纳入工具注册与发现摘要，保留显式空 schema。契约变化使已发布分类和授权快照失效；Console 展示变更字段，或明确旧版未记录逐字段差异。审核和发布仍须人工完成。
 
 - 来源获取/校验新增有界 SHA-1 Git 对象导出、共用流式 ZIP 扫描与规范化依赖/离线 worker 契约 fixture。生产 Git transport、完整 lockfile 图与 rootless 离线安装/构建仍不可用，不注入执行器。[执行缺口](docs/zh-CN/git-executor-decision.md)。
