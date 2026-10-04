@@ -86,6 +86,9 @@ class McpOAuthDiscoveryBoundary:
 def register_oauth_protected_resource_routes(
     app: FastAPI,
     boundary: McpOAuthDiscoveryBoundary | Callable[[], McpOAuthDiscoveryBoundary | None],
+    *,
+    include_root: bool = True,
+    metadata_path: str | None = None,
 ) -> None:
     """Register RFC 9728 metadata at root and MCP path-specific locations."""
 
@@ -95,15 +98,16 @@ def register_oauth_protected_resource_routes(
             raise HTTPException(404, detail="OAuth resource metadata is disabled")
         return current.metadata.document()
 
+    if include_root:
+        app.add_api_route(
+            "/.well-known/oauth-protected-resource",
+            metadata_document,
+            methods=["GET"],
+            tags=["mcp-authorization"],
+            include_in_schema=False,
+        )
     app.add_api_route(
-        "/.well-known/oauth-protected-resource",
-        metadata_document,
-        methods=["GET"],
-        tags=["mcp-authorization"],
-        include_in_schema=False,
-    )
-    app.add_api_route(
-        boundary.metadata_path if isinstance(boundary, McpOAuthDiscoveryBoundary) else "/.well-known/oauth-protected-resource/mcp",
+        metadata_path or (boundary.metadata_path if isinstance(boundary, McpOAuthDiscoveryBoundary) else "/.well-known/oauth-protected-resource/mcp"),
         metadata_document,
         methods=["GET"],
         tags=["mcp-authorization"],

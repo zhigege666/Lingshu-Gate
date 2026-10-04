@@ -62,6 +62,12 @@ class AuthPrincipal:
     external_rate_per_minute: int = 0
     external_concurrency: int = 0
     session_id: str | None = None
+    oauth_builtin: bool = False
+    oauth_resource: str | None = None
+    oauth_client_id: str | None = None
+    oauth_family_id: str | None = None
+    oauth_token_expires_at: int = 0
+    oauth_target_revision: int = 0
 
 
 def utc_now() -> datetime:
@@ -720,6 +726,21 @@ class AuthStore:
     def authenticate_mcp_request(self, request: Request) -> AuthPrincipal:
         """External JWTs authenticate only this protocol endpoint, never Console."""
         bearer = self._bearer_token(request)
+        # The trusted route selects this audience before looking at any token.
+        # Neither a Console session/API token nor an external verifier may
+        # bootstrap management-resource access.
+        if request.url.path == "/mcp/manage":
+            from lingshu_gate.oauth_server import OAuthError
+
+            if not self.enabled or self.builtin_oauth is None or not self.builtin_oauth.store.management_config()["active"]:
+                raise HTTPException(404, detail="OAuth management resource is disabled")
+            if not bearer or bearer.count(".") != 2:
+                raise HTTPException(401, detail="management OAuth authorization required", headers={"WWW-Authenticate": "Bearer"})
+            try:
+                resource = self.builtin_oauth.store.management_config()["resource"]
+                return self.builtin_oauth.verify(bearer, expected_resource=resource)
+            except (OAuthError, ValueError, KeyError, PermissionError) as exc:
+                raise HTTPException(401, detail="invalid management OAuth authorization", headers={"WWW-Authenticate": "Bearer"}) from exc
         if self.external_connections is not None and self.external_connections.configuration().enabled and not self.enabled:
             raise HTTPException(503, detail="external authentication requires Gate authentication")
         if "authorization" not in request.headers:

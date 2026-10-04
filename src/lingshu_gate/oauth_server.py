@@ -31,12 +31,16 @@ from cryptography.hazmat.primitives.kdf.hkdf import HKDF
 from lingshu_gate.access_control import AccessControlStore
 from lingshu_gate.auth import AuthPrincipal, AuthStore, hash_secret
 from lingshu_gate.application.console_session_security import live_console_session, session_binding, session_binding_matches
+from lingshu_gate.domain.oauth_management import (
+    BUSINESS_SCOPES, MANAGEMENT_SCOPES, MANAGEMENT_TOOL_IDS, MANAGEMENT_READ_TOOLS,
+    management_resource, management_tool_snapshot, normalize_management_targets,
+)
 from lingshu_gate.external_connection import _https_resource
 from lingshu_gate.observability_store import ObservabilityStore
 from lingshu_gate.oauth_store import OAuthStore
 from lingshu_gate.registry import ToolRegistry
 
-SCOPES = frozenset({"tools.read", "tools.invoke"})
+SCOPES = BUSINESS_SCOPES | MANAGEMENT_SCOPES
 CODE_TTL = 60
 ACCESS_TTL = 600
 REFRESH_TTL = 30 * 86400
@@ -117,6 +121,45 @@ class OAuthServer:
             raise OAuthError("oauth_disabled", 404)
         return config
 
+    def resource_policy(self, resource: str, connection: sqlite3.Connection | None = None) -> dict[str, Any]:
+        config = self.ready_config(connection)
+        if resource == config["resource"]:
+            return {**config, "kind": "business", "allowed_scopes": BUSINESS_SCOPES}
+        if resource == management_resource(config["resource"]):
+            management = self.store.management_config(connection)
+            if not management["active"]:
+                raise OAuthError("oauth_management_disabled", 404)
+            return {**config, "resource": resource, "kind": "management", "allowed_scopes": MANAGEMENT_SCOPES,
+                    "management_revision": management["revision"]}
+        raise OAuthError("invalid_target")
+
+    def save_management_config(self, enabled: bool, revision: int, *, principal: AuthPrincipal | None = None,
+                               session: str = "") -> dict[str, Any]:
+        with self.store.transaction() as connection:
+            if principal is not None:
+                current_owner = live_console_session(self.auth, principal, session)
+                if current_owner is None:
+                    raise OAuthError("session_required", 403)
+                self.management_owner(current_owner, connection=connection)
+            current = self.store.management_config(connection)
+            if current["revision"] != revision:
+                raise OAuthError("revision_conflict", 409)
+            if enabled:
+                self.ready_config(connection)
+                if not connection.execute("SELECT kid FROM gate_oauth_keys WHERE active=1").fetchone():
+                    raise OAuthError("signing_key_required", 409)
+            if not enabled:
+                connection.execute("UPDATE gate_oauth_families SET revoked_at=? WHERE revoked_at IS NULL AND grant_id IN "
+                    "(SELECT id FROM gate_oauth_grants WHERE resource=?)", (int(time.time()), current["resource"]))
+                connection.execute("DELETE FROM gate_oauth_codes WHERE resource=?", (current["resource"],))
+            connection.execute("INSERT INTO gate_oauth_management_config VALUES(1,?,?) ON CONFLICT(id) DO UPDATE SET "
+                               "enabled=excluded.enabled,revision=excluded.revision", (int(enabled), revision + 1))
+            if principal is not None:
+                ObservabilityStore(self.store.database).emit_event("gate.oauth.management_configuration_saved", source="oauth",
+                    subject_type="oauth", payload={"actor_id": principal.id, "enabled": enabled,
+                                                   "previous_revision": revision, "revision": revision + 1}, connection=connection)
+        return self.store.management_config()
+
     def metadata(self) -> dict[str, Any]:
         config = self.ready_config()
         issuer = config["issuer"]
@@ -124,7 +167,7 @@ class OAuthServer:
                 "token_endpoint": issuer + "/oauth/token", "revocation_endpoint": issuer + "/oauth/revoke",
                 "jwks_uri": issuer + "/oauth/jwks", "response_types_supported": ["code"],
                 "grant_types_supported": ["authorization_code", "refresh_token"],
-                "code_challenge_methods_supported": ["S256"], "scopes_supported": sorted(SCOPES),
+                "code_challenge_methods_supported": ["S256"], "scopes_supported": sorted(BUSINESS_SCOPES),
                 "token_endpoint_auth_methods_supported": ["client_secret_basic", "client_secret_post"],
                 "revocation_endpoint_auth_methods_supported": ["client_secret_basic", "client_secret_post"],
                 "authorization_response_iss_parameter_supported": True}
@@ -219,34 +262,38 @@ class OAuthServer:
                 connection.execute("UPDATE gate_oauth_families SET revoked_at=? WHERE revoked_at IS NULL", (now,))
                 connection.execute("DELETE FROM gate_oauth_codes")
                 connection.execute("DELETE FROM gate_oauth_interactions")
+                connection.execute("UPDATE gate_oauth_management_config SET enabled=0,revision=revision+1 WHERE enabled=1")
             connection.execute("INSERT INTO gate_oauth_config VALUES(1,?,?) ON CONFLICT(id) DO UPDATE SET "
                                "payload_json=excluded.payload_json,revision=excluded.revision",
                                (json.dumps(payload), revision + 1))
         return self.store.config()
 
-    def create_client(self, name: str, redirects: list[str], scopes: list[str]) -> dict[str, Any]:
-        self._check_client_fields(name, redirects, scopes)
+    def create_client(self, name: str, redirects: list[str], scopes: list[str], *, resources: list[str] | None = None) -> dict[str, Any]:
+        resources = ["business"] if resources is None else resources
+        self._check_client_fields(name, redirects, scopes, resources)
         client_id, secret = "lgc_" + secrets.token_urlsafe(24), secrets.token_urlsafe(48)
         with self.store.transaction() as connection:
             if connection.execute("SELECT COUNT(*) FROM gate_oauth_clients").fetchone()[0] >= 100:
                 raise OAuthError("client_limit", 409)
-            connection.execute("INSERT INTO gate_oauth_clients VALUES(?,?,?,?,?,?,?,?)",
+            connection.execute("INSERT INTO gate_oauth_clients VALUES(?,?,?,?,?,?,?,?,?)",
                                (client_id, name.strip(), json.dumps(redirects), json.dumps(sorted(set(scopes))),
-                                hash_secret(secret), 1, 1, int(time.time())))
+                                hash_secret(secret), 1, 1, int(time.time()), json.dumps(sorted(resources))))
         return {"client": next(client for client in self.store.clients() if client["id"] == client_id),
                 "client_secret": secret}
 
     @staticmethod
-    def _check_client_fields(name: str, redirects: list[str], scopes: list[str]) -> None:
+    def _check_client_fields(name: str, redirects: list[str], scopes: list[str], resources: list[str]) -> None:
         if (not name.strip() or len(name) > 100 or any(ord(c) < 32 for c in name)
                 or not 1 <= len(redirects) <= 10 or len(set(redirects)) != len(redirects)
                 or not all(valid_callback(uri) for uri in redirects)
-                or not scopes or not set(scopes) <= SCOPES):
+                or not scopes or not set(scopes) <= SCOPES or not resources or len(resources) != len(set(resources))
+                or not set(resources) <= {"business", "management"}
+                or ("operations.manage" in scopes) != ("management" in resources)):
             raise OAuthError("invalid_client_configuration")
 
     def update_client(self, client_id: str, revision: int, *, enabled: bool,
-                      name: str, redirects: list[str], scopes: list[str], rotate: bool = False) -> dict[str, Any]:
-        self._check_client_fields(name, redirects, scopes)
+                      name: str, redirects: list[str], scopes: list[str], rotate: bool = False,
+                      resources: list[str] | None = None) -> dict[str, Any]:
         secret = secrets.token_urlsafe(48) if rotate else None
         with self.store.transaction() as connection:
             row = connection.execute("SELECT * FROM gate_oauth_clients WHERE id=?", (client_id,)).fetchone()
@@ -254,10 +301,12 @@ class OAuthServer:
                 raise OAuthError("client_not_found", 404)
             if row["revision"] != revision:
                 raise OAuthError("revision_conflict", 409)
+            resources = json.loads(row["resources_json"]) if resources is None else resources
+            self._check_client_fields(name, redirects, scopes, resources)
             connection.execute("UPDATE gate_oauth_clients SET name=?,redirect_uris_json=?,scopes_json=?,"
-                               "enabled=?,secret_hash=?,revision=revision+1 WHERE id=?",
+                               "enabled=?,secret_hash=?,resources_json=?,revision=revision+1 WHERE id=?",
                                (name.strip(), json.dumps(redirects), json.dumps(sorted(set(scopes))), int(enabled),
-                                hash_secret(secret) if secret else row["secret_hash"], client_id))
+                                hash_secret(secret) if secret else row["secret_hash"], json.dumps(sorted(resources)), client_id))
             # A stale in-flight authorization must be restarted after any client edit.
             connection.execute("DELETE FROM gate_oauth_codes WHERE client_id=?", (client_id,))
             if not enabled or rotate:
@@ -280,12 +329,15 @@ class OAuthServer:
         if (params.get("response_type") != "code" or params.get("code_challenge_method") != "S256"
                 or not PKCE_CHALLENGE.fullmatch(params.get("code_challenge", ""))):
             raise OAuthError("invalid_authorization_request")
-        if params.get("resource") != config["resource"]:
-            raise OAuthError("invalid_target")
-        if not set(scopes) <= set(json.loads(row["scopes_json"])):
+        policy = self.resource_policy(params.get("resource", ""))
+        if (not set(scopes) <= policy["allowed_scopes"] or policy["kind"] not in json.loads(row["resources_json"])
+                or (policy["kind"] == "management" and "operations.manage" not in scopes)
+                or not set(scopes) <= set(json.loads(row["scopes_json"]))):
             raise OAuthError("invalid_scope")
         request = {**params, "scopes": scopes, "client_revision": row["revision"],
                    "configuration_revision": config["revision"], "issuer": config["issuer"]}
+        if policy["kind"] == "management":
+            request["management_revision"] = policy["management_revision"]
         payload = {"purpose": "authorization_v1", "browser_hash": hash_secret(browser),
                    "request": request, "csrf": secrets.token_urlsafe(32), "expires_at": int(time.time()) + INTERACTION_TTL}
         interaction = self._ticket_cipher().encrypt(json.dumps(payload).encode()).decode()
@@ -353,25 +405,53 @@ class OAuthServer:
         if row and row["expires_at"] <= int(time.time()):
             raise OAuthError("authorization_expired", 410)
         request = payload["request"]
+        policy = self.resource_policy(request["resource"], connection)
         client = connection.execute("SELECT * FROM gate_oauth_clients WHERE id=? AND enabled=1",
                                     (request["client_id"],)).fetchone()
         if (not client or client["revision"] != request["client_revision"]
                 or config["revision"] != request["configuration_revision"]
-                or config["issuer"] != request["issuer"] or config["resource"] != request["resource"]):
+                or config["issuer"] != request["issuer"]
+                or policy["kind"] not in json.loads(client["resources_json"])
+                or not set(request["scopes"]) <= policy["allowed_scopes"]
+                or policy.get("management_revision") != request.get("management_revision")):
             raise OAuthError("authorization_changed", 409)
         if row is None:
             row = {"browser_hash": payload["browser_hash"], "csrf_hash": hash_secret(payload["csrf"]),
                    "completed": 0, "expires_at": payload["expires_at"], "catalog_json": "{}", "user_id": None}
         return row, request
 
-    def session_principal(self, session: str | None) -> AuthPrincipal | None:
+    def session_principal(self, session: str | None, *, resource: str | None = None) -> AuthPrincipal | None:
         principal = self.auth._principal_from_session(session, purpose="oauth_consent") if session else None
+        if resource is not None and self.resource_policy(resource)["kind"] == "management":
+            return self.management_owner(principal) if principal is not None else None
         if principal is not None and (principal.must_change_password
                 or not self.access.has_control_permission(principal, "credentials.manage.self")):
             raise OAuthError("user_authorization_unavailable", 403)
         return principal
 
-    def catalog(self, principal: AuthPrincipal, scopes: list[str], *, connection: sqlite3.Connection | None = None) -> dict[str, dict[str, Any]]:
+    def management_owner(self, principal: AuthPrincipal, *, connection: sqlite3.Connection | None = None) -> AuthPrincipal:
+        row = (connection.execute("SELECT * FROM users WHERE id=?", (principal.id,)).fetchone() if connection
+               else self.store.database.query_one("SELECT * FROM users WHERE id=?", (principal.id,)))
+        if not row or row["status"] != "active" or row["must_change_password"]:
+            raise OAuthError("management_admin_required", 403)
+        current = self.auth._build_principal(row, auth_type="session")
+        if "admin" not in current.roles or "operations.manage" not in current.permissions:
+            raise OAuthError("management_admin_required", 403)
+        return current
+
+    def catalog(self, principal: AuthPrincipal, scopes: list[str], *, connection: sqlite3.Connection | None = None,
+                resource: str | None = None) -> dict[str, dict[str, Any]]:
+        if resource is not None and self.resource_policy(resource, connection)["kind"] == "management":
+            current = self.management_owner(principal, connection=connection)
+            if "operations.manage" not in scopes:
+                return {}
+            return {tool.id: {"id": tool.id, "name": tool.name, "server_id": "gate_mcp_configuration",
+                              "server_name": "Gate configuration", "access": "read" if tool.id in MANAGEMENT_READ_TOOLS else "write",
+                              "snapshot": management_tool_snapshot(tool)}
+                    for tool in self.registry.list_definitions()
+                    if tool.source == "builtin" and tool.id in MANAGEMENT_TOOL_IDS
+                    and tool.metadata.get("server_id") == "gate_mcp_configuration"
+                    and (tool.id in MANAGEMENT_READ_TOOLS or ("tools.invoke" in scopes and "tools.invoke" in current.permissions))}
         visible = self.access.visible_tools(principal, self.registry.list_definitions(), connection=connection)
         classifications = ({(item["server_id"], item["tool_id"]): item for item in connection.execute("SELECT * FROM mcp_tool_classifications").fetchall()}
                            if connection is not None else {(item["server_id"], item["tool_id"]): item for item in self.access.list_classifications()})
@@ -578,12 +658,12 @@ class OAuthServer:
 
     def consent_context(self, interaction: str, browser: str, session: str | None) -> dict[str, Any]:
         csrf = self._ticket(interaction, browser)["csrf"]
-        principal = self.session_principal(session)
         with self.store.transaction() as connection:
             row, request = self.interaction(connection, interaction, browser)
             client = connection.execute("SELECT name FROM gate_oauth_clients WHERE id=?",
                                         (request["client_id"],)).fetchone()
-        catalog = self.catalog(principal, request["scopes"]) if principal and not row["completed"] else {}
+        principal = self.session_principal(session, resource=request["resource"])
+        catalog = self.catalog(principal, request["scopes"], resource=request["resource"]) if principal and not row["completed"] else {}
         with self.store.transaction() as connection:
             row, request = self.interaction(connection, interaction, browser)
             if not row["completed"]:
@@ -606,6 +686,7 @@ class OAuthServer:
                 "phase": "completed" if row["completed"] else "authenticated" if principal else "preauth",
                 "client": {"id": request["client_id"], "name": client["name"]},
                 "resource": request["resource"], "scopes": request["scopes"],
+                "resource_kind": self.resource_policy(request["resource"])["kind"],
                 "user": {"id": principal.id, "username": principal.username,
                          "display_name": principal.display_name} if principal else None,
                 "tools": list(catalog.values()), "max_grant_days": 30,
@@ -617,7 +698,8 @@ class OAuthServer:
             connection.execute("DELETE FROM gate_oauth_interactions WHERE id_hash=? AND completed=0", (hash_secret(interaction),))
 
     def consent(self, interaction: str, browser: str, csrf: str, principal: AuthPrincipal | None,
-                tool_ids: list[str], grant_days: int, rate: int, concurrency: int, *, deny: bool = False) -> str:
+                tool_ids: list[str], grant_days: int, rate: int, concurrency: int, *, deny: bool = False,
+                management_targets: dict[str, list[str]] | None = None) -> str:
         if not deny and principal is None:
             raise OAuthError("login_required", 401)
         if not deny and (not tool_ids or len(tool_ids) > MAX_TOOLS or len(set(tool_ids)) != len(tool_ids)
@@ -625,7 +707,7 @@ class OAuthServer:
             raise OAuthError("invalid_consent")
         with self.store.transaction() as connection:
             _, request = self.interaction(connection, interaction, browser, csrf)
-        current = self.catalog(principal, request["scopes"]) if principal and not deny else {}
+        current = self.catalog(principal, request["scopes"], resource=request["resource"]) if principal and not deny else {}
         code, grant_id = secrets.token_urlsafe(32), uuid4().hex
         with self.store.transaction() as connection:
             row, request = self.interaction(connection, interaction, browser, csrf)
@@ -635,6 +717,16 @@ class OAuthServer:
                 self._complete(connection, interaction, row, request, principal.id if principal else None)
                 return callback(request, request["issuer"], error="access_denied")
             assert principal is not None
+            management = self.resource_policy(request["resource"], connection)["kind"] == "management"
+            targets: dict[str, list[str]] = {}
+            if management:
+                current = self.catalog(principal, request["scopes"], resource=request["resource"], connection=connection)
+                try:
+                    targets = normalize_management_targets(management_targets)
+                except ValueError:
+                    raise OAuthError("invalid_management_targets") from None
+            elif management_targets:
+                raise OAuthError("invalid_management_targets")
             offered = json.loads(row["catalog_json"])
             if offered.get("user_id") != principal.id or any(
                     tool_id not in current or not tool_scope_matches(offered.get("tools", {}).get(tool_id, {}), current[tool_id])
@@ -643,15 +735,17 @@ class OAuthServer:
             tools = {tool_id: current[tool_id] for tool_id in tool_ids}
             granted_scopes = sorted({"tools.read" if value["access"] == "read" else "tools.invoke"
                                      for value in tools.values()})
+            if management:
+                granted_scopes = sorted({"operations.manage"} | ({"tools.invoke"} if "tools.invoke" in granted_scopes else set()))
             if len({item["server_id"] for item in tools.values()}) > 100:
                 raise OAuthError("server_scope_limit")
             if connection.execute("SELECT COUNT(*) FROM gate_oauth_grants WHERE user_id=?", (principal.id,)).fetchone()[0] >= 1000:
                 raise OAuthError("grant_limit", 409)
             now = int(time.time())
-            connection.execute("INSERT INTO gate_oauth_grants VALUES(?,?,?,?,?,?,?,?,?,?,?,?)",
+            connection.execute("INSERT INTO gate_oauth_grants VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
                                (grant_id, principal.id, request["client_id"], request["resource"],
                                 json.dumps(granted_scopes), json.dumps(tools), now + grant_days * 86400,
-                                rate, concurrency, None, 1, now))
+                                rate, concurrency, None, 1, now, json.dumps(targets), 1 if management else 0))
             connection.execute("INSERT INTO gate_oauth_codes VALUES(?,?,?,?,?,?,?,NULL)",
                                (hash_secret(code), grant_id, request["client_id"], request["redirect_uri"],
                                 request["resource"], request["code_challenge"], now + CODE_TTL))
@@ -675,14 +769,17 @@ class OAuthServer:
 
     def _active_grant(self, connection: sqlite3.Connection, grant_id: str, client: Any,
                       resource: str, now: int) -> dict[str, Any]:
-        self.ready_config(connection)
+        policy = self.resource_policy(resource, connection)
         row = connection.execute("SELECT g.*,u.status,u.must_change_password FROM gate_oauth_grants g "
                                  "JOIN users u ON u.id=g.user_id WHERE g.id=?", (grant_id,)).fetchone()
         if (not row or row["revoked_at"] is not None or row["expires_at"] <= now or row["status"] != "active"
                 or row["must_change_password"] or row["client_id"] != client["id"] or row["resource"] != resource
-                or resource != self.store.config(connection)["resource"]):
+                or policy["kind"] not in json.loads(client["resources_json"])):
             raise OAuthError("invalid_grant")
         grant = self.store.grant(row)
+        if policy["kind"] == "management":
+            owner = connection.execute("SELECT * FROM users WHERE id=?", (grant["user_id"],)).fetchone()
+            self.management_owner(self.auth._build_principal(owner, auth_type="session"), connection=connection)
         if not set(grant["scopes"]) & set(json.loads(client["scopes_json"])):
             raise OAuthError("invalid_grant")
         return grant
@@ -712,10 +809,11 @@ class OAuthServer:
             # Lock admission may wait. Exchange deadlines use the time after
             # acquisition, never a stale timestamp from request arrival.
             now = int(time.time())
-            config = self.ready_config(connection)
+            self.ready_config(connection)
             client = self.authenticate_client(connection, client_id, secret)
             resource = fields.get("resource", "")
-            if resource != config["resource"]:
+            policy = self.resource_policy(resource, connection)
+            if policy["kind"] not in json.loads(client["resources_json"]):
                 raise OAuthError("invalid_target")
             if fields.get("grant_type") == "authorization_code":
                 row = connection.execute("SELECT * FROM gate_oauth_codes WHERE code_hash=?",
@@ -735,7 +833,7 @@ class OAuthServer:
                 else:
                     if row["expires_at"] <= now:
                         raise OAuthError("invalid_grant")
-                    scopes = sorted(set(grant["scopes"]) & set(json.loads(client["scopes_json"])))
+                    scopes = sorted(set(grant["scopes"]) & set(json.loads(client["scopes_json"])) & policy["allowed_scopes"])
                     family = {"id": uuid4().hex, "expires_at": min(now + REFRESH_TTL, grant["expires_at"])}
                     connection.execute("UPDATE gate_oauth_codes SET consumed_at=? WHERE code_hash=? AND consumed_at IS NULL",
                                        (now, row["code_hash"]))
@@ -757,9 +855,9 @@ class OAuthServer:
                     raise OAuthError("invalid_grant")
                 if not error:
                     family = {"id": row["family_id"], "expires_at": row["expires_at"]}
-                    ceiling = set(json.loads(row["scopes_json"])) & set(grant["scopes"]) & set(json.loads(client["scopes_json"]))
+                    ceiling = set(json.loads(row["scopes_json"])) & set(grant["scopes"]) & set(json.loads(client["scopes_json"])) & policy["allowed_scopes"]
                     scopes = scope_set(fields["scope"]) if "scope" in fields else sorted(ceiling)
-                    if not set(scopes) <= ceiling or not scopes:
+                    if not set(scopes) <= ceiling or not scopes or (policy["kind"] == "management" and "operations.manage" not in scopes):
                         raise OAuthError("invalid_scope")
                     if connection.execute("SELECT COUNT(*) FROM gate_oauth_refresh WHERE family_id=?",
                                           (family["id"],)).fetchone()[0] >= 10000:
@@ -781,8 +879,8 @@ class OAuthServer:
         return {"access_token": access_token, "token_type": "Bearer", "expires_in": expires_in,
                 "refresh_token": refresh, "scope": " ".join(scopes), "resource": resource}
 
-    def _claims(self, token: str) -> dict[str, Any]:
-        config = self.ready_config()
+    def _claims(self, token: str, *, expected_resource: str | None = None) -> dict[str, Any]:
+        config = self.resource_policy(expected_resource or self.ready_config()["resource"])
         try:
             if not token or len(token) > 16384 or token.count(".") != 2:
                 raise OAuthError("invalid_token", 401)
@@ -812,8 +910,8 @@ class OAuthServer:
         except (jwt.PyJWTError, ValueError, TypeError, KeyError, OverflowError, sqlite3.Error) as exc:
             raise OAuthError("invalid_token", 401) from exc
 
-    def verify(self, token: str) -> AuthPrincipal:
-        claims = self._claims(token)
+    def verify(self, token: str, *, expected_resource: str | None = None) -> AuthPrincipal:
+        claims = self._claims(token, expected_resource=expected_resource)
         with self.store.transaction() as connection:
             now = int(time.time())
             if claims["exp"] <= now:
@@ -830,18 +928,26 @@ class OAuthServer:
                 raise OAuthError("invalid_token", 401)
             row = connection.execute("SELECT * FROM users WHERE id=?", (grant["user_id"],)).fetchone()
         principal = self.auth._build_principal(row, auth_type="session")
-        if not self.access.has_control_permission(principal, "credentials.manage.self"):
+        policy = self.resource_policy(claims["aud"])
+        if policy["kind"] == "management":
+            principal = self.management_owner(principal)
+        elif not self.access.has_control_permission(principal, "credentials.manage.self"):
             raise OAuthError("invalid_token", 401)
         scopes = sorted(set(scope_set(claims["scope"])) & set(grant["scopes"]) &
                         set(json.loads(client["scopes_json"])) & set(json.loads(family["scopes_json"])))
-        current = self.catalog(principal, scopes)
+        scopes = sorted(set(scopes) & policy["allowed_scopes"])
+        if policy["kind"] == "management" and "operations.manage" not in scopes:
+            raise OAuthError("invalid_token", 401)
+        current = self.catalog(principal, scopes, resource=claims["aud"])
         tools = {key: value for key, value in grant["tools"].items() if key in current and tool_scope_matches(value, current[key])}
         return replace(principal, auth_type="oauth", scopes=tuple(scopes), delegated_scopes=tuple(scopes),
                        external_grant_id=grant["id"], external_tool_ids=tuple(tools),
                        external_server_ids=tuple(sorted({value["server_id"] for value in tools.values()})),
                        external_access=tuple(sorted({value["access"] for value in tools.values()})),
                        external_expires_at=datetime.fromtimestamp(min(claims["exp"], grant["expires_at"]), timezone.utc).isoformat(),
-                       external_rate_per_minute=grant["rate_per_minute"], external_concurrency=grant["concurrency"])
+                       external_rate_per_minute=grant["rate_per_minute"], external_concurrency=grant["concurrency"],
+                       oauth_builtin=True, oauth_resource=claims["aud"], oauth_client_id=client["id"],
+                       oauth_family_id=family["id"], oauth_token_expires_at=claims["exp"], oauth_target_revision=grant["target_revision"])
 
     def revoke_token(self, token: str, client_id: str, secret: str) -> None:
         # RFC 7009: unknown/already revoked tokens return success, without an oracle.
@@ -849,8 +955,14 @@ class OAuthServer:
             self.ready_config(connection)
             self.authenticate_client(connection, client_id, secret)
             try:
-                claims = self._claims(token) if token.count(".") == 2 else None
-            except OAuthError:
+                claims = None
+                if token.count(".") == 2 and len(token) <= 16384:
+                    untrusted = jwt.decode(token, options={"verify_signature": False})
+                    bound = connection.execute("SELECT resource FROM gate_oauth_grants WHERE id=? AND client_id=?",
+                                               (untrusted.get("gid"), client_id)).fetchone()
+                    if bound:
+                        claims = self._claims(token, expected_resource=bound["resource"])
+            except (OAuthError, jwt.PyJWTError, ValueError, TypeError, AttributeError):
                 claims = None
             family_id = claims["fid"] if claims and claims["client_id"] == client_id else None
             if not family_id:
@@ -886,6 +998,8 @@ class OAuthServer:
                 retained = {key: grant["tools"][key] for key in tools}
                 scopes = sorted({"tools.read" if value["access"] == "read" else "tools.invoke"
                                  for value in retained.values()} & set(grant["scopes"]))
+                if row["resource"] == self.store.management_config(connection)["resource"]:
+                    scopes = sorted({"operations.manage"} | ({"tools.invoke"} if "tools.invoke" in scopes else set()))
                 connection.execute("UPDATE gate_oauth_grants SET tools_json=?,scopes_json=?,expires_at=?,rate_per_minute=?,concurrency=?,"
                                    "revision=revision+1 WHERE id=?", (json.dumps(retained), json.dumps(scopes),
                                                                   expires_at, rate, concurrency, grant_id))

@@ -50,6 +50,9 @@ def register_mcp_gateway_route(
     access_store: AccessControlStore,
     require_viewer: Callable[[Request], AuthPrincipal],
     oauth_boundary: McpOAuthDiscoveryBoundary | Callable[[], McpOAuthDiscoveryBoundary | None] | None = None,
+    *,
+    path: str = "/mcp",
+    metadata_path: str | None = None,
 ) -> None:
     """注册聚合 MCP 网关；发现与调用都复用统一访问策略。"""
 
@@ -60,9 +63,9 @@ def register_mcp_gateway_route(
     )
     require_mcp_viewer = with_mcp_auth_challenge(require_viewer, oauth_boundary)
     if oauth_boundary is not None:
-        register_oauth_protected_resource_routes(app, oauth_boundary)
+        register_oauth_protected_resource_routes(app, oauth_boundary, include_root=path == "/mcp", metadata_path=metadata_path)
 
-    @app.post("/mcp", tags=["mcp-gateway"])
+    @app.post(path, tags=["mcp-gateway"])
     async def mcp_gateway(
         request: Request,
         principal: AuthPrincipal = Depends(require_mcp_viewer),
