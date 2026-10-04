@@ -445,6 +445,17 @@ def create_app() -> FastAPI:
             resource=resource, authorization_servers=tuple(dict.fromkeys(issuers)),
         ))
 
+    def management_oauth_discovery() -> McpOAuthDiscoveryBoundary | None:
+        from lingshu_gate.domain.oauth_management import MANAGEMENT_METADATA_PATH, MANAGEMENT_SCOPES
+
+        management = oauth_server.store.management_config()
+        if not settings.auth_enabled or not management["active"]:
+            return None
+        return McpOAuthDiscoveryBoundary(OAuthProtectedResourceMetadata(
+            resource=management["resource"], authorization_servers=(oauth_server.ready_config()["issuer"],),
+            scopes_supported=tuple(sorted(MANAGEMENT_SCOPES)),
+        ), metadata_path=MANAGEMENT_METADATA_PATH)
+
     register_mcp_gateway_route(
         app,
         settings,
@@ -452,6 +463,11 @@ def create_app() -> FastAPI:
         access_store,
         auth_store.authenticate_mcp_request,
         oauth_boundary=external_oauth_discovery,
+    )
+    register_mcp_gateway_route(
+        app, settings, registry, access_store, auth_store.authenticate_mcp_request,
+        oauth_boundary=management_oauth_discovery, path="/mcp/manage",
+        metadata_path="/.well-known/oauth-protected-resource/mcp/manage",
     )
     return app
 

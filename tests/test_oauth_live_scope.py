@@ -398,7 +398,7 @@ def test_published_v042_nonempty_database_upgrade_and_second_start_preserve_exis
             fields = ",".join(f'"{column}"' for column in columns)
             rows = gate["db"].query_all(f'SELECT {fields} FROM "{table}"')
             if table == "schema_migrations":
-                rows = [row for row in rows if row["id"] != "0009_oauth_scope_confirmations"]
+                    rows = [row for row in rows if row["id"] not in {"0009_oauth_scope_confirmations", "0012_oauth_management_resource"}]
             connection.executemany(f'INSERT INTO "{table}" ({fields}) VALUES ({",".join("?" for _ in columns)})',
                                    [tuple(row) for row in rows])
         assert connection.execute("PRAGMA foreign_key_check").fetchall() == []
@@ -411,12 +411,14 @@ def test_published_v042_nonempty_database_upgrade_and_second_start_preserve_exis
                  "gate_oauth_clients", "gate_oauth_grants", "gate_oauth_codes", "gate_oauth_families",
                  "gate_oauth_refresh", "gate_mcp_http_trust")
 
+    legacy_columns = {table: [row[1] for row in legacy.query_all(f'PRAGMA table_info("{table}")')] for table in preserved}
+
     def snapshot():
         result = {}
         for table in preserved:
-            width = len(legacy.query_all(f'PRAGMA table_info("{table}")'))
-            order = ",".join(str(index + 1) for index in range(width))
-            result[table] = [tuple(row) for row in legacy.query_all(f'SELECT * FROM "{table}" ORDER BY {order}')]
+            fields = ",".join(f'"{column}"' for column in legacy_columns[table])
+            order = ",".join(str(index + 1) for index in range(len(legacy_columns[table])))
+            result[table] = [tuple(row) for row in legacy.query_all(f'SELECT {fields} FROM "{table}" ORDER BY {order}')]
         return result
 
     before = snapshot()
@@ -436,8 +438,12 @@ def test_published_v042_nonempty_database_upgrade_and_second_start_preserve_exis
     first_app = main_module.create_app()
     assert snapshot() == before
     after_migrations = {row["id"]: row["applied_at"] for row in legacy.query_all("SELECT * FROM schema_migrations")}
-    assert {key: value for key, value in after_migrations.items() if key != "0009_oauth_scope_confirmations"} == before_migrations
-    assert set(after_migrations) - set(before_migrations) == {"0009_oauth_scope_confirmations"}
+    new_migrations = {"0009_oauth_scope_confirmations", "0012_oauth_management_resource"}
+    assert {key: value for key, value in after_migrations.items() if key not in new_migrations} == before_migrations
+    assert set(after_migrations) - set(before_migrations) == new_migrations
+    assert all(row[0] == '["business"]' for row in legacy.query_all("SELECT resources_json FROM gate_oauth_clients"))
+    assert all(tuple(row) == ("{}", 0) for row in legacy.query_all("SELECT management_targets_json,target_revision FROM gate_oauth_grants"))
+    assert legacy.query_all("SELECT * FROM gate_oauth_management_config") == []
     assert legacy.query_all("SELECT * FROM gate_oauth_scope_confirmations") == []
     upgraded = {**gate, "server": first_app.state.oauth_server, "db": legacy, "auth": first_app.state.auth_store}
     confirmation = preview(upgraded, grant, ids=["mcp.A.read"])

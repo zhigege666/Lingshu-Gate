@@ -20,6 +20,8 @@ from starlette.concurrency import run_in_threadpool
 
 from lingshu_gate.access_control import AccessDeniedError
 from lingshu_gate.auth import AuthPrincipal, hash_secret
+from lingshu_gate.application.console_session_security import ConsoleCsrfError, ConsoleSessionCsrf, live_console_session
+from lingshu_gate.domain.oauth_management import MAX_MANAGEMENT_TARGETS
 from lingshu_gate.interfaces.control_api.console_security import console_origin_allowed
 from lingshu_gate.oauth_server import (
     BROWSER_COOKIE, INTERACTION_TTL, MAX_INTERACTION_TICKET, MAX_TOOLS, SESSION_COOKIE, OAuthError, OAuthServer, callback, tool_scope_matches,
@@ -48,7 +50,13 @@ class ConfigRequest(StrictRequest):
 class ClientRequest(StrictRequest):
     name: str = Field(min_length=1, max_length=100)
     redirect_uris: list[str] = Field(min_length=1, max_length=10)
-    scopes: list[str] = Field(min_length=1, max_length=2)
+    scopes: list[str] = Field(min_length=1, max_length=3)
+    resources: list[str] | None = Field(default=None, min_length=1, max_length=2)
+
+
+class ManagementConfigRequest(StrictRequest):
+    enabled: StrictBool
+    expected_revision: int = Field(ge=0)
 
 
 class ClientUpdate(ClientRequest):
@@ -73,6 +81,7 @@ class ConsentRequest(InteractionRequest):
     rate_per_minute: int = Field(default=30, ge=1, le=10000)
     concurrency: int = Field(default=1, ge=1, le=100)
     deny: StrictBool = False
+    management_targets: dict[str, list[str]] = Field(default_factory=dict, max_length=MAX_MANAGEMENT_TARGETS)
 
 
 class NarrowRequest(StrictRequest):
@@ -234,6 +243,7 @@ def client_auth(request: Request, fields: dict[str, str]) -> tuple[str, str]:
 
 def register_oauth_routes(app: FastAPI, *, server: OAuthServer, observability: ObservabilityStore) -> None:
     rate = OAuthRateBoundary()
+    management_csrf = ConsoleSessionCsrf(server.auth)
     static = Path(__file__).resolve().parents[2] / "static" / "oauth"
 
     def event(action: str, principal: AuthPrincipal | None = None, subject: str = "") -> None:
@@ -279,6 +289,49 @@ def register_oauth_routes(app: FastAPI, *, server: OAuthServer, observability: O
             raise OAuthError("invalid_origin", 403)
         return principal
 
+    def management_owner(request: Request) -> AuthPrincipal:
+        principal = server.auth.authenticate_request(request)
+        session = request.cookies.get(server.auth.cookie_name, "")
+        if not server.auth.enabled or live_console_session(server.auth, principal, session) is None:
+            raise OAuthError("session_required", 403)
+        if not console_origin_allowed(request, required=request.method not in {"GET", "HEAD"}):
+            raise OAuthError("invalid_origin", 403)
+        server.management_owner(principal)
+        return principal
+
+    def csrf_consume(request: Request, principal: AuthPrincipal, body: BaseModel) -> None:
+        digest = hash_secret(json.dumps(body.model_dump(), sort_keys=True, separators=(",", ":"), ensure_ascii=False))
+        try:
+            management_csrf.consume(principal, request.cookies.get(server.auth.cookie_name, ""),
+                request.headers.get("X-CSRF-Token", ""), request.url.path, digest)
+        except ConsoleCsrfError as exc:
+            raise OAuthError(exc.code, exc.status) from exc
+
+    @app.get("/v1/auth/oauth/management/config", tags=["oauth-management"])
+    def management_config(_principal: AuthPrincipal = Depends(management_owner)) -> JSONResponse:
+        return JSONResponse(server.store.management_config(), headers=SAFE_HEADERS)
+
+    @app.post("/v1/auth/oauth/management/csrf", tags=["oauth-management"])
+    def management_ticket(request: Request, principal: AuthPrincipal = Depends(management_owner)) -> JSONResponse:
+        fields = parse_fields(request.url.query, {"action", "request_digest"})
+        digest = fields.get("request_digest", "")
+        if fields.get("action") != "config" or len(digest) != 64 or any(char not in "0123456789abcdef" for char in digest):
+            raise OAuthError("invalid_request")
+        try:
+            ticket = management_csrf.issue(principal, request.cookies.get(server.auth.cookie_name, ""),
+                                         "/v1/auth/oauth/management/config", digest)
+        except ConsoleCsrfError as exc:
+            raise OAuthError(exc.code, exc.status) from exc
+        return JSONResponse(ticket, headers=SAFE_HEADERS)
+
+    @app.post("/v1/auth/oauth/management/config", tags=["oauth-management"])
+    async def management_save(request: Request, principal: AuthPrincipal = Depends(management_owner)) -> JSONResponse:
+        body = await read_json(request, ManagementConfigRequest)
+        csrf_consume(request, principal, body)
+        result = await run_in_threadpool(server.save_management_config, body.enabled, body.expected_revision,
+                                        principal=principal, session=request.cookies.get(server.auth.cookie_name, ""))
+        return JSONResponse(result, headers=SAFE_HEADERS)
+
     def browser_post(request: Request) -> str:
         config = server.ready_config()
         if not console_origin_allowed(request, expected_origin=config["issuer"]):
@@ -322,7 +375,7 @@ def register_oauth_routes(app: FastAPI, *, server: OAuthServer, observability: O
     @app.post("/v1/auth/oauth/clients", tags=["oauth-management"], status_code=201)
     async def create_client(request: Request, principal: AuthPrincipal = Depends(admin)) -> JSONResponse:
         body = await read_json(request, ClientRequest)
-        result = await run_in_threadpool(server.create_client, body.name, body.redirect_uris, body.scopes)
+        result = await run_in_threadpool(server.create_client, body.name, body.redirect_uris, body.scopes, resources=body.resources)
         event("client_created", principal, result["client"]["id"])
         return JSONResponse(result, status_code=201, headers=SAFE_HEADERS)
 
@@ -331,7 +384,7 @@ def register_oauth_routes(app: FastAPI, *, server: OAuthServer, observability: O
         body = await read_json(request, ClientUpdate)
         result = await run_in_threadpool(server.update_client, client_id, body.expected_revision, enabled=body.enabled,
                                       name=body.name, redirects=body.redirect_uris, scopes=body.scopes,
-                                      rotate=body.rotate_secret)
+                                      rotate=body.rotate_secret, resources=body.resources)
         event("client_updated", principal, client_id)
         return JSONResponse(result, headers=SAFE_HEADERS)
 
@@ -464,7 +517,7 @@ def register_oauth_routes(app: FastAPI, *, server: OAuthServer, observability: O
         browser = browser_post(request)
         body = await read_json(request, LoginRequest)
         with server.store.transaction() as connection:
-            row, _ = server.interaction(connection, body.request_id, browser, body.csrf)
+            row, authorization = server.interaction(connection, body.request_id, browser, body.csrf)
             if row["completed"]:
                 raise OAuthError("authorization_completed", 409)
         try:
@@ -473,10 +526,8 @@ def register_oauth_routes(app: FastAPI, *, server: OAuthServer, observability: O
         except HTTPException as exc:
             event("login_failed")
             raise OAuthError("login_failed", 401) from exc
-        if principal.must_change_password or not server.access.has_control_permission(principal, "credentials.manage.self"):
-            server.auth.logout(token, purpose="oauth_consent")
-            raise OAuthError("user_authorization_unavailable", 403)
         try:
+            server.session_principal(token, resource=authorization["resource"])
             rate.check(request, "context", 60, principal)
             result = await run_in_threadpool(server.consent_context, body.request_id, browser, token)
         except BaseException:
@@ -504,12 +555,14 @@ def register_oauth_routes(app: FastAPI, *, server: OAuthServer, observability: O
 
     @app.post("/oauth/decision", include_in_schema=False)
     async def decision(request: Request) -> JSONResponse:
-        principal = await run_in_threadpool(server.session_principal, request.cookies.get(SESSION_COOKIE))
-        rate.check(request, "decision", 30, principal)
         browser = browser_post(request)
         body = await read_json(request, ConsentRequest, 2 * 1024 * 1024)
+        with server.store.transaction() as connection:
+            _, authorization = server.interaction(connection, body.request_id, browser, body.csrf)
+        principal = await run_in_threadpool(server.session_principal, request.cookies.get(SESSION_COOKIE), resource=authorization["resource"])
+        rate.check(request, "decision", 30, principal)
         result = await run_in_threadpool(server.consent, body.request_id, browser, body.csrf, principal, body.tool_ids, body.grant_days,
-                                body.rate_per_minute, body.concurrency, deny=body.deny)
+                                body.rate_per_minute, body.concurrency, deny=body.deny, management_targets=body.management_targets)
         row = server.store.database.query_one("SELECT request_json FROM gate_oauth_interactions WHERE id_hash=?",
                                                (hash_secret(body.request_id),))
         grant_id = json.loads(row["request_json"]).get("grant_id", "") if row else ""
