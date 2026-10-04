@@ -31,8 +31,8 @@ def management_tool_snapshot(tool: Any) -> str:
     return hashlib.sha256(json.dumps(payload, sort_keys=True, ensure_ascii=False, separators=(",", ":")).encode()).hexdigest()
 
 
-def normalize_management_targets(value: Any) -> dict[str, list[str]]:
-    if not isinstance(value, dict) or not 1 <= len(value) <= MAX_MANAGEMENT_TARGETS:
+def normalize_management_targets(value: Any, *, allow_empty: bool = False) -> dict[str, list[str]]:
+    if not isinstance(value, dict) or not (0 if allow_empty else 1) <= len(value) <= MAX_MANAGEMENT_TARGETS:
         raise ValueError("invalid_management_targets")
     result = {}
     for target, actions in value.items():

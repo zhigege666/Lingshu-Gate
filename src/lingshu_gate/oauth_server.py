@@ -15,6 +15,7 @@ import secrets
 import sqlite3
 import stat
 import time
+from contextlib import nullcontext
 from dataclasses import replace
 from datetime import datetime, timezone
 from pathlib import Path
@@ -38,7 +39,7 @@ from lingshu_gate.domain.oauth_management import (
 from lingshu_gate.external_connection import _https_resource
 from lingshu_gate.observability_store import ObservabilityStore
 from lingshu_gate.oauth_store import OAuthStore
-from lingshu_gate.registry import ToolRegistry
+from lingshu_gate.registry import ToolInvocationContext, ToolRegistry
 
 SCOPES = BUSINESS_SCOPES | MANAGEMENT_SCOPES
 CODE_TTL = 60
@@ -434,6 +435,8 @@ class OAuthServer:
                else self.store.database.query_one("SELECT * FROM users WHERE id=?", (principal.id,)))
         if not row or row["status"] != "active" or row["must_change_password"]:
             raise OAuthError("management_admin_required", 403)
+        if "admin" not in self.auth._roles_for_user(principal.id):
+            raise OAuthError("management_admin_required", 403)
         current = self.auth._build_principal(row, auth_type="session")
         if "admin" not in current.roles or "operations.manage" not in current.permissions:
             raise OAuthError("management_admin_required", 403)
@@ -779,7 +782,11 @@ class OAuthServer:
         grant = self.store.grant(row)
         if policy["kind"] == "management":
             owner = connection.execute("SELECT * FROM users WHERE id=?", (grant["user_id"],)).fetchone()
+            if "admin" not in self.auth._roles_for_user(grant["user_id"]):
+                raise OAuthError("management_admin_required", 403)
             self.management_owner(self.auth._build_principal(owner, auth_type="session"), connection=connection)
+            if "operations.manage" not in set(grant["scopes"]) & set(json.loads(client["scopes_json"])):
+                raise OAuthError("invalid_grant")
         if not set(grant["scopes"]) & set(json.loads(client["scopes_json"])):
             raise OAuthError("invalid_grant")
         return grant
@@ -946,8 +953,164 @@ class OAuthServer:
                        external_access=tuple(sorted({value["access"] for value in tools.values()})),
                        external_expires_at=datetime.fromtimestamp(min(claims["exp"], grant["expires_at"]), timezone.utc).isoformat(),
                        external_rate_per_minute=grant["rate_per_minute"], external_concurrency=grant["concurrency"],
-                       oauth_builtin=True, oauth_resource=claims["aud"], oauth_client_id=client["id"],
-                       oauth_family_id=family["id"], oauth_token_expires_at=claims["exp"], oauth_target_revision=grant["target_revision"])
+                       oauth_builtin=True, oauth_issuer=claims["iss"], oauth_resource=claims["aud"], oauth_client_id=client["id"],
+                       oauth_family_id=family["id"], oauth_token_expires_at=claims["exp"], oauth_target_revision=grant["target_revision"],
+                       oauth_tool_snapshots=tuple(sorted((key, value["snapshot"]) for key, value in tools.items())))
+
+    def management_authority(self, context: ToolInvocationContext, tool_id: str, *, write: bool = False,
+                             target_id: str | None = None, action: str | None = None,
+                             connection: sqlite3.Connection | None = None) -> dict[str, Any]:
+        """Recheck verified proof at dispatch/worker boundaries; never persist a bearer."""
+        with (nullcontext(connection) if connection is not None else self.store.database.session()) as current:
+            config = self.resource_policy(self.store.management_config(current)["resource"], current)
+            now = int(time.time())
+            if (context.auth_type != "oauth" or not context.oauth_builtin or config["kind"] != "management"
+                    or context.oauth_issuer != config["issuer"] or context.oauth_resource != config["resource"]
+                    or context.oauth_token_expires_at <= now or tool_id not in MANAGEMENT_TOOL_IDS):
+                raise OAuthError("management_authorization_invalid", 403)
+            client = current.execute("SELECT * FROM gate_oauth_clients WHERE id=? AND enabled=1", (context.oauth_client_id,)).fetchone()
+            if not client:
+                raise OAuthError("management_authorization_invalid", 403)
+            grant = self._active_grant(current, context.oauth_grant_id or "", client, config["resource"], now)
+            family = current.execute("SELECT * FROM gate_oauth_families WHERE id=? AND grant_id=?", (context.oauth_family_id, grant["id"])).fetchone()
+            if (grant["user_id"] != context.actor_id or not family or family["revoked_at"] is not None
+                    or family["expires_at"] <= now or context.oauth_target_revision != grant["target_revision"]):
+                raise OAuthError("management_authorization_invalid", 403)
+            user = current.execute("SELECT * FROM users WHERE id=?", (context.actor_id,)).fetchone()
+            owner = self.management_owner(self.auth._build_principal(user, auth_type="session"), connection=current)
+            scopes = (set(context.scopes) & set(grant["scopes"]) & set(json.loads(client["scopes_json"]))
+                      & set(json.loads(family["scopes_json"])) & set(context.permissions) & set(owner.permissions))
+            if context.delegated_scopes is not None:
+                scopes &= set(context.delegated_scopes)
+            if "operations.manage" not in scopes or (write and "tools.invoke" not in scopes):
+                raise OAuthError("management_scope_insufficient", 403)
+            catalog = self.catalog(owner, sorted(scopes), resource=config["resource"], connection=current)
+            saved, offered = grant["tools"].get(tool_id), catalog.get(tool_id)
+            proof = dict(context.oauth_tool_snapshots).get(tool_id)
+            if (not saved or not offered or not tool_scope_matches(saved, offered) or proof != offered["snapshot"]
+                    or (offered["access"] == "write" and "tools.invoke" not in scopes)):
+                raise OAuthError("management_tool_not_authorized", 403)
+            if target_id is not None:
+                actions = grant["management_targets"].get(target_id, [])
+                if not actions or (action is not None and action not in actions):
+                    raise OAuthError("management_target_not_authorized", 403)
+            return grant
+
+    def _management_console_owner(self, principal: AuthPrincipal, session: str,
+                                  connection: sqlite3.Connection) -> AuthPrincipal:
+        current = live_console_session(self.auth, principal, session)
+        if current is None:
+            raise OAuthError("session_required", 403)
+        current = self.management_owner(current, connection=connection)
+        if "tools.invoke" not in current.permissions:
+            raise OAuthError("management_scope_insufficient", 403)
+        return current
+
+    def _management_target_binding(self, connection: sqlite3.Connection, principal: AuthPrincipal,
+                                   session: str, grant_id: str) -> tuple[dict[str, Any], dict[str, Any]]:
+        config = self.resource_policy(self.store.management_config(connection)["resource"], connection)
+        row = connection.execute("SELECT * FROM gate_oauth_grants WHERE id=? AND user_id=? AND resource=?",
+                                 (grant_id, principal.id, config["resource"])).fetchone()
+        if not row:
+            raise OAuthError("grant_not_found", 404)
+        client = connection.execute("SELECT * FROM gate_oauth_clients WHERE id=? AND enabled=1", (row["client_id"],)).fetchone()
+        if not client:
+            raise OAuthError("grant_inactive", 409)
+        grant = self._active_grant(connection, grant_id, client, config["resource"], int(time.time()))
+        if "operations.manage" not in set(grant["scopes"]) & set(json.loads(client["scopes_json"])):
+            raise OAuthError("grant_inactive", 409)
+        binding = {**session_binding(principal, session), "grant_id": grant_id, "grant_revision": grant["revision"],
+                   "target_revision": grant["target_revision"], "client_revision": client["revision"],
+                   "config_revision": config["revision"], "management_revision": config["management_revision"],
+                   "targets_digest": self._target_digest(grant["management_targets"]), "tools_digest": self._target_digest(grant["tools"])}
+        return grant, binding
+
+    def _management_target_ticket(self, token: str, purpose: str, principal: AuthPrincipal, session: str,
+                                  grant_id: str) -> dict[str, Any]:
+        try:
+            if not 40 <= len(token) <= MAX_INTERACTION_TICKET:
+                raise ValueError
+            binding = json.loads(self._ticket_cipher().decrypt(token.encode()))
+            if (not isinstance(binding, dict) or binding.get("purpose") != purpose
+                    or not session_binding_matches(binding, principal, session) or binding.get("grant_id") != grant_id
+                    or not isinstance(binding.get("expires_at"), int) or binding["expires_at"] <= int(time.time())):
+                raise ValueError
+            return binding
+        except (InvalidToken, ValueError, TypeError, KeyError, UnicodeError):
+            raise OAuthError("invalid_management_confirmation", 403) from None
+
+    @staticmethod
+    def _check_management_target_binding(binding: dict[str, Any], current: dict[str, Any],
+                                         revision: int, target_revision: int) -> None:
+        if revision != current["grant_revision"] or target_revision != current["target_revision"]:
+            raise OAuthError("revision_conflict", 409)
+        if any(binding.get(key) != value for key, value in current.items()):
+            raise OAuthError("management_confirmation_changed", 409)
+
+    def management_target_options(self, principal: AuthPrincipal, session: str, grant_id: str) -> dict[str, Any]:
+        with self.store.transaction() as connection:
+            principal = self._management_console_owner(principal, session, connection)
+            grant, binding = self._management_target_binding(connection, principal, session, grant_id)
+            expires = min(int(time.time()) + SCOPE_CONFIRMATION_TTL, grant["expires_at"])
+            csrf = self._ticket_cipher().encrypt(json.dumps({**binding, "purpose": "management_target_options_v1", "expires_at": expires}).encode()).decode()
+            return {"csrf": csrf, "expires_at": expires, "expected_revision": grant["revision"],
+                    "expected_target_revision": grant["target_revision"], "targets": grant["management_targets"],
+                    "scopes": grant["scopes"], "tool_ids": sorted(grant["tools"])}
+
+    def preview_management_targets(self, principal: AuthPrincipal, session: str, grant_id: str, csrf: str,
+                                   revision: int, target_revision: int, targets: dict[str, list[str]]) -> dict[str, Any]:
+        supplied = self._management_target_ticket(csrf, "management_target_options_v1", principal, session, grant_id)
+        try:
+            targets = normalize_management_targets(targets, allow_empty=True)
+        except ValueError:
+            raise OAuthError("invalid_management_targets") from None
+        with self.store.transaction() as connection:
+            principal = self._management_console_owner(principal, session, connection)
+            grant, binding = self._management_target_binding(connection, principal, session, grant_id)
+            self._check_management_target_binding(supplied, binding, revision, target_revision)
+            now = int(time.time())
+            connection.execute("DELETE FROM gate_oauth_scope_confirmations WHERE expires_at<=?", (now,))
+            exists = connection.execute("SELECT 1 FROM gate_oauth_scope_confirmations WHERE grant_id=?", (grant_id,)).fetchone()
+            counts = connection.execute("SELECT COUNT(*),SUM(user_id=?) FROM gate_oauth_scope_confirmations", (principal.id,)).fetchone()
+            if not exists and (counts[0] >= MAX_SCOPE_CONFIRMATIONS or (counts[1] or 0) >= MAX_USER_SCOPE_CONFIRMATIONS):
+                raise OAuthError("scope_confirmation_capacity", 429)
+            expires = min(now + SCOPE_CONFIRMATION_TTL, grant["expires_at"])
+            token = self._ticket_cipher().encrypt(json.dumps({**binding, "purpose": "management_target_confirmation_v1",
+                "target_digest": self._target_digest(targets), "expires_at": expires}).encode()).decode()
+            connection.execute("INSERT INTO gate_oauth_scope_confirmations VALUES(?,?,?,?,?) ON CONFLICT(grant_id) DO UPDATE SET "
+                "user_id=excluded.user_id,session_hash=excluded.session_hash,token_hash=excluded.token_hash,expires_at=excluded.expires_at",
+                (grant_id, principal.id, hash_secret(session), hash_secret(token), expires))
+            return {"confirmation": token, "confirmation_expires_at": expires, "expected_revision": revision,
+                    "expected_target_revision": target_revision, "previous_targets": grant["management_targets"],
+                    "targets": targets, "scopes_unchanged": True, "tools_unchanged": True}
+
+    def update_management_targets(self, principal: AuthPrincipal, session: str, grant_id: str, confirmation: str,
+                                  revision: int, target_revision: int, targets: dict[str, list[str]]) -> dict[str, Any]:
+        supplied = self._management_target_ticket(confirmation, "management_target_confirmation_v1", principal, session, grant_id)
+        try:
+            targets = normalize_management_targets(targets, allow_empty=True)
+        except ValueError:
+            raise OAuthError("invalid_management_targets") from None
+        with self.store.transaction() as connection:
+            principal = self._management_console_owner(principal, session, connection)
+            grant, binding = self._management_target_binding(connection, principal, session, grant_id)
+            self._check_management_target_binding(supplied, binding, revision, target_revision)
+            pending = connection.execute("SELECT * FROM gate_oauth_scope_confirmations WHERE grant_id=? AND user_id=?", (grant_id, principal.id)).fetchone()
+            if (supplied.get("target_digest") != self._target_digest(targets) or not pending or pending["expires_at"] <= int(time.time())
+                    or not hmac.compare_digest(pending["session_hash"], hash_secret(session))
+                    or not hmac.compare_digest(pending["token_hash"], hash_secret(confirmation))):
+                raise OAuthError("management_confirmation_changed", 409)
+            if connection.execute("UPDATE gate_oauth_grants SET management_targets_json=?,target_revision=target_revision+1,revision=revision+1 "
+                    "WHERE id=? AND user_id=? AND revision=? AND target_revision=? AND revoked_at IS NULL",
+                    (json.dumps(targets), grant_id, principal.id, revision, target_revision)).rowcount != 1:
+                raise OAuthError("revision_conflict", 409)
+            connection.execute("DELETE FROM gate_oauth_scope_confirmations WHERE grant_id=?", (grant_id,))
+            ObservabilityStore(self.store.database).emit_event("gate.oauth.management_targets_updated", source="oauth", subject_type="oauth",
+                subject_id=grant_id, payload={"actor_id": principal.id, "client_id": grant["client_id"], "previous_revision": revision,
+                "revision": revision + 1, "previous_target_revision": target_revision, "target_revision": target_revision + 1,
+                "previous_targets_digest": binding["targets_digest"], "targets_digest": self._target_digest(targets),
+                "scopes_unchanged": True, "tools_unchanged": True}, connection=connection)
+            return self.store.grant(connection.execute("SELECT * FROM gate_oauth_grants WHERE id=?", (grant_id,)).fetchone())
 
     def revoke_token(self, token: str, client_id: str, secret: str) -> None:
         # RFC 7009: unknown/already revoked tokens return success, without an oracle.
