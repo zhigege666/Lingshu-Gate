@@ -16,7 +16,7 @@
 
 ## 权限与输入
 
-使用有效 Gate 管理员 Console 会话或明确 scope 的 Gate API token。必须有 `operations.manage`；应用、取消、可选远程探测还必须有 `tools.invoke`。执行期间及锁等待结束后，重查当前角色权限、token scope、委托上限、用户状态及会话/token 有效性。普通 OAuth 不会获得管理权限。操作仅对所属 actor 可见。
+使用有效 Gate 管理员 Console 会话、明确 scope 的 Gate API token，或经独立同意的 `/mcp/manage` 内置管理 OAuth 连接。必须有 `operations.manage`；应用、取消、可选远程探测还必须有 `tools.invoke`。执行期间及锁等待结束后，重查当前角色权限、token/令牌族 scope、委托上限、用户状态及会话/token 有效性。管理 OAuth 另绑定精确 issuer/resource/client/grant/family、已同意工具指纹及当前精确目标/创建更新策略。普通业务 OAuth 与外部签发方 OAuth 仍拒绝。操作限定所属 actor 和 OAuth 连接；管理员角色本身不能升级 bearer。
 
 仅接受 `launch.type=external` 与 `transport.type=streamable_http`。拒绝未知字段、命令、工作目录、挂载、构建元数据、roots、analysis 与权限修改。Header 只使用已有托管凭据引用，例如 `Bearer ${credential:example-binding}`；禁止传入秘密值。新增个人凭据槽应另行配置；更新可以保留已有声明。
 
@@ -32,13 +32,13 @@
 | `gate_mcp_config_status` | `GET /v1/mcp/external-configs/targets/{server_id}` | 脱敏配置及当前 Gate 连接状态 |
 | `gate_mcp_config_cancel` | `POST /v1/mcp/external-configs/operations/{operation_id}/cancel` | 明确请求取消；保留已保存配置 |
 
-Console 会话 REST 写入必须携带与 Console 完全相同的 `Origin`，拒绝 cross-site/`none` fetch，并消费绑定当前有效 Console 会话、动作路径和请求摘要的五分钟一次性 CSRF 票据。此边界复用 OAuth Console 的 Origin/会话绑定辅助函数，不依赖启用 OAuth 或生成签名 key。每次 plan/apply/cancel POST 前，携同一 Origin 获取 `POST /v1/mcp/external-configs/csrf?action=plan|apply|cancel&request_digest=...`；cancel 还需 `operation_id`。摘要是请求体按键排序、紧凑分隔符、不转义 Unicode 的 UTF-8 JSON 的 SHA-256。将返回的 `csrf` 放入 `X-CSRF-Token`。票据不可缓存、到期失效，不能重放或跨会话、动作、请求体复用。传输失败重试时获取新票据，保留原业务参数和幂等键。Gate API bearer token 仍走独立身份/scope 校验，不使用浏览器 CSRF 票据。两个适配器的管理权限都由同一应用服务核验。
+Console 会话 REST 写入必须携带与 Console 完全相同的 `Origin`，拒绝 cross-site/`none` fetch，并消费绑定当前有效 Console 会话、动作路径和请求摘要的五分钟一次性 CSRF 票据。此边界复用 OAuth Console 的 Origin/会话绑定辅助函数，不依赖启用 OAuth 或生成签名 key。每次 plan/apply/cancel POST 前，携同一 Origin 获取 `POST /v1/mcp/external-configs/csrf?action=plan|apply|cancel&request_digest=...`；cancel 还需 `operation_id`。摘要是请求体按键排序、紧凑分隔符、不转义 Unicode 的 UTF-8 JSON 的 SHA-256。将返回的 `csrf` 放入 `X-CSRF-Token`。票据不可缓存、到期失效，不能重放或跨会话、动作、请求体复用。传输失败重试时获取新票据，保留原业务参数和幂等键。Gate API bearer token 仍走独立身份/scope 校验，不使用浏览器 CSRF 票据。管理 OAuth 仅通过其 MCP 资源接受，不认证这些 REST 路由；两个适配器的管理权限都由同一应用服务核验。
 
 1. 新建选择未占用目标 ID。更新先查询目标状态，保留 `config_digest`：已保存原始文件的 SHA-256。不能用旧交付状态工具的规范化 manifest digest 替代。
 2. 计划明确 `mode=create|update`、manifest，更新传 `expected_config_digest`。默认 `connect=false`、`refresh_tools=false`、`probe=false`。刷新要求连接，明确连接要求 manifest 已启用。
 3. 离线预检不写文件、注册表，也不联系 peer。只有独立获准的 `probe=true,probe_confirmed=true` 使用临时会话初始化/发现并关闭；不会登记或授权工具。
 4. 核对模式、目标、调用方已知地址、脱敏 manifest、摘要、旧版本、期限、超时与准确动作。更新替换当前 Gate 连接。计划返回地址/Header 掩码；更新可保留目标状态中的掩码，无需读取秘密。
-5. 使用相同计划 ID/digest、动作、`confirmed=true` 和新幂等键应用。计划绑定 actor、Console 会话或 API token/委托、规范化 manifest、目标、旧文件摘要、凭据版本、动作及期限。计划只能使用一次；新建/更新在现有配置修改锁内执行 CAS。
+5. 使用相同计划 ID/digest、动作、`confirmed=true` 和新幂等键应用。计划绑定 actor、Console 会话/API token/委托或已验证管理 OAuth 连接与目标策略版本、规范化 manifest、目标、旧文件摘要、凭据版本、动作及期限。计划只能使用一次；新建/更新在现有配置修改锁内执行 CAS。
 6. 轮询直到 `terminal=true`。传输中断后保留准确参数和幂等键重试；不能再新建一次修复连接失败。输入变化需要重新核对计划与键。
 
 连接在替换注册表前完成一次严格初始发现及分类核对。`connect=true,refresh_tools=true` 复用同一 records、快照及首次新增/变化/退役计数，不再次发送 `tools/list`，也不发布分类或扩大授权。连接及初始发现成功不能证明权限已经可用。
@@ -57,7 +57,7 @@ Console 会话 REST 写入必须携带与 Console 完全相同的 `Origin`，拒
 
 终态为 `success`、`partial`、`failed`、`cancelled`、`timed_out`、`interrupted`。保存成功而连接失败属于部分完成，保留配置。查询目标后，用当前 digest 核对更新。取消是独立确认的幂等写，在排队锁及 SQLite 写事务内重查目标终态；`cancel_requested` 不等于取消完成。失败/取消只清理本次 Gate HTTP 连接，不断开后继连接、不停止远程进程；即使没有 client，也先校验操作归属。运行时应用中断保留未知连接/发现/清理及对账要求，不删除配置或授权历史，也不声称远端进程已停止。
 
-管理员 OAuth 支持在本候选中仍属于设计，尚未实现授权；见 [scope/目标增量方案](oauth-external-management-design.md)。当前仍拒绝普通 OAuth 管理调用。
+独立管理资源默认关闭，须重新明确同意资源/scope/目标，见[管理员 OAuth 配置](oauth-external-management-design.md)。本人可在 Gate 确认精确目标变更，不改变 JWT/令牌族 scope 上限；旧计划失效，缓存完成记录、状态和取消均重查当前连接与真实目标。目标变更不能创建凭据、HTTP 信任或发布分类。真实客户端 scope 请求及真实 peer 验收仍未验证。
 
 操作终态与幂等完成在一个 SQLite 事务中提交。重启、工作线程丢失或完成事务失败会转为 `interrupted`，状态未知且需要对账。恢复不自动重放、重连或停止。文件、HTTP 与 SQLite 仍不是分布式事务。
 

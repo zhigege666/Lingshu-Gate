@@ -5,7 +5,9 @@
 - Console presents one account name, translated role tags, one backend version, and one entry for API/logout; keyboard dismissal restores focus.
 - Administrator external HTTP configuration adds shared REST/MCP offline plan, digest-bound confirmed apply, actor-owned status and cancellation. Saved configuration is retained on connection failure; initial and refreshed discovery quarantine changed classifications without granting access.
 - Live administrator sessions, token scopes, role permissions and credential revisions are rechecked. Plans retain CAS and idempotent completion; attempts enforce cooperative deadlines, cancellation and connection ownership. The Delivery Skill documents separate ZIP, Git and external HTTP paths.
-- [External configuration contract](docs/external-mcp-configuration.md). Multi-instance routing, fixed authorized catalog entries, real-peer integration and Git executor implementation remain pending; this entry makes no publication claim.
+- Separate built-in `/mcp/manage` is disabled by default, uses an explicit client resource allowlist and management consent, and exposes only the four external configuration tools. Business/external tokens and cross-resource code/refresh use are denied.
+- Exact create/update targets bind dispatch, queued work, plans and idempotent completions. Private owner target changes require live administrator authority, Origin/session CSRF, reviewed one-use confirmation, revision CAS and atomic audit; JWT/family scopes and business grants do not expand.
+- Console and public consent explain resource/scopes and exact targets, with protected centered editors, complete target pagination and brief saved feedback. [Management contract](docs/oauth-external-management-design.md) and [external configuration contract](docs/external-mcp-configuration.md) describe the unreleased behavior. Multi-instance routing, fixed authorized catalog entries, real-client/peer integration and Git executor implementation remain pending; this entry makes no publication claim.
 
 ## 0.4.3
 
