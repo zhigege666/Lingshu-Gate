@@ -83,6 +83,10 @@ class McpSessionExpiredError(McpProtocolError):
     """旧会话已失效；由运行时决定是否重连及安全重试。"""
 
 
+class _LegacyHttpInitializationRequired(McpProtocolError):
+    """A strictly recognized initial HTTP discovery rejection, never a tool error."""
+
+
 class StreamableHttpMcpClient:
     """Talk to one external MCP server over Streamable HTTP JSON-RPC."""
 
@@ -105,6 +109,7 @@ class StreamableHttpMcpClient:
         self.session_id: str | None = None
         self._session_expired = False
         self.initialized = False
+        self._auto_discovery_probe = False
         self.server_info: dict[str, Any] = {}
         self.server_capabilities: dict[str, Any] = {}
         # Kept for API parity with the stdio client (server detail reads these).
@@ -143,29 +148,43 @@ class StreamableHttpMcpClient:
         self.server_capabilities = {}
         self._resolve_headers()
         startup_timeout = self.manifest.timeout_seconds or self.settings.mcp_startup_timeout_seconds
+        handshake_deadline = time.monotonic() + startup_timeout
+        can_negotiate = self.manifest.transport.protocol_version in (None, "auto") and not self.session_id
         log_event(logger, logging.INFO, "gate.mcp.http_connect_started", "Connecting to external MCP endpoint", server_id=self.manifest.id, timeout_seconds=startup_timeout)
         self._store_log("info", "Connecting to external MCP endpoint", "gate.mcp.http_connect_started", {"timeout_seconds": startup_timeout})
         try:
             if self.protocol_version == MCP_PROTOCOL_VERSION:
                 try:
-                    self._start_current(startup_timeout)
+                    self._auto_discovery_probe = can_negotiate
+                    self._start_current(_remaining_seconds(handshake_deadline))
                 except McpProtocolError as exc:
-                    if self.manifest.transport.protocol_version not in (None, "auto") or not discovery_requires_initialize(exc.code, exc.rpc_message):
+                    if not can_negotiate or not (isinstance(exc, _LegacyHttpInitializationRequired) or discovery_requires_initialize(exc.code, exc.rpc_message)):
                         raise
                     self.protocol_version = "2025-11-25"
+                    summary = {"from_version": MCP_PROTOCOL_VERSION, "protocol_version": self.protocol_version, "reason": "legacy_initialization_required"}
+                    log_event(logger, logging.INFO, "gate.mcp.http_protocol_fallback", "MCP discovery requires legacy initialization", server_id=self.manifest.id, **summary)
+                    self._store_log("info", "MCP discovery requires legacy initialization", "gate.mcp.http_protocol_fallback", summary)
+                finally:
+                    self._auto_discovery_probe = False
             if self.protocol_version != MCP_PROTOCOL_VERSION:
                 result = self.request(
                     "initialize",
                     initialize_params(self.protocol_version, self.settings.version),
-                    timeout=startup_timeout,
+                    timeout=_remaining_seconds(handshake_deadline),
                 )
                 try:
                     self.protocol_version, self.server_capabilities, self.server_info = parse_initialize_result(result)
                 except ValueError as exc:
                     raise McpProtocolError(str(exc)) from None
-                self.notify("notifications/initialized")
-        except Exception:
-            self.stop()
+                self.notify("notifications/initialized", timeout=_remaining_seconds(handshake_deadline))
+        except Exception as exc:
+            try:
+                self.stop()
+            except Exception:  # noqa: BLE001 - cleanup must retain the original handshake failure
+                self.initialized = False
+                self.session_id = None
+            if isinstance(exc, TimeoutError):
+                raise McpProtocolError("MCP HTTP handshake exceeded its absolute deadline") from exc
             raise
         self.initialized = True
         connection_summary = {
@@ -175,7 +194,7 @@ class StreamableHttpMcpClient:
         log_event(logger, logging.INFO, "gate.mcp.http_connect_succeeded", "External MCP endpoint connected", server_id=self.manifest.id, **connection_summary)
         self._store_log("info", "External MCP endpoint connected", "gate.mcp.http_connect_succeeded", connection_summary)
 
-    def _start_current(self, startup_timeout: int) -> None:
+    def _start_current(self, startup_timeout: float) -> None:
         result = self.request("server/discover", {}, timeout=startup_timeout)
         supported = result.get("supportedVersions") if isinstance(result, dict) else None
         if not isinstance(supported, list) or self.protocol_version not in supported:
@@ -233,7 +252,7 @@ class StreamableHttpMcpClient:
         self._store_log("info", f"MCP tool call completed: {name}", "gate.mcp.tool_call_succeeded", {"tool_name": name})
         return result
 
-    def request(self, method: str, params: dict[str, Any] | None = None, *, timeout: int | None = None) -> dict[str, Any]:
+    def request(self, method: str, params: dict[str, Any] | None = None, *, timeout: float | None = None) -> dict[str, Any]:
         if self._session_expired:
             raise McpSessionExpiredError("MCP session expired; reconnect before issuing another request")
         request_id = next(self._ids)
@@ -257,10 +276,11 @@ class StreamableHttpMcpClient:
         )
         if response is None:
             raise McpProtocolError(f"No JSON-RPC response for MCP request: {method}")
-        if method in {"initialize", "server/discover"} and (
+        if (
             response.get("jsonrpc") != "2.0"
             or type(response.get("id")) is not int
             or response["id"] != request_id
+            or ("error" in response) == ("result" in response)
         ):
             raise McpProtocolError(f"Invalid JSON-RPC {method} response")
         if "error" in response:
@@ -283,7 +303,7 @@ class StreamableHttpMcpClient:
         result = response.get("result")
         return result if isinstance(result, dict) else {"result": result}
 
-    def notify(self, method: str, params: dict[str, Any] | None = None) -> None:
+    def notify(self, method: str, params: dict[str, Any] | None = None, *, timeout: float | None = None) -> None:
         if self._session_expired:
             raise McpSessionExpiredError("MCP session expired; reconnect before issuing another request")
         message: dict[str, Any] = {"jsonrpc": "2.0", "method": method}
@@ -296,7 +316,7 @@ class StreamableHttpMcpClient:
             protocol_version=self.protocol_version,
         )
         message["params"] = request_params
-        request_timeout = self.manifest.timeout_seconds or self.settings.mcp_request_timeout_seconds
+        request_timeout = timeout if timeout is not None else self.manifest.timeout_seconds or self.settings.mcp_request_timeout_seconds
         self._post(
             message,
             request_timeout,
@@ -386,15 +406,23 @@ class StreamableHttpMcpClient:
                 raise McpProtocolError(
                     "HTTP redirects are not allowed for the MCP endpoint"
                 ) from exc
-            detail = ""
+            raw_error = b""
             try:
-                detail = _read_bounded_response(exc, deadline).decode(
-                    "utf-8", "ignore"
-                )[:2000]
+                raw_error = _read_bounded_response(exc, deadline)
             except Exception:  # noqa: BLE001 - error body is best-effort
-                detail = ""
+                raw_error = b""
             finally:
                 exc.close()
+            if (exc.code == 400 and (exc.headers.get("Content-Type") or "").split(";", 1)[0].strip().lower() == "application/json"
+                    and self._auto_discovery_probe and not self.initialized and self.session_id is None
+                    and expect_response and message.get("method") == "server/discover"
+                    and self.manifest.transport.protocol_version in (None, "auto")
+                    and _legacy_initialization_error(raw_error, request_id)):
+                raise _LegacyHttpInitializationRequired(
+                    "Initial MCP discovery requires legacy initialization", code=-32000,
+                    rpc_message="Bad Request: Server not initialized",
+                ) from None
+            detail = raw_error.decode("utf-8", "ignore")[:2000]
             safe_detail = self._redact_text(detail)
             if exc.code in {401, 403}:
                 raise McpHttpAuthenticationError(exc.code, self.endpoint, safe_detail) from exc
@@ -420,6 +448,7 @@ class StreamableHttpMcpClient:
                         raise McpProtocolError("MCP endpoint returned an invalid session identifier")
                     self.session_id = session_id
                     self._redaction_values = tuple(sorted({*self._redaction_values, session_id}, key=len, reverse=True))
+            _remaining_seconds(deadline)
             content_type = (response.headers.get("Content-Type") or "").lower()
             if not expect_response or response.status == 202:
                 return None
@@ -548,6 +577,35 @@ class StreamableHttpMcpClient:
 
     def _redact(self, value: Any) -> Any:
         return redact_value(value, known_secrets=self._redaction_values)
+
+
+def _legacy_initialization_error(raw: bytes, request_id: int | None) -> bool:
+    """Recognize one bounded JSON-RPC error; null ID is allowed only here."""
+    def unique_pairs(pairs: list[tuple[str, Any]]) -> dict[str, Any]:
+        result: dict[str, Any] = {}
+        for key, value in pairs:
+            if key in result:
+                raise ValueError("Duplicate JSON key")
+            result[key] = value
+        return result
+
+    def invalid_constant(_value: str) -> None:
+        raise ValueError("Non-JSON numeric constant")
+
+    try:
+        payload = json.loads(raw.decode("utf-8"), object_pairs_hook=unique_pairs, parse_constant=invalid_constant)
+    except (ValueError, UnicodeError, RecursionError):
+        return False
+    if not isinstance(payload, dict) or set(payload) != {"jsonrpc", "id", "error"} or payload["jsonrpc"] != "2.0":
+        return False
+    response_id = payload["id"]
+    if response_id is not None and (type(response_id) is not int or response_id != request_id):
+        return False
+    error = payload["error"]
+    return (isinstance(error, dict) and set(error) <= {"code", "message", "data"}
+            and type(error.get("code")) is int and error["code"] == -32000
+            and isinstance(error.get("message"), str)
+            and error["message"].strip().lower() == "bad request: server not initialized")
 
 
 def _remaining_seconds(deadline: float) -> float:

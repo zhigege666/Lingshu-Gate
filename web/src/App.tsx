@@ -11,6 +11,8 @@ import {
 } from "@/api/client"
 import { useAuth } from "@/components/auth-gate"
 import { gateVersionText } from "@/features/gate-version"
+import { createMcpConfigTemplate } from "@/features/mcp-config/model"
+import { configurationApplyResultError } from "@/features/servers/configuration-result"
 import { RouteErrorBoundary, RouteLoadingFallback } from "@/components/route-boundary"
 import { useConfirm } from "@/components/confirm-dialog"
 import { HighlightText } from "@/components/highlight-text"
@@ -62,17 +64,6 @@ const ToolClassificationsPage = lazy(() => import("@/pages/tool-classifications-
 const UploadsPage = lazy(() => import("@/pages/uploads-page").then((module) => ({ default: module.UploadsPage })))
 const SystemSettingsPage = lazy(() => import("@/pages/system-settings-page").then((module) => ({ default: module.SystemSettingsPage })))
 
-const genericTemplate = {
-  id: "mcp-server",
-  name: "MCP Server",
-  enabled: false,
-  launch: { type: "external" },
-  transport: { type: "streamable_http", endpoint: "" },
-  timeout_seconds: 120,
-  permissions: { default: "read" },
-  auto_start: false,
-}
-
 export default function App() {
   const { user, logout, runtimeVersion } = useAuth()
   const { locale } = useConsoleDesign()
@@ -94,7 +85,7 @@ export default function App() {
         : (zh ? "离开将清除本页临时参数和结果；已按记录策略保存的调用记录不受影响。" : "Leaving clears this page’s temporary parameters and results. Invocation records already saved under the recording policy are unaffected."),
       confirmText: zh ? "离开" : "Leave", cancelText: zh ? "继续编辑" : "Stay",
     }))) return false
-    if (configEditorOpen) { setConfigEditorOpen(false); setConfigText(prettyJson(genericTemplate)) }
+    if (configEditorOpen) { setConfigEditorOpen(false); setConfigText(prettyJson(createMcpConfigTemplate())) }
     return true
   }
   const { view, routeBuildId, routeServerId, recentViews, navigate } = useConsoleRoute(requestLeave)
@@ -129,7 +120,7 @@ export default function App() {
   const [configErrors, setConfigErrors] = useState<string[]>([])
   const [selectedConfigId, setSelectedConfigId] = useState("")
   const [selectedConfigDigest, setSelectedConfigDigest] = useState<string | undefined>()
-  const [configText, setConfigText] = useState(prettyJson(genericTemplate))
+  const [configText, setConfigText] = useState(() => prettyJson(createMcpConfigTemplate()))
   const [configEditorOpen, setConfigEditorOpen] = useState(false)
   const [selectedToolId, setSelectedToolId] = useState("")
   const [message, setMessage] = useState<string | null>(null)
@@ -295,7 +286,7 @@ export default function App() {
   }
   async function newConfig() {
     if (!(await (view === "configs" ? requestLeave() : navigate("configs")))) return
-    setSelectedConfigId(""); setSelectedConfigDigest(undefined); setConfigText(prettyJson(genericTemplate)); setConfigEditorOpen(true)
+    setSelectedConfigId(""); setSelectedConfigDigest(undefined); setConfigText(prettyJson(createMcpConfigTemplate())); setConfigEditorOpen(true)
   }
 
   async function saveConfig(nextValue?: string) {
@@ -341,8 +332,10 @@ export default function App() {
     setBusy(true); setError(null)
     try {
       const result = await api.applyConfig(id)
-      if (result.server?.id !== id || result.server.status !== "stopped") throw new Error(result.server?.last_error || (locale === "zh-CN" ? "配置应用状态未知，请查看服务状态。" : "Configuration application state is unknown. Inspect the service."))
-      setMessage(`${locale === "zh-CN" ? "已应用，服务已停止" : "Applied; service stopped"}: ${id}`)
+      const outcomeError = configurationApplyResultError(result, id, locale === "zh-CN")
+      if (outcomeError) throw new Error(outcomeError)
+      const disabled = result.server?.enabled === false
+      setMessage(`${disabled ? (locale === "zh-CN" ? "已应用，服务仍为停用" : "Applied; service remains disabled") : (locale === "zh-CN" ? "已应用，尚未启动" : "Applied; not started")}: ${id}`)
       await refreshAll()
     } catch (err) { setError(err instanceof Error ? err.message : String(err)) }
     finally { setBusy(false) }
@@ -396,7 +389,7 @@ export default function App() {
             {(["myServers", "myConnections", "myInvocations"] as string[]).includes(view) && <PersonalWorkspacePage key={`${user.id}:${view}`} view={view as "myServers" | "myConnections" | "myInvocations"} viewState={personalViews[`${user.id}:${view}`] || initialPersonalWorkspaceView} onViewStateChange={state => setPersonalViews(previous => ({ ...previous, [`${user.id}:${view}`]: state }))} locale={locale} t={t} onNavigate={navigate} onInvoke={async toolId => { if (await navigate("invoke")) setSelectedToolId(toolId) }} />}
             {view === "connectionInfrastructure" && <ConnectionInfrastructurePage locale={locale} t={t} />}
             {view === "dashboard" && <DashboardPage health={health} healthError={healthError} servers={servers} serversLoaded={serversLoaded} serversError={serversError} tools={tools} principalId={user.id} globalRefreshId={dashboardRefreshId} operationsAllowed={can("operations.manage")} canReadAudit={can("audit.read")} canReadTools={can("tools.read")} toolsLoaded={toolsLoaded} toolsError={toolsError} t={t} />}
-            {view === "configs" && <ConfigsPage canManageHttpTrust={canManageHttpTrust} locale={locale} t={t} configs={configs} configErrors={configErrors} selectedConfigId={selectedConfigId} configText={configText} busy={busy} editorOpen={configEditorOpen} onCloseEditor={() => { if (!busy) { setConfigEditorOpen(false); setConfigText(prettyJson(genericTemplate)) } }} onNewConfig={newConfig} onReloadConfigs={reloadConfigs} onEditConfig={editConfig} onApplyConfig={applyConfig} onDeleteConfig={deleteConfig} onConfigTextChange={setConfigText} onSaveConfig={saveConfig} />}
+            {view === "configs" && <ConfigsPage canManageHttpTrust={canManageHttpTrust} locale={locale} t={t} configs={configs} configErrors={configErrors} selectedConfigId={selectedConfigId} configText={configText} busy={busy} editorOpen={configEditorOpen} onCloseEditor={() => { if (!busy) { setConfigEditorOpen(false); setConfigText(prettyJson(createMcpConfigTemplate())) } }} onNewConfig={newConfig} onReloadConfigs={reloadConfigs} onEditConfig={editConfig} onApplyConfig={applyConfig} onDeleteConfig={deleteConfig} onConfigTextChange={setConfigText} onSaveConfig={saveConfig} />}
             {view === "servers" && <ServersPage canManageHttpTrust={canManageHttpTrust} initialServerId={routeServerId} locale={locale} t={t} servers={servers} loadErrors={loadErrors} busy={busy} visibleTools={toolsLoaded ? tools : null} toolsError={toolsError} canReadTools={can("tools.read")} canManageClassifications={can("classifications.manage")} onServerAction={serverAction} onRefresh={refreshCurrentPage} onNewConfig={newConfig} onNavigate={navigate} onInvoke={async toolId => { if (await navigate("invoke")) setSelectedToolId(toolId) }} />}
             {view === "builds" && <BuildsPage t={t} initialBuildId={routeBuildId} />}
             {view === "credentials" && <CredentialsPage locale={locale} t={t} />}

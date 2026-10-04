@@ -31,6 +31,7 @@ from cryptography.hazmat.primitives.kdf.hkdf import HKDF
 from lingshu_gate.access_control import AccessControlStore
 from lingshu_gate.auth import AuthPrincipal, AuthStore, hash_secret
 from lingshu_gate.external_connection import _https_resource
+from lingshu_gate.observability_store import ObservabilityStore
 from lingshu_gate.oauth_store import OAuthStore
 from lingshu_gate.registry import ToolRegistry
 
@@ -47,6 +48,9 @@ MAX_AUTHENTICATED_COMPLETIONS = 3072
 MAX_ANONYMOUS_COMPLETIONS = 1024
 MAX_USER_COMPLETIONS = 64
 MAX_TOOLS = 5000
+SCOPE_CONFIRMATION_TTL = 600
+MAX_SCOPE_CONFIRMATIONS = 3072
+MAX_USER_SCOPE_CONFIRMATIONS = 64
 BROWSER_COOKIE = "__Secure-lingshu_gate_oauth_browser"
 SESSION_COOKIE = "__Secure-lingshu_gate_oauth_session"
 PKCE_CHALLENGE = re.compile(r"^[A-Za-z0-9_-]{43}$")
@@ -366,9 +370,10 @@ class OAuthServer:
             raise OAuthError("user_authorization_unavailable", 403)
         return principal
 
-    def catalog(self, principal: AuthPrincipal, scopes: list[str]) -> dict[str, dict[str, Any]]:
-        visible = self.access.visible_tools(principal, self.registry.list_definitions())
-        classifications = {item["tool_id"]: item for item in self.access.list_classifications()}
+    def catalog(self, principal: AuthPrincipal, scopes: list[str], *, connection: sqlite3.Connection | None = None) -> dict[str, dict[str, Any]]:
+        visible = self.access.visible_tools(principal, self.registry.list_definitions(), connection=connection)
+        classifications = ({(item["server_id"], item["tool_id"]): item for item in connection.execute("SELECT * FROM mcp_tool_classifications").fetchall()}
+                           if connection is not None else {(item["server_id"], item["tool_id"]): item for item in self.access.list_classifications()})
         result = {}
         for tool in visible:
             policy = tool.metadata.get("gate_access", {})
@@ -378,7 +383,7 @@ class OAuthServer:
             if (tool.source != "mcp" or policy.get("classification_status") != "published"
                     or access not in {"read", "write"} or required_scope not in scopes or not server_id):
                 continue
-            classification = classifications[tool.id]
+            classification = classifications[(str(server_id), tool.id)]
             if classification["status"] != "published" or classification["effective_access"] != access:
                 continue
             snapshot = hash_secret(json.dumps([classification["fingerprint"], access,
@@ -390,6 +395,186 @@ class OAuthServer:
         if len(result) > MAX_TOOLS:
             raise OAuthError("tool_catalog_limit", 409)
         return result
+
+    def _fresh_owner(self, principal: AuthPrincipal) -> AuthPrincipal:
+        row = self.store.database.query_one("SELECT * FROM users WHERE id=?", (principal.id,))
+        if not row or row["status"] != "active" or row["must_change_password"] or principal.auth_type != "session":
+            raise OAuthError("user_authorization_unavailable", 403)
+        current = self.auth._build_principal(row, auth_type="session")
+        if not self.access.has_control_permission(current, "credentials.manage.self"):
+            raise OAuthError("permission_denied", 403)
+        return current
+
+    def _console_owner(self, principal: AuthPrincipal, session: str) -> AuthPrincipal:
+        current = self.auth._principal_from_session(session)
+        if current is None or current.id != principal.id:
+            raise OAuthError("session_required", 403)
+        return self._fresh_owner(current)
+
+    def _live_grant(self, connection: sqlite3.Connection, user_id: str,
+                                  grant_id: str) -> tuple[dict[str, Any], Any, dict[str, Any]]:
+        row = connection.execute("SELECT * FROM gate_oauth_grants WHERE id=? AND user_id=?", (grant_id, user_id)).fetchone()
+        if not row:
+            raise OAuthError("grant_not_found", 404)
+        grant = self.store.grant(row)
+        config = self.ready_config(connection)
+        client = connection.execute("SELECT * FROM gate_oauth_clients WHERE id=? AND enabled=1", (grant["client_id"],)).fetchone()
+        if not client or grant["revoked_at"] is not None or grant["expires_at"] <= int(time.time()) or grant["resource"] != config["resource"]:
+            raise OAuthError("grant_scope_unavailable", 409)
+        return grant, client, config
+
+    @staticmethod
+    def _catalog_digest(tools: dict[str, dict[str, Any]]) -> str:
+        return hash_secret(json.dumps([[key, item["server_id"], item["access"], item["snapshot"]]
+                                       for key, item in sorted(tools.items())], separators=(",", ":")))
+
+    def _scope_catalog(self, connection: sqlite3.Connection, principal: AuthPrincipal,
+                       grant: dict[str, Any], client: Any) -> tuple[dict[str, dict[str, Any]], dict[str, dict[str, Any]]]:
+        # OAuth capability ceilings stay separate from the mutable tool list.
+        # A narrower family is never widened to match another family.
+        visible = self.catalog(principal, sorted(SCOPES), connection=connection)
+        ceiling = set(grant["scopes"]) & set(json.loads(client["scopes_json"]))
+        eligible = {key: tool for key, tool in visible.items()
+                    if ("tools.read" if tool["access"] == "read" else "tools.invoke") in ceiling}
+        return eligible, visible
+
+    @staticmethod
+    def _scope_binding(principal: AuthPrincipal, session: str, grant: dict[str, Any], client: Any,
+                       config: dict[str, Any], catalog: dict[str, dict[str, Any]]) -> dict[str, Any]:
+        return {"user_id": principal.id, "session_hash": hash_secret(session), "grant_id": grant["id"],
+                "grant_revision": grant["revision"], "client_id": client["id"], "client_revision": client["revision"],
+                "configuration_revision": config["revision"], "resource": grant["resource"],
+                "catalog_digest": OAuthServer._catalog_digest(catalog)}
+
+    def _scope_ticket(self, token: str, purpose: str, principal: AuthPrincipal,
+                      session: str, grant_id: str) -> dict[str, Any]:
+        code = "invalid_csrf" if purpose == "grant_scope_options_v1" else "scope_confirmation_changed"
+        try:
+            if not 40 <= len(token) <= MAX_INTERACTION_TICKET:
+                raise OAuthError(code, 403)
+            payload = json.loads(self._ticket_cipher().decrypt(token.encode(), ttl=SCOPE_CONFIRMATION_TTL))
+            if (payload["purpose"] != purpose or payload["user_id"] != principal.id
+                    or payload["grant_id"] != grant_id or payload["expires_at"] <= int(time.time())
+                    or not hmac.compare_digest(payload["session_hash"], hash_secret(session))):
+                raise OAuthError(code, 403)
+            return dict(payload)
+        except (InvalidToken, ValueError, TypeError, KeyError, UnicodeError) as exc:
+            raise OAuthError(code, 403) from exc
+
+    @staticmethod
+    def _check_scope_binding(binding: dict[str, Any], current: dict[str, Any]) -> None:
+        if binding["expires_at"] <= int(time.time()):
+            raise OAuthError("scope_confirmation_changed", 403)
+        if any(binding.get(key) != current[key] for key in current if key != "catalog_digest"):
+            raise OAuthError("revision_conflict", 409)
+        if binding["catalog_digest"] != current["catalog_digest"]:
+            raise OAuthError("tool_scope_changed", 409)
+
+    @staticmethod
+    def _scope_target(grant: dict[str, Any], catalog: dict[str, dict[str, Any]], visible: dict[str, dict[str, Any]],
+                      revision: int, tool_ids: list[str], expires_at: int, rate: int,
+                      concurrency: int) -> tuple[dict[str, dict[str, Any]], dict[str, Any]]:
+        if revision != grant["revision"]:
+            raise OAuthError("revision_conflict", 409)
+        if (not tool_ids or len(tool_ids) > MAX_TOOLS or any(not isinstance(key, str) or not 1 <= len(key) <= 512 for key in tool_ids)
+                or len(set(tool_ids)) != len(tool_ids)):
+            raise OAuthError("invalid_request")
+        if any(key in visible and key not in catalog for key in tool_ids):
+            raise OAuthError("grant_scope_insufficient", 409)
+        if not set(tool_ids) <= set(catalog):
+            raise OAuthError("tool_scope_changed", 409)
+        tools = {key: catalog[key] for key in sorted(tool_ids)}
+        if len({item["server_id"] for item in tools.values()}) > 100:
+            raise OAuthError("server_scope_limit")
+        if not (int(time.time()) < expires_at <= grant["expires_at"]
+                and 1 <= rate <= grant["rate_per_minute"] and 1 <= concurrency <= grant["concurrency"]):
+            raise OAuthError("grant_limits_can_only_narrow")
+        target = {"tool_ids": list(tools), "expires_at": expires_at, "rate_per_minute": rate, "concurrency": concurrency}
+        return tools, target
+
+    @staticmethod
+    def _target_digest(target: dict[str, Any]) -> str:
+        return hash_secret(json.dumps(target, sort_keys=True, separators=(",", ":")))
+
+    @staticmethod
+    def _scope_difference(grant: dict[str, Any], tools: dict[str, dict[str, Any]]) -> tuple[list[str], list[str]]:
+        added = [key for key in tools if key not in grant["tools"] or not tool_scope_matches(grant["tools"][key], tools[key])]
+        removed = [key for key in grant["tools"] if key not in tools or key in added]
+        return added, removed
+
+    def scope_options(self, principal: AuthPrincipal, grant_id: str, session: str) -> dict[str, Any]:
+        with self.store.transaction() as connection:
+            principal = self._console_owner(principal, session)
+            grant, client, config = self._live_grant(connection, principal.id, grant_id)
+            catalog, _ = self._scope_catalog(connection, principal, grant, client)
+            payload = {**self._scope_binding(principal, session, grant, client, config, catalog),
+                       "purpose": "grant_scope_options_v1", "expires_at": int(time.time()) + SCOPE_CONFIRMATION_TTL}
+            csrf = self._ticket_cipher().encrypt(json.dumps(payload).encode()).decode()
+            family_limits: dict[tuple[str, ...], int] = {}
+            for row in connection.execute("SELECT scopes_json FROM gate_oauth_families WHERE grant_id=? AND revoked_at IS NULL AND expires_at>?",
+                                          (grant_id, int(time.time()))).fetchall():
+                scopes = tuple(sorted(set(json.loads(row["scopes_json"])) & set(grant["scopes"]) & set(json.loads(client["scopes_json"]))))
+                family_limits[scopes] = family_limits.get(scopes, 0) + 1
+            return {"csrf": csrf, "expires_at": payload["expires_at"], "grant_revision": grant["revision"],
+                    "scopes": grant["scopes"], "effective_scopes": sorted(set(grant["scopes"]) & set(json.loads(client["scopes_json"]))),
+                    "family_scope_limits": [{"scopes": list(scopes), "count": count} for scopes, count in sorted(family_limits.items())],
+                    "tools": list(catalog.values())}
+
+    def preview_scope(self, principal: AuthPrincipal, grant_id: str, session: str, csrf: str,
+                      revision: int, tool_ids: list[str], expires_at: int, rate: int, concurrency: int) -> dict[str, Any]:
+        binding = self._scope_ticket(csrf, "grant_scope_options_v1", principal, session, grant_id)
+        with self.store.transaction() as connection:
+            principal = self._console_owner(principal, session)
+            grant, client, config = self._live_grant(connection, principal.id, grant_id)
+            catalog, visible = self._scope_catalog(connection, principal, grant, client)
+            current = self._scope_binding(principal, session, grant, client, config, catalog)
+            self._check_scope_binding(binding, current)
+            tools, target = self._scope_target(grant, catalog, visible, revision, tool_ids, expires_at, rate, concurrency)
+            added, removed = self._scope_difference(grant, tools)
+            now = int(time.time())
+            connection.execute("DELETE FROM gate_oauth_scope_confirmations WHERE expires_at<=?", (now,))
+            existing = connection.execute("SELECT 1 FROM gate_oauth_scope_confirmations WHERE grant_id=?", (grant_id,)).fetchone()
+            count = connection.execute("SELECT COUNT(*),SUM(user_id=?) FROM gate_oauth_scope_confirmations", (principal.id,)).fetchone()
+            if not existing and (count[0] >= MAX_SCOPE_CONFIRMATIONS or (count[1] or 0) >= MAX_USER_SCOPE_CONFIRMATIONS):
+                raise OAuthError("scope_confirmation_capacity", 429)
+            payload = {**current, "purpose": "grant_scope_confirmation_v1", "target_digest": self._target_digest(target),
+                       "expires_at": min(now + SCOPE_CONFIRMATION_TTL, grant["expires_at"])}
+            token = self._ticket_cipher().encrypt(json.dumps(payload).encode()).decode()
+            connection.execute("INSERT INTO gate_oauth_scope_confirmations VALUES(?,?,?,?,?) "
+                               "ON CONFLICT(grant_id) DO UPDATE SET user_id=excluded.user_id,session_hash=excluded.session_hash,"
+                               "token_hash=excluded.token_hash,expires_at=excluded.expires_at",
+                               (grant_id, principal.id, hash_secret(session), hash_secret(token), payload["expires_at"]))
+            return {"confirmation": token, "confirmation_expires_at": payload["expires_at"], **target, "added": added, "removed": removed,
+                    "previous_tools": list(grant["tools"].values()), "tools": list(tools.values())}
+
+    def update_scope(self, principal: AuthPrincipal, grant_id: str, session: str, confirmation: str,
+                     revision: int, tool_ids: list[str], expires_at: int, rate: int, concurrency: int) -> dict[str, Any]:
+        binding = self._scope_ticket(confirmation, "grant_scope_confirmation_v1", principal, session, grant_id)
+        with self.store.transaction() as connection:
+            principal = self._console_owner(principal, session)
+            grant, client, config = self._live_grant(connection, principal.id, grant_id)
+            catalog, visible = self._scope_catalog(connection, principal, grant, client)
+            self._check_scope_binding(binding, self._scope_binding(principal, session, grant, client, config, catalog))
+            tools, target = self._scope_target(grant, catalog, visible, revision, tool_ids, expires_at, rate, concurrency)
+            if binding["target_digest"] != self._target_digest(target):
+                raise OAuthError("scope_confirmation_changed", 409)
+            pending = connection.execute("SELECT * FROM gate_oauth_scope_confirmations WHERE grant_id=? AND user_id=?",
+                                         (grant_id, principal.id)).fetchone()
+            if (not pending or pending["expires_at"] <= int(time.time())
+                    or not hmac.compare_digest(pending["token_hash"], hash_secret(confirmation))
+                    or not hmac.compare_digest(pending["session_hash"], hash_secret(session))):
+                raise OAuthError("scope_confirmation_changed", 409)
+            added, removed = self._scope_difference(grant, tools)
+            if connection.execute("UPDATE gate_oauth_grants SET tools_json=?,expires_at=?,rate_per_minute=?,concurrency=?,revision=revision+1 "
+                                  "WHERE id=? AND user_id=? AND revision=? AND revoked_at IS NULL",
+                                  (json.dumps(tools), expires_at, rate, concurrency, grant_id, principal.id, revision)).rowcount != 1:
+                raise OAuthError("revision_conflict", 409)
+            connection.execute("DELETE FROM gate_oauth_scope_confirmations WHERE grant_id=?", (grant_id,))
+            ObservabilityStore(self.store.database).emit_event("gate.oauth.grant_scope_updated", source="oauth", subject_type="oauth",
+                subject_id=grant_id, payload={"actor_id": principal.id, "client_id": client["id"], "previous_revision": revision,
+                    "revision": revision + 1, "added_tool_ids": added, "removed_tool_ids": removed,
+                    "target_digest": self._target_digest(target), "scopes_unchanged": True}, connection=connection)
+            return self.store.grant(connection.execute("SELECT * FROM gate_oauth_grants WHERE id=?", (grant_id,)).fetchone())
 
     def consent_context(self, interaction: str, browser: str, session: str | None) -> dict[str, Any]:
         csrf = self._ticket(interaction, browser)["csrf"]

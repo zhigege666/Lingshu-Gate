@@ -15,6 +15,17 @@ export type PrecheckResult = { errors: string[]; warnings: string[] }
 
 export const REDACTED_ENDPOINT = "[REDACTED]"
 
+/** A new draft is enabled, but neither saving nor reloading starts it. */
+export function createMcpConfigTemplate(): ManifestLike {
+  return {
+    id: "mcp-server", name: "MCP Server", enabled: true,
+    launch: { type: "external" },
+    transport: { type: "streamable_http", endpoint: "" },
+    timeout_seconds: 120, permissions: { default: "read" },
+    startup_policy: "gate_start_v1", auto_start: false,
+  }
+}
+
 /** A masked endpoint is a keep instruction for this existing resource only. */
 export type ManifestEditContext = { existingConfigId: string; originalEndpointMasked: boolean; originalMaskedMountTargets?: string[] }
 

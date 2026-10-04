@@ -61,3 +61,5 @@ Run repository identity checks and release-package verification when those scrip
   version, tag, notes, overview and GitHub release page, and read back the published title/body.
 
 - Keep the single source version, paired README overview, paired CHANGELOG and release notes synchronized for every release. Sign-in and Console show the running backend health version; never substitute a separately hardcoded frontend version.
+
+- Before release, manually review source version, paired overviews/changelogs, bilingual release notes and the published title/body together. Verify every formal release job and native/Compose/offline asset, checksum, SBOM and provenance before reporting publication complete; a tag alone is not completion. Keep authorization claims precise: owner-confirmed live tool changes stay within each token's existing OAuth scopes, and client cache refresh is separate from OAuth authorization.

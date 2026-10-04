@@ -7,6 +7,7 @@ export type McpServer = {
   enabled: boolean
   launch_type: string
   transport_type: string
+  negotiated_protocol_version?: string | null
   status: string
   pid?: number | null
   tool_count: number

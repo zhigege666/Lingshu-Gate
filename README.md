@@ -6,9 +6,9 @@ A self-hosted MCP gateway and control plane with explicit identity, tool-access,
 
 Use Gate to manage multiple MCP servers, give remote MCP clients controlled tool access, and deliver projects on trusted native hosts. One MCP Gateway, Web Console and control API connect service operations with user governance.
 
-**0.4.2 status: built-in OAuth requires explicit enablement. Git/proxy rules, plans and UI are implemented, but the production safe executor is not implemented; real acquisition, proxy tests, tool preparation and configured network installs remain blocked. Configuration alone cannot make those operations available.**
+**0.4.3 status: built-in OAuth requires explicit enablement. Git/proxy rules, plans and UI are implemented, but the production safe executor is not implemented; real acquisition, proxy tests, tool preparation and configured network installs remain blocked. Configuration alone cannot make those operations available.**
 
-0.4.2 adds administrator-approved downstream HTTP MCP connections to canonical RFC1918 IPv4 addresses and exact ports. Trust starts empty, belongs to each service, and is checked before saving, applying, connecting and sending requests. Administrators explicitly confirm an address inside the existing configuration editor; ordinary operators and OAuth connections cannot approve it. HTTP is unencrypted and intended only for trusted internal networks. HTTPS certificate checks and blocked redirects remain. See the [release summary](packaging/release-notes.md).
+0.4.3 supports adding MCPs and tools to an existing OAuth connection by explicit confirmation in Gate, without another client OAuth flow. The same token follows its live grant within its original OAuth scopes; token families with narrower scopes retain those limits. It also restores consistent configuration Form/JSON editing, explicit Gate-start/restart startup choices, enabled defaults with auto-start off, accurate apply-without-start feedback, correct built-in tool origins, bounded scope dialogs and precise HTTP legacy negotiation with the actual negotiated version. Client tool caches may need refreshing; real ChatGPT refresh behavior remains unverified. See the [release summary](packaging/release-notes.md).
 
 ## Features
 

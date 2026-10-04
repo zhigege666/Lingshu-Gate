@@ -127,6 +127,7 @@ class McpServerStatusResponse(BaseModel):
     enabled: bool
     launch_type: str
     transport_type: str
+    negotiated_protocol_version: str | None = None
     endpoint: str | None = None
     status: str
     pid: int | None = None

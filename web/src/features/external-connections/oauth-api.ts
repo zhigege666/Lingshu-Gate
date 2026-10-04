@@ -2,6 +2,9 @@ export type OAuthTool = { id: string; name: string; server_id: string; server_na
 export type OAuthClient = { id: string; name: string; redirect_uris: string[]; scopes: string[]; enabled: boolean; revision: number; created_at: number }
 export type OAuthConfig = { enabled: boolean; issuer: string; resource: string; revision: number; metadata_url: string; authorization_endpoint: string; token_endpoint: string; jwks_uri: string; signing_keys: { kid: string; active: boolean; retire_at: number | null }[] }
 export type OAuthGrant = { id: string; client_id: string; client_name: string; resource: string; scopes: string[]; tools: OAuthTool[]; state: string; created_at?: number; expires_at: number; rate_per_minute: number; concurrency: number; revision: number; scope_currently_authorized: boolean; effective_tool_count: number }
+export type ScopeSnapshot = Pick<OAuthTool, "id" | "server_id" | "access" | "snapshot"> & Partial<Pick<OAuthTool, "name" | "server_name">>
+export type OAuthScopeOptions = { csrf: string; expires_at: number; grant_revision: number; scopes: string[]; effective_scopes: string[]; family_scope_limits: { scopes: string[]; count: number }[]; tools: OAuthTool[] }
+export type OAuthScopePreview = { confirmation: string; confirmation_expires_at: number; expires_at: number; tool_ids: string[]; added: string[]; removed: string[]; previous_tools: ScopeSnapshot[]; tools: OAuthTool[]; rate_per_minute: number; concurrency: number }
 export type ConsentContext = { csrf: string; completed: boolean; phase: "preauth" | "authenticated" | "completed"; expires_at: number; client: { id: string; name: string }; resource: string; scopes: string[]; user: { id: string; username: string; display_name: string } | null; tools: OAuthTool[]; max_grant_days: number; access_seconds: number; refresh_days: number }
 export class OAuthRequestError extends Error {
   constructor(public code: string, public status = 0) { super(code) }
@@ -40,7 +43,14 @@ const errors: Record<string, [string, string]> = {
   invalid_browser: ["此授权请求属于另一个浏览器。请重新发起连接。", "This request belongs to another browser. Start a new connection."],
   authorization_completed: ["此请求已处理。请返回客户端；连接失败时重新发起授权。", "This request was already processed. Return to the client; start a new authorization if the connection failed."],
   tool_scope_changed: ["工具或用户权限已改变。刷新后重新选择范围。", "Tools or user permissions changed. Refresh and select the scope again."],
-  grant_can_only_narrow: ["只能缩小工具、有效期和配额；扩大范围需要重新授权。", "Tools, expiry and quotas can only be reduced. Expanding scope requires new authorization."],
+  grant_can_only_narrow: ["旧接口只允许缩小范围、有效期和配额；请在本人控制台确认调整工具范围。", "The legacy endpoint only reduces tools, expiry and quotas. Confirm tool changes in your own console."],
+  grant_limits_can_only_narrow: ["有效期、调用次数和并发上限只能维持或收紧。", "Expiry, rate and concurrency limits can only stay unchanged or decrease."],
+  session_required: ["此操作需要本人在控制台登录；API Token 不能更新连接范围。", "Sign in to the console with your own account. API tokens cannot update connection scope."],
+  grant_scope_unavailable: ["授权、客户端或资源已失效。关闭后刷新授权列表，再重试。", "The grant, client or resource is unavailable. Close and refresh the grant list before retrying."],
+  grant_scope_insufficient: ["此工具需要连接未持有的 OAuth scope。Gate 内可增加现有 scope 内的工具，但不能补造令牌的读写能力。", "This tool requires an OAuth scope the connection does not hold. Gate can add tools within existing scopes, but cannot invent a token's read/write capability."],
+  scope_confirmation_changed: ["确认已过期、被替换，或与本次范围不符。刷新信息后重新核对并确认。", "Confirmation expired, was replaced, or does not match this change. Refresh, review and confirm again."],
+  scope_confirmation_capacity: ["待确认更新达到短时上限。请完成其他确认或稍后重试。", "The short-term confirmation limit was reached. Finish other confirmations or retry later."],
+  grant_limit: ["本人保留授权记录已达上限，当前无法创建新授权。请联系管理员处理，历史不会自动删除。", "Your retained grant limit was reached, so a new grant cannot be created. Ask an administrator for help; history is not deleted automatically."],
   login_failed: ["登录失败，请核对已有 Gate 用户名、密码和账号状态。", "Sign-in failed. Check the existing Gate username, password and account status."],
   login_required: ["登录已过期，请重新登录；已选范围会在校验后保留。", "Sign-in expired. Sign in again; selected scope is retained after validation."],
   user_authorization_unavailable: ["此用户需要在内部控制台修改初始密码，或缺少个人凭据管理权限。", "This user must change their initial password in the private console, or lacks permission to manage personal credentials."],

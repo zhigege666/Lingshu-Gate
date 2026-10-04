@@ -25,7 +25,7 @@ Lingshu Gate reads runtime configuration from `LINGSHU_GATE_*` environment varia
 | `LINGSHU_GATE_MCP_GATEWAY_ENABLED` | `true` | `true` | Controls the `/mcp` route |
 | `LINGSHU_GATE_RUNTIME_TOOLCHAIN_PATHS` | `{}` | Unset | Service-owned JSON registry of reviewed absolute Node and npm/pnpm/Yarn JS CLI paths for pinned local startup; never supplied by a project |
 
-Protocol version `2026-07-28` is fixed by the release. It is not a runtime tuning option.
+Gate's current MCP protocol version is `2026-07-28`. Downstream manifests can use automatic negotiation or an explicitly supported version, as described below; there is no global runtime version setting.
 
 Boolean values accept the forms implemented by the application (`true`/`false` are recommended). Invalid numeric values or unsupported deployment-role values stop startup instead of being ignored.
 
@@ -64,6 +64,15 @@ For unattended provisioning, configure an administrator username and inject the 
 Manifests are YAML or JSON objects stored in `mcp.d`. The file name is not the identity; `id` is. IDs must match `^[A-Za-z0-9_.-]+$` and remain stable because grants, credentials, runtime state, and audits reference them.
 
 ### Gate startup policy
+
+The Console's normal new-MCP template defaults to `enabled=true`,
+`startup_policy=gate_start_v1` and `auto_start=false`. Enabled permits a later
+start; it does not apply a draft or immediately connect. Users can explicitly
+disable a draft. Existing configurations and imported JSON with `enabled=false`
+retain that value, including when changing runtime mode. The disabled-service
+hint opens the existing editor without enabling, saving or changing HTTP trust.
+Applying without starting can return `loaded`, `external` or `stopped`; success
+requires the intended configuration and a confirmed non-running runtime.
 
 `enabled=false` prevents every start or connection. `startup_policy` defaults
 to `legacy_restore`, preserving historical restoration of the last saved runtime
@@ -131,7 +140,11 @@ timeout_seconds: 30
 auto_start: false
 ```
 
-The manifest field is explicit self-documentation. Its only accepted value is `2026-07-28`; it cannot select another protocol mode.
+An omitted `protocol_version`, or `auto`, tries current `server/discover` first. An explicit `2026-07-28` requires that protocol without fallback. Supported explicit HTTP legacy versions are `2025-03-26`, `2025-06-18` and `2025-11-25`; those begin with `initialize`. Select an explicit version only when the downstream server requires it.
+
+Automatic HTTP negotiation recognizes the existing precise unsupported-discovery JSON-RPC errors. It also recognizes one initial HTTP 400 response with `application/json`, a valid JSON-RPC 2.0 error envelope, a null or matching request ID, integer code `-32000`, and message `Bad Request: Server not initialized` (ignoring case and surrounding whitespace). Only a fresh automatic discovery probe without a session may use that signal. It attempts legacy initialization once, starting at `2025-11-25` and accepting a supported negotiated version. All handshake stages share the startup timeout. Authentication, TLS/trust, network, rate-limit, server and malformed-response failures retain their errors. Initial negotiation does not issue or replay tool calls.
+
+Service details report the actual negotiated protocol only after a successful handshake, and show no version when it is unknown. Changing configuration still requires its normal save/apply/connect actions; metadata display grants no access.
 
 Static headers may contain `${credential:<id>}` references. Gate resolves them only for the downstream request and masks values in API responses and logs.
 
@@ -162,7 +175,7 @@ timeout_seconds: 30
 auto_start: false
 ```
 
-The stdio manifest likewise accepts only `2026-07-28`.
+Stdio likewise accepts omitted/`auto`, explicit `2026-07-28`, and the three legacy versions above. It additionally supports explicit `2024-11-05` for stdio only. Automatic negotiation requires a recognized unsupported-discovery signal; modern `-32022` is not a legacy-version signal.
 
 Use an absolute, reviewed `cwd` inside the allowed root. Avoid shell wrappers; configure the executable and argument list directly. Auto-start should remain off until the command, credentials, and tool definitions have been reviewed.
 

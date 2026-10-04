@@ -26,22 +26,30 @@
 .oauth-grants-toolbar { display: flex; align-items: center; flex-wrap: wrap; gap: 12px; }
 .oauth-grants-toolbar > .ant-input-affix-wrapper { flex: 1; min-width: 240px; }
 .oauth-grant-identifiers { display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: end; gap: 12px; margin: 12px 0; }
-/* Grant details own this constrained viewport; consent and reduction keep their existing layout. */
+/* Grant dialogs keep controls fixed; their tool table owns the only body scroll. */
 @media (min-width: 1101px) {
-  .oauth-grant-details-body { display: flex; flex-direction: column; overflow-y: hidden; }
-  .oauth-grant-details-body > :not(.oauth-tools) { flex-shrink: 0; }
-  .oauth-grant-details-body .oauth-tools,
-  .oauth-grant-details-body .ant-table-wrapper { display: flex; flex-direction: column; flex: 0 1 auto; min-height: 0; }
-  .oauth-grant-details-body .oauth-filters,
-  .oauth-grant-details-body .oauth-selection,
-  .oauth-grant-details-body .ant-table-header,
-  .oauth-grant-details-body .ant-pagination { flex-shrink: 0; }
-  .oauth-grant-details-body .ant-spin,
-  .oauth-grant-details-body .ant-spin-container,
-  .oauth-grant-details-body .ant-table,
-  .oauth-grant-details-body .ant-table-container { display: flex; flex-direction: column; flex: 1 1 auto; min-height: 0; }
-  .oauth-grant-details-body .ant-table-body { flex: 1 1 auto; min-height: 0; }
+  .oauth-grant-scope-dialog { width: min(1200px, calc(100vw - 96px)); max-width: none; height: calc(100dvh - 64px); max-height: calc(100dvh - 64px); }
+  .oauth-grant-scope-body { display: flex; flex-direction: column; gap: 12px; overflow: hidden; overscroll-behavior: contain; }
+  .oauth-grant-scope-body > :not(.oauth-tools) { flex-shrink: 0; }
+  .oauth-grant-scope-body .oauth-tools,
+  .oauth-grant-scope-body .ant-table-wrapper,
+  .oauth-grant-scope-body .ant-spin,
+  .oauth-grant-scope-body .ant-spin-nested-loading,
+  .oauth-grant-scope-body .ant-spin-container,
+  .oauth-grant-scope-body .ant-table,
+  .oauth-grant-scope-body .ant-table-container { display: flex; flex-direction: column; flex: 1 1 auto; min-height: 0; min-width: 0; }
+  .oauth-grant-scope-body .oauth-filters,
+  .oauth-grant-scope-body .oauth-selection,
+  .oauth-grant-scope-body .ant-table-header,
+  .oauth-grant-scope-body .ant-pagination { flex-shrink: 0; }
+  .oauth-grant-scope-body .ant-table-body { flex: 1 1 auto; min-height: 0; max-height: none !important; overscroll-behavior: contain; }
 }
+.oauth-grant-limits { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 16px; }
+.oauth-grant-limits label { display: grid; grid-template-columns: max-content minmax(0, 1fr); align-items: center; gap: 8px; font-size: 13px; white-space: nowrap; }
+.oauth-grant-limits .ant-input-number { width: 100%; }
+.oauth-reauthorization-offer { border: 1px solid hsl(var(--border)); border-radius: var(--radius); padding: 12px 16px; margin: 12px 0; }
+.oauth-scope-difference > .ant-input-affix-wrapper { margin-bottom: 12px; }
+@media (max-width: 1100px) { .oauth-grant-limits { grid-template-columns: minmax(0, 1fr); } }
 @media (max-width: 1100px) { .oauth-setup-steps { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
 @media (max-width: 600px) { .oauth-setup-steps { grid-template-columns: minmax(0, 1fr); } }
 @media (max-width: 1100px) { .oauth-admin-layout { grid-template-columns: minmax(0, 1fr); } }

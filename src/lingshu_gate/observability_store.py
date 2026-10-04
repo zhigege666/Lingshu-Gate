@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import sqlite3
 from datetime import datetime, timezone
 from typing import Any, cast
 from uuid import uuid4
@@ -34,6 +35,7 @@ class ObservabilityStore:
         subject_type: str | None = None,
         subject_id: str | None = None,
         payload: dict[str, Any] | None = None,
+        connection: sqlite3.Connection | None = None,
     ) -> dict[str, Any]:
         event_type = validate_gate_event_name(event_type)
         safe_payload = cast(dict[str, Any], redact_value(payload or {}))
@@ -46,7 +48,10 @@ class ObservabilityStore:
             "payload": safe_payload,
             "created_at": iso_now(),
         }
-        self.database.execute(
+        # Sensitive control-plane decisions may require their audit event to
+        # commit (or roll back) in the same writer transaction as the decision.
+        execute = connection.execute if connection is not None else self.database.execute
+        execute(
             """
             INSERT INTO events (id, type, source, subject_type, subject_id, payload_json, created_at)
             VALUES (?, ?, ?, ?, ?, ?, ?)

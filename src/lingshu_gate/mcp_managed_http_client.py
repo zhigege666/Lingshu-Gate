@@ -65,6 +65,10 @@ class ManagedHttpMcpClient:
         return bool(self._http_client and self._http_client.initialized)
 
     @property
+    def protocol_version(self) -> str | None:
+        return getattr(self._http_client, "protocol_version", None) if self.initialized else None
+
+    @property
     def session_id(self) -> str | None:
         return self._http_client.session_id if self._http_client else None
 

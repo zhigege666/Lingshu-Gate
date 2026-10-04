@@ -9,6 +9,7 @@ import sqlite3
 import threading
 from collections import deque
 from collections.abc import Callable
+from contextlib import nullcontext
 from datetime import datetime, timedelta, timezone
 from functools import partial
 from time import monotonic, perf_counter
@@ -1139,13 +1140,17 @@ class AccessControlStore:
         self,
         principal: AuthPrincipal,
         definitions: Iterable[ToolDefinition],
+        *,
+        connection: sqlite3.Connection | None = None,
     ) -> list[ToolDefinition]:
         definitions_list = list(definitions)
         if not definitions_list:
             return []
         keys = [(_server_id(item), item.id) for item in definitions_list]
         # 快照只在当前请求内使用；下一次发现或调用会重新读取分类和授权，避免跨用户或撤权后复用。
-        with self.database.session() as connection:
+        # OAuth decisions already own the writer transaction. Reuse it for
+        # classification synchronization and policy reads, without nested commits.
+        with (nullcontext(connection) if connection is not None else self.database.session()) as connection:
             self._synchronize_tools(connection, definitions_list)
             classifications = self._load_classifications(connection, keys)
             grants = self._effective_access_map(connection, principal, keys)

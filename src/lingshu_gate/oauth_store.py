@@ -71,11 +71,26 @@ def _interaction_capacity_schema(connection: sqlite3.Connection) -> None:
     connection.execute("CREATE INDEX gate_oauth_interactions_client ON gate_oauth_interactions(completed,client_id)")
 
 
+def _scope_confirmation_schema(connection: sqlite3.Connection) -> None:
+    # Only a digest of the latest short-lived confirmation is persisted. This
+    # is not a user draft, and contains no tools, tokens or client credentials.
+    execute_sql_script(connection, """
+CREATE TABLE gate_oauth_scope_confirmations (
+    grant_id TEXT PRIMARY KEY REFERENCES gate_oauth_grants(id) ON DELETE CASCADE,
+    user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    session_hash TEXT NOT NULL, token_hash TEXT NOT NULL UNIQUE,
+    expires_at INTEGER NOT NULL
+);
+CREATE INDEX gate_oauth_scope_confirmation_expiry ON gate_oauth_scope_confirmations(expires_at);
+""")
+
+
 class OAuthStore:
     def __init__(self, database: SQLiteDatabase) -> None:
         self.database = database
         MigrationRunner(database.connect, (Migration("0006_builtin_oauth", _schema),
-                                           Migration("0008_oauth_interaction_capacity", _interaction_capacity_schema))).run()
+                                           Migration("0008_oauth_interaction_capacity", _interaction_capacity_schema),
+                                           Migration("0009_oauth_scope_confirmations", _scope_confirmation_schema))).run()
 
     @contextmanager
     def transaction(self) -> Iterator[sqlite3.Connection]:

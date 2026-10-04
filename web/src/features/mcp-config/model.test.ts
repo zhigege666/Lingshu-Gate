@@ -7,6 +7,7 @@ import {
   canKeepMaskedEndpoint,
   changeRuntimeMode,
   changeStartupPolicy,
+  createMcpConfigTemplate,
   REDACTED_ENDPOINT,
   manifestValidationIssues,
   manifestValidationStatus,
@@ -18,6 +19,19 @@ import {
 const copy = (key: ManifestPrecheckMessageKey) => key
 
 describe("MCP config model", () => {
+  it("enables new drafts independently of startup and preserves explicit disable across every form mode", () => {
+    const draft = createMcpConfigTemplate()
+    expect(draft).toMatchObject({ enabled: true, auto_start: false, startup_policy: "gate_start_v1" })
+    for (const mode of ["external_http", "managed_stdio", "managed_http"] as const) {
+      expect(changeRuntimeMode(draft, mode)).toMatchObject({ enabled: true, auto_start: false, startup_policy: "gate_start_v1" })
+      const disabled = parseManifest(JSON.stringify({ ...draft, enabled: false }))
+      expect(changeRuntimeMode(disabled, mode).enabled).toBe(false)
+    }
+    const next = createMcpConfigTemplate()
+    draft.enabled = false
+    draft.launch!.type = "managed_process"
+    expect(next).toMatchObject({ enabled: true, launch: { type: "external" }, auto_start: false })
+  })
   it("accepts only a JSON object as the manifest root", () => {
     expect(parseManifest('{"id":"demo"}')).toMatchObject({ id: "demo" })
     expect(() => parseManifest("[]")).toThrow("Manifest root must be a JSON object")

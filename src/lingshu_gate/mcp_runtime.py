@@ -193,12 +193,18 @@ class McpServerRuntime:
             self.docker_binary,
         )
         effective_should_run = intent.desired_state == "running" and blocked_reason is None
+        negotiated_version = None
+        if self.client and getattr(self.client, "initialized", False):
+            candidate_version = getattr(self.client, "protocol_version", None)
+            if isinstance(candidate_version, str):
+                negotiated_version = candidate_version
         return McpServerStatusResponse(
             id=self.manifest.id,
             name=self.manifest.name,
             enabled=self.manifest.enabled,
             launch_type=self.manifest.launch.type,
             transport_type=self.manifest.transport.type,
+            negotiated_protocol_version=negotiated_version,
             endpoint=redact_endpoint(self.manifest.transport.endpoint),
             status=self.state.value,
             pid=self.pid,
