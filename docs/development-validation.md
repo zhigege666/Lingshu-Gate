@@ -8,7 +8,8 @@ This record covers the 0.4.3 candidate on `recovery/config-after-v042`, based on
 
 | Check | Observed result | Scope |
 |---|---|---|
-| Full Python tests | 1,264 passed in 303.07 seconds | All backend tests at version 0.4.3, with the fixed Playwright peer supplied |
+| Full Python tests | 1,264 passed in 303.07 seconds on the initial candidate | All backend tests at version 0.4.3, with the fixed Playwright peer supplied; subsequent path-confinement coverage is recorded below |
+| Configuration path follow-up | 50 passed in 3.60 seconds | Configuration editing/atomicity/service/startup regressions, including ten new directory-boundary cases |
 | Live grant and existing OAuth regressions | 151 passed in 109.66 seconds | 44 new live-scope/upgrade cases plus 107 existing OAuth cases |
 | Frontend unit tests | 422 passed in 69 files | All existing adapters/presentation checks and scope-difference behavior |
 | TypeScript and static UX contract | Passed | Source checks, separate from browser or independent visual acceptance |
@@ -21,6 +22,8 @@ This record covers the 0.4.3 candidate on `recovery/config-after-v042`, based on
 The main browser run passed 132 and failed five locators: two public-consent MCP choices still expected displayed names rather than the specified single-line IDs, two quota-confirmation cases used the previous dialog/button names, and one pending-mode check did not include the dialog-hidden background tab. Corrections retained filtering, selection, no-write-before-confirmation, quota, revocation and pending assertions. Three then passed together; the remaining selector cases first exposed AntD's duplicate hidden accessibility option, and passed after targeting the visible option content. This is not a single all-green 137-case run. Original failures remain locally. The first unit run passed 421 and failed an obsolete claim that broader tools always require another OAuth flow; its assertion now requires explicit Gate confirmation, existing scopes and no repeated client OAuth flow. Historical optional UI failures and their budgets/assertions were not changed.
 
 Two initial backend fixtures incorrectly assumed that changing a writer to viewer removes read permission. They now actually revoke personal credential-management permission, preserving the denial assertion; all 34 first live cases then passed. Subsequent expanded and full runs include write access, classification/resource reconfirmation and bounded confirmation state. Earlier draft implementation, source and failure evidence are preserved outside the candidate; that user-facing workflow is excluded from this release.
+
+The first PR head `e841532e32397200811ccd0628984854d8f78743` failed the CodeQL security summary with two configuration-path alerts, despite successful analysis jobs. The follow-up normalizes paths and checks the configured directory boundary before Console configuration reads, writes, digest comparisons and deletion. Symlinks to a similarly prefixed sibling directory cannot expose or replace its contents; invalid path-bearing IDs are rejected before lookup. A configured directory symlink and legacy filenames still round-trip. The ten new cases and existing affected regressions passed together. These alerts were fixed in source without dismissing findings or changing CI; only the new exact head's CI can establish the PR result.
 
 ## Same-bearer execution and boundaries
 

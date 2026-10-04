@@ -11,6 +11,8 @@
 
 The development-only reauthorization-draft API/UI/migration is excluded. `0009_oauth_scope_confirmations` adds only bounded, expiring latest-confirmation digests; it does not delete old grant history or store tools, tokens or client secrets. Existing credential masking, revocation, permission checks and one-time-secret acknowledgement remain.
 
+Console configuration reads and mutations normalize paths and enforce the configured directory boundary, including symlink escapes. Existing configured directory links and legacy filenames remain supported.
+
 Built-in OAuth still requires explicit administrator enablement and confidential static clients. This release adds no DCR/CIMD support, production credentials or deployment permission. The production `SafeNetworkExecutor` remains unimplemented; real Git acquisition, proxy tests and configured network installations remain blocked. HTTP private-address trust from 0.4.2 remains explicitly service/IP/port-bound, unencrypted and intended for trusted internal networks. HTTPS verification and blocked redirects remain.
 
 [Candidate validation](https://github.com/zhigege666/Lingshu-Gate/blob/v0.4.3/docs/development-validation.md) separates synthetic HTTP execution, unit/source checks and browser evidence from independent visual review and real ChatGPT integration. Platform packages and publication are accepted only after the existing formal release workflow succeeds.
@@ -27,6 +29,8 @@ The existing workflow produces five native targets (Linux x86_64/ARM64, Windows 
 - HTTP 自动协商只处理精确的初始 JSON-RPC 旧版初始化拒绝，并使用有界握手。明确协议选择、TLS/认证/网络错误及业务调用保留原有失败和不重放边界，连接后展示实际协商版本。
 
 此前仅开发的重新授权草稿 API/UI/迁移不纳入本版。`0009_oauth_scope_confirmations` 只新增有界、到期的最新确认摘要，不删除旧授权历史，不保存工具、令牌或客户端 secret。凭据脱敏、撤销、权限检查和一次性 secret 关闭确认保持。
+
+Console 配置读取及修改规范化路径并检查配置目录边界，阻止符号链接越界；保留已配置目录链接及旧文件名支持。
 
 内置 OAuth 仍需管理员明确启用并登记机密静态客户端。本版不增加 DCR/CIMD、生产凭据或部署权限。生产 `SafeNetworkExecutor` 尚未实现，真实 Git 拉取、代理测试和指定网络安装仍阻断。0.4.2 内网 HTTP 信任继续绑定精确服务/IP/端口，HTTP 不加密，仅用于受信任内网；HTTPS 验证与禁止重定向保留。
 

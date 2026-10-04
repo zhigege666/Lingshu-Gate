@@ -79,6 +79,8 @@ class McpConfigStore:
             raise ValueError(f"Manifest id mismatch: expected {expected_id}, got {manifest_id}")
 
         existing_path = self._find_path(manifest_id)
+        if existing_path is not None:
+            existing_path = self._checked_path(existing_path)
         if expected_digest is not None and (existing_path is None or hashlib.sha256(existing_path.read_bytes()).hexdigest() != expected_digest):
             raise McpConfigConflict("MCP configuration changed; reopen the saved configuration before updating")
         if existing_path and not overwrite:
@@ -89,7 +91,7 @@ class McpConfigStore:
 
         manifest = _validate_manifest(manifest_data, for_write=True, http_trust_store=self.http_trust_store)
         self.config_dir.mkdir(parents=True, exist_ok=True)
-        path = existing_path or self.config_dir / f"{manifest.id}.yaml"
+        path = self._checked_path(existing_path or self.config_dir / f"{manifest.id}.yaml")
         self._write_manifest(path, manifest.model_dump(mode="json", exclude={"manifest_path"}))
         saved = self._load_manifest(path)
         log_event(logger, logging.INFO, "gate.mcp.config_saved", "MCP config saved", server_id=saved.id, path=str(path), overwrite=bool(existing_path))
@@ -108,6 +110,7 @@ class McpConfigStore:
         path = self._find_path(server_id)
         if not path:
             raise KeyError(f"MCP config not found: {server_id}")
+        path = self._checked_path(path)
         response = self._to_response(path)
         path.unlink()
         log_event(logger, logging.INFO, "gate.mcp.config_deleted", "MCP config deleted", server_id=server_id, path=str(path))
@@ -127,7 +130,7 @@ class McpConfigStore:
             if str(raw.get("id", "")) == server_id:
                 return path
         for suffix in (".yaml", ".yml", ".json"):
-            candidate = self.config_dir / f"{server_id}{suffix}"
+            candidate = self._checked_path(self.config_dir / f"{server_id}{suffix}")
             if candidate.exists():
                 return candidate
         return None
@@ -138,7 +141,17 @@ class McpConfigStore:
         manifest.manifest_path = path
         return manifest
 
+    def _checked_path(self, path: Path) -> Path:
+        # Resolve before checking the directory boundary: lexical prefixes and
+        # server-ID validation alone cannot contain a symlinked configuration.
+        root = os.path.realpath(self.config_dir)
+        normalized = os.path.realpath(path)
+        if not normalized.startswith(os.path.join(root, "")) or os.path.dirname(normalized) != root:
+            raise ValueError("MCP configuration must be a direct file in config_dir")
+        return Path(normalized)
+
     def _load_raw(self, path: Path, *, content: bytes | None = None) -> dict[str, Any]:
+        path = self._checked_path(path)
         text = (path.read_bytes() if content is None else content).decode("utf-8")
         if path.suffix.lower() == ".json":
             data = json.loads(text)
@@ -149,6 +162,7 @@ class McpConfigStore:
         return data
 
     def _write_manifest(self, path: Path, data: dict[str, Any]) -> None:
+        path = self._checked_path(path)
         if path.suffix.lower() == ".json":
             content = json.dumps(data, ensure_ascii=False, indent=2) + "\n"
         else:
@@ -188,6 +202,7 @@ class McpConfigStore:
     def _to_response(self, path: Path) -> McpConfigResponse:
         # The manifest and CAS digest come from the same opened file snapshot,
         # even if a writer atomically replaces the path while it is read.
+        path = self._checked_path(path)
         content = path.read_bytes()
         manifest = _validate_manifest(self._load_raw(path, content=content))
         manifest.manifest_path = path

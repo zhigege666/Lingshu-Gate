@@ -138,3 +138,75 @@ def test_edit_snapshot_digest_matches_the_manifest_during_atomic_replacement(tmp
     assert snapshot.digest == hashlib.sha256(original).hexdigest()
     with pytest.raises(McpConfigConflict):
         store.save_config({**_external(), "name": "Stale edit"}, overwrite=True, expected_digest=snapshot.digest)
+
+
+@pytest.mark.parametrize("operation", ["get", "load", "save", "delete"])
+def test_symlinked_configuration_cannot_read_or_replace_a_sibling_directory(
+    tmp_path: Path, operation: str,
+) -> None:
+    config_dir = tmp_path / "mcp.d"
+    config_dir.mkdir()
+    # The sibling deliberately shares the root's lexical prefix.
+    outside_dir = tmp_path / "mcp.d-outside"
+    outside_dir.mkdir()
+    outside = outside_dir / "edit-consistency.yaml"
+    outside.write_text(json.dumps({**_external(), "name": "Outside configuration"}))
+    original = outside.read_bytes()
+    linked = config_dir / outside.name
+    try:
+        linked.symlink_to(outside)
+    except (OSError, NotImplementedError):
+        pytest.skip("symlinks are not available on this test host")
+    store = McpConfigStore(config_dir)
+    read_bytes = Path.read_bytes
+
+    def reject_external_read(path: Path) -> bytes:
+        assert path.resolve().parent == config_dir, "outside configuration content was read"
+        return read_bytes(path)
+
+    with patch.object(Path, "read_bytes", reject_external_read), pytest.raises(ValueError, match="direct file in config_dir"):
+        if operation == "get":
+            store.get_config("edit-consistency")
+        elif operation == "load":
+            store.load_manifest("edit-consistency")
+        elif operation == "save":
+            store.save_config({**_external(), "name": "Replacement"}, overwrite=True,
+                              expected_digest=hashlib.sha256(original).hexdigest())
+        else:
+            store.delete_config("edit-consistency")
+    assert outside.read_bytes() == original
+    assert linked.is_symlink()
+    listing = store.list_configs()
+    assert listing.configs == []
+    assert len(listing.errors) == 1
+    assert "Outside configuration" not in listing.errors[0]
+
+
+@pytest.mark.parametrize("server_id", ["../outside", "nested/server", "nested\\server", "/outside", "invalid\n"])
+def test_server_id_validation_rejects_path_characters_before_lookup(tmp_path: Path, server_id: str) -> None:
+    store = McpConfigStore(tmp_path)
+    with patch.object(store, "_find_path", side_effect=AssertionError("invalid ID reached lookup")):
+        for operation in (store.get_config, store.load_manifest, store.delete_config):
+            with pytest.raises(ValueError, match="server_id must match"):
+                operation(server_id)
+        with pytest.raises(ValueError, match="server_id must match"):
+            store.save_config({**_external(), "id": server_id})
+
+
+def test_config_directory_symlink_and_legacy_filename_remain_supported(tmp_path: Path) -> None:
+    actual = tmp_path / "actual-configs"
+    actual.mkdir()
+    config_dir = tmp_path / "mcp.d"
+    try:
+        config_dir.symlink_to(actual, target_is_directory=True)
+    except (OSError, NotImplementedError):
+        pytest.skip("symlinks are not available on this test host")
+    path = actual / "legacy saved config.json"
+    path.write_text(json.dumps(_external()))
+    store = McpConfigStore(config_dir)
+    current = store.get_config("edit-consistency")
+    updated = store.save_config({**_external(), "name": "Saved"}, overwrite=True, expected_digest=current.digest)
+    assert updated.format == "json"
+    assert json.loads(path.read_text())["name"] == "Saved"
+    store.delete_config("edit-consistency")
+    assert not path.exists()
