@@ -554,7 +554,8 @@ def test_protocol_ingress_limit_precedes_body_reading_and_client_validation(gate
 def test_full_mcp_transport_reauthenticates_each_call_before_downstream(gate, mutation, protocol):
     info, secret = enable(gate)
     server = gate["server"]
-    token = exchange(server, info, secret, issue_code(gate, info))["access_token"]
+    tokens = exchange(server, info, secret, issue_code(gate, info))
+    token = tokens["access_token"]
     calls = []
     class Downstream:
         def invoke_mcp_tool_for_user(self, server_id, tool_name, arguments, *, user_id, **kwargs):
@@ -586,9 +587,18 @@ def test_full_mcp_transport_reauthenticates_each_call_before_downstream(gate, mu
         else:
             gate["db"].execute("DELETE FROM user_roles WHERE user_id=?", (gate["users"]["alice"]["id"],))
         denied_status = 403 if mutation == "role_removed" else 401
+        # Gate is stateless: even a retained legacy session header carries no
+        # authority and cannot revive a revoked bearer on a live HTTP client.
+        client.headers["Mcp-Session-Id"] = "synthetic-retained-http-session"
         assert post(client, "tools/call", {"name": "mcp__A__read", "arguments": {}}).status_code == denied_status
         assert post(client, "tools/list").status_code == denied_status
         assert len(calls) == 1
+        if mutation == "grant_revoked":
+            denied_refresh = client.post("/oauth/token", data={"grant_type": "refresh_token",
+                "refresh_token": tokens["refresh_token"], "client_id": info["id"],
+                "client_secret": secret, "resource": RESOURCE})
+            assert denied_refresh.status_code == 400
+            assert denied_refresh.json()["error"] == "invalid_grant"
 
 
 def test_mcp_rechecks_after_request_body_before_dispatch(gate, monkeypatch):

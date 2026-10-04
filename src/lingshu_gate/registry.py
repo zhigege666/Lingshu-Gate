@@ -35,6 +35,7 @@ class ToolInvocationContext:
     permissions: tuple[str, ...] = ()
     scopes: tuple[str, ...] = ()
     delegated_scopes: tuple[str, ...] | None = None
+    session_id: str | None = None
 
 
 class ToolExecutionError(RuntimeError):

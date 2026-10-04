@@ -1,5 +1,9 @@
 # Automated delivery workflow
 
+## Source routing
+
+Choose one source first: local trusted project → ZIP; explicit HTTPS repository → Git plan/import then the same owned upload; existing external HTTP MCP → external configuration plan/apply. External configuration does not enter packaging, build, deploy or remote-process start. Read the external contract below and use the exact currently authorized target/actions.
+
 ## Stages and confirmation points
 
 | Stage | Read-only input | Write operation | Required summary | Stop condition |
@@ -57,3 +61,9 @@ If the process is running but item 5 or 6 is not verified, use this acceptance c
 ## Confirmed tool preparation and Git acquisition
 
 A requested HTTPS Git source is resolved/planned before a separate confirmed acquisition. The imported snapshot joins the existing owned upload and keeps install/build/deploy/start/cancel boundaries. Missing dependency tools may proceed only through the exact-version preparation step shown in the confirmed plan and a reviewed isolated executor. This explicit step includes official source/integrity, selected install egress, deadline and executor cache scope. An unavailable adapter, unsupported manager/lock or incompatible Node version stops work; no host bootstrap or silent replacement is allowed. Project overrides remain actor-owned revisioned drafts, not global configuration.
+
+## Confirmed external HTTP configuration
+
+Read target status for update → offline plan → review normalized manifest/actions/digests/expiry → confirmed apply → poll operation → inspect target. A remote probe is separately explicit; save-only performs no HTTP contact. Connection/discovery is separately selected in the bound plan, never remote process startup. `enabled` and future `auto_start` are independent. Refresh quarantines classifications without publishing or adding grants.
+
+Same-request retry preserves the idempotency key; a single-use plan cannot create two configurations. Plans bind actor, current Console session or API token, target, prior raw-file digest, credentials and action choices. Current permissions/credentials/trust are rechecked during application. Saved-but-disconnected targets need a reviewed update plan, not a duplicate create. Cancellation retains saved configuration and cleans only this attempt's Gate connection. Unknown completion/cleanup or a successor connection requires reconciliation, with no automatic replay or stop.

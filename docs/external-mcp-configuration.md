@@ -1,0 +1,64 @@
+# External MCP configuration
+
+[简体中文](zh-CN/external-mcp-configuration.md) · [Project delivery](project-delivery.md)
+
+This development addition registers an existing external Streamable HTTP MCP without uploading source, building a package, or starting a process on the remote server. It is separate from ordinary OAuth tool access. Publication and real-peer integration are pending independent review.
+
+## Choose a source
+
+| Source | Path |
+|---|---|
+| Trusted local project | Deterministic ZIP → upload → preflight/build → deploy/start |
+| Explicit HTTPS Git repository | Git plan/import → owned upload → the same build/delivery workflow; a reviewed executor is still missing |
+| Existing HTTP MCP endpoint | External configuration plan → confirmed apply → operation status |
+
+The bundled Delivery Skill contains all three routes. Console configuration saves and this workflow use the existing `McpConfigurationService`; the new REST and MCP adapters share one `ExternalMcpConfigurationService`. Existing Console save-only behavior remains separate from explicit connection/discovery choices.
+
+## Authority and input
+
+Use an active Gate administrator's Console session or an explicitly scoped Gate API token. `operations.manage` is required; apply, cancel and an optional remote probe also require `tools.invoke`. Current role permissions, token scopes, delegation ceilings, user status and session/token validity are checked again during execution and after lock waits. Ordinary OAuth does not acquire administrator authority. Operations are private to their actor.
+
+Only `launch.type=external` with `transport.type=streamable_http` is accepted. Unknown fields, commands, working directories, mounts, build metadata, roots, analysis and permission changes are rejected. Use only existing managed credential references in headers, for example `Bearer ${credential:example-binding}`; never provide secret values. New personal credential slots must be configured separately. Existing personal slot declarations can be preserved during update.
+
+New manifests default to `enabled=true`, `auto_start=false`, `startup_policy=gate_start_v1` and a 120-second downstream timeout. Enabled means available for connection; it does not mean connected. Future Gate startup policy is separate from this apply's `connect` choice. HTTPS verification, denied redirects and current endpoint restrictions remain. Private HTTP requires the separately approved exact service/IP/port trust record; planning cannot create or expand trust.
+
+## Plan and apply
+
+| MCP tool | REST route | Purpose |
+|---|---|---|
+| `gate_mcp_config_plan` | `POST /v1/mcp/external-configs/plan` | Offline precheck and a five-minute plan; optional explicit probe |
+| `gate_mcp_config_apply` | `POST /v1/mcp/external-configs/apply` | Confirm the exact plan and queue persistence/optional connection |
+| `gate_mcp_config_status` | `GET /v1/mcp/external-configs/operations/{operation_id}` | Actor-owned operation progress and terminal result |
+| `gate_mcp_config_status` | `GET /v1/mcp/external-configs/targets/{server_id}` | Redacted configuration and current Gate connection state |
+| `gate_mcp_config_cancel` | `POST /v1/mcp/external-configs/operations/{operation_id}/cancel` | Explicit cancellation request; saved configuration remains |
+
+The session REST adapter denies a supplied cross-origin mutation Origin or cross-site fetch. The application service enforces the same management boundary for both adapters.
+
+1. For create, select an unused target ID. For update, read target status and retain `config_digest`, the SHA-256 of the raw saved file. Do not substitute the canonical digest returned by the older delivery status tool.
+2. Call plan with explicit `mode=create|update`, a manifest, and `expected_config_digest` for update. Defaults are `connect=false`, `refresh_tools=false`, `probe=false`. `refresh_tools=true` requires `connect=true`; a requested connection requires an enabled manifest.
+3. Offline validation changes no files or registry and contacts no peer. Only separately authorized `probe=true,probe_confirmed=true` initializes/discovers through a temporary session, then closes it; it does not register or grant tools.
+4. Review mode, target, the caller-known endpoint, redacted manifest, digests, prior revision, expiry, timeout and exact actions. Update replaces any current Gate connection. Plan responses mask endpoints/headers; masked fields from target status can be preserved on update without reading secrets.
+5. Apply with the exact plan ID/digest and action flags, `confirmed=true`, and a fresh idempotency key. The plan binds actor, Console session or API token/delegation, normalized manifest, target, prior file digest, credential revisions, action choices and expiry. It is single-use; creation and update use CAS under the existing configuration mutation lock.
+6. Poll operation status until `terminal=true`. Retry the same request with the same arguments/key after a transport interruption; never issue another create to repair connection failure. Changed inputs need a new reviewed plan/key.
+
+Tool refresh reconciles new/changed/retired definitions into existing classification review, returns the snapshot/counts, and does not publish classifications or expand grants. A successful connection and initial discovery do not establish usable permissions.
+
+## Completion and recovery
+
+Read these fields together:
+
+| Field | Meaning |
+|---|---|
+| `config_applied` / `config_digest` | Saved file and its revision; unknown after an interrupted completion |
+| `connection_state` | This attempt's Gate connection, failure, cleanup or successor ownership |
+| `discovery_state` | This operation's observed discovery; target status returns `not_observed` |
+| `operation_id` / `terminal` | Durable operation identity and observed completion |
+| `cleanup_state` / `requires_reconciliation` | Whether this attempt disconnected cleanly or needs an operator check |
+
+Terminal states are `success`, `partial`, `failed`, `cancelled`, `timed_out`, and `interrupted`. Persistence success plus failed connection is a partial result, with the saved configuration retained. Read target status, then review an update using its current digest. Cancel uses a separate confirmed idempotent write; `cancel_requested` is not completed cancellation. Failure/cancellation closes only this attempt's Gate HTTP connection, never a successor connection or remote process. It does not delete a configuration or grant history.
+
+The operation result and idempotency completion commit in one SQLite transaction. Restart, a lost worker or a failed completion transaction becomes `interrupted` with unknown state and required reconciliation. Nothing is replayed, reconnected or stopped automatically during recovery. Configuration files, HTTP state and SQLite still do not form a distributed transaction.
+
+Operations use a 1–120 second monotonic budget for lock waits, HTTP initialization/discovery and refresh, with a separate five-second cleanup attempt. Control lock waits are limited to five seconds and each process queues at most four operations. Cancellation is cooperative; in-flight socket I/O uses its remaining deadline. OS DNS resolution and the existing SQLite busy timeout retain their lower-level limits, so this is not a hard process-kill guarantee. Terminal records follow the existing idempotency-journal retention.
+
+`instance_id` currently equals `server_id`, and `config_revision` is the file digest. This is one configuration per target, not grouping or multi-instance routing. A content digest cannot distinguish deletion/recreation with identical bytes. Future generation/session routing requires its own design and tests. No Git executor or remote runtime has been installed by this feature.

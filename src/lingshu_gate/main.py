@@ -24,6 +24,9 @@ from lingshu_gate.adapters.control_plane import (
 )
 from lingshu_gate.application.health import HealthService, StartupState
 from lingshu_gate.application.mcp_configuration import McpConfigurationService
+from lingshu_gate.application.external_mcp_configuration import ExternalMcpConfigurationService
+from lingshu_gate.external_mcp_config_mcp import register_external_mcp_config_tools
+from lingshu_gate.interfaces.control_api.external_mcp_config_routes import register_external_mcp_config_routes
 from lingshu_gate.mcp_http_trust import McpHttpTrustStore
 from lingshu_gate.auth import AuthStore
 from lingshu_gate.build_deploy import BuildDeployStore
@@ -163,6 +166,12 @@ def create_app() -> FastAPI:
         mcp_runtime,
         user_credential_store,
     )
+    external_mcp_configuration_service = ExternalMcpConfigurationService(
+        settings=settings, database=database, auth=auth_store, access=access_store,
+        configs=mcp_config_store, runtime=mcp_runtime, credentials=credential_store,
+        configuration=mcp_configuration_service, delivery=project_delivery_service,
+    )
+    register_external_mcp_config_tools(registry, external_mcp_configuration_service)
     startup_state = StartupState()
     health_service = HealthService(
         service_name=settings.service_name,
@@ -268,6 +277,7 @@ def create_app() -> FastAPI:
                 "gate.diagnostics.memory_snapshot_shutdown_before_mcp_stop",
                 "Memory snapshot before MCP shutdown",
             )
+            external_mcp_configuration_service.shutdown()
             mcp_runtime.shutdown()
             log_memory_snapshot(
                 logger,
@@ -299,6 +309,7 @@ def create_app() -> FastAPI:
     state.mcp_runtime = mcp_runtime
     state.mcp_config_store = mcp_config_store
     state.mcp_configuration_service = mcp_configuration_service
+    state.external_mcp_configuration_service = external_mcp_configuration_service
     state.credential_store = credential_store
     state.user_credential_store = user_credential_store
     state.tool_classification_service = tool_classification_service
@@ -403,6 +414,7 @@ def create_app() -> FastAPI:
         observability_store=observability_store,
         require_operations_manager=require_operations_manager,
     )
+    register_external_mcp_config_routes(app, auth=auth_store, service=external_mcp_configuration_service)
     register_mcp_runtime_routes(
         app,
         settings=settings,

@@ -39,6 +39,8 @@ The tool catalog's `metadata.gate_access` is an output-only, request-local displ
 
 ## Execution boundary
 
+The development external-configuration workflow is administrator-only, with current Console-session/API-token, role-permission and delegation checks. Ordinary OAuth cannot configure endpoints. Its plans bind target/configuration/credential digests, actor and management connection, actions and expiry; apply and cancel require explicit confirmation/idempotency. Unknown execution fields and literal header secrets are denied; existing private HTTP trust cannot be created through this workflow. Initial and refreshed discovery reconcile classifications before registry replacement and never publish or grant them. Interrupted/unknown completion requires operator reconciliation, with no automatic write replay. See [the external configuration contract](docs/external-mcp-configuration.md) for cooperative deadline and one-target limitations.
+
 Project builds and managed local processes execute code with the privileges of the Gate process. They are not a sandbox for untrusted source code.
 
 Manifest validation is read-only and never executes its command or a version probe. Pinned manager startup uses only service-administrator registered Node/JS CLI paths outside project/data/manifest directories; project command paths or PATH cannot select a probe. Protect the deployment registry and installed tools against unauthorized writes. Metadata checks and timeout/download restrictions do not prove tool integrity. Exact version probes occur only inside the existing authorized startup lifecycle; legacy unpinned manifests retain their explicit execution boundary.
