@@ -13,7 +13,7 @@ from lingshu_gate.application.manifest_edit import restore_masked_mounts
 from lingshu_gate.config import Settings
 from lingshu_gate.credential_refs import extract_credential_refs, scan_env_credential_refs
 from lingshu_gate.credential_store import CredentialStore
-from lingshu_gate.endpoint_security import REDACTED_ENDPOINT, redact_endpoint
+from lingshu_gate.endpoint_security import REDACTED_ENDPOINT, redact_endpoint, private_http_origin
 from lingshu_gate.mcp_container import (
     resolve_container_mount_source,
     resolve_docker_binary,
@@ -64,6 +64,12 @@ def validate_mcp_manifest(settings: Settings, config_store: McpConfigStore, mani
         return _response(manifest_id or None, checks)
 
     credential_store = CredentialStore(settings.data_dir)
+    try:
+        config_store.check_http_trust(manifest)
+        if manifest.transport.endpoint and private_http_origin(manifest.transport.endpoint):
+            checks.append(_check("transport.http_trust", "ok", "This exact private HTTP origin is administrator-authorized for this MCP service", {"authorized": True}))
+    except ValueError as exc:
+        checks.append(_check("transport.endpoint", "error", str(exc), {"code": "private_http_untrusted"}))
     _check_duplicate(config_store, manifest, expected_id, checks)
     _check_launch(settings, manifest, checks)
     _check_transport(manifest, checks)

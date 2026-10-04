@@ -245,7 +245,7 @@ class TransportConfig(BaseModel):
     def validate_endpoint(cls, value: str | None) -> str | None:
         if value is None:
             return None
-        return validate_streamable_http_endpoint(value)
+        return validate_streamable_http_endpoint(value, allow_rfc1918_declaration=True)
 
     @model_validator(mode="after")
     def validate_transport(self) -> "TransportConfig":

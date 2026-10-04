@@ -63,6 +63,32 @@ For unattended provisioning, configure an administrator username and inject the 
 
 Manifests are YAML or JSON objects stored in `mcp.d`. The file name is not the identity; `id` is. IDs must match `^[A-Za-z0-9_.-]+$` and remain stable because grants, credentials, runtime state, and audits reference them.
 
+### Private HTTP trust
+
+HTTPS and canonical loopback HTTP retain their existing behavior. Other HTTP
+endpoints require a literal IPv4 address in `10.0.0.0/8`, `172.16.0.0/12` or
+`192.168.0.0/16` and a separate administrator-approved record binding the exact
+MCP service ID, IP and actual port. A manifest is a declaration, never its own
+trust approval. There are no default trusted private origins. DNS names,
+noncanonical IPs, public, link-local, metadata and other reserved ranges cannot
+enter this allowlist. User information, query strings, fragments and unsafe URL
+syntax remain forbidden. Redirects remain blocked and HTTPS uses normal TLS
+certificate verification.
+
+In the existing configuration editor, an administrator can select **Authorize this
+address** below the endpoint and explicitly confirm the service ID, IP and port.
+HTTP is unencrypted; use this only for a trusted internal network. Authorization
+uses the separate `/v1/mcp/http-trust/{server_id}` API, not normal manifest save.
+Its PUT requires `origins`, `expected_revision` and `confirmed=true`. Live admin
+role and `operations.manage`, same-origin session mutation protection, revision
+CAS and audit checks apply. An operator with only `operations.manage` or an OAuth
+connection cannot change this policy. Changing the draft invalidates the inline
+confirmation. Approval preserves the draft and revalidates it without connecting.
+Precheck, save, apply, connect, reconnect and requests read the current policy;
+removal or read failure denies subsequent use. Ordinary users receive the result
+for their proposed address and contact-administrator guidance, not other trusted
+origin records. No global trust-settings page is added by this change.
+
 ### External Streamable HTTP
 
 ```yaml
