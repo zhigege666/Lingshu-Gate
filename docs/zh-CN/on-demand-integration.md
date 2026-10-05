@@ -28,3 +28,5 @@
 同 exact main 的 OAuth 阶段 A `dfa18dde3169df173be72400054c4d567dc2cb1b` 复制为 `1b4592d2d30de39a5d728fc0707841d86d46cf4d`。access-control 冲突保留分组定义前置条件、原派发 guard、有界验证和只同步选定分类。新增 registry 原子 ID 查询返回其持有的冻结结构副本，保留修改隔离。`_verified_principal` 使用 `_grant_tools`，JWT 验证和分组新增的 `refresh_verified_principal` 均经过该方法，不再次构建 owner 全目录。合并后的 66 项扩展/registry/分组授权测试在 103.52 秒通过，涵盖 5,000 服务/50,000 工具、1/100/5,000 工具 grant、进程内刷新及零完整 registry 投影。其中三次采样的 OAuth 延迟仅为诊断，执行时存在并发 fixture，不能作为延迟保证。owner 候选分页/选择仍是 OAuth 作者的独立阶段。
 
 复审后续 `d99be556ff48e018792268abeb7c5a22c5517476` 规范化无序授权集合，保留身份/证据及真实上限变化，并在私有初始化后的实际调用边界重复选定实例会话 guard；未改变复制的路由模块，未恢复完整分组派发投影。94 项安全回归在 63.70 秒通过。TTL 后续 `3947ae4171d27d2e693ea3f505e49cf6b12fa752` 保持未变元数据刷新稳定，保留显式/真实元数据变化失效；136 项配置/分组用例在 549.44 秒通过。最终检查点范围及原始测量见[集成验收记录](on-demand-integration-validation.md)。
+
+最终 HEAD 验收后续在 `f51d1b18d7475034b61567be00ef999128918e83` 重新执行完整后端全套：1,734 passed / 3 skipped / 0 failures，1,289.04 秒。跳过项为可选固定 Playwright MCP discovery/列表 peer 未提供安装。该 HEAD 的 wheel 与 Linux 原生产物已重建，真实安装 CLI/frozen 父进程及验证子进程通过合成本地派发、非法类型拒绝、期限/回收及 chunk 检查。生产源码保持 `d99be55`，运行期间无变化。[完整测试/产物证据](on-demand-integration-validation.md) 保留精确边界与摘要。

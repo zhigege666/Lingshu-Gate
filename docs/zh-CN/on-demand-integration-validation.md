@@ -2,11 +2,11 @@
 
 [English](../on-demand-integration-validation.md) · [使用指南](on-demand-tools.md) · [提交溯源](on-demand-integration.md)
 
-开发分支 `test/on-demand-groups-integration-20261005` 源自 exact main `d4786fd368e932bc758ea29da1a597c9d9551794`（0.4.4）。完整测试检查点为 `a320b8cdffdb6f68c06206186c47ecbef8587f3f`；最终生产代码检查点为 `d99be556ff48e018792268abeb7c5a22c5517476`，包括未变化元数据 TTL 刷新误失效修复（`3947ae4171d27d2e693ea3f505e49cf6b12fa752`）及授权集合/会话终点修复。原生 worker 保留此前精确源码 SHA；物理/分组正式重测记录最终源码。配置和安全回归分别标明检查点，两次后续修复后未重复执行完整后端全套。后续证据提交仅含文档和原始测量。未执行 merge、tag、release、生产服务、真实 MCP 凭据或 SSH 操作。独立基础分支仅为历史检查点，不是当前安全修复后的验收候选。
+开发分支 `test/on-demand-groups-integration-20261005` 源自 exact main `d4786fd368e932bc758ea29da1a597c9d9551794`（0.4.4）。最终完整测试及打包产物检查点为 `f51d1b18d7475034b61567be00ef999128918e83`；最终生产代码检查点为 `d99be556ff48e018792268abeb7c5a22c5517476`，包括未变化元数据 TTL 刷新误失效修复（`3947ae4171d27d2e693ea3f505e49cf6b12fa752`）及授权集合/会话终点修复。物理/分组正式测量使用生产检查点 `d99be55`；两次后续修复后的完整后端全套在 `f51d1b1` 重跑，其相对 `d99be55` 仅有文档/数据变化。最终 HEAD 的 wheel 与原生产物另行重建并实际运行，不依赖旧原生 worker 检查点。后续证据提交仅含文档和原始测量。未执行 merge、tag、release、生产服务、真实 MCP 凭据或 SSH 操作。独立基础分支仅为历史检查点，不是当前安全修复后的验收候选。
 
 | 已执行检查 | 结果与范围 |
 |---|---|
-| 后端全套 | `a320b8c` 上 1,724 passed / 3 skipped，1,300.57 秒；包括目录隐私、ACL/token/OAuth、schema 工作预算、审计、分组、租约、运行时代际、registry 所有权、API/MCP 兼容及发行包源码测试 |
+| 后端全套 | `f51d1b18d7475034b61567be00ef999128918e83` 上 1,734 passed / 3 skipped / 0 failures、errors，1,289.04 秒；最终修复后重新执行完整全套。五个既有 record_property/JUnit xunit2 提示。[原始检查点](../benchmarks/backend-full-final-head.json) |
 | 元数据刷新后续 | `3947ae4` 上 136 项在 549.44 秒通过，含三个 50,000 工具目录/缓存/并发写入场景；51 项派发/外部授权测试在 52.06 秒通过 |
 | 授权/会话后续 | `d99be556ff48e018792268abeb7c5a22c5517476` 上 94 项目录/schema/审计/分组/外部授权测试在 63.70 秒通过；六项新增顺序/私有初始化回归在 12.19 秒通过 |
 | Ruff / mypy | 通过；mypy 检查 139 个源码文件 |
@@ -14,8 +14,10 @@
 | 前端检查/测试 | TypeScript 与静态 UX 检查通过；73 文件、436 测试在 42.38 秒通过 |
 | 前端构建 | Console 与授权 bundle 构建通过；既有 OAuth 大 chunk 警告保留 |
 | 浏览器检查点 | 此前 39 项实际本地分组/客户端浏览器用例通过；六入口措辞修正后，两种语言客户端用例通过。最终仅后端变更不改变其 UI 源码；工程师查看截图不等同独立视觉验收 |
-| Linux frozen worker | 实际 PyInstaller one-folder 构建及四次真实子进程调用通过：合法输入、非法类型、正则期限/终止、超时后复用；四个子进程全部回收，未初始化服务设置。这不等同完整原生发行包/服务 E2E |
+| 最终 HEAD wheel / Linux native | 均在 `f51d1b1` 构建。独立安装 wheel 的 validator 与实际 native worker 各五项通过（合法输入、非法类型、期限/终止、复用、512 KiB chunk），十个子进程全部回收；原生直接入口两项通过。真实 wheel CLI 和 frozen native 父进程各通过合成本地只读按需 API 调用及非法类型拒绝，各一条 success / `not_invoked` 审计，父进程全部回收。安装后的 validator 未从源码工作区加载 |
 | 包装及仓库 | 身份检查、0.4.4 版本检查、Compose 语法及空白检查通过 |
+
+最终三个 skip 均在 `tests/test_mcp_playwright_interop.py`：`test_fixed_peer_rejects_modern_discovery_with_real_http_400_null_id`，以及 `test_fixed_peer_auto_initializes_and_lists_without_any_browser_call` 的 `None`、`auto` 两项。原因均为 “fixed Playwright MCP test installation not supplied”；未提供可选固定 `@playwright/mcp@0.0.83` / `playwright-core@1.64.0-alpha-1790635538000` 安装对应的 `GATE_PLAYWRIGHT_MCP_ROOT`。这些用例覆盖 discovery/自动协商/列表，不涉及浏览器执行。五个提示是既有 record_property 测量与此次 JUnit xunit2 报告的兼容提示。
 
 首轮完整测试与前端替换授权静态资产同时执行时，观察到一个授权页 locale 用例失败。该单例隔离重跑及固定检查点完整测试均通过；构建会清空输出目录，与短暂资产竞争相符。更早全套尝试因代码变化主动中断，其中一次中断另引发 pytest fixture teardown 错误，不能算完整通过或环境阻断。正式测量前修正了两处分组基准 fixture 初始化错误（role seed 顺序和误用默认数据库路径）。原生构建起初缺少可选锁定 release 依赖 group，安装后实际构建完成。这些早期失败均不计入最终通过数。
 
@@ -58,8 +60,8 @@
 
 基线／registry 父进程 RSS 为 67,352／266,756 KiB。父进程采样峰值 682,676 KiB（666.7 MiB），验证子进程峰值 27,764 KiB（27.1 MiB）。结构缓存 49,950 项／61,388,550 计费字节，满足 64 MiB；原始分组结构 16,500,000 字节，满足 33,554,432 字节上限。首次索引 9.324 秒，数据库 124,825,600 字节。关键词页仍复核并投影整个受限分组，因此延迟为秒级；选定一个实例后，后续解析仅检查其 50 个工具。
 
-[Linux frozen worker 证据](../benchmarks/native-schema-validation-linux.json) 标明源码 `a320b8cdffdb6f68c06206186c47ecbef8587f3f`，并记录实际 binary、validator、CLI 及构建 spec 摘要；validator/CLI/spec blob 在最终检查点未变。四次观察支持功能验证，不构成延迟分布。
+[Linux frozen worker 证据](../benchmarks/native-schema-validation-linux.json) 标明源码 `a320b8cdffdb6f68c06206186c47ecbef8587f3f`，并记录实际 binary、validator、CLI 及构建 spec 摘要；validator/CLI/spec blob 在最终检查点未变；该旧四次调用证明作为历史保留。[最终 HEAD wheel/native 证据](../benchmarks/package-schema-workers-final-head-linux.json) 记录重建产物摘要、完整原生目录 manifest 摘要、锁定依赖摘要、十个实际验证子进程、原生直接入口两项及真实打包父进程本地 API 派发；独立 wheel 安装与源码工作区隔离。初次本地 HTTP driver 在仅运行依赖环境中缺少 dev HTTP client，改用 dev 解释器作为 driver 后仍保留两个隔离产物父进程，无产品变更。功能观察与后端全套并行采集，不构成延迟分布。
 
 这些是单进程 Linux、热缓存 SQLite 和本地 ASGI、合成状态与 echo peer 数据；调用包含 schema 验证子进程开销。RSS 为实测进程驻留，分组验证子进程峰值单列，不与另一时刻的父进程峰值相加。三次采样 OAuth 回归延迟仅为诊断，执行时另有合成 fixture 并发。不能作为生产 SLA、真实下游延迟、持续并发或长时间无泄漏保证。
 
-未测范围：真实 MCP 提供方/客户端 E2E、真实凭据、根代理独立安全/视觉验收、nx5 部署、Windows/macOS 原生运行、正式 archive/SBOM/provenance/release 制品及长期生产负载。owner 候选 OAuth 分页/批选仍为独立阶段 B 待集成；未扩大旧全目录同意路径或 100 服务/5,000 工具 grant 上限，未来工具/服务不隐式授权。
+未测范围：真实 MCP 提供方/客户端 E2E、真实凭据、根代理独立安全/视觉验收、nx5 部署、Windows/macOS 原生运行、真实下游 native E2E、正式 archive/SBOM/provenance/release 制品及长期生产负载。owner 候选 OAuth 分页/批选仍为独立阶段 B 待集成；未扩大旧全目录同意路径或 100 服务/5,000 工具 grant 上限，未来工具/服务不隐式授权。
