@@ -14,7 +14,19 @@ from lingshu_gate.application.external_mcp_configuration import (
     ExternalMcpConfigurationService,
 )
 from lingshu_gate.project_delivery_mcp import _definition
-from lingshu_gate.registry import ToolRegistry
+from lingshu_gate.registry import ToolExecutionError, ToolInvocationContext, ToolRegistry
+
+
+def _management_handler(handler: Callable[..., dict[str, Any]]) -> Callable[..., dict[str, Any]]:
+    def invoke(arguments: dict[str, Any], context: ToolInvocationContext) -> dict[str, Any]:
+        # Registry entry points do not consume the request-bound Console ticket.
+        # Session calls must use the dedicated REST adapter that does so.
+        if context.auth_type == "session":
+            raise ToolExecutionError("external_config_session_entry_denied",
+                "Console sessions must use the dedicated external configuration API.",
+                next_action="Use /v1/mcp/external-configs with a fresh Origin/session/body-bound CSRF ticket.")
+        return handler(arguments, context)
+    return invoke
 
 
 def register_external_mcp_config_tools(registry: ToolRegistry, service: ExternalMcpConfigurationService) -> None:
@@ -31,4 +43,4 @@ def register_external_mcp_config_tools(registry: ToolRegistry, service: External
                                  open_world=name in {"gate_mcp_config_plan", "gate_mcp_config_apply"},
                                  sensitive_inputs=["manifest"])
         definition.metadata["server_id"] = "gate_mcp_configuration"
-        registry.register(definition, handler, contextual=True)
+        registry.register(definition, _management_handler(handler), contextual=True)

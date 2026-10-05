@@ -715,6 +715,7 @@ class McpRuntimeManager:
         before_connect: Callable[[], None],
         before_replace: Callable[[list[ToolDefinition]], None],
         discovery: dict[str, Any],
+        credential_revisions: dict[str, str],
     ) -> McpServerStatusResponse:
         """A confirmed external connection; this never starts a remote process."""
         with operation_lock(self._manager_lock, cancel=cancel, deadline=deadline):
@@ -728,7 +729,8 @@ class McpRuntimeManager:
                 before_connect()
                 self._set_desired_state_locked(server_id, "running", source="external_config_connect")
                 return self._connect_external_locked(server_id, runtime, cancel=cancel, deadline=deadline,
-                                                     operation_id=operation_id, before_replace=before_replace, discovery=discovery)
+                                                     operation_id=operation_id, before_replace=before_replace, discovery=discovery,
+                                                     credential_revisions=credential_revisions)
 
     def disconnect_external_operation(
         self, server_id: str, expected_digest: str, operation_id: str, *, deadline: float,
@@ -759,6 +761,7 @@ class McpRuntimeManager:
         operation_id: str | None = None,
         before_replace: Callable[[list[ToolDefinition]], None] | None = None,
         discovery: dict[str, Any] | None = None,
+        credential_revisions: dict[str, str] | None = None,
     ) -> McpServerStatusResponse:
         """Connect to an external MCP server. Caller must hold runtime.lock."""
         manifest = runtime.manifest
@@ -779,7 +782,7 @@ class McpRuntimeManager:
         try:
             client = StreamableHttpMcpClient(manifest, self.settings, log_sink=lambda level, message, event_type, payload: self._log_runtime(server_id, level, message, event_type, payload))
             runtime.client = client
-            with client.operation_bounds(cancel, deadline) if cancel is not None and deadline is not None else nullcontext():
+            with client.operation_bounds(cancel, deadline, credential_revisions=credential_revisions) if cancel is not None and deadline is not None else nullcontext():
                 client.start()
                 runtime.tools = client.list_tools()
             snapshot = self._register_mcp_tools(runtime, before_replace=before_replace, strict=before_replace is not None)

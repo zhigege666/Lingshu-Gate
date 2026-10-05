@@ -130,18 +130,21 @@ class StreamableHttpMcpClient:
         self._opener = urllib.request.build_opener(_NoRedirectHandler())
         self._operation_cancel: threading.Event | None = None
         self._operation_deadline: float | None = None
+        self._operation_credential_revisions: dict[str, str] | None = None
 
     @contextmanager
-    def operation_bounds(self, cancel: threading.Event, deadline: float) -> Iterator[None]:
+    def operation_bounds(self, cancel: threading.Event, deadline: float, *,
+                         credential_revisions: dict[str, str] | None = None) -> Iterator[None]:
         """Bound one confirmed connection/discovery, never later business calls."""
-        previous = self._operation_cancel, self._operation_deadline
+        previous = self._operation_cancel, self._operation_deadline, self._operation_credential_revisions
         self._operation_cancel, self._operation_deadline = cancel, deadline
+        self._operation_credential_revisions = dict(credential_revisions) if credential_revisions is not None else None
         try:
             self._check_operation()
             yield
             self._check_operation()
         finally:
-            self._operation_cancel, self._operation_deadline = previous
+            self._operation_cancel, self._operation_deadline, self._operation_credential_revisions = previous
 
     def _check_operation(self) -> None:
         if self._operation_cancel is not None and self._operation_cancel.is_set():
@@ -388,7 +391,8 @@ class StreamableHttpMcpClient:
         if not raw_headers:
             self._resolved_headers = {}
             return
-        resolved, metadata = resolve_env_credential_refs(raw_headers, self.credential_store)
+        resolved, metadata = resolve_env_credential_refs(raw_headers, self.credential_store,
+            expected_revisions=self._operation_credential_revisions)
         self._resolved_headers = resolved
         self._redaction_values = tuple(
             sorted(

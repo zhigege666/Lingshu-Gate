@@ -21,7 +21,7 @@ from lingshu_gate.application.mcp_configuration import McpConfigurationService, 
 from lingshu_gate.auth import AuthStore
 from lingshu_gate.config import Settings
 from lingshu_gate.credential_refs import extract_credential_refs
-from lingshu_gate.credential_store import CredentialStore
+from lingshu_gate.credential_store import CredentialRevisionConflict, CredentialStore
 from lingshu_gate.database import SQLiteDatabase
 from lingshu_gate.domain.operation_deadline import TimedLock, check_operation, operation_lock
 from lingshu_gate.mcp_config_store import McpConfigConflict, McpConfigStore
@@ -258,6 +258,14 @@ class ExternalMcpConfigurationService:
         except (KeyError, OSError, RuntimeError):
             raise _error("external_config_credential_unavailable", "An existing managed credential binding is unavailable.") from None
 
+    def _check_credential_revisions(self, expected: dict[str, str]) -> None:
+        try:
+            actual = {ref: self.credentials.get_credential(ref).updated_at for ref in expected}
+        except (KeyError, OSError, RuntimeError):
+            raise _error("external_config_credential_unavailable", "An existing managed credential binding is unavailable.") from None
+        if actual != expected:
+            raise _error("external_config_credential_changed", "Managed credential bindings changed after planning.")
+
     def _normalize(self, body: ExternalConfigPlanInput) -> McpServerManifest:
         data = dict(body.manifest)
         try:
@@ -320,16 +328,29 @@ class ExternalMcpConfigurationService:
         checks = [{"name": item["name"], "severity": item["severity"], "message": item["message"]} for item in validation["checks"]]
         if not validation["ok"]:
             return {"status": "blocked", "validation": {"ok": False, "checks": checks}, "network_contacted": False}
+        credential_revisions = self._credential_revisions(manifest)
         probe: dict[str, Any] = {"status": "not_requested", "network_contacted": False}
         if body.probe:
             client = StreamableHttpMcpClient(manifest, self.settings)
             try:
-                with client.operation_bounds(threading.Event(), time.monotonic() + min(body.timeout_seconds, 30)):
+                with client.operation_bounds(threading.Event(), time.monotonic() + min(body.timeout_seconds, 30),
+                                             credential_revisions=credential_revisions):
                     self._authorize(context, write=True, tool_id="gate_mcp_config_plan", target_id=manifest.id, action=body.mode)
+                    self._check_credential_revisions(credential_revisions)
                     client.start()
                     self._authorize(context, write=True, tool_id="gate_mcp_config_plan", target_id=manifest.id, action=body.mode)
+                    self._check_credential_revisions(credential_revisions)
                     count = len(client.list_tools())
+                    self._check_credential_revisions(credential_revisions)
                 probe = {"status": "reachable", "network_contacted": True, "tool_count": count, "registry_changed": False}
+            except CredentialRevisionConflict:
+                return {"status": "blocked", "validation": {"ok": False, "checks": checks},
+                        "probe": {"status": "failed", "network_contacted": False}, "error_code": "external_config_credential_changed"}
+            except ToolExecutionError as exc:
+                if exc.code in {"external_config_credential_changed", "external_config_credential_unavailable"}:
+                    raise
+                return {"status": "blocked", "validation": {"ok": False, "checks": checks},
+                        "probe": {"status": "failed", "network_contacted": True}, "error_code": "external_config_probe_failed"}
             except Exception:
                 return {"status": "blocked", "validation": {"ok": False, "checks": checks},
                         "probe": {"status": "failed", "network_contacted": True}, "error_code": "external_config_probe_failed"}
@@ -337,9 +358,10 @@ class ExternalMcpConfigurationService:
                 client.stop()
         expires = (datetime.now(timezone.utc) + timedelta(minutes=5)).isoformat()
         self._authorize(context, write=body.probe, tool_id="gate_mcp_config_plan", target_id=manifest.id, action=body.mode)
+        self._check_credential_revisions(credential_revisions)
         payload = {"mode": body.mode, "manifest": manifest.model_dump(mode="json", exclude={"manifest_path"}),
                    "manifest_digest": self.runtime._manifest_digest(manifest), "server_id": manifest.id,
-                   "expected_config_digest": actual, "credential_revisions": self._credential_revisions(manifest),
+                   "expected_config_digest": actual, "credential_revisions": credential_revisions,
                    "connect": body.connect, "refresh_tools": body.refresh_tools,
                    "timeout_seconds": body.timeout_seconds, "expires_at": expires}
         if context.auth_type == "oauth":
@@ -443,6 +465,7 @@ class ExternalMcpConfigurationService:
     def _check(self, context: ToolInvocationContext, cancel: threading.Event, deadline: float, plan: dict[str, Any]) -> None:
         check_operation(cancel, deadline)
         self._authorize(context, write=True, tool_id="gate_mcp_config_apply", target_id=plan["server_id"], action=plan["mode"])
+        self._check_credential_revisions(plan["credential_revisions"])
         check_operation(cancel, deadline)
 
     def _run(self, operation_id: str, plan: dict[str, Any], context: ToolInvocationContext, cancel: threading.Event, deadline: float,
@@ -456,8 +479,6 @@ class ExternalMcpConfigurationService:
             with operation_lock(self.configs.mutation_lock, cancel=cancel, deadline=deadline):
                 self._check(context, cancel, deadline, plan)
                 manifest = validate_manifest_for_write(plan["manifest"], http_trust_store=self.configs.http_trust_store)
-                if self._credential_revisions(manifest) != plan["credential_revisions"]:
-                    raise _error("external_config_credential_changed", "Managed credential bindings changed after planning.")
                 if self._config_digest(manifest.id) != plan["expected_config_digest"]:
                     raise McpConfigConflict("Configuration changed after planning")
                 request = McpConfigSaveRequest(manifest=plan["manifest"], apply=False, start=False,
@@ -487,7 +508,7 @@ class ExternalMcpConfigurationService:
                         reconciliation.update(self.access.reconcile_server_tools(manifest.id, definitions, context.actor_id))
                     server = self.runtime.connect_external_if_manifest_digest(manifest.id, plan["manifest_digest"], cancel=cancel, deadline=deadline,
                         operation_id=operation_id, before_connect=lambda: self._check(context, cancel, deadline, plan), before_replace=reconcile,
-                        discovery=discovery)
+                        discovery=discovery, credential_revisions=plan["credential_revisions"])
                     if server.status != "running":
                         self._check(context, cancel, deadline, plan)
                         raise _error("external_config_connect_failed", "Configuration saved; the external connection did not become ready.")
@@ -511,7 +532,9 @@ class ExternalMcpConfigurationService:
             if result["discovery_state"] != "succeeded":
                 result["discovery_state"] = "timed_out"
         except Exception as exc:
-            code = exc.code if isinstance(exc, ToolExecutionError) else "config_digest_conflict" if isinstance(exc, McpConfigConflict) else "external_config_apply_failed"
+            code = (exc.code if isinstance(exc, ToolExecutionError) else "external_config_credential_changed"
+                    if isinstance(exc, CredentialRevisionConflict) else "config_digest_conflict"
+                    if isinstance(exc, McpConfigConflict) else "external_config_apply_failed")
             result.update(status="partial" if result.get("config_applied") else "failed", error_code=code)
             if time.monotonic() >= deadline:
                 result.update(status="timed_out", error_code="external_config_timeout")

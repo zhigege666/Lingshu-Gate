@@ -36,6 +36,7 @@ def gate(tmp_path, monkeypatch):
     monkeypatch.setenv("LINGSHU_GATE_ADMIN_USERNAME", "synthetic-admin")
     monkeypatch.setenv("LINGSHU_GATE_ADMIN_PASSWORD", PASSWORD)
     monkeypatch.setenv("LINGSHU_GATE_AUTH_ENABLED", "true")
+    monkeypatch.setenv("LINGSHU_GATE_MCP_ALLOWED_ORIGINS", "http://testserver")
     from lingshu_gate.main import create_app
     app = create_app()
     auth = app.state.auth_store
@@ -110,6 +111,98 @@ def wait(gate, operation_id):
             return result
         time.sleep(.01)
     pytest.fail("Synthetic external operation did not terminate")
+
+
+def generic_call(client, entry, tool_id, arguments, *, origin=None, authorization=None):
+    headers = {"Origin": origin} if origin else {}
+    if authorization:
+        headers["Authorization"] = authorization
+    if entry == "mcp":
+        params, protocol_headers = build_protocol_request("tools/call", {"name": tool_id, "arguments": arguments},
+            client_name="Synthetic", client_version="1", protocol_version=MCP_PROTOCOL_VERSION)
+        return client.post("/mcp", headers={**protocol_headers, **headers},
+            json={"jsonrpc": "2.0", "id": 1, "method": "tools/call", "params": params})
+    body = {"arguments": arguments, **({"tool_id": tool_id} if entry == "invoke" else {})}
+    return client.post("/v1/invoke" if entry == "invoke" else f"/v1/tools/{tool_id}/invoke", headers=headers, json=body)
+
+
+@pytest.mark.parametrize("entry", ["tool", "invoke", "mcp"])
+@pytest.mark.parametrize("origin", [None, "https://foreign.example.test", "http://testserver"])
+@pytest.mark.parametrize("action", ["plan", "apply", "status", "cancel"])
+def test_console_cookie_cannot_invoke_configuration_tools_through_generic_entries(gate, entry, origin, action):
+    # Prepare valid actor-owned arguments: rejection must precede the service,
+    # rather than depend on an invalid plan, missing target or terminal race.
+    plan = planned(gate)
+    operation = gate["service"].apply(apply_arguments(plan), gate["context"])
+    wait(gate, operation["operation_id"])
+    another_plan = planned(gate, manifest=manifest("synthetic-other-target"))
+    arguments = {
+        "plan": {"mode": "create", "manifest": manifest("synthetic-other-target")},
+        "apply": apply_arguments(another_plan, "synthetic-generic-apply"),
+        "status": {"operation_id": operation["operation_id"]},
+        "cancel": {"operation_id": operation["operation_id"], "idempotency_key": "synthetic-generic-cancel", "confirmed": True},
+    }[action]
+    database = gate["service"].database
+    def journal_counts():
+        return tuple(len(database.query_all(f"SELECT id FROM {table}")) for table in
+                     ("external_mcp_config_plans", "external_mcp_config_operations", "mcp_idempotent_operations"))
+    before, calls = journal_counts(), list(gate["calls"])
+    response = generic_call(gate["client"], entry, "gate_mcp_config_" + action, arguments, origin=origin)
+    if entry == "mcp" and origin == "https://foreign.example.test":
+        assert response.status_code == 403
+    else:
+        assert response.status_code == 200
+        result = response.json().get("result", {}) if entry == "mcp" else response.json()
+        assert result.get("isError", False) if entry == "mcp" else not result["ok"]
+        assert "external_config_session_entry_denied" in json.dumps(result)
+    assert journal_counts() == before and gate["calls"] == calls
+    assert "synthetic-other-target" not in {item.id for item in gate["app"].state.mcp_config_store.list_configs().configs}
+
+
+def generic_output(response, entry):
+    assert response.status_code == 200
+    result = response.json()["result"] if entry == "mcp" else response.json()
+    if entry == "mcp":
+        assert not result.get("isError", False), result
+        return result["structuredContent"]
+    assert result["ok"], result
+    return result["output"]
+
+
+@pytest.mark.parametrize("entry", ["tool", "invoke", "mcp"])
+def test_api_token_can_use_all_configuration_tools_through_generic_entries(gate, entry):
+    token = gate["auth"].create_api_token(principal=gate["principal"], name="Synthetic management",
+        scopes=["tools.read", "tools.invoke", "operations.manage"])
+    with TestClient(gate["app"]) as client:
+        def invoke(action, arguments):
+            return generic_output(generic_call(client, entry, "gate_mcp_config_" + action,
+                arguments, authorization="Bearer " + token["token"]), entry)
+        plan = invoke("plan", {"mode": "create", "manifest": manifest()})
+        operation = invoke("apply", apply_arguments(plan))
+        cutoff = time.monotonic() + 5
+        while time.monotonic() < cutoff:
+            result = invoke("status", {"operation_id": operation["operation_id"]})
+            if result["terminal"]:
+                break
+            time.sleep(.01)
+        assert result["terminal"] and result["status"] == "success" and result["config_applied"]
+        cancelled = invoke("cancel", {"operation_id": operation["operation_id"],
+            "confirmed": True, "idempotency_key": "synthetic-token-cancel"})
+        assert cancelled["target_operation_id"] == operation["operation_id"]
+        assert cancelled["status"] == "already_terminal"
+
+
+@pytest.mark.parametrize("entry", ["tool", "invoke", "mcp"])
+def test_console_cookie_can_still_use_ordinary_tools_through_generic_entries(gate, entry):
+    from lingshu_gate.models import ToolDefinition
+    registry = gate["app"].state.registry
+    tool = ToolDefinition(id="gate_synthetic_echo", name="Synthetic echo", source="builtin",
+        input_schema={"type": "object"}, description="Synthetic only")
+    registry.register(tool, lambda arguments: {"echo": arguments["message"]})
+    gate["service"].access.synchronize_tools(registry.list_definitions())
+    result = generic_output(generic_call(gate["client"], entry, tool.id, {"message": "synthetic"},
+        origin="http://testserver"), entry)
+    assert result == {"echo": "synthetic"}
 
 
 def test_offline_plan_and_save_do_not_connect_or_start_remote(gate):
@@ -354,6 +447,103 @@ def test_waiting_runtime_lock_rechecks_logout_before_loading_or_connecting(gate,
     assert result["config_applied"] is True and result["status"] == "partial"
     assert result["error_code"] == "external_config_session_invalid"
     assert not runtime.has_server(plan["server_id"]) and not gate["calls"]
+
+
+def test_waiting_runtime_lock_rechecks_credential_revision_before_loading_or_connecting(gate, monkeypatch, caplog):
+    from lingshu_gate.credential_store import CredentialStore
+    service, runtime = gate["service"], gate["app"].state.mcp_runtime
+    service.credentials.save_credential(name="Synthetic binding", credential_id="synthetic-binding", value="Synthetic-Original-Secret")
+    data = manifest()
+    data["transport"]["headers"] = {"Authorization": "Bearer ${credential:synthetic-binding}"}
+    saved = threading.Event()
+    progress = service._progress
+    def observe(operation_id, result):
+        progress(operation_id, result)
+        if result["config_applied"]:
+            saved.set()
+    monkeypatch.setattr(service, "_progress", observe)
+    resolved_refs = []
+    original_resolve = CredentialStore.resolve_value
+    def resolve(store, credential_id, **options):
+        resolved_refs.append(credential_id)
+        return original_resolve(store, credential_id, **options)
+    monkeypatch.setattr(CredentialStore, "resolve_value", resolve)
+    plan = planned(gate, manifest=data, connect=True)
+    with runtime._manager_lock:
+        op = service.apply(apply_arguments(plan), gate["context"])
+        worker = service._threads[op["operation_id"]]
+        assert saved.wait(2)
+        service.credentials.save_credential(name="Synthetic binding", credential_id="synthetic-binding", value="Synthetic-Rotated-Secret")
+    worker.join(3)
+    assert not worker.is_alive()
+    result = wait(gate, op["operation_id"])
+    assert result["config_applied"] and result["status"] == "partial"
+    assert result["error_code"] == "external_config_credential_changed"
+    assert not runtime.has_server(plan["server_id"]) and not gate["calls"] and not resolved_refs
+    assert service.configs.get_config(plan["server_id"]).digest == result["config_digest"]
+    assert "Synthetic-Original-Secret" not in caplog.text + json.dumps(result)
+    assert "Synthetic-Rotated-Secret" not in caplog.text + json.dumps(result)
+
+
+@pytest.mark.parametrize("probe", [False, True])
+def test_rotation_at_header_resolution_cannot_consume_new_value_for_old_plan(gate, monkeypatch, caplog, probe):
+    from lingshu_gate.application import external_mcp_configuration
+    service = gate["service"]
+    service.credentials.save_credential(name="Synthetic binding", credential_id="synthetic-binding", value="Synthetic-Original-Secret")
+    data = manifest()
+    data["transport"]["headers"] = {"Authorization": "Bearer ${credential:synthetic-binding}"}
+    client_type = external_mcp_configuration.StreamableHttpMcpClient
+    original_start = client_type.start
+    def rotate_then_start(client):
+        service.credentials.save_credential(name="Synthetic binding", credential_id="synthetic-binding", value="Synthetic-Rotated-Secret")
+        return original_start(client)
+    monkeypatch.setattr(client_type, "start", rotate_then_start)
+    if probe:
+        result = planned(gate, manifest=data, probe=True, probe_confirmed=True)
+        assert result["status"] == "blocked" and result["probe"]["network_contacted"] is False
+        assert not service.database.query_all("SELECT id FROM external_mcp_config_plans")
+        assert not service.configs.list_configs().configs
+    else:
+        plan = planned(gate, manifest=data, connect=True)
+        result = wait(gate, service.apply(apply_arguments(plan), gate["context"])["operation_id"])
+        assert result["status"] == "partial" and result["config_applied"]
+        assert result["cleanup_state"] == "disconnected"
+    assert result["error_code"] == "external_config_credential_changed"
+    assert all(action == "disconnect" for action, _ in gate["calls"])
+    assert "Synthetic-Original-Secret" not in caplog.text + json.dumps(result)
+    assert "Synthetic-Rotated-Secret" not in caplog.text + json.dumps(result)
+
+
+def test_revision_check_and_decryption_use_the_same_stored_record(gate, monkeypatch):
+    from lingshu_gate.credential_store import CredentialRevisionConflict
+    store = gate["service"].credentials
+    approved = store.save_credential(name="Synthetic binding", credential_id="synthetic-binding", value="Synthetic-Original-Secret")
+    assert store.resolve_value(approved.id, expected_revision=approved.updated_at) == "Synthetic-Original-Secret"
+    store.save_credential(name="Synthetic binding", credential_id=approved.id, value="Synthetic-Rotated-Secret")
+    def reject_decryption():
+        pytest.fail("An unapproved credential revision must not be decrypted")
+    monkeypatch.setattr(store, "_fernet", reject_decryption)
+    with pytest.raises(CredentialRevisionConflict):
+        store.resolve_value(approved.id, expected_revision=approved.updated_at)
+
+
+def test_probe_rotation_during_discovery_cannot_rebind_its_plan(gate, monkeypatch):
+    from lingshu_gate.application import external_mcp_configuration
+    service = gate["service"]
+    service.credentials.save_credential(name="Synthetic binding", credential_id="synthetic-binding", value="Synthetic-Original-Secret")
+    data = manifest()
+    data["transport"]["headers"] = {"Authorization": "Bearer ${credential:synthetic-binding}"}
+    client_type = external_mcp_configuration.StreamableHttpMcpClient
+    original_list = client_type.list_tools
+    def rotate_then_list(client):
+        service.credentials.save_credential(name="Synthetic binding", credential_id="synthetic-binding", value="Synthetic-Rotated-Secret")
+        return original_list(client)
+    monkeypatch.setattr(client_type, "list_tools", rotate_then_list)
+    with pytest.raises(ToolExecutionError) as error:
+        planned(gate, manifest=data, probe=True, probe_confirmed=True)
+    assert error.value.code == "external_config_credential_changed"
+    assert not service.database.query_all("SELECT id FROM external_mcp_config_plans")
+    assert not gate["app"].state.mcp_runtime.has_server(data["id"])
 
 
 @pytest.mark.parametrize("cancel", [False, True])
