@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import hashlib
 import json
+import sqlite3
 from collections import Counter
 from collections.abc import Iterator
 from contextlib import contextmanager
@@ -47,12 +48,25 @@ class McpGroupRoutingService:
     def _unavailable() -> McpGroupError:
         return McpGroupError("group_tool_unavailable", "The selected service, instance or contract is unavailable.", 404)
 
-    def _snapshot(self, group_id: str, actor: AuthPrincipal) -> tuple[dict[str, Any], list[VisibleCatalogTool], list[CatalogVariant]]:
+    def _group(self, connection: sqlite3.Connection, group_id: str, instance_id: str | None) -> dict[str, Any]:
+        if instance_id is None:
+            return self.groups.store.detail(connection, group_id)
+        # A selected target needs one membership row, not every group member or
+        # the contracts belonging to other instances. This stores no authority.
+        row = connection.execute("SELECT id,status,revision FROM mcp_groups WHERE id=?", (group_id,)).fetchone()
+        member = connection.execute("SELECT server_id AS instance_id,status FROM mcp_group_members "
+            "WHERE group_id=? AND server_id=? AND status='active'", (group_id, instance_id)).fetchone()
+        if row is None or member is None:
+            raise self._unavailable()
+        return {**dict(row), "members": [dict(member)]}
+
+    def _snapshot(self, group_id: str, actor: AuthPrincipal, *,
+                  instance_id: str | None = None) -> tuple[dict[str, Any], list[VisibleCatalogTool], list[CatalogVariant]]:
         current_tool_principal(self.auth, actor)
         for _ in range(3):
             with self.groups.store.database.session() as connection:
                 try:
-                    group = self.groups.store.detail(connection, group_id)
+                    group = self._group(connection, group_id, instance_id)
                 except McpGroupError:
                     raise self._unavailable() from None
             if group["status"] != "active":
@@ -74,7 +88,7 @@ class McpGroupRoutingService:
             actor = current_tool_principal(self.auth, actor)
             with self.groups.store.database.session() as connection:
                 connection.execute("BEGIN")
-                if self.groups.store.detail(connection, group_id)["revision"] != group["revision"]:
+                if self._group(connection, group_id, instance_id)["revision"] != group["revision"]:
                     continue
                 visible = [VisibleCatalogTool(definition, definition.metadata["server_id"],
                     names[definition.metadata["server_id"]], classification, by_id[definition.id].contract)
@@ -94,7 +108,7 @@ class McpGroupRoutingService:
                         allowed.append(variant)
             with self.groups.configs.mutation_lock.read_lock(), self.groups.store.database.session() as connection:
                 try:
-                    current_group = self.groups.store.detail(connection, group_id)
+                    current_group = self._group(connection, group_id, instance_id)
                 except McpGroupError:
                     raise self._unavailable() from None
                 if (current_group["revision"] == group["revision"] and current_group["status"] == "active"
@@ -156,7 +170,7 @@ class McpGroupRoutingService:
     def resolve(self, actor: AuthPrincipal, *, tool_ref: str, instance_id: str) -> CatalogTarget:
         selection = GroupToolSelection(tool_ref=tool_ref, instance_id=instance_id)
         _, group_id, variant_id = selection.tool_ref.split(":")
-        group, tools, variants = self._snapshot(group_id, actor)
+        group, tools, variants = self._snapshot(group_id, actor, instance_id=selection.instance_id)
         for variant in variants:
             if variant.summary.variant_id != variant_id:
                 continue

@@ -342,3 +342,22 @@ def test_group_regex_deadline_holds_no_dispatch_leases_and_calls_no_peer(gate, i
     assert len(children) == 1 and children[0].poll() is not None
     assert all(not peer.calls for peer in peers.values())
     assert gate["database"].query_one("SELECT outcome FROM invocation_audits")[0] == "not_invoked"
+
+
+def test_selected_group_describe_and_invoke_never_prepare_other_instances(gate, integrated, monkeypatch):
+    catalog, group, peers = integrated
+    actor = gate["principal"]
+    described = selected(catalog, group, actor)
+    session_id = opened(catalog, described, actor)
+    original, seen = catalog.group_router.structures.get_many, []
+    def bounded(entries):
+        entries = tuple(entries)
+        assert {item.structure.metadata["server_id"] for item in entries} == {"instance-0"}
+        seen.append(len(entries))
+        return original(entries)
+    monkeypatch.setattr(catalog.group_router.structures, "get_many", bounded)
+    current = catalog.describe(actor, CatalogDescribe(tool_ref=described["tool_ref"], instance_id="instance-0"))
+    response = catalog.invoke(actor, CatalogInvoke(tool_ref=current["tool_ref"], instance_id="instance-0",
+        schema_revision=current["schema_revision"], session_id=session_id, arguments={}))
+    assert response.ok and seen and max(seen) == 1
+    assert len(peers["instance-0"].calls) == 1 and not peers["instance-1"].calls and not peers["instance-2"].calls
