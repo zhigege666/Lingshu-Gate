@@ -98,6 +98,17 @@ def test_registration_removal_and_reappearance_never_grant_access(catalog):
     assert service.database.query_one("SELECT status FROM mcp_tool_classifications WHERE tool_id=?", (original.id,))[0] == "stale"
 
 
+def test_target_refresh_preserves_other_instance_index_and_review(catalog):
+    service, principal = catalog
+    existing = service.registry.get_definition("mcp.one.read_0")
+    unchanged = service.database.query_all("SELECT tool_id,status,effective_access FROM mcp_tool_classifications WHERE server_id='two'")
+    service.registry.replace_by_metadata("server_id", "one", [ToolRecord(existing, lambda arguments: arguments)], source="mcp")
+    service.search(principal, CatalogSearch())
+    assert service.database.query_one("SELECT COUNT(*) FROM gate_tool_catalog WHERE instance_id='two'")[0] == 4
+    assert [tuple(row) for row in service.database.query_all(
+        "SELECT tool_id,status,effective_access FROM mcp_tool_classifications WHERE server_id='two'")] == [tuple(row) for row in unchanged]
+
+
 def test_none_tool_override_and_hidden_ranking(catalog):
     service, principal = catalog
     service.access.save_grant(subject_type="user", subject_id="alice", server_id="one",

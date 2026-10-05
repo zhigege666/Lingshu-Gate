@@ -224,7 +224,8 @@ class ToolRegistry:
             self._tools = {**retained, **replacement}
             changes: dict[str, ToolDefinition | None] = {}
             # Include retired ids from the previous target snapshot.
-            changes.update({tool_id: None for tool_id in previous_ids if tool_id not in replacement})
+            changes.update({tool_id: None for tool_id in previous_ids
+                            if tool_id not in replacement and tool_id not in retained})
             changes.update({tool_id: record.definition for tool_id, record in replacement.items()})
             self._notify_catalog(changes)
         log_event(
