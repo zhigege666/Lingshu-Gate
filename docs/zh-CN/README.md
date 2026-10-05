@@ -16,8 +16,9 @@
 | [外部 MCP 配置](external-mcp-configuration.md) | 管理员现有 HTTP MCP 离线计划/应用/状态/取消；开发候选 |
 | [管理员 OAuth 配置](oauth-external-management-design.md) | 默认关闭的管理资源，精确目标与 scope/令牌族隔离；真实客户端尚未联调 |
 | [Git 导入与网络设置](git-import-network.md) | 交付网络版本、受控 Git 来源、确定性依赖工具与执行器边界 |
+| [Native 隔离执行器](native-executor.md) | 已实现 Linux/rootless adapter、准备/readiness、npm 有界缓存及剩余宿主验收 |
 | [Console 交付工作区](console-delivery.md) | 私有交付草稿、确认、冲突恢复与交付记录 |
-| [Git 执行缺口与落地决策](git-executor-decision.md) | 具体代码缺口、默认部署限制及隔离 worker 范围决策 |
+| [Git 执行器实现与落地决策](git-executor-decision.md) | Native 实现、默认 Core 限制及剩余宿主验收 |
 | [部署](deployment.md) | Docker Compose、原生服务、生产加固、备份、升级和回滚 |
 | [运维](operations.md) | 健康探针、日志、事件、诊断、运行时缓存、审计和故障检查 |
 | [本地开发](local-development.md) | 源码环境、Console 构建、测试套件和仓库约定 |

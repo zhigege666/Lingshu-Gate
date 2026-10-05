@@ -1,5 +1,9 @@
 # Changelog
 
+## Unreleased — Native executor
+
+- Implement the optional Native/Linux rootless Podman executor, trusted pinned HTTPS/Git acquisition, official exact tool cache, registry-only npm offline install/build, observed readiness and durable phase/container/cgroup reconciliation. Core remains gateway-only. pnpm/Yarn/Python cache installs and unsupported origins are refused; physical host acceptance remains untested.
+
 ## 0.4.4
 
 - The four management tools reject Console cookies at generic invocation entries; dedicated Console REST retains Origin/session/body-bound CSRF. Connection/probe checks reject credential rotation after lock waits and before decryption. Memory diagnostics omit command arguments and environments, and Core installs Debian's exact Perl security revision without scan exceptions.

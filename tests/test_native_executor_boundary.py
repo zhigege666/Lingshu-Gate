@@ -98,3 +98,36 @@ def test_container_argv_is_fixed_offline_and_only_content_mounted(tmp_path):
 @pytest.mark.parametrize("node,engines,expected", [("22.13.0", "^20.17.0 || >=22.9.0", True), ("22.8.0", "^20.17.0 || >=22.9.0", False), ("20.17.0", "^20.17.0 || >=22.9.0", True), ("22.13.0", ">=22.13", True), ("22.12.0", ">=22.13", False), ("22.13.0", "unknown", False), ("22.13.0", "*", False)])
 def test_exact_official_node_engines_and_unknown_syntax(node, engines, expected):
     assert engine_satisfies(node, engines) is expected
+
+
+@pytest.mark.parametrize("name,kind", [("../escape", "file"), ("package/link", "link"), ("package/device", "device")])
+def test_official_archive_rejects_traversal_links_and_special_types(tmp_path, name, kind):
+    import io
+    import tarfile
+    from lingshu_gate.adapters.native_executor.packages import extract_official
+    stream = io.BytesIO()
+    with tarfile.open(fileobj=stream, mode="w:gz") as archive:
+        entry = tarfile.TarInfo(name)
+        entry.type = tarfile.SYMTYPE if kind == "link" else tarfile.CHRTYPE if kind == "device" else tarfile.REGTYPE
+        archive.addfile(entry)
+    target = tmp_path / "tool"
+    target.mkdir()
+    with pytest.raises(ToolExecutionError):
+        extract_official(stream.getvalue(), target, {"files": 4, "expanded_bytes": 1024})
+    assert not (tmp_path / "escape").exists()
+
+
+def test_official_archive_pax_metadata_cannot_bypass_expanded_budget(tmp_path):
+    import io
+    import tarfile
+    from lingshu_gate.adapters.native_executor.packages import extract_official
+    stream = io.BytesIO()
+    with tarfile.open(fileobj=stream, mode="w:gz", format=tarfile.PAX_FORMAT) as archive:
+        entry = tarfile.TarInfo("package/file")
+        entry.pax_headers = {"comment": "a" * (2 * 1024 * 1024)}
+        archive.addfile(entry)
+    target = tmp_path / "tool"
+    target.mkdir()
+    with pytest.raises(ToolExecutionError) as limited:
+        extract_official(stream.getvalue(), target, {"files": 4, "expanded_bytes": 1024})
+    assert limited.value.code == "package_manager_archive_limit"

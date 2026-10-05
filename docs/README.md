@@ -16,8 +16,9 @@ This documentation describes the current Gate product boundary. English is autho
 | [External MCP configuration](external-mcp-configuration.md) | Administrator offline plan/apply/status/cancel for existing HTTP MCPs; development addition |
 | [Administrator OAuth configuration](oauth-external-management-design.md) | Unreleased default-off management resource, exact targets, isolated scopes/families; real-client integration unverified |
 | [Git import and network settings](git-import-network.md) | Versioned delivery networking, bounded Git sources, deterministic tools and executor limits |
+| [Native isolated executor](native-executor.md) | Implemented Linux/rootless adapter, provisioning/readiness, bounded npm cache support and remaining host acceptance |
 | [Console delivery workspace](console-delivery.md) | Private delivery drafts, confirmation, conflicts and records |
-| [Git execution gap and rollout decision](git-executor-decision.md) | Concrete code gaps, default deployment limits and the required isolated-worker scope decision |
+| [Git executor implementation and rollout decision](git-executor-decision.md) | Concrete code gaps, default deployment limits and the required isolated-worker scope decision |
 | [Deployment](deployment.md) | Docker Compose, native service, production hardening, backup, upgrade, and rollback |
 | [Operations](operations.md) | Health probes, logs, events, diagnostics, runtime cache, audits, and incident checks |
 | [Local development](local-development.md) | Source setup, Console build, test suites, and repository conventions |

@@ -102,9 +102,11 @@ Manifest 应使用 `${credential:<id>}` 引用而不是明文。用户下游值�
 
 ## Git 与交付网络设置
 
-命名网络配置要求 `system_settings.manage`；网络调用额外要求 `network.use` 与既有操作、工具和 token 权限。代理地址仅写入并加密，认证仅使用凭据引用。配置与默认项使用乐观版本检查；排队工作固定不可变版本，失败不静默直连。引用中的配置不能悄然删除。生产环境尚无 Git、代理测试及指定网络安装所需的隔离执行器，相关操作明确阻断。宿主子进程环境过滤不等于隔离，Core 执行仍被禁止。
+命名网络配置要求 `system_settings.manage`；网络调用额外要求 `network.use` 与既有操作、工具和 token 权限。代理地址仅写入并加密，认证仅使用凭据引用。配置与默认项使用乐观版本检查；排队工作固定不可变版本，失败不静默直连。引用中的配置不能悄然删除。本开发分支提供可选 Native/Linux 隔离适配器，Git、代理测试及受支持网络安装须实际 readiness；未准备宿主时明确阻断。宿主子进程环境过滤不等于隔离，Core 执行仍被禁止。
 
 HTTPS 来源计划固定完整 commit、摘要、精确主机策略与有界快照。SSH、hooks、远程 helper、重定向转发凭据、自动 submodule/LFS、宿主全局配置和 Docker socket 均不支持。工具准备是显式确认阶段，在执行器专属缓存中准备通过官方完整性校验的固定版本，不做全局安装。受审查适配器必须约束依赖来源、DNS、出口、资源、取消和产物秘密扫描，代理出口也需遵循。参见 [Git/网络设计](docs/zh-CN/git-import-network.md)。
+
+本开发分支增加可选 Native/Linux rootless Podman adapter，默认关闭；缺宿主前提即 fail closed。使用预载 digest 镜像、可信固定 HTTPS 获取、无秘密离线项目执行；派发前记录阶段/container/cgroup，未知结果不重放/不删除，整组终止后才冻结校验输出。仅支持 registry-only npm cache 安装，pnpm/Yarn/Python 缓存安装明确拒绝。Core 不碰引擎/socket。见 [Native 准备与支持](docs/zh-CN/native-executor.md)。
 
 ## 内置 OAuth 边界
 

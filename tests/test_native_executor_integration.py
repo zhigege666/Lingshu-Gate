@@ -301,3 +301,19 @@ def test_restart_coordinator_marks_orphaned_isolated_build_interrupted_without_d
             recovered.delete_build("a" * 32)
     finally:
         recovered.executor.shutdown(wait=True)
+
+
+def test_output_root_symlink_never_exports_host_tree(flow, tmp_path):
+    upload_id = acquire(flow)
+    outside = tmp_path / "private-host-data"
+    outside.mkdir()
+    (outside / "private.txt").write_text("fixture host data")
+    def replace_root(root):
+        shutil.rmtree(root)
+        root.symlink_to(outside, target_is_directory=True)
+    flow.controller.mutate = replace_root
+    result = build(flow, upload_id)
+    assert result["status"] == "failed"
+    assert result["failure_message"] == "executor_output_root_rejected"
+    assert not list(Path(flow.builds.get_build(result["build_id"])["artifact_dir"]).iterdir())
+    assert (outside / "private.txt").read_text() == "fixture host data"

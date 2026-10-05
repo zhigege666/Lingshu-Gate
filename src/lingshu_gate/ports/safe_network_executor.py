@@ -34,7 +34,8 @@ class ExecutorReadiness:
 
     A reviewed adapter must check actual namespaces, delegated controllers and
     whole-cgroup termination. CLI discovery must not populate these checks.
-    This slice installs no adapter and production composition still injects None.
+    Native composition checks these prerequisites with the actual Podman sandbox;
+    Core composition never injects or probes an engine adapter.
     """
 
     backend: str

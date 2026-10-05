@@ -1,0 +1,75 @@
+# Native isolated delivery executor
+
+[简体中文](zh-CN/native-executor.md) · [Git/network contract](git-import-network.md) · [Rollout decision](git-executor-decision.md)
+
+This development branch implements an optional Native/Linux adapter. It uses local rootless Podman, an already loaded administrator-reviewed image selected by its full manifest digest, a durable single-owner job journal, and trusted HTTPS acquisition. It reuses Gate's GitImport, ProjectUpload, BuildPlan and BuildDeploy coordinators. It adds no Core engine access, remote worker, stdio bridge, deployment service or automatic image pull. The release version remains 0.4.4; this is unreleased development work.
+
+## Provisioning contract
+
+Provisioning belongs to the host administrator and is separate from code development. No host daemon, mount, network policy, credential or production project was provisioned by these tests.
+
+Run the Native Gate process under a dedicated non-root Linux account. That same trusted account owns the local engine, journal and cache; project containers receive none of its home, Gate data/configuration, credentials, sockets or engine storage. Keep the executor root separate from Gate's data, configuration and project workspace. Provision its root and `workspaces` subdirectory as owned, non-linked mode 0700 directories. The `workspaces` directory must be an actual separate `tmpfs` mount with `nodev,nosuid` and total capacity at most 2 GiB. A regular host directory or a free-space estimate does not satisfy readiness. Journal and verified tools remain on persistent storage outside that tmpfs. The cache retains at most four verified distributions; each extraction is limited to 200 MiB/4,000 entries. Reaching cache capacity requires administrator eviction, never automatic substitution.
+
+The selected local Podman binary must be an administrator-reviewed absolute executable path without group/world write permission. Rootless user mapping, cgroup v2 and delegated CPU, memory and pids controllers are mandatory. Gate forces local CLI mode and uses no engine API socket. Its subprocesses invoke only compiled Podman operations, never a host project command or shell.
+
+The image must already exist under the exact `registry/name@sha256:<64 lowercase hexadecimal digits>` RepoDigest. No tags, floating latest or automatic pulls are accepted. The reviewed image must provide `/usr/bin/python3`, `/usr/bin/git` with collision-aware SHA-1 decoding, and `/usr/local/bin/node`; it must contain no secret or unreviewed startup code. The container entrypoint is replaced with Gate's fixed read-only runner. Node must satisfy the requested distribution's exact official engines (including pnpm 11's additional >=22.13 requirement). Gate never upgrades Node. The [image contract recipe](../packaging/native-executor/Containerfile) takes a previously reviewed base; it installs or downloads nothing.
+
+Set `LINGSHU_GATE_RUNTIME_ROLE=local`. Configure `LINGSHU_GATE_NATIVE_EXECUTOR` as a JSON object with:
+
+| Field | Meaning |
+|---|---|
+| `enabled` | Boolean, default false. Explicit enablement permits startup reconciliation and a synthetic sandbox self-test. |
+| `root` | Absolute provisioned executor directory, separate from Gate data/config/workspace. |
+| `image` | Exact already loaded reviewed manifest digest; never a project input. |
+| `podman_bin` | Administrator binary path, default `/usr/bin/podman`. |
+| `proxy_hosts` | At most 32 exact reviewed proxy host/port rules with optional explicit private CIDRs. Default empty. |
+
+An example configuration shape is below. Replace the placeholder with the reviewed digest; it is deliberately not a runnable image reference.
+
+```json
+{
+  "enabled": true,
+  "root": "/var/lib/lingshu-gate-executor",
+  "image": "registry.example.invalid/gate-executor@sha256:<reviewed-64-hex-digest>",
+  "podman_bin": "/usr/bin/podman",
+  "proxy_hosts": [
+    {"host": "proxy.example.invalid", "port": 8080, "private_cidrs": []}
+  ]
+}
+```
+
+Gate's Network settings response now reports observed `executor.available`, a stable code, exact missing conditions and the bounded support matrix. Startup checks account/directory/engine/image prerequisites, then actually observes distinct user/mount/PID/network namespaces, read-only roots and runner/cgroup mounts, no capabilities, no-new-privileges, no network interfaces beyond loopback, and applied CPU/memory/pids limits. The self-test leaves an independent descendant alive; readiness succeeds only after the entire observed sandbox cgroup is empty. Merely finding Podman on PATH or declaring capabilities does not enable execution. Failure never dispatches a host fallback. A Core configuration does not even construct or probe the engine.
+
+## Acquisition and package support
+
+| Phase | Implemented support | Explicit rejection |
+|---|---|---|
+| Git | HTTPS smart protocol v0/v1, SHA-1 full commit, exact branch/tag advertisement, shallow exact commit fetch, isolated strict Git pack decoding, verified raw object export | SSH, helpers, redirects, hooks/filters, submodules/LFS, SHA-256 repositories, unsupported protocols |
+| Proxy | HTTP CONNECT, SOCKS5 and SOCKS5H, with numeric validated upstream IP and TLS SNI/certificate verification | HTTPS proxy transport; unreviewed proxy host/port; remote proxy DNS selection; direct fallback |
+| Tool preparation | Exact official npm 9–11, pnpm 8–11 and Yarn Classic 1.22 distribution, official SHA-512 metadata and optional declared integrity, bounded link-free extraction, actual CLI/Node probe | Missing/unknown metadata, engine mismatch, changed cache, tool lifecycle, Corepack/global install/Node bootstrap |
+| Dependency install | Registry-only npm package-lock/shrinkwrap v2/v3, complete bounded packages table, strong pinned SRI, trusted tarball acquisition, npm cache seeding and `npm ci --offline` | pnpm/Yarn/Python cache installs; npm workspace/link/bundled dependencies; Git/file/custom-origin sources; weak/missing integrity; project manager/network rc files |
+| Build | The selected verified npm/pnpm/Yarn `run build` in a secret-free offline sandbox, including build-only projects with already sufficient source | Arbitrary commands, paths/images, online fallback, unplanned manager/Node downloads |
+
+The broader existing manager matrix describes source and plan formats. It is not a claim that every manager's cache install works in this adapter. Unsupported install commands are visibly blocked at planning/queueing. Other unsupported npm cache shapes are rejected before dependency acquisition. A chosen manager is never replaced with npm. Multiple locks keep the existing exact `packageManager`/saved override and native shrinkwrap precedence rules.
+
+Git and install selections remain independent immutable `inherit`/`direct`/`profile` resolutions in the original digest-bound plan. Every target DNS address must meet its host/port/private-CIDR rule; a mixed public/forbidden response is rejected. The connected address is numeric, with original-host TLS SNI. HTTP CONNECT and SOCKS also receive that numeric upstream, so a proxy cannot choose a different DNS result. Each proxy endpoint must separately match an administrator-reviewed host rule. Git credentials containing `username:token` use origin-bound HTTP Basic (appropriate for smart Git hosts requiring Basic); token-only values use Bearer. Registry credentials use origin-bound Bearer. HTTP/SOCKS proxy authentication references use `username:password`. Proxy credentials never reach the upstream TLS request, and mirror registry credentials never reach official metadata.
+
+HTTPS rejects redirects and encoded responses, bounds headers/body/deadlines, has no automatic retry and ignores environment proxy settings. DNS has a single bounded outstanding resolver slot. A timed-out resolver that has not actually exited is an unknown outcome, blocks network readiness, and cannot be reported as confirmed cancellation. Cancellation closes trusted sockets; project execution starts only with verified, secret-free content.
+
+Trusted acquisition never executes project or dependency code. Git receives only a verified pack file in a network-disconnected sandbox; raw object export bypasses checkout, attributes and filters. Official tool extraction executes no lifecycle. npm cache seeding uses only the SRI-verified official npm cache library and verified blobs. The project container then copies read-only source/tool/cache inputs into its bounded work directory. It has no proxy/auth environment, external network, inherited SSH agent or Gate socket/home. All project and dependency lifecycle scripts run there under the confirmed install/build scope.
+
+## Journal, output and recovery
+
+`jobs.sqlite3` uses FULL-synchronous transactions and an exclusive single-owner lease. Phase identity binds the persisted actor, import/build ID, operation/source/plan/network/lock digests, deadline and fixed image. A record exists before acquisition or container creation. Controller jobs record deterministic names, actual container IDs, observed cgroups and frozen output inventory digests. Requests cannot choose engine options, images, host paths or arbitrary commands. Duplicate phase keys never dispatch again; differing bindings return an idempotency conflict.
+
+Cancel and timeout kill the whole sandbox and verify its cgroup is empty before output freezing. Lost state, missing cgroup observation or unconfirmed group termination records `unknown`, blocks readiness and retains reconciliation. Restart reconciles journal entries/container IDs before new dispatch. Old coordinator imports/builds become `interrupted`; `terminal=true` ends polling while `execution_state=unknown`, `execution_terminated=false` and `requires_reconciliation=true` preserve uncertainty. Interrupted builds cannot be cancelled successfully or deleted. No import/build/deploy/start automatically resumes.
+
+Only frozen, bounded output reaches the existing source/artifact path. Inventories bind paths, types, modes, byte counts, file hashes and link targets. Export retains only contained relative package links, rejects external/cyclic/special entries and known secret values, and uses the existing 500 MiB/30,000-entry/30-second artifact bounds. Failure cannot publish a partial new artifact or replace an existing deployment. Operator reconciliation must inspect the retained coordinator operation and private job record; do not delete the journal or choose a new key as a retry shortcut.
+
+The existing confirmed local deployment/start/rollback path is unchanged. Prepared tools are not installed into the host runtime. A manager-based runtime still needs its separately reviewed administrator registry; direct Node entrypoints retain their existing runtime rules. Build isolation does not change the existing unsandboxed Native managed-process runtime or add Core delivery/start support.
+
+## Evidence and remaining acceptance
+
+The synthetic suite exercises the real HTTPS framing/policy, raw-object verification, official extraction/cache logic, GitImport/BuildDeploy chain, idempotency, secret/link rejection, whole-group cancellation/timeout/unknown/restart semantics and Core guard using fixture sockets and engines. It executes no user repository, proxy, credentials or project scripts. Full physical Podman namespaces/controllers, live Git HTTP negotiation, actual npm offline cache/install behavior, manager distribution probes and a malicious lifecycle on a reviewed host remain separate untested acceptance items. Refer to the branch's commit/check report for actual counts; synthetic success is not real host acceptance.
+
+Podman flag and rootless semantics were checked against [the official run documentation](https://docs.podman.io/en/latest/markdown/podman-run.1.html). Host controller delegation and sandbox termination still require the observed self-test and operator acceptance.

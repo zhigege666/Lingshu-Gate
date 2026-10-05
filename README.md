@@ -6,7 +6,7 @@ A self-hosted MCP gateway and control plane with explicit identity, tool-access,
 
 Use Gate to manage multiple MCP servers, give remote MCP clients controlled tool access, and deliver projects on trusted native hosts. One MCP Gateway, Web Console and control API connect service operations with user governance.
 
-**0.4.4 status: built-in OAuth and its separate management resource require explicit enablement. Git/proxy rules, plans and UI are implemented, but the production safe executor is not implemented; real acquisition, proxy tests, tool preparation and configured network installs remain blocked. Configuration alone cannot make those operations available.**
+**0.4.4 release status: built-in OAuth and its separate management resource require explicit enablement. This unreleased development branch now implements an optional Native/Linux rootless Podman executor for Git/proxy/tool preparation and bounded npm offline installs/builds. It defaults to disabled and requires actual reviewed host readiness; real host acceptance is untested. Core remains gateway-only.**
 
 0.4.4 adds a confirmed plan/apply/status/cancel workflow for external HTTP MCP configuration through REST and four built-in tools. The Delivery Skill documents separate paths for existing HTTP services, ZIP delivery and blocked Git execution. Offline planning contacts no peer; explicit connection and discovery keep credential, network-trust and classification boundaries. See the [release summary](packaging/release-notes.md). Generic management entries reject Console cookies; dedicated REST keeps CSRF. Credential rotation invalidates plans before connection/probe decryption, memory diagnostics omit process arguments/environment, and Core includes Debian’s Perl security fix.
 
@@ -26,13 +26,13 @@ The separate, default-off `/mcp/manage` OAuth resource requires a current admini
 | Encrypted credentials | Shared credential references and private per-user HTTP downstream bindings, masked metadata and one-time token/secret display. Shared stdio processes do not receive per-user credentials. | [Guide](docs/configuration.md) |
 | Trusted project delivery | ZIP analysis and resumable MCP uploads, preflight, digest-bound BuildPlan, bounded build logs/cancellation, deployment preview and overwrite protection, startup and tool reconciliation. Native execution trusts project code; it is not an untrusted-code sandbox. | [Guide](docs/project-delivery.md) |
 | Private drafts and recovery | Encrypted revisioned delivery drafts, independent upload/build/deploy/start confirmations, idempotent MCP writes and protected manual rollback. Replacement can interrupt a service; sessions do not migrate seamlessly. | [Guide](docs/console-delivery.md) |
-| Git, proxies and dependency sources — partial | HTTPS commit-pinned plans, source bounds, named encrypted proxy revisions, separate Git/install defaults, inherit/direct/profile overrides and independent npm/Python sources. npm/pnpm/Yarn Classic plan checks are implemented. Production acquisition/probes/tool preparation/configured installs are blocked: the safe executor is not implemented. | [Guide](docs/git-import-network.md) |
+| Git, proxies and dependency sources — partial | HTTPS commit-pinned plans, source bounds, named encrypted proxy revisions, separate Git/install defaults, inherit/direct/profile overrides and independent npm/Python sources. npm/pnpm/Yarn Classic plan checks are implemented. Optional Native/Linux acquisition/probes/fixed tool preparation and registry-only npm offline installs/builds are implemented on this development branch; real host acceptance is untested. Other manager cache installs are explicitly blocked. | [Guide](docs/git-import-network.md) |
 | Personal workspace and file references | My MCP, connections, grants, invocations, API tokens and downstream credentials; short-lived user/target-bound `fileRef` uploads only for tools that explicitly accept them. | [Guide](docs/mcp-gateway.md) |
 | Audit and observability | Tool audit decisions, invocation statistics, authorized service/tool log scopes, events, diagnostics, memory/environment summaries, runtime cache and liveness/startup/readiness probes. | [Guide](docs/operations.md) |
 | Content recording and retention | Opt-in redacted bounded invocation input/output recording; separate log/event/invocation policies, cleanup preview and tracked jobs. Seven days is a default policy; the scheduled retention worker is off by default. | [Guide](docs/retention.md) |
 | Console, API, automation and packages | English/Chinese, light/dark themes, desktop layouts, filtering/pagination, private REST/OpenAPI and CLI; confirmation-bound `gate_*` tools and Delivery Skill. Native packages, Docker Core, offline images, checksums, SBOM and backup/upgrade workflows. | [Guide](docs/releases.md) |
 
-See the documentation index below for all workflows. [Invocation content recording](docs/invocation-recording.md) · [Git execution gap](docs/git-executor-decision.md)
+See the documentation index below for all workflows. [Invocation content recording](docs/invocation-recording.md) · [Git executor decision](docs/git-executor-decision.md)
 
 ## Console screenshots
 
@@ -218,7 +218,7 @@ Native archives bundle Gate, not every project runtime. Downstream launch and bu
 - [Project delivery API/tools and Delivery Skill](docs/project-delivery.md)
 - [Console delivery, private drafts and rollback](docs/console-delivery.md)
 - [Git plans, network profiles and dependency sources](docs/git-import-network.md)
-- [Unimplemented Git executor and rollout decision](docs/git-executor-decision.md)
+- [Git executor implementation and rollout decision](docs/git-executor-decision.md)
 - [Service operations, debugging, audit and diagnostics](docs/operations.md)
 - [Invocation input/output recording](docs/invocation-recording.md)
 - [Retention policy and confirmed cleanup](docs/retention.md)

@@ -139,3 +139,14 @@ def test_unfinished_dns_is_unknown_and_cannot_claim_cancellation_or_spawn_more()
         assert busy.value.code == "network_dns_resolver_busy"
     finally:
         release.set()
+
+
+def test_basic_git_credential_is_only_inside_origin_tls_request():
+    import base64
+    client = PinnedHTTPS(resolver=resolver)
+    client.context = TLS()
+    sock = Socket(b"HTTP/1.1 200 OK\r\nContent-Length: 2\r\n\r\nok")
+    with patch.object(client, "_connect", return_value=sock):
+        assert request(client, credential="fixture-user:fixture-token", auth_scheme="basic") == (200, b"ok")
+    assert b"Authorization: Basic " + base64.b64encode(b"fixture-user:fixture-token") in sock.sent[0]
+    assert b"fixture-token" not in sock.sent[0]

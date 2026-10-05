@@ -41,6 +41,8 @@ class FrozenObjects:
     object_format = "sha1"
 
     def __init__(self, root: Path, commit: str) -> None:
+        if root.is_symlink() or not root.is_dir() or root.resolve() != root:
+            reject("git_object_root_rejected", "Frozen Git object root is not the exact sandbox-owned directory")
         self.root, self.commit_sha = root, commit
         # The isolated trusted decoder writes only validated object IDs/kinds.
         listing = root.parent / "objects.list"
@@ -81,10 +83,14 @@ class HTTPSGitBackend:
 
     def _advertisement(self, request: dict[str, Any], material: dict[str, Any], deadline: float) -> dict[str, str]:
         url = request["source"]["repository_url"].rstrip("/") + "/info/refs?service=git-upload-pack"
-        _, content = self.https.request(url, rule=request["host_rule"], material=material, deadline=deadline, maximum=1024 * 1024, credential=material.get("git_credential"), headers={"Accept": "application/x-git-upload-pack-advertisement"}, cancelled=self.closed.is_set)
+        credential = material.get("git_credential")
+        auth = "basic" if isinstance(credential, str) and ":" in credential else "bearer"
+        _, content = self.https.request(url, rule=request["host_rule"], material=material, deadline=deadline, maximum=1024 * 1024, credential=credential, auth_scheme=auth, headers={"Accept": "application/x-git-upload-pack-advertisement"}, cancelled=self.closed.is_set)
         rows = list(packets(content))
         if rows[:2] != [b"# service=git-upload-pack\n", b""]:
             reject("git_protocol_unsupported", "Only bounded smart HTTPS Git protocol v0/v1 is supported")
+        if rows[2:3] == [b"version 1\n"]:
+            del rows[2]
         refs: dict[str, str] = {}
         for row in rows[2:]:
             if not row:
@@ -134,7 +140,9 @@ class HTTPSGitBackend:
         staging = self.controller.root / ("fetch-" + uuid4().hex)
         staging.mkdir(mode=0o700)
         try:
-            _, response = self.https.request(url, rule=request["host_rule"], material=material, deadline=deadline, maximum=request["limits"]["transfer_bytes"], method="POST", body=body, credential=material.get("git_credential"), headers={"Content-Type": "application/x-git-upload-pack-request", "Accept": "application/x-git-upload-pack-result"}, cancelled=cancel.is_set)
+            credential = material.get("git_credential")
+            auth = "basic" if isinstance(credential, str) and ":" in credential else "bearer"
+            _, response = self.https.request(url, rule=request["host_rule"], material=material, deadline=deadline, maximum=request["limits"]["transfer_bytes"], method="POST", body=body, credential=credential, auth_scheme=auth, headers={"Content-Type": "application/x-git-upload-pack-request", "Accept": "application/x-git-upload-pack-result"}, cancelled=cancel.is_set)
             pack = io.BytesIO()
             for row in packets(response):
                 if row.startswith(b"\x01"):

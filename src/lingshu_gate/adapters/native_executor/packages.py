@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import hashlib
 import hmac
+import gzip
 import io
 import json
 import re
@@ -69,7 +70,16 @@ def extract_official(content: bytes, target: Path, limits: dict[str, int]) -> No
     total = count = 0
     seen: set[str] = set()
     deadline = time.monotonic() + 30
-    with tarfile.open(fileobj=io.BytesIO(content), mode="r:gz") as archive:
+    compressed = gzip.GzipFile(fileobj=io.BytesIO(content))
+    class BoundedDecodedArchive(io.RawIOBase):
+        consumed = 0
+        def read(self, size: int = -1) -> bytes:
+            if size < 0 or self.consumed + size > limits["expanded_bytes"] + limits["files"] * 4096 + 1024 * 1024 or time.monotonic() > deadline:
+                reject("package_manager_archive_limit", "Official distribution metadata/decompression exceeds limits")
+            value = compressed.read(size)
+            self.consumed += len(value)
+            return value
+    with compressed, tarfile.open(fileobj=BoundedDecodedArchive(), mode="r|") as archive:
         for member in archive:
             path = PurePosixPath(member.name)
             count += 1
@@ -135,7 +145,7 @@ class ToolCache:
     @staticmethod
     def _rule(url: str) -> dict[str, Any]:
         parsed = urlsplit(url)
-        if parsed.scheme != "https" or not parsed.hostname or parsed.username or parsed.password or parsed.query or parsed.fragment or "\\" in url or any(ord(ch) <= 32 for ch in url):
+        if len(url) > 2048 or parsed.scheme != "https" or not parsed.hostname or parsed.username or parsed.password or parsed.query or parsed.fragment or "\\" in url or any(ord(ch) <= 32 for ch in url):
             reject("dependency_origin_rejected", "Tool/dependency source is not an approved HTTPS endpoint")
         return {"host": parsed.hostname, "port": parsed.port or 443, "private_cidrs": []}
 
@@ -166,6 +176,8 @@ class ToolCache:
         cache_key = digest_json({"name": name, "version": version, "integrity": integrity})
         target = self.root / cache_key
         if not target.exists():
+            if sum(path.is_dir() for path in self.root.iterdir()) >= 4:
+                reject("package_manager_cache_capacity", "The four-distribution verified tool cache is full; administrator eviction is required")
             url = metadata["dist"]["tarball"]
             if not isinstance(url, str) or not url.startswith(OFFICIAL + str(name) + "/-/") or self._rule(url)["port"] != 443:
                 reject("package_manager_metadata_rejected", "Official tool tarball source is outside the fixed registry/package origin")

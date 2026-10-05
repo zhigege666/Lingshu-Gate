@@ -153,7 +153,7 @@ class PinnedHTTPS:
             sock.close()
             raise
 
-    def request(self, url: str, *, rule: dict[str, Any], material: dict[str, Any], deadline: float, maximum: int, method: str = "GET", body: bytes | None = None, credential: str | None = None, headers: dict[str, str] | None = None, cancelled: Callable[[], bool] = lambda: False) -> tuple[int, bytes]:
+    def request(self, url: str, *, rule: dict[str, Any], material: dict[str, Any], deadline: float, maximum: int, method: str = "GET", body: bytes | None = None, credential: str | None = None, auth_scheme: str = "bearer", headers: dict[str, str] | None = None, cancelled: Callable[[], bool] = lambda: False) -> tuple[int, bytes]:
         parsed = urlsplit(url)
         if parsed.scheme != "https" or not parsed.hostname or parsed.username or parsed.password or parsed.fragment or "\\" in url or any(ord(ch) <= 32 for ch in url) or method not in {"GET", "HEAD", "POST"} or maximum > 50 * 1024 * 1024 or maximum < 1:
             _deny("network_target_not_allowed")
@@ -179,7 +179,15 @@ class PinnedHTTPS:
                     _deny("network_header_rejected")
                 supplied.update({"Host": host, "Connection": "close", "User-Agent": "Lingshu-Gate-TrustedFetch/1", "Accept-Encoding": "identity"})
                 if credential:
-                    supplied["Authorization"] = "Bearer " + _text(credential)
+                    value = _text(credential)
+                    if auth_scheme == "basic":
+                        if ":" not in value or not all(value.split(":", 1)):
+                            _deny("network_credential_format_invalid")
+                        supplied["Authorization"] = "Basic " + base64.b64encode(value.encode()).decode()
+                    elif auth_scheme == "bearer":
+                        supplied["Authorization"] = "Bearer " + value
+                    else:
+                        _deny("network_credential_format_invalid")
                 if body is not None:
                     supplied["Content-Length"] = str(len(body))
                 request = f"{method} {path} HTTP/1.1\r\n" + "".join(f"{name}: {_text(value)}\r\n" for name, value in supplied.items()) + "\r\n"

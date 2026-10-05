@@ -8,11 +8,11 @@
 
 Git 拉取和依赖安装分别配置默认值。项目明确选择 `inherit`（计划时解析当前默认）、`direct`（不使用代理）或 `profile`（命名修订）。npm registry 和 Python index 是独立 HTTPS 地址，不能作为代理别名。凭据仅引用现有加密凭据存储；普通返回、审计、计划、Manifest 和产物不含代理地址或秘密值。运行时 MCP 不继承交付网络配置。
 
-Gate 当前**没有生产安全网络执行器**。本地构建器以操作者账号执行子进程，净化环境变量不等于操作系统隔离；Core 禁止本地执行。Git 解析/拉取、代理测试和指定网络的依赖安装均以 `safe_executor_unavailable` 关闭失败。本变更新增供独立审查执行器实现的端口，不新增启用宿主执行的开关，不挂 Docker socket，不修改全局 git/npm 配置，不扩宽 Core 权限。
+本开发分支实现了可选的 [Native/Linux rootless Podman 执行器](native-executor.md)，factory、真实 readiness、持久 journal、lifecycle 已接入既有交付链。可信 HTTPS 获取拥有 DNS/代理/凭据，项目脚本只在物理离线 sandbox 中接收校验内容。固定预载镜像、实际 namespace/controller、有界工作区为必要前提；缺失时 fail closed，不转宿主执行。Core 仍仅为 gateway，不碰引擎/socket。真实宿主验收未测；源码版本保持 0.4.4，本功能未发布。
 
 ## 来源到交付
 
-缺少执行器同时是仓库实现缺口，不只是操作者部署条件。原生/local 也没有生产 adapter；Core 完整交付还缺明确远程阶段/产物/运行目标契约。详见[执行路径与落地决策](git-executor-decision.md)。以下控制与计划描述的功能实现尚不完整。
+Native adapter 代码已存在，宿主准备与真实验收分开。首个缓存闭环仅支持 registry-only npm lock v2/v3；pnpm/Yarn/Python 安装及不安全 npm 缓存形态明确拒绝。固定官方 npm/pnpm/Yarn 工具准备和所选离线 Node build script 已实现。见[执行决策](git-executor-decision.md)及[精确支持矩阵](native-executor.md#获取与包支持)。Core 远程阶段/制品/runtime 交付不在本范围。
 
 来源表单接受 HTTPS 仓库 URL、分支/tag/完整 commit、相对项目子目录、私有仓库凭据引用、独立 Git/安装网络选择，以及 Node/Python 运行模板。任何网络请求前先验证输入。安全执行器必须从实际环境解析完整 commit SHA；歧义或不存在的 ref 均失败。导入计划绑定 SHA、来源选择、凭据修订、网络修订、策略修订、限制和摘要。拉取单独要求明确确认及幂等键，固定取该 SHA，不重新解析移动分支。执行器输出有界 ZIP，不输出 Git 工作目录。Gate 经 `ProjectUploadStore` 验证并导入，附上源码/文件清单摘要、仓库 commit、所选修订和来源记录，继续原有构建部署链路。
 
@@ -30,7 +30,7 @@ Gate 当前**没有生产安全网络执行器**。本地构建器以操作者�
 
 ## 依赖计划契约
 
-重启对账在受支持的单协调器接收新工作前，将丢失句柄的 `queued`/`running`/`cancel_requested` 持久化为 `interrupted`，释放四槽协调器队列，不代表释放执行器真实资源。`terminal=true` 结束协调器轮询；`execution_state=unknown`、`execution_terminated=false`、`requires_reconciliation=true` 明确保留未知执行结果，取消不能报成功。原导入与幂等键仍可查询，不恢复或盲重放写操作。未来 worker 须自行对账持久化任务/资源后再 dispatch，本修复不实现 worker。
+重启对账在受支持的单协调器接收新工作前，将丢失句柄的 `queued`/`running`/`cancel_requested` 持久化为 `interrupted`，释放四槽协调器队列，不代表释放执行器真实资源。`terminal=true` 结束协调器轮询；`execution_state=unknown`、`execution_terminated=false`、`requires_reconciliation=true` 明确保留未知执行结果，取消不能报成功。原导入与幂等键仍可查询，不恢复或盲重放写操作。Native 适配器现在派发前对账持久 job/container/cgroup，未知结果阻断 readiness；隔离 build 重启同样保留 interrupted，不能删除或盲重放。
 
 执行器普通 `InterruptedError` 同样记录未知结果并保留代理引用保护。`SafeExecutionCancelled` 只供可信执行器在确认阶段及其所有子进程已终止后使用。协调器在执行前、或执行器已返回后处理取消可结束为已取消；仅发出取消请求不能。
 
@@ -47,7 +47,7 @@ Gate 当前**没有生产安全网络执行器**。本地构建器以操作者�
 
 ## 依赖支持矩阵
 
-下列是有版本边界的源码/计划规则，不代表真实安装已验收。请求版本必须存在于官方元数据并满足对应 Node engines；未知版本失败，默认策略不能替换显式声明。
+下列是有版本边界的源码/计划规则，不代表真实安装已验收或 Native 全缓存支持。Native 仅支持 npm registry-only 缓存安装，pnpm/Yarn/Python 缓存安装明确拒绝。请求版本必须存在于官方元数据并满足对应 Node engines；未知版本失败，默认策略不能替换显式声明。
 
 | 工具 | 锁格式 | 冻结命令 | Node 要求 / 边界 |
 |---|---|---|---|
@@ -67,7 +67,7 @@ pnpm 11.5.0 版本证据：[官方 package engines](https://github.com/pnpm/pnpm
 
 新生成的 manager 启动 Manifest 带严格 `launch.toolchain` 工具/版本约束及工具名 command。只读 Manifest 校验不执行程序，仅检查服务管理员登记路径及文件元数据，准确版本仍为未验证。仅现有 local stdio/受管 HTTP 启动客户端在已授权启动后探测登记 Node 和复核 JS CLI，再执行同一组合。项目绝对 command、项目/宿主 PATH 均不能改选探测程序或解释器。缺失/不安全注册、版本漂移或不可验证明确阻断。参见[管理员注册与旧配置兼容](configuration.md#交付网络配置)。版本探测仍为空目录、无项目凭据、五秒/128 字节上限，但这些限制不证明信任。Core 不探测或执行固定工具；不安装运行工具、不借用构建缓存、不继承交付代理、不新增远程 bridge。pnpm 11 验证实际登记 Node >=22.13；复核的直接 Node 入口及未带 pin 的旧 Manifest 保留既有授权行为，不受该 manager pin 约束。本地执行仍不是沙箱，管理员工具完整性是前提。
 
-0.4.0 验证在隔离的合成环境中执行 Python、Console 和浏览器回归。Git/网络测试使用受控 fake adapter，不连接用户仓库、代理或 SSH。双语布局覆盖 1600×900、1920×1080、2560×1080、2560×1440；实际计数、跳过项及 CI 状态见[验证记录](release-validation.md)。这些结果不证明真实拉取/install 可用：生产安全执行器仍缺失。
+0.4.0 验证在隔离的合成环境中执行 Python、Console 和浏览器回归。Git/网络测试使用受控 fake adapter，不连接用户仓库、代理或 SSH。双语布局覆盖 1600×900、1920×1080、2560×1080、2560×1440；实际计数、跳过项及 CI 状态见[验证记录](release-validation.md)。这些历史结果不证明真实拉取/install 可用。Native adapter 已实现并增加合成回归，真实宿主验收仍未测。
 
 成功计划创建仅审计 actor、计划 ID 和 digest，不持久记录来源 URL/代理值。每轮最多清理 100 个过期未使用计划；每 actor 最多 32 个、全局最多 256 个未使用计划。任何 import 引用的计划均保留其来源，包括失败或取消状态。
 

@@ -174,11 +174,14 @@ class NativeNetworkExecutor:
                 mounts["/cache"] = seeded["output"] / "cache"
             result = self.controller.run(key, {"kind": "command", "manager": name, "version": manager["version"], "command": command, "binding": binding}, mounts=mounts, timeout=max(1, int(deadline - time.monotonic())), cancelled=cancelled)
             if result["returncode"] == 0:
+                output_root = result["output"] / "project"
+                if output_root.is_symlink() or not output_root.is_dir() or output_root.resolve() != output_root:
+                    reject("executor_output_root_rejected", "Frozen project root is not the exact sandbox-owned directory")
                 # Copy only a frozen, bounded contained tree, then publish to
                 # the existing source path. BuildDeploy remains artifact owner.
                 exported = cwd.parent / ("native-export-" + uuid4().hex)
                 exported.mkdir(mode=0o700)
-                export_network_artifact(result["output"] / "project", exported, ignored={".git"}, forbidden_values=[value for value in material.values() if isinstance(value, str)], cancelled=cancelled)
+                export_network_artifact(output_root, exported, ignored={".git"}, forbidden_values=[value for value in material.values() if isinstance(value, str)], cancelled=cancelled)
                 for path in exported.rglob("*"):
                     if path.is_file() and not path.is_symlink():
                         path.chmod(path.stat().st_mode | 0o200)

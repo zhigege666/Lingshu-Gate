@@ -1,5 +1,9 @@
 # 更新记录
 
+## Unreleased — Native executor
+
+- 实现可选 Native/Linux rootless Podman 执行器、可信固定 HTTPS/Git 获取、官方精确工具缓存、registry-only npm 离线安装/构建、真实 readiness 及持久阶段/container/cgroup 对账。Core 仍为 gateway；pnpm/Yarn/Python 缓存安装及未支持 origin 明确拒绝，真实宿主验收未测。
+
 ## 0.4.4
 
 - 四个管理工具在通用调用入口拒绝 Console cookie；专用 Console REST 保留 Origin/会话/请求体绑定的 CSRF。连接/探测在锁等待后和解密前拒绝凭据版本变化。内存诊断不读取命令参数与环境，Core 安装 Debian 准确 Perl 安全版本，不增加扫描例外。
