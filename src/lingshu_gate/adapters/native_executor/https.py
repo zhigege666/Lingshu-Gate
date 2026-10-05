@@ -34,6 +34,58 @@ def _text(value: Any) -> str:
     return value
 
 
+class SocketBudget:
+    """One deadline/cancellation owner from TCP connect through response close."""
+    def __init__(self, deadline: float, cancelled: Callable[[], bool]) -> None:
+        self.deadline, self.cancelled = deadline, cancelled
+        self.finished = threading.Event()
+        self.lock = threading.Lock()
+        self.sockets: list[Any] = []
+        self.watcher = threading.Thread(target=self._watch, daemon=True, name="gate-trusted-https-deadline")
+        self.watcher.start()
+
+    def remaining(self) -> float:
+        if self.cancelled():
+            raise SafeExecutionCancelled("trusted_https_cancelled")
+        remaining = self.deadline - time.monotonic()
+        if remaining <= 0:
+            raise TimeoutError("trusted_https_timeout")
+        return remaining
+
+    def track(self, sock: Any) -> None:
+        with self.lock:
+            self.sockets.append(sock)
+        try:
+            self.remaining()
+        except BaseException:
+            self._close_sockets()
+            raise
+
+    def _close_sockets(self) -> None:
+        with self.lock:
+            sockets = list(self.sockets)
+        for sock in sockets:
+            try:
+                sock.shutdown(socket.SHUT_RDWR)
+            except OSError:
+                pass
+            try:
+                sock.close()
+            except OSError:
+                pass
+
+    def _watch(self) -> None:
+        while not self.finished.wait(0.02):
+            if self.cancelled() or time.monotonic() >= self.deadline:
+                self._close_sockets()
+                return
+
+    def close(self) -> None:
+        self.finished.set()
+        self._close_sockets()
+        self.watcher.join(timeout=0.1)
+
+
 class PinnedHTTPS:
     def __init__(self, *, proxy_hosts: tuple[dict[str, Any], ...] = (), resolver: Callable[..., Any] = socket.getaddrinfo) -> None:
         self.proxy_hosts = proxy_hosts
@@ -77,12 +129,17 @@ class PinnedHTTPS:
         raise AssertionError("unreachable")
 
     @staticmethod
-    def _connect(address: str, port: int, timeout: float) -> socket.socket:
+    def _connect(address: str, port: int, timeout: float, *, budget: SocketBudget | None = None) -> socket.socket:
         # Numeric sockaddr prevents a second DNS resolution/rebinding.
         sock = socket.socket(socket.AF_INET6 if ":" in address else socket.AF_INET, socket.SOCK_STREAM)
-        sock.settimeout(timeout)
         try:
+            if budget is not None:
+                budget.track(sock)
+                timeout = budget.remaining()
+            sock.settimeout(timeout)
             sock.connect((address, port))
+            if budget is not None:
+                budget.remaining()
             return sock
         except BaseException:
             sock.close()
@@ -104,7 +161,7 @@ class PinnedHTTPS:
             data.extend(chunk)
         return bytes(data)
 
-    def _tunnel(self, address: str, port: int, material: dict[str, Any], timeout: float, *, cancelled: Callable[[], bool], deadline: float) -> socket.socket:
+    def _tunnel(self, address: str, port: int, material: dict[str, Any], timeout: float, *, cancelled: Callable[[], bool], deadline: float, budget: SocketBudget | None = None) -> socket.socket:
         proxy = urlsplit(_text(material["proxy"]))
         if proxy.scheme not in PROXY_SCHEMES or not proxy.hostname or not proxy.port or proxy.username or proxy.password or proxy.path not in {"", "/"} or proxy.query or proxy.fragment:
             _deny("proxy_scheme_unsupported")
@@ -112,8 +169,17 @@ class PinnedHTTPS:
         if rule is None:
             _deny("proxy_host_not_reviewed")
         addresses = self.addresses(proxy.hostname, proxy.port, rule, deadline=deadline, cancelled=cancelled)
-        sock = self._connect(addresses[0], proxy.port, max(0.001, deadline - time.monotonic()))
+        sock = self._connect(addresses[0], proxy.port, budget.remaining() if budget else max(0.001, deadline - time.monotonic()), budget=budget)
         try:
+            if budget:
+                budget.track(sock)
+                sock.settimeout(budget.remaining())
+            def send(data: bytes) -> None:
+                if budget:
+                    sock.settimeout(budget.remaining())
+                elif cancelled() or time.monotonic() >= deadline:
+                    raise SafeExecutionCancelled("trusted_proxy_cancelled") if cancelled() else TimeoutError("trusted_proxy_timeout")
+                sock.sendall(data)
             credential = material.get("proxy_credential")
             if proxy.scheme == "http":
                 # HTTP CONNECT is made to the validated *numeric* upstream, so
@@ -122,7 +188,7 @@ class PinnedHTTPS:
                 header = f"CONNECT {target} HTTP/1.1\r\nHost: {target}\r\n"
                 if credential:
                     header += "Proxy-Authorization: Basic " + base64.b64encode(_text(credential).encode()).decode() + "\r\n"
-                sock.sendall((header + "\r\n").encode("ascii"))
+                send((header + "\r\n").encode("ascii"))
                 response = bytearray()
                 while not response.endswith(b"\r\n\r\n"):
                     if len(response) >= 4096:
@@ -131,7 +197,7 @@ class PinnedHTTPS:
                 if response.split(b"\r\n", 1)[0].split(b" ")[1:2] != [b"200"]:
                     _deny("proxy_tunnel_failed")
             else:
-                sock.sendall(b"\x05\x01" + (b"\x02" if credential else b"\x00"))
+                send(b"\x05\x01" + (b"\x02" if credential else b"\x00"))
                 if self._read_exact(sock, 2, deadline=deadline, cancelled=cancelled) != (b"\x05\x02" if credential else b"\x05\x00"):
                     _deny("proxy_tunnel_failed")
                 if credential:
@@ -139,11 +205,11 @@ class PinnedHTTPS:
                     if len(parts) != 2 or any(not 0 < len(item.encode()) <= 255 for item in parts):
                         _deny("network_credential_format_invalid")
                     username, password = (item.encode() for item in parts)
-                    sock.sendall(b"\x01" + bytes([len(username)]) + username + bytes([len(password)]) + password)
+                    send(b"\x01" + bytes([len(username)]) + username + bytes([len(password)]) + password)
                     if self._read_exact(sock, 2, deadline=deadline, cancelled=cancelled) != b"\x01\x00":
                         _deny("proxy_tunnel_failed")
                 ip = ipaddress.ip_address(address)
-                sock.sendall(b"\x05\x01\x00" + (b"\x01" if ip.version == 4 else b"\x04") + ip.packed + struct.pack("!H", port))
+                send(b"\x05\x01\x00" + (b"\x01" if ip.version == 4 else b"\x04") + ip.packed + struct.pack("!H", port))
                 reply = self._read_exact(sock, 4, deadline=deadline, cancelled=cancelled)
                 if reply[:3] != b"\x05\x00\x00" or reply[3] not in {1, 4}:
                     _deny("proxy_tunnel_failed")
@@ -154,22 +220,32 @@ class PinnedHTTPS:
             raise
 
     def request(self, url: str, *, rule: dict[str, Any], material: dict[str, Any], deadline: float, maximum: int, method: str = "GET", body: bytes | None = None, credential: str | None = None, auth_scheme: str = "bearer", headers: dict[str, str] | None = None, cancelled: Callable[[], bool] = lambda: False) -> tuple[int, bytes]:
+        budget = SocketBudget(deadline, cancelled)
+        try:
+            return self._request(url, rule=rule, material=material, deadline=deadline, maximum=maximum, method=method, body=body, credential=credential, auth_scheme=auth_scheme, headers=headers, cancelled=cancelled, socket_budget=budget)
+        except (OSError, http.client.HTTPException):
+            budget.remaining()  # Classify an interrupted connect/handshake/send.
+            raise
+        finally:
+            budget.close()
+
+    def _request(self, url: str, *, rule: dict[str, Any], material: dict[str, Any], deadline: float, maximum: int, method: str, body: bytes | None, credential: str | None, auth_scheme: str, headers: dict[str, str] | None, cancelled: Callable[[], bool], socket_budget: SocketBudget) -> tuple[int, bytes]:
         parsed = urlsplit(url)
         if parsed.scheme != "https" or not parsed.hostname or parsed.username or parsed.password or parsed.fragment or "\\" in url or any(ord(ch) <= 32 for ch in url) or method not in {"GET", "HEAD", "POST"} or maximum > 50 * 1024 * 1024 or maximum < 1:
             _deny("network_target_not_allowed")
-        remaining = deadline - time.monotonic()
-        if remaining <= 0:
-            raise TimeoutError("trusted_https_timeout")
-        if cancelled():
-            raise SafeExecutionCancelled("trusted_https_cancelled_before_connect")
+        remaining = socket_budget.remaining()
         port = parsed.port or 443
         addresses = self.addresses(parsed.hostname, port, rule, deadline=deadline, cancelled=cancelled)
-        if time.monotonic() >= deadline:
-            raise TimeoutError("trusted_https_timeout")
-        remaining = deadline - time.monotonic()
-        raw = self._tunnel(addresses[0], port, material, remaining, cancelled=cancelled, deadline=deadline) if material.get("proxy") else self._connect(addresses[0], port, remaining)
+        remaining = socket_budget.remaining()
+        raw = self._tunnel(addresses[0], port, material, remaining, cancelled=cancelled, deadline=deadline, budget=socket_budget) if material.get("proxy") else self._connect(addresses[0], port, remaining, budget=socket_budget)
         with raw:
-            with self.context.wrap_socket(raw, server_hostname=parsed.hostname) as sock:
+            socket_budget.track(raw)
+            raw.settimeout(socket_budget.remaining())
+            with self.context.wrap_socket(raw, server_hostname=parsed.hostname, do_handshake_on_connect=False) as sock:
+                socket_budget.track(sock)
+                sock.settimeout(socket_budget.remaining())
+                sock.do_handshake()
+                socket_budget.remaining()
                 path = parsed.path or "/"
                 if parsed.query:
                     path += "?" + parsed.query
@@ -191,18 +267,9 @@ class PinnedHTTPS:
                 if body is not None:
                     supplied["Content-Length"] = str(len(body))
                 request = f"{method} {path} HTTP/1.1\r\n" + "".join(f"{name}: {_text(value)}\r\n" for name, value in supplied.items()) + "\r\n"
+                sock.settimeout(socket_budget.remaining())
                 sock.sendall(request.encode("ascii") + (body or b""))
-                finished = threading.Event()
-                def guard() -> None:
-                    while not finished.wait(0.05):
-                        if cancelled() or time.monotonic() >= deadline:
-                            try:
-                                sock.shutdown(socket.SHUT_RDWR)
-                            except OSError:
-                                pass
-                            return
-                watcher = threading.Thread(target=guard, daemon=True, name="gate-trusted-https-deadline")
-                watcher.start()
+                sock.settimeout(socket_budget.remaining())
                 response = http.client.HTTPResponse(sock, method=method)
                 original = response.fp
                 class HeaderBudget:
@@ -221,6 +288,7 @@ class PinnedHTTPS:
                 response.fp = budget  # type: ignore[assignment]
                 try:
                     response.begin()
+                    socket_budget.remaining()
                     budget.headers = False
                     if sum(len(name) + len(value) for name, value in response.getheaders()) > 4096:
                         _deny("network_header_limit")
@@ -230,11 +298,7 @@ class PinnedHTTPS:
                         return response.status, b""
                     content = bytearray()
                     while True:
-                        if cancelled():
-                            raise SafeExecutionCancelled("trusted_https_cancelled")
-                        remaining = deadline - time.monotonic()
-                        if remaining <= 0:
-                            raise TimeoutError("trusted_https_timeout")
+                        remaining = socket_budget.remaining()
                         sock.settimeout(min(remaining, 1.0))
                         chunk = response.read1(min(64 * 1024, maximum + 1 - len(content)))
                         if not chunk:
@@ -242,14 +306,7 @@ class PinnedHTTPS:
                         content.extend(chunk)
                         if len(content) > maximum:
                             _deny("network_response_limit")
+                    socket_budget.remaining()
                     return response.status, bytes(content)
-                except OSError:
-                    if cancelled():
-                        raise SafeExecutionCancelled("trusted_https_cancelled") from None
-                    if time.monotonic() >= deadline:
-                        raise TimeoutError("trusted_https_timeout") from None
-                    raise
                 finally:
-                    finished.set()
                     response.close()
-                    watcher.join(timeout=0.1)

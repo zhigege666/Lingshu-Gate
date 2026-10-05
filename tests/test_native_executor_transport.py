@@ -4,6 +4,7 @@ from __future__ import annotations
 import io
 import socket
 import time
+import threading
 from types import SimpleNamespace
 from unittest.mock import patch
 
@@ -12,6 +13,7 @@ import pytest
 from lingshu_gate.adapters.native_executor.https import PinnedHTTPS
 from lingshu_gate.adapters.native_executor.git import HTTPSGitBackend, packet
 from lingshu_gate.registry import ToolExecutionError
+from lingshu_gate.ports.safe_network_executor import SafeExecutionCancelled
 
 
 @pytest.mark.parametrize("version", [b"", packet(b"version 1\n")])
@@ -55,12 +57,16 @@ class Socket:
     def shutdown(self, *args):
         self.closed = True
 
+    def do_handshake(self):
+        pass
+
 
 class TLS:
     def __init__(self):
         self.names = []
 
-    def wrap_socket(self, sock, *, server_hostname):
+    def wrap_socket(self, sock, *, server_hostname, do_handshake_on_connect):
+        assert not do_handshake_on_connect
         self.names.append(server_hostname)
         return sock
 
@@ -162,3 +168,82 @@ def test_basic_git_credential_is_only_inside_origin_tls_request():
         assert request(client, credential="fixture-user:fixture-token", auth_scheme="basic") == (200, b"ok")
     assert b"Authorization: Basic " + base64.b64encode(b"fixture-user:fixture-token") in sock.sent[0]
     assert b"fixture-token" not in sock.sent[0]
+
+
+@pytest.mark.parametrize("phase", ["connect", "handshake", "send"])
+@pytest.mark.parametrize("reason", ["cancel", "deadline"])
+def test_whole_socket_lifecycle_is_supervised_and_next_request_can_run(phase, reason):
+    stopped = threading.Event()
+    class SlowSocket(Socket):
+        def stall(self):
+            limit = time.monotonic() + 1
+            while not self.closed and time.monotonic() < limit:
+                time.sleep(0.002)
+            assert self.closed, "The budget must close even connecting/handshaking sockets"
+            raise OSError("fixture interrupted socket")
+        def connect(self, target):
+            if phase == "connect":
+                self.stall()
+        def do_handshake(self):
+            if phase == "handshake":
+                self.stall()
+        def sendall(self, data):
+            if phase == "send":
+                self.stall()
+            super().sendall(data)
+    client = PinnedHTTPS(resolver=resolver)
+    client.context = TLS()
+    sock = SlowSocket()
+    timer = threading.Timer(0.03, stopped.set) if reason == "cancel" else None
+    if timer:
+        timer.start()
+    started = time.monotonic()
+    try:
+        with patch("lingshu_gate.adapters.native_executor.https.socket.socket", return_value=sock), pytest.raises(SafeExecutionCancelled if reason == "cancel" else TimeoutError):
+            client.request("https://git.example.invalid/project", rule={"host": "git.example.invalid", "port": 443}, material={"proxy": None}, deadline=started + (1 if reason == "cancel" else 0.05), maximum=4096, credential="fixture-token", cancelled=stopped.is_set)
+    finally:
+        if timer:
+            timer.join()
+    assert time.monotonic() - started < 0.3
+    assert sock.sent == [] and sock.closed
+    next_socket = Socket(b"HTTP/1.1 200 OK\r\nContent-Length: 2\r\n\r\nok")
+    with patch.object(client, "_connect", return_value=next_socket):
+        assert request(client) == (200, b"ok")
+
+
+def test_tls_handshake_returning_after_cancel_never_sends_authentication():
+    stopped = threading.Event()
+    sock = Socket()
+    def late():
+        stopped.set()
+    sock.do_handshake = late
+    client = PinnedHTTPS(resolver=resolver)
+    client.context = TLS()
+    with patch.object(client, "_connect", return_value=sock), pytest.raises(SafeExecutionCancelled):
+        client.request("https://git.example.invalid/project", rule={"host": "git.example.invalid", "port": 443}, material={"proxy": None}, deadline=time.monotonic() + 1, maximum=4096, credential="fixture-token", cancelled=stopped.is_set)
+    assert sock.sent == [] and sock.closed
+
+
+def test_connect_tls_and_send_share_the_original_deadline_budget():
+    budgets = []
+    class SlowStages(Socket):
+        def connect(self, target):
+            time.sleep(0.03)
+        def do_handshake(self):
+            time.sleep(0.03)
+        def settimeout(self, value):
+            super().settimeout(value)
+            budgets.append(value)
+        def sendall(self, value):
+            time.sleep(0.03)
+            if self.closed:
+                raise OSError("fixture deadline")
+            super().sendall(value)
+    client = PinnedHTTPS(resolver=resolver)
+    client.context = TLS()
+    sock = SlowStages()
+    started = time.monotonic()
+    with patch("lingshu_gate.adapters.native_executor.https.socket.socket", return_value=sock), pytest.raises(TimeoutError):
+        client.request("https://git.example.invalid/project", rule={"host": "git.example.invalid", "port": 443}, material={"proxy": None}, deadline=started + 0.075, maximum=4096, credential="fixture-token")
+    assert max(budgets) <= 0.075 and min(budgets) < 0.03
+    assert time.monotonic() - started < 0.2 and sock.sent == []

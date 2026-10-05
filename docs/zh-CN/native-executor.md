@@ -60,6 +60,8 @@ Git/install 网络选择仍在原 digest 计划中独立固定为 `inherit`/`dir
 
 HTTPS 禁 redirects、编码响应、环境代理和自动重试，限制 headers/body/deadline。DNS 只允许一个有界在途 resolver 槽。超时但未实际退出的 resolver 为未知结果，阻断网络 readiness，不能冒充已取消。可信 socket 关闭后才确认其取消；项目执行只接收已校验、无秘密内容。
 
+同一 socket supervisor 贯穿 TCP connect、代理协商、显式 TLS handshake、发送和响应，始终使用原 deadline 并重算剩余预算。握手后取消会在构造/发送 origin 认证前重查。连接中和握手中 socket 在阻塞操作前注册，确保全程取消均能关闭它们。
+
 可信获取不执行项目或依赖代码。Git 在无网络 sandbox 只解析 pack，原始 object 导出绕过 checkout、attributes、filters。官方工具解包不执行 lifecycle；npm 缓存准备只使用 SRI 已验证的官方 cache library 和 blobs。项目容器把只读 source/tool/cache 复制到有界工作目录，没有 proxy/auth 环境、外部网络、SSH agent 或 Gate socket/home。项目及依赖 lifecycle 都在用户确认的 install/build 范围中运行。
 
 ## 日志、输出与恢复

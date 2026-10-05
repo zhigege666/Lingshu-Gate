@@ -60,6 +60,8 @@ Git and install selections remain independent immutable `inherit`/`direct`/`prof
 
 HTTPS rejects redirects and encoded responses, bounds headers/body/deadlines, has no automatic retry and ignores environment proxy settings. DNS has a single bounded outstanding resolver slot. A timed-out resolver that has not actually exited is an unknown outcome, blocks network readiness, and cannot be reported as confirmed cancellation. Cancellation closes trusted sockets; project execution starts only with verified, secret-free content.
 
+One socket supervisor owns the original deadline across TCP connect, proxy negotiation, explicit TLS handshake, send and response. Every stage recomputes the remaining budget; cancellation after a handshake is checked before constructing/sending origin authentication. Connecting and handshaking sockets are registered before their blocking operations, so cancellation can close them throughout the request.
+
 Trusted acquisition never executes project or dependency code. Git receives only a verified pack file in a network-disconnected sandbox; raw object export bypasses checkout, attributes and filters. Official tool extraction executes no lifecycle. npm cache seeding uses only the SRI-verified official npm cache library and verified blobs. The project container then copies read-only source/tool/cache inputs into its bounded work directory. It has no proxy/auth environment, external network, inherited SSH agent or Gate socket/home. All project and dependency lifecycle scripts run there under the confirmed install/build scope.
 
 ## Journal, output and recovery
