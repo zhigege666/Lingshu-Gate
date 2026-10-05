@@ -1206,6 +1206,10 @@ class AccessControlStore:
         grants = {(r["subject_type"], r["subject_id"], r["server_id"], r["tool_id"]): r["base_level"]
                   for r in rows if not _is_expired(r["expires_at"])}
         role_ids = {key[1] for key in grants if key[0] == "role"}
+        # Most large directories have many tools with one service-level grant.
+        # Memoize only within this read transaction, after resolving exact tool
+        # overrides. OAuth uses exact per-tool allowlists and stays uncached.
+        decisions: dict[tuple[Any, ...], int] = {}
 
         def authorize(tool_id: str, server_id: str, source: str, permission: str, policy: str,
                       effective_access: str | None, status: str | None) -> int:
@@ -1223,12 +1227,19 @@ class AccessControlStore:
             # snapshots. It cannot use the normal catalog or invoke adapter.
             if principal.oauth_resource and principal.oauth_resource.endswith("/mcp/manage"):
                 return 0
+            granted_access = granted()
+            cache_key = (server_id, source, permission, policy, effective_access, status, granted_access)
+            if principal.auth_type != "oauth" and cache_key in decisions:
+                return decisions[cache_key]
             definition = ToolDefinition.model_construct(
                 id=tool_id, name="", description="", source=source, permission=permission,
                 metadata={**json.loads(policy), "server_id": server_id},
             )
             classification = {"effective_access": effective_access, "status": status} if status else None
-            return int(self._evaluate(principal, definition, classification, granted)["allowed"])
+            allowed = int(self._evaluate(principal, definition, classification, lambda: granted_access)["allowed"])
+            if principal.auth_type != "oauth":
+                decisions[cache_key] = allowed
+            return allowed
 
         return authorize
 
