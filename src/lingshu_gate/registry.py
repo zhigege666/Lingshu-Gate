@@ -3,6 +3,8 @@
 from __future__ import annotations
 
 import logging
+import hashlib
+import json
 import re
 import threading
 from collections.abc import Callable, Iterable
@@ -22,6 +24,13 @@ SENSITIVE_LOG_KEY = re.compile(
 )
 MAX_LOG_STRING_LENGTH = 4_096
 MAX_LOG_COLLECTION_ITEMS = 100
+
+
+def tool_definition_revision(definition: ToolDefinition) -> str:
+    """Exact registered descriptor revision for guarded delayed dispatch."""
+    raw = json.dumps(definition.model_dump(), sort_keys=True, ensure_ascii=False,
+                     separators=(",", ":"), allow_nan=False)
+    return hashlib.sha256(raw.encode()).hexdigest()
 
 
 @dataclass(frozen=True)

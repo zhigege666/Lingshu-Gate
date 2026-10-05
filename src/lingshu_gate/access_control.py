@@ -1612,8 +1612,14 @@ class AccessControlStore:
         *,
         correlation_id: str | None = None,
         dispatch_guard: Callable[[], None] | None = None,
+        expected_definition_revision: str | None = None,
+        allow_read_retry: bool = True,
     ) -> ToolInvokeResponse:
         definition = registry.get_definition(tool_id)
+        from lingshu_gate.registry import tool_definition_revision
+
+        if expected_definition_revision is not None and tool_definition_revision(definition) != expected_definition_revision:
+            raise ToolExecutionError("group_tool_contract_changed", "The selected tool contract changed; describe it again.")
         with self.database.session() as connection:
             self._synchronize_tools(connection, [definition])
         decision = self.evaluate(principal, definition)
@@ -1670,7 +1676,7 @@ class AccessControlStore:
                     **({"dispatch_guard": checked_guard} if dispatch_guard is not None else {}),
                     audit_snapshot=recorded_outputs.append if recorded_input is not None else None,
                     retry_read_only=(
-                        decision["classification_status"] == "published"
+                        allow_read_retry and decision["classification_status"] == "published"
                         and decision["required_access"] == "read"
                     ),
                 )

@@ -3,7 +3,7 @@ from __future__ import annotations
 
 from typing import Literal
 
-from pydantic import BaseModel, ConfigDict, Field, StrictInt, StrictStr, field_validator
+from pydantic import BaseModel, ConfigDict, Field, StrictInt, StrictStr, field_validator, model_validator
 
 
 class McpGroupError(Exception):
@@ -19,7 +19,14 @@ class McpGroupDraft(BaseModel):
     status: Literal["active", "archived"] = "active"
     members: list[StrictStr] = Field(max_length=1000)
     reconfirm_members: list[StrictStr] = Field(default_factory=list, max_length=1000)
+    default_instance_id: StrictStr | None = None
     confirmed: Literal[True]
+
+    @model_validator(mode="after")
+    def default_is_member(self) -> McpGroupDraft:
+        if self.default_instance_id is not None and self.default_instance_id not in self.members:
+            raise ValueError("The suggested default must be an explicitly selected member")
+        return self
 
     @field_validator("name", "description")
     @classmethod
