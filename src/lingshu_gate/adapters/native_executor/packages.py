@@ -18,7 +18,7 @@ from uuid import uuid4
 
 from lingshu_gate.adapters.native_executor.controller import PodmanController, reject
 from lingshu_gate.adapters.native_executor.https import PinnedHTTPS
-from lingshu_gate.adapters.native_executor.locked_dependencies import NAME, pnpm_tarballs, yarn_tarballs
+from lingshu_gate.adapters.native_executor.locked_dependencies import NAME, REGISTRY_REQUEST, pnpm_tarballs, yarn_tarballs
 from lingshu_gate.git_source import digest_json
 from lingshu_gate.node_toolchain import node_version_supported, tool_preparation
 from lingshu_gate.offline_build_contract import DependencyNode, verify_dependency_content
@@ -170,7 +170,7 @@ def seed_manifest(package: dict[str, Any]) -> dict[str, Any]:
     value: dict[str, Any] = {"name": "gate-cache-seed", "version": "0.0.0", "private": True}
     for field in ("dependencies", "devDependencies", "optionalDependencies", "peerDependencies"):
         entries = package.get(field, {})
-        if not isinstance(entries, dict) or len(entries) > 5000 or any(not isinstance(key, str) or not NAME.fullmatch(key) or not isinstance(request, str) or not re.fullmatch(r"[A-Za-z0-9*<>=~^| .+-]{1,256}", request) for key, request in entries.items()):
+        if not isinstance(entries, dict) or len(entries) > 5000 or any(not isinstance(key, str) or not NAME.fullmatch(key) or not isinstance(request, str) or not REGISTRY_REQUEST.fullmatch(request) for key, request in entries.items()):
             reject("dependency_cache_workflow_unsupported", "Project dependency requests require bounded registry ranges/tags; Git/file/link/alias protocols are unsupported")
         if entries:
             value[field] = entries
@@ -363,7 +363,7 @@ class ToolCache:
         temporary = self.controller.root / ("dependencies-" + uuid4().hex)
         temporary.mkdir(mode=0o700)
         total = 0
-        seen: dict[str, str] = {}
+        seen: dict[str, tuple[str, str]] = {}
         index: list[dict[str, str]] = []
         try:
             (temporary / "mirror").mkdir()
@@ -372,7 +372,8 @@ class ToolCache:
                     from lingshu_gate.ports.safe_network_executor import SafeExecutionCancelled
                     raise SafeExecutionCancelled("dependency_acquisition_cancelled")
                 if item.filename in seen:
-                    if seen[item.filename] != item.integrity:
+                    integrity, legacy_sha1 = seen[item.filename]
+                    if integrity != item.integrity or item.legacy_sha1 and item.legacy_sha1 != legacy_sha1:
                         reject("dependency_lock_unsupported", "Conflicting content hashes share a registry mirror filename")
                     continue
                 content = self._fetch(item.source, network=network, material=material, deadline=deadline, maximum=50 * 1024 * 1024, cancelled=cancelled)
@@ -382,7 +383,7 @@ class ToolCache:
                 total += len(content)
                 if total > 200 * 1024 * 1024 or time.monotonic() >= deadline:
                     reject("dependency_cache_limit", "Dependency tarballs exceed the bounded download budget")
-                seen[item.filename] = item.integrity
+                seen[item.filename] = (item.integrity, hashlib.sha1(content).hexdigest())
                 (temporary / "mirror" / item.filename).write_bytes(content)
                 index.append({"file": "mirror/" + item.filename, "integrity": item.integrity})
             (temporary / "index.json").write_text(json.dumps(index))

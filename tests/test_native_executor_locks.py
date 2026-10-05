@@ -55,6 +55,20 @@ def test_weak_missing_multi_or_malformed_lock_hashes_are_refused(integrity):
         yarn_tarballs(yarn_lock(integrity=integrity), REGISTRY)
 
 
+@pytest.mark.parametrize("location", ["selector", "dependency"])
+def test_yarn_non_registry_edges_fail_before_content_acquisition(location):
+    content = yarn_lock()
+    content = content.replace(b"dep@^1.0.0:", b'"dep@file:../outside":') if location == "selector" else content.replace(b'nested "^2.0.0"', b'nested "git+https://example.invalid/project"')
+    with pytest.raises(ToolExecutionError) as rejected:
+        yarn_tarballs(content, REGISTRY)
+    assert rejected.value.code == "dependency_cache_workflow_unsupported"
+
+
+def test_yarn_mixed_quoted_scoped_selectors_are_preserved():
+    content = yarn_lock().replace(b"dep@^1.0.0:", b'"@scope/dep@^1.0.0", dep@~1.0.0:')
+    assert len(yarn_tarballs(content, REGISTRY)) == 1
+
+
 @pytest.mark.parametrize("content", [b"a: &a [1]\nb: *a", b"a: !!python/object:fixture {}", b"a: 1\na: 2", b"a: [\n", b"a: " + b"[" * 33 + b"0" + b"]" * 33, b"\xff", b"0: value"])
 def test_pnpm_unbounded_or_ambiguous_yaml_is_refused(content):
     with pytest.raises(ToolExecutionError) as rejected:
@@ -75,6 +89,20 @@ def test_pnpm_non_registry_or_non_sha512_cache_resolutions_fail(resolution):
         pnpm_tarballs(pnpm_lock(9, resolution=resolution), REGISTRY, "9.15.4")
 
 
+def test_pnpm_transitive_link_edges_fail_before_acquisition():
+    content = yaml.safe_load(pnpm_lock(9))
+    content["snapshots"] = {"dep@1.0.0": {"dependencies": {"link": "file:/outside"}}}
+    with pytest.raises(ToolExecutionError) as rejected:
+        pnpm_tarballs(yaml.safe_dump(content).encode(), REGISTRY, "9.15.4")
+    assert rejected.value.code == "dependency_cache_workflow_unsupported"
+
+
+def test_yaml_and_yarn_large_edge_tables_are_bounded():
+    content = yarn_lock() + b"".join(b'    nested "^2.0.0"\n' for _ in range(20000))
+    with pytest.raises(ToolExecutionError):
+        yarn_tarballs(content, REGISTRY)
+
+
 @pytest.mark.parametrize("specifier", ["git+https://example.invalid/project", "file:../outside", "npm:alias@1.0.0", "workspace:*", "../outside", "https://example.invalid/pkg.tgz"])
 def test_seed_manifest_refuses_non_registry_requests(specifier):
     with pytest.raises(ToolExecutionError):
@@ -84,6 +112,12 @@ def test_seed_manifest_refuses_non_registry_requests(specifier):
 def test_seed_manifest_carries_dependencies_without_project_execution_metadata():
     result = seed_manifest({"dependencies": {"dep": "^1.0.0"}, "devDependencies": {"dev": "1.0.0"}, "optionalDependencies": {"opt": "~1.0.0"}, "scripts": {"preinstall": "fixture"}, "bin": "fixture.js", "packageManager": "fixture"})
     assert set(result) == {"name", "version", "private", "dependencies", "devDependencies", "optionalDependencies"}
+
+
+def test_seed_manifest_preserves_optional_peer_requests():
+    result = seed_manifest({"peerDependencies": {"dep": "^1.0.0"}, "peerDependenciesMeta": {"dep": {"optional": True}}})
+    assert result["peerDependencies"] == {"dep": "^1.0.0"}
+    assert result["peerDependenciesMeta"] == {"dep": {"optional": True}}
 
 
 def test_project_metadata_fifo_is_rejected_without_blocking(tmp_path):

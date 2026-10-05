@@ -285,6 +285,16 @@ def test_pnpm_unreviewed_cache_format_blocks_plan_before_tool_or_content_acquisi
     assert not flow.controller.calls and not flow.transport.calls
 
 
+def test_python_legacy_upload_direct_remains_separate_from_git_or_profile_executor(flow):
+    direct = {"steps": [{"phase": "install", "command": ["python", "-m", "pip", "install", "-r", "requirements.txt"]}], "delivery_network": {"install": {"mode": "direct"}, "npm_registry": "https://registry.npmjs.org/", "python_index": "https://pypi.org/simple/"}}
+    assert not BuildDeployStore._requires_safe_network(direct)
+    assert BuildDeployStore._requires_safe_network(direct | {"source_provenance": {"git_source": {"commit_sha": "a" * 40}}})
+    assert BuildDeployStore._requires_safe_network(direct | {"delivery_network": direct["delivery_network"] | {"install": {"mode": "profile"}}})
+    with pytest.raises(ToolExecutionError):
+        flow.executor.validate_plan(direct)
+    assert not flow.controller.calls
+
+
 def test_artifact_secret_and_external_link_rejection_keeps_source_and_old_deployment(flow):
     upload_id = acquire(flow)
     flow.controller.mutate = lambda root: (root / "external").symlink_to("/etc/passwd")
