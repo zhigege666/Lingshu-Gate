@@ -2,7 +2,7 @@
 
 [English](../oauth-external-management-design.md) · [外部配置](external-mcp-configuration.md) · [内置 OAuth](builtin-oauth.md)
 
-此**未发布开发实现**增加独立且默认关闭的内置 OAuth 管理资源。它不启用生产入口、不登记真实客户端或生成真实密钥，也不认证实际客户端联调。已发布的 0.4.3 版本及制品保持不变。
+0.4.4 增加独立且默认关闭的内置 OAuth 管理资源。安装此版本不启用生产入口、不登记真实客户端或生成真实密钥，也不认证实际客户端联调。历史发行 tag 与制品保持不变。
 
 ## 明确配置与资源隔离
 

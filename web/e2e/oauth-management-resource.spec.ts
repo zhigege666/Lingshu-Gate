@@ -8,6 +8,9 @@ import { expectInViewportAndUnobscured } from "./helpers"
 // Built assets with synthetic responses only. Real ASGI authorization has
 // separate backend coverage; no production client, signing key or peer is used.
 const staticRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../../src/lingshu_gate/static")
+const versionMatch = readFileSync(path.join(staticRoot, "../_version.py"), "utf8").match(/^__version__ = "([^"]+)"$/m)
+if (!versionMatch) throw new Error("Backend version source is missing")
+const backendVersion = versionMatch[1]
 const now = Math.floor(Date.now() / 1000)
 const toolIds = ["gate_mcp_config_plan", "gate_mcp_config_apply", "gate_mcp_config_status", "gate_mcp_config_cancel"]
 const tools: OAuthTool[] = toolIds.map((id, index) => ({ id, name: id, server_id: "gate_mcp_configuration", server_name: "Gate configuration", access: index % 2 ? "write" : "read", snapshot: "synthetic-schema", currently_authorized: true }))
@@ -19,7 +22,7 @@ async function assets(page: Page, locale: Locale, theme: string, publicPage = fa
   const directory = path.join(staticRoot, publicPage ? "oauth" : "console")
   await page.route(publicPage ? "**/oauth/consent" : "**/console/", route => route.fulfill({ contentType: "text/html", body: readFileSync(path.join(directory, publicPage ? "oauth.html" : "index.html"), "utf8") }))
   await page.route(publicPage ? "**/oauth/assets/**" : "**/console/assets/**", route => { const name = path.basename(new URL(route.request().url()).pathname); return route.fulfill({ contentType: name.endsWith(".css") ? "text/css" : "application/javascript", body: readFileSync(path.join(directory, "assets", name)) }) })
-  await page.route("**/healthz", route => route.fulfill({ json: { version: "0.4.3" } }))
+  await page.route("**/healthz", route => route.fulfill({ json: { version: backendVersion } }))
 }
 async function setup(page: Page, locale: Locale, theme = "light", signingKeys: unknown = [{ kid: "synthetic-active", active: true, retire_at: null }]) {
   await assets(page, locale, theme)

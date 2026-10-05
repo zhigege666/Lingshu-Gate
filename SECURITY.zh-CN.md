@@ -109,7 +109,7 @@ HTTPS 来源计划固定完整 commit、摘要、精确主机策略与有界快�
 
 本人确认的 live 工具更新要求真实本人 Console 会话、严格 Origin/会话绑定 CSRF、当前权限，以及绑定版本/目录/目标的确认。预览不授予权限。写事务重验依赖，仅以 CAS 更新指定授权，同时消费最新确认摘要并原子记录脱敏审计，失败整体回滚。JWT 签名、issuer/resource/client/family 绑定、scope 交集、到期、撤销及配额检查保持。相同授权的令牌在各自 OAuth scope 上限内跟随明确更新的工具，其他授权不扩围。确认摘要最长十分钟，具有全局/用户容量上限，不保存工具或 secret；这些私有接口不得经公网代理公开。
 
-未发布管理资源默认关闭，只接受内置 issuer、当前管理员及控制权限、四个已同意配置工具指纹和精确创建/更新目标。路由从可信配置选择 audience，拒绝跨资源令牌、授权码和刷新，不回退其他验证器。派发/worker/缓存结果检查绑定 issuer/resource/client/grant/family/到期及当前目标。目标编辑要求真实本人 Console 会话、严格 Origin/CSRF、复核后的单次确认、版本 CAS 和原子脱敏审计，使旧计划失效但不扩大 JWT/令牌族 scope 或业务授权。关闭管理只撤销其令牌族；凭据、HTTP 信任、分类发布和执行保持独立。参见[管理契约](docs/zh-CN/oauth-external-management-design.md)。
+管理资源默认关闭，只接受内置 issuer、当前管理员及控制权限、四个已同意配置工具指纹和精确创建/更新目标。路由从可信配置选择 audience，拒绝跨资源令牌、授权码和刷新，不回退其他验证器。派发/worker/缓存结果检查绑定 issuer/resource/client/grant/family/到期及当前目标。目标编辑要求真实本人 Console 会话、严格 Origin/CSRF、复核后的单次确认、版本 CAS 和原子脱敏审计，使旧计划失效但不扩大 JWT/令牌族 scope 或业务授权。关闭管理只撤销其令牌族；凭据、HTTP 信任、分类发布和执行保持独立。参见[管理契约](docs/zh-CN/oauth-external-management-design.md)。
 
 只存秘密摘要和加密私钥，保护并与数据库一起备份 `data_dir/oauth-signing.key`。专用浏览器 Cookie 使用 Secure/HttpOnly/SameSite=Lax，路径为 `/oauth`；浏览器 POST 检查精确 Origin 和请求 CSRF。公网界面独立打包，不要求公开 Console 或 `/v1`。[内置 OAuth](docs/zh-CN/builtin-oauth.md)说明请求边界、准入限制、TTL 和安全错误。Gate 过滤 OAuth 访问日志查询，边缘代理/追踪系统须另行排除请求秘密。已执行的合成安全/浏览器证据见[发行验证](docs/zh-CN/release-validation.md)，不认证真实 TLS、provider 或 ChatGPT 接入。CIMD、匿名 DCR、多租户和隧道管理不在范围内。
 

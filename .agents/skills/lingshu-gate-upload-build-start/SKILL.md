@@ -5,6 +5,10 @@ description: 用户要求通过 Lingshu Gate 上传 ZIP、导入 Git、构建部
 
 # Lingshu Gate project delivery
 
+Version 0.4.4 adds external HTTP configuration via four confirmed management tools and the separately enabled `/mcp/manage` OAuth resource. It does not implement a safe Git/proxy executor, group routing or a large-catalog search system. Real-client management-scope requests and real-peer acceptance remain unverified.
+
+0.4.4 增加四个有确认边界的外部 HTTP 配置工具，以及需单独启用的 `/mcp/manage` OAuth 资源。安全 Git/代理执行器、分组路由和海量目录检索不在本版实现；真实客户端管理 scope 请求与真实 peer 验收仍未验证。
+
 使用 Lingshu Gate 的原子 MCP 工具交付项目。一次授权可以覆盖已明确的多个写入步骤，但不会绕过摘要、幂等、凭据和工具分类边界。流程支持确定性打包、分块续传、幂等重试、轮询和有界故障处理。
 
 ## Choose the source path first

@@ -2,7 +2,7 @@
 
 [简体中文](zh-CN/oauth-external-management-design.md) · [External configuration](external-mcp-configuration.md) · [Built-in OAuth](builtin-oauth.md)
 
-This **unreleased development implementation** adds a separate, default-disabled built-in OAuth management resource. It does not enable a production endpoint, provision a client or key, or certify real-client integration. The released 0.4.3 version and its artifacts are unchanged.
+Version 0.4.4 adds a separate, default-disabled built-in OAuth management resource. Installing this version does not enable a production endpoint, provision a client or key, or certify real-client integration. Historical release tags and artifacts remain unchanged.
 
 ## Explicit setup and resource isolation
 

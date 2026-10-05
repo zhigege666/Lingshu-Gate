@@ -6,7 +6,7 @@ The built-in authorization server is **disabled by default**. It uses existing G
 
 ## Configure without enabling
 
-In **Connection infrastructure → Gate built-in OAuth**, save an HTTPS issuer origin such as `https://gate.example.com`, without a path or trailing slash, and the fixed resource `https://gate.example.com/mcp`. Issuer and resource are trusted administrator configuration; request Host and forwarded Host never determine them. The business resource uses `/mcp`; the separate unreleased management resource below uses `/mcp/manage`. The issuer must route to this Gate instance, and the browser page and its APIs must share that issuer origin.
+In **Connection infrastructure → Gate built-in OAuth**, save an HTTPS issuer origin such as `https://gate.example.com`, without a path or trailing slash, and the fixed resource `https://gate.example.com/mcp`. Issuer and resource are trusted administrator configuration; request Host and forwarded Host never determine them. The business resource uses `/mcp`; the separate management resource below uses `/mcp/manage`. The issuer must route to this Gate instance, and the browser page and its APIs must share that issuer origin.
 
 The resource is the address ChatGPT or another MCP client connects to, **not the OAuth callback**. Editing a valid issuer fills an empty resource, or updates the previous automatic suggestion. Manual resource edits and loaded saved values are preserved. An invalid or cleared issuer clears only its automatic suggestion; loading never rewrites or saves configuration.
 
@@ -83,7 +83,7 @@ Spent refresh-token digests survive until the family expires. Expired authorizat
 
 Anonymous authorize/context traffic uses a browser-bound encrypted ticket with a 10-minute TTL and 16 KiB limit, without creating a pending database row. The ticket key uses standard HKDF-SHA256 with a separate purpose from private-key encryption. It binds the request, browser, CSRF and configuration/client revisions; disabling and re-enabling invalidates old tickets. Migration `0008_oauth_interaction_capacity` restarts any older short-lived interactions. Authenticated pending capacity remains 200 globally, with 5/user and 50/client regardless of IP/cookie rotation. Completion immediately frees that slot and discards the large catalog/request. Small replay tombstones have separate ceilings of 3,072 authenticated, 64/user and 1,024 anonymous completions until ticket expiry. Anonymous cancellation cannot consume the authenticated completion budget. Logout and expired login release pending capacity; expiry cleanup recovers abandoned slots.
 
-## Separate management OAuth (unreleased)
+## Separate management OAuth (0.4.4)
 
 Ordinary business authorization above cannot manage external configurations. The independently enabled management resource is derived from the trusted saved resource origin as `https://gate.example.com/mcp/manage`, with dedicated metadata at `/.well-known/oauth-protected-resource/mcp/manage`. It defaults off, requires an already enabled built-in server and active signing key, and does not create keys or clients. Enable/disable requires the current administrator's `operations.manage` authority and a live private Console session with strict Origin/body-bound one-use CSRF, revision CAS and atomic audit. Unknown key state cannot enable it; an enabled resource can still be explicitly disabled. Management disable revokes only management families/codes; disabling or changing the underlying issuer/resource also turns management off without automatic re-enablement.
 

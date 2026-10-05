@@ -6,7 +6,7 @@
 
 ## 只配置，暂不启用
 
-在**连接基础设施 → Gate 内置 OAuth**，保存固定 HTTPS issuer 域名，例如 `https://gate.example.com`，不含路径或末尾斜线；资源填写 `https://gate.example.com/mcp`。Issuer 和 resource 是管理员固定的可信配置，不能从请求 Host 或 forwarded Host 推导。业务资源使用 `/mcp`；下方未发布独立管理资源使用 `/mcp/manage`。Issuer 必须指向此 Gate 实例，授权浏览器页面与相关 API 必须使用该 issuer 的同一来源。
+在**连接基础设施 → Gate 内置 OAuth**，保存固定 HTTPS issuer 域名，例如 `https://gate.example.com`，不含路径或末尾斜线；资源填写 `https://gate.example.com/mcp`。Issuer 和 resource 是管理员固定的可信配置，不能从请求 Host 或 forwarded Host 推导。业务资源使用 `/mcp`；下方独立管理资源使用 `/mcp/manage`。Issuer 必须指向此 Gate 实例，授权浏览器页面与相关 API 必须使用该 issuer 的同一来源。
 
 资源 URL 是 ChatGPT 或其他 MCP 客户端实际连接的地址，**不是 OAuth 回调地址**。编辑有效 Issuer 时，只填写空资源，或更新上一次自动填写的值；手动修改和已加载的保存值保持原样。Issuer 无效或清空时，仅清除它所属的自动建议；加载不会改写或自动保存配置。
 
@@ -83,7 +83,7 @@ Gate 不跨请求缓存入站授权，下一次 `tools/list` 和 `tools/call` �
 
 匿名 authorize/context 使用绑定浏览器的加密票据，TTL 为 10 分钟、大小上限 16 KiB，不建立待处理数据库行。票据密钥采用标准 HKDF-SHA256，与私钥加密分离用途。票据绑定请求、浏览器、CSRF 和配置/客户端版本；关闭后重新启用会使旧票据失效。迁移 `0008_oauth_interaction_capacity` 要求旧短期交互重新发起。已登录待处理池仍为全局 200、每用户 5、每客户端 50，换 IP/Cookie 不能绕过。完成立即释放槽位，丢弃大工具目录/请求，只保留到票据到期的小型重放记录；上限独立为已登录全局 3,072、每用户 64、匿名 1,024。匿名取消不能消耗已登录完成预算。退出及检测到登录过期会释放待处理容量；到期清理回收遗留槽位。
 
-## 独立管理 OAuth（未发布）
+## 独立管理 OAuth（0.4.4）
 
 上述普通业务授权不能管理外部配置。独立启用的管理资源从可信已保存业务资源 origin 推导为 `https://gate.example.com/mcp/manage`，专用元数据为 `/.well-known/oauth-protected-resource/mcp/manage`。它默认关闭，须先启用基础内置服务并确认活动签名密钥，不会创建密钥或客户端。启用/关闭要求当前管理员的 `operations.manage`、有效私有 Console 会话、严格 Origin/body 绑定单次 CSRF、版本 CAS 与原子审计。未知密钥状态不能新启用，已启用资源仍可明确关闭。管理关闭只撤销管理令牌族/授权码；关闭或改变基础 issuer/resource 也会关闭管理，不自动重新启用。
 
