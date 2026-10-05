@@ -67,6 +67,8 @@ Docker Core 镜像不会启动本机 stdio 进程或执行项目构建。这些�
 
 未发布的组合同目录要求当前管理员连接与 `operations.manage`，再独立应用当前工具权限、已发布指纹检查及 token/delegation 上限。总数与变体仅包含可见工具，不缓存授权结论。查询不修改分类、授权或运行状态。声明与审核安全记录相同仍只是合同候选，`business_equivalence` 保持 `unverified`；视图 ID 不授予调用、路由、fallback 或新 OAuth scope。保留原工具 ID 和直连调用方式。[组目录边界](docs/zh-CN/mcp-groups.md)。
 
+未发布的 Registry 发布隔离调用方的嵌套工具结构。旧 getter 返回独立副本，索引快照 API 返回不可变结构及每实例发布 revision。输入检查先于复制和运行时发现摘要/审核，复制过程也保持有界。显式结构更新保留 handler/context 对象，不审核或发布分类、不扩大授权。这建立了缓存身份边界，组目录规范化缓存尚未接入。
+
 管理员应：
 
 - 只在人工复核后分类并发布工具；

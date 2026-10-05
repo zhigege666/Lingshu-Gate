@@ -39,6 +39,12 @@ Console 每次请求限时 15 秒，写入不自动重放。超时表示结果�
 
 ## 只读合同候选
 
+Registry 发布持有独立的结构副本。`register`、原子替换及显式 `update_definition` 发布变化并推进对应实例 revision；修改输入对象或旧 getter 返回值不会修改已注册工具。旧 getter 返回可修改的独立副本，`mcp_snapshot` 从指定实例桶返回嵌套不可变结构。handler 和运行连接不复制。此快照 API 目前仅是基础：目录仍在配置锁内完成原有全扫描/比较，按 revision 缓存规范化及有界一致性重试尚未接入。
+
+`update_definition` 保留工具 ID、source、server ID、原始工具名及 handler/context；改变这些身份必须显式注册/替换并提供 handler。改变 schema 或绑定审核的字段，不会自动重新发布分类。
+
+注册在复制前检查 JSON 大小、深度与节点预算；复制过程也保持有界，防止调用方在发布中修改输入。输入及输出 schema 限128 KiB、10,000节点及64层；metadata 限256 KiB，完整定义限512 KiB。非法或超大发布原子拒绝，保留旧 Registry 定义与 revision。运行时发现在 Gate 模型构造、发现摘要或分类同步前应用相同检查。结构索引回归建立5,000实例与50,000工具，重复索引读取时禁止全局 Registry 遍历及 JSON 序列化。这证明索引边界，不证明该规模的完整目录性能。
+
 目录端点保留当前管理员与 `operations.manage` 边界，并将实时读取的工具控制权限、token/delegation 上限与既有工具策略取交集。仅有元数据权限的 token 可以读取组元数据，但工具目录为空。业务及管理 OAuth 不增加端点或 scope。只有组内仍存在的有效成员和身份精确匹配的 Registry MCP 工具参与；排除内置工具、伪造 ID 和删除/重建后尚未明确重新确认的成员。总数、变体数、成员数、搜索及详情页均只来自调用者可见工具。已隐藏、变化或移除的变体统一返回404。成功响应使用 `Cache-Control: no-store`。
 
 同一精确原始名称的工具，仅在规范化后的输入/输出声明一致，且当前已发布、指纹匹配的 Gate 审核一致时共享候选。审核比较包含实际读写权限、destructive/idempotent/open-world 属性，以及绑定审核的声明权限、控制权限、敏感字段与 annotation 元数据。下游 `readOnlyHint` 不提供或降低实际访问权限。只排序对象键，保留数组、类型及全部 schema 关键字；输出 schema 缺失与 `{}` 不同。这是保守的声明比较，不是 schema 验证、引用解析或业务等价证明。每个响应明确返回 `business_equivalence: unverified`。

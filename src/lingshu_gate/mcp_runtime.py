@@ -18,6 +18,7 @@ from typing import Any
 from lingshu_gate.config import Settings
 from lingshu_gate.database import SQLiteDatabase
 from lingshu_gate.domain.operation_deadline import operation_lock
+from lingshu_gate.domain.tool_structure import check_tool_structure
 from lingshu_gate.endpoint_security import redact_endpoint
 from lingshu_gate.invocation_payloads import audit_header_values, snapshot
 from lingshu_gate.logging import log_event
@@ -1258,18 +1259,22 @@ class McpRuntimeManager:
                 if not isinstance(tool["outputSchema"], dict):
                     raise ValueError(f"MCP tool outputSchema must be an object: {normalized_name}")
                 output_metadata["outputSchema"] = tool["outputSchema"]
-            definition = ToolDefinition(
-                id=tool_id,
-                name=tool.get("title") or normalized_name,
-                description=tool.get("description") or f"MCP tool {normalized_name} from {manifest.id}",
-                permission=self._permission_from_manifest(manifest),
-                input_schema=input_schema,
-                source="mcp",
-                metadata={"server_id": manifest.id, "server_name": manifest.name,
+            definition_data: dict[str, Any] = {
+                "id": tool_id,
+                "name": tool.get("title") or normalized_name,
+                "description": tool.get("description") or f"MCP tool {normalized_name} from {manifest.id}",
+                "permission": self._permission_from_manifest(manifest),
+                "input_schema": input_schema,
+                "source": "mcp",
+                "metadata": {"server_id": manifest.id, "server_name": manifest.name,
                           "launch_type": manifest.launch.type, "transport_type": manifest.transport.type,
                           "original_tool_name": normalized_name, "annotations": annotations,
                           **output_metadata},
-            )
+            }
+            # Discovery digests and review synchronization run before Registry
+            # publication, so enforce the same boundary before either can serialize.
+            check_tool_structure(definition_data)
+            definition = ToolDefinition(**definition_data)
 
             def handler(arguments: dict[str, Any], *, server_id: str = manifest.id, tool_name: str = normalized_name) -> dict[str, Any]:
                 return self.invoke_mcp_tool(server_id, tool_name, arguments)

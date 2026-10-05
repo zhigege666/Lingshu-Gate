@@ -3,7 +3,6 @@ from __future__ import annotations
 
 import hashlib
 import json
-import math
 from collections import Counter
 from dataclasses import dataclass
 from typing import Any, Literal
@@ -12,6 +11,7 @@ from pydantic import BaseModel, ConfigDict
 
 from lingshu_gate.domain.mcp_groups import McpGroupError
 from lingshu_gate.models import ToolDefinition
+from lingshu_gate.domain.tool_structure import checked_json_size
 
 MAX_CATALOG_TOOLS = 50_000
 MAX_SCHEMA_BYTES = 128 * 1024
@@ -20,44 +20,21 @@ MAX_SCHEMA_DEPTH = 64
 MAX_CATALOG_CONTRACT_BYTES = 32 * 1024 * 1024
 
 
+def contract_json_size(value: Any, *, max_bytes: int | None = None,
+                       max_nodes: int | None = None, max_depth: int | None = None) -> int:
+    """Reject before complete serialization; count escaped UTF-8 JSON bytes."""
+    byte_limit = MAX_SCHEMA_BYTES if max_bytes is None else max_bytes
+    node_limit = MAX_SCHEMA_NODES if max_nodes is None else max_nodes
+    depth_limit = MAX_SCHEMA_DEPTH if max_depth is None else max_depth
+    try:
+        return checked_json_size(value, max_bytes=byte_limit, max_nodes=node_limit, max_depth=depth_limit)
+    except ValueError as exc:
+        raise ValueError(str(exc).replace("tool_structure_", "schema_")) from None
+
+
 def canonical_contract(value: Any) -> str:
     """Sort object keys only; preserve arrays, types and every schema keyword."""
-    nodes = 0
-    encoded_bytes = 0
-
-    def visit(item: Any, depth: int) -> None:
-        nonlocal nodes, encoded_bytes
-        nodes += 1
-        if depth > MAX_SCHEMA_DEPTH or nodes > MAX_SCHEMA_NODES:
-            raise ValueError("schema_complexity_limit")
-        if isinstance(item, dict):
-            encoded_bytes += 2 + len(item) + max(0, len(item) - 1)
-        elif isinstance(item, list):
-            encoded_bytes += 2 + max(0, len(item) - 1)
-        else:
-            if isinstance(item, str):
-                if len(item) > MAX_SCHEMA_BYTES:
-                    raise ValueError("schema_size_limit")
-            elif isinstance(item, float):
-                if not math.isfinite(item):
-                    raise ValueError("schema_non_json")
-            elif item is not None and not isinstance(item, (bool, int)):
-                raise ValueError("schema_non_json")
-            encoded_bytes += len(json.dumps(item, ensure_ascii=False, allow_nan=False).encode("utf-8"))
-        # Count JSON bytes before materializing the complete normalized string.
-        if encoded_bytes > MAX_SCHEMA_BYTES:
-            raise ValueError("schema_size_limit")
-        if isinstance(item, dict):
-            for key, child in item.items():
-                if not isinstance(key, str):
-                    raise ValueError("schema_non_json")
-                visit(key, depth + 1)
-                visit(child, depth + 1)
-        elif isinstance(item, list):
-            for child in item:
-                visit(child, depth + 1)
-
-    visit(value, 0)
+    contract_json_size(value)
     result = json.dumps(value, sort_keys=True, ensure_ascii=False, separators=(",", ":"), allow_nan=False)
     if len(result.encode("utf-8")) > MAX_SCHEMA_BYTES:
         raise ValueError("schema_size_limit")

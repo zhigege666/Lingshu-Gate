@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Registry structural publication isolates caller/getter references, provides immutable per-instance indexed snapshots and explicit updates preserving handlers, and rejects over-budget JSON before copying or runtime discovery digests/review. A 5,000-instance/50,000-tool index regression forbids global iteration or serialization on repeated reads. Directory normalization caching and lock reduction remain pending. [Publication boundary](docs/mcp-groups.md).
+
 - A read-only administrator group contract catalog partitions only currently visible tools by exact original name, conservative input/output declarations and current Gate-reviewed safety semantics. Missing output schema differs from an empty schema; changed or unreviewed contracts remain individual variants. Complete search and paged original member/tool IDs retain current permission/token ceilings. Candidates explicitly leave business equivalence unverified and add no callable aliases, routing, failover or OAuth scopes. [Directory contract](docs/mcp-groups.md).
 
 - Administrator MCP groups organize existing instances through stable IDs, many-to-many membership, revision CAS, strict session CSRF and atomic audit. Cached secret-free instance metadata avoids repeated file reads; actor/body-bound creation receipts support lost-response recovery. Writes require tools.invoke without expanding existing tokens. The existing MCP page adds a centered group editor with complete metadata search/pagination and cross-page selection. Archive/delete changes only metadata; no permissions, configurations or runtime state expand. Logical aggregation and Agent routing remain pending. [Group contract](docs/mcp-groups.md).

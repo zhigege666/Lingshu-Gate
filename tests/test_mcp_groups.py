@@ -618,7 +618,7 @@ def test_catalog_changed_fingerprint_is_not_authorized_by_old_review_and_get_nev
 
 
 @pytest.mark.parametrize("malformed", ["cycle", "non_json"])
-def test_catalog_malformed_registry_contract_fails_closed_without_mutating_review(gate, malformed):
+def test_registry_rejects_malformed_catalog_contract_without_mutating_review(gate, malformed):
     group = create(gate)
     original, handler = catalog_tool(gate, "instance-0")
     _, headers = catalog_token(gate, ["operations.manage", "tools.read"])
@@ -626,14 +626,15 @@ def test_catalog_malformed_registry_contract_fails_closed_without_mutating_revie
     if malformed == "cycle":
         schema = {}
         schema["self"] = schema
-    gate["registry"].register(original.model_copy(update={"input_schema": schema}), handler, replace=True)
     before = [dict(row) for row in gate["database"].query_all("SELECT * FROM mcp_tool_classifications")]
+    with pytest.raises(ValueError, match="tool_structure_"):
+        gate["registry"].register(original.model_copy(update={"input_schema": schema}), handler, replace=True)
     response = gate["client"].get(catalog_path(group), headers=headers)
-    assert response.status_code == 200 and response.json()["visible_tool_count"] == 0
+    assert response.status_code == 200 and response.json()["visible_tool_count"] == 1
     admin = gate["client"].get(catalog_path(group))
     assert admin.status_code == 200 and admin.json()["visible_tool_count"] == 1
-    assert admin.json()["variants"][0]["compatibility"] == "uncomparable"
-    assert admin.json()["variants"][0]["safety"] is None
+    assert admin.json()["variants"][0]["compatibility"] == "single_member"
+    assert gate["registry"].get_definition(original.id) == original
     assert before == [dict(row) for row in gate["database"].query_all("SELECT * FROM mcp_tool_classifications")]
     handler.assert_not_called()
 
@@ -681,6 +682,32 @@ def test_catalog_rechecks_current_authority_after_waiting_for_configuration_lock
             result = future.result(timeout=10)
             assert result.total == result.visible_tool_count == result.visible_member_count == 0
     handler.assert_not_called()
+
+
+def test_cold_selected_metadata_does_not_hold_configuration_write_lock(gate):
+    reached, release = threading.Event(), threading.Event()
+    load = gate["configs"]._load_manifest
+    def slow_read(path):
+        result = load(path)
+        if threading.current_thread().name.startswith("metadata-reader") and not reached.is_set():
+            reached.set()
+            assert release.wait(3), "Cold reader must be released within the test budget"
+        return result
+    with patch.object(gate["configs"], "_load_manifest", side_effect=slow_read), \
+            ThreadPoolExecutor(max_workers=1, thread_name_prefix="metadata-reader") as readers, \
+            ThreadPoolExecutor(max_workers=1, thread_name_prefix="metadata-writer") as writers:
+        future = readers.submit(gate["configs"].selected_instance_metadata, {"instance-0"})
+        try:
+            assert reached.wait(3)
+            writer = writers.submit(gate["configs"].save_config, {"id": "instance-0", "name": "Edited synthetic name",
+                "launch": {"type": "external"}, "transport": {"type": "streamable_http", "endpoint": "https://mcp.example.test/mcp"}},
+                overwrite=True)
+            assert writer.result(timeout=2).manifest["name"] == "Edited synthetic name"
+        finally:
+            release.set()
+        revision, names = future.result(timeout=3)
+        assert names == {"instance-0": "Edited synthetic name"}
+        assert gate["configs"].metadata_snapshot_current(revision)
 
 
 def test_catalog_excludes_other_sources_forged_ids_and_unconfirmed_recreated_members(gate):
