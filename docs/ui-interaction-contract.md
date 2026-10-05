@@ -136,6 +136,7 @@ and authorization/draft safeguards remain in force.
 - Close, Cancel, Escape, outside click and navigation follow the same dirty
   protection. Pending saves prevent duplicate submission and loss on close.
   Focus enters the dialog, remains trapped, and returns to its trigger.
+  A prior dialog's closing interaction must not dismiss a newly opened editor.
 
 ### Choice controls
 

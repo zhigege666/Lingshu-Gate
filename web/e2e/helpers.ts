@@ -1,5 +1,15 @@
 import { expect, type Locator, type Page } from '@playwright/test'
 
+/** Wait for the dialog's actual entry animation before measuring fixed geometry. */
+export async function expectDialogSettled(dialog: Locator) {
+  await expect(dialog).toBeVisible()
+  await expect(dialog).toHaveAttribute('data-state', 'open')
+  await dialog.evaluate(async element => {
+    await Promise.all(element.getAnimations().map(animation => animation.finished.catch(() => undefined)))
+  })
+  await expect(dialog).toHaveAttribute('data-state', 'open')
+}
+
 /** Does not scroll the target into view: bounding-box + hit testing is stronger than visible. */
 export async function expectInViewportAndUnobscured(locator: Locator) {
   await expect(locator).toBeVisible()

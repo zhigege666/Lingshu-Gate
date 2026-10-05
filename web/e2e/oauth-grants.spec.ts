@@ -3,7 +3,7 @@ import { mkdirSync, readFileSync } from "node:fs"
 import path from "node:path"
 import { fileURLToPath } from "node:url"
 import type { OAuthGrant, OAuthTool } from "../src/features/external-connections/oauth-api"
-import { expectInViewportAndUnobscured } from "./helpers"
+import { expectDialogSettled, expectInViewportAndUnobscured } from "./helpers"
 
 // Built Console UI, owner-scoped synthetic responses only; no real credentials.
 const assets = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../../src/lingshu_gate/static/console")
@@ -83,7 +83,7 @@ for (const size of sizes) for (const locale of ["en-US", "zh-CN"] as const) for 
     const trigger = page.getByRole('button', { name: zh ? '调整授权范围' : 'Adjust scope', exact: true })
     await trigger.click()
     const editor = page.getByRole('dialog', { name: zh ? '调整授权范围' : 'Adjust authorization scope', exact: true })
-    await expect(editor).toHaveCSS('opacity', '1')
+    await expectDialogSettled(editor)
     await expect(editor.getByText(zh ? '正在读取本人可授权范围…' : 'Loading your available scope…', { exact: true })).toHaveCount(0)
     const body = editor.locator('.oauth-grant-scope-body')
     const viewport = editor.locator('.ant-table-body')
@@ -144,6 +144,7 @@ for (const size of sizes) for (const locale of ["en-US", "zh-CN"] as const) for 
     const trigger = revoked.getByRole("button", { name: zh ? "112 个工具" : "112 tools", exact: true })
     await trigger.click()
     const details = page.getByRole("dialog", { name: zh ? "授权详情" : "Grant details", exact: true })
+    await expectDialogSettled(details)
     await expect(details.getByLabel("Grant ID", { exact: true })).toHaveValue(grant(2).id)
     await expect(details.getByRole("textbox", { name: zh ? "搜索当前范围内的工具" : "Search tools in the current scope", exact: true })).toBeEnabled()
     await expect(details.getByRole("checkbox")).toHaveCount(0)
@@ -303,7 +304,9 @@ test('pending scope preview blocks duplicate submission, keyboard close and mode
   expect(model.writes).toHaveLength(0)
 })
 
-test('a late scope response cannot overwrite another grant editor', async ({ page }) => {
+for (const exitPointer of [false, true]) test(exitPointer
+  ? 'a prior dialog deferred pointer cannot close a replacement grant editor'
+  : 'a late scope response cannot overwrite another grant editor', async ({ page }) => {
   const second = { ...grant(2), client_name: 'Synthetic second client' }
   const model = await setup(page, 'en-US', [grant(1), second])
   let release!: () => void
@@ -317,10 +320,36 @@ test('a late scope response cannot overwrite another grant editor', async ({ pag
   })
   await page.locator(`[data-row-key="${grant(1).id}"]`).getByRole('button', { name: 'Adjust scope', exact: true }).click()
   await received
-  await page.keyboard.press('Escape')
-  await page.locator(`[data-row-key="${second.id}"]`).getByRole('button', { name: 'Adjust scope', exact: true }).click()
   const editor = page.getByRole('dialog', { name: 'Adjust authorization scope', exact: true })
+  if (exitPointer) {
+    await expectDialogSettled(editor)
+    // Capture a prior outside event before its dismiss handler runs. Deliver it
+    // after replacement, fixing the event order without sleeping or retrying.
+    await page.evaluate(() => {
+      document.addEventListener('dismissableLayer.pointerDownOutside', event => {
+        event.stopImmediatePropagation()
+        ;(window as unknown as { deliverPriorDialogPointer: () => void }).deliverPriorDialogPointer = () => event.target!.dispatchEvent(event)
+      }, { once: true, capture: true })
+      document.body.dispatchEvent(new PointerEvent('pointerdown', { pointerType: 'mouse', button: 0, bubbles: true }))
+      document.body.dispatchEvent(new MouseEvent('click', { button: 0, bubbles: true }))
+    })
+    await expect.poll(() => page.evaluate(() => typeof (window as unknown as { deliverPriorDialogPointer?: () => void }).deliverPriorDialogPointer)).toBe('function')
+    // Keep the exiting content mounted, as it is during normal exit motion.
+    await editor.evaluate(element => element.addEventListener('animationstart', () => {
+      if (element.getAttribute('data-state') === 'closed') element.getAnimations().forEach(animation => animation.pause())
+    }, { once: true }))
+  }
+  await page.keyboard.press('Escape')
+  const secondTrigger = page.locator(`[data-row-key="${second.id}"]`).getByRole('button', { name: 'Adjust scope', exact: true })
+  if (exitPointer) {
+    await expect(page.locator('.oauth-grant-scope-dialog[data-state="closed"]')).toHaveCount(1)
+    await secondTrigger.dispatchEvent('click')
+  } else await secondTrigger.click()
+  await expect(editor).toBeVisible()
   await expect(editor.getByText('Loading your available scope…', { exact: true })).toHaveCount(0)
+  await expect(editor).toContainText(second.client_name)
+  if (exitPointer) await page.evaluate(() => (window as unknown as { deliverPriorDialogPointer: () => void }).deliverPriorDialogPointer())
+  await expect(editor).toHaveAttribute('data-state', 'open')
   await expect(editor).toContainText(second.client_name)
   const response = page.waitForResponse(response => response.url().endsWith(`/${grant(1).id}/scope-options`))
   release(); await response

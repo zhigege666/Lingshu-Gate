@@ -1,7 +1,7 @@
 import { test, expect, type Page } from '@playwright/test'
 import { execFileSync } from 'node:child_process'
 import { join } from 'node:path'
-import { login, expectInViewportAndUnobscured } from './helpers'
+import { login, expectDialogSettled, expectInViewportAndUnobscured } from './helpers'
 
 async function selectLocale(page: Page, locale: 'zh-CN' | 'en-US') {
   await page.getByRole('combobox', { name: /^(Language|语言)$/ }).first().click()
@@ -149,16 +149,33 @@ test('E2E-007 @delivery real upload, build, configure, deploy and start', async 
   await page.getByRole('tab', { name: '配置', exact: true }).click()
   await page.getByRole('button', { name: '修改配置', exact: true }).click()
   const serviceEditor = page.getByRole('dialog', { name: `修改配置 · ${deployment.server_id}`, exact: true })
+  await expectDialogSettled(serviceEditor)
+  const configWrites: string[] = []
+  page.on('request', request => {
+    if (request.method() === 'PUT' && new URL(request.url()).pathname === `/v1/mcp/configs/${deployment.server_id}`) configWrites.push(request.url())
+  })
   await serviceEditor.getByLabel('名称', { exact: true }).fill('合成项目配置未保存草稿')
+  await serviceEditor.getByRole('radio', { name: '保存并应用启动', exact: true }).check()
   await serviceEditor.getByText('崩溃重启策略', { exact: true }).click()
   for (const viewport of [{ width: 1672, height: 941 }, { width: 1366, height: 768 }, { width: 390, height: 844 }]) {
     await page.setViewportSize(viewport)
-    // Drawer width animates after viewport resize; scroll only after its responsive layout settles.
-    await expect.poll(() => serviceEditor.locator('.ant-drawer-body').evaluate(element => ({ width: Math.round(element.getBoundingClientRect().width), left: Math.round(element.getBoundingClientRect().left) }))).toEqual({ width: Math.min(760, viewport.width), left: Math.max(0, viewport.width - 760) })
-    await serviceEditor.locator('.ant-drawer-body').evaluate(element => { element.scrollTop = element.scrollHeight })
+    const width = Math.min(1200, viewport.width - (viewport.width <= 600 ? 32 : 96))
+    await expect.poll(() => serviceEditor.evaluate(element => {
+      const box = element.getBoundingClientRect()
+      return { width: Math.round(box.width), height: Math.round(box.height), left: Math.round(box.left), top: Math.round(box.top) }
+    })).toEqual({ width, height: viewport.height - 64, left: (viewport.width - width) / 2, top: 32 })
     await serviceEditor.locator('.manifest-editor-body').evaluate(element => { element.scrollTop = element.scrollHeight })
+    expect(await serviceEditor.locator('.service-config-dialog-body').evaluate(element => element.scrollTop)).toBe(0)
     await expectInViewportAndUnobscured(serviceEditor.getByLabel('失败阈值', { exact: true }))
-    await expectInViewportAndUnobscured(serviceEditor.getByRole('button', { name: '保存并重启', exact: true }))
+    await expectInViewportAndUnobscured(serviceEditor.getByRole('button', { name: '保存配置', exact: true }))
     await page.screenshot({ path: testInfo.outputPath(`real-service-config-bottom-${viewport.width}x${viewport.height}.png`), animations: 'disabled' })
   }
+  await page.keyboard.press('Escape')
+  const discard = page.getByRole('alertdialog', { name: '放弃尚未保存的修改？', exact: true })
+  await discard.getByRole('button', { name: '继续编辑', exact: true }).click()
+  await expect(serviceEditor.getByLabel('名称', { exact: true })).toHaveValue('合成项目配置未保存草稿')
+  await page.keyboard.press('Escape')
+  await discard.getByRole('button', { name: '放弃修改', exact: true }).click()
+  await expect(serviceEditor).toHaveCount(0)
+  expect(configWrites).toEqual([])
 })

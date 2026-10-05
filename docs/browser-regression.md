@@ -15,7 +15,7 @@ cd web
 npx playwright install chromium
 cd ..
 timeout 180 npm --prefix web run e2e:smoke
-timeout 300 npm --prefix web run e2e:full
+timeout 1800 npm --prefix web run e2e:full
 timeout 180 npm --prefix web run e2e:permissions
 timeout 180 npm --prefix web run e2e:large-data
 timeout 180 npm --prefix web run e2e:visual
@@ -65,6 +65,10 @@ E2E-401–411 check each named list: configurations, shared credentials, cache, 
 The opt-in layout collector writes viewport PNGs and geometry JSON for 2048×1222, 1366×768, 390×844 and 1280×600. Without `GATE_LAYOUT_ASSERT=1`, a successful capture means only that evidence was collected. With it, explicit geometry checks cover populated trend labels/ranking, maintenance-list scrolling and service header/tab context. The collector is skipped in ordinary runs unless an evidence directory is provided. Keep before/after directories separate; do not ship traces, cookies or authentication storage with screenshot evidence.
 
 ## Coverage limits
+
+OAuth grant layout checks wait for the dialog's actual entry animation before comparing fixed geometry. The editor regression captures a prior outside event, holds the exit animation and starts another grant editor before delivering that event to check that it cannot close the new session. It also delivers the previous scope response after the replacement opens and checks that neither foreign tools nor revision errors enter the new session. These cases use synthetic responses; they add no fixed sleeps or test retries. Service configuration acceptance checks the centered frame, its main scroll area, reachable final field/footer, discard protection and explicit save/apply choice before the real loopback reconnection.
+
+Report opt-in skips by category. Output-directory switches gate 34 acceptance cases across layout, maintenance labels, personal lists/payloads, log tool scope, remaining panels, external identity and retention. Enable their assertion switches when available. Three `@layout-diagnostic` cases capture geometry only and do not establish acceptance. E2E-507 separately requires an external synthetic delivery adapter source; a missing adapter is a missing test dependency, not a passing delivery journey. The real delivery and remote cases remain independent evidence.
 
 The full command means all currently implemented nonvisual browser scenarios, not all acceptance requirements. Run visual snapshots separately on the same browser/OS/font environment as their generation; changes require human review, never blind `--update-snapshots`. Real authorization matrices remain pytest evidence and must be reported separately. Recovery coverage includes deterministic build failure/retry, failed activation feedback and login recovery; it does not exhaust every deployment compensation failure. The delivery case captures Chinese UI and checks the centered preparation form, stacked desktop step/status labels, compact mobile progress, uploaded-project actions and final configuration field/footer at 1672×941, 1366×768 and 390×844. The 390×844 case also explicitly scrolls to the final advanced upload checkbox and verifies reachability, no obstruction and the fixed footer; this is separate from first-screen action visibility and is not complete phone journey acceptance. Remote MCP browser creation/reconnect uses only a synthetic loopback HTTP peer. External network interoperability, user-specific downstream authentication and ChatGPT/OAuth connectivity are not established by this test. Visual baselines require independent review. Do not report these as passed based on the scenarios above. Add targeted deterministic cases as the corresponding interfaces stabilize, then report unit, real API, mock browser, real browser and visual review outcomes separately.
 
