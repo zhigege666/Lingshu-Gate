@@ -2,7 +2,7 @@
 
 [English](../oauth-catalog-scaling.md) · [内置 OAuth](builtin-oauth.md)
 
-本候选位于 `test/oauth-catalog-paged-20261005`，结合已验收范围选择 UI、既有 grant 验证和公共按需目录；公共输入已纳入 `3947ae4171d27d2e693ea3f505e49cf6b12fa752`。原 UI 与阶段 A 分支保持不变。此次仅源码整合，不代表发行发布或真实客户端验收。
+本候选位于 `test/oauth-catalog-paged-20261005`，结合已验收范围选择 UI、既有 grant 验证和公共按需目录；公共输入已纳入 `d99be556ff48e018792268abeb7c5a22c5517476`。原 UI 与阶段 A 分支保持不变。此次仅源码整合，不代表发行发布或真实客户端验收。
 
 ## 阶段 A：已保存 grant 的认证
 

@@ -2,7 +2,7 @@
 
 [简体中文](zh-CN/oauth-catalog-scaling.md) · [Built-in OAuth](builtin-oauth.md)
 
-This candidate uses `test/oauth-catalog-paged-20261005`. It combines the accepted scope-selection UI, saved-grant verification and the shared on-demand catalog through public integration input `3947ae4171d27d2e693ea3f505e49cf6b12fa752`. The original UI and Stage A branches remain unchanged. This is source integration, without release publication or real-client acceptance.
+This candidate uses `test/oauth-catalog-paged-20261005`. It combines the accepted scope-selection UI, saved-grant verification and the shared on-demand catalog through public integration input `d99be556ff48e018792268abeb7c5a22c5517476`. The original UI and Stage A branches remain unchanged. This is source integration, without release publication or real-client acceptance.
 
 ## Stage A: saved-grant authentication
 
