@@ -1166,7 +1166,8 @@ class McpRuntimeManager:
         snapshot = [{"id": record.definition.id, "name": record.definition.name,
                      "description": record.definition.description, "input_schema": record.definition.input_schema,
                      "annotations": record.definition.metadata.get("annotations", {}),
-                     "output_schema": record.definition.metadata.get("outputSchema")} for record in records]
+                     **({"output_schema": record.definition.metadata["outputSchema"]}
+                        if "outputSchema" in record.definition.metadata else {})} for record in records]
         return hashlib.sha256(json.dumps(snapshot, ensure_ascii=False, sort_keys=True, separators=(",", ":")).encode()).hexdigest()
 
     def refresh_server_tools(
