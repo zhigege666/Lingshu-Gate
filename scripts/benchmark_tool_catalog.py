@@ -6,6 +6,7 @@ import gc
 import hashlib
 import json
 import logging
+import math
 import platform
 import statistics
 import subprocess
@@ -49,7 +50,7 @@ def measure(action, repetitions: int) -> dict:
         sizes.append(len(output) if isinstance(output, bytes) else
                      len(json.dumps(output, ensure_ascii=False, separators=(",", ":")).encode()))
     return {"requests": repetitions, "median_ms": round(statistics.median(timings), 3),
-            "p95_ms": round(sorted(timings)[max(0, int(len(timings) * .95) - 1)], 3),
+            "p95_ms": round(sorted(timings)[max(0, math.ceil(len(timings) * .95) - 1)], 3),
             "max_response_bytes": max(sizes), "rss_kib": rss_kib()}
 
 
