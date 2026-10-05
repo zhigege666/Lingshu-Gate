@@ -63,7 +63,7 @@ export function McpClientSettingsDialog({ locale, t }: { locale: Locale; t: TFun
           <Radio.Group aria-label={zh ? "工具发现" : "Tool discovery"} value={draft.mode} onChange={event => setDraft({ ...draft, mode: event.target.value })}>
             <Radio value="direct">{zh ? "完整工具列表" : "Full tool list"}</Radio><Radio value="on_demand">{zh ? "按需发现" : "On demand"}</Radio>
           </Radio.Group>
-          <p className="text-xs text-muted-foreground">{zh ? "完整列表保留旧客户端行为；按需模式提供四个固定入口，适合大型工具目录。新工具仍需按现有流程审核与授权。" : "Full list preserves existing client behavior. On demand exposes four fixed entries for large catalogs. New tools still follow existing review and authorization."}</p>
+          <p className="text-xs text-muted-foreground">{zh ? "完整列表保留旧客户端行为；按需模式提供六个固定入口，适合大型工具目录。新工具仍需按现有流程审核与授权。" : "Full list preserves existing client behavior. On demand exposes six fixed entries for large catalogs. New tools still follow existing review and authorization."}</p>
         </Form.Item>
         <Form.Item label={zh ? "客户端配置" : "Client configuration"} htmlFor="mcp-client-configuration"><Input.TextArea id="mcp-client-configuration" readOnly value={configuration} autoSize={{ minRows: 6, maxRows: 10 }} /></Form.Item>
       </Form>
