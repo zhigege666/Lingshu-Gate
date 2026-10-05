@@ -15,13 +15,14 @@
 | [按需工具发现](on-demand-tools.md) | 六个有界发现/会话入口、每客户端模式、保留原授权与合成规模基准 |
 | [按需目录集成溯源](on-demand-integration.md) | 精确分组提交映射、冲突处理与定向安全证据 |
 | [按需目录集成验收记录](on-demand-integration-validation.md) | 精确测试检查点、物理/分组实测及原生 worker 证据 |
+| [Gate 功能集成候选](gate-feature-integration.md) | OAuth/catalog/group/Native 输入、合并溯源、组合安全验证与支持限制 |
 | [MCP 分组](mcp-groups.md) | 逻辑组、显式实例、管理员管理和合同分区 |
 | [MCP 分组路由适配](mcp-group-routing-contract.md) | 按需目录内部接口与绑定认证连接的实例会话 |
 | [项目交付](project-delivery.md) | 上传、构建、部署、启动流程，`gate_*` 工具和自带 Delivery Skill |
 | [外部 MCP 配置](external-mcp-configuration.md) | 管理员现有 HTTP MCP 离线计划/应用/状态/取消；开发候选 |
 | [管理员 OAuth 配置](oauth-external-management-design.md) | 默认关闭的管理资源，精确目标与 scope/令牌族隔离；真实客户端尚未联调 |
 | [Git 导入与网络设置](git-import-network.md) | 交付网络版本、受控 Git 来源、确定性依赖工具与执行器边界 |
-| [Native 隔离执行器](native-executor.md) | 已实现 Linux/rootless adapter、准备/readiness、npm 有界缓存及剩余宿主验收 |
+| [Native 隔离执行器](native-executor.md) | 已实现 Linux/rootless adapter、准备/readiness、npm/pnpm 8–9/Yarn Classic 有界缓存及剩余宿主验收 |
 | [Console 交付工作区](console-delivery.md) | 私有交付草稿、确认、冲突恢复与交付记录 |
 | [Git 执行器实现与落地决策](git-executor-decision.md) | Native 实现、默认 Core 限制及剩余宿主验收 |
 | [部署](deployment.md) | Docker Compose、原生服务、生产加固、备份、升级和回滚 |
