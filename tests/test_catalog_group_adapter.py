@@ -78,6 +78,39 @@ def test_group_directory_filters_physical_and_logical_grants_before_paging(gate,
     assert "instance-1" not in json.dumps(instances) and "instance-2" not in json.dumps(instances)
 
 
+@pytest.mark.parametrize("changed", [False, True])
+def test_group_search_crossing_metadata_ttl_preserves_only_unchanged_cursor(gate, integrated, monkeypatch, changed):
+    catalog, group, _ = integrated
+    configs, actor = gate["configs"], gate["principal"]
+    request = CatalogSearch(group_id=group["id"], limit=1)
+    first = catalog.search(actor, request, instances=True)
+    revision = configs.metadata_revision()
+    original = catalog.group_router.directory_page
+
+    def refresh_during_page(*args, **kwargs):
+        if changed:
+            manifest = configs.load_manifest("instance-0").model_copy(update={"name": "External metadata change"})
+            path = configs._find_path("instance-0")
+            path.write_text(manifest.model_dump_json(exclude={"manifest_path"}))
+        configs._metadata_built_at -= 31
+        return original(*args, **kwargs)
+
+    monkeypatch.setattr(catalog.group_router, "directory_page", refresh_during_page)
+    next_request = request.model_copy(update={"cursor": first["next_cursor"]})
+    if changed:
+        with pytest.raises(ToolExecutionError) as error:
+            catalog.search(actor, next_request, instances=True)
+        assert error.value.code == "catalog_changed"
+        assert configs.metadata_revision() > revision
+        with pytest.raises(ToolExecutionError) as error:
+            catalog.search(actor, next_request, instances=True)
+        assert error.value.code == "catalog_cursor_invalid"
+    else:
+        next_page = catalog.search(actor, next_request, instances=True)
+        assert next_page["instances"][0] != first["instances"][0]
+        assert configs.metadata_revision() == revision
+
+
 @pytest.mark.parametrize("change", ["grant", "group", "config", "descriptor"])
 def test_group_cursor_invalidates_on_authority_or_structure_change(gate, integrated, change):
     catalog, group, _ = integrated

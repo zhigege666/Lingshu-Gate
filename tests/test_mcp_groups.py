@@ -364,6 +364,29 @@ def test_save_checks_current_files_even_when_read_snapshot_is_warm(gate):
     assert gate["database"].query_one("SELECT COUNT(*) FROM mcp_groups")[0] == 0
 
 
+@pytest.mark.parametrize("selected", [False, True])
+def test_metadata_refresh_preserves_revision_until_metadata_or_explicit_configuration_changes(gate, selected):
+    configs = gate["configs"]
+    def refresh():
+        if selected:
+            configs._metadata_built_at -= 31
+            configs.selected_instance_metadata({"instance-0"})
+        else:
+            configs.instance_metadata(refresh=True)
+    configs.instance_metadata()
+    revision = configs.metadata_revision()
+    refresh()
+    assert configs.metadata_snapshot_current(revision)
+    manifest = configs.load_manifest("instance-0").model_copy(update={"name": "External name update"})
+    configs._find_path("instance-0").write_text(manifest.model_dump_json(exclude={"manifest_path"}))
+    refresh()
+    assert not configs.metadata_snapshot_current(revision)
+    revision = configs.metadata_revision()
+    # A save invalidates even when directory IDs/names remain identical.
+    configs.save_config(manifest.model_dump(exclude={"manifest_path"}), overwrite=True)
+    assert not configs.metadata_snapshot_current(revision)
+
+
 def test_create_receipt_replays_reconciles_and_never_resurrects(gate):
     body = draft()
     first = gate["client"].post("/v1/mcp/groups", json=body, headers=ticket(gate, body)).json()

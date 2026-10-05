@@ -71,10 +71,15 @@ class McpConfigStore:
         return tuple(records)
 
     def _publish_instance_metadata(self, records: tuple[McpInstanceMetadata, ...]) -> None:
+        changed = records != self._instance_metadata
         self._instance_metadata = records
         self._metadata_index = {item.instance_id: item for item in records}
         self._metadata_built_at = time.monotonic()
-        self._metadata_revision += 1
+        # A TTL reread is not a directory change. Explicit writes still advance
+        # the revision in invalidate_instance_metadata, even for identical IDs
+        # and names; changed external metadata advances it here.
+        if changed:
+            self._metadata_revision += 1
 
     def instance_metadata(self, *, refresh: bool = False) -> tuple[McpInstanceMetadata, ...]:
         """Cache only immutable IDs/names; never credentials, manifests or authority."""
