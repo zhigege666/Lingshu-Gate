@@ -20,6 +20,8 @@ If private reporting is unavailable, open a detail-free issue asking the maintai
 
 ## Supported code
 
+The source on-demand catalog uses the existing authorization policy before ranking/paging and never grants access during discovery. Selected invocation rechecks the current credential, complete principal, real instance, schema revision and ACL at dispatch and read-only recovery; read scopes cannot gain write access through the adapter. Signed cursors bind identity and current catalog/policy, and every page rechecks authorization. Remote schema-reference retrieval is disabled. The separate management OAuth resource cannot use normal catalog adapters. See [on-demand tools](docs/on-demand-tools.md) for bounds and remaining synthetic versus real-client validation limits.
+
 Security fixes target the latest published release and the `main` branch. Older releases may require upgrading to receive a fix. Release archives and container images should be obtained from the repository's official Releases and package pages and verified by digest.
 
 ## Deployment boundary

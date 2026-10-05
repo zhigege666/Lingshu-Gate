@@ -12,6 +12,7 @@ This documentation describes the current Gate product boundary. English is autho
 | [Architecture](architecture.md) | Components, request paths, persistence, and trust boundaries |
 | [Configuration](configuration.md) | Environment variables, directories, manifests, credentials, and reverse proxy settings |
 | [MCP gateway](mcp-gateway.md) | Gateway endpoint, protocol negotiation, downstream HTTP/stdio, discovery, classification, and invocation |
+| [On-demand tools](on-demand-tools.md) | Four bounded discovery entries, per-client modes, unchanged authorization and synthetic scale benchmarks |
 | [Project delivery](project-delivery.md) | Upload/build/deploy/start workflow, `gate_*` tools, and bundled Delivery Skill |
 | [External MCP configuration](external-mcp-configuration.md) | Administrator offline plan/apply/status/cancel for existing HTTP MCPs; development addition |
 | [Administrator OAuth configuration](oauth-external-management-design.md) | Unreleased default-off management resource, exact targets, isolated scopes/families; real-client integration unverified |

@@ -203,7 +203,7 @@ def test_bounded_outputs_and_query_parameters(catalog):
     ({"$dynamicRef": "#/x"}, {}),
     ({"$schema": "https://schema.example.test/unknown"}, {}),
     ({"type": "object", "$defs": {"x": {"$ref": "#/$defs/x"}}, "$ref": "#/$defs/x"}, {}),
-    ({"type": "object"}, {"x": "x" * 65536}),
+    ({"type": "object"}, {"x": "x" * 1_048_576}),
 ])
 def test_schema_validation_fails_closed_without_remote_fetch(schema, arguments):
     with pytest.raises(ToolExecutionError):
@@ -216,6 +216,16 @@ def test_local_reference_full_schema_validation():
     _validate_arguments(schema, {"key": 1})
     with pytest.raises(ToolExecutionError):
         _validate_arguments(schema, {"key": 0})
+
+
+def test_argument_limit_preserves_existing_512_kib_upload_chunks():
+    import base64
+    from lingshu_gate.project_delivery_mcp import MAX_CHUNK_BYTES, MAX_BASE64_CHARS
+
+    chunk = base64.b64encode(bytes(MAX_CHUNK_BYTES)).decode()
+    _validate_arguments({"type": "object", "properties": {
+        "data_base64": {"type": "string", "maxLength": MAX_BASE64_CHARS}}, "required": ["data_base64"]},
+        {"data_base64": chunk})
 
 
 def test_mcp_and_api_adapters_keep_legacy_listing_and_hide_direct_calls(catalog):
@@ -254,3 +264,11 @@ def test_reserved_name_collision_fails_closed(catalog):
         service.call("gate_catalog_search", {}, principal)
     assert error.value.code == "catalog_namespace_conflict"
     assert "Hidden" not in error.value.message
+
+
+def test_discovery_revalidates_principal_before_returning_any_names(catalog):
+    service, principal = catalog
+    with pytest.raises(ToolExecutionError) as error:
+        service.call("gate_catalog_search", {}, principal,
+            refresh_principal=lambda: replace(principal, permissions=()))
+    assert error.value.code == "catalog_identity_changed"

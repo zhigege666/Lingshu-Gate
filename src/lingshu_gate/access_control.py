@@ -1210,6 +1210,8 @@ class AccessControlStore:
         # Memoize only within this read transaction, after resolving exact tool
         # overrides. OAuth uses exact per-tool allowlists and stays uncached.
         decisions: dict[tuple[Any, ...], int] = {}
+        oauth_tools = set(principal.external_tool_ids)
+        oauth_servers = set(principal.external_server_ids)
 
         def authorize(tool_id: str, server_id: str, source: str, permission: str, policy: str,
                       effective_access: str | None, status: str | None) -> int:
@@ -1226,6 +1228,8 @@ class AccessControlStore:
             # Management OAuth has a different resource and complete-schema
             # snapshots. It cannot use the normal catalog or invoke adapter.
             if principal.oauth_resource and principal.oauth_resource.endswith("/mcp/manage"):
+                return 0
+            if principal.auth_type == "oauth" and (source != "mcp" or tool_id not in oauth_tools or server_id not in oauth_servers):
                 return 0
             granted_access = granted()
             cache_key = (server_id, source, permission, policy, effective_access, status, granted_access)

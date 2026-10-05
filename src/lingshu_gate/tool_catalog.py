@@ -30,6 +30,7 @@ from lingshu_gate.registry import ToolExecutionError, ToolNotFoundError, ToolReg
 CATALOG_TOOL_NAMES = ("gate_catalog_search", "gate_tool_describe", "gate_tool_invoke", "gate_instance_list")
 MAX_PAGE_OFFSET = 10_000
 CURSOR_TTL_SECONDS = 300
+MAX_INVOKE_ARGUMENT_BYTES = 1_048_576
 
 
 class CatalogSearch(BaseModel):
@@ -313,6 +314,8 @@ class ToolCatalog:
             output = self.search(principal, CatalogSearch.model_validate(arguments), instances=name == "gate_instance_list")
         else:
             raise _reject("catalog_entry_unavailable", "Select one of the catalog entries.")
+        if refresh_principal is not None and refresh_principal() != principal:
+            raise _reject("catalog_identity_changed", "The discovery identity changed before returning results.")
         return ToolInvokeResponse(ok=True, tool_id=name, output=output)
 
 
@@ -332,8 +335,8 @@ def catalog_tools() -> list[dict[str, Any]]:
 def _validate_arguments(schema: dict[str, Any], arguments: dict[str, Any]) -> None:
     """Validate bounded JSON Schema locally; reference resolution never uses I/O."""
     try:
-        if len(_json(arguments).encode()) > 65_536:
-            raise _reject("catalog_argument_limit", "Arguments exceed 65536 bytes.")
+        if len(_json(arguments).encode()) > MAX_INVOKE_ARGUMENT_BYTES:
+            raise _reject("catalog_argument_limit", "Arguments exceed 1048576 bytes.")
         if len(_json(schema).encode()) > 131_072:
             raise _reject("catalog_schema_limit", "The schema exceeds the validation byte limit.")
         for value, is_schema in ((schema, True), (arguments, False)):

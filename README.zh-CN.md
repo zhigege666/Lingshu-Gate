@@ -14,6 +14,8 @@
 
 ## 现有功能
 
+开发源码新增[按需工具发现](docs/zh-CN/on-demand-tools.md)：每客户端明确选择 `/mcp?tool_mode=on_demand`，只暴露四个有界入口，避免发送完整 schema 目录。“我的 API Token”提供客户端设置；授权与目标审计保留原边界。尚未发布新版本，分组路由仍为独立工作。
+
 | 功能 | 能力与边界 | 指南 |
 |---|---|---|
 | MCP 聚合网关与传输 | 统一认证的 Model Context Protocol 入口；无状态 JSON `/mcp`、Streamable HTTP 远程 MCP、原生 stdio、明确版本与有界旧协议协商。聚合工具，不提供通用 resource/prompt 托管。 | [指南](docs/zh-CN/mcp-gateway.md) |

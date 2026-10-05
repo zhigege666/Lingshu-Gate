@@ -12,6 +12,7 @@
 | [架构](architecture.md) | 组件、请求路径、持久化与信任边界 |
 | [配置](configuration.md) | 环境变量、目录、Manifest、凭据和反向代理设置 |
 | [MCP 网关](mcp-gateway.md) | 网关入口、协议协商、下游 HTTP/stdio、发现、分类和调用 |
+| [按需工具发现](on-demand-tools.md) | 四个有界入口、每客户端模式、保留原授权与合成规模基准 |
 | [项目交付](project-delivery.md) | 上传、构建、部署、启动流程，`gate_*` 工具和自带 Delivery Skill |
 | [外部 MCP 配置](external-mcp-configuration.md) | 管理员现有 HTTP MCP 离线计划/应用/状态/取消；开发候选 |
 | [管理员 OAuth 配置](oauth-external-management-design.md) | 默认关闭的管理资源，精确目标与 scope/令牌族隔离；真实客户端尚未联调 |

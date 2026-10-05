@@ -2,6 +2,8 @@
 
 ## English — release overview
 
+Development source addition, not part of the published 0.4.4 assets: per-client on-demand tool discovery exposes four bounded MCP entries and matching catalog APIs. It uses an incremental SQLite FTS directory, existing permission evaluation and real-target invocation audit, revision/parameter/instance checks and credential revalidation before dispatch. Console offers a local client-mode dialog, and the Delivery Skill preserves its original confirmations and digests through the invoke envelope. Synthetic 5,000-service/50,000-tool regression/benchmark evidence and remaining real-client/group-routing limits are documented in [on-demand tools](../docs/on-demand-tools.md).
+
 0.4.4 adds confirmed external HTTP MCP configuration through REST and four built-in management tools: `gate_mcp_config_plan`, `gate_mcp_config_apply`, `gate_mcp_config_status` and `gate_mcp_config_cancel`. The bundled Delivery Skill selects external HTTP configuration separately from ZIP delivery and the blocked Git execution path.
 
 - Planning is offline by default. An explicit bounded probe requires its own authorization. Apply binds the exact manifest, plan digest, prior configuration digest, action choices and managed credential revisions; plans expire after five minutes and are single use. Operations retain actor ownership, revision CAS, idempotent completion, cancellation, cooperative deadlines and connection ownership checks.
@@ -18,6 +20,8 @@ Real-client management-scope requests and real HTTP peer/deployment acceptance r
 [Validation record](../docs/release-validation-0.4.4.md) distinguishes synthetic backend/browser evidence from independent visual review and real-client acceptance. The existing formal release workflow must pass before publication is accepted. It produces five native targets (Linux x86_64/ARM64, Windows x86_64, macOS x86_64/ARM64), Compose, two offline Core images, application SPDX SBOM, image digests and SHA256SUMS: 11 assets with provenance. Every release job, checksum, SBOM, provenance and published title/body must be read back and verified. Historical tags and artifacts remain immutable.
 
 ## 简体中文 — 版本概述
+
+开发源码补充，未包含在已发布的 0.4.4 制品中：每客户端按需发现通过四个有界 MCP 入口及对应目录 API 提供工具访问，使用 SQLite FTS 增量目录、原权限判定及实际目标调用审计、版本/参数/实例校验和派发前凭据复核。Console 提供本地客户端模式弹窗；Delivery Skill 通过 invoke 封装保留原确认及摘要。5,000 服务/50,000 工具合成回归与基准证据，以及真实客户端/分组路由的剩余边界，见[按需工具指南](../docs/zh-CN/on-demand-tools.md)。
 
 0.4.4 通过 REST 与四个内置管理工具增加外部 HTTP MCP 的确认配置流程：`gate_mcp_config_plan`、`gate_mcp_config_apply`、`gate_mcp_config_status`、`gate_mcp_config_cancel`。自带 Delivery Skill 将外部 HTTP 配置与 ZIP 交付、仍阻断的 Git 执行路径分别路由。
 
