@@ -34,6 +34,10 @@
 
 Console 会话 REST 写入必须携带与 Console 完全相同的 `Origin`，拒绝 cross-site/`none` fetch，并消费绑定当前有效 Console 会话、动作路径和请求摘要的五分钟一次性 CSRF 票据。此边界复用 OAuth Console 的 Origin/会话绑定辅助函数，不依赖启用 OAuth 或生成签名 key。每次 plan/apply/cancel POST 前，携同一 Origin 获取 `POST /v1/mcp/external-configs/csrf?action=plan|apply|cancel&request_digest=...`；cancel 还需 `operation_id`。摘要是请求体按键排序、紧凑分隔符、不转义 Unicode 的 UTF-8 JSON 的 SHA-256。将返回的 `csrf` 放入 `X-CSRF-Token`。票据不可缓存、到期失效，不能重放或跨会话、动作、请求体复用。传输失败重试时获取新票据，保留原业务参数和幂等键。Gate API bearer token 仍走独立身份/scope 校验，不使用浏览器 CSRF 票据。管理 OAuth 仅通过其 MCP 资源接受，不认证这些 REST 路由；两个适配器的管理权限都由同一应用服务核验。
 
+Console cookie 不能通过 `/v1/tools/{id}/invoke`、`/v1/invoke`、`/mcp` 或其他通用注册表入口调用这四个管理工具；计划/状态和应用/取消均如此。Console 会话使用上述专用路由；普通工具和带 scope 的 API token 保留既有通用入口。
+
+运行时/目标锁等待后及目录替换前再次核验凭据版本。连接/探测读取时，解密前与同一加密记录中的批准版本核对。绑定变化返回 `external_config_credential_changed`；若已持久化则保留配置。重新核对计划，不能用旧确认消费轮换后的值。
+
 1. 新建选择未占用目标 ID。更新先查询目标状态，保留 `config_digest`：已保存原始文件的 SHA-256。不能用旧交付状态工具的规范化 manifest digest 替代。
 2. 计划明确 `mode=create|update`、manifest，更新传 `expected_config_digest`。默认 `connect=false`、`refresh_tools=false`、`probe=false`。刷新要求连接，明确连接要求 manifest 已启用。
 3. 离线预检不写文件、注册表，也不联系 peer。只有独立获准的 `probe=true,probe_confirmed=true` 使用临时会话初始化/发现并关闭；不会登记或授权工具。

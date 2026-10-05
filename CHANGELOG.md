@@ -2,6 +2,7 @@
 
 ## 0.4.4
 
+- The four management tools reject Console cookies at generic invocation entries; dedicated Console REST retains Origin/session/body-bound CSRF. Connection/probe checks reject credential rotation after lock waits and before decryption. Memory diagnostics omit command arguments and environments, and Core installs Debian's exact Perl security revision without scan exceptions.
 - Administrator external HTTP configuration adds shared REST/MCP offline plan, digest-bound confirmed apply, actor-owned status and cancellation. Saved configuration is retained on connection failure; initial and refreshed discovery quarantine changed classifications without granting access.
 - Live administrator sessions, token scopes, role permissions and credential revisions are rechecked. Plans retain CAS and idempotent completion; attempts enforce cooperative deadlines, cancellation and connection ownership. The Delivery Skill documents separate ZIP, Git and external HTTP paths.
 - Separate built-in `/mcp/manage` is disabled by default, uses an explicit client resource allowlist and management consent, and exposes only the four external configuration tools. Business/external tokens and cross-resource code/refresh use are denied.

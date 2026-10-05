@@ -8,7 +8,7 @@
 
 **0.4.4 状态：内置 OAuth 及其独立管理资源需明确启用。Git/代理规则、计划和界面已实现，但生产安全执行器尚未实现；真实拉取、代理测试、工具准备和指定网络安装仍阻断。不是配置后即可使用的功能。**
 
-0.4.4 通过 REST 和四个内置工具，增加外部 HTTP MCP 配置的确认计划、应用、状态和取消流程。自带 Delivery Skill 将现有 HTTP 服务、ZIP 交付和仍阻断的 Git 执行路径分别路由。离线计划不连接 peer；明确连接和工具发现保留凭据、网络信任与分类审核边界。见[发行摘要](packaging/release-notes.md)。
+0.4.4 通过 REST 和四个内置工具，增加外部 HTTP MCP 配置的确认计划、应用、状态和取消流程。自带 Delivery Skill 将现有 HTTP 服务、ZIP 交付和仍阻断的 Git 执行路径分别路由。离线计划不连接 peer；明确连接和工具发现保留凭据、网络信任与分类审核边界。见[发行摘要](packaging/release-notes.md)。 通用管理入口拒绝 Console cookie，专用 REST 保留 CSRF；凭据轮换在连接/探测解密前使计划失效，内存诊断不读取进程参数/环境，Core 纳入 Debian Perl 安全修复。
 
 独立且默认关闭的 `/mcp/manage` OAuth 资源要求当前管理员、明确 scope、已同意配置工具及精确创建/更新目标。Console 确认修改目标保留令牌 scope 上限并使旧计划失效。真实客户端管理 scope 请求与真实 peer 验收仍未验证。分组路由与海量目录检索不纳入本版。参见[管理契约](docs/zh-CN/oauth-external-management-design.md)与[外部配置流程](docs/zh-CN/external-mcp-configuration.md)。登录页与 Console 继续从 `/healthz` 显示运行中的后端版本。
 

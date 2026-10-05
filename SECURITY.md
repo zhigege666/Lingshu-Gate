@@ -33,13 +33,14 @@ Security fixes target the latest published release and the `main` branch. Older 
 - Keep the workspace read-only unless a documented operation requires a narrower writable path.
 - Run one Core replica per SQLite database. Do not share the SQLite volume between concurrent Gate instances.
 - Keep payload logging disabled. Review logs and audit exports before sharing them.
+- Memory snapshots collect process names and resource metrics, never command-line arguments or environment values; unknown parameter names can carry credentials too.
 - Pin production container images by digest and verify release checksums, SBOM, and build metadata.
 
 The tool catalog's `metadata.gate_access` is an output-only, request-local display snapshot of the existing access decision. It is not a capability or an authorization input. Gate replaces downstream values for visible tools, preserves registry definitions, and reevaluates policy for every invocation.
 
 ## Execution boundary
 
-The development external-configuration workflow is administrator-only, with current Console-session/API-token, role-permission and delegation checks. Console REST writes require strict Origin and a live-session/action/body-bound single-use CSRF ticket; API bearer authentication remains separate. Ordinary OAuth cannot configure endpoints; [administrator OAuth is still a design](docs/oauth-external-management-design.md). Its plans bind target/configuration/credential digests, actor and management connection, actions and expiry; apply and cancel require explicit confirmation/idempotency. Unknown execution fields and literal header secrets are denied; existing private HTTP trust cannot be created through this workflow. Connect/refresh reuse one strict discovery and classification gate before registry replacement, preserving first new/changed counts without publication or grants. Cleanup checks operation ownership even without a client, cancellation rereads terminal state under the writer lock, and interrupted runtime application retains unknown state. Interrupted/unknown completion requires operator reconciliation, with no automatic write replay or claim that a remote process stopped. See [the external configuration contract](docs/external-mcp-configuration.md) for cooperative deadline and one-target limitations.
+The external-configuration workflow is administrator-only, with current Console-session/API-token, role-permission and delegation checks. Console REST writes require strict Origin and a live-session/action/body-bound single-use CSRF ticket; the four management tools reject session authentication through every generic registry entry. API bearer authentication remains separate. Ordinary OAuth cannot configure endpoints; the separate default-off [management OAuth resource](docs/oauth-external-management-design.md) requires its own administrator consent. Plans bind target/configuration/credential digests, actor and management connection, actions and expiry; apply and cancel require explicit confirmation/idempotency. Credential revisions are checked after lock waits and against the same encrypted record before decryption for connection/probe; rotation requires a new plan. Unknown execution fields and literal header secrets are denied; existing private HTTP trust cannot be created through this workflow. Connect/refresh reuse one strict discovery and classification gate before registry replacement, preserving first new/changed counts without publication or grants. Cleanup checks operation ownership even without a client, cancellation rereads terminal state under the writer lock, and interrupted runtime application retains unknown state. Interrupted/unknown completion requires operator reconciliation, with no automatic write replay or claim that a remote process stopped. See [the external configuration contract](docs/external-mcp-configuration.md) for cooperative deadline and one-target limitations.
 
 Project builds and managed local processes execute code with the privileges of the Gate process. They are not a sandbox for untrusted source code.
 
@@ -54,6 +55,8 @@ Manifest validation is read-only and never executes its command or a version pro
 - A native managed-container target may use a local container engine only after the operator reviews the image digest, mounts, network, and resource limits.
 
 The Docker Core image intentionally does not launch local stdio processes or execute project builds. Use a separately controlled native environment for those operations.
+
+The pinned Bookworm Python base contains `perl-base` 5.36.0-7+deb12u3. Core installs Debian's exact signed security revision 5.36.0-7+deb12u4 for CVE-2026-13221, CVE-2026-42496 and CVE-2026-8376; Critical scan failures remain release blockers. No vulnerability exclusion or lowered scan threshold is used.
 
 ## Access-control boundary
 

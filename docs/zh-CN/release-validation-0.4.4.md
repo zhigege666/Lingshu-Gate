@@ -14,7 +14,13 @@ Python/前端固定依赖安装成功。Ruff、mypy（116 个源码文件）、�
 
 本地 wheel 包含 0.4.4 后端、管理模块及两个已构建 UI 入口。本地 Compose 包包含 BUILD-INFO/SPDX SBOM，校验和文件核验通过。[PR 发行制品运行](https://github.com/zhigege666/Lingshu-Gate/actions/runs/37322815393) 对代码 head `1778826b1d8f88d94510e6bc50a1822e0270d688` 的质量门、五种 native 与 Compose 全部通过。PR 按既有流程跳过 Core/离线镜像发布任务，仍需正式 tag 工作流。
 
-此检查点有两项验收阻塞。[容器扫描](https://github.com/zhigege666/Lingshu-Gate/actions/runs/37322815456) 在继承的 `perl-base` 5.36.0-7+deb12u3 中报出 3 个 Critical（修复版本 5.36.0-7+deb12u4）：CVE-2026-13221、CVE-2026-42496、CVE-2026-8376。Dockerfile/base-image 输入与 main 相同，属于继承的打包问题，不是外部配置新增依赖。[CodeQL](https://github.com/zhigege666/Lingshu-Gate/runs/111806314351) 在 `application/external_mcp_configuration.py:50` 新报 1 个 High，将进入 SHA256 计划完整性摘要的数据认作密码。该 helper 不负责密码存储，但报告的数据流仍须独立复核/处理，未驳回或抑制告警。现有 integration 权限无法读取完整安全告警 API（403），未申请新权限。Source CI 仍在进行；未降低扫描阈值、修改工作流或保护。
+安全追查复现两项问题：Console cookie 能经通用工具入口无专用请求票据创建管理计划；应用在保存后等待锁时，轮换的凭据能被旧计划消费。四个管理工具现于注册表适配层拒绝会话身份。36 项覆盖四工具、三通用入口及缺失/跨站/同源 Origin，正例保留普通工具和限定 scope 的 API token；专用 REST 与管理 OAuth 回归仍保留。运行时/目标锁回调重查凭据版本，连接/探测解密前与同一加密记录核对版本；变化即停止，已保存配置保留。内存诊断不读取命令参数及环境；回归使用未知凭据参数名，同时验证进程/资源指标保留。受影响安全/协议套件 317 项、发行打包 125 项通过，Ruff 和 mypy 通过。
+
+继承的 Perl Critical 已按 [Debian 安全记录](https://security-tracker.debian.org/tracker/DLA-4821-1) 核验。最新官方 Bookworm Python 镜像仍有 deb12u3，仅换 digest 不足以修复。Core 保留原 digest，从签名仓库安装准确的 `perl-base` 5.36.0-7+deb12u4 安全版本。Trivy 0.70.0 按既有 `--ignore-unfixed --severity CRITICAL --exit-code 1` 门槛，旧基础镜像报告 CVE-2026-13221、CVE-2026-42496、CVE-2026-8376；升级基础层及完整本地 Core 均为 0 个 Critical。本地构建只把环境已有代理/公开 CA 用作临时构建输入，不进入提交的 Dockerfile 或镜像；未增加排除、降低门槛、修改工作流或保护。重建本地 Core 以 UID/GID 10001、只读根目录、移除全部 capabilities、no-new-privileges 且无引擎 socket 启动；readiness 为 200、health 版本为 0.4.4、未认证控制访问为 401。准确 ARM64 deb12u4 包的 checksum 已按签名 Debian 元数据核验；ARM64 镜像执行仍交正式 CI。正式多架构容器 CI 仍需通过。旧 slim 镜像实测为 64 位且不含 Archive::Tar 的适用性事实，没有用来驳回或排除漏洞。
+
+GitHub 对 `cfa0277ca801f6cffc5150551eb8eb1695d3d437` 的回读确认 Source/Python 兼容及五种 native/Compose 通过。两种语言分析任务通过，但 [CodeQL 聚合检查](https://github.com/zhigege666/Lingshu-Gate/runs/111812632656) 仍因 SHA256 计划完整性 helper 的 1 个 High 失败；仍交独立复核，不宣称聚合通过或已驳回。现有 integration 无法读取完整安全告警 API（403），未申请新权限。安全修复 head 的所有检查须重新运行。
+
+root 在 nx5 独立重建 cfa 源码后，三份管理相关测试共 98 项及 web build 通过。完整后端记录为 1,366 通过、3 个环境失败、3 个可选跳过；纠正 pytest 入口并把 venv 加到 PATH 后，同样 3 项以原断言重跑通过（3 passed，15.64 秒）。这是分次证据，不宣称单次全绿。新安全修复 head 仍需 nx5 受影响测试与客户端验收。
 
 ## 真实 HTTP 服务验收
 

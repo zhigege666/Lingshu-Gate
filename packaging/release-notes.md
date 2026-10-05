@@ -9,6 +9,7 @@
 - A separate built-in `/mcp/manage` OAuth resource is disabled by default. It requires explicit administrator enablement, client resource registration, management scopes, consented configuration tools and exact server-ID/create-update targets. Business `/mcp` and external-issuer tokens cannot acquire management authority; codes and refresh families cannot cross resources.
 - Private owner target changes require a live administrator Console session, strict Origin/CSRF, a reviewed single-use confirmation, revision CAS and atomic redacted audit. Current authorization is rechecked during dispatch and queued work. Changes invalidate old plans and preserve JWT/family scope ceilings and business grants.
 - Console and public consent show resource, scopes, tools and exact targets. Target editors preserve pending/dirty state, errors, keyboard operation and complete target pagination. Existing one-time client-secret acknowledgement remains. Sign-in and Console show the running backend version from `/healthz`.
+- The four management tools reject Console cookies at generic invocation entries; dedicated Console REST keeps Origin/session/body-bound CSRF. Credential rotation is checked after lock waits and against the encrypted record before connection/probe decryption. Memory diagnostics omit command arguments and environments. Core installs Debian's exact `perl-base` 5.36.0-7+deb12u4 security revision without vulnerability exclusions or a lower scan threshold.
 
 Only external Streamable HTTP manifests are supported by this workflow; commands, local paths, inline secrets and permission changes are rejected. Existing credential references, exact private-HTTP service/IP/port trust, HTTPS verification and blocked redirects retain separate boundaries. File persistence, runtime state and SQLite are not one transaction; interrupted or uncertain completion requires reconciliation rather than blind write replay. Deadlines are cooperative and retain existing OS DNS/SQLite limits.
 
@@ -25,6 +26,7 @@ Real-client management-scope requests and real HTTP peer/deployment acceptance r
 - 独立内置 `/mcp/manage` OAuth 资源默认关闭，要求管理员明确启用、登记客户端资源、管理 scope、已同意配置工具及精确 server ID/创建更新目标。业务 `/mcp` 与外部 issuer 令牌不能获得管理权限；授权码和刷新令牌族不能跨资源使用。
 - 私有本人目标修改要求当前管理员 Console 会话、严格 Origin/CSRF、复核后的单次确认、版本 CAS 及原子脱敏审计。派发和排队执行重验当前授权；修改使旧计划失效，保留 JWT/令牌族 scope 上限及业务授权。
 - Console 和公共同意展示资源、scope、工具与精确目标。目标编辑器保留 pending/未保存保护、持续错误、键盘操作及完整目标分页；一次性客户端 secret 关闭确认保持。登录页与 Console 从 `/healthz` 显示运行中的后端版本。
+- 四个管理工具在通用调用入口拒绝 Console cookie，专用 Console REST 保留 Origin/会话/请求体绑定 CSRF。锁等待后重验凭据版本，连接/探测解密前与加密记录核对版本。内存诊断不读取命令参数或环境。Core 安装 Debian 准确的 `perl-base` 5.36.0-7+deb12u4 安全版本，不排除漏洞或降低扫描门槛。
 
 本流程仅支持外部 Streamable HTTP manifest，拒绝命令、本地路径、明文 secret 和权限变更。既有凭据引用、精确内网 HTTP 服务/IP/端口信任、HTTPS 验证及禁止重定向保持独立边界。文件持久化、运行状态和 SQLite 不是单一事务；中断或完成状态不明时须核对现场，不盲目重放写入。期限为协作式，保留现有 OS DNS/SQLite 限制。
 
