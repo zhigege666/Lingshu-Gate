@@ -10,11 +10,15 @@ Python/前端固定依赖安装成功。Ruff、mypy（116 个源码文件）、�
 
 完整后端运行记录为 1,359 通过、10 失败、3 跳过。9 项失败是公共静态资源尚未构建时返回 503，另 1 项是两个 Git 记录为 100755 的发行脚本在本地检出为 700。构建静态资源并恢复本地可执行权限后，原 10 项在不改断言的情况下全部通过；另一次完整内置 OAuth 运行 107 项通过。随后提供既有固定版本 Playwright MCP peer，原跳过的 3 项互操作测试全部通过。这是分别执行的记录，不宣称单次全绿运行。
 
-浏览器与本地发行包验证仍在进行。历史验证记录只描述各自源代码，不代表此分支；模拟的同意/管理浏览器测试不能证明真实 OAuth 客户端或 peer 联调成功。
+受影响浏览器运行 142 项通过。模拟健康版本改从后端版本源读取后，管理资源套件再次 40 项通过，产出 48 张截图，覆盖 1600×900、1920×1080、2560×1080、2560×1440、中英文及明暗主题。模拟同意/管理测试不能证明真实 OAuth 客户端或 peer 联调；截图与作者检查也不代替 root 独立复核。
+
+本地 wheel 包含 0.4.4 后端、管理模块及两个已构建 UI 入口。本地 Compose 包包含 BUILD-INFO/SPDX SBOM，校验和文件核验通过。[PR 发行制品运行](https://github.com/zhigege666/Lingshu-Gate/actions/runs/37322815393) 对代码 head `1778826b1d8f88d94510e6bc50a1822e0270d688` 的质量门、五种 native 与 Compose 全部通过。PR 按既有流程跳过 Core/离线镜像发布任务，仍需正式 tag 工作流。
+
+此检查点有两项验收阻塞。[容器扫描](https://github.com/zhigege666/Lingshu-Gate/actions/runs/37322815456) 在继承的 `perl-base` 5.36.0-7+deb12u3 中报出 3 个 Critical（修复版本 5.36.0-7+deb12u4）：CVE-2026-13221、CVE-2026-42496、CVE-2026-8376。Dockerfile/base-image 输入与 main 相同，属于继承的打包问题，不是外部配置新增依赖。[CodeQL](https://github.com/zhigege666/Lingshu-Gate/runs/111806314351) 在 `application/external_mcp_configuration.py:50` 新报 1 个 High，将进入 SHA256 计划完整性摘要的数据认作密码。该 helper 不负责密码存储，但报告的数据流仍须独立复核/处理，未驳回或抑制告警。现有 integration 权限无法读取完整安全告警 API（403），未申请新权限。Source CI 仍在进行；未降低扫描阈值、修改工作流或保护。
 
 ## 真实 HTTP 服务验收
 
-在操作者 nx5 部署中使用另行批准的非生产目标，不更改生产凭据，也不由成功业务连接推定管理权限。
+在操作者管理的部署中使用另行批准的非生产目标，不更改生产凭据，也不由成功业务连接推定管理权限。
 
 1. 部署后确认运行后端为 0.4.4、已保存可信 HTTPS issuer/resource、有活动签名 key，且当前用户为持有 `operations.manage`、`tools.invoke` 的管理员。明确启用默认关闭的管理资源。Console 和 `/v1` 保持私有，仅公开所需 OAuth/发现/MCP 路径。
 2. 登记或明确修改机密客户端的管理资源 allowlist 和 scope，保留一次性 secret 关闭确认，不把 secret 写入截图或笔记。客户端单独建立指向准确 `https://gate.example.test/mcp/manage` 的连接，核对实际请求所需管理 scope、同意页资源、所选工具及精确目标/创建更新操作。
