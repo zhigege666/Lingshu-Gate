@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import hashlib
 import hmac
+import base64
 import gzip
 import io
 import json
@@ -143,6 +144,30 @@ class ToolCache:
         self.root = controller.root / "tools"
 
     @staticmethod
+    def _validate_pin(metadata: dict[str, Any], declared: str | None) -> None:
+        if not declared:
+            return
+        matched = re.fullmatch(r"(sha224|sha256|sha384|sha512)\.([a-fA-F0-9]+)", declared)
+        if not matched:
+            reject("package_manager_integrity_unverified", "Request integrity pin is invalid")
+        algorithm, expected = matched.groups()
+        actual = (metadata.get("archive_hashes") or {}).get(algorithm)
+        if actual is None and algorithm == "sha512":
+            actual = base64.b64decode(metadata["dist"]["integrity"].removeprefix("sha512-"), validate=True).hex()
+        if not isinstance(actual, str) or not hmac.compare_digest(actual.lower(), expected.lower()):
+            reject("package_manager_integrity_unverified", "Verified distribution bytes do not satisfy this request's integrity pin")
+
+    @staticmethod
+    def _write_metadata(pointer: Path, metadata: dict[str, Any]) -> None:
+        temporary = pointer.with_name("metadata-" + uuid4().hex)
+        try:
+            temporary.write_text(json.dumps(metadata))
+            temporary.chmod(0o400)
+            temporary.replace(pointer)
+        finally:
+            temporary.unlink(missing_ok=True)
+
+    @staticmethod
     def _rule(url: str) -> dict[str, Any]:
         parsed = urlsplit(url)
         if len(url) > 2048 or parsed.scheme != "https" or not parsed.hostname or parsed.username or parsed.password or parsed.query or parsed.fragment or "\\" in url or any(ord(ch) <= 32 for ch in url):
@@ -185,11 +210,8 @@ class ToolCache:
             self._rule(registry)
             content = self._fetch(registry + url.removeprefix(OFFICIAL), network=network, material=material, deadline=deadline, maximum=specification["limits"]["archive_bytes"], cancelled=cancelled)
             verify_dependency_content(DependencyNode(str(name), url, integrity), chunks(content), max_bytes=specification["limits"]["archive_bytes"])
-            declared = specification.get("declared_integrity")
-            if declared:
-                algorithm, expected = declared.split(".", 1)
-                if not hmac.compare_digest(hashlib.new(algorithm, content).hexdigest().lower(), expected.lower()):
-                    reject("package_manager_integrity_unverified", "Distribution does not match the declared integrity pin")
+            metadata["archive_hashes"] = {algorithm: hashlib.new(algorithm, content).hexdigest() for algorithm in ("sha224", "sha256", "sha384", "sha512")}
+            self._validate_pin(metadata, specification.get("declared_integrity"))
             temporary = self.root / ("prepare-" + uuid4().hex)
             temporary.mkdir(mode=0o700)
             try:
@@ -200,14 +222,26 @@ class ToolCache:
                 fingerprint = self.controller._inventory(temporary)
                 temporary.rename(target)
                 metadata["fingerprint"] = fingerprint
-                metadata["declared_verified"] = declared
-                pointer.write_text(json.dumps(metadata))
-                pointer.chmod(0o400)
+                self._write_metadata(pointer, metadata)
             finally:
                 if temporary.exists():
                     shutil.rmtree(temporary)
-        if not metadata.get("fingerprint") or self.controller._inventory(target) != metadata["fingerprint"] or specification.get("declared_integrity") != metadata.get("declared_verified"):
-            reject("package_manager_cache_changed", "Verified tool cache changed or does not satisfy the declared integrity pin")
+        if not metadata.get("fingerprint") or self.controller._inventory(target) != metadata["fingerprint"]:
+            reject("package_manager_cache_changed", "Verified tool cache changed")
+        if not metadata.get("archive_hashes"):
+            # Upgrade old pointers only by fetching and re-verifying the same
+            # official archive. Never derive an unrelated hash from extraction.
+            url = metadata["dist"]["tarball"]
+            if not isinstance(url, str) or not url.startswith(OFFICIAL + str(name) + "/-/") or self._rule(url)["port"] != 443:
+                reject("package_manager_metadata_rejected", "Cached official archive origin is invalid")
+            registry = network["npm_registry"].rstrip("/") + "/"
+            self._rule(registry)
+            content = self._fetch(registry + url.removeprefix(OFFICIAL), network=network, material=material, deadline=deadline, maximum=specification["limits"]["archive_bytes"], cancelled=cancelled)
+            verify_dependency_content(DependencyNode(str(name), url, integrity), chunks(content), max_bytes=specification["limits"]["archive_bytes"])
+            metadata["archive_hashes"] = {algorithm: hashlib.new(algorithm, content).hexdigest() for algorithm in ("sha224", "sha256", "sha384", "sha512")}
+            metadata.pop("declared_verified", None)
+            self._write_metadata(pointer, metadata)
+        self._validate_pin(metadata, specification.get("declared_integrity"))
         result = self.controller.run(key + ":tool_probe", {"kind": "tool_probe", "manager": name, "binding": network.get("execution", {})}, mounts={"/tool": target}, timeout=max(1, min(10, int(deadline - time.monotonic()))), cancelled=cancelled)
         try:
             if result["returncode"] or result.get("package_manager_version") != version or result.get("node_version") != self.controller.node_version:
@@ -222,8 +256,9 @@ class ToolCache:
             reject("package_manager_specification_rejected", "Manager version is not an exact generated pin")
         metadata = checked_json(self.root / f"{name}-{version}.json", 8192)
         target = self.root / digest_json({"name": name, "version": version, "integrity": metadata["dist"]["integrity"]})
-        if self.controller._inventory(target) != metadata.get("fingerprint") or metadata.get("declared_verified") != manager.get("declared_integrity"):
-            reject("package_manager_cache_changed", "Prepared tool is missing, changed or has a different integrity pin")
+        if self.controller._inventory(target) != metadata.get("fingerprint"):
+            reject("package_manager_cache_changed", "Prepared tool is missing or changed")
+        self._validate_pin(metadata, manager.get("declared_integrity"))
         return target
 
     def npm_dependencies(self, root: Path, manager: dict[str, Any], *, network: dict[str, Any], material: dict[str, Any], deadline: float, cancelled: Callable[[], bool]) -> Path:

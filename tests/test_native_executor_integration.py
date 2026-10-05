@@ -262,6 +262,39 @@ def test_distribution_integrity_failure_never_probes_or_executes_tool(flow):
     assert not flow.controller.calls
 
 
+@pytest.mark.parametrize("first,second", [(None, "sha512"), ("sha512", None), ("sha512", "sha512_upper"), ("sha256", "sha384")])
+def test_tool_cache_identity_is_independent_of_each_projects_equivalent_pin(flow, first, second):
+    def pin(algorithm):
+        if algorithm is None:
+            return None
+        actual = algorithm.removesuffix("_upper")
+        value = hashlib.new(actual, flow.transport.tool).hexdigest()
+        return actual + "." + (value.upper() if algorithm.endswith("_upper") else value)
+    network = flow.network.freeze(NetworkSelection(), NetworkSelection())
+    for index, algorithm in enumerate((first, second)):
+        network["execution"] = {"build_id": ("a" if index == 0 else "b") * 32, "actor_id": "actor-one", "plan_fingerprint": "a" * 64, "source_sha256": "b" * 64}
+        flow.executor.prepare_package_manager(tool_preparation("npm", "11.6.0", pin(algorithm)), network=network, material={"proxy": None}, timeout_seconds=120, cancel_requested=lambda: False)
+        prepared = flow.executor.tools.prepared({"name": "npm", "version": "11.6.0", "declared_integrity": pin(algorithm)})
+        assert prepared.is_dir()
+    assert sum(url.endswith("/npm/-/npm-11.6.0.tgz") for url, _ in flow.transport.calls) == 1
+    assert len(list((flow.root / "tools").glob("[a-f0-9]" * 64))) == 1
+
+
+@pytest.mark.parametrize("algorithm", ["sha256", "sha512"])
+def test_wrong_request_pin_cannot_reuse_valid_global_tool_bytes(flow, algorithm):
+    network = flow.network.freeze(NetworkSelection(), NetworkSelection())
+    network["execution"] = {"build_id": "a" * 32, "actor_id": "actor-one", "plan_fingerprint": "a" * 64, "source_sha256": "b" * 64}
+    flow.executor.prepare_package_manager(tool_preparation("npm", "11.6.0"), network=network, material={"proxy": None}, timeout_seconds=120, cancel_requested=lambda: False)
+    wrong = algorithm + "." + "0" * (int(algorithm.removeprefix("sha")) // 4)
+    network["execution"]["build_id"] = "b" * 32
+    with pytest.raises(ToolExecutionError) as rejected:
+        flow.executor.prepare_package_manager(tool_preparation("npm", "11.6.0", wrong), network=network, material={"proxy": None}, timeout_seconds=120, cancel_requested=lambda: False)
+    assert rejected.value.code == "package_manager_integrity_unverified"
+    with pytest.raises(ToolExecutionError):
+        flow.executor.tools.prepared({"name": "npm", "version": "11.6.0", "declared_integrity": wrong})
+    assert len(flow.controller.calls) == 1
+
+
 def test_separate_pinned_git_and_install_proxy_material_never_enters_container(flow):
     git = flow.network.save_profile(ProfileWrite(name="Git proxy", endpoint="http://git-proxy.example.invalid:8080"), "admin")
     install = flow.network.save_profile(ProfileWrite(name="Install proxy", endpoint="socks5://install-proxy.example.invalid:1080"), "admin")
