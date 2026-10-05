@@ -67,3 +67,27 @@ uv run python scripts/benchmark_stdio.py
 ```
 
 Both use disposable temporary directories and synthetic identities. Discovery RSS is reported only where `/proc/self/status` is available. The stdio fixture executes only its generated local echo subprocess and uses no network or external credentials. Neither benchmark belongs in the default fast CI path.
+
+## On-demand directory, 5,000 services / 50,000 tools
+
+The 2026-10-05 source measurement used commit `58c46c4d6f04a04acd48cf43a8001211823396b6` on `test/on-demand-tools-20261005`, based on exact 0.4.4 main `d4786fd368e932bc758ea29da1a597c9d9551794`. [Raw measurements](benchmarks/tool-catalog-5000-50000.json) record Python 3.12.14, Linux 6.18.44, the benchmark script digest and all scope cases. Each tool has 20 input fields. The primary caller is an ordinary synthetic operator token with 5,000 explicit service grants, one denied service and 49,990 visible tools. A second operator sees five services / 50 tools; administrator results are measured separately.
+
+| Scenario | Requests | Median | p95 | Maximum response |
+|---|---:|---:|---:|---:|
+| On-demand MCP `tools/list` | 30 | 4.162 ms | 6.337 ms | 3,194 bytes |
+| Narrow indexed search | 30 | 15.745 ms | 20.784 ms | 2,797 bytes |
+| Broad keyword search | 30 | 294.852 ms | 302.959 ms | 5,735 bytes |
+| Empty-query search | 30 | 283.457 ms | 343.565 ms | 5,735 bytes |
+| Five-service actor, broad search | 30 | 232.109 ms | 272.732 ms | 5,735 bytes |
+| Administrator, broad search | 30 | 302.425 ms | 352.769 ms | 5,735 bytes |
+| Denied-instance search | 30 | 14.912 ms | 19.689 ms | 48 bytes |
+| One-schema describe | 30 | 1.142 ms | 1.651 ms | 1,681 bytes |
+| MCP narrow search | 30 | 24.838 ms | 82.103 ms | 2,995 bytes |
+| MCP synthetic echo invoke | 30 | 35.587 ms | 51.336 ms | 273 bytes |
+| Legacy complete MCP `tools/list` | 3 | 16,616.950 ms | 17,438.540 ms | 83,433,501 bytes |
+
+p95 uses the nearest-rank percentile. RSS was 68,244 KiB before registry creation, 439,588 KiB after populating it, approximately 460,340–468,888 KiB during on-demand operations, and 566,888 KiB after the legacy full-list profile. The first index build took 7.813 seconds; SQLite occupied 51,974,144 bytes. A 30-request follow-up sampled 475,200 KiB at requests 1, 16 and 30. This bounded observation does not establish long-term leak freedom. Registry schemas still consume memory; on-demand discovery bounds what reaches the client, rather than eliminating the underlying definitions.
+
+The fixture verified distinct authorized pages, denial of the hidden instance, immediate removal of a revoked instance and rejection of its old cursor. The real built-in OAuth catalog method returned `tool_catalog_limit` in 4,321.280 ms for the large operator directory. Its existing full-catalog authorization cost and 100-service / 5,000-tool ceiling remain; external grant input remains limited to 100 services / 1,000 tools. None of these limits was widened and no future-tool subscription was introduced.
+
+Reproduce with `uv run python scripts/benchmark_tool_catalog.py --iterations 30 --output /tmp/gate-catalog-benchmark.json`. These are disposable single-process warm-cache SQLite/function and loopback-ASGI measurements, with synthetic identities and echo handlers. They measure no real MCP connection, downstream latency, sustained concurrency, TLS/browser/client compatibility, production SLA or nx5 deployment. Broad/small-actor queries still scan policy candidates and need realistic workload profiling. See [source validation](on-demand-validation.md) for the separate correctness and Console evidence.
