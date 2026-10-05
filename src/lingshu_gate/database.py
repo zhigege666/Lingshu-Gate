@@ -33,6 +33,9 @@ from lingshu_gate.persistence.external_mcp_config_migration import (
 from lingshu_gate.persistence.console_csrf_migration import (
     CONSOLE_CSRF_MIGRATION_ID, apply_console_csrf_migration,
 )
+from lingshu_gate.persistence.tool_catalog_migration import (
+    TOOL_CATALOG_MIGRATION_ID, apply_tool_catalog_migration,
+)
 
 BASELINE_MIGRATION_ID = "0001_gate_baseline"
 SQLITE_BUSY_TIMEOUT_MS = 30_000
@@ -77,7 +80,8 @@ class SQLiteDatabase:
              Migration(GIT_NETWORK_MIGRATION_ID, apply_git_network_migration),
              Migration(SESSION_PURPOSE_MIGRATION_ID, apply_session_purpose_migration),
              Migration(EXTERNAL_MCP_CONFIG_MIGRATION_ID, apply_external_mcp_config_migration),
-             Migration(CONSOLE_CSRF_MIGRATION_ID, apply_console_csrf_migration)),
+             Migration(CONSOLE_CSRF_MIGRATION_ID, apply_console_csrf_migration),
+             Migration(TOOL_CATALOG_MIGRATION_ID, apply_tool_catalog_migration)),
         ).run()
 
     def _apply_baseline_migration(self, connection: sqlite3.Connection) -> None:

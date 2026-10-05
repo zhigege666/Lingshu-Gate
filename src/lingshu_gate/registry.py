@@ -13,6 +13,7 @@ from lingshu_gate.logging import log_event
 from lingshu_gate.models import ToolDefinition, ToolInvokeResponse
 
 ToolHandler = Callable[..., dict[str, Any]]
+CatalogListener = Callable[[dict[str, ToolDefinition | None]], None]
 logger = logging.getLogger(__name__)
 SENSITIVE_LOG_KEY = re.compile(
     r"(?:password|passwd|secret|token|authorization|cookie|credential|api[_-]?key|private[_-]?key|data_base64)",
@@ -95,6 +96,21 @@ class ToolRegistry:
     def __init__(self) -> None:
         self._tools: dict[str, ToolRecord] = {}
         self._lock = threading.RLock()
+        self._catalog_listeners: list[CatalogListener] = []
+
+    def subscribe_catalog(self, listener: CatalogListener) -> None:
+        """Atomically seed a subscriber, then publish only changed definitions.
+
+        Listeners only enqueue changes; they must never perform I/O or call back
+        into the registry. Tool execution never holds this lock.
+        """
+        with self._lock:
+            listener({key: record.definition for key, record in self._tools.items()})
+            self._catalog_listeners.append(listener)
+
+    def _notify_catalog(self, changes: dict[str, ToolDefinition | None]) -> None:
+        for listener in self._catalog_listeners:
+            listener(changes)
 
     def register(
         self,
@@ -112,6 +128,7 @@ class ToolRegistry:
                 handler=handler,
                 contextual=contextual,
             )
+            self._notify_catalog({definition.id: definition})
         log_event(
             logger,
             logging.INFO,
@@ -140,6 +157,8 @@ class ToolRegistry:
             ]
             for tool_id in removed:
                 self._tools.pop(tool_id, None)
+            if removed:
+                self._notify_catalog(dict.fromkeys(removed))
         for tool_id in removed:
             log_event(
                 logger,
@@ -179,6 +198,7 @@ class ToolRegistry:
             replacement[definition.id] = record
 
         with self._lock:
+            previous_ids = set(self._tools)
             retained = {
                 tool_id: record
                 for tool_id, record in self._tools.items()
@@ -198,6 +218,11 @@ class ToolRegistry:
             # One assignment publishes the complete replacement snapshot. Readers
             # protected by the same lock can never observe a partially refreshed set.
             self._tools = {**retained, **replacement}
+            changes: dict[str, ToolDefinition | None] = {}
+            # Include retired ids from the previous target snapshot.
+            changes.update({tool_id: None for tool_id in previous_ids if tool_id not in replacement})
+            changes.update({tool_id: record.definition for tool_id, record in replacement.items()})
+            self._notify_catalog(changes)
         log_event(
             logger,
             logging.INFO,

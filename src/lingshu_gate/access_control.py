@@ -1188,6 +1188,50 @@ class AccessControlStore:
                 lambda: self._effective_access_map(connection, principal, [key])[key],
             )
 
+    def catalog_authorizer(self, connection: sqlite3.Connection, principal: AuthPrincipal) -> Callable[..., int]:
+        """Request-local scalar policy for schema-free SQL search.
+
+        Read grants once. Preserve tool-over-server overrides, including explicit
+        none, and role precedence. Every candidate uses the original evaluator;
+        no shared authorization/result cache or separate allow-all policy exists.
+        """
+        rows = connection.execute("""
+            SELECT g.subject_type,g.subject_id,g.server_id,g.tool_id,g.expires_at,p.base_level
+            FROM mcp_resource_grants g JOIN permission_types p ON p.id=g.permission_type_id
+            WHERE p.enabled=1 AND ((g.subject_type='user' AND g.subject_id=?) OR
+                (g.subject_type='role' AND g.subject_id IN (
+                    SELECT ur.role_id FROM user_roles ur JOIN roles r ON r.id=ur.role_id
+                    WHERE ur.user_id=? AND r.enabled=1)))
+        """, (principal.id, principal.id)).fetchall()
+        grants = {(r["subject_type"], r["subject_id"], r["server_id"], r["tool_id"]): r["base_level"]
+                  for r in rows if not _is_expired(r["expires_at"])}
+        role_ids = {key[1] for key in grants if key[0] == "role"}
+
+        def authorize(tool_id: str, server_id: str, source: str, permission: str, policy: str,
+                      effective_access: str | None, status: str | None) -> int:
+            def granted() -> str:
+                direct = grants.get(("user", principal.id, server_id, tool_id))
+                if direct is None:
+                    direct = grants.get(("user", principal.id, server_id, ""))
+                if direct is not None:
+                    return direct
+                levels = [grants.get(("role", role, server_id, tool_id),
+                          grants.get(("role", role, server_id, ""), "none")) for role in role_ids]
+                return max(levels, key=lambda level: ACCESS_RANK[level]) if levels else "none"
+
+            # Management OAuth has a different resource and complete-schema
+            # snapshots. It cannot use the normal catalog or invoke adapter.
+            if principal.oauth_resource and principal.oauth_resource.endswith("/mcp/manage"):
+                return 0
+            definition = ToolDefinition.model_construct(
+                id=tool_id, name="", description="", source=source, permission=permission,
+                metadata={**json.loads(policy), "server_id": server_id},
+            )
+            classification = {"effective_access": effective_access, "status": status} if status else None
+            return int(self._evaluate(principal, definition, classification, granted)["allowed"])
+
+        return authorize
+
     def _evaluate(
         self,
         principal: AuthPrincipal,
