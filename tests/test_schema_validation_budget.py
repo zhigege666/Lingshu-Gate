@@ -40,6 +40,16 @@ def test_cycle_and_expanded_depth_are_rejected():
     assert error.value.code == "catalog_validation_limit"
 
 
+def test_schema_under_a_property_named_defs_cannot_bypass_expansion_budget():
+    schema = dag(20)
+    schema["properties"] = {"$defs": {"$ref": schema.pop("$ref")}}
+    started = time.monotonic()
+    with pytest.raises(ToolExecutionError) as error:
+        validate_arguments(schema, {"$defs": {}})
+    assert error.value.code == "catalog_schema_complexity_limit"
+    assert time.monotonic() - started < 1
+
+
 def test_catastrophic_regex_is_killed_on_deadline_and_worker_slot_is_reusable():
     schema = {"type": "object", "properties": {"text": {"type": "string", "pattern": "^(a+)+$"}}}
     started = time.monotonic()

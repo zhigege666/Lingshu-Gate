@@ -88,7 +88,10 @@ def _expansion(schema: dict[str, Any], deadline: float, cancel: threading.Event 
             return memo[key]
         active.add(key)
         try:
-            children = ([value for name, value in node.items() if name not in {"$defs", "definitions", "$ref"}]
+            # Count definitions conservatively too. A mapping under properties
+            # may legitimately name a property "$defs"; skipping by key alone
+            # would omit an active schema subtree from the work budget.
+            children = ([value for name, value in node.items() if name != "$ref"]
                         if isinstance(node, dict) else node)
             count, height = 1, 0
             for child in children:
