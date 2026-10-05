@@ -2,7 +2,7 @@
 
 [简体中文](zh-CN/oauth-catalog-scaling.md) · [Built-in OAuth](builtin-oauth.md)
 
-This candidate uses `test/oauth-catalog-paged-20261005`. It combines the accepted scope-selection UI, saved-grant verification and the shared on-demand catalog through public integration input `d99be556ff48e018792268abeb7c5a22c5517476`. The original UI and Stage A branches remain unchanged. This is source integration, without release publication or real-client acceptance.
+This candidate uses `test/oauth-catalog-paged-20261005`. It combines the accepted scope-selection UI, saved-grant verification and the shared on-demand catalog through public evidence input `f51d1b18d7475034b61567be00ef999128918e83`, whose production-code checkpoint is `d99be556ff48e018792268abeb7c5a22c5517476`. The original UI and Stage A branches remain unchanged. This is source integration, without release publication or real-client acceptance.
 
 ## Stage A: saved-grant authentication
 
@@ -56,9 +56,26 @@ The HTTP suite uses exactly 5,000 services / 50,000 tools, walks all 50 MCP-grou
 
 The opt-in loopback browser fixture uses a synthetic administrator and actual catalog/session/selection/preview/save HTTP with 5,000 services / 50,000 tools. Four desktop sizes in both languages check labels on one line, table space, footer visibility and page overflow. Network failure is injected only at the final save to test draft recovery; the catalog and resolver are not mocked. A separate navigation check mocks only the unrelated legacy tool page with one definition. Author browser evidence is recorded below; independent UI review and real-client acceptance remain separate.
 
-## Author browser evidence before source freeze
+## Fixed production-code validation
 
-The pre-freeze large-catalog run passed all 11 cases: eight real layouts, two real group/refresh/limit/save-recovery flows and one navigation check. The author opened all eight screenshots. PNGs and measured JSON are checked in under `docs/images/console/oauth-catalog/`; [English 1600×900](images/console/oauth-catalog/paged-en-US-1600x900.png) and [Chinese 1600×900](images/console/oauth-catalog/paged-zh-CN-1600x900.png) show the compact editor. Every label shares one line with its control; body/document overflow is zero and the footer remains visible. There are no legacy scope-options or `/v1/tools` requests during the eight real OAuth layout cases.
+The fixed production-code and browser checkpoint is `3583773acbc22129dec9b2cb4e69e6e5486457c5`. Subsequent commits add only documentation, raw measurements and screenshots; production code, tests and dependency locks remain identical to that checkpoint.
+
+| Executed check at the fixed checkpoint | Result |
+|---|---|
+| Backend complete suite | 1,766 passed / 3 skipped in 982.35 seconds, including the real HTTP 5,000-service / 50,000-tool candidate regression |
+| Final dispatch/session and source launcher checks | 36 passed in 21.70 seconds; these cases are also included in the complete suite |
+| Frontend | Check, 439 tests in 74 files and both builds passed; the existing large OAuth chunk warning remains |
+| OAuth browser regression | 96 passed in 4.9 minutes: 85 existing grant/consent cases and 11 large-catalog cases |
+| Isolated real HTTP browser smoke/permissions | 6 passed in 9.5 seconds |
+| Source and configuration | Frozen Python/npm dependencies, Ruff, mypy (141 files), repository identity, 0.4.4 version, Compose syntax and whitespace checks passed |
+
+An earlier complete attempt at `b857fb45d619a3abaa60d73f0d52f92d8aec2d92` passed 1,759 cases and skipped three, but failed the launcher-mode check: the executor checked out both tracked `100755` scripts as local `700`. Restoring local `755` permissions resolved it without a content or Git executable-bit change. The complete fixed-checkpoint rerun above passed.
+
+Public physical/group benchmark evidence remains separate in [integration validation](on-demand-integration-validation.md). Its 32.229 ms narrow physical-search p95 and 2,517.210 ms warm group-search p95 are different synthetic scenarios at the public code checkpoint, not Stage B endpoint measurements or production guarantees.
+
+## Author browser evidence
+
+The fixed-checkpoint large-catalog run passed all 11 cases: eight real layouts, two real group/refresh/limit/save-recovery flows and one navigation check. The author opened all eight screenshots. PNGs and measured JSON with `source_sha` are checked in under `docs/images/console/oauth-catalog/`; [English 1600×900](images/console/oauth-catalog/paged-en-US-1600x900.png) and [Chinese 1600×900](images/console/oauth-catalog/paged-zh-CN-1600x900.png) show the compact editor. Every label shares one line with its control; body/document overflow is zero and the footer remains visible. There are no legacy scope-options or `/v1/tools` requests during the eight real OAuth layout cases.
 
 | Viewport | Complete visible rows, English / Chinese | Body / document overflow |
 |---|---:|---:|
@@ -67,6 +84,6 @@ The pre-freeze large-catalog run passed all 11 cases: eight real layouts, two re
 | 2560×1080 | 13 / 13 | 0 / 0 |
 | 2560×1440 | 15 / 15 | 0 / 0 |
 
-Reproduce from `web/` after building: `GATE_E2E_OAUTH_CATALOG_SCALE=1 npm exec -- playwright test e2e/oauth-grants.spec.ts e2e/oauth-paged-catalog.spec.ts`. Include `e2e/oauth-consent.spec.ts` for the unchanged consent flow. The backend candidate tests are `uv run pytest -q tests/test_oauth_paged_catalog.py tests/test_oauth_scope_catalog.py`; the complete backend command is `uv run pytest -q`. Fixed-commit final execution results are delivered separately from these pre-freeze author screenshots. Independent UI acceptance remains with the design owner.
+Reproduce from `web/` after building: `GATE_E2E_OAUTH_CATALOG_SCALE=1 npm exec -- playwright test e2e/oauth-grants.spec.ts e2e/oauth-paged-catalog.spec.ts`. Include `e2e/oauth-consent.spec.ts` for the unchanged consent flow. The backend candidate tests are `uv run pytest -q tests/test_oauth_paged_catalog.py tests/test_oauth_scope_catalog.py`; the complete backend command is `uv run pytest -q`. Independent UI acceptance remains with the design owner.
 
 No real Plane classification, ChatGPT authorization/cache behavior, production grants, real credentials, SSH access, release tags or assets are changed or verified here.

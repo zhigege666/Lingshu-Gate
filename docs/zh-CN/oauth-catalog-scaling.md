@@ -2,7 +2,7 @@
 
 [English](../oauth-catalog-scaling.md) · [内置 OAuth](builtin-oauth.md)
 
-本候选位于 `test/oauth-catalog-paged-20261005`，结合已验收范围选择 UI、既有 grant 验证和公共按需目录；公共输入已纳入 `d99be556ff48e018792268abeb7c5a22c5517476`。原 UI 与阶段 A 分支保持不变。此次仅源码整合，不代表发行发布或真实客户端验收。
+本候选位于 `test/oauth-catalog-paged-20261005`，结合已验收范围选择 UI、既有 grant 验证和公共按需目录；公共证据输入为 `f51d1b18d7475034b61567be00ef999128918e83`，其生产代码检查点为 `d99be556ff48e018792268abeb7c5a22c5517476`。原 UI 与阶段 A 分支保持不变。此次仅源码整合，不代表发行发布或真实客户端验收。
 
 ## 阶段 A：已保存 grant 的认证
 
@@ -56,9 +56,26 @@ HTTP 套件使用精确 5,000 服务 / 50,000 工具，遍历全部 50 个 MCP �
 
 可选 loopback 浏览器夹具使用合成管理员，以及真实 catalog/session/selection/preview/save HTTP，具有 5,000 服务 / 50,000 工具。四种桌面尺寸、中英两种语言检查 label 同行、表格空间、页脚可见及页面溢出。只在最终保存注入网络失败以验证草稿恢复，不 mock 目录或解析器；独立导航检查只为无关的旧工具页 mock 一个定义。作者浏览器证据见下；独立 UI 复核和真实客户端验收保持分列。
 
-## 源码冻结前的作者浏览器证据
+## 固定生产代码验证
 
-冻结前大目录共 11 项全部通过：8 个真实布局、2 个真实整组/刷新/超限/保存恢复流程和 1 个导航检查。作者实际打开全部 8 张截图；PNG 与测量 JSON 已放在 `docs/images/console/oauth-catalog/`。[英文 1600×900](../images/console/oauth-catalog/paged-en-US-1600x900.png) 与[中文 1600×900](../images/console/oauth-catalog/paged-zh-CN-1600x900.png) 展示紧凑编辑器。全部 label 与控件同行，body/document 溢出为零，页脚始终可见。8 个真实 OAuth 布局用例没有旧 scope-options 或 `/v1/tools` 请求。
+固定生产代码及浏览器检查点为 `3583773acbc22129dec9b2cb4e69e6e5486457c5`。后续提交仅增加文档、原始测量及截图，生产代码、测试和依赖锁与该检查点一致。
+
+| 固定检查点上已执行检查 | 结果 |
+|---|---|
+| 后端完整套件 | 1,766 passed / 3 skipped，982.35 秒；包括真实 HTTP 5,000 服务 / 50,000 工具候选回归 |
+| 最终派发/会话及源码启动脚本检查 | 36 passed，21.70 秒；完整套件也包含这些用例 |
+| 前端 | check、74 文件 439 测试及两份构建通过；既有 OAuth 大 chunk 警告保留 |
+| OAuth 浏览器回归 | 96 passed，4.9 分钟：85 项既有 grant/同意用例及 11 项大目录用例 |
+| 隔离真实 HTTP 浏览器 smoke/权限 | 6 passed，9.5 秒 |
+| 源码及配置 | 冻结 Python/npm 依赖、Ruff、mypy（141 文件）、仓库身份、0.4.4 版本、Compose 语法及空白检查通过 |
+
+此前 `b857fb45d619a3abaa60d73f0d52f92d8aec2d92` 上一次完整尝试为 1,759 项通过、三项跳过，启动脚本权限检查失败：执行器将两份 Git `100755` 脚本落为本地 `700`。恢复本地 `755` 后通过，没有内容或 Git executable-bit 变化；上述固定检查点完整重跑已通过。
+
+公共物理/分组基准继续单列于[集成验收记录](on-demand-integration-validation.md)。其中物理窄搜 p95 32.229 ms 和暖分组搜索 p95 2,517.210 ms 是公共代码检查点的不同合成场景，不是阶段 B 接口测量或生产保证。
+
+## 作者浏览器证据
+
+固定检查点大目录共 11 项全部通过：8 个真实布局、2 个真实整组/刷新/超限/保存恢复流程和 1 个导航检查。作者实际打开全部 8 张截图；PNG 与含 `source_sha` 的测量 JSON 已放在 `docs/images/console/oauth-catalog/`。[英文 1600×900](../images/console/oauth-catalog/paged-en-US-1600x900.png) 与[中文 1600×900](../images/console/oauth-catalog/paged-zh-CN-1600x900.png) 展示紧凑编辑器。全部 label 与控件同行，body/document 溢出为零，页脚始终可见。8 个真实 OAuth 布局用例没有旧 scope-options 或 `/v1/tools` 请求。
 
 | 视口 | 英文 / 中文完整可见行数 | Body / document 溢出 |
 |---|---:|---:|
@@ -67,6 +84,6 @@ HTTP 套件使用精确 5,000 服务 / 50,000 工具，遍历全部 50 个 MCP �
 | 2560×1080 | 13 / 13 | 0 / 0 |
 | 2560×1440 | 15 / 15 | 0 / 0 |
 
-构建后从 `web/` 复现：`GATE_E2E_OAUTH_CATALOG_SCALE=1 npm exec -- playwright test e2e/oauth-grants.spec.ts e2e/oauth-paged-catalog.spec.ts`；加 `e2e/oauth-consent.spec.ts` 复核未变化的同意流程。后端候选专项为 `uv run pytest -q tests/test_oauth_paged_catalog.py tests/test_oauth_scope_catalog.py`，后端完整命令为 `uv run pytest -q`。固定提交的最终执行结果与这些冻结前作者截图分列交付；独立 UI 验收仍由设计负责人完成。
+构建后从 `web/` 复现：`GATE_E2E_OAUTH_CATALOG_SCALE=1 npm exec -- playwright test e2e/oauth-grants.spec.ts e2e/oauth-paged-catalog.spec.ts`；加 `e2e/oauth-consent.spec.ts` 复核未变化的同意流程。后端候选专项为 `uv run pytest -q tests/test_oauth_paged_catalog.py tests/test_oauth_scope_catalog.py`，后端完整命令为 `uv run pytest -q`。独立 UI 验收仍由设计负责人完成。
 
 未修改或验证真实 Plane 分类、ChatGPT 授权/缓存、生产 grant、真实凭据、SSH、发行 tag 或制品。
