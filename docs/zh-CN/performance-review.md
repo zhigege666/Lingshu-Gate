@@ -70,6 +70,8 @@ uv run python scripts/benchmark_stdio.py
 
 ## 按需目录：5,000 服务 / 50,000 工具
 
+下表为历史基础分支测量。安全修复后的集成版使用 registry 持有的不可变结构及六个公共入口；独立物理/分组数据、精确源码 SHA 和更高的实测驻留内存见[集成验收记录](on-demand-integration-validation.md)。不能将旧基础分支 RSS 当作当前集成结果。
+
 2026-10-05 实测源码为 `test/on-demand-tools-20261005` 的 `58c46c4d6f04a04acd48cf43a8001211823396b6`，基于 0.4.4 main 精确提交 `d4786fd368e932bc758ea29da1a597c9d9551794`。[原始结果](../benchmarks/tool-catalog-5000-50000.json) 保留 Python 3.12.14、Linux 6.18.44、脚本摘要及权限案例。每个工具有 20 个入参字段。主要调用者是合成普通 operator token，明确授权 5,000 服务，其中一服务被拒，实际可见 49,990 工具。另一个 operator 仅可见五服务 / 50 工具；管理员另行测量。
 
 | 场景 | 请求数 | 中位数 | p95 | 最大返回体 |

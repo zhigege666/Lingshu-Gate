@@ -70,6 +70,8 @@ Both use disposable temporary directories and synthetic identities. Discovery RS
 
 ## On-demand directory, 5,000 services / 50,000 tools
 
+The table below is the historical foundation measurement. The security-fixed integration uses an owned immutable registry and six public entries; see [integration validation](on-demand-integration-validation.md) for its separate physical/group datasets, exact source SHAs and higher measured residency. Do not use the older foundation RSS as a current integration result.
+
 The 2026-10-05 source measurement used commit `58c46c4d6f04a04acd48cf43a8001211823396b6` on `test/on-demand-tools-20261005`, based on exact 0.4.4 main `d4786fd368e932bc758ea29da1a597c9d9551794`. [Raw measurements](benchmarks/tool-catalog-5000-50000.json) record Python 3.12.14, Linux 6.18.44, the benchmark script digest and all scope cases. Each tool has 20 input fields. The primary caller is an ordinary synthetic operator token with 5,000 explicit service grants, one denied service and 49,990 visible tools. A second operator sees five services / 50 tools; administrator results are measured separately.
 
 | Scenario | Requests | Median | p95 | Maximum response |

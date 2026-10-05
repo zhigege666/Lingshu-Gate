@@ -14,6 +14,7 @@
 | [MCP 网关](mcp-gateway.md) | 网关入口、协议协商、下游 HTTP/stdio、发现、分类和调用 |
 | [按需工具发现](on-demand-tools.md) | 六个有界发现/会话入口、每客户端模式、保留原授权与合成规模基准 |
 | [按需目录集成溯源](on-demand-integration.md) | 精确分组提交映射、冲突处理与定向安全证据 |
+| [按需目录集成验收记录](on-demand-integration-validation.md) | 精确测试检查点、物理/分组实测及原生 worker 证据 |
 | [MCP 分组](mcp-groups.md) | 逻辑组、显式实例、管理员管理和合同分区 |
 | [MCP 分组路由适配](mcp-group-routing-contract.md) | 按需目录内部接口与绑定认证连接的实例会话 |
 | [项目交付](project-delivery.md) | 上传、构建、部署、启动流程，`gate_*` 工具和自带 Delivery Skill |
