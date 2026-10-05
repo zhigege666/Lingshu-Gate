@@ -140,7 +140,7 @@ test('cross-page selection and complete search survive save failure/retry', asyn
   await expect(dialog.getByRole('status')).toContainText('3 selected')
   gate.setFailure(true)
   await dialog.getByRole('button', { name: 'Save group', exact: true }).click()
-  await expect(dialog.getByRole('alert')).toContainText('Your draft is intact')
+  await expect(dialog.getByRole('alert').filter({ hasText: 'Your draft is intact' })).toBeVisible()
   await expect(dialog.getByLabel('Name', { exact: true })).toHaveValue('Synthetic selected group')
   gate.setFailure(false)
   await dialog.getByRole('button', { name: 'Save group', exact: true }).click()
