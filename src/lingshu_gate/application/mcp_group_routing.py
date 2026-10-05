@@ -92,12 +92,18 @@ class McpGroupRoutingService:
                     required = variant.summary.safety.required_access if variant.summary.safety else "write"
                     if ACCESS_RANK[grants[key]] >= ACCESS_RANK[required]:
                         allowed.append(variant)
-            if (self.groups.configs.metadata_snapshot_current(revision)
-                    and self.registry.mcp_snapshot_current(snapshot.revisions)):
-                counts = Counter(item.summary.original_tool_name for item in allowed)
-                for item in allowed:
-                    item.summary = item.summary.model_copy(update={"visible_variant_count": counts[item.summary.original_tool_name]})
-                return group, visible, allowed
+            with self.groups.configs.mutation_lock, self.groups.store.database.session() as connection:
+                try:
+                    current_group = self.groups.store.detail(connection, group_id)
+                except McpGroupError:
+                    raise self._unavailable() from None
+                if (current_group["revision"] == group["revision"] and current_group["status"] == "active"
+                        and self.groups.configs.metadata_snapshot_current(revision)
+                        and self.registry.mcp_snapshot_current(snapshot.revisions)):
+                    counts = Counter(item.summary.original_tool_name for item in allowed)
+                    for item in allowed:
+                        item.summary = item.summary.model_copy(update={"visible_variant_count": counts[item.summary.original_tool_name]})
+                    return group, visible, allowed
         raise McpGroupError("group_catalog_changed", "The service changed repeatedly; retry the read.")
 
     def search(self, actor: AuthPrincipal, *, group_id: str, q: str = "", offset: int = 0,

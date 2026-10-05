@@ -155,6 +155,7 @@ class McpGroupService:
             authorize=lambda connection: self.authorize(connection, principal))
 
     def delete(self, group_id: str, revision: int, principal: AuthPrincipal) -> dict[str, Any]:
-        self.check(principal, write=True)
-        return self.store.delete(group_id, revision, actor_id=principal.id,
-                                 authorize=lambda connection: self.authorize(connection, principal, write=True))
+        with self.configs.mutation_lock:
+            self.check(principal, write=True)
+            return self.store.delete(group_id, revision, actor_id=principal.id,
+                                     authorize=lambda connection: self.authorize(connection, principal, write=True))

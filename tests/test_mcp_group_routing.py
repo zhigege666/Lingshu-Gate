@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import json
 from dataclasses import replace
+from threading import Event, Thread
 
 import pytest
 from pydantic import ValidationError
@@ -198,6 +199,35 @@ def test_failure_does_not_replay_write_or_select_another_instance(gate, routing)
     result = invoke(gate, service, gate["principal"], GroupToolCall(**selected.model_dump(), session_id=session["session_id"]))
     assert not result.ok and len(peers["instance-0"].calls) == 1
     assert not peers["instance-1"].calls and not peers["instance-2"].calls
+
+
+def test_group_deletion_waits_for_pinned_dispatch_then_invalidates_session(gate, routing):
+    service, group, _ = routing
+    actor = gate["principal"]
+    selected = selection(service, group, actor)
+    session = service.open_session(actor, selected)
+    call = GroupToolCall(**selected.model_dump(), session_id=session["session_id"])
+    started, deleted = Event(), Event()
+    failures = []
+
+    def delete_group():
+        started.set()
+        try:
+            gate["service"].delete(group["id"], group["revision"], actor)
+        except Exception as exc:
+            failures.append(exc)
+        finally:
+            deleted.set()
+
+    with service.dispatch_guard(actor, call):
+        worker = Thread(target=delete_group)
+        worker.start()
+        assert started.wait(1)
+        assert not deleted.wait(0.05)
+    worker.join(timeout=2)
+    assert deleted.is_set() and not failures
+    with pytest.raises(McpGroupError):
+        invoke(gate, service, actor, call)
 
 
 def test_schema_change_between_selection_and_dispatch_is_not_reused(gate, routing):
