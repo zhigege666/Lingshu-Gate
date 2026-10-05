@@ -396,6 +396,58 @@ def test_selected_group_describe_and_invoke_never_prepare_other_instances(gate, 
     assert len(peers["instance-0"].calls) == 1 and not peers["instance-1"].calls and not peers["instance-2"].calls
 
 
+@pytest.mark.parametrize("change", ["close", "expire"])
+def test_session_closed_or_expired_during_private_client_init_never_dispatches(gate, integrated, monkeypatch, change):
+    from unittest.mock import Mock
+    from lingshu_gate.mcp_manifest import McpServerManifest
+    from test_mcp_group_routing import SyntheticPeer
+
+    catalog, group, peers = integrated
+    actor, router = gate["principal"], catalog.group_router
+    manager = router.groups.runtime
+    manifest = gate["configs"].load_manifest("instance-0").model_dump(exclude={"manifest_path"})
+    manifest["user_credentials"] = [{"id": "personal", "name": "Synthetic personal credential", "required": True,
+        "injection": {"type": "http_header", "name": "Authorization", "template": "Bearer {value}"}}]
+    gate["configs"].save_config(manifest, overwrite=True)
+    manager._servers["instance-0"].manifest = McpServerManifest.model_validate(manifest)
+    manager.user_credential_store = Mock()
+    manager.user_credential_store.resolve_slots.return_value = ({"personal": "synthetic-credential-only"}, [])
+    described = selected(catalog, group, actor)
+    session = opened(catalog, described, actor)
+    request = CatalogInvoke(tool_ref=described["tool_ref"], instance_id="instance-0",
+        schema_revision=described["schema_revision"], session_id=session, arguments={})
+    private, entered, release = SyntheticPeer("private-instance-0"), Event(), Event()
+    def slow_start():
+        entered.set()
+        assert release.wait(4), "Release synthetic private initialization within the test budget"
+    private.start, private.stop = slow_start, lambda: None
+    monkeypatch.setattr("lingshu_gate.mcp_runtime.StreamableHttpMcpClient", lambda *args, **kwargs: private)
+    # The final binding recheck must still prepare only the selected instance.
+    prepare = router.structures.get_many
+    def bounded(entries):
+        entries = tuple(entries)
+        assert {entry.structure.metadata["server_id"] for entry in entries} == {"instance-0"}
+        return prepare(entries)
+    monkeypatch.setattr(router.structures, "get_many", bounded)
+    with ThreadPoolExecutor(max_workers=1) as pool:
+        future = pool.submit(catalog.invoke, actor, request)
+        try:
+            assert entered.wait(3)
+            if change == "close":
+                catalog.call("gate_instance_session_close", {"session_id": session}, actor)
+            else:
+                gate["database"].execute("UPDATE mcp_group_route_sessions SET expires_at='2000-01-01T00:00:00Z' WHERE id=?",
+                    (session,))
+        finally:
+            release.set()
+        with pytest.raises(ToolExecutionError) as denied:
+            future.result(timeout=4)
+    assert denied.value.code == "catalog_tool_unavailable"
+    assert not private.calls and all(not peer.calls for peer in peers.values())
+    rows = gate["database"].query_all("SELECT tool_id,server_id,outcome FROM invocation_audits")
+    assert [tuple(row) for row in rows] == [("mcp.instance-0.inspect", "instance-0", "not_invoked")]
+
+
 def test_group_paging_prepares_one_projection_and_invalid_cursor_none(gate, integrated, monkeypatch):
     catalog, group, _ = integrated
     actor = gate["principal"]

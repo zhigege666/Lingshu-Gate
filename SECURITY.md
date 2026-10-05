@@ -24,6 +24,8 @@ The source on-demand catalog uses the existing authorization policy before ranki
 
 Schema evaluation has finite structural/expansion budgets and runs after original invocation admission, before dispatch leases, in a deadline-bound subprocess that is killed and reaped on timeout/cancellation. Resolved-target rejection produces one original physical `not_invoked` audit; unresolved references produce only a hash/correlation event without names or argument values. Public describe rejects concurrent policy/catalog changes. Grouped calls retain explicit instance/session selection and no read replay. Built-in OAuth verification and in-process proof refresh query the database grant's bounded explicit targets, retain current owner/client/family/publication checks and do not authorize newly discovered tools. These source checks do not certify real-provider or production deployment behavior.
 
+Invocation identity comparison treats authority collections as sets, while proof fields, reduced authority and numeric ceilings remain strict. The final grouped dispatch guard repeats the existing bounded session/instance/configuration/generation check after private-client initialization; a closed or expired session produces zero business calls and one `not_invoked` audit.
+
 Security fixes target the latest published release and the `main` branch. Older releases may require upgrading to receive a fix. Release archives and container images should be obtained from the repository's official Releases and package pages and verified by digest.
 
 ## Deployment boundary
