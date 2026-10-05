@@ -8,7 +8,7 @@ export function ScopeRules({ options, grant, loading, added, addedWrite, removed
   const [open, setOpen] = useState(false)
   const scopes = options?.scopes || grant.scopes
   return <div className="oauth-scope-rule-row">
-    <span className="oauth-scope-rule-summary oauth-muted" role="status">{loading ? zh ? "正在读取本人可授权范围…" : "Loading your available scope…" : `${zh ? "OAuth 上限" : "OAuth ceiling"}: ${scopes.join(" · ") || "—"} · ${zh ? "本人当前获准且已发布的工具" : "Currently permitted, published tools"}`}</span>
+    <span className="oauth-scope-rule-summary oauth-muted" role="status">{loading ? zh ? "正在读取本人可授权范围…" : "Loading your available scope…" : `${zh ? "OAuth 上限" : "OAuth ceiling"}: ${scopes.join(" · ") || "—"} · ${options ? zh ? "本人当前获准且已发布的工具" : "Currently permitted, published tools" : zh ? "可授权目录尚未读取，请刷新" : "Catalog not loaded; refresh available scope"}`}</span>
     <Popover trigger="click" placement="bottomLeft" arrow={false} open={open} onOpenChange={setOpen} getPopupContainer={trigger => trigger.closest<HTMLElement>('[role="dialog"]') || trigger.parentElement!} title={zh ? "范围与授权规则" : "Scope and authorization rules"} content={<div className="oauth-scope-info" onKeyDown={event => { if (event.key === "Escape") { event.stopPropagation(); setOpen(false) } }}>
       <p className="oauth-wrap">{grant.client_name} · {grant.resource}</p>
       <p>{zh ? "现有 OAuth scope 上限：" : "Existing OAuth scope ceiling: "}{scopes.join(" · ") || "—"}{options && <><br />{zh ? "当前客户端允许：" : "Currently allowed by client: "}{options.effective_scopes.join(" · ") || "—"}</>}</p>

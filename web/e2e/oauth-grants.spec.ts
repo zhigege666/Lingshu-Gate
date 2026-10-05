@@ -156,7 +156,7 @@ for (const locale of ["en-US", "zh-CN"] as const) {
     const later = { ...tools[1], id: "synthetic-later-tool", server_id: "synthetic-later-mcp", server_name: "Later MCP" }
     model.candidates = [tools[0], later]
     await refresh.click()
-    await expect(editor.locator(".oauth-unavailable-selection")).toContainText(zh ? "草稿中 1 项当前不可授权" : "1 draft selections are unavailable")
+    await expect(editor.locator(".oauth-unavailable-selection")).toContainText(zh ? "草稿中 1 项当前不可授权" : "1 draft selection is unavailable")
     await expect(editor.getByRole("radio", { name: zh ? "自定义" : "Custom", exact: true })).toBeChecked()
     await expect(editor.getByRole("spinbutton", { name: zh ? "每分钟调用上限" : "Calls per minute", exact: true })).toHaveValue("30")
     await expect(editor.locator('tr[data-row-key="synthetic-tool-1"]').getByRole("checkbox")).toBeChecked()
@@ -207,7 +207,7 @@ for (const size of sizes) for (const locale of ["en-US", "zh-CN"] as const) {
     await expect(editor.getByRole("button", { name: zh ? "移除不可授权选择" : "Remove unavailable selections", exact: true })).toBeVisible()
     await editor.getByRole("radio", { name: zh ? "MCP 整组" : "MCP groups", exact: true }).check()
     await editor.evaluate(async element => { await Promise.all(element.getAnimations().map(animation => animation.finished)) })
-    await expect(page.locator("header [data-gate-version]")).toContainText(`v${sourceVersion}`)
+    await expect(page.locator(".console-header").getByText(`v${sourceVersion}`, { exact: true })).toBeVisible()
     const controls = [
       editor.getByRole("radio", { name: zh ? "仅选全部当前只读" : "All current read-only tools", exact: true }),
       editor.getByRole("button", { name: zh ? "刷新可授权范围" : "Refresh available scope", exact: true }),
@@ -250,6 +250,9 @@ for (const size of sizes) for (const locale of ["en-US", "zh-CN"] as const) {
     expect(layout.footerHeight).toBeLessThanOrEqual(56)
     writeFileSync(testInfo.outputPath("oauth-bulk-layout.json"), JSON.stringify({ locale, viewport: size, sourceVersion, ...layout }, null, 2))
     await page.screenshot({ path: testInfo.outputPath("oauth-bulk-draft.png"), animations: "disabled" })
+    await editor.getByRole("button", { name: zh ? "移除不可授权选择" : "Remove unavailable selections", exact: true }).click()
+    await expect(editor.getByRole("button", { name: zh ? "核对并更新连接" : "Review connection update", exact: true })).toBeEnabled()
+    await page.screenshot({ path: testInfo.outputPath("oauth-bulk-edit.png"), animations: "disabled" })
     expect(model.writes).toHaveLength(0)
   })
 }
@@ -377,7 +380,12 @@ for (const locale of ['en-US', 'zh-CN'] as const) for (const mixed of [false, tr
     const scopeDetails = editor.getByRole('button', { name: zh ? '查看范围与授权规则' : 'Scope details', exact: true })
     await scopeDetails.click()
     await expect(editor.locator('.oauth-scope-info')).toContainText(zh ? '仅有 tools.read 的令牌不能调用新增写工具' : 'a tools.read-only token cannot invoke newly added write tools')
-    await scopeDetails.click()
+    await expect(scopeDetails).toHaveAttribute('aria-expanded', 'true')
+    await page.keyboard.press('Escape')
+    await expect(scopeDetails).toHaveAttribute('aria-expanded', 'false')
+    await expect(editor).toBeVisible()
+    expect(model.previews).toHaveLength(0)
+    expect(model.writes).toHaveLength(0)
     await editor.locator('tr[data-row-key="synthetic-tool-1"]').getByRole('checkbox').check()
     if (mixed) await editor.locator('tr[data-row-key="synthetic-tool-0"]').getByRole('checkbox').uncheck()
     const update = editor.getByRole('button', { name: zh ? '核对并更新连接' : 'Review connection update', exact: true })
