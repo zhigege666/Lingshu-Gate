@@ -6,10 +6,20 @@ import { useConfirm } from "@/components/confirm-dialog"
 import { localizeStatus, type Locale, type TFunction } from "@/i18n"
 import { McpGroupEditor } from "./group-editor"
 import { groupCopy, groupError } from "./group-copy"
+import { useAuth } from "@/components/auth-gate"
+import { forgetGroupCreation, readGroupCreation, type GroupCreationScope } from "./group-create-recovery"
 
-export function McpGroupsView({ locale, t, serverIds, onSelectInstance, onBusyChange, canWrite }: {
+type GroupsViewProps = {
   locale: Locale; t: TFunction; serverIds: Set<string>; onSelectInstance: (id: string) => void; onBusyChange: (busy: boolean) => void; canWrite: boolean
-}) {
+}
+
+export function McpGroupsView(props: GroupsViewProps) {
+  const { user } = useAuth()
+  const origin = window.location.origin
+  return <McpGroupsDirectory key={`${origin}:${user.id}`} {...props} recoveryScope={{ userId: user.id, origin }} />
+}
+
+function McpGroupsDirectory({ locale, t, serverIds, onSelectInstance, onBusyChange, canWrite, recoveryScope }: GroupsViewProps & { recoveryScope: GroupCreationScope }) {
   const c = groupCopy(locale)
   const [query, setQuery] = useState(""), [state, setState] = useState("active"), [page, setPage] = useState(1)
   const [list, setList] = useState<{ groups: McpGroupSummary[]; total: number } | null>(null)
@@ -22,6 +32,7 @@ export function McpGroupsView({ locale, t, serverIds, onSelectInstance, onBusyCh
   const [memberQuery, setMemberQuery] = useState(""), [memberPage, setMemberPage] = useState(1)
   const [editing, setEditing] = useState<{ group: McpGroup | null } | null>(null)
   const [refresh, setRefresh] = useState(0), [busy, setBusy] = useState(false), [mutationError, setMutationError] = useState("")
+  const [recoveryKey, setRecoveryKey] = useState(() => readGroupCreation(recoveryScope)), [recoveryError, setRecoveryError] = useState("")
   const listGeneration = useRef(0), detailGeneration = useRef(0), membersGeneration = useRef(0), alive = useRef(true), lock = useRef(false)
   const mutation = useRef<AbortController | null>(null)
   const fallbackFocus = useRef<HTMLButtonElement>(null)
@@ -57,6 +68,33 @@ export function McpGroupsView({ locale, t, serverIds, onSelectInstance, onBusyCh
     return () => { membersGeneration.current++; controller.abort() }
   }, [selection, memberQuery, memberPage, refresh, locale])
   function choose(id: string) { setSelection(id); setMemberPage(1); setMemberQuery("") }
+  function syncRecovery() { setRecoveryKey(readGroupCreation(recoveryScope)); setRecoveryError("") }
+  async function recoverCreation() {
+    if (lock.current || !recoveryKey) return
+    const key = recoveryKey, controller = new AbortController()
+    lock.current = true; setBusy(true); setRecoveryError(""); mutation.current = controller
+    try {
+      const next = await mcpGroupsApi.createResult(key, controller.signal)
+      if (alive.current) {
+        if (forgetGroupCreation(recoveryScope, key)) syncRecovery()
+        else setRecoveryError(c.recoveryUnavailable)
+        setSelection(next.id); setDetail(next); setRefresh(value => value + 1); void toast.success(c.recoveredAfterReload, 3)
+      }
+    } catch (cause) {
+      if (alive.current) setRecoveryError(String(cause).includes("group_request_not_found") ? c.recoveryAbsent : groupError(cause, locale))
+    } finally { lock.current = false; if (alive.current) setBusy(false) }
+  }
+  async function abandonRecovery() {
+    if (lock.current || !recoveryKey) return
+    const key = recoveryKey
+    lock.current = true; setBusy(true)
+    try {
+      if (!(await confirm({ title: c.abandonRecovery, description: c.abandonRecoveryHint, confirmText: c.abandonRecovery, cancelText: t("cancel"), destructive: true }))) return
+      if (!alive.current) return
+      if (forgetGroupCreation(recoveryScope, key)) syncRecovery()
+      else setRecoveryError(c.recoveryUnavailable)
+    } finally { lock.current = false; if (alive.current) setBusy(false) }
+  }
   async function refreshDirectory() {
     if (lock.current) return
     lock.current = true; setBusy(true); setMutationError("")
@@ -82,7 +120,7 @@ export function McpGroupsView({ locale, t, serverIds, onSelectInstance, onBusyCh
   return <>
     <aside className="service-directory" aria-label={c.groups}>
       <div className="service-directory-header">
-        <div className="service-directory-title"><h2>{c.groups}</h2>{canWrite && <Button disabled={busy} onClick={() => setEditing({ group: null })}>{c.newGroup}</Button>}</div>
+        <div className="service-directory-title"><h2>{c.groups}</h2>{canWrite && <Button disabled={busy || Boolean(recoveryKey)} onClick={() => setEditing({ group: null })}>{c.newGroup}</Button>}</div>
         <PageToolbar query={query} onQueryChange={value => { setQuery(value); setPage(1) }} placeholder={c.searchGroups} clearLabel={t("clearSearch")} />
         <Radio.Group aria-label={c.state} value={state} disabled={busy} options={[{ value: "active", label: c.active }, { value: "archived", label: c.archived }, { value: "all", label: c.all }]} onChange={event => { setState(String(event.target.value)); setPage(1) }} />
         <Button block disabled={busy} aria-pressed={selection === "__ungrouped"} onClick={() => choose("__ungrouped")}>{c.ungrouped}</Button>
@@ -101,6 +139,7 @@ export function McpGroupsView({ locale, t, serverIds, onSelectInstance, onBusyCh
       <PageHeader closeLabel={t("close")} variant="detail" title={selection === "__ungrouped" ? c.ungrouped : detail?.name || c.groups} description={detail?.id} titleExtra={detail && <Tag>{detail.status === "active" ? c.active : c.archived}</Tag>}
         actions={<><Button ref={fallbackFocus} disabled={busy} onClick={() => void refreshDirectory()}>{c.refresh}</Button>{detail && canWrite && <><Button disabled={busy} onClick={() => setEditing({ group: detail })}>{c.edit}</Button><Button danger disabled={busy} onClick={() => void remove()}>{c.delete}</Button></>}</>} />
       <p className="service-description mcp-group-policy">{c.metadata}</p>
+      {recoveryKey && !editing && <Alert className="mcp-group-recovery" type="warning" showIcon title={c.recoveryTitle} description={<>{c.recoveryHint}{recoveryError && <p role="alert">{recoveryError}</p>}<div><Button disabled={busy} onClick={() => void recoverCreation()}>{c.checkCreate}</Button><Button disabled={busy} onClick={() => void abandonRecovery()}>{c.abandonRecovery}</Button></div></>} />}
       {detail?.description && <p className="mcp-group-policy">{detail.description}</p>}
       {(detailError || memberError || mutationError) && <Alert role="alert" type="error" showIcon title={mutationError || detailError || memberError} action={<Button disabled={busy} onClick={() => setRefresh(value => value + 1)}>{c.retry}</Button>} />}
       {!selection ? <Empty description={c.select} image={Empty.PRESENTED_IMAGE_SIMPLE} /> : <>
@@ -114,7 +153,7 @@ export function McpGroupsView({ locale, t, serverIds, onSelectInstance, onBusyCh
         <Pagination aria-label={c.paging} current={memberPage} total={instances?.total ?? 0} pageSize={20} showSizeChanger={false} disabled={busy || membersLoading} onChange={setMemberPage} />
       </>}
     </section>
-    {editing && <McpGroupEditor key={editing.group?.id || "create"} group={editing.group} locale={locale} t={t} onClose={() => setEditing(null)} returnFocusFallback={() => fallbackFocus.current?.focus()} onSaved={next => { setSelection(next.id); setDetail(next); setRefresh(value => value + 1); void toast.success(c.saved, 3) }} />}
+    {editing && <McpGroupEditor key={editing.group?.id || "create"} group={editing.group} locale={locale} t={t} onClose={() => setEditing(null)} returnFocusFallback={() => fallbackFocus.current?.focus()} recoveryScope={recoveryScope} onRecoveryChange={syncRecovery} onSaved={next => { setSelection(next.id); setDetail(next); setRefresh(value => value + 1); void toast.success(c.saved, 3) }} />}
     {toastContext}{confirmDialog}
   </>
 }

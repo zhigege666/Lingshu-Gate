@@ -6,10 +6,12 @@ import { useConfirm } from "@/components/confirm-dialog"
 import { useDraftCloseGuard } from "@/components/use-draft-close-guard"
 import type { Locale, TFunction } from "@/i18n"
 import { groupCopy, groupError } from "./group-copy"
+import { forgetGroupCreation, rememberGroupCreation, type GroupCreationScope } from "./group-create-recovery"
 
-export function McpGroupEditor({ group, locale, t, onClose, onSaved, returnFocusFallback }: {
+export function McpGroupEditor({ group, locale, t, onClose, onSaved, returnFocusFallback, recoveryScope, onRecoveryChange }: {
   group: McpGroup | null; locale: Locale; t: TFunction; onClose: () => void; onSaved: (group: McpGroup) => void
   returnFocusFallback: () => void
+  recoveryScope: GroupCreationScope; onRecoveryChange: () => void
 }) {
   const c = groupCopy(locale), id = useId()
   const [snapshot, setSnapshot] = useState(group)
@@ -37,7 +39,8 @@ export function McpGroupEditor({ group, locale, t, onClose, onSaved, returnFocus
   const dirty = baseline.current !== JSON.stringify([name, description, status, [...selected].sort()]) || reconfirmed.length > 0
   const { confirm, confirmDialog } = useConfirm(t, true)
   const close = useDraftCloseGuard({ dirty: dirty || creationUnknown, pending, locale,
-    confirm: options => confirm(creationUnknown ? { ...options, description: c.createClose } : options), onClose })
+    confirm: options => confirm(creationUnknown ? { ...options, description: c.createClose } : options),
+    onClose: () => { if (creationUnknown && createAttempt.current) clearRecovery(); onClose() } })
   useEffect(() => { alive.current = true; return () => { alive.current = false; generation.current++; writeController.current?.abort() } }, [])
   useEffect(() => {
     const controller = new AbortController(), current = ++generation.current
@@ -50,8 +53,14 @@ export function McpGroupEditor({ group, locale, t, onClose, onSaved, returnFocus
     return () => { generation.current++; controller.abort() }
   }, [query, page, refresh, locale])
 
+  function clearRecovery() {
+    const cleared = !createAttempt.current || forgetGroupCreation(recoveryScope, createAttempt.current.key)
+    onRecoveryChange()
+    return cleared
+  }
   function adoptCreated(next: McpGroup) {
-    setSnapshot(next); setCreationUnknown(false); setCreationInfo(c.createRecovered); setError("")
+    const cleared = clearRecovery()
+    setSnapshot(next); setCreationUnknown(false); setCreationInfo(c.createRecovered + (cleared ? "" : ` ${c.recoveryUnavailable}`)); setError("")
     baseline.current = JSON.stringify([next.name, next.description, next.status, next.members.map(item => item.instance_id).sort()])
     setMissing(next.members.filter(item => selected.includes(item.instance_id) && (item.available === false || item.status === "missing")).map(item => item.instance_id))
   }
@@ -81,14 +90,18 @@ export function McpGroupEditor({ group, locale, t, onClose, onSaved, returnFocus
       const next = await mcpGroupsApi.save(snapshot?.id, body, controller.signal)
       if (alive.current) {
         if (retryOriginal) adoptCreated(next)
-        else { baseline.current = JSON.stringify([name, description, status, [...selected].sort()]); onSaved(next); onClose() }
+        else { if (!snapshot) clearRecovery(); baseline.current = JSON.stringify([name, description, status, [...selected].sort()]); onSaved(next); onClose() }
       }
     } catch (cause) { if (alive.current) {
       let feedback = groupError(cause, locale)
       if (!snapshot) {
         const message = cause instanceof Error ? cause.message : String(cause)
-        const rejected = !wasUnknown && /invalid_group_request|group_instance_unavailable|group_capacity|group_admin_required|group_connection_invalid|csrf/.test(message)
+        const rejected = !wasUnknown && /invalid_group_request|group_instance_unavailable|group_capacity|group_request_capacity|group_admin_required|group_connection_invalid|csrf/.test(message)
         if (rejected) createAttempt.current = null
+        else if (createAttempt.current) {
+          if (!rememberGroupCreation(recoveryScope, createAttempt.current.key)) setCreationInfo(c.recoveryUnavailable)
+          onRecoveryChange()
+        }
         setCreationUnknown(!rejected)
         if (!rejected && !/group_request_conflict|group_request_deleted|group_request_timeout/.test(message)) feedback = `${c.createUnconfirmed} ${feedback}`
       }

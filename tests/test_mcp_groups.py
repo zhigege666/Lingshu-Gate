@@ -402,6 +402,72 @@ def test_concurrent_create_retries_have_one_group_and_receipt(gate):
     assert gate["database"].query_one("SELECT COUNT(*) FROM mcp_group_requests")[0] == 1
 
 
+@pytest.mark.parametrize("capacity", ["actor", "global"])
+def test_receipt_capacity_only_blocks_new_creation_and_keeps_tombstones(gate, monkeypatch, capacity):
+    monkeypatch.setattr("lingshu_gate.persistence.mcp_groups.MCP_GROUP_REQUESTS_PER_ACTOR_LIMIT", 1 if capacity == "actor" else 10)
+    monkeypatch.setattr("lingshu_gate.persistence.mcp_groups.MCP_GROUP_REQUESTS_GLOBAL_LIMIT", 1 if capacity == "global" else 10)
+    body = draft()
+    first = gate["client"].post("/v1/mcp/groups", json=body, headers=ticket(gate, body)).json()
+    extra = draft(name="Must remain a draft")
+    rejected = gate["client"].post("/v1/mcp/groups", json=extra, headers=ticket(gate, extra))
+    assert rejected.status_code == 429 and rejected.json()["detail"]["code"] == "group_request_capacity"
+    assert gate["database"].query_one("SELECT COUNT(*) FROM mcp_groups")[0] == 1
+    assert gate["database"].query_one("SELECT COUNT(*) FROM mcp_group_requests")[0] == 1
+    assert gate["database"].query_one("SELECT COUNT(*) FROM events WHERE subject_type='mcp_group'")[0] == 1
+    assert gate["client"].get(f'/v1/mcp/groups/requests/{extra["request_key"]}').status_code == 404
+    assert gate["client"].get(f'/v1/mcp/groups/requests/{body["request_key"]}').json()["id"] == first["id"]
+    assert gate["client"].post("/v1/mcp/groups", json=body, headers=ticket(gate, body)).json()["id"] == first["id"]
+    changed = {**body, "description": "Changed creation"}
+    conflict = gate["client"].post("/v1/mcp/groups", json=changed, headers=ticket(gate, changed))
+    assert conflict.status_code == 409 and conflict.json()["detail"]["code"] == "group_request_conflict"
+    update = draft(name="Updated at capacity", expected_revision=1)
+    assert gate["client"].put(f'/v1/mcp/groups/{first["id"]}', json=update, headers=ticket(gate, update, "update", first["id"])).status_code == 200
+    deletion = {"confirmed": True, "expected_revision": 2}
+    assert gate["client"].request("DELETE", f'/v1/mcp/groups/{first["id"]}', json=deletion, headers=ticket(gate, deletion, "delete", first["id"])).status_code == 200
+    retired = gate["client"].post("/v1/mcp/groups", json=body, headers=ticket(gate, body))
+    assert retired.status_code == 409 and retired.json()["detail"]["code"] == "group_request_deleted"
+    assert gate["database"].query_one("SELECT COUNT(*) FROM mcp_group_requests")[0] == 1
+    assert gate["client"].post("/v1/mcp/groups", json=extra, headers=ticket(gate, extra)).status_code == 429
+
+
+@pytest.mark.parametrize("capacity", ["actor", "global"])
+def test_receipt_actor_capacity_is_private_and_global_capacity_is_shared(gate, monkeypatch, capacity):
+    monkeypatch.setattr("lingshu_gate.persistence.mcp_groups.MCP_GROUP_REQUESTS_PER_ACTOR_LIMIT", 1)
+    monkeypatch.setattr("lingshu_gate.persistence.mcp_groups.MCP_GROUP_REQUESTS_GLOBAL_LIMIT", 1 if capacity == "global" else 10)
+    create(gate)
+    gate["auth"].create_user(username="synthetic-capacity-admin", password=PASSWORD, role="admin")
+    _, cookie, _ = gate["auth"].login(username="synthetic-capacity-admin", password=PASSWORD)
+    gate["client"].cookies.set(gate["auth"].cookie_name, cookie)
+    body = draft()
+    response = gate["client"].post("/v1/mcp/groups", json=body, headers=ticket(gate, body))
+    assert response.status_code == (429 if capacity == "global" else 200)
+    if capacity == "global":
+        assert response.json()["detail"]["code"] == "group_request_capacity"
+
+
+@pytest.mark.parametrize("capacity", ["actor", "global"])
+def test_concurrent_new_receipts_cannot_cross_transactional_capacity(gate, monkeypatch, capacity):
+    monkeypatch.setattr("lingshu_gate.persistence.mcp_groups.MCP_GROUP_REQUESTS_PER_ACTOR_LIMIT", 1 if capacity == "actor" else 10)
+    monkeypatch.setattr("lingshu_gate.persistence.mcp_groups.MCP_GROUP_REQUESTS_GLOBAL_LIMIT", 1 if capacity == "global" else 10)
+    barrier = threading.Barrier(2)
+    def create_at_boundary(index):
+        body = McpGroupCreate(**draft(name=f"Concurrent bounded {index}"))
+        digest = hashlib.sha256(json.dumps(body.model_dump(), sort_keys=True).encode()).hexdigest()
+        barrier.wait(timeout=3)
+        try:
+            gate["store"].save(body, group_id=None, expected_revision=None, actor_id=gate["principal"].id,
+                authorize=lambda connection: gate["service"].authorize(connection, gate["principal"], write=True),
+                available_instances={"instance-0", "instance-1"}, request_key=body.request_key, request_digest=digest)
+            return "created"
+        except McpGroupError as exc:
+            return exc.code
+    with ThreadPoolExecutor(max_workers=2) as pool:
+        assert sorted(pool.map(create_at_boundary, range(2))) == ["created", "group_request_capacity"]
+    for table in ("mcp_groups", "mcp_group_requests"):
+        assert gate["database"].query_one(f"SELECT COUNT(*) FROM {table}")[0] == 1
+    assert gate["database"].query_one("SELECT COUNT(*) FROM events WHERE type='gate.mcp.group_created'")[0] == 1
+
+
 @pytest.mark.parametrize("change", ["invoke_permission", "token_scopes", "token_revoked"])
 @pytest.mark.parametrize("action", ["create", "update", "delete"])
 def test_queued_writer_rechecks_revoked_permission_and_token_ceiling(gate, change, action):

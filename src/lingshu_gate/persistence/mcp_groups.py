@@ -11,6 +11,8 @@ from lingshu_gate.domain.mcp_groups import McpGroupDraft, McpGroupError
 from lingshu_gate.observability_store import ObservabilityStore, iso_now
 
 Authorize = Callable[[sqlite3.Connection], None]
+MCP_GROUP_REQUESTS_PER_ACTOR_LIMIT = 10_000
+MCP_GROUP_REQUESTS_GLOBAL_LIMIT = 100_000
 
 
 class McpGroupStore:
@@ -56,6 +58,10 @@ class McpGroupStore:
                     if receipt["request_digest"] != request_digest:
                         raise McpGroupError("group_request_conflict", "This create request was used with a different body; reconcile its saved result before editing.")
                     return self._receipt_result(connection, receipt["group_id"])
+                actor_count = connection.execute("SELECT COUNT(*) FROM mcp_group_requests WHERE actor_id=?", (actor_id,)).fetchone()[0]
+                total_count = connection.execute("SELECT COUNT(*) FROM mcp_group_requests").fetchone()[0]
+                if actor_count >= MCP_GROUP_REQUESTS_PER_ACTOR_LIMIT or total_count >= MCP_GROUP_REQUESTS_GLOBAL_LIMIT:
+                    raise McpGroupError("group_request_capacity", "The creation receipt limit has been reached. No new group was created; existing requests can still be reconciled or replayed.", 429)
             previous = self.detail(connection, group_id) if group_id else None
             if previous and previous["revision"] != expected_revision:
                 raise McpGroupError("group_revision_conflict", "The group changed; reload it before saving. Your draft has not been applied.")

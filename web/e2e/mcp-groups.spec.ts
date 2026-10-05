@@ -173,6 +173,127 @@ test('changed unconfirmed creation reconciles the saved group while keeping new 
   expect(Array.from(gate.records.values()).filter(item => item.name === '保留新的修改')).toHaveLength(1)
 })
 
+for (const locale of ['en-US', 'zh-CN']) {
+  test(`reload keeps only the unresolved key and reconciles by read only ${locale}`, async ({ page }, info) => {
+    await page.setViewportSize({ width: 1600, height: 900 })
+    const gate = await fixture(page, locale, locale === 'zh-CN' ? 'light' : 'dark')
+    const chinese = locale === 'zh-CN', create = chinese ? '创建组' : 'Create group', check = chinese ? '核对保存结果' : 'Check saved result'
+    await page.getByRole('button', { name: create, exact: true }).click()
+    const dialog = page.getByRole('dialog')
+    await dialog.getByLabel(chinese ? '名称' : 'Name', { exact: true }).fill('Synthetic saved before reload')
+    gate.setLoseResponse()
+    await dialog.getByRole('button', { name: chinese ? '保存组' : 'Save group', exact: true }).click()
+    await expect(dialog.getByRole('button', { name: check, exact: true })).toBeVisible()
+    await dialog.getByLabel(chinese ? '名称' : 'Name', { exact: true }).fill('Synthetic unsaved edits must not persist')
+    const entries = await page.evaluate(() => Object.entries(sessionStorage).filter(([key]) => key.startsWith('gate-mcp-group-create-pending:')))
+    const actor = await (await page.request.get('/v1/auth/me')).json()
+    expect(entries).toEqual([[`gate-mcp-group-create-pending:${JSON.stringify([new URL(page.url()).origin, actor.id])}`, gate.writes[0].body.request_key]])
+    await page.reload()
+    await page.locator('.mcp-group-view-switch').getByText(chinese ? '组' : 'Groups', { exact: true }).click()
+    await expect(page.locator('.mcp-group-recovery')).toContainText(chinese ? '无法恢复未保存的编辑内容' : 'Unsaved edits cannot be restored')
+    await expect(page.getByRole('button', { name: create, exact: true })).toBeDisabled()
+    expect(gate.requests.filter(item => item.includes('/requests/'))).toHaveLength(0)
+    expect(gate.writes).toHaveLength(1)
+    const output = process.env.GATE_GROUP_EVIDENCE_DIR || info.outputPath('evidence'); mkdirSync(output, { recursive: true })
+    await page.screenshot({ path: join(output, `create-reload-${locale}-1600x900.png`) })
+    await page.getByRole('button', { name: check, exact: true }).click()
+    await expect(page.locator('.mcp-group-recovery')).toHaveCount(0)
+    await expect(page.locator('.mcp-group-detail h1')).toHaveText('Synthetic saved before reload')
+    await expect(page.getByRole('button', { name: create, exact: true })).toBeEnabled()
+    expect(await page.evaluate(() => Object.keys(sessionStorage).filter(key => key.startsWith('gate-mcp-group-create-pending:')))).toEqual([])
+    expect(gate.writes).toHaveLength(1)
+    expect(gate.requests.filter(item => item.includes('/requests/'))).toEqual([`GET /v1/mcp/groups/requests/${gate.writes[0].body.request_key}`])
+  })
+
+  test(`receipt capacity rejection is definite and preserves the creation draft ${locale}`, async ({ page }) => {
+    const gate = await fixture(page, locale), chinese = locale === 'zh-CN'
+    let rejectedKey: string | undefined
+    gate.setDelay(async route => {
+      if (route.request().method() !== 'POST' || new URL(route.request().url()).pathname !== '/v1/mcp/groups') return false
+      rejectedKey = route.request().postDataJSON().request_key
+      await route.fulfill({ status: 429, json: { detail: { code: 'group_request_capacity' } } })
+      gate.setDelay(undefined); return true
+    })
+    await page.getByRole('button', { name: chinese ? '创建组' : 'Create group', exact: true }).click()
+    const dialog = page.getByRole('dialog'), name = dialog.getByLabel(chinese ? '名称' : 'Name', { exact: true })
+    await name.fill('Synthetic draft at capacity')
+    await dialog.getByRole('button', { name: chinese ? '保存组' : 'Save group', exact: true }).click()
+    await expect(dialog.getByRole('alert')).toContainText(chinese ? '本次请求未新建组' : 'This request did not create a new group')
+    await expect(name).toHaveValue('Synthetic draft at capacity')
+    await expect(dialog.getByRole('button', { name: chinese ? '核对保存结果' : 'Check saved result', exact: true })).toHaveCount(0)
+    expect(await page.evaluate(() => Object.keys(sessionStorage).filter(key => key.startsWith('gate-mcp-group-create-pending:')))).toEqual([])
+    await name.fill('Synthetic corrected draft')
+    await dialog.getByRole('button', { name: chinese ? '保存组' : 'Save group', exact: true }).click()
+    await expect(dialog).toHaveCount(0)
+    expect(gate.writes).toHaveLength(1)
+    expect(gate.writes[0].body.request_key).not.toBe(rejectedKey)
+    expect(gate.writes[0].body.name).toBe('Synthetic corrected draft')
+  })
+}
+
+test('reload GET 404 keeps the key until confirmed abandonment and never creates', async ({ page }) => {
+  const gate = await fixture(page), actor = await (await page.request.get('/v1/auth/me')).json(), key = 'e'.repeat(32)
+  await page.evaluate(({ actorId, key }) => sessionStorage.setItem(`gate-mcp-group-create-pending:${JSON.stringify([location.origin, actorId])}`, key), { actorId: actor.id, key })
+  await page.reload()
+  await page.locator('.mcp-group-view-switch').getByText('Groups', { exact: true }).click()
+  await page.getByRole('button', { name: 'Check saved result', exact: true }).click()
+  await expect(page.locator('.mcp-group-recovery').getByRole('alert')).toContainText('does not prove the earlier request failed')
+  await expect(page.getByRole('button', { name: 'Create group', exact: true })).toBeDisabled()
+  expect(await page.evaluate(() => Object.values(sessionStorage).includes('e'.repeat(32)))).toBe(true)
+  expect(gate.writes).toHaveLength(0)
+  await page.getByRole('button', { name: 'Abandon recovery record', exact: true }).click()
+  await expect(page.getByRole('alertdialog')).toContainText('may already have been saved and will not be deleted')
+  await page.getByRole('alertdialog').getByRole('button', { name: 'Cancel', exact: true }).click()
+  await expect(page.locator('.mcp-group-recovery')).toBeVisible()
+  await page.getByRole('button', { name: 'Abandon recovery record', exact: true }).click()
+  await page.getByRole('alertdialog').getByRole('button', { name: 'Abandon recovery record', exact: true }).click()
+  await expect(page.locator('.mcp-group-recovery')).toHaveCount(0)
+  await expect(page.getByRole('button', { name: 'Create group', exact: true })).toBeEnabled()
+  expect(await page.evaluate(() => Object.values(sessionStorage).includes('e'.repeat(32)))).toBe(false)
+  expect(gate.writes).toHaveLength(0)
+})
+
+test('switching authenticated IDs isolates recovery even with the same username', async ({ page }) => {
+  const gate = await fixture(page), original = await (await page.request.get('/v1/auth/me')).json(), key = 'f'.repeat(32)
+  let actorId = original.id
+  await page.route('**/v1/auth/me', route => route.fulfill({ json: { ...original, id: actorId } }))
+  await page.evaluate(({ actorId, key }) => sessionStorage.setItem(`gate-mcp-group-create-pending:${JSON.stringify([location.origin, actorId])}`, key), { actorId, key })
+  actorId = 'opaque-synthetic-other-user'
+  await page.reload()
+  await page.locator('.mcp-group-view-switch').getByText('Groups', { exact: true }).click()
+  await expect(page.locator('.service-entry').filter({ hasText: 'Synthetic alpha' })).toBeVisible()
+  await expect(page.locator('.mcp-group-recovery')).toHaveCount(0)
+  await expect(page.getByRole('button', { name: 'Create group', exact: true })).toBeEnabled()
+  expect(await page.evaluate(() => Object.values(sessionStorage).includes('f'.repeat(32)))).toBe(true)
+  actorId = original.id
+  await page.reload()
+  await page.locator('.mcp-group-view-switch').getByText('Groups', { exact: true }).click()
+  await expect(page.locator('.mcp-group-recovery')).toBeVisible()
+  expect(gate.requests.filter(item => item.includes('/requests/'))).toHaveLength(0)
+  expect(gate.writes).toHaveLength(0)
+})
+
+test('storage failure keeps in-dialog reconciliation usable and reports reload limitation', async ({ page }) => {
+  const gate = await fixture(page)
+  await page.evaluate(() => {
+    const set = Storage.prototype.setItem
+    Storage.prototype.setItem = function (key, value) {
+      if (key.startsWith('gate-mcp-group-create-pending:')) throw new Error('Synthetic unavailable recovery storage')
+      return set.call(this, key, value)
+    }
+  })
+  await page.getByRole('button', { name: 'Create group', exact: true }).click()
+  const dialog = page.getByRole('dialog')
+  await dialog.getByLabel('Name', { exact: true }).fill('Synthetic unavailable storage')
+  gate.setLoseResponse()
+  await dialog.getByRole('button', { name: 'Save group', exact: true }).click()
+  await expect(dialog).toContainText('Browser recovery storage is unavailable')
+  await dialog.getByRole('button', { name: 'Check saved result', exact: true }).click()
+  await expect(dialog).toContainText('saved group was recovered')
+  await expect(dialog.getByLabel('Name', { exact: true })).toHaveValue('Synthetic unavailable storage')
+  expect(gate.writes).toHaveLength(1)
+})
+
 test('explicit retry of an unconfirmed original creation preserves later edits', async ({ page }) => {
   const gate = await fixture(page)
   let originalKey = '', aborted = false

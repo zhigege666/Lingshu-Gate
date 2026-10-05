@@ -18,7 +18,12 @@ const copy = {
     createRecovered: "The saved group was recovered. Your current edits are preserved; save to update this group.", createAbsent: "No saved result was found yet. Retry the original creation; absence does not prove that the earlier request failed.",
     createUnconfirmed: "The creation result is unconfirmed. Check its saved result or retry the original creation.",
     createDeleted: "This creation belongs to a group that was deleted. It will not be recreated; start a new draft if needed.",
-    createClose: "The creation result is unconfirmed. Closing does not delete a group that may already be saved. Check its result first; a new draft creates a separate group.",
+    createClose: "The creation result is unconfirmed. Discarding also forgets its recovery key and does not delete a group that may already be saved. Check its result first; a new draft creates a separate group.",
+    requestCapacity: "The creation receipt limit is full. This request did not create a new group; your draft is preserved. Existing requests can still be checked or replayed.",
+    recoveryTitle: "A creation result still needs checking", recoveryHint: "Only its request key was kept for this user and Gate. Unsaved edits cannot be restored. Check the saved result by read only, or explicitly abandon this recovery record before creating another group.",
+    recoveryAbsent: "No saved result was found yet; this does not prove the earlier request failed. The key is kept. No group will be created automatically.",
+    abandonRecovery: "Abandon recovery record", abandonRecoveryHint: "Forget this request key? A group may already have been saved and will not be deleted. Its original draft cannot be restored; creating another group may duplicate it.",
+    recoveredAfterReload: "The saved group was found. Unsaved edits were not restored.", recoveryUnavailable: "Browser recovery storage is unavailable. Do not rely on reload to restore this request key.",
     timeout: "The request timed out. Its result is unconfirmed; refresh the saved group/list before retrying.",
     notFound: "The group no longer exists. Refresh the list.", refresh: "Refresh", paging: "Instance pages", memberLimit: "Select up to 1,000 instances.", notLoaded: "Not loaded",
   },
@@ -39,7 +44,12 @@ const copy = {
     createRecovered: "已找回保存的组。当前编辑仍保留，保存即可更新此组。", createAbsent: "暂未找到保存结果。请重试原创建；未找到不代表上次请求失败。",
     createUnconfirmed: "创建结果尚未确认，请核对保存结果或重试原创建。",
     createDeleted: "此创建请求对应的组已删除，不会重新创建；需要时请另开新草稿。",
-    createClose: "创建结果尚未确认。关闭不会删除可能已保存的组。请先核对结果；另开新草稿会创建另一个组。",
+    createClose: "创建结果尚未确认。放弃草稿也会忘记其恢复键，不会删除可能已保存的组。请先核对结果；另开新草稿会创建另一个组。",
+    requestCapacity: "创建回执容量已满，本次请求未新建组；草稿仍保留。已有请求仍可核对或重放。",
+    recoveryTitle: "有一个创建结果待核对", recoveryHint: "仅为当前用户和 Gate 保留了请求键，无法恢复未保存的编辑内容。请只读核对保存结果，或明确放弃此恢复记录后再创建其他组。",
+    recoveryAbsent: "暂未找到保存结果，不代表上次请求失败。请求键仍保留，不会自动创建组。",
+    abandonRecovery: "放弃恢复记录", abandonRecoveryHint: "要忘记此请求键吗？组可能已保存，不会被删除。原草稿无法恢复，再创建可能产生重复组。",
+    recoveredAfterReload: "已找到保存的组，未保存的编辑内容未恢复。", recoveryUnavailable: "浏览器恢复存储不可用，请勿依赖刷新来找回此请求键。",
     timeout: "请求超时，结果尚未确认；请刷新已保存组或列表后再重试。",
     notFound: "组已不存在，请刷新列表。", refresh: "刷新", paging: "实例分页", memberLimit: "最多选择 1,000 个实例。", notLoaded: "未载入",
   },
@@ -56,6 +66,7 @@ export function groupError(cause: unknown, locale: Locale): string {
   if (message.includes("group_request_conflict")) return c.createChanged
   if (message.includes("group_request_not_found")) return c.createAbsent
   if (message.includes("group_request_deleted")) return c.createDeleted
+  if (message.includes("group_request_capacity")) return c.requestCapacity
   if (message.includes("group_not_found")) return c.notFound
   return `${c.failed}: ${message}`
 }

@@ -1,6 +1,7 @@
 /* Creation stays with the service directory identity, above search and results. */
 .mcp-group-view-switch { margin-bottom: 12px; }
 .mcp-group-detail { display: flex; flex-direction: column; gap: 16px; }
+.mcp-group-recovery .ant-alert-description > div { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 8px; }
 .mcp-group-policy { margin: 0; line-height: 1.65; overflow-wrap: anywhere; white-space: normal; overflow: visible; text-overflow: clip; }
 .mcp-group-query { display: flex; align-items: center; gap: 12px; min-width: 0; }
 .mcp-group-query .ant-input-search { flex: 1; min-width: 0; }
