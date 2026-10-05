@@ -72,6 +72,8 @@ Gate does not cache the inbound authorization between requests. Its next `tools/
 
 ## Token and policy contract
 
+The development [catalog-scaling record](oauth-catalog-scaling.md) separates bounded saved-grant verification from interactive candidate browsing. The per-grant 5,000-tool / 100-MCP limits remain; an owner's larger candidate set must not invalidate a smaller existing grant. Candidate pagination and bulk-selection integration are a separate proposed contract, not a claim of real-client acceptance.
+
 | Item | Boundaries |
 |---|---|
 | Authorization code | Random secret, digest at rest, 60 seconds, single atomic exchange; binds user/grant, client, exact callback, resource, scopes and S256 challenge. Correctly bound reuse also revokes token families for that grant while its digest record is retained. |

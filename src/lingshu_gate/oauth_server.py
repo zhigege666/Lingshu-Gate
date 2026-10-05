@@ -15,6 +15,7 @@ import secrets
 import sqlite3
 import stat
 import time
+from collections.abc import Iterable
 from contextlib import nullcontext
 from dataclasses import replace
 from datetime import datetime, timezone
@@ -443,7 +444,7 @@ class OAuthServer:
         return current
 
     def catalog(self, principal: AuthPrincipal, scopes: list[str], *, connection: sqlite3.Connection | None = None,
-                resource: str | None = None) -> dict[str, dict[str, Any]]:
+                resource: str | None = None, tool_ids: Iterable[str] | None = None) -> dict[str, dict[str, Any]]:
         if resource is not None and self.resource_policy(resource, connection)["kind"] == "management":
             current = self.management_owner(principal, connection=connection)
             if "operations.manage" not in scopes:
@@ -451,13 +452,15 @@ class OAuthServer:
             return {tool.id: {"id": tool.id, "name": tool.name, "server_id": "gate_mcp_configuration",
                               "server_name": "Gate configuration", "access": "read" if tool.id in MANAGEMENT_READ_TOOLS else "write",
                               "snapshot": management_tool_snapshot(tool)}
-                    for tool in self.registry.list_definitions()
+                    for tool in self.registry.get_definitions(MANAGEMENT_TOOL_IDS if tool_ids is None else tool_ids)
                     if tool.source == "builtin" and tool.id in MANAGEMENT_TOOL_IDS
                     and tool.metadata.get("server_id") == "gate_mcp_configuration"
                     and (tool.id in MANAGEMENT_READ_TOOLS or ("tools.invoke" in scopes and "tools.invoke" in current.permissions))}
-        visible = self.access.visible_tools(principal, self.registry.list_definitions(), connection=connection)
-        classifications = ({(item["server_id"], item["tool_id"]): item for item in connection.execute("SELECT * FROM mcp_tool_classifications").fetchall()}
-                           if connection is not None else {(item["server_id"], item["tool_id"]): item for item in self.access.list_classifications()})
+        definitions = self.registry.list_definitions() if tool_ids is None else self.registry.get_definitions(tool_ids)
+        with (nullcontext(connection) if connection is not None else self.store.database.session()) as read_connection:
+            visible = self.access.visible_tools(principal, definitions, connection=read_connection)
+            classifications = self.access._load_classifications(read_connection,
+                ((str(tool.metadata.get("server_id", "")), tool.id) for tool in visible))
         result = {}
         for tool in visible:
             policy = tool.metadata.get("gate_access", {})
@@ -479,6 +482,17 @@ class OAuthServer:
         if len(result) > MAX_TOOLS:
             raise OAuthError("tool_catalog_limit", 409)
         return result
+
+    def _grant_tools(self, principal: AuthPrincipal, grant: dict[str, Any], scopes: list[str], *,
+                     connection: sqlite3.Connection | None = None) -> dict[str, dict[str, Any]]:
+        """The database grant is the sole tool authority; a JWT supplies no tool IDs."""
+        saved = grant["tools"]
+        if len(saved) > MAX_TOOLS or len({value["server_id"] for value in saved.values()}) > 100:
+            raise OAuthError("invalid_grant")
+        current = self.catalog(principal, scopes, connection=connection,
+                               resource=grant["resource"], tool_ids=saved)
+        return {key: value for key, value in saved.items()
+                if key in current and tool_scope_matches(value, current[key])}
 
     def _fresh_owner(self, principal: AuthPrincipal) -> AuthPrincipal:
         row = self.store.database.query_one("SELECT * FROM users WHERE id=?", (principal.id,))
@@ -995,8 +1009,7 @@ class OAuthServer:
         scopes = sorted(set(scopes) & policy["allowed_scopes"])
         if policy["kind"] == "management" and "operations.manage" not in scopes:
             raise OAuthError("invalid_token", 401)
-        current = self.catalog(principal, scopes, resource=claims["aud"])
-        tools = {key: value for key, value in grant["tools"].items() if key in current and tool_scope_matches(value, current[key])}
+        tools = self._grant_tools(principal, grant, scopes)
         return replace(principal, auth_type="oauth", scopes=tuple(scopes), delegated_scopes=tuple(scopes),
                        external_grant_id=grant["id"], external_tool_ids=tuple(tools),
                        external_server_ids=tuple(sorted({value["server_id"] for value in tools.values()})),
@@ -1034,7 +1047,7 @@ class OAuthServer:
                 scopes &= set(context.delegated_scopes)
             if "operations.manage" not in scopes or (write and "tools.invoke" not in scopes):
                 raise OAuthError("management_scope_insufficient", 403)
-            catalog = self.catalog(owner, sorted(scopes), resource=config["resource"], connection=current)
+            catalog = self._grant_tools(owner, grant, sorted(scopes), connection=current)
             saved, offered = grant["tools"].get(tool_id), catalog.get(tool_id)
             proof = dict(context.oauth_tool_snapshots).get(tool_id)
             if (not saved or not offered or not tool_scope_matches(saved, offered) or proof != offered["snapshot"]
