@@ -279,35 +279,39 @@ def create_app() -> FastAPI:
             raise
         finally:
             await retention_worker.stop()
-            if safe_network_executor is not None:
-                safe_network_executor.close()  # type: ignore[attr-defined]
-            if not startup_failed:
-                startup_state.mark_stopping()
-            log_event(
-                logger,
-                logging.INFO,
-                "gate.shutdown",
-                "Lingshu Gate shutdown started",
-            )
-            observability_store.emit_event("gate.shutdown", source="system")
-            observability_store.add_log(
-                "info",
-                "Lingshu Gate shutdown started",
-                source="system",
-                event_type="gate.shutdown",
-            )
-            log_memory_snapshot(
-                logger,
-                "gate.diagnostics.memory_snapshot_shutdown_before_mcp_stop",
-                "Memory snapshot before MCP shutdown",
-            )
-            external_mcp_configuration_service.shutdown()
-            mcp_runtime.shutdown()
-            log_memory_snapshot(
-                logger,
-                "gate.diagnostics.memory_snapshot_shutdown_complete",
-                "Memory snapshot after MCP shutdown",
-            )
+            try:
+                if safe_network_executor is not None:
+                    safe_network_executor.close()  # type: ignore[attr-defined]
+            finally:
+                # Native uncertainty retains its own journal/lease and error,
+                # while independent control-plane connections still shut down.
+                if not startup_failed:
+                    startup_state.mark_stopping()
+                log_event(
+                    logger,
+                    logging.INFO,
+                    "gate.shutdown",
+                    "Lingshu Gate shutdown started",
+                )
+                observability_store.emit_event("gate.shutdown", source="system")
+                observability_store.add_log(
+                    "info",
+                    "Lingshu Gate shutdown started",
+                    source="system",
+                    event_type="gate.shutdown",
+                )
+                log_memory_snapshot(
+                    logger,
+                    "gate.diagnostics.memory_snapshot_shutdown_before_mcp_stop",
+                    "Memory snapshot before MCP shutdown",
+                )
+                external_mcp_configuration_service.shutdown()
+                mcp_runtime.shutdown()
+                log_memory_snapshot(
+                    logger,
+                    "gate.diagnostics.memory_snapshot_shutdown_complete",
+                    "Memory snapshot after MCP shutdown",
+                )
             log_event(
                 logger,
                 logging.INFO,
