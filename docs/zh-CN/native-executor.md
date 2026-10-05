@@ -12,6 +12,8 @@ Native Gate 应以专用非 root Linux 账户运行。该可信账户拥有本�
 
 本机 Podman 二进制必须为管理员审查的绝对可执行路径，不能由 group/world 写入。必须具备 rootless 用户映射、cgroup v2 及已委派的 CPU、memory、pids 控制器。Gate 强制本机 CLI 模式，不使用引擎 API socket；子进程只执行代码生成的固定 Podman 操作，不执行宿主项目命令或 shell。
 
+固定 create 参数忽略镜像 volume、清除镜像/引擎默认环境，禁用隐式可写 tmpfs、restart policy 和镜像 health 命令。启动前将实际 container ID/job label 及每个内容 bind 的 source/destination/读写权限对照固定挂载。引擎配置带入的额外挂载在启动任何进程前拒绝；身份不匹配保留 unknown job，不 kill/删除不匹配资源。
+
 镜像必须已存在于精确的 `registry/name@sha256:<64 位小写十六进制>` RepoDigest 下，不接受 tag、浮动 latest 或自动拉取。受审镜像必须提供 `/usr/bin/python3`、具有 SHA-1 碰撞检测的 `/usr/bin/git`、`/usr/local/bin/node`，且不含秘密或未审查启动代码。容器入口由 Gate 固定只读 runner 替换。Node 须满足所选分发包的精确官方 engines（pnpm 11 还要求 >=22.13），Gate 不升级 Node。[镜像合同配方](../../packaging/native-executor/Containerfile) 只接受已审查 base，不安装或下载任何内容。
 
 设置 `LINGSHU_GATE_RUNTIME_ROLE=local`，以 JSON 对象配置 `LINGSHU_GATE_NATIVE_EXECUTOR`：

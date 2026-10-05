@@ -12,6 +12,8 @@ Run the Native Gate process under a dedicated non-root Linux account. That same 
 
 The selected local Podman binary must be an administrator-reviewed absolute executable path without group/world write permission. Rootless user mapping, cgroup v2 and delegated CPU, memory and pids controllers are mandatory. Gate forces local CLI mode and uses no engine API socket. Its subprocesses invoke only compiled Podman operations, never a host project command or shell.
 
+Compiled create flags ignore image volumes, clear default image/engine environment, disable implicit writable tmpfs, restart policy and image health commands. Before start, Gate matches observed container ID/job label and every actual content bind source/destination/write permission against its compiled mounts. Unexpected engine-configured mounts reject execution before any process starts. Identity mismatch retains an unknown job without killing or deleting the mismatched resource.
+
 The image must already exist under the exact `registry/name@sha256:<64 lowercase hexadecimal digits>` RepoDigest. No tags, floating latest or automatic pulls are accepted. The reviewed image must provide `/usr/bin/python3`, `/usr/bin/git` with collision-aware SHA-1 decoding, and `/usr/local/bin/node`; it must contain no secret or unreviewed startup code. The container entrypoint is replaced with Gate's fixed read-only runner. Node must satisfy the requested distribution's exact official engines (including pnpm 11's additional >=22.13 requirement). Gate never upgrades Node. The [image contract recipe](../packaging/native-executor/Containerfile) takes a previously reviewed base; it installs or downloads nothing.
 
 Set `LINGSHU_GATE_RUNTIME_ROLE=local`. Configure `LINGSHU_GATE_NATIVE_EXECUTOR` as a JSON object with:

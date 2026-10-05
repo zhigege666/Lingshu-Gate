@@ -89,7 +89,7 @@ def test_container_argv_is_fixed_offline_and_only_content_mounted(tmp_path):
         return ("b" * 64).encode()
     with patch.object(controller, "_cli", side_effect=cli):
         assert controller._create({"name": "gate-job-" + "a" * 32, "digest": "a" * 64}, directory, {}) == "b" * 64
-    for required in ["--pull=never", "--network=none", "--cap-drop=ALL", "--read-only", "--http-proxy=false", "--security-opt=no-new-privileges", "--cgroups=enabled", "--pids-limit=128", "--log-driver=none", "--entrypoint=/usr/bin/python3"]:
+    for required in ["--pull=never", "--network=none", "--cap-drop=ALL", "--read-only", "--read-only-tmpfs=false", "--image-volume=ignore", "--unsetenv-all", "--restart=no", "--health-cmd=none", "--http-proxy=false", "--security-opt=no-new-privileges", "--cgroups=enabled", "--pids-limit=128", "--log-driver=none", "--entrypoint=/usr/bin/python3"]:
         assert required in observed
     assert not any("socket" in argument or "--privileged" in argument or "--network=host" in argument for argument in observed)
     assert IMAGE in observed

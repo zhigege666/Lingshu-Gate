@@ -129,6 +129,10 @@ class PodmanController:
         value = json.loads(content)
         if not isinstance(value, list) or len(value) != 1 or not CID.fullmatch(value[0].get("Id", "")):
             raise InterruptedError("executor_container_status_unknown")
+        if self.journal:
+            job = self.journal.lookup_name(name)
+            if job and ((job["container_id"] and value[0]["Id"] != job["container_id"]) or value[0].get("Config", {}).get("Labels", {}).get("io.lingshu-gate.job") != job["digest"]):
+                raise InterruptedError("executor_container_identity_conflict")
         return value[0]
 
     @staticmethod
@@ -153,6 +157,12 @@ class PodmanController:
 
     def terminate(self, name: str, cgroup: str | None) -> None:
         info = self.inspect(name)
+        if info is not None and not cgroup and not info.get("State", {}).get("Running") and not info.get("State", {}).get("Pid") and info.get("State", {}).get("Status") in {"configured", "created"}:
+            # An inspected never-started container has no process group.
+            self._cli(["rm", info["Id"]])
+            if self.inspect(name) is None:
+                return
+            raise InterruptedError("executor_never_started_removal_unknown")
         if info is not None and not cgroup and info.get("State", {}).get("Pid"):
             cgroup = self._cgroup(int(info["State"]["Pid"]))
         if info is not None and info.get("State", {}).get("Running"):
@@ -281,7 +291,7 @@ class PodmanController:
 
     def _create(self, job: dict[str, Any], directory: Path, mounts: dict[str, Path]) -> str:
         # The caller never supplies image, host path, flags or shell commands.
-        arguments = ["create", "--pull=never", "--name=" + job["name"], "--label=io.lingshu-gate.job=" + job["digest"], "--network=none", "--pid=private", "--ipc=private", "--uts=private", "--cgroupns=private", "--userns=keep-id", f"--user={os.getuid()}:{os.getgid()}", "--cgroups=enabled", "--cap-drop=ALL", "--security-opt=no-new-privileges", "--read-only", f"--memory={MEMORY}", f"--memory-swap={MEMORY}", "--cpus=1", f"--pids-limit={PIDS}", "--ulimit=nofile=256:256", "--http-proxy=false", "--log-driver=none", "--tmpfs=/tmp:rw,noexec,nosuid,nodev,size=67108864", "--workdir=/work", "--env=PATH=/tool/shims:/usr/local/bin:/usr/bin:/bin", "--env=HOME=/tmp/gate-home", "--entrypoint=/usr/bin/python3"]
+        arguments = ["create", "--pull=never", "--name=" + job["name"], "--label=io.lingshu-gate.job=" + job["digest"], "--network=none", "--pid=private", "--ipc=private", "--uts=private", "--cgroupns=private", "--userns=keep-id", f"--user={os.getuid()}:{os.getgid()}", "--cgroups=enabled", "--cap-drop=ALL", "--security-opt=no-new-privileges", "--read-only", "--read-only-tmpfs=false", "--image-volume=ignore", "--unsetenv-all", "--restart=no", "--health-cmd=none", f"--memory={MEMORY}", f"--memory-swap={MEMORY}", "--cpus=1", f"--pids-limit={PIDS}", "--ulimit=nofile=256:256", "--http-proxy=false", "--log-driver=none", "--tmpfs=/tmp:rw,noexec,nosuid,nodev,size=67108864", "--workdir=/work", "--env=PATH=/tool/shims:/usr/local/bin:/usr/bin:/bin", "--env=HOME=/tmp/gate-home", "--entrypoint=/usr/bin/python3"]
         mounted = {"/work": directory / "output", "/gate-control": directory / "control", "/gate-runner.py": Path(__file__).with_name("runner.py"), "/request.json": directory / "request.json", **mounts}
         for destination, source in mounted.items():
             if "," in str(source) or not source.is_absolute() or source.is_symlink():
@@ -292,6 +302,24 @@ class PodmanController:
         if not CID.fullmatch(cid):
             raise InterruptedError("executor_container_create_unknown")
         return cid
+
+    def _verify_created_mounts(self, job: dict[str, Any], directory: Path, mounts: dict[str, Path]) -> None:
+        info = self.inspect(job["name"])
+        if info is None:
+            raise InterruptedError("executor_created_container_unobserved")
+        expected = {"/work": directory / "output", "/gate-control": directory / "control", "/gate-runner.py": Path(__file__).with_name("runner.py"), "/request.json": directory / "request.json", **mounts}
+        observed: set[str] = set()
+        if not isinstance(info.get("Mounts"), list):
+            reject("executor_mount_evidence_missing", "Created sandbox mounts could not be observed")
+        for mount in info["Mounts"]:
+            destination = mount.get("Destination")
+            if destination == "/tmp" and mount.get("Type") == "tmpfs":
+                continue
+            if destination not in expected or destination in observed or mount.get("Type") != "bind" or not isinstance(mount.get("Source"), str) or Path(mount["Source"]).resolve() != expected[destination].resolve() or mount.get("RW") is not (destination in {"/work", "/gate-control"}):
+                reject("executor_unplanned_mount_rejected", "Created sandbox contains an unplanned source, destination or write permission")
+            observed.add(destination)
+        if observed != set(expected):
+            reject("executor_mount_evidence_missing", "Created sandbox is missing a compiled content mount")
 
     def run(self, key: str, request: dict[str, Any], *, mounts: dict[str, Path] | None = None, timeout: int, cancelled: Callable[[], bool], readiness: bool = False) -> dict[str, Any]:
         if not readiness:
@@ -316,6 +344,7 @@ class PodmanController:
             self._active.add(job["key"])
             cid = self._create(job, directory, mounts or {})
             self.journal.update(key, "created", container_id=cid)
+            self._verify_created_mounts(job, directory, mounts or {})
             self._cli(["start", cid])
             self.journal.update(key, "running")
             deadline = started + timeout

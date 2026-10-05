@@ -30,6 +30,12 @@ def engine(tmp_path):
         calls.append(argv)
         if argv[0] == "create":
             state.update({"exists": True, "name": next(item.split("=", 1)[1] for item in argv if item.startswith("--name="))})
+            state["mounts"] = []
+            for index, argument in enumerate(argv):
+                if argument == "--mount":
+                    fields = dict(field.split("=", 1) for field in argv[index + 1].split(","))
+                    state["mounts"].append({"Type": fields["type"], "Source": fields["src"], "Destination": fields["dst"], "RW": fields.get("ro") != "true"})
+            state["mounts"] += state.get("extra_mounts", [])
             if state.get("payload_bytes"):
                 (controller.workspaces / state["name"] / "output" / "work.bin").write_bytes(b"x" * state["payload_bytes"])
             if state["output"]:
@@ -41,7 +47,8 @@ def engine(tmp_path):
         if argv[:2] == ["container", "inspect"]:
             if state.get("name") and state["exit_code"] is not None and (controller.workspaces / state["name"] / "control" / "admitted").is_file():
                 state["running"] = False
-            return json.dumps([{"Id": "b" * 64, "State": {"Running": state["running"], "Pid": 123 if state["running"] else 0, "ExitCode": state["exit_code"]}}]).encode() if state["exists"] else b""
+            job = controller.journal.lookup_name(argv[2])
+            return json.dumps([{"Id": state.get("replacement_id", "b" * 64), "Config": {"Labels": {"io.lingshu-gate.job": state.get("replacement_digest", job["digest"])}}, "Mounts": state.get("mounts", []), "State": {"Running": state["running"], "Pid": 123 if state["running"] else 0, "Status": "running" if state["running"] else "exited" if any(call[0] == "start" for call in calls) else "configured", "ExitCode": state["exit_code"]}}]).encode() if state["exists"] else b""
         if argv[0] == "kill":
             state["running"] = False
             return b""
@@ -239,3 +246,24 @@ def test_restart_reclaims_durable_terminal_workspace_without_dispatch(engine, te
     assert not list(controller.workspaces.iterdir())
     assert controller.journal.lookup(job["key"])["cleanup_state"] == "cleaned"
     assert not any(argv[0] in {"create", "start"} for argv in calls)
+
+
+def test_unplanned_engine_mount_is_rejected_and_removed_before_any_start(engine):
+    controller, calls, state = engine
+    state["extra_mounts"] = [{"Type": "bind", "Source": "/private/fixture", "Destination": "/secret", "RW": False}]
+    with pytest.raises(ToolExecutionError) as rejected:
+        controller.run("fixture:extra-mount", {"kind": "tool_probe"}, timeout=10, cancelled=lambda: False)
+    assert rejected.value.code == "executor_unplanned_mount_rejected"
+    assert not any(argv[0] in {"start", "kill"} for argv in calls)
+    assert controller.journal.lookup("fixture:extra-mount")["cleanup_state"] == "cleaned"
+    assert not list(controller.workspaces.iterdir())
+
+
+def test_mismatched_container_identity_is_never_killed_or_cleaned(engine):
+    controller, calls, state = engine
+    state["replacement_id"] = "c" * 64
+    with pytest.raises(InterruptedError):
+        controller.run("fixture:identity", {"kind": "tool_probe"}, timeout=10, cancelled=lambda: False)
+    assert not any(argv[0] in {"start", "kill", "rm"} for argv in calls)
+    assert controller.journal.lookup("fixture:identity")["state"] == "unknown"
+    assert list(controller.workspaces.iterdir()) and not controller.readiness()["available"]
