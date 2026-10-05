@@ -165,6 +165,7 @@ editable 安装仍支持尚未构建前端的源码树；非 editable wheel 会�
 最终 wheel zip 及每条 RECORD 的哈希和大小也在独立暂存目录中校验，通过后才原子替换输出文件；
 无效归档不会成为报告的构建结果。回归测试包含失败后重试及同一源码树的并发 wheel 构建。
 打包回归检查使用 `uv run pytest -q tests/test_wheel_build.py tests/test_release_packaging.py`。
+连续/并发构建及候选证据见[干净 wheel 暂存验证](wheel-build-validation.md)。
 
 发行工作流会在匹配的操作系统和架构上构建每个原生归档。在匹配的本机上，维护者可以构建一个 Target：
 

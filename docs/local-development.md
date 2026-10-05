@@ -183,6 +183,7 @@ The final wheel zip and every RECORD hash/size are checked in private staging be
 an invalid archive never becomes the reported build result. Regression tests include failed-build retries and
 concurrent wheel builds from one source tree.
 Run `uv run pytest -q tests/test_wheel_build.py tests/test_release_packaging.py` for packaging regressions.
+See [clean wheel staging validation](wheel-build-validation.md) for the consecutive/concurrent build and candidate evidence.
 
 The release workflow builds each native archive on its matching operating system and architecture. On a matching local host, a maintainer can build one target:
 
