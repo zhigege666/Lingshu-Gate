@@ -6,6 +6,9 @@
 - 完整合同相同的工具共用逻辑目录条目；schema、安全声明及声明的合同版本差异保持独立分区。内部路由 port 保留实际工具／服务 ID，重查逻辑与实际授权。
 - 显式会话绑定认证连接和实例，拒绝配置／runtime 漂移、撤权及切换实例。旧直接工具保持兼容，公开调用入口由按需目录持有。
 - MCP 服务增加紧凑组视图和居中中英编辑弹窗，显示实例状态、合同版本及建议默认实例。真实 peer／部署和根代理独立视觉验收与合成回归证据分开记录。
+- 实现可选 Native/Linux rootless Podman 执行器、可信固定 HTTPS/Git 获取、官方精确工具缓存、registry-only npm/pnpm 8–9/Yarn Classic 离线冻结安装/构建、真实 readiness 及持久阶段/container/cgroup 对账。Core 仍为 gateway；pnpm 10/11、Yarn Berry、Python sandbox 缓存安装及未支持 origin 明确拒绝，真实宿主验收未测。
+- DNS 超时后的未知获取 job 阻断准入；仅在精确 resolver 与调用者退出、资源对账及残留工作区清理完成后恢复 readiness。保留未知消费者输入，不重跑中断 key；清理失败释放操作锁但继续阻断 readiness。
+- HTTPS deadline/取消错误分类保留存活 DNS worker 证据；真实 request wrapper 测试覆盖上游/代理 DNS、unknown journal、暂存目录/owner lease 保留及安全 readiness 恢复。
 
 ## 0.4.4
 

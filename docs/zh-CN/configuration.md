@@ -261,6 +261,8 @@ HTTPS 反代到 HTTP 后端时，代理必须保留外部 `Host`（含非默认�
 
 ## 交付网络配置
 
+Native 隔离交付以管理员专用 `LINGSHU_GATE_NATIVE_EXECUTOR` JSON 对象配置，默认关闭，要求 Linux/local、独立 owned root/有界 tmpfs、精确预载镜像 digest、受审 Podman/代理 host 和实际 namespace/cgroup 终止证据。Core 不创建引擎适配器。见 [Native 配置与支持边界](native-executor.md)。
+
 新生成的 manager 本地启动配置带 `launch.toolchain: {manager, version}`，command 仅为工具名 `npm`、`pnpm` 或 `yarn`。带 pin 的绝对/相对执行路径和别名均拒绝。服务管理员通过 `LINGSHU_GATE_RUNTIME_TOOLCHAIN_PATHS` 登记 `node` 与所选 manager：Node 为受审查的绝对原生 `node`/`node.exe`；manager 为受审查的绝对官方 JS CLI 入口（`.js`、`.cjs`、`.mjs`），不使用 shell/Corepack launcher。工具链接解析后须在项目根、Data 和 Manifest 目录之外，注册表和安装文件须防止项目或未授权写入。登记是管理员信任决策，文件名/超时不能证明信任。项目 API 不更新注册表；部署配置修改后需重启 Gate。
 
 只读校验仅检查注册和文件元数据：有效注册给出 `version_verified=false` 警告，缺失/不安全注册给明确错误。仅现有两种 local 客户端在原有已授权启动生命周期内进行有界版本探测，并启动同一注册 Node/CLI 组合。项目 PATH 和宿主环境 PATH 均不能改选这些工具，子进程 PATH 仅包含登记工具目录。版本漂移不回退；pnpm 11 校验实际执行所用的登记 Node >=22.13。构建缓存不供应运行时，不下载/安装工具、不继承交付代理；Core 不探测或启动本地代码。
