@@ -57,3 +57,5 @@ SQLite FTS5 只存名称、有界描述、稳定引用和最小策略字段，�
 运行 `uv run python scripts/benchmark_tool_catalog.py --iterations 30 --output /tmp/gate-catalog-benchmark.json`。默认生成 **5,000 服务、50,000 工具**，每工具 20 个输入字段，包含一个无权服务。脚本记录实际响应字节、median/p95 延迟、进程 RSS、首次索引时间、旧完整列表对照及有界重复搜索观察。使用临时状态，不连接真实下游、不使用真实凭据或生产服务。已执行结果见[性能记录](performance-review.md)及提交的测量 JSON。合成单进程热缓存测量不能作为生产 SLA 或真实端到端 MCP 容量证明。
 
 `uv run python scripts/benchmark_group_catalog.py --iterations 30 --output /tmp/gate-group-benchmark.json` 单独验证 1,000 成员、50,000 工具的分组，每工具一个输入字段，满足原有 32 MiB 结构上限。实测冷/暖分组搜索、小范围 actor、选定实例描述、公共 API 搜索及公共 MCP 描述/调用，并断言真实物理审计及未选中 peer 零调用。仅结构契约缓存，授权不缓存；搜索先求交当前物理与逻辑策略，再排序分页。schema 准备前排除无物理授权候选，每页仅构建一次授权投影。选定描述/调用仅重新校验单条成员记录及该实例工具，避免反复投影整组。全组搜索仍比物理 FTS 索引和选定操作昂贵。合成 token/session、echo peer 与子进程数据不能证明真实提供方 OAuth 或下游延迟。
+
+未变化的元数据 TTL 刷新保持目录版本稳定，跨过 30 秒刷新边界的页面仍可用。外部 ID/名称变化、显式配置保存/删除/重载、分组变化、registry 变化和策略变化仍使相关标记失效或重新校验。运行时调用保留独立的配置 digest 和代际检查。
