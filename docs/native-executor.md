@@ -66,6 +66,8 @@ Cancel and timeout kill the whole sandbox and verify its cgroup is empty before 
 
 Only frozen, bounded output reaches the existing source/artifact path. Inventories bind paths, types, modes, byte counts, file hashes and link targets. Export retains only contained relative package links, rejects external/cyclic/special entries and known secret values, and uses the existing 500 MiB/30,000-entry/30-second artifact bounds. Failure cannot publish a partial new artifact or replace an existing deployment. Operator reconciliation must inspect the retained coordinator operation and private job record; do not delete the journal or choose a new key as a retry shortcut.
 
+The fixed PID 1 runner disables Linux dumpability before admitting project code; this prevents same-UID children from modifying its process through ptrace or `/proc` file descriptors. Script stages wait for a durably recorded cgroup observation, then finish with the engine-observed container exit code. A project-created `result.json` cannot establish success or end a running stage; shared result fields never supply the trusted manager/Node versions.
+
 The existing confirmed local deployment/start/rollback path is unchanged. Prepared tools are not installed into the host runtime. A manager-based runtime still needs its separately reviewed administrator registry; direct Node entrypoints retain their existing runtime rules. Build isolation does not change the existing unsandboxed Native managed-process runtime or add Core delivery/start support.
 
 ## Evidence and remaining acceptance

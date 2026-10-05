@@ -22,7 +22,7 @@ def engine(tmp_path):
     controller.missing = []
     controller.evidence = ExecutorReadiness("linux_rootless_oci", "linux", ROOTLESS_CHECKS | PHASE_CHECKS["git_acquisition"] | PHASE_CHECKS["offline_build"])
     calls = []
-    state = {"running": False, "exists": False, "empty": True, "output": True}
+    state = {"running": False, "exists": False, "empty": True, "output": True, "exit_code": None}
     def cli(argv, **kwargs):
         calls.append(argv)
         if argv[0] == "create":
@@ -34,7 +34,9 @@ def engine(tmp_path):
             state["running"] = True
             return b""
         if argv[:2] == ["container", "inspect"]:
-            return json.dumps([{"Id": "b" * 64, "State": {"Running": state["running"], "Pid": 123 if state["running"] else 0}}]).encode() if state["exists"] else b""
+            if state.get("name") and state["exit_code"] is not None and (controller.workspaces / state["name"] / "control" / "admitted").is_file():
+                state["running"] = False
+            return json.dumps([{"Id": "b" * 64, "State": {"Running": state["running"], "Pid": 123 if state["running"] else 0, "ExitCode": state["exit_code"]}}]).encode() if state["exists"] else b""
         if argv[0] == "kill":
             state["running"] = False
             return b""
@@ -107,3 +109,18 @@ def test_restart_reconciliation_stops_orphan_without_dispatch(engine):
     assert not any(argv[0] in {"create", "start"} for argv in calls)
     with pytest.raises(InterruptedError):
         controller.journal.reserve(job["key"], {"source": "a"}, "command")
+
+
+@pytest.mark.parametrize("exit_code,state_name", [(0, "completed"), (23, "failed")])
+def test_shared_result_cannot_forge_command_success_before_observed_exit(engine, exit_code, state_name):
+    controller, calls, state = engine
+    state["exit_code"] = exit_code
+    # The fake engine publishes a forged returncode=0 before container start.
+    # Admission must still capture the cgroup, then await the engine exit.
+    result = controller.run("fixture:command", {"kind": "command", "manager": "npm", "command": ["npm", "run", "build"]}, timeout=10, cancelled=lambda: False)
+    assert result["returncode"] == exit_code
+    row = controller.journal.lookup("fixture:command")
+    assert row["state"] == state_name and row["cgroup"] == "/fixture/sandbox"
+    assert not any(argv[0] == "kill" for argv in calls)
+    assert not state["running"] and not state["exists"]
+    controller.release_output(result)

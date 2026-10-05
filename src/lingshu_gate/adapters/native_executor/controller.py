@@ -193,7 +193,7 @@ class PodmanController:
             namespaces = {name: os.readlink("/proc/self/ns/" + name) for name in ("user", "mnt", "pid", "net")}
             report = self.run("readiness:" + uuid4().hex, {"kind": "selftest", "host_namespaces": namespaces}, timeout=10, cancelled=lambda: False, readiness=True)
             observed = report.get("report", {})
-            expected = {"network_disconnected", "namespaces_distinct", "root_readonly", "no_new_privileges", "capabilities_dropped", "controller_limits"}
+            expected = {"network_disconnected", "namespaces_distinct", "root_readonly", "no_new_privileges", "capabilities_dropped", "controller_limits", "runner_nondumpable"}
             if not expected <= set(observed.get("checks", [])) or not re.fullmatch(r"\d+\.\d+\.\d+", observed.get("node_version", "")):
                 self.missing.append("sandbox_selftest_evidence_incomplete")
             else:
@@ -234,11 +234,11 @@ class PodmanController:
     def _create(self, job: dict[str, Any], directory: Path, mounts: dict[str, Path]) -> str:
         # The caller never supplies image, host path, flags or shell commands.
         arguments = ["create", "--pull=never", "--name=" + job["name"], "--label=io.lingshu-gate.job=" + job["digest"], "--network=none", "--pid=private", "--ipc=private", "--uts=private", "--cgroupns=private", "--userns=keep-id", f"--user={os.getuid()}:{os.getgid()}", "--cgroups=enabled", "--cap-drop=ALL", "--security-opt=no-new-privileges", "--read-only", f"--memory={MEMORY}", f"--memory-swap={MEMORY}", "--cpus=1", f"--pids-limit={PIDS}", "--ulimit=nofile=256:256", "--http-proxy=false", "--log-driver=none", "--tmpfs=/tmp:rw,noexec,nosuid,nodev,size=67108864", "--workdir=/work", "--env=PATH=/tool/package/bin:/usr/local/bin:/usr/bin:/bin", "--env=HOME=/tmp/gate-home", "--entrypoint=/usr/bin/python3"]
-        mounted = {"/work": directory / "output", "/gate-runner.py": Path(__file__).with_name("runner.py"), "/request.json": directory / "request.json", **mounts}
+        mounted = {"/work": directory / "output", "/gate-control": directory / "control", "/gate-runner.py": Path(__file__).with_name("runner.py"), "/request.json": directory / "request.json", **mounts}
         for destination, source in mounted.items():
             if "," in str(source) or not source.is_absolute() or source.is_symlink():
                 reject("executor_mount_rejected", "Executor content mount is unsafe")
-            arguments += ["--mount", f"type=bind,src={source},dst={destination}" + ("" if destination == "/work" else ",ro=true")]
+            arguments += ["--mount", f"type=bind,src={source},dst={destination}" + ("" if destination in {"/work", "/gate-control"} else ",ro=true")]
         content = self._cli([*arguments, self.config.image, "/gate-runner.py", "/request.json"])
         cid = content.decode().strip()
         if not CID.fullmatch(cid):
@@ -255,6 +255,7 @@ class PodmanController:
             reject("executor_busy", "The bounded Native executor is busy")
         job: dict[str, Any] | None = None
         cgroup: str | None = None
+        command_exit: int | None = None
         directory: Path | None = None
         started = time.monotonic()
         try:
@@ -262,6 +263,7 @@ class PodmanController:
             directory = self.workspaces / job["name"]
             directory.mkdir(mode=0o700)
             (directory / "output").mkdir(mode=0o700)
+            (directory / "control").mkdir(mode=0o700)
             (directory / "request.json").write_text(json.dumps(request))
             self._active.add(job["key"])
             cid = self._create(job, directory, mounts or {})
@@ -277,6 +279,10 @@ class PodmanController:
                 if pid and not cgroup:
                     cgroup = self._cgroup(pid)
                     self.journal.update(key, "running", cgroup=cgroup)
+                    if request["kind"] == "command":
+                        # PID 1 admits project code only after this durable
+                        # cgroup observation. A fast command cannot outrun it.
+                        (directory / "control" / "admitted").write_text("observed\n")
                 if self._stop.is_set() or cancelled() or time.monotonic() >= deadline:
                     self.terminate(job["name"], cgroup)
                     self.journal.update(key, "cancelled" if cancelled() or self._stop.is_set() else "failed")
@@ -284,9 +290,13 @@ class PodmanController:
                         raise SafeExecutionCancelled("executor_cancelled_after_whole_group_stop")
                     raise TimeoutError("executor_phase_timeout")
                 report_file = directory / "output" / "result.json"
-                if report_file.is_file():
+                if request["kind"] != "command" and report_file.is_file():
                     break
                 if not info.get("State", {}).get("Running"):
+                    if request["kind"] == "command":
+                        command_exit = info.get("State", {}).get("ExitCode")
+                        if type(command_exit) is not int or not 0 <= command_exit <= 255:
+                            raise InterruptedError("executor_command_exit_unknown")
                     break
                 time.sleep(0.05)
             # Container exit alone is insufficient. Observe the whole cgroup;
@@ -301,6 +311,12 @@ class PodmanController:
             result = json.loads(report_file.read_text())
             if type(result.get("returncode")) is not int:
                 reject("executor_result_rejected", "Phase result lacks a bounded exit status")
+            if request["kind"] == "command":
+                # Shared output is untrusted: scripts can forge result.json.
+                # Only the engine-observed PID 1 exit establishes success.
+                result["returncode"] = command_exit
+                result["package_manager_version"] = request.get("version")
+                result["node_version"] = self.node_version
             result.update({"duration_ms": int((time.monotonic() - started) * 1000), "output": directory / "output", "job_key": key})
             self.journal.update(key, "completed" if result["returncode"] == 0 else "failed", result={"returncode": result["returncode"], "output_sha256": self._inventory(directory / "output")})
             return result

@@ -5,6 +5,7 @@ This file never runs on the Gate host. No socket, proxy or secret is supplied.
 from __future__ import annotations
 
 import json
+import ctypes
 import os
 import shutil
 import subprocess
@@ -14,6 +15,13 @@ from pathlib import Path
 
 ROOT = Path("/work")
 TOOL_BINS = {"npm": "bin/npm-cli.js", "pnpm": "bin/pnpm.cjs", "yarn": "bin/yarn.js"}
+
+
+def protect_runner() -> None:
+    # Same-UID project children must not ptrace PID 1 or write its /proc fds
+    # to manufacture a successful exit. Capabilities are independently absent.
+    if ctypes.CDLL(None, use_errno=True).prctl(4, 0, 0, 0, 0) != 0:
+        raise ValueError("runner_dumpability_control_failed")
 
 
 def environment() -> dict[str, str]:
@@ -87,6 +95,8 @@ def git_decode(request: dict) -> dict:
 
 def selftest() -> dict:
     checks = []
+    if ctypes.CDLL(None, use_errno=True).prctl(3, 0, 0, 0, 0) == 0:
+        checks.append("runner_nondumpable")
     host = json.loads(Path("/request.json").read_text()).get("host_namespaces", {})
     names = {key: os.readlink("/proc/self/ns/" + key) for key in ("user", "mnt", "pid", "net")}
     if all(host.get(key) and names[key] != host[key] for key in names):
@@ -155,12 +165,22 @@ def command(request: dict) -> dict:
 
 def main() -> None:
     request = json.loads(Path(sys.argv[1]).read_text())
+    kind = request["kind"]
     try:
-        kind = request["kind"]
+        protect_runner()
+        if kind == "command":
+            deadline = time.monotonic() + 10
+            while not Path("/gate-control/admitted").is_file():
+                if time.monotonic() >= deadline:
+                    raise ValueError("runner_admission_timeout")
+                time.sleep(0.02)
         result = selftest() if kind == "selftest" else git_decode(request) if kind == "git" else tool_probe(request) if kind == "tool_probe" else seed_npm() if kind == "npm_seed" else command(request) if kind == "command" else {"returncode": 1}
     except Exception:
         result = {"returncode": 1}
     (ROOT / "result.json").write_text(json.dumps(result))
+    if kind == "command":
+        status = result["returncode"]
+        sys.exit(status if type(status) is int and 0 <= status <= 255 else 1)
     # Remain observable until the controller freezes this cgroup, including
     # fast phases. Only that controller can establish whole-group termination.
     time.sleep(60)

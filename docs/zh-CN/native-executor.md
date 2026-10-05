@@ -66,6 +66,8 @@ HTTPS 禁 redirects、编码响应、环境代理和自动重试，限制 header
 
 只有冻结、有界输出进入既有 source/artifact 路径。inventory 绑定路径、类型、mode、字节数、文件 hash、链接目标；冻结的项目/object 根目录本身也不能是链接。导出只保留 contained relative package links，拒绝 external/cyclic/special 和已知秘密值，复用 500 MiB、30,000 条、30 秒制品上限。失败不发布部分新制品、不替换已有部署。管理员对账须检查原 coordinator operation 和私有 job 记录，不能删除 journal 或换新 key 当重试捷径。
 
+固定 PID 1 runner 在放行项目代码前关闭 Linux dumpability，阻止同 UID 子进程通过 ptrace 或 `/proc` 文件描述符修改它。脚本阶段先等待 cgroup 观测持久落账，再以引擎观测到的容器退出码结束。项目自行创建 `result.json` 不能证明成功或提前结束仍在运行的阶段；共享结果字段也不提供可信 manager/Node 版本。
+
 既有明确确认的本地 deploy/start/rollback 保持。准备工具不会安装到宿主 runtime；manager 启动仍要求独立管理员 runtime registry，直接 Node 入口保留原规则。构建隔离不改变既有 Native managed-process 的非隔离运行时，也不增加 Core 交付/启动。
 
 ## 证据与剩余验收
