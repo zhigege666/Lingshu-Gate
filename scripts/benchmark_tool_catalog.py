@@ -124,7 +124,8 @@ def main() -> None:
         oauth_started = time.perf_counter()
         try:
             # Real consent-catalog code, without issuing credentials/keys.
-            OAuthServer.catalog(SimpleNamespace(access=access, registry=registry), principal, ["tools.read"])
+            OAuthServer.catalog(SimpleNamespace(access=access, registry=registry,
+                store=SimpleNamespace(database=db)), principal, ["tools.read"])
             raise AssertionError("Existing OAuth catalog ceiling was unexpectedly widened")
         except OAuthError as error:
             assert error.code == "tool_catalog_limit"

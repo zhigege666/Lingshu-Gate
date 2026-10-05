@@ -86,6 +86,7 @@ def test_one_saved_tool_survives_more_than_5000_owner_candidates(gate, monkeypat
     monkeypatch.setattr(gate["registry"], "list_definitions", forbidden_full_catalog)
     principal = gate["server"].verify(tokens["access_token"])
     assert principal.external_tool_ids == ("mcp.A.read",)
+    assert gate["server"].refresh_verified_principal(principal).external_tool_ids == ("mcp.A.read",)
     rotated = refresh(gate["server"], client, secret, tokens["refresh_token"])
     assert gate["server"].verify(rotated["access_token"]).external_tool_ids == ("mcp.A.read",)
 
@@ -117,6 +118,7 @@ def test_5000_services_50000_tools_verify_refresh_and_call_only_saved_targets(ga
         timings.append((time.perf_counter() - started) * 1000)
         assert set(principal.external_tool_ids) == set(selected)
     assert requested == [selected_count] * 3
+    assert set(gate["server"].refresh_verified_principal(principal).external_tool_ids) == set(selected)
     tracemalloc.start()
     gate["server"].verify(tokens["access_token"])
     _, peak = tracemalloc.get_traced_memory()
