@@ -16,6 +16,8 @@ The separate, default-off `/mcp/manage` OAuth resource requires a current admini
 
 Development source adds [on-demand tool discovery](docs/on-demand-tools.md): explicitly select `/mcp?tool_mode=on_demand` per client to expose six bounded entries instead of the entire schema catalog. My API Tokens includes client settings; authorization and target audits keep their original boundaries. This addition has not been published as a new release; explicit group instance sessions reuse the existing routing port.
 
+[Integration validation](docs/on-demand-integration-validation.md) records the exact test checkpoints, synthetic 50,000-tool measurements, Linux native worker evidence and untested boundaries.
+
 | Feature | Capability and boundary | Guide |
 |---|---|---|
 | MCP gateway and transports | One authenticated Model Context Protocol endpoint; stateless JSON `/mcp`, remote MCP over Streamable HTTP, native stdio, explicit versions and bounded legacy negotiation. Tool aggregation, not generic resource/prompt hosting. | [Guide](docs/mcp-gateway.md) |
