@@ -182,10 +182,14 @@ class PodmanController:
             host = raw.get("host", {})
             if not host.get("security", {}).get("rootless"):
                 self.missing.append("rootless_engine_required")
-            if host.get("cgroupVersion") != "v2" or not {"cpu", "memory", "pids"} <= set(host.get("cgroupControllers", [])):
-                self.missing.append("delegated_cgroup_v2_cpu_memory_pids_required")
-            images = json.loads(self._cli(["image", "inspect", self.config.image]))
-            if not images or self.config.image not in images[0].get("RepoDigests", []):
+            if host.get("cgroupVersion") != "v2":
+                self.missing.append("cgroup_v2_required")
+            for required in ("cpu", "memory", "pids"):
+                if required not in set(host.get("cgroupControllers", [])):
+                    self.missing.append("delegated_cgroup_controller_" + required + "_required")
+            image_content = self._cli(["image", "inspect", self.config.image], allow_failure=True)
+            images = json.loads(image_content) if image_content else []
+            if not isinstance(images, list) or not images or self.config.image not in images[0].get("RepoDigests", []):
                 self.missing.append("preloaded_exact_image_digest_required")
             if self.missing:
                 return
@@ -194,14 +198,22 @@ class PodmanController:
             report = self.run("readiness:" + uuid4().hex, {"kind": "selftest", "host_namespaces": namespaces}, timeout=10, cancelled=lambda: False, readiness=True)
             observed = report.get("report", {})
             expected = {"network_disconnected", "namespaces_distinct", "root_readonly", "no_new_privileges", "capabilities_dropped", "controller_limits", "runner_nondumpable"}
-            if not expected <= set(observed.get("checks", [])) or not re.fullmatch(r"\d+\.\d+\.\d+", observed.get("node_version", "")):
-                self.missing.append("sandbox_selftest_evidence_incomplete")
-            else:
+            for absent in sorted(expected - set(observed.get("checks", []))):
+                self.missing.append("sandbox_selftest_" + absent + "_required")
+            if not re.fullmatch(r"\d+\.\d+\.\d+", observed.get("node_version", "")):
+                self.missing.append("sandbox_selftest_node_version_required")
+            if not self.missing:
                 self.node_version = observed["node_version"]
                 checks = ROOTLESS_CHECKS | PHASE_CHECKS["git_acquisition"] | PHASE_CHECKS["offline_build"]
                 self.evidence = ExecutorReadiness("linux_rootless_oci", "linux", checks)
             self.release_output(report)
-        except (OSError, ValueError, ToolExecutionError, InterruptedError, TimeoutError):
+        except ToolExecutionError as error:
+            self.missing.append(error.code)
+        except InterruptedError:
+            self.missing.append("executor_reconciliation_or_termination_unknown")
+        except TimeoutError:
+            self.missing.append("executor_engine_or_selftest_timeout")
+        except (OSError, ValueError):
             self.missing.append("engine_image_or_reconciliation_failed")
 
     def readiness(self) -> dict[str, Any]:

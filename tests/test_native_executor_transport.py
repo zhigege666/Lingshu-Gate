@@ -4,12 +4,24 @@ from __future__ import annotations
 import io
 import socket
 import time
+from types import SimpleNamespace
 from unittest.mock import patch
 
 import pytest
 
 from lingshu_gate.adapters.native_executor.https import PinnedHTTPS
+from lingshu_gate.adapters.native_executor.git import HTTPSGitBackend, packet
 from lingshu_gate.registry import ToolExecutionError
+
+
+@pytest.mark.parametrize("version", [b"", packet(b"version 1\n")])
+def test_smart_git_advertisement_resolves_exact_ref_with_optional_v1(version):
+    commit = "a" * 40
+    content = packet(b"# service=git-upload-pack\n") + b"0000" + version + packet(f"{commit} refs/heads/main\0side-band-64k shallow\n".encode()) + b"0000"
+    transport = SimpleNamespace(request=lambda *args, **kwargs: (200, content))
+    backend = HTTPSGitBackend(SimpleNamespace(), transport)
+    request = {"source": {"repository_url": "https://git.example.invalid/project"}, "host_rule": {"host": "git.example.invalid", "port": 443, "private_cidrs": []}}
+    assert backend._advertisement(request, {}, time.monotonic() + 5) == {"refs/heads/main": commit}
 
 
 class Socket:

@@ -40,6 +40,8 @@ An example configuration shape is below. Replace the placeholder with the review
 
 Gate's Network settings response now reports observed `executor.available`, a stable code, exact missing conditions and the bounded support matrix. Startup checks account/directory/engine/image prerequisites, then actually observes distinct user/mount/PID/network namespaces, read-only roots and runner/cgroup mounts, no capabilities, no-new-privileges, no network interfaces beyond loopback, and applied CPU/memory/pids limits. The self-test leaves an independent descendant alive; readiness succeeds only after the entire observed sandbox cgroup is empty. Merely finding Podman on PATH or declaring capabilities does not enable execution. Failure never dispatches a host fallback. A Core configuration does not even construct or probe the engine.
 
+Missing controllers are named separately (`delegated_cgroup_controller_cpu_required`, `delegated_cgroup_controller_memory_required`, `delegated_cgroup_controller_pids_required`). A missing local image reports `preloaded_exact_image_digest_required`; each failed sandbox observation reports `sandbox_selftest_<check>_required`. These checks never trigger a pull or host fallback.
+
 ## Acquisition and package support
 
 | Phase | Implemented support | Explicit rejection |

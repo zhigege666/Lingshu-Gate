@@ -131,3 +131,24 @@ def test_official_archive_pax_metadata_cannot_bypass_expanded_budget(tmp_path):
     with pytest.raises(ToolExecutionError) as limited:
         extract_official(stream.getvalue(), target, {"files": 4, "expanded_bytes": 1024})
     assert limited.value.code == "package_manager_archive_limit"
+
+
+@pytest.mark.parametrize("absent", ["cpu", "memory", "pids", "image", "namespaces_distinct", "runner_nondumpable"])
+def test_start_readiness_identifies_actual_missing_controller_image_or_evidence(tmp_path, absent):
+    settings = config(tmp_path)
+    # A harmless reviewed executable is used only for its mode check. The
+    # engine calls and kernel/mount prerequisites remain pure fixtures.
+    controller = PodmanController(replace(settings, podman_bin="/usr/bin/true"))
+    checks = {"network_disconnected", "namespaces_distinct", "root_readonly", "no_new_privileges", "capabilities_dropped", "controller_limits", "runner_nondumpable"} - {absent}
+    def cli(argv, **kwargs):
+        if argv[0] == "info":
+            return json.dumps({"host": {"security": {"rootless": True}, "cgroupVersion": "v2", "cgroupControllers": list({"cpu", "memory", "pids"} - {absent})}}).encode()
+        assert argv[:2] == ["image", "inspect"] and kwargs.get("allow_failure")
+        return b"" if absent == "image" else json.dumps([{"RepoDigests": [IMAGE]}]).encode()
+    report = {"report": {"checks": list(checks), "node_version": "22.13.0"}}
+    with patch("lingshu_gate.adapters.native_executor.controller.os.getuid", return_value=1000), patch("lingshu_gate.adapters.native_executor.controller.secure_directory"), patch.object(controller, "_quota", return_value=True), patch.object(controller, "_cli", side_effect=cli), patch.object(controller, "reconcile"), patch.object(controller, "run", return_value=report), patch.object(controller, "release_output"):
+        controller.start()
+    expected = "delegated_cgroup_controller_" + absent + "_required" if absent in {"cpu", "memory", "pids"} else "preloaded_exact_image_digest_required" if absent == "image" else "sandbox_selftest_" + absent + "_required"
+    assert expected in controller.readiness()["missing"]
+    assert not controller.readiness()["available"]
+    controller.journal.close()

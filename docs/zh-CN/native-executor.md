@@ -40,6 +40,8 @@ Native Gate 应以专用非 root Linux 账户运行。该可信账户拥有本�
 
 Network 设置响应现在返回观测到的 `executor.available`、稳定 code、精确缺失条件和有界支持矩阵。启动先检查账户、目录、引擎、镜像，再实际观测独立 user/mount/PID/network namespace、只读 root 和 runner/cgroup 挂载、无 capabilities、no-new-privileges、仅 loopback 网络、已生效 CPU/memory/pids 上限。自检保留一个独立后代，只有观测到整个 sandbox cgroup 为空才成功。发现 PATH 中的 Podman 或声明 capability 不会启用执行；失败不转宿主。Core 连引擎适配器都不创建或探测。
 
+缺失 controller 分别列明：`delegated_cgroup_controller_cpu_required`、`delegated_cgroup_controller_memory_required`、`delegated_cgroup_controller_pids_required`。本地镜像缺失返回 `preloaded_exact_image_digest_required`；各项 sandbox 观测失败返回 `sandbox_selftest_<check>_required`。这些检查不会拉取镜像或转宿主执行。
+
 ## 获取与包支持
 
 | 阶段 | 已实现支持 | 明确拒绝 |
