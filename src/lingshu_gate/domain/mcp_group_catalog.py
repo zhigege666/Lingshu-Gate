@@ -134,9 +134,9 @@ def normalize_tool_contract(definition: ToolDefinition) -> NormalizedToolContrac
         "required_control_permission": definition.metadata.get("required_control_permission"),
         "sensitive_input_fields": definition.metadata.get("sensitive_input_fields"),
         "sensitive_output_fields": definition.metadata.get("sensitive_output_fields"),
-        "annotations": {key: value for key, value in definition.metadata.get("annotations", {}).items()
-                        if key in {"readOnlyHint", "destructiveHint", "idempotentHint", "openWorldHint"}
-                        and isinstance(value, bool)},
+        "annotations": definition.metadata.get("annotations", {}),
+        "contract_version": definition.metadata.get("contract_version"),
+        "protocol_meta": definition.metadata.get("_meta"),
     })
     return NormalizedToolContract(True, input_text, output_text, policy_text, output_present,
         _digest(input_text), _digest(output_text) if output_present else None,

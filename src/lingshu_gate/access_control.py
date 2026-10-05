@@ -1552,8 +1552,14 @@ class AccessControlStore:
         arguments: dict[str, Any],
         *,
         correlation_id: str | None = None,
+        expected_definition_revision: str | None = None,
+        allow_read_retry: bool = True,
     ) -> ToolInvokeResponse:
         definition = registry.get_definition(tool_id)
+        from lingshu_gate.registry import tool_definition_revision
+
+        if expected_definition_revision is not None and tool_definition_revision(definition) != expected_definition_revision:
+            raise ToolExecutionError("group_tool_contract_changed", "The selected tool contract changed; describe it again.")
         self.synchronize_tools([definition])
         decision = self.evaluate(principal, definition)
         correlation_id = correlation_id or str(uuid4())
@@ -1596,7 +1602,7 @@ class AccessControlStore:
                     user_id=principal.id,
                     audit_snapshot=recorded_outputs.append if recorded_input is not None else None,
                     retry_read_only=(
-                        decision["classification_status"] == "published"
+                        allow_read_retry and decision["classification_status"] == "published"
                         and decision["required_access"] == "read"
                     ),
                 )

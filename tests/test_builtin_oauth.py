@@ -378,6 +378,7 @@ def test_real_mcp_display_name_change_does_not_expand_or_revoke_tool_scope(gate)
     code = issue_code(gate, info)
     definition = gate["registry"].get_definition("mcp.A.read")
     definition.metadata["server_name"] = "Renamed actual catalog"
+    gate["registry"].update_definition(definition)
     principal = gate["server"].verify(exchange(gate["server"], info, secret, code)["access_token"])
     assert principal.external_tool_ids == ("mcp.A.read",)
     current = gate["server"].catalog(principal, ["tools.read"])

@@ -8,12 +8,13 @@ import json
 import logging
 import threading
 import time
-from collections.abc import Callable
-from contextlib import nullcontext
+from collections.abc import Callable, Iterator
+from contextlib import contextmanager, nullcontext
 from dataclasses import dataclass, field
 from datetime import datetime, timedelta, timezone
 from enum import StrEnum
 from typing import Any
+from uuid import uuid4
 
 from lingshu_gate.config import Settings
 from lingshu_gate.database import SQLiteDatabase
@@ -266,6 +267,21 @@ class McpRuntimeManager:
         self._servers: dict[str, McpServerRuntime] = {}
         self.load_errors: list[str] = []
         self._manager_lock = threading.RLock()
+        self._route_process_generation = uuid4().hex
+
+    @contextmanager
+    def route_instance_guard(self, server_id: str) -> Iterator[str]:
+        """Pin the current runtime connection while a logical route is checked/dispatched."""
+        with self._manager_lock:
+            runtime = self._get_runtime(server_id)
+            with runtime.lock:
+                if runtime.state != McpServerState.RUNNING or runtime.client is None:
+                    raise ToolExecutionError("group_instance_unavailable", "The selected instance is not running.")
+                # Persist only a process-bound opaque generation, never the
+                # endpoint, client object, downstream session ID or credentials.
+                identity = [self._route_process_generation, str(id(runtime)), str(id(runtime.client)),
+                            runtime.last_started_at or "", getattr(runtime.client, "session_id", None) or ""]
+                yield hashlib.sha256(json.dumps(identity).encode()).hexdigest()
 
     def load_manifests(self, *, restore_startup_policy: bool = True) -> None:
         loader = McpConfigLoader(self.settings.config_dir)
@@ -1272,6 +1288,8 @@ class McpRuntimeManager:
                 "metadata": {"server_id": manifest.id, "server_name": manifest.name,
                           "launch_type": manifest.launch.type, "transport_type": manifest.transport.type,
                           "original_tool_name": normalized_name, "annotations": annotations,
+                          **({"_meta": tool["_meta"]} if "_meta" in tool else {}),
+                          **({"contract_version": tool["version"]} if "version" in tool else {}),
                           **output_metadata},
             }
             # Discovery digests and review synchronization run before Registry

@@ -509,6 +509,15 @@ class McpGatewayProtocolTest(unittest.TestCase):
         with self.assertRaises(ToolNamespaceCollisionError):
             _gateway_tools(registry)
 
+    def test_gateway_preserves_empty_output_contract_and_omits_missing_contract(self) -> None:
+        registry = ToolRegistry()
+        for tool_id, metadata in (("missing", {}), ("empty", {"outputSchema": {}})):
+            registry.register(ToolDefinition(id=tool_id, name=tool_id, description="Synthetic contract",
+                                            metadata=metadata), lambda _: {})
+        tools = {tool_id: payload for tool_id, payload, _ in _gateway_tools(registry)}
+        self.assertEqual(tools["empty"]["outputSchema"], {})
+        self.assertNotIn("outputSchema", tools["missing"])
+
     def test_invalid_jsonrpc_request(self) -> None:
         response = self._post(self._app(), {"jsonrpc": "2.0", "id": 4})
         self.assertEqual(self._json(response)["error"]["code"], -32600)

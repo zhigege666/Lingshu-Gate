@@ -36,7 +36,7 @@ class McpGroupStore:
             where = "instr(g.search_text,?)>0 AND (?='all' OR g.status=?)"
             params = (q.casefold().strip(), status, status)
             total = connection.execute(f"SELECT COUNT(*) FROM mcp_groups g WHERE {where}", params).fetchone()[0]
-            rows = connection.execute(f"SELECT g.id,g.name,g.description,g.status,g.revision,g.created_at,g.updated_at,"
+            rows = connection.execute(f"SELECT g.id,g.name,g.description,g.status,g.revision,g.created_at,g.updated_at,g.default_instance_id,"
                 "COUNT(m.server_id) AS member_count,SUM(m.status='missing') AS missing_count "
                 f"FROM mcp_groups g LEFT JOIN mcp_group_members m ON m.group_id=g.id WHERE {where} "
                 "GROUP BY g.id ORDER BY g.name COLLATE NOCASE,g.id LIMIT ? OFFSET ?", (*params, limit, offset))
@@ -69,6 +69,11 @@ class McpGroupStore:
             required = (set(draft.members) - old_members.keys()) | set(draft.reconfirm_members)
             if not set(draft.reconfirm_members).issubset(draft.members) or not required.issubset(available_instances):
                 raise McpGroupError("group_instance_unavailable", "A newly selected or reconfirmed instance is missing; reload the catalog. Existing missing members can be retained or removed.")
+            if draft.default_instance_id is not None and (
+                    draft.default_instance_id not in available_instances
+                    or old_members.get(draft.default_instance_id) == "missing"
+                    and draft.default_instance_id not in draft.reconfirm_members):
+                raise McpGroupError("group_default_unavailable", "Select an available, confirmed default instance.")
             if not previous and connection.execute("SELECT COUNT(*) FROM mcp_groups").fetchone()[0] >= 1000:
                 raise McpGroupError("group_capacity", "The group limit has been reached.", 429)
             group_id = group_id or uuid4().hex
@@ -76,12 +81,12 @@ class McpGroupStore:
             revision = previous["revision"] + 1 if previous else 1
             search = f"{group_id} {draft.name} {draft.description}".casefold()
             if previous:
-                connection.execute("UPDATE mcp_groups SET name=?,description=?,status=?,revision=?,search_text=?,updated_at=? WHERE id=?",
-                    (draft.name, draft.description, draft.status, revision, search, now, group_id))
+                connection.execute("UPDATE mcp_groups SET name=?,description=?,status=?,revision=?,search_text=?,updated_at=?,default_instance_id=? WHERE id=?",
+                    (draft.name, draft.description, draft.status, revision, search, now, draft.default_instance_id, group_id))
                 connection.execute("DELETE FROM mcp_group_members WHERE group_id=?", (group_id,))
             else:
-                connection.execute("INSERT INTO mcp_groups VALUES(?,?,?,?,?,?,?,?)",
-                    (group_id, draft.name, draft.description, draft.status, revision, search, now, now))
+                connection.execute("INSERT INTO mcp_groups(id,name,description,status,revision,search_text,created_at,updated_at,default_instance_id) VALUES(?,?,?,?,?,?,?,?,?)",
+                    (group_id, draft.name, draft.description, draft.status, revision, search, now, now, draft.default_instance_id))
             connection.executemany("INSERT INTO mcp_group_members VALUES(?,?,?)", (
                 (group_id, item, "active" if item in available_instances and
                  (old_members.get(item, "active") == "active" or item in draft.reconfirm_members) else "missing")

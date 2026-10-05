@@ -919,6 +919,19 @@ class OAuthServer:
 
     def verify(self, token: str, *, expected_resource: str | None = None) -> AuthPrincipal:
         claims = self._claims(token, expected_resource=expected_resource)
+        return self._verified_principal(claims)
+
+    def refresh_verified_principal(self, principal: AuthPrincipal) -> AuthPrincipal:
+        """Recheck an authenticated in-process proof; never accept this from arguments."""
+        if (not principal.oauth_builtin or principal.auth_type != "oauth"
+                or principal.oauth_issuer != self.store.config()["issuer"]):
+            raise OAuthError("invalid_token", 401)
+        return self._verified_principal({"exp": principal.oauth_token_expires_at,
+            "client_id": principal.oauth_client_id, "gid": principal.external_grant_id,
+            "aud": principal.oauth_resource, "fid": principal.oauth_family_id,
+            "sub": principal.id, "scope": " ".join(principal.scopes), "iss": principal.oauth_issuer})
+
+    def _verified_principal(self, claims: dict[str, Any]) -> AuthPrincipal:
         with self.store.transaction() as connection:
             now = int(time.time())
             if claims["exp"] <= now:
