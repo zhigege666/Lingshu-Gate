@@ -8,6 +8,8 @@ import logging
 import os
 import tempfile
 import threading
+import time
+from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
@@ -25,6 +27,13 @@ from lingshu_gate.redaction import redact_text, redact_validation_errors
 logger = logging.getLogger(__name__)
 SUPPORTED_SUFFIXES = {".yaml", ".yml", ".json"}
 SECRET_MASK = "***"
+METADATA_SNAPSHOT_TTL_SECONDS = 30.0
+
+
+@dataclass(frozen=True)
+class McpInstanceMetadata:
+    instance_id: str
+    name: str
 
 
 class McpConfigConflict(ValueError):
@@ -38,6 +47,63 @@ class McpConfigStore:
         self.config_dir = config_dir
         self.http_trust_store = http_trust_store
         self.mutation_lock = threading.RLock()
+        self._instance_metadata: tuple[McpInstanceMetadata, ...] | None = None
+        self._metadata_index: dict[str, McpInstanceMetadata] = {}
+        self._metadata_revision = 0
+        self._metadata_built_at = 0.0
+
+    def invalidate_instance_metadata(self) -> None:
+        with self.mutation_lock:
+            self._instance_metadata = None
+            self._metadata_index = {}
+            self._metadata_revision += 1
+
+    def _read_instance_metadata(self) -> tuple[McpInstanceMetadata, ...]:
+        records = []
+        for path in self._iter_files():
+            try:
+                manifest = self._load_manifest(path)
+                records.append(McpInstanceMetadata(manifest.id, manifest.name or manifest.id))
+            except Exception:  # noqa: BLE001 - invalid files cannot become available members
+                log_event(logger, logging.ERROR, "gate.mcp.config_metadata_error", "Invalid MCP instance metadata", path=str(path))
+        return tuple(records)
+
+    def _publish_instance_metadata(self, records: tuple[McpInstanceMetadata, ...]) -> None:
+        self._instance_metadata = records
+        self._metadata_index = {item.instance_id: item for item in records}
+        self._metadata_built_at = time.monotonic()
+        self._metadata_revision += 1
+
+    def instance_metadata(self, *, refresh: bool = False) -> tuple[McpInstanceMetadata, ...]:
+        """Cache only immutable IDs/names; never credentials, manifests or authority."""
+        with self.mutation_lock:
+            if (refresh or self._instance_metadata is None
+                    or time.monotonic() - self._metadata_built_at >= METADATA_SNAPSHOT_TTL_SECONDS):
+                self._publish_instance_metadata(self._read_instance_metadata())
+            assert self._instance_metadata is not None
+            return self._instance_metadata
+
+    def selected_instance_metadata(self, instance_ids: set[str]) -> tuple[int, dict[str, str]]:
+        """Build cold metadata outside the mutation lock, then publish by revision CAS."""
+        for _ in range(3):
+            with self.mutation_lock:
+                revision = self._metadata_revision
+                if (self._instance_metadata is not None
+                        and time.monotonic() - self._metadata_built_at < METADATA_SNAPSHOT_TTL_SECONDS):
+                    return revision, {instance: self._metadata_index[instance].name for instance in instance_ids
+                                      if instance in self._metadata_index}
+            records = self._read_instance_metadata()
+            with self.mutation_lock:
+                if revision != self._metadata_revision:
+                    continue
+                self._publish_instance_metadata(records)
+                return self._metadata_revision, {instance: self._metadata_index[instance].name for instance in instance_ids
+                                                 if instance in self._metadata_index}
+        raise McpConfigConflict("Instance metadata changed repeatedly; retry the read.")
+
+    def metadata_snapshot_current(self, revision: int) -> bool:
+        with self.mutation_lock:
+            return revision == self._metadata_revision
 
     def list_configs(self) -> McpConfigListResponse:
         configs: list[McpConfigResponse] = []
@@ -70,7 +136,10 @@ class McpConfigStore:
 
     def save_config(self, manifest_data: dict[str, Any], *, expected_id: str | None = None, overwrite: bool = False, expected_digest: str | None = None) -> McpConfigResponse:
         with self.mutation_lock:
-            return self._save_config(manifest_data, expected_id=expected_id, overwrite=overwrite, expected_digest=expected_digest)
+            try:
+                return self._save_config(manifest_data, expected_id=expected_id, overwrite=overwrite, expected_digest=expected_digest)
+            finally:
+                self.invalidate_instance_metadata()
 
     def _save_config(self, manifest_data: dict[str, Any], *, expected_id: str | None = None, overwrite: bool = False, expected_digest: str | None = None) -> McpConfigResponse:
         manifest_id = str(manifest_data.get("id", ""))
@@ -103,7 +172,10 @@ class McpConfigStore:
 
     def delete_config(self, server_id: str) -> McpConfigResponse:
         with self.mutation_lock:
-            return self._delete_config(server_id)
+            try:
+                return self._delete_config(server_id)
+            finally:
+                self.invalidate_instance_metadata()
 
     def _delete_config(self, server_id: str) -> McpConfigResponse:
         self._validate_server_id(server_id)

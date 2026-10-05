@@ -389,7 +389,7 @@ def _gateway_tools(
             "inputSchema": definition.input_schema or {"type": "object", "properties": {}},
             "annotations": _tool_annotations(definition),
         }
-        output_schema = definition.metadata.get("outputSchema") or definition.metadata.get("output_schema")
+        output_schema = definition.metadata.get("outputSchema", definition.metadata.get("output_schema"))
         if isinstance(output_schema, dict):
             payload["outputSchema"] = output_schema
         payload = OfficialSdkTypesAdapter.tool(payload)

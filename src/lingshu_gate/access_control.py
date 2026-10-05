@@ -8,7 +8,7 @@ import re
 import sqlite3
 import threading
 from collections import deque
-from collections.abc import Callable
+from collections.abc import Callable, Mapping
 from contextlib import nullcontext
 from datetime import datetime, timedelta, timezone
 from functools import partial
@@ -18,6 +18,7 @@ from uuid import uuid4
 
 from lingshu_gate.auth import AuthPrincipal
 from lingshu_gate.database import SQLiteDatabase
+from lingshu_gate.domain.tool_structure import FrozenToolDefinition
 from lingshu_gate.domain.oauth_management import MANAGEMENT_READ_TOOLS, MANAGEMENT_TOOL_IDS, management_resource, management_tool_snapshot
 from lingshu_gate.invocation_payloads import snapshot
 from lingshu_gate.retention_store import RetentionStore
@@ -702,10 +703,20 @@ class AccessControlStore:
                 continue
             if existing["fingerprint"] != fingerprint:
                 invalidation_evidence = dict(suggestion["evidence"])
+                previous_snapshot = _loads(existing["evidence_json"]).get("definition_snapshot")
+                current_snapshot = invalidation_evidence["definition_snapshot"]
                 invalidation_evidence["invalidation"] = {
                     "reason": "tool_definition_changed", "at": now,
                     "previous_fingerprint": existing["fingerprint"],
                     "current_fingerprint": fingerprint,
+                    "changed_fields": sorted(
+                        field for field, digest in current_snapshot.items()
+                        if isinstance(previous_snapshot, dict) and previous_snapshot.get(field) != digest
+                    ),
+                    "previous_definition_unrecorded": not isinstance(previous_snapshot, dict),
+                    "output_schema_recorded": isinstance(definition.metadata.get("outputSchema"), dict),
+                    "previous_definition_snapshot": previous_snapshot if isinstance(previous_snapshot, dict) else None,
+                    "current_definition_snapshot": current_snapshot,
                 }
                 evidence_json = json.dumps(invalidation_evidence, ensure_ascii=False)
                 connection.execute(
@@ -1177,6 +1188,40 @@ class AccessControlStore:
                     }))
             return visible
 
+    def visible_tool_contracts(
+        self, principal: AuthPrincipal, definitions: Iterable[ToolDefinition | FrozenToolDefinition], *,
+        connection: sqlite3.Connection, fingerprints: Mapping[str, str] | None = None,
+    ) -> list[tuple[ToolDefinition | FrozenToolDefinition, dict[str, Any] | None]]:
+        """Read-only current policy projection; do not analyze or persist on a catalog GET."""
+        items = list(definitions)
+        keys = [(_server_id(item), item.id) for item in items]
+        classifications = self._load_classifications(connection, keys)
+        grants = self._effective_access_map(connection, principal, keys)
+        result: list[tuple[ToolDefinition | FrozenToolDefinition, dict[str, Any] | None]] = []
+        for definition, key in zip(items, keys, strict=True):
+            classification = classifications.get(key)
+            # An old published row cannot authorize a changed registry contract.
+            # Unlike discovery synchronization, this query leaves the row intact.
+            if classification:
+                try:
+                    fingerprint: str | None
+                    if fingerprints is None:
+                        mutable = definition.copy_definition() if isinstance(definition, FrozenToolDefinition) else definition
+                        fingerprint = _tool_fingerprint(mutable)
+                    else:
+                        fingerprint = fingerprints.get(definition.id)
+                    if classification["fingerprint"] != fingerprint:
+                        classification = None
+                except (ValueError, TypeError, RecursionError):
+                    classification = None
+            decision = self._evaluate(principal, definition, classification, partial(grants.__getitem__, key))
+            permission = "tools.read" if decision["required_access"] == "read" else "tools.invoke"
+            # Legacy admin discovery bypass does not widen this read-only
+            # directory's freshly loaded explicit control-permission ceiling.
+            if decision["allowed"] and ("*" in principal.permissions or permission in principal.permissions):
+                result.append((definition, classification))
+        return result
+
     def evaluate(self, principal: AuthPrincipal, definition: ToolDefinition) -> dict[str, Any]:
         key = (_server_id(definition), definition.id)
         with self.database.session() as connection:
@@ -1250,7 +1295,7 @@ class AccessControlStore:
     def _evaluate(
         self,
         principal: AuthPrincipal,
-        definition: ToolDefinition,
+        definition: ToolDefinition | FrozenToolDefinition,
         classification: dict[str, Any] | None,
         grant_lookup: Callable[[], str],
     ) -> dict[str, Any]:
@@ -1271,7 +1316,8 @@ class AccessControlStore:
                     and principal.external_expires_at and not _is_expired(principal.external_expires_at)
                     and definition.source == "builtin" and server_id == "gate_mcp_configuration"
                     and definition.id in MANAGEMENT_TOOL_IDS and definition.id in principal.external_tool_ids
-                    and dict(principal.oauth_tool_snapshots).get(definition.id) == management_tool_snapshot(definition)
+                    and dict(principal.oauth_tool_snapshots).get(definition.id) == management_tool_snapshot(
+                        definition.copy_definition() if isinstance(definition, FrozenToolDefinition) else definition)
                     and "operations.manage" in principal.scopes
                     and principal.delegated_scopes is not None and "operations.manage" in principal.delegated_scopes
                     and (required == "read" or ("tools.invoke" in principal.scopes
@@ -1917,15 +1963,15 @@ class AccessControlStore:
         }
 
 
-def _server_id(definition: ToolDefinition) -> str:
+def _server_id(definition: ToolDefinition | FrozenToolDefinition) -> str:
     value = definition.metadata.get("server_id")
     if isinstance(value, str) and value.strip():
         return value.strip()
     return definition.source or "builtin"
 
 
-def _tool_fingerprint(definition: ToolDefinition) -> str:
-    payload = {
+def _tool_fingerprint_payload(definition: ToolDefinition) -> dict[str, Any]:
+    return {
         "id": definition.id,
         "name": definition.name,
         "description": definition.description,
@@ -1938,8 +1984,20 @@ def _tool_fingerprint(definition: ToolDefinition) -> str:
         "sensitive_input_fields": definition.metadata.get("sensitive_input_fields"),
         "sensitive_output_fields": definition.metadata.get("sensitive_output_fields"),
     }
-    raw = json.dumps(payload, ensure_ascii=False, sort_keys=True, separators=(",", ":"))
+
+
+def _tool_fingerprint(definition: ToolDefinition) -> str:
+    raw = json.dumps(_tool_fingerprint_payload(definition), ensure_ascii=False, sort_keys=True, separators=(",", ":"))
     return hashlib.sha256(raw.encode("utf-8")).hexdigest()
+
+
+def _tool_definition_snapshot(definition: ToolDefinition) -> dict[str, str]:
+    # Field digests explain contract drift without returning full schemas in every row.
+    return {
+        field: hashlib.sha256(json.dumps(value, ensure_ascii=False, sort_keys=True,
+                                        separators=(",", ":")).encode("utf-8")).hexdigest()
+        for field, value in _tool_fingerprint_payload(definition).items()
+    }
 
 
 def _suggest_tool(definition: ToolDefinition) -> dict[str, Any]:
@@ -1977,6 +2035,7 @@ def _suggest_tool(definition: ToolDefinition) -> dict[str, Any]:
         "open_world": open_world,
         "evidence": {
             "annotations": annotations,
+            "definition_snapshot": _tool_definition_snapshot(definition),
             "rule": {
                 "read_hits": read_hits,
                 "write_hits": write_hits,

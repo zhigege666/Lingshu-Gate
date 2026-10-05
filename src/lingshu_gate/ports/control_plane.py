@@ -7,6 +7,7 @@ from typing import Any, Mapping, Protocol
 from lingshu_gate.domain.health import ComponentStatus
 from lingshu_gate.mcp_manifest import McpServerManifest
 from lingshu_gate.models import (
+    McpConfigListResponse,
     McpConfigResponse,
     McpServerListResponse,
     McpServerStatusResponse,
@@ -59,7 +60,11 @@ class EventSink(Protocol):
 class McpConfigurationRepository(Protocol):
     """Durable manifest operations needed by configuration workflows."""
 
+    def invalidate_instance_metadata(self) -> None: ...
+
     def get_config(self, server_id: str) -> McpConfigResponse: ...
+
+    def list_configs(self) -> McpConfigListResponse: ...
 
     def load_manifest(self, server_id: str) -> McpServerManifest: ...
 
