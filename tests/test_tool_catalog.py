@@ -157,6 +157,21 @@ def test_invoke_uses_original_audit_and_validates_arguments_revision_instance(ca
             service.invoke(principal, changed)
 
 
+@pytest.mark.parametrize("metadata", [{}, {"outputSchema": {}}, {"output_schema": {}}])
+def test_describe_preserves_empty_schema_and_absent_output_distinction(catalog, metadata):
+    service, principal = catalog
+    definition = service.registry.get_definition("mcp.one.read_0")
+    changed = definition.model_copy(update={"input_schema": {}, "metadata": {**definition.metadata, **metadata}})
+    service.registry.update_definition(changed)
+    service.synchronize()
+    service.database.execute("UPDATE mcp_tool_classifications SET effective_access='read',status='published' WHERE tool_id=?", (changed.id,))
+    described = service.describe(principal, CatalogDescribe(tool_ref=changed.id))
+    assert described["input_schema"] == {}
+    assert ("output_schema" in described) == bool(metadata)
+    if metadata:
+        assert described["output_schema"] == {}
+
+
 def test_read_token_cannot_invoke_write_and_oauth_cannot_guess_target(catalog):
     service, principal = catalog
     service.database.execute("UPDATE mcp_tool_classifications SET effective_access='write' WHERE tool_id='mcp.one.read_0'")
@@ -277,6 +292,7 @@ def test_mcp_and_api_adapters_keep_legacy_listing_and_hide_direct_calls(catalog)
     assert client.post("/v1/catalog/search", json={"limit": 1000}).status_code == 400
     assert client.post("/v1/catalog/describe", json={"tool_ref": "mcp.two.read_0"}).status_code == 404
     assert rpc("tools/list", mode="invalid").status_code == 400
+    assert rpc("tools/list", mode="direct&tool_mode=on_demand").status_code == 400
 
 
 def test_reserved_name_collision_fails_closed(catalog):

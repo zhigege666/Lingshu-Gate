@@ -132,7 +132,8 @@ def register_mcp_gateway_route(
         query_params = QueryParams(request.scope.get("query_string", b""))
         mode = query_params.get("tool_mode", request.headers.get("x-gate-tool-mode", "direct"))
         header_mode = request.headers.get("x-gate-tool-mode")
-        if (mode not in {"direct", "on_demand"} or header_mode is not None and header_mode != mode
+        if (len(query_params.getlist("tool_mode")) > 1 or len(request.headers.getlist("x-gate-tool-mode")) > 1
+                or mode not in {"direct", "on_demand"} or header_mode is not None and header_mode != mode
                 or mode == "on_demand" and (path != "/mcp" or catalog is None)):
             return _error_response(request_id, -32602, "Unsupported or conflicting tool_mode", settings,
                 status_code=400, protocol_version=protocol_context.protocol_version)

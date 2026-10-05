@@ -309,8 +309,9 @@ class ToolCatalog:
             revision = schema_revision(definition)
         output = {"tool_ref": request.tool_ref, "instance_id": instance_for(definition),
                   "schema_revision": revision, "name": definition.name,
-                  "description": definition.description, "input_schema": definition.input_schema or {"type": "object"}}
-        output_schema = definition.metadata.get("outputSchema") or definition.metadata.get("output_schema")
+                  "description": definition.description,
+                  "input_schema": definition.input_schema if definition.input_schema is not None else {"type": "object"}}
+        output_schema = definition.metadata.get("outputSchema", definition.metadata.get("output_schema"))
         if isinstance(output_schema, dict):
             output["output_schema"] = output_schema
         if len(_json(output).encode()) > request.max_bytes - 512:
@@ -336,7 +337,7 @@ class ToolCatalog:
                 raise _reject("catalog_instance_mismatch", "The selected tool does not belong to the requested instance.")
             if schema_revision(definition) != request.schema_revision:
                 raise _reject("catalog_schema_revision_conflict", "The selected tool definition changed; describe it again.")
-            _validate_arguments(definition.input_schema or {"type": "object"}, request.arguments)
+            _validate_arguments(definition.input_schema if definition.input_schema is not None else {"type": "object"}, request.arguments)
         except ToolExecutionError as exc:
             # Attribute rejected parameters/versions to the selected target, using
             # the same redacted audit boundary as ordinary invocation.
@@ -379,7 +380,7 @@ class ToolCatalog:
             try:
                 if request.schema_revision != target.schema_revision or schema_revision(definition) != target.definition_fingerprint:
                     raise _reject("catalog_schema_revision_conflict", "The selected logical contract changed; describe it again.")
-                _validate_arguments(definition.input_schema or {"type": "object"}, request.arguments)
+                _validate_arguments(definition.input_schema if definition.input_schema is not None else {"type": "object"}, request.arguments)
             except ToolExecutionError as exc:
                 self.access._record_invocation_audit(current, definition,
                     correlation_id=correlation_id or secrets.token_hex(16),

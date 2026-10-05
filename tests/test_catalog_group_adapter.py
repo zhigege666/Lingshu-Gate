@@ -145,6 +145,15 @@ def test_group_invoker_never_enables_read_replay_and_preserves_physical_calls(ga
     assert len(peers["instance-1"].calls) == 1
 
 
+def test_logical_describe_preserves_explicit_empty_output_contract(gate, integrated):
+    catalog, group, _ = integrated
+    actor = gate["principal"]
+    for instance in ("instance-0", "instance-1", "instance-2"):
+        catalog_tool(gate, instance, name="inspect", metadata={"outputSchema": {}})
+    described = selected(catalog, group, actor)
+    assert described["input_schema"] == {} and described["output_schema"] == {}
+
+
 def test_session_routes_and_fixed_schemas_use_the_same_public_adapter(gate, integrated):
     catalog, group, _ = integrated
     actor = gate["principal"]
