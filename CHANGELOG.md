@@ -2,7 +2,9 @@
 
 ## Unreleased
 
-- Registry structural publication isolates caller/getter references, provides immutable per-instance indexed snapshots and explicit updates preserving handlers, and rejects over-budget JSON before copying or runtime discovery digests/review. A 5,000-instance/50,000-tool index regression forbids global iteration or serialization on repeated reads. Directory normalization caching and lock reduction remain pending. [Publication boundary](docs/mcp-groups.md).
+- Group-directory reads use the selected-instance Registry index and bounded revision/immutable-identity structural memoization. Cold preparation and comparison run outside the configuration write lock; current authorization is read again in one transaction and continuously changing snapshots return bounded retryable errors. Full HTTP regressions use 5,000 manifest instances/50,000 tools, preserve the 1,000-member limit, and record p95, process RSS and writer lock waits while proving zero additional structural serialization on warm/search/page reads. This is synthetic evidence, not a production latency guarantee. [Directory bounds](docs/mcp-groups.md).
+
+- Registry structural publication isolates caller/getter references, provides immutable per-instance indexed snapshots and explicit updates preserving handlers, and rejects over-budget JSON before copying or runtime discovery digests/review. A 5,000-instance/50,000-tool index regression forbids global iteration or serialization on repeated reads. [Publication boundary](docs/mcp-groups.md).
 
 - A read-only administrator group contract catalog partitions only currently visible tools by exact original name, conservative input/output declarations and current Gate-reviewed safety semantics. Missing output schema differs from an empty schema; changed or unreviewed contracts remain individual variants. Complete search and paged original member/tool IDs retain current permission/token ceilings. Candidates explicitly leave business equivalence unverified and add no callable aliases, routing, failover or OAuth scopes. [Directory contract](docs/mcp-groups.md).
 

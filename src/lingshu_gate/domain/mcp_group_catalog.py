@@ -12,6 +12,7 @@ from pydantic import BaseModel, ConfigDict
 from lingshu_gate.domain.mcp_groups import McpGroupError
 from lingshu_gate.models import ToolDefinition
 from lingshu_gate.domain.tool_structure import checked_json_size
+from lingshu_gate.domain.tool_structure import FrozenToolDefinition
 
 MAX_CATALOG_TOOLS = 50_000
 MAX_SCHEMA_BYTES = 128 * 1024
@@ -101,10 +102,65 @@ class GroupToolVariantPage(BaseModel):
 
 @dataclass(frozen=True)
 class VisibleCatalogTool:
-    definition: ToolDefinition
+    definition: ToolDefinition | FrozenToolDefinition
     instance_id: str
     instance_name: str
     classification: dict[str, Any] | None
+    structure: NormalizedToolContract | None = None
+
+
+@dataclass(frozen=True, slots=True)
+class NormalizedToolContract:
+    comparable: bool
+    input_text: str
+    output_text: str
+    policy_text: str
+    output_present: bool
+    input_digest: str | None
+    output_digest: str | None
+    byte_count: int
+
+
+def normalize_tool_contract(definition: ToolDefinition) -> NormalizedToolContract:
+    output_present = "outputSchema" in definition.metadata
+    if not isinstance(definition.input_schema, dict):
+        raise ValueError("schema_non_object")
+    if output_present and not isinstance(definition.metadata["outputSchema"], dict):
+        raise ValueError("schema_non_object")
+    input_text = canonical_contract(definition.input_schema)
+    output_text = canonical_contract({"present": output_present, "schema": definition.metadata.get("outputSchema")})
+    policy_text = canonical_contract({
+        "declared_permission": definition.permission,
+        "required_control_permission": definition.metadata.get("required_control_permission"),
+        "sensitive_input_fields": definition.metadata.get("sensitive_input_fields"),
+        "sensitive_output_fields": definition.metadata.get("sensitive_output_fields"),
+        "annotations": {key: value for key, value in definition.metadata.get("annotations", {}).items()
+                        if key in {"readOnlyHint", "destructiveHint", "idempotentHint", "openWorldHint"}
+                        and isinstance(value, bool)},
+    })
+    return NormalizedToolContract(True, input_text, output_text, policy_text, output_present,
+        _digest(input_text), _digest(output_text) if output_present else None,
+        sum(len(text.encode("utf-8")) for text in (input_text, output_text, policy_text)))
+
+
+def uncomparable_contract(output_present: bool) -> NormalizedToolContract:
+    return NormalizedToolContract(False, "", "", "", output_present, None, None, 0)
+
+
+def _review_text(safety: ReviewedToolSafety | None) -> str:
+    if safety is None:
+        return "null"
+    return (f'{{"required_access":"{safety.required_access}","destructive":{str(safety.destructive).lower()},'
+            f'"idempotent":{str(safety.idempotent).lower()},"open_world":{str(safety.open_world).lower()}' + "}")
+
+
+def _variant_identifier(group_id: str, key: tuple[str, ...]) -> str:
+    digest = hashlib.sha256()
+    for part in (group_id, *key):
+        raw = part.encode("utf-8")
+        digest.update(len(raw).to_bytes(8, "big"))
+        digest.update(raw)
+    return digest.hexdigest()
 
 
 @dataclass
@@ -131,35 +187,24 @@ def build_catalog(group_id: str, tools: list[VisibleCatalogTool]) -> list[Catalo
     for item in tools:
         definition = item.definition
         name = definition.metadata["original_tool_name"]
-        output_present = "outputSchema" in definition.metadata
+        structure = item.structure
+        if structure is None:
+            try:
+                mutable = definition.copy_definition() if isinstance(definition, FrozenToolDefinition) else definition
+                structure = normalize_tool_contract(mutable)
+            except (ValueError, TypeError, AttributeError):
+                structure = uncomparable_contract("outputSchema" in definition.metadata)
+        output_present = structure.output_present
         safety = _reviewed_safety(item.classification)
         comparison: Literal["reviewed_contract_match", "review_required", "uncomparable"] = (
             "reviewed_contract_match" if safety else "review_required"
         )
-        input_text = output_text = safety_text = ""
-        try:
-            if not isinstance(definition.input_schema, dict):
-                raise ValueError("schema_non_object")
-            if output_present and not isinstance(definition.metadata["outputSchema"], dict):
-                raise ValueError("schema_non_object")
-            input_text = canonical_contract(definition.input_schema)
-            output_text = canonical_contract({"present": output_present, "schema": definition.metadata.get("outputSchema")})
-            # These fields are bound by the current reviewed fingerprint. Hints
-            # cannot supply required_access or override the Gate classification.
-            safety_text = canonical_contract({
-                "review": safety.model_dump() if safety else None,
-                "declared_permission": definition.permission,
-                "required_control_permission": definition.metadata.get("required_control_permission"),
-                "sensitive_input_fields": definition.metadata.get("sensitive_input_fields"),
-                "sensitive_output_fields": definition.metadata.get("sensitive_output_fields"),
-                "annotations": {key: value for key, value in definition.metadata.get("annotations", {}).items()
-                                if key in {"readOnlyHint", "destructiveHint", "idempotentHint", "openWorldHint"}
-                                and isinstance(value, bool)},
-            })
-        except (ValueError, TypeError, AttributeError):
+        input_text, output_text = structure.input_text, structure.output_text
+        review_text = _review_text(safety)
+        safety_text = f"[{structure.policy_text},{review_text}]" if structure.comparable else ""
+        if not structure.comparable:
             comparison = "uncomparable"
-            input_text = output_text = safety_text = ""
-        used_bytes += len(input_text.encode("utf-8")) + len(output_text.encode("utf-8")) + len(safety_text.encode("utf-8"))
+        used_bytes += structure.byte_count + len(review_text) + 3
         if used_bytes > MAX_CATALOG_CONTRACT_BYTES:
             raise McpGroupError("group_catalog_capacity", "The visible contracts exceed the bounded comparison capacity.", 503)
         # Pending/stale/unrepresentable contracts remain individual variants.
@@ -167,12 +212,12 @@ def build_catalog(group_id: str, tools: list[VisibleCatalogTool]) -> list[Catalo
         key = (name, input_text, output_text, safety_text, discriminator)
         member = GroupToolMember(instance_id=item.instance_id, instance_name=item.instance_name, tool_id=definition.id)
         if key not in buckets:
-            identifier = _digest(json.dumps([group_id, *key], ensure_ascii=False, separators=(",", ":")))
+            identifier = _variant_identifier(group_id, key)
             buckets[key] = CatalogVariant(GroupToolVariant(
                 variant_id=identifier, original_tool_name=name, compatibility=comparison,
-                input_schema_digest=_digest(input_text) if input_text else None,
+                input_schema_digest=structure.input_digest,
                 output_schema_present=output_present,
-                output_schema_digest=_digest(output_text) if output_present and output_text else None,
+                output_schema_digest=structure.output_digest,
                 safety_digest=_digest(safety_text) if safety_text else None,
                 safety=safety, visible_member_count=0,
             ), [], "")

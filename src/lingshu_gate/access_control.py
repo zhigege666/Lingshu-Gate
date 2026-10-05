@@ -8,7 +8,7 @@ import re
 import sqlite3
 import threading
 from collections import deque
-from collections.abc import Callable
+from collections.abc import Callable, Mapping
 from contextlib import nullcontext
 from datetime import datetime, timedelta, timezone
 from functools import partial
@@ -18,6 +18,7 @@ from uuid import uuid4
 
 from lingshu_gate.auth import AuthPrincipal
 from lingshu_gate.database import SQLiteDatabase
+from lingshu_gate.domain.tool_structure import FrozenToolDefinition
 from lingshu_gate.domain.oauth_management import MANAGEMENT_READ_TOOLS, MANAGEMENT_TOOL_IDS, management_resource, management_tool_snapshot
 from lingshu_gate.invocation_payloads import snapshot
 from lingshu_gate.retention_store import RetentionStore
@@ -1188,21 +1189,28 @@ class AccessControlStore:
             return visible
 
     def visible_tool_contracts(
-        self, principal: AuthPrincipal, definitions: Iterable[ToolDefinition], *, connection: sqlite3.Connection,
-    ) -> list[tuple[ToolDefinition, dict[str, Any] | None]]:
+        self, principal: AuthPrincipal, definitions: Iterable[ToolDefinition | FrozenToolDefinition], *,
+        connection: sqlite3.Connection, fingerprints: Mapping[str, str] | None = None,
+    ) -> list[tuple[ToolDefinition | FrozenToolDefinition, dict[str, Any] | None]]:
         """Read-only current policy projection; do not analyze or persist on a catalog GET."""
         items = list(definitions)
         keys = [(_server_id(item), item.id) for item in items]
         classifications = self._load_classifications(connection, keys)
         grants = self._effective_access_map(connection, principal, keys)
-        result: list[tuple[ToolDefinition, dict[str, Any] | None]] = []
+        result: list[tuple[ToolDefinition | FrozenToolDefinition, dict[str, Any] | None]] = []
         for definition, key in zip(items, keys, strict=True):
             classification = classifications.get(key)
             # An old published row cannot authorize a changed registry contract.
             # Unlike discovery synchronization, this query leaves the row intact.
             if classification:
                 try:
-                    if classification["fingerprint"] != _tool_fingerprint(definition):
+                    fingerprint: str | None
+                    if fingerprints is None:
+                        mutable = definition.copy_definition() if isinstance(definition, FrozenToolDefinition) else definition
+                        fingerprint = _tool_fingerprint(mutable)
+                    else:
+                        fingerprint = fingerprints.get(definition.id)
+                    if classification["fingerprint"] != fingerprint:
                         classification = None
                 except (ValueError, TypeError, RecursionError):
                     classification = None
@@ -1228,7 +1236,7 @@ class AccessControlStore:
     def _evaluate(
         self,
         principal: AuthPrincipal,
-        definition: ToolDefinition,
+        definition: ToolDefinition | FrozenToolDefinition,
         classification: dict[str, Any] | None,
         grant_lookup: Callable[[], str],
     ) -> dict[str, Any]:
@@ -1249,7 +1257,8 @@ class AccessControlStore:
                     and principal.external_expires_at and not _is_expired(principal.external_expires_at)
                     and definition.source == "builtin" and server_id == "gate_mcp_configuration"
                     and definition.id in MANAGEMENT_TOOL_IDS and definition.id in principal.external_tool_ids
-                    and dict(principal.oauth_tool_snapshots).get(definition.id) == management_tool_snapshot(definition)
+                    and dict(principal.oauth_tool_snapshots).get(definition.id) == management_tool_snapshot(
+                        definition.copy_definition() if isinstance(definition, FrozenToolDefinition) else definition)
                     and "operations.manage" in principal.scopes
                     and principal.delegated_scopes is not None and "operations.manage" in principal.delegated_scopes
                     and (required == "read" or ("tools.invoke" in principal.scopes
@@ -1875,7 +1884,7 @@ class AccessControlStore:
         }
 
 
-def _server_id(definition: ToolDefinition) -> str:
+def _server_id(definition: ToolDefinition | FrozenToolDefinition) -> str:
     value = definition.metadata.get("server_id")
     if isinstance(value, str) and value.strip():
         return value.strip()

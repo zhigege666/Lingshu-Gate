@@ -46,6 +46,10 @@ def register_mcp_group_routes(app: FastAPI, *, auth: AuthStore, service: McpGrou
 
     # Scope the handler to this router's service errors, without changing global errors.
     def error(exc: McpGroupError) -> HTTPException:
+        if exc.code in {"group_catalog_changed", "group_catalog_busy"}:
+            return HTTPException(exc.status,
+                detail={"code": exc.code, "message": exc.message, "retryable": True},
+                headers={"Cache-Control": "no-store", "Retry-After": "1"})
         return HTTPException(exc.status, detail={"code": exc.code, "message": exc.message})
 
     @app.post("/v1/mcp/groups/csrf", tags=["mcp-groups"])
