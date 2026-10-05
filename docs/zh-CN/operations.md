@@ -106,6 +106,8 @@ MCP 筛选器使用 `/v1/observability/mcp-scopes` 加载可搜索的名称和 I
 
 诊断不会执行任意 Shell 命令。返回的主机元数据属于运维敏感信息，只分享调查所需的最小内容。
 
+内存快照从 procfs 进程 status 读取 PID/PPID、进程名称（command，即内核 comm 名称）、RSS/VMS 与线程数，不打开进程 cmdline 或 environ。兼容字段 top_processes[].args 始终为 omitted，未知凭据参数也不会进入快照。启动/关闭 JSON 日志和内存 API 共用此采集器。系统 debugtool 没有独立采集宿主进程参数的路径；日志视图保留原有范围检查和脱敏。本修改不会重写或删除过去已写入的日志。
+
 ## 运行时缓存
 
 `GET /v1/runtime/cache` 列出已知缓存项及其受限元数据。`DELETE /v1/runtime/cache/{cache_name}` 清除一个准确缓存项。

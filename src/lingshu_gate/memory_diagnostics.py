@@ -12,10 +12,11 @@ from lingshu_gate.logging import log_event
 
 
 PROC_ROOT = Path("/proc")
+PROCESS_ARGS_OMITTED = "omitted"
 
 
 def collect_memory_snapshot(top_processes_limit: int = 12) -> dict[str, Any]:
-    """Collect process, cgroup, and host memory information without extra dependencies."""
+    """Collect memory metrics without reading process command lines or environments."""
 
     return {
         "pid": os.getpid(),
@@ -84,7 +85,8 @@ def _top_processes(limit: int) -> list[dict[str, Any]]:
     """Return top RSS processes by reading /proc directly.
 
     The runtime image is intentionally slim and may not include procps/ps.
-    Reading procfs keeps memory diagnostics useful without growing the image.
+    Read only process status metrics, never cmdline or environ. Keeping the
+    legacy args field fixed prevents unknown credential flags from leaking.
     """
 
     if not PROC_ROOT.exists():
@@ -116,7 +118,7 @@ def _top_processes(limit: int) -> list[dict[str, Any]]:
                 "vsz_bytes": vms_bytes,
                 "threads": _to_int(status.get("Threads")),
                 "command": command,
-                "args": _read_cmdline(pid_dir / "cmdline") or command,
+                "args": PROCESS_ARGS_OMITTED,
                 "source": "procfs",
             }
         )
@@ -142,16 +144,6 @@ def _read_proc_status(path: Path) -> dict[str, str]:
 
 def _read_meminfo(path: Path) -> dict[str, str]:
     return _read_proc_status(path)
-
-
-def _read_cmdline(path: Path) -> str:
-    try:
-        raw = path.read_bytes()
-    except OSError:
-        return ""
-    if not raw:
-        return ""
-    return raw.replace(b"\x00", b" ").decode("utf-8", errors="replace").strip()[:500]
 
 
 def _read_int_file(path: Path) -> int | None:

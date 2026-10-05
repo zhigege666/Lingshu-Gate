@@ -106,6 +106,8 @@ An audit is not a payload archive. Do not enable payload logging to compensate f
 
 Diagnostics do not execute arbitrary shell commands. Treat returned host metadata as operationally sensitive and share only the minimum needed for investigation.
 
+Memory snapshots read procfs process status for PID/PPID, process name (`command`, the kernel comm name), RSS/VMS and thread counts. They never open process `cmdline` or `environ`; the compatibility `top_processes[].args` field is always `omitted`, even for unknown credential flags. Startup/shutdown JSON logs and the memory API share this collector. The system debug tool does not collect host process arguments independently; its log views retain the existing scope checks and redaction. Previously written logs are not rewritten or deleted by this change.
+
 ## Runtime cache
 
 `GET /v1/runtime/cache` lists known cache entries and their bounded metadata. `DELETE /v1/runtime/cache/{cache_name}` clears one exact cache entry.
