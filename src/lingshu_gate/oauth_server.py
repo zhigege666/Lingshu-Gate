@@ -663,9 +663,12 @@ class OAuthServer:
         return self.candidate_catalog
 
     def _candidate_binding(self, connection: sqlite3.Connection, principal: AuthPrincipal, session: str,
-                           grant: dict[str, Any], client: Any, config: dict[str, Any]) -> dict[str, Any]:
+                           grant: dict[str, Any], client: Any, config: dict[str, Any],
+                           synchronized_generation: int | None = None) -> dict[str, Any]:
         binding = self._scope_binding(principal, session, grant, client, config, {})
         marker = self._candidate_port().revision_marker(connection, principal)
+        if synchronized_generation is not None and marker[0] != synchronized_generation:
+            raise OAuthError("tool_scope_changed", 409)
         binding["catalog_digest"] = hash_secret(json.dumps([self._candidate_incarnation, marker, principal.roles, principal.permissions,
             grant["scopes"], client["scopes_json"], client["resources_json"], grant["expires_at"],
             grant["rate_per_minute"], grant["concurrency"], self._catalog_digest(grant["tools"])], sort_keys=True))
@@ -685,13 +688,13 @@ class OAuthServer:
                       server_id: str = "", access: str = "", view: str = "tools", limit: int = 50,
                       max_bytes: int = 65536, cursor: str | None = None, catalog_revision: str | None = None) -> dict[str, Any]:
         port = self._candidate_port()
-        port.synchronize()
+        generation = port.synchronize()
         filters = {"query": query, "server_id": server_id, "access": access, "view": view, "limit": limit, "max_bytes": max_bytes}
         with self.store.transaction() as connection:
             principal = self._console_owner(principal, session)
             grant, client, config = self._live_grant(connection, principal.id, grant_id)
             ceiling = self._candidate_ceiling(grant, client)
-            binding = self._candidate_binding(connection, principal, session, grant, client, config)
+            binding = self._candidate_binding(connection, principal, session, grant, client, config, generation)
             revision = self._candidate_revision(binding)
             if catalog_revision is not None and catalog_revision != revision:
                 raise OAuthError("tool_scope_changed", 409)
@@ -736,7 +739,7 @@ class OAuthServer:
                 result["items"] = result["items"][:-1]
                 if not result["items"]:
                     raise OAuthError("scope_catalog_output_limit")
-            self._check_scope_binding(ticket, self._candidate_binding(connection, principal, session, grant, client, config))
+            self._check_scope_binding(ticket, self._candidate_binding(connection, principal, session, grant, client, config, generation))
             return result
 
     @staticmethod
@@ -754,12 +757,12 @@ class OAuthServer:
                 or len(metadata_ids) > 100 or any(not 1 <= len(key) <= 512 for key in metadata_ids)):
             raise OAuthError("invalid_request")
         port = self._candidate_port()
-        port.synchronize()
+        generation = port.synchronize()
         saved = self._scope_ticket(csrf, "grant_scope_options_v2", principal, session, grant_id)
         with self.store.transaction() as connection:
             principal = self._console_owner(principal, session)
             grant, client, config = self._live_grant(connection, principal.id, grant_id)
-            current = self._candidate_binding(connection, principal, session, grant, client, config)
+            current = self._candidate_binding(connection, principal, session, grant, client, config, generation)
             self._check_scope_binding(saved, current)
             if revision != grant["revision"] or catalog_revision != self._candidate_revision(current):
                 raise OAuthError("revision_conflict", 409)
@@ -802,15 +805,14 @@ class OAuthServer:
                 "difference_summary": {"added": len(added), "removed": len(removed),
                     "added_write": sum(tools[key]["access"] == "write" for key in added),
                     "removed_write": sum(grant["tools"][key]["access"] == "write" for key in removed), "write": counts["write"]}}
-            self._check_scope_binding(saved, self._candidate_binding(connection, principal, session, grant, client, config))
+            self._check_scope_binding(saved, self._candidate_binding(connection, principal, session, grant, client, config, generation))
             return result
 
     def preview_scope(self, principal: AuthPrincipal, grant_id: str, session: str, csrf: str,
                       revision: int, tool_ids: list[str], expires_at: int, rate: int, concurrency: int,
                       catalog_revision: str | None = None) -> dict[str, Any]:
         paged = catalog_revision is not None
-        if paged:
-            self._candidate_port().synchronize()
+        generation = self._candidate_port().synchronize() if paged else None
         binding = self._scope_ticket(csrf, "grant_scope_options_v2" if paged else "grant_scope_options_v1", principal, session, grant_id)
         with self.store.transaction() as connection:
             principal = self._console_owner(principal, session)
@@ -819,7 +821,7 @@ class OAuthServer:
                 self._validate_draft_ids(tool_ids)
                 catalog = self._candidate_port().selected(connection, principal, self._candidate_ceiling(grant, client), tool_ids)
                 visible = catalog
-                current = self._candidate_binding(connection, principal, session, grant, client, config)
+                current = self._candidate_binding(connection, principal, session, grant, client, config, generation)
                 if catalog_revision != self._candidate_revision(current):
                     raise OAuthError("tool_scope_changed", 409)
             else:
@@ -844,7 +846,7 @@ class OAuthServer:
             result = {"confirmation": token, "confirmation_expires_at": payload["expires_at"], **target, "added": added, "removed": removed,
                     "previous_tools": list(grant["tools"].values()), "tools": list(tools.values())}
             if paged:
-                self._check_scope_binding(binding, self._candidate_binding(connection, principal, session, grant, client, config))
+                self._check_scope_binding(binding, self._candidate_binding(connection, principal, session, grant, client, config, generation))
                 result["previous_tools"] = []
                 result["tools"] = list(tools.values())[:50]
                 while len(json.dumps(result["tools"], ensure_ascii=False).encode()) > 65536:
@@ -859,8 +861,7 @@ class OAuthServer:
                      revision: int, tool_ids: list[str], expires_at: int, rate: int, concurrency: int,
                      catalog_revision: str | None = None) -> dict[str, Any]:
         paged = catalog_revision is not None
-        if paged:
-            self._candidate_port().synchronize()
+        generation = self._candidate_port().synchronize() if paged else None
         binding = self._scope_ticket(confirmation, "grant_scope_confirmation_v2" if paged else "grant_scope_confirmation_v1", principal, session, grant_id)
         with self.store.transaction() as connection:
             principal = self._console_owner(principal, session)
@@ -869,7 +870,7 @@ class OAuthServer:
                 self._validate_draft_ids(tool_ids)
                 catalog = self._candidate_port().selected(connection, principal, self._candidate_ceiling(grant, client), tool_ids)
                 visible = catalog
-                current = self._candidate_binding(connection, principal, session, grant, client, config)
+                current = self._candidate_binding(connection, principal, session, grant, client, config, generation)
                 if catalog_revision != self._candidate_revision(current):
                     raise OAuthError("tool_scope_changed", 409)
                 self._check_scope_binding(binding, current)
@@ -887,7 +888,7 @@ class OAuthServer:
                 raise OAuthError("scope_confirmation_changed", 409)
             added, removed = self._scope_difference(grant, tools)
             if paged:
-                self._check_scope_binding(binding, self._candidate_binding(connection, principal, session, grant, client, config))
+                self._check_scope_binding(binding, self._candidate_binding(connection, principal, session, grant, client, config, generation))
             if connection.execute("UPDATE gate_oauth_grants SET tools_json=?,expires_at=?,rate_per_minute=?,concurrency=?,revision=revision+1 "
                                   "WHERE id=? AND user_id=? AND revision=? AND revoked_at IS NULL",
                                   (json.dumps(tools), expires_at, rate, concurrency, grant_id, principal.id, revision)).rowcount != 1:

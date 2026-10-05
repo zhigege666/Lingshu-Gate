@@ -1,14 +1,22 @@
-import { expect, test, type Page } from "@playwright/test"
-import { mkdirSync } from "node:fs"
+import { expect, test, type APIRequestContext, type Page } from "@playwright/test"
+import { mkdirSync, writeFileSync } from "node:fs"
 import { join } from "node:path"
 import { expectInViewportAndUnobscured } from "./helpers"
 
 test.skip(process.env.GATE_E2E_OAUTH_CATALOG_SCALE !== "1", "Requires the isolated 5,000-service / 50,000-tool fixture")
 test.setTimeout(60_000)
 const sizes = [{ width: 1600, height: 900 }, { width: 1920, height: 1080 }, { width: 2560, height: 1080 }, { width: 2560, height: 1440 }]
+let ownerCookies: Awaited<ReturnType<APIRequestContext["storageState"]>>["cookies"] = []
+test.beforeAll(async ({ playwright }) => {
+  const owner = await playwright.request.newContext({ baseURL: "http://127.0.0.1:18763" })
+  try {
+    expect((await owner.post("/v1/auth/login", { data: { username: "synthetic-oauth-owner", password: "Synthetic-oauth-owner-123!" } })).status()).toBe(200)
+    ownerCookies = (await owner.storageState()).cookies
+  } finally { await owner.dispose() }
+})
 
 async function open(page: Page, locale: "en-US" | "zh-CN") {
-  expect((await page.request.post("/v1/auth/login", { data: { username: "synthetic-oauth-owner", password: "Synthetic-oauth-owner-123!" } })).status()).toBe(200)
+  await page.context().addCookies(ownerCookies)
   await page.addInitScript(value => localStorage.setItem("lingshu-gate-console-locale", value), locale)
   await page.goto("/console/#/myConnections")
   await page.getByRole("tab", { name: locale === "zh-CN" ? "Gate 内置 OAuth" : "Gate built-in OAuth", exact: true }).click()
@@ -18,12 +26,34 @@ async function open(page: Page, locale: "en-US" | "zh-CN") {
   return page.getByRole("dialog", { name: locale === "zh-CN" ? "调整授权范围" : "Adjust authorization scope", exact: true })
 }
 
+test("OAuth entry avoids full definitions and the tool route still loads on navigation", async ({ page }) => {
+  let fullReads = 0
+  // Only the unrelated legacy tool page is mocked with one small definition;
+  // OAuth catalog/session/selection requests use the actual large fixture.
+  await page.route("**/v1/tools", route => {
+    fullReads++
+    return route.fulfill({ json: [{ id: "mcp.oauth-scale-0000.navigation", name: "Navigation read tool",
+      source: "mcp", permission: "read", description: "Synthetic navigation fixture", input_schema: { type: "object" },
+      metadata: { server_id: "oauth-scale-0000" } }] })
+  })
+  const editor = await open(page, "en-US")
+  expect(fullReads).toBe(0)
+  await editor.getByRole("button", { name: "Close", exact: true }).filter({ hasNot: page.locator("svg") }).click()
+  await page.getByRole("link", { name: "Tool catalog", exact: true }).click()
+  await expect(page.getByText("Navigation read tool", { exact: true }).first()).toBeVisible()
+  expect(fullReads).toBe(1)
+})
+
 for (const size of sizes) for (const locale of ["en-US", "zh-CN"] as const) {
   test(`real paged OAuth catalog fits ${locale} ${size.width}x${size.height}`, async ({ page }, testInfo) => {
     const zh = locale === "zh-CN"
     await page.setViewportSize(size)
-    let legacyReads = 0
-    page.on("request", request => { if (new URL(request.url()).pathname.endsWith("/scope-options")) legacyReads++ })
+    let legacyReads = 0, fullToolReads = 0
+    page.on("request", request => {
+      const path = new URL(request.url()).pathname
+      if (path.endsWith("/scope-options")) legacyReads++
+      if (path === "/v1/tools") fullToolReads++
+    })
     const editor = await open(page, locale)
     await editor.getByRole("radio", { name: zh ? "MCP 整组" : "MCP groups", exact: true }).check()
     await expect(editor.locator("tr[data-row-key]")).toHaveCount(15)
@@ -50,8 +80,14 @@ for (const size of sizes) for (const locale of ["en-US", "zh-CN"] as const) {
     expect(metrics.bodyOverflow).toBeLessThanOrEqual(1)
     expect(metrics.pageOverflow).toBeLessThanOrEqual(1)
     expect(legacyReads).toBe(0)
+    expect(fullToolReads).toBe(0)
     const directory = process.env.GATE_OAUTH_SCREENSHOT_DIR
-    if (directory) { mkdirSync(directory, { recursive: true }); await page.screenshot({ path: join(directory, `paged-${locale}-${size.width}x${size.height}.png`), animations: "disabled" }) }
+    if (directory) {
+      mkdirSync(directory, { recursive: true })
+      const basename = `paged-${locale}-${size.width}x${size.height}`
+      await page.screenshot({ path: join(directory, `${basename}.png`), animations: "disabled" })
+      writeFileSync(join(directory, `${basename}.json`), JSON.stringify({ fixture_services: 5000, fixture_tools: 50000, locale, ...size, ...metrics }, null, 2) + "\n")
+    }
     await testInfo.attach("layout", { body: JSON.stringify(metrics), contentType: "application/json" })
   })
 }
@@ -65,20 +101,28 @@ for (const locale of ["en-US", "zh-CN"] as const) {
     const group = zh ? "oauth-scale-0002" : "oauth-scale-0001"
     const expected = before.tools.length + 10
     await editor.getByRole("radio", { name: zh ? "MCP 整组" : "MCP groups", exact: true }).check()
-    await editor.getByRole("radio", { name: zh ? "只读" : "Read", exact: true }).check()
+    const readFilter = editor.getByRole("radio", { name: zh ? "只读" : "Read", exact: true })
+    await expect(readFilter).toBeEnabled()
+    await readFilter.locator("..").click()
+    await expect(readFilter).toBeChecked()
     const chosen = page.waitForResponse(response => new URL(response.url()).pathname.endsWith("/scope-selection"))
-    await editor.getByRole("checkbox", { name: zh ? `选择 MCP ${group} 的全部当前可授权工具` : `Select all current available tools in MCP ${group}`, exact: true }).check()
-    const groupResult = await (await chosen).json()
+    const groupCheckbox = editor.getByRole("checkbox", { name: zh ? `选择 MCP ${group} 的全部当前可授权工具` : `Select all current available tools in MCP ${group}`, exact: true })
+    await groupCheckbox.click()
+    const groupResponse = await chosen
+    expect(groupResponse.status()).toBe(200)
+    const groupResult = await groupResponse.json()
+    await expect(groupCheckbox).toBeChecked()
     expect(groupResult.tool_ids).toHaveLength(expected)
     expect(groupResult.tools.some((tool: { access: string }) => tool.access === "write")).toBe(true)
     await editor.getByRole("button", { name: zh ? "下一页" : "Next page", exact: true }).click()
     await expect(editor.locator(".oauth-paged-navigation")).toContainText(zh ? "第 2 页" : "Page 2")
     for (const name of [zh ? "选中全部当前工具" : "All current tools", zh ? "仅选全部当前只读" : "All current read-only tools"]) {
       const rejected = page.waitForResponse(response => new URL(response.url()).pathname.endsWith("/scope-selection"))
-      await editor.getByRole("radio", { name, exact: true }).check()
+      await editor.getByRole("radio", { name, exact: true }).click()
       expect((await rejected).status()).toBe(409)
       await expect(editor.getByRole("alert")).toContainText(zh ? "草稿已保留" : "draft is retained")
       await expect(editor.locator(".oauth-selection")).toContainText(`${expected} /`)
+      await expect(editor.getByRole("radio", { name: zh ? "自定义" : "Custom", exact: true })).toBeChecked()
     }
     const admin = await playwright.request.newContext({ baseURL: "http://127.0.0.1:18763" })
     try {

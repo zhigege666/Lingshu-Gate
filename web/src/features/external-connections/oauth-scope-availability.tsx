@@ -44,7 +44,7 @@ export function ScopeAvailability({ options, zh, grantId }: { options: Omit<OAut
       {options.can_review_classifications && <Button type="link" href="#/toolClassifications" target="_blank" rel="noopener noreferrer">{zh ? "在新页审核工具分类" : "Review tool classifications in a new tab"}</Button>}
       {error && <p role="alert">{error}</p>}
       <Table<OAuthScopeUnavailableServer> rowKey="server_id" size="small" loading={loading} dataSource={servers} tableLayout="fixed" scroll={{ y: "40dvh" }} pagination={paged ? false : { pageSize: 15, showSizeChanger: false }} columns={[
-        { title: "MCP", width: 240, render: (_, server) => <div className="oauth-wrap">{server.server_name || server.server_id}<div className="oauth-muted">{server.server_id}</div></div> },
+        { title: "MCP", width: 240, render: (_, server) => <div className="oauth-wrap">{server.server_name || server.server_id}{server.server_name && <div className="oauth-muted">{server.server_id}</div>}</div> },
         { title: zh ? "原因 / 工具数" : "Reason / tool count", render: (_, server) => <div className="oauth-wrap">{server.reasons.map(reason => <p key={reason.code}>{reasons[reason.code]?.[zh ? 0 : 1] || reason.code} · {reason.count}</p>)}</div> },
       ]} />
       {paged && <div className="oauth-paged-navigation"><span>{zh ? `第 ${cursors.length} 页` : `Page ${cursors.length}`}</span><div className="oauth-actions"><Button disabled={loading || cursors.length === 1} onClick={() => void load(cursors.slice(0, -1))}>{zh ? "上一页" : "Previous page"}</Button><Button disabled={loading || !loaded?.next_cursor} onClick={() => void load([...cursors, loaded!.next_cursor!])}>{zh ? "下一页" : "Next page"}</Button></div></div>}

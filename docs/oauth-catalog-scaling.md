@@ -2,7 +2,7 @@
 
 [简体中文](zh-CN/oauth-catalog-scaling.md) · [Built-in OAuth](builtin-oauth.md)
 
-This work uses `test/oauth-catalog-scaling-20261005`, based on main `d4786fd368e932bc758ea29da1a597c9d9551794`. It does not alter the completed scope-selection UI branch, increase selection limits or establish release/client acceptance.
+This candidate uses `test/oauth-catalog-paged-20261005`. It combines the accepted scope-selection UI, saved-grant verification and the shared on-demand catalog through public integration input `3947ae4171d27d2e693ea3f505e49cf6b12fa752`. The original UI and Stage A branches remain unchanged. This is source integration, without release publication or real-client acceptance.
 
 ## Stage A: saved-grant authentication
 
@@ -10,9 +10,11 @@ Previously, token verification projected every tool available to the owner and e
 
 Verification now uses the database grant's explicit IDs. One atomic registry lookup returns only those definitions; current owner permission, published classification, resource, client/grant/family/JWT scope ceilings and saved snapshots remain authoritative. Missing, unpublished, changed or withdrawn targets do not appear in the principal. Signed JWT `tools`/`tool_ids` claims cannot add targets. Stored grants beyond 5,000 tools or 100 MCPs fail before registry lookup. The existing refresh and expiry rules remain; a refreshed bearer undergoes the same bounded verification.
 
-The single-tool invocation path also synchronizes only that definition instead of discarding a return value containing the entire classification table. Other classification-list APIs keep their existing response contract. `OAuthServer._grant_tools` is the shared bounded projection seam; main at this baseline has no `refresh_verified_principal` method, so any later verified-principal refresh path must reuse it rather than rebuild the owner catalog.
+The single-tool invocation path also synchronizes only that definition instead of discarding a return value containing the entire classification table. Other classification-list APIs keep their existing response contract. `OAuthServer._grant_tools` is the shared bounded projection seam for verification, verified-principal refresh and management authority. Atomic lookups return copies of frozen definitions so callers cannot mutate registered policy or schema without a new revision.
 
-## Executed synthetic evidence
+## Historical Stage A evidence
+
+The results below belong to source `d460f5461196c6d45416e1c25cf3e41743e20ac0`, based on main `d4786fd368e932bc758ea29da1a597c9d9551794`; they are not measurements of the later public integration or Stage B.
 
 The targeted scaling and atomic-registry suite passed 16 tests. It uses exactly 5,000 synthetic services and 50,000 published tools, issues grants while their selected targets are within the existing limits, then grows the remaining catalog. It verifies the original and refreshed bearer, successful selected invocation, unselected denial, publication/access withdrawal, client/family ceilings, forged signed tool claims and stored selection limits. Full-registry and full-classification-list projections are forbidden during measured authentication and invocation. The existing OAuth, live scope, management-resource, delegated-access, external-OAuth and access-control regression set passed another 246 tests. Ruff, mypy (116 source files), the web build, source-version and repository-identity checks passed.
 
@@ -24,17 +26,47 @@ The targeted scaling and atomic-registry suite passed 16 tests. It uses exactly 
 
 These are author-executed synthetic measurements, not production latency guarantees. Verification latency is the median of three executions without allocation tracing. The peak is a separate `tracemalloc` execution and excludes fixture construction and the already resident 50,000-tool registry. Refresh timing includes signing and verification. Reproduce from the source checkout with `uv run pytest -q -s tests/test_oauth_catalog_scaling.py tests/test_registry_concurrency.py`.
 
-## Stage B: proposed minimum contract, not implemented
+## Stage B: implemented private candidate catalog
 
-- Add private `GET /v1/auth/oauth/grants/{grant_id}/scope-catalog` with a bounded page size (1–100), an opaque cursor, search, MCP and access filters, and a tools/MCP-groups view. Return the page, exact matching and whole-catalog read/write/MCP counts, a stable owner-bound `catalog_revision`, next cursor, CSRF and explicit selection limits of 5,000 tools / 100 MCPs. A page is explicitly incomplete and must never be passed to the current picker as a complete catalog.
-- Add a read-only, CSRF-bound selection resolver for all-current, all-current-read-only and specific MCP groups at that revision. Global choices ignore list filters and pagination. Resolve the whole current candidate set; exceeding either selection ceiling returns a structured limit error without a partial selection. Refresh never reapplies the previous bulk mode or includes later services automatically.
-- Validate selected draft IDs separately from the current page. Off-page IDs are not unavailable merely because they are absent from that page. Return no names or server details for targets the current owner cannot see. Failed requests retain the draft and limits.
-- Keep the legacy full-catalog scope-options response unchanged for catalogs within its bound. Large catalogs require an explicit paged capability/error, not a partial `tools` array that an old UI could mistake for all eligible tools. Integrate the existing preview, one-use confirmation, CAS, publication and scope/limit rechecks with the same catalog revision before saving.
+Business grant responses explicitly advertise `scope_catalog_mode: "paged"` when the shared candidate port is configured. The Console then uses `GET /v1/auth/oauth/grants/{grant_id}/scope-catalog`, never a partial legacy `tools` array. The unchanged legacy scope-options contract remains available within its existing bound; public initial consent still has its existing bound.
 
-Proposed wire fields retain the current `OAuthTool` shape and the existing scope-options metadata (`csrf`, `expires_at`, `grant_revision`, `scopes`, `effective_scopes`, `family_scope_limits`); owner-visible unavailable reasons, when supported, retain their existing codes. New list fields are `view`, `items`, `next_cursor`, `catalog_revision`, `complete: false`, `matching_counts`, `catalog_counts` and `selection_limits`. Tool items use `OAuthTool`; group items contain `server_id`, `server_name`, `tool_count`, `read_count`, `write_count` without embedding all definitions. Counts distinguish tools/read/write/MCPs. Selection limits are `{ "tools": 5000, "mcps": 100 }`.
+The private catalog supports `view=tools|groups|unavailable`, up to 100 items, keyword search, exact MCP ID and published access filters. Each response declares `complete: false`, opaque `next_cursor`, stable `catalog_revision`, CSRF, grant/client scope ceilings, live family limits and exact whole/matching tools/read/write/MCP counts. Keyset pagination can traverse the full candidate directory without an offset ceiling. Group counts cover the whole eligible service, even when a read/search filter found it. No schemas or descriptions are returned. Whole-page JSON is bounded by `max_bytes` (8–64 KiB), including tickets/counts; only complete items are trimmed, with a cursor for the remainder.
 
-The proposed resolver is `POST /v1/auth/oauth/grants/{grant_id}/scope-selection`. Its request carries `csrf`, `expected_revision`, `catalog_revision` and one explicit operation: `mode: "all" | "read"` replaces the draft; `mode: "groups"` takes `server_ids`, `checked` and `tool_ids` for the current draft; `mode: "ids"` validates a draft without replacing it. A successful response returns the resolved explicit `tool_ids`, selected current `tools`, `unavailable_ids` with generic reasons, selected counts and per-MCP selected counts. Every returned selection is bounded; a limit failure leaves the prior client draft intact. No operation grants access or saves changes.
+`POST .../scope-selection` is a read-only, session/Origin/CSRF-bound resolver. `all` and `read` replace the draft from the entire current eligible directory, ignoring display filters/pages. `read` requires a published `read` classification. `groups` adds or clears explicit MCPs; clearing examines only bounded draft/saved IDs. `ids` validates explicit draft IDs independently of the displayed page. Every result returns explicit `tool_ids`, `available_ids`, generic `unavailable_ids`, authoritative selected/difference/write counts and up to 100 MCP selected counts. Summary metadata is limited to at most 100 requested IDs (50 by default) and a 2–64 KiB budget. ID arrays retain the full bounded selection; the metadata budget is not a whole-response budget. Exceeding 5,000 tools or 100 MCPs returns a structured limit error, without a partial selection or grant mutation.
 
-The picker must receive a paged-data adapter rather than compute global/group choices or availability from a page's `items`. Refresh keeps draft IDs and validates them through the resolver; only an explicit bulk click replaces them. Add `catalog_revision` to the current preview request while retaining its existing fields and confirmation result. Preview and save revalidate that revision plus all current authority and quota checks; new tickets have a distinct purpose/version. Cursor bindings include owner/session, grant/client/resource revisions, catalog revision, filters and view; changed bindings fail with a structured conflict and never silently restart. Revision/index storage is intentionally left to the shared candidate-catalog implementation review.
+Refresh preserves draft IDs and limits, revalidates availability and returns the quick mode to Custom. Later services never join automatically. Errors retain the draft. Invisible targets reveal no names or service metadata; unavailable reasons are paged only for tools the current owner can access. An administrator API token can invoke an unpublished MCP through the existing admin policy while OAuth excludes it until publication. Ordinary writers cannot use that bypass, so their diagnostics do not disclose those definitions.
 
-The completed bulk-selection UI needs to consume this contract before large-catalog editing can be accepted. Candidate indexing/revision ownership and the endpoint details are for root's design review before Stage B implementation. Stage A does not fix the legacy interactive catalog's hard bound or the gateway's separate full namespace construction; those are separate integration work. No real Plane classification, real ChatGPT authorization/cache behavior, production grants, credentials or SSH access were used or verified here.
+Preview and save carry `catalog_revision` and use separate versioned tickets. They reuse current owner/session, publication, grant/client/resource revisions, exact target digest, one-use confirmation, revision CAS, expiry/quota narrowing and atomic redacted audit. Tokens and refresh families retain their existing scopes. Registry deltas after synchronization are conflicts, including deltas queued before the SQL read; no stale index page can be offered under the newer generation. Policy epochs, current roles/permissions and expired owner grants invalidate stale candidates. Restart changes the candidate incarnation. Changed/expired cursors are explicit conflicts; the UI requires refresh rather than silently restarting.
+
+## Shared ownership and file boundaries
+
+| Owner | Responsibility |
+|---|---|
+| `ToolCatalog` | Existing incremental SQLite `gate_tool_catalog`/FTS, registry delta queue and policy epochs; exposes a read-only revision marker. No second index or registry is created. |
+| `ports/oauth_candidate_catalog.py` / `OAuthCandidateCatalog` | Schema-free, current-owner SQL projection, exact counts, keyset pages and bounded draft/global/group resolution over that shared index. |
+| `OAuthServer` | Grant/client/resource/session ceilings, synchronized-generation checks, cursor/CSRF binding and existing preview/save transaction. |
+| Private OAuth routes | Strict typed requests, safe errors, body/query budgets, rate admission and explicit paged capability. |
+| Paged picker / grant editor | Display pages separately from full selected IDs; explicit resolver operations, preserved drafts, bounded reason pages and authoritative difference counts. |
+
+Console startup no longer preloads the legacy full-definition `/v1/tools` response on OAuth routes. The dashboard, tools, invocation and service pages load it when they consume it, including navigation from OAuth. This prevents an unrelated full-schema read during candidate editing; it does not migrate those separate legacy pages to pagination.
+
+## Current execution scope
+
+The HTTP suite uses exactly 5,000 services / 50,000 tools, walks all 50 MCP-group pages, finds a small subset beyond the saved grant and first page, and forbids full registry/classification projection during those requests. Separate 5,000-tool/100-MCP and 101-MCP cases exercise both unchanged selection limits. Regression scenarios cover new published/unpublished services, admin API-token comparison, hidden targets, old narrowed families, owner/publication/client/grant/resource changes, sync races, CSRF/session ownership, quota narrowing and one-use saves.
+
+The opt-in loopback browser fixture uses a synthetic administrator and actual catalog/session/selection/preview/save HTTP with 5,000 services / 50,000 tools. Four desktop sizes in both languages check labels on one line, table space, footer visibility and page overflow. Network failure is injected only at the final save to test draft recovery; the catalog and resolver are not mocked. A separate navigation check mocks only the unrelated legacy tool page with one definition. Author browser evidence is recorded below; independent UI review and real-client acceptance remain separate.
+
+## Author browser evidence before source freeze
+
+The pre-freeze large-catalog run passed all 11 cases: eight real layouts, two real group/refresh/limit/save-recovery flows and one navigation check. The author opened all eight screenshots. PNGs and measured JSON are checked in under `docs/images/console/oauth-catalog/`; [English 1600×900](images/console/oauth-catalog/paged-en-US-1600x900.png) and [Chinese 1600×900](images/console/oauth-catalog/paged-zh-CN-1600x900.png) show the compact editor. Every label shares one line with its control; body/document overflow is zero and the footer remains visible. There are no legacy scope-options or `/v1/tools` requests during the eight real OAuth layout cases.
+
+| Viewport | Complete visible rows, English / Chinese | Body / document overflow |
+|---|---:|---:|
+| 1600×900 | 8 / 8 | 0 / 0 |
+| 1920×1080 | 13 / 13 | 0 / 0 |
+| 2560×1080 | 13 / 13 | 0 / 0 |
+| 2560×1440 | 15 / 15 | 0 / 0 |
+
+Reproduce from `web/` after building: `GATE_E2E_OAUTH_CATALOG_SCALE=1 npm exec -- playwright test e2e/oauth-grants.spec.ts e2e/oauth-paged-catalog.spec.ts`. Include `e2e/oauth-consent.spec.ts` for the unchanged consent flow. The backend candidate tests are `uv run pytest -q tests/test_oauth_paged_catalog.py tests/test_oauth_scope_catalog.py`; the complete backend command is `uv run pytest -q`. Fixed-commit final execution results are delivered separately from these pre-freeze author screenshots. Independent UI acceptance remains with the design owner.
+
+No real Plane classification, ChatGPT authorization/cache behavior, production grants, real credentials, SSH access, release tags or assets are changed or verified here.

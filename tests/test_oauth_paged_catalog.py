@@ -6,11 +6,16 @@ import json
 import pytest
 from fastapi.testclient import TestClient
 
+from lingshu_gate.mcp_gateway import register_mcp_gateway_route
+from lingshu_gate.models import ToolDefinition
 from lingshu_gate.oauth_candidate_catalog import OAuthCandidateCatalog
 from lingshu_gate.tool_catalog import ToolCatalog
-from test_builtin_oauth import ISSUER, PASSWORD, enable, exchange, issue_code, refresh
+from lingshu_gate.transports.http import build_protocol_request
+from lingshu_gate.transports.oauth import McpOAuthDiscoveryBoundary, OAuthProtectedResourceMetadata
+from test_builtin_oauth import ISSUER, PASSWORD, RESOURCE, enable, exchange, issue_code, refresh
 from test_builtin_oauth import gate as gate
 from test_oauth_catalog_scaling import _install, _scaled_catalog
+from test_oauth_scope_catalog import admin_grant, discover, publish
 
 
 @pytest.fixture
@@ -143,6 +148,25 @@ def test_candidate_ceiling_is_independent_of_saved_subset_and_narrow_family(page
     assert not paged["access"].evaluate(principal, paged["registry"].get_definition("mcp.B.write"))["allowed"]
 
 
+def test_whole_catalog_and_explicit_ids_keep_the_100_mcp_selection_limit(paged):
+    definitions = []
+    for index in range(100):
+        server_id = f"synthetic-mcp-limit-{index:03}"
+        definitions.append(ToolDefinition(id=f"mcp.{server_id}.read", name="Synthetic read tool",
+            source="mcp", description="Synthetic selection-limit fixture", permission="read",
+            metadata={"server_id": server_id, "original_tool_name": "read"}))
+        paged["access"].save_grant(subject_type="user", subject_id=paged["users"]["alice"]["id"],
+            server_id=server_id, permission_type_code="read", created_by=paged["admin"]["id"])
+    _install(paged, definitions)
+    offered = catalog(paged)
+    assert offered["catalog_counts"]["mcps"] == 101
+    ids = ["mcp.A.read", *[tool.id for tool in definitions]]
+    for mode in ("all", "read", "ids"):
+        response = select(paged, offered, ids=ids, mode=mode)
+        assert response.status_code == 409 and response.json()["error"] == "server_scope_limit"
+    assert paged["server"].store.grants(paged["users"]["alice"]["id"])[0]["tools"] == paged["grant"]["tools"]
+
+
 @pytest.mark.parametrize("change", ["classification", "registry", "owner_permission", "client_scope", "client_revision", "grant_revision", "resource_revision", "grant_expiry"])
 def test_revision_conflicts_reject_cursor_selection_preview_and_save_without_mutation(paged, change):
     offered = catalog(paged, limit=1)
@@ -219,6 +243,12 @@ def test_unavailable_reasons_are_paged_owner_visible_and_follow_exact_ceilings(p
     else:
         paged["db"].execute("UPDATE gate_oauth_clients SET scopes_json='[\"tools.read\"]'")
     offered = catalog(paged)
+    if reason == "classification_not_published":
+        # A non-admin writer loses current invocation authority for pending
+        # tools. Diagnostics must not disclose definitions it cannot access.
+        assert offered["unavailable_counts"] == {"tools": 0, "read": 0, "write": 0, "mcps": 0}
+        assert catalog(paged, view="unavailable")["items"] == []
+        return
     assert offered["unavailable_counts"] == {"tools": 1, "read": 0, "write": 1, "mcps": 1}
     missing = catalog(paged, view="unavailable", limit=1)
     assert missing["items"] == [{"server_id": "A", "server_name": None, "reasons": [{"code": reason, "count": 1}]}]
@@ -226,17 +256,83 @@ def test_unavailable_reasons_are_paged_owner_visible_and_follow_exact_ceilings(p
     assert "B.write" not in json.dumps(missing)
 
 
-def test_api_token_can_invoke_unpublished_tool_but_cannot_use_console_candidates(paged):
-    paged["db"].execute("UPDATE mcp_tool_classifications SET status='pending' WHERE tool_id='mcp.A.write'")
-    api = paged["auth"].create_api_token(principal=paged["principals"]["alice"], name="Synthetic scope comparison",
+def test_admin_api_token_calls_unpublished_new_mcp_and_paged_catalog_explains_it(gate):
+    principal, session, _, _, grant, tokens = admin_grant(gate)
+    index = ToolCatalog(gate["registry"], gate["access"])
+    gate["server"].candidate_catalog = OAuthCandidateCatalog(index, gate["access"])
+    discover(gate)
+    calls = []
+
+    class SyntheticRuntime:
+        def invoke_mcp_tool_for_user(self, server_id, tool_name, arguments, *, user_id, **kwargs):
+            calls.append((server_id, tool_name, user_id))
+            return {"content": [{"type": "text", "text": "Synthetic successful invocation"}]}
+
+    gate["access"].attach_mcp_runtime(SyntheticRuntime())
+    register_mcp_gateway_route(gate["app"], gate["settings"], gate["registry"], gate["access"], gate["auth"].authenticate_mcp_request,
+        McpOAuthDiscoveryBoundary(OAuthProtectedResourceMetadata(RESOURCE, (ISSUER,))))
+    api = gate["auth"].create_api_token(principal=principal, name="Synthetic scope comparison",
         scopes=["tools.read", "tools.invoke"])
-    token_owner = paged["auth"]._principal_from_api_token(str(api["token"]))
-    assert paged["access"].invoke_tool(paged["registry"], token_owner, "mcp.A.write", {}).ok
+    path = f"/v1/auth/oauth/grants/{grant['id']}"
+    with TestClient(gate["app"], base_url=ISSUER) as browser:
+        params, headers = build_protocol_request("tools/call", {"name": "mcp__synthetic-plane__project", "arguments": {}},
+            client_name="Synthetic", client_version="1", protocol_version="2026-07-28")
+        body = {"jsonrpc": "2.0", "id": 1, "method": "tools/call", "params": params}
+        called = browser.post("/mcp", json=body, headers={**headers, "Authorization": "Bearer " + str(api["token"])})
+        assert called.status_code == 200 and not called.json()["result"].get("isError", False)
+        assert calls == [("synthetic-plane", "project", principal.id)]
+        denied = browser.post("/mcp", json=body, headers={**headers, "Authorization": "Bearer " + tokens["access_token"]})
+        assert denied.json()["result"]["isError"] and len(calls) == 1
+        response = browser.get(path + "/scope-catalog", headers={"Authorization": "Bearer " + str(api["token"])})
+        assert response.status_code == 403 and response.json()["error"] == "permission_denied"
+        browser.cookies.set(gate["auth"].cookie_name, session)
+        offered = browser.get(path + "/scope-catalog").json()
+        missing = browser.get(path + "/scope-catalog", params={"view": "unavailable", "limit": 1}).json()
+        assert missing["items"] == [{"server_id": "synthetic-plane", "server_name": None,
+            "reasons": [{"code": "classification_not_published", "count": 2}]}]
+        assert offered["unavailable_counts"]["tools"] == 2 and offered["can_review_classifications"] is True
+        publish(gate)
+        fresh = browser.get(path + "/scope-catalog", params={"server_id": "synthetic-plane"}).json()
+        assert {tool["id"]: tool["access"] for tool in fresh["items"]} == {
+            "mcp.synthetic-plane.list": "read", "mcp.synthetic-plane.project": "write"}
+        assert fresh["catalog_revision"] != offered["catalog_revision"]
+        selection = browser.post(path + "/scope-selection", json={"csrf": fresh["csrf"],
+            "catalog_revision": fresh["catalog_revision"], "expected_revision": grant["revision"],
+            "mode": "read", "tool_ids": list(grant["tools"])}, headers={"Origin": ISSUER})
+        assert selection.status_code == 200 and "mcp.synthetic-plane.project" not in selection.json()["tool_ids"]
+        assert selection.json()["selected_counts"]["write"] == 0
+    assert gate["server"].store.grants(principal.id)[0]["tools"] == grant["tools"]
+
+
+@pytest.mark.parametrize("operation", ["page", "selection", "preview", "save"])
+def test_registry_delta_after_index_sync_fails_closed_until_a_fresh_retry(paged, monkeypatch, operation):
     offered = catalog(paged)
-    assert offered["catalog_counts"]["write"] == 0 and offered["unavailable_counts"]["tools"] == 1
-    paged["browser"].cookies.clear()
-    response = paged["browser"].get(paged["path"] + "/scope-catalog", headers={"Authorization": "Bearer " + str(api["token"])})
-    assert response.status_code == 403 and response.json()["error"] == "session_required"
+    preview = prepared(paged, offered, ["mcp.A.read"])
+    prior = dict(paged["db"].query_one("SELECT * FROM gate_oauth_grants"))
+    synchronize = paged["index"].synchronize
+
+    def late_delta():
+        generation = synchronize()
+        paged["registry"].unregister_by_metadata("original_tool_name", "write", source="mcp")
+        return generation
+
+    monkeypatch.setattr(paged["index"], "synchronize", late_delta)
+    if operation == "page":
+        response = paged["browser"].get(paged["path"] + "/scope-catalog")
+    elif operation == "selection":
+        response = select(paged, offered)
+    elif operation == "preview":
+        response = paged["browser"].post(paged["path"] + "/scope-preview", json={
+            **target(paged, offered, ["mcp.A.read"]), "csrf": offered["csrf"]}, headers={"Origin": ISSUER})
+    else:
+        response = paged["browser"].post(paged["path"] + "/scope", json={
+            **target(paged, offered, ["mcp.A.read"]), "confirmation": preview["confirmation"]}, headers={"Origin": ISSUER})
+    assert response.status_code == 409 and response.json()["error"] == "tool_scope_changed"
+    assert dict(paged["db"].query_one("SELECT * FROM gate_oauth_grants")) == prior
+    monkeypatch.setattr(paged["index"], "synchronize", synchronize)
+    fresh = catalog(paged)
+    assert fresh["catalog_counts"]["write"] == 0
+    assert fresh["catalog_revision"] != offered["catalog_revision"]
 
 
 def test_group_deselection_does_not_resolve_or_truncate_large_membership(paged, monkeypatch):

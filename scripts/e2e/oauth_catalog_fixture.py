@@ -14,9 +14,11 @@ def seed_oauth_catalog(app: FastAPI) -> None:
     state = app.state
     auth, access, registry, server = state.auth_store, state.access_store, state.registry, state.oauth_server
     admin = auth.list_users()[0]
-    access.save_role(code="synthetic-oauth-owner", name="Synthetic OAuth owner", description="Browser fixture",
-        permissions=["console.view", "tools.read", "tools.invoke", "credentials.manage.self"])
-    user = auth.create_user(username="synthetic-oauth-owner", password="Synthetic-oauth-owner-123!", role="synthetic-oauth-owner")
+    # Match the reported administrator case: admins can invoke an unpublished
+    # tool with an API token, while OAuth still requires publication. Ordinary
+    # owner ACL filtering is exercised separately by the real HTTP suite.
+    user = auth.create_user(username="synthetic-oauth-owner", password="Synthetic-oauth-owner-123!", role="admin")
+    registry.unregister_by_metadata("server_id", "synthetic-fixture", source="mcp")
     owner, session, _ = auth.login(username="synthetic-oauth-owner", password="Synthetic-oauth-owner-123!")
     _, consent_session, _ = auth.login(username="synthetic-oauth-owner", password="Synthetic-oauth-owner-123!", purpose="oauth_consent")
     definitions = []
@@ -34,7 +36,7 @@ def seed_oauth_catalog(app: FastAPI) -> None:
         permission_type_code="write", created_by=admin["id"])
     with state.database.session() as connection:
         access._synchronize_tools(connection, definitions[:2])
-        connection.executemany("UPDATE mcp_tool_classifications SET effective_access=?,status='published',"
+        connection.executemany("UPDATE mcp_tool_classifications SET effective_access=?,status='published',source='manual',"
             "reviewed_by=?,reviewed_at='2026-10-05T00:00:00+00:00' WHERE server_id=? AND tool_id=?",
             [(tool.permission, admin["id"], tool.metadata["server_id"], tool.id) for tool in definitions[:2]])
     issuer = "https://gate.example.test"
@@ -61,7 +63,7 @@ def seed_oauth_catalog(app: FastAPI) -> None:
     permission = state.database.query_one("SELECT id FROM permission_types WHERE code='write'")[0]
     with state.database.session() as connection:
         access._synchronize_tools(connection, definitions[2:])
-        connection.executemany("UPDATE mcp_tool_classifications SET effective_access=?,status='published',"
+        connection.executemany("UPDATE mcp_tool_classifications SET effective_access=?,status='published',source='manual',"
             "reviewed_by=?,reviewed_at='2026-10-05T00:00:00+00:00' WHERE server_id=? AND tool_id=?",
             [(tool.permission, admin["id"], tool.metadata["server_id"], tool.id) for tool in definitions[2:]])
         connection.executemany("INSERT INTO mcp_resource_grants"

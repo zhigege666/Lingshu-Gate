@@ -1,0 +1,15 @@
+{
+  "fixture_services": 5000,
+  "fixture_tools": 50000,
+  "locale": "zh-CN",
+  "width": 2560,
+  "height": 1440,
+  "rows": 15,
+  "labels": [
+    true,
+    true,
+    true
+  ],
+  "bodyOverflow": 0,
+  "pageOverflow": 0
+}
