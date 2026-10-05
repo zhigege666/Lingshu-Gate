@@ -13,6 +13,8 @@ This documentation describes the current Gate product boundary. English is autho
 | [Configuration](configuration.md) | Environment variables, directories, manifests, credentials, and reverse proxy settings |
 | [MCP gateway](mcp-gateway.md) | Gateway endpoint, protocol negotiation, downstream HTTP/stdio, discovery, classification, and invocation |
 | [Project delivery](project-delivery.md) | Upload/build/deploy/start workflow, `gate_*` tools, and bundled Delivery Skill |
+| [External MCP configuration](external-mcp-configuration.md) | Administrator offline plan/apply/status/cancel for existing HTTP MCPs; development addition |
+| [Administrator OAuth configuration](oauth-external-management-design.md) | Unreleased default-off management resource, exact targets, isolated scopes/families; real-client integration unverified |
 | [Git import and network settings](git-import-network.md) | Versioned delivery networking, bounded Git sources, deterministic tools and executor limits |
 | [Console delivery workspace](console-delivery.md) | Private delivery drafts, confirmation, conflicts and records |
 | [Git execution gap and rollout decision](git-executor-decision.md) | Concrete code gaps, default deployment limits and the required isolated-worker scope decision |
@@ -26,6 +28,7 @@ This documentation describes the current Gate product boundary. English is autho
 | [Release artifacts](releases.md) | Platform archives, checksums, SBOM, build metadata, offline images, and publishing rules |
 | [0.4.0 validation record](release-validation.md) | Executed checks, synthetic screenshots and remaining acceptance gaps |
 | [0.4.1 validation record](release-validation-0.4.1.md) | OAuth compatibility/setup, personal grants and runtime version evidence |
+| [0.4.4 validation record](release-validation-0.4.4.md) | External HTTP management, Skills, resource isolation and acceptance gaps |
 
 API schemas are served by a running Gate instance at `/docs`. Security policy and reporting instructions live in [SECURITY.md](../SECURITY.md).
 

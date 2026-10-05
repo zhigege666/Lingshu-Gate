@@ -1,11 +1,25 @@
 ---
 name: lingshu-gate-upload-build-start
-description: 用户要求通过 Lingshu Gate 上传、构建、部署、覆盖、启动或刷新 MCP 项目时使用。支持明确范围的一次授权或分阶段确认，并保留来源摘要、凭据和工具分类审查边界。
+description: 用户要求通过 Lingshu Gate 上传 ZIP、导入 Git、构建部署 MCP，或登记、更新、连接外部 HTTP MCP 时使用。按来源选择路径，保留确认、摘要、凭据和工具分类审查边界。
 ---
 
 # Lingshu Gate project delivery
 
+Version 0.4.4 adds external HTTP configuration via four confirmed management tools and the separately enabled `/mcp/manage` OAuth resource. It does not implement a safe Git/proxy executor, group routing or a large-catalog search system. Real-client management-scope requests and real-peer acceptance remain unverified.
+
+0.4.4 增加四个有确认边界的外部 HTTP 配置工具，以及需单独启用的 `/mcp/manage` OAuth 资源。安全 Git/代理执行器、分组路由和海量目录检索不在本版实现；真实客户端管理 scope 请求与真实 peer 验收仍未验证。
+
 使用 Lingshu Gate 的原子 MCP 工具交付项目。一次授权可以覆盖已明确的多个写入步骤，但不会绕过摘要、幂等、凭据和工具分类边界。流程支持确定性打包、分块续传、幂等重试、轮询和有界故障处理。
+
+## Choose the source path first
+
+| Input / 来源 | Entry / 入口 | Continuation / 后续 |
+|---|---|---|
+| Trusted local project / 可信本地项目 | Deterministic ZIP and upload / 确定性 ZIP 与上传 | Existing preflight → build → deploy → start below |
+| Explicit HTTPS Git source / 明确 HTTPS Git 来源 | `gate_project_git_plan` → confirmed import | See Git source continuation; join the same owned upload/build flow |
+| Existing external Streamable HTTP MCP / 现有外部 HTTP MCP | `gate_mcp_config_plan` → `gate_mcp_config_apply` | See External HTTP continuation; no ZIP, Git, build or remote-process startup |
+
+A URL alone does not authorize contacting it. Default external precheck is offline. Use existing source/target authorization when it covers the exact plan; ask only for missing scope or a changed plan.
 
 ## Mandatory boundaries
 
@@ -94,9 +108,28 @@ When a server is running but its tool set may have changed:
 
 ## Output
 
-The final report must include the source SHA-256, file-list SHA-256, plan fingerprint, `credential_state.binding_digest`, `tool_snapshot_digest`, transfer/upload/build/deployment/server identifiers, classification-change counts, each stage's state, final log cursor, whether any idempotent request was replayed, and verified versus unverified items. When deployment and process startup succeeded but discovery or classification review remains incomplete, use this exact acceptance conclusion: "Deployment and process startup succeeded; delivery acceptance remains incomplete." Never output secrets, base64 chunks, complete stdout/stderr, or internal absolute filesystem paths.
+For ZIP/Git delivery, the final report must include the source SHA-256, file-list SHA-256, plan fingerprint, `credential_state.binding_digest`, `tool_snapshot_digest`, transfer/upload/build/deployment/server identifiers, classification-change counts, each stage's state, final log cursor, whether any idempotent request was replayed, and verified versus unverified items. When deployment and process startup succeeded but discovery or classification review remains incomplete, use this exact acceptance conclusion: "Deployment and process startup succeeded; delivery acceptance remains incomplete." For external HTTP use the separate output fields below. Never output secrets, base64 chunks, complete stdout/stderr, or internal absolute filesystem paths.
 
 Before running the complete delivery sequence, read [workflow.md](references/workflow.md). When constructing tool calls or handling failures, read [mcp-contract.md](references/mcp-contract.md) for exact fields and stable error codes.
+
+## External HTTP continuation
+
+1. Use an active administrator Console session, a Gate API token, or a separately enabled and explicitly consented built-in `/mcp/manage` OAuth connection with `operations.manage` (plus `tools.invoke` for apply, cancel or a remote probe). Management OAuth must already authorize this exact server ID/create-update action and the selected configuration tool. Ordinary business/external OAuth, delegated read scope or an operator role does not grant configuration authority. Never reconnect as an administrator or enable/provision a management connection automatically.
+2. For update, call `gate_mcp_config_status(server_id=...)` and retain the raw-file `config_digest`; do not substitute `gate_server_status`'s canonical manifest digest. Keep masked endpoint/header fields unchanged to preserve their existing bindings. No secret read is needed.
+3. Call `gate_mcp_config_plan(mode=create|update,manifest=...,expected_config_digest=... for update)`. Only external + Streamable HTTP is supported. Default `enabled=true`, `auto_start=false`, `connect=false`, `refresh_tools=false`. A connection is a Gate HTTP session, not remote process startup; `auto_start` is separate future Gate-start policy.
+4. Use only existing managed credential references. Do not submit secret values, local paths, commands, new personal credential slots or permission changes. Private HTTP requires its existing separate administrator trust entry; the plan cannot create trust.
+5. Default precheck contacts no network. Only a specifically authorized probe uses `probe=true,probe_confirmed=true`; it has a bounded request deadline, closes its temporary session, and does not alter the registry.
+6. Show target/mode, caller-known endpoint (service responses mask it), manifest and plan digests, prior config digest, expiry, timeout, future startup policy, and exact `connect`/`refresh_tools` choices. Update replaces the current Gate connection. Refresh requires connect and does not publish classifications or grants.
+7. Apply within five minutes using the same management connection, exact `plan_id`, `plan_digest`, action flags, fresh idempotency key and `confirmed=true`. Do not expand an existing authorization. A plan is single use; identical retry keeps its exact inputs/key.
+8. Poll `gate_mcp_config_status(operation_id=...)` until `terminal=true`. Retain `config_applied`, `config_digest`, `connection_state`, `discovery_state`, error/reconciliation and cleanup states. A queued request or a saved configuration does not prove connection/discovery success.
+9. On failure, keep the saved configuration. Read target status and prepare an explicit update with its current digest; never retry a create to repair a failed connect. Cancel requires its own authorized scope and `confirmed=true`; poll the target operation. Cancellation/failure closes only this attempt's Gate session, never a remote process or successor connection.
+10. `interrupted`, unknown cleanup or superseded ownership requires operator reconciliation. Never replay an uncertain operation, reconnect, delete, or overwrite automatically. Tool review/publication retains its independent confirmation.
+
+For management OAuth, retain one verified issuer/resource/client/grant/family connection and current exact-target policy. A business connection is never upgraded. Missing scope, tool or target authority stops the workflow; do not change credentials, trust or consent to work around it. The owner may separately confirm target changes in the private Console; those keep JWT/family scope ceilings and invalidate existing plans, so obtain and review a new plan before applying. Actual client management-scope requests remain unverified. See [management contract](../../../docs/oauth-external-management-design.md).
+
+管理 OAuth 必须是已明确启用并独立同意的 `/mcp/manage` 连接，持有当前精确目标/创建更新操作及工具权限；不升级业务连接。缺少 scope、工具或目标时停止，不自动换管理员、生成凭据、修改信任或扩大同意。本人可另在私有 Console 确认目标变更，但 JWT/令牌族 scope 保持，旧计划失效；应用前须重新取得并核对计划。真实客户端管理 scope 请求仍未联调。
+
+Report `plan_id`, plan/manifest/config digests, `operation_id`, `server_id`, current `instance_id` (currently the same 1:1 target), persistence/connection/discovery/cleanup states, tool snapshot and review counts when present, idempotent replay, and remaining acceptance gaps. Do not invent build/deploy IDs, remote process state, discovery from target status, or effective tool access. Lock/HTTP deadlines are cooperative; OS DNS and SQLite contention retain existing lower-level limits.
 
 ## Git source continuation
 

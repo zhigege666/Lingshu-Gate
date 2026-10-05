@@ -1,5 +1,14 @@
 # Changelog
 
+## 0.4.4
+
+- The four management tools reject Console cookies at generic invocation entries; dedicated Console REST retains Origin/session/body-bound CSRF. Connection/probe checks reject credential rotation after lock waits and before decryption. Memory diagnostics omit command arguments and environments, and Core installs Debian's exact Perl security revision without scan exceptions.
+- Administrator external HTTP configuration adds shared REST/MCP offline plan, digest-bound confirmed apply, actor-owned status and cancellation. Saved configuration is retained on connection failure; initial and refreshed discovery quarantine changed classifications without granting access.
+- Live administrator sessions, token scopes, role permissions and credential revisions are rechecked. Plans retain CAS and idempotent completion; attempts enforce cooperative deadlines, cancellation and connection ownership. The Delivery Skill documents separate ZIP, Git and external HTTP paths.
+- Separate built-in `/mcp/manage` is disabled by default, uses an explicit client resource allowlist and management consent, and exposes only the four external configuration tools. Business/external tokens and cross-resource code/refresh use are denied.
+- Exact create/update targets bind dispatch, queued work, plans and idempotent completions. Private owner target changes require live administrator authority, Origin/session CSRF, reviewed one-use confirmation, revision CAS and atomic audit; JWT/family scopes and business grants do not expand.
+- Console and public consent explain resource/scopes and exact targets, with protected centered editors, complete target pagination and brief saved feedback. [Management contract](docs/oauth-external-management-design.md) and [external configuration contract](docs/external-mcp-configuration.md) describe the behavior. Real-client/peer integration remains unverified. Multi-instance routing, large-catalog search and the Git executor are outside this release.
+
 ## 0.4.3
 
 - Explicit owner confirmation in Gate adds, reconfirms or removes MCPs/tools on the existing OAuth grant. The same bearer and refresh family follow the live tool list within unchanged OAuth scope ceilings; no repeated client OAuth flow is needed for same-scope tools.

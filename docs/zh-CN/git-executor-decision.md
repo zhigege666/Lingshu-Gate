@@ -31,6 +31,7 @@
 |---|---|---|---|
 | 先原生/local | 具体隔离 adapter、可信下载/出口、工具缓存、factory/readiness/生命周期 | 独立 Linux 执行账户/主机、受审查固定镜像、实际 namespace/资源控制器可用的 rootless 引擎、独立 Workspace/cache | 保留本地部署/启动；Docker Core 仍仅网关；Windows/macOS 需显式 Linux 执行主机。 |
 | 默认 Core + 远程 worker | 上述代码，加认证阶段 RPC、源码/产物传输、持久化操作对账、远程部署/启动目标 | Core 外独立 worker 服务、mTLS/信任/秘密供应、镜像与缓存维护、配额及监控 | Core 协调全流程，不执行项目代码，不控制引擎。 |
+| 独立 VM worker | 相同远程阶段/日志/摘要契约，构建作业使用运维供应的可丢弃 VM 边界 | VM 镜像、生命周期/配额、验证 guest 隔离、受控出口及清理；供应成本更高 | 可选更强主机分离方式；不是另一条 host-shell 回退，也未实现 adapter。 |
 
 若默认 Docker 产品必须有全流程，建议远程 worker；接受仅原生交付则原生优先改动较小。当前进程内 `cwd`/结果端口及本地 guard 不能表示远程产物和运行目标，需先选择范围。尚未新增 daemon、引擎暴露、Core 权限、服务部署或真实凭据。
 

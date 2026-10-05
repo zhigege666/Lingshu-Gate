@@ -6,7 +6,7 @@ The built-in authorization server is **disabled by default**. It uses existing G
 
 ## Configure without enabling
 
-In **Connection infrastructure → Gate built-in OAuth**, save an HTTPS issuer origin such as `https://gate.example.com`, without a path or trailing slash, and the fixed resource `https://gate.example.com/mcp`. Issuer and resource are trusted administrator configuration; request Host and forwarded Host never determine them. Resource paths other than `/mcp` are not supported in this version. The issuer must route to this Gate instance, and the browser page and its APIs must share that issuer origin.
+In **Connection infrastructure → Gate built-in OAuth**, save an HTTPS issuer origin such as `https://gate.example.com`, without a path or trailing slash, and the fixed resource `https://gate.example.com/mcp`. Issuer and resource are trusted administrator configuration; request Host and forwarded Host never determine them. The business resource uses `/mcp`; the separate management resource below uses `/mcp/manage`. The issuer must route to this Gate instance, and the browser page and its APIs must share that issuer origin.
 
 The resource is the address ChatGPT or another MCP client connects to, **not the OAuth callback**. Editing a valid issuer fills an empty resource, or updates the previous automatic suggestion. Manual resource edits and loaded saved values are preserved. An invalid or cleared issuer clears only its automatic suggestion; loading never rewrites or saves configuration.
 
@@ -83,13 +83,25 @@ Spent refresh-token digests survive until the family expires. Expired authorizat
 
 Anonymous authorize/context traffic uses a browser-bound encrypted ticket with a 10-minute TTL and 16 KiB limit, without creating a pending database row. The ticket key uses standard HKDF-SHA256 with a separate purpose from private-key encryption. It binds the request, browser, CSRF and configuration/client revisions; disabling and re-enabling invalidates old tickets. Migration `0008_oauth_interaction_capacity` restarts any older short-lived interactions. Authenticated pending capacity remains 200 globally, with 5/user and 50/client regardless of IP/cookie rotation. Completion immediately frees that slot and discards the large catalog/request. Small replay tombstones have separate ceilings of 3,072 authenticated, 64/user and 1,024 anonymous completions until ticket expiry. Anonymous cancellation cannot consume the authenticated completion budget. Logout and expired login release pending capacity; expiry cleanup recovers abandoned slots.
 
+## Separate management OAuth (0.4.4)
+
+Ordinary business authorization above cannot manage external configurations. The independently enabled management resource is derived from the trusted saved resource origin as `https://gate.example.com/mcp/manage`, with dedicated metadata at `/.well-known/oauth-protected-resource/mcp/manage`. It defaults off, requires an already enabled built-in server and active signing key, and does not create keys or clients. Enable/disable requires the current administrator's `operations.manage` authority and a live private Console session with strict Origin/body-bound one-use CSRF, revision CAS and atomic audit. Unknown key state cannot enable it; an enabled resource can still be explicitly disabled. Management disable revokes only management families/codes; disabling or changing the underlying issuer/resource also turns management off without automatic re-enablement.
+
+Static clients explicitly choose Business, Management, or Both resources. Existing clients remain business-only. For management, allow and request `operations.manage`; write apply/cancel and an explicit remote probe also require `tools.invoke`. A current administrator starts a **new** management resource authorization and explicitly selects the consented subset of the four `gate_mcp_config_*` tools and exact initial server IDs/create-update actions. No business bearer is upgraded. Scope ceilings intersect JWT, client, grant, refresh family and current authority; read-only families retain their limits.
+
+The management endpoint accepts only exact-audience built-in OAuth, never an external issuer, Gate API bearer or Console cookie. Wrong-resource codes and refreshes are denied too. It exposes no unrelated built-ins or business tools. Shared AS metadata remains business-only while the management resource metadata/challenge advertises management scopes; actual client management-scope requests remain unverified. Configuring a client or enabling the endpoint does not certify a ChatGPT connection.
+
+In **My connections**, active management grants provide **Adjust targets**. The actual administrator owner uses a current Console session, `operations.manage` and `tools.invoke`, reads current target/grant revisions, previews and explicitly confirms the exact policy. The private `GET .../management-targets`, `POST .../management-targets/preview` and `POST .../management-targets` routes bind session/Origin, dependencies and one-use confirmation, then commit CAS and redacted audit together. At most 1,000 exact targets are supported; no wildcards. Later removing all targets denies all target operations. The same management JWT follows current targets, old plans fail, and consented tools/JWT/family scopes/business grants do not expand. Historic details remain read-only. See the complete [management contract](oauth-external-management-design.md) and [external workflow](external-mcp-configuration.md), including connection-bound plans/idempotency and queued authority rechecks.
+
 ## Public proxy allowlist
 
 Expose only these paths with their stated methods. Block all other paths, including `/console`, `/v1`, `/docs`, `/openapi.json` and service-management routes, on the public listener. Internal Console access can use a separate private listener/origin. Do not proxy a catch-all location to Gate.
 
 | Path | Public methods | Purpose |
 |---|---|---|
-| `/mcp` | Existing MCP methods | Protected MCP protocol, normal bearer/policy checks |
+| `/mcp` | Existing MCP methods | Protected business MCP protocol, normal bearer/policy checks |
+| `/mcp/manage` | Existing MCP methods | Optional, explicitly enabled management resource; exact management audience only |
+| `/.well-known/oauth-protected-resource/mcp/manage` | GET | Optional management metadata only when management is enabled |
 | `/.well-known/oauth-protected-resource`, `/.well-known/oauth-protected-resource/mcp` | GET | Fixed resource metadata and configured issuers |
 | `/.well-known/oauth-authorization-server` | GET | Built-in authorization-server metadata |
 | `/oauth/jwks` | GET | Public signing keys |

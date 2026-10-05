@@ -13,6 +13,8 @@
 | [配置](configuration.md) | 环境变量、目录、Manifest、凭据和反向代理设置 |
 | [MCP 网关](mcp-gateway.md) | 网关入口、协议协商、下游 HTTP/stdio、发现、分类和调用 |
 | [项目交付](project-delivery.md) | 上传、构建、部署、启动流程，`gate_*` 工具和自带 Delivery Skill |
+| [外部 MCP 配置](external-mcp-configuration.md) | 管理员现有 HTTP MCP 离线计划/应用/状态/取消；开发候选 |
+| [管理员 OAuth 配置](oauth-external-management-design.md) | 默认关闭的管理资源，精确目标与 scope/令牌族隔离；真实客户端尚未联调 |
 | [Git 导入与网络设置](git-import-network.md) | 交付网络版本、受控 Git 来源、确定性依赖工具与执行器边界 |
 | [Console 交付工作区](console-delivery.md) | 私有交付草稿、确认、冲突恢复与交付记录 |
 | [Git 执行缺口与落地决策](git-executor-decision.md) | 具体代码缺口、默认部署限制及隔离 worker 范围决策 |
@@ -26,6 +28,7 @@
 | [发行产物](releases.md) | 平台归档、checksum、SBOM、构建元数据、离线镜像和发布规则 |
 | [0.4.0 验证记录](release-validation.md) | 已执行检查、合成截图与剩余验收缺口 |
 | [0.4.1 验证记录](release-validation-0.4.1.md) | OAuth 兼容/配置、本人授权与运行版本证据 |
+| [0.4.4 验证记录](release-validation-0.4.4.md) | 外部 HTTP 管理、Skills、资源隔离及验收缺口 |
 
 运行中的 Gate 会在 `/docs` 提供 API Schema。安全策略和报告方式见 [SECURITY.zh-CN.md](../../SECURITY.zh-CN.md)。
 

@@ -61,6 +61,8 @@ lingshu-gate/
 
 ## 下游 Manifest
 
+管理员可通过共用 REST/MCP [外部配置流程](external-mcp-configuration.md)核对并登记现有外部 HTTP MCP。它保留已有托管凭据引用，更新使用原始文件摘要 CAS，分开保存、当前连接/发现和未来启动策略。此开发候选未安装 Git 执行器或远程进程 runtime。
+
 Manifest 是存放在 `mcp.d` 中的 YAML 或 JSON 对象。文件名不是身份，`id` 才是。ID 必须匹配 `^[A-Za-z0-9_.-]+$`，并保持稳定，因为授权、凭据、运行状态和审计都会引用它。
 
 ### Gate 启动策略

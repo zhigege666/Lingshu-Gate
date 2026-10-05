@@ -6,7 +6,7 @@
 
 ## 只配置，暂不启用
 
-在**连接基础设施 → Gate 内置 OAuth**，保存固定 HTTPS issuer 域名，例如 `https://gate.example.com`，不含路径或末尾斜线；资源填写 `https://gate.example.com/mcp`。Issuer 和 resource 是管理员固定的可信配置，不能从请求 Host 或 forwarded Host 推导。本版只支持 `/mcp` 资源路径。Issuer 必须指向此 Gate 实例，授权浏览器页面与相关 API 必须使用该 issuer 的同一来源。
+在**连接基础设施 → Gate 内置 OAuth**，保存固定 HTTPS issuer 域名，例如 `https://gate.example.com`，不含路径或末尾斜线；资源填写 `https://gate.example.com/mcp`。Issuer 和 resource 是管理员固定的可信配置，不能从请求 Host 或 forwarded Host 推导。业务资源使用 `/mcp`；下方独立管理资源使用 `/mcp/manage`。Issuer 必须指向此 Gate 实例，授权浏览器页面与相关 API 必须使用该 issuer 的同一来源。
 
 资源 URL 是 ChatGPT 或其他 MCP 客户端实际连接的地址，**不是 OAuth 回调地址**。编辑有效 Issuer 时，只填写空资源，或更新上一次自动填写的值；手动修改和已加载的保存值保持原样。Issuer 无效或清空时，仅清除它所属的自动建议；加载不会改写或自动保存配置。
 
@@ -83,13 +83,25 @@ Gate 不跨请求缓存入站授权，下一次 `tools/list` 和 `tools/call` �
 
 匿名 authorize/context 使用绑定浏览器的加密票据，TTL 为 10 分钟、大小上限 16 KiB，不建立待处理数据库行。票据密钥采用标准 HKDF-SHA256，与私钥加密分离用途。票据绑定请求、浏览器、CSRF 和配置/客户端版本；关闭后重新启用会使旧票据失效。迁移 `0008_oauth_interaction_capacity` 要求旧短期交互重新发起。已登录待处理池仍为全局 200、每用户 5、每客户端 50，换 IP/Cookie 不能绕过。完成立即释放槽位，丢弃大工具目录/请求，只保留到票据到期的小型重放记录；上限独立为已登录全局 3,072、每用户 64、匿名 1,024。匿名取消不能消耗已登录完成预算。退出及检测到登录过期会释放待处理容量；到期清理回收遗留槽位。
 
+## 独立管理 OAuth（0.4.4）
+
+上述普通业务授权不能管理外部配置。独立启用的管理资源从可信已保存业务资源 origin 推导为 `https://gate.example.com/mcp/manage`，专用元数据为 `/.well-known/oauth-protected-resource/mcp/manage`。它默认关闭，须先启用基础内置服务并确认活动签名密钥，不会创建密钥或客户端。启用/关闭要求当前管理员的 `operations.manage`、有效私有 Console 会话、严格 Origin/body 绑定单次 CSRF、版本 CAS 与原子审计。未知密钥状态不能新启用，已启用资源仍可明确关闭。管理关闭只撤销管理令牌族/授权码；关闭或改变基础 issuer/resource 也会关闭管理，不自动重新启用。
+
+静态客户端明确选择业务、管理或两个资源，既有客户端仍仅允许业务。管理须允许并申请 `operations.manage`；应用、取消及明确远程探测还需 `tools.invoke`。当前管理员必须**新建**管理资源授权，明确选择四个 `gate_mcp_config_*` 工具中的允许子集，并逐项指定初始精确服务 ID/创建更新操作，不升级业务 bearer。权限取 JWT、client、grant、刷新令牌族及当前权限的交集，只读令牌族保留自身上限。
+
+管理入口只接受精确 audience 的内置 OAuth，不接受外部 issuer、Gate API bearer 或 Console Cookie；跨资源授权码和刷新也拒绝，不提供其他内置或业务工具。共用 AS 元数据仍只声明业务 scopes，管理资源元数据/challenge 声明管理 scopes；实际客户端是否申请管理 scope 仍未验证。配置客户端或启用入口不代表 ChatGPT 连接验收。
+
+**我的连接**中，有效管理授权提供**调整管理目标**。实际管理员所有者使用当前 Console 会话、`operations.manage`、`tools.invoke`，读取当前目标/grant 版本、预览并明确确认精确策略。私有 `GET .../management-targets`、`POST .../management-targets/preview`、`POST .../management-targets` 绑定会话/Origin、依赖及单次确认，将 CAS 与脱敏审计一起提交。最多 1,000 个精确目标，不接受通配符；后续移除全部目标拒绝全部目标操作。同一管理 JWT 跟随当前目标，旧计划失败，已同意工具/JWT/令牌族 scope/业务授权均不扩展。历史详情保持只读。完整边界见[管理契约](oauth-external-management-design.md)与[外部流程](external-mcp-configuration.md)，包括连接绑定计划/幂等及排队后的权限重检。
+
 ## 公网代理放行清单
 
 只按下方方法公开这些路径。公网入口阻止其他路径，包括 `/console`、`/v1`、`/docs`、`/openapi.json` 和服务管理接口。内部 Console 使用独立私有监听或来源。不要配置所有路径直通 Gate 的 catch-all 代理。
 
 | 路径 | 公网方法 | 用途 |
 |---|---|---|
-| `/mcp` | 既有 MCP 方法 | 受保护 MCP 协议，保留令牌/策略检查 |
+| `/mcp` | 既有 MCP 方法 | 受保护业务 MCP 协议，保留令牌/策略检查 |
+| `/mcp/manage` | 既有 MCP 方法 | 可选、明确启用的管理资源；只接受精确管理 audience |
+| `/.well-known/oauth-protected-resource/mcp/manage` | GET | 仅启用管理时提供可选管理元数据 |
 | `/.well-known/oauth-protected-resource`、`/.well-known/oauth-protected-resource/mcp` | GET | 固定资源和配置的签发方发现 |
 | `/.well-known/oauth-authorization-server` | GET | 内置授权服务元数据 |
 | `/oauth/jwks` | GET | 公共签名密钥 |

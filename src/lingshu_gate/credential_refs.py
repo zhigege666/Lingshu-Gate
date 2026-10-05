@@ -52,7 +52,8 @@ def extract_credential_refs(value: str) -> list[str]:
     return CREDENTIAL_REF_RE.findall(value or "")
 
 
-def resolve_env_credential_refs(env: dict[str, str], store: CredentialStore) -> tuple[dict[str, str], dict[str, Any]]:
+def resolve_env_credential_refs(env: dict[str, str], store: CredentialStore, *,
+                                expected_revisions: dict[str, str] | None = None) -> tuple[dict[str, str], dict[str, Any]]:
     """Resolve credential refs in env values.
 
     Returns a tuple of `(resolved_env, safe_metadata)`. The metadata contains only
@@ -74,7 +75,11 @@ def resolve_env_credential_refs(env: dict[str, str], store: CredentialStore) -> 
         for ref in refs:
             used.setdefault(ref, []).append(key)
             try:
-                secret = store.resolve_value(ref)
+                if expected_revisions is None:
+                    secret = store.resolve_value(ref)
+                else:
+                    # Use a nonmatching sentinel if an unapproved ref appears.
+                    secret = store.resolve_value(ref, expected_revision=expected_revisions.get(ref, ""))
             except KeyError:
                 missing.setdefault(ref, []).append(key)
                 continue

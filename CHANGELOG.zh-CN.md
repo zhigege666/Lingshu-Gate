@@ -1,5 +1,14 @@
 # 更新记录
 
+## 0.4.4
+
+- 四个管理工具在通用调用入口拒绝 Console cookie；专用 Console REST 保留 Origin/会话/请求体绑定的 CSRF。连接/探测在锁等待后和解密前拒绝凭据版本变化。内存诊断不读取命令参数与环境，Core 安装 Debian 准确 Perl 安全版本，不增加扫描例外。
+- 管理员外部 HTTP 配置提供共用 REST/MCP 离线计划、摘要绑定确认应用、本人状态与取消。连接失败保留配置；初次和再次发现都隔离变化分类，不扩大访问。
+- 流程校验当前管理会话/token/权限、凭据版本与 CAS，限制协作期限，保护连接所有权并原子提交完成日志。自带 Skill 分别路由 ZIP、Git 与外部来源。
+- 独立内置 `/mcp/manage` 默认关闭，要求明确客户端资源 allowlist 和管理同意，只开放四个外部配置工具；拒绝业务/外部令牌及跨资源授权码/刷新使用。
+- 精确创建/更新目标绑定派发、排队、计划及幂等完成记录。私有本人目标修改要求当前管理员、Origin/会话 CSRF、复核后单次确认、版本 CAS 与原子审计；JWT/令牌族 scope 及业务授权不扩展。
+- Console 与公共同意明确展示资源/scope/精确目标，使用有编辑保护的居中弹窗、完整目标分页及短暂保存反馈。[管理契约](docs/zh-CN/oauth-external-management-design.md)与[外部配置契约](docs/zh-CN/external-mcp-configuration.md)说明实际行为。真实客户端/peer 联调仍未验证。多实例路由、海量目录检索和 Git 执行器不纳入本版。
+
 ## 0.4.3
 
 - 本人在 Gate 明确确认即可为现有 OAuth 授权新增、重新确认或移除 MCP/工具。同一 bearer 与刷新令牌族在不变的 OAuth scope 上限内跟随 live 工具范围，同 scope 工具不需要客户端再次 OAuth。
