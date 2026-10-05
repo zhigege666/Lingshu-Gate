@@ -238,6 +238,10 @@ def test_connect_discover_requires_review_and_idempotent_replay_does_not_create_
 
 @pytest.mark.parametrize("mutation", ["command", "path", "inline_secret", "permissions", "unknown"])
 def test_external_entry_rejects_commands_paths_inline_secrets_and_permission_changes(gate, mutation, caplog):
+    token = gate["auth"].create_api_token(principal=gate["principal"], name="Synthetic validation",
+        scopes=["tools.read", "tools.invoke", "operations.manage"])
+    principal = gate["auth"]._principal_from_api_token(token["token"])
+    assert principal is not None
     data = manifest()
     if mutation == "command":
         data["launch"]["command"] = "synthetic-command"
@@ -249,8 +253,12 @@ def test_external_entry_rejects_commands_paths_inline_secrets_and_permission_cha
         data["permissions"] = {"default": "write"}
     else:
         data["unsupported"] = "Synthetic-Secret-Value"
-    result = gate["app"].state.registry.invoke("gate_mcp_config_plan", {"mode": "create", "manifest": data}, context=gate["context"])
+    result = gate["app"].state.registry.invoke("gate_mcp_config_plan", {"mode": "create", "manifest": data}, context=context(principal))
     assert not result.ok and not gate["calls"]
+    expected = "external_config_credential_reference_required" if mutation == "inline_secret" else "external_config_invalid"
+    assert result.output["error"]["code"] == expected
+    assert not gate["service"].database.query_all("SELECT id FROM external_mcp_config_plans")
+    assert not gate["service"].configs.list_configs().configs
     assert "Synthetic-Secret-Value" not in json.dumps(result.model_dump()) + caplog.text
 
 
