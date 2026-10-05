@@ -2,6 +2,7 @@
 
 import argparse
 import os
+import sys
 from pathlib import Path
 from typing import Sequence
 
@@ -52,6 +53,13 @@ def _apply_overrides(args: argparse.Namespace) -> None:
 def main() -> None:
     """Start the service using CLI overrides and environment configuration."""
 
+    # A frozen executable is not a Python interpreter accepting -m. This
+    # isolated worker must run before settings, logging or service bootstrap.
+    if sys.argv[1:] == ["--gate-schema-validation-worker"]:
+        from lingshu_gate.application.schema_validation import _worker
+
+        _worker()
+        return
     args = _parse_args()
     _apply_overrides(args)
     settings = Settings.from_env()

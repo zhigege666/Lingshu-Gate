@@ -19,7 +19,14 @@ MAX_DEPTH = 32
 MAX_EXPANSION = 8_192
 MAX_WORK = 262_144
 VALIDATION_SECONDS = 2.0
+WORKER_FLAG = "--gate-schema-validation-worker"
 _workers = threading.BoundedSemaphore(4)
+
+
+def _worker_command() -> list[str]:
+    if getattr(sys, "frozen", False):
+        return [sys.executable, WORKER_FLAG]
+    return [sys.executable, "-m", __name__, "--worker"]
 
 
 def _error(code: str) -> ToolExecutionError:
@@ -143,7 +150,7 @@ def validate_arguments(schema: dict[str, Any], arguments: dict[str, Any], *,
     process: subprocess.Popen[bytes] | None = None
     writer: threading.Thread | None = None
     try:
-        process = subprocess.Popen([sys.executable, "-m", __name__, "--worker"],
+        process = subprocess.Popen(_worker_command(),
             stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=subprocess.DEVNULL)
         pending = b'{"schema":' + encoded_schema + b',"arguments":' + encoded_arguments + b'}'
         channel = process.stdin

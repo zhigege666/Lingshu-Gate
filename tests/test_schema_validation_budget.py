@@ -89,3 +89,24 @@ def test_cancellation_during_evaluation_terminates_child(monkeypatch):
         timer.cancel()
         timer.join()
     validate_arguments({}, {})
+
+
+def test_frozen_worker_command_uses_native_entry_flag(monkeypatch):
+    from lingshu_gate.application import schema_validation
+    monkeypatch.setattr(schema_validation.sys, "frozen", True, raising=False)
+    assert schema_validation._worker_command() == [schema_validation.sys.executable, schema_validation.WORKER_FLAG]
+
+
+def test_native_entry_worker_bypasses_service_settings_and_never_echoes_values():
+    import json
+    import os
+    import subprocess
+    import sys
+    command = [sys.executable, "-m", "lingshu_gate.cli", "--gate-schema-validation-worker"]
+    env = {**os.environ, "LINGSHU_GATE_DB_URL": "not-a-service-database"}
+    for value, code, output in (("valid", 0, b"valid"), (42, 1, b"")):
+        response = subprocess.run(command, input=json.dumps({"schema": {"properties": {"key": {"type": "string"}}},
+            "arguments": {"key": value, "private": "never-echo-this-secret"}}).encode(), env=env,
+            stdout=subprocess.PIPE, stderr=subprocess.PIPE, timeout=3)
+        assert response.returncode == code and response.stdout == output
+        assert b"never-echo-this-secret" not in response.stderr
