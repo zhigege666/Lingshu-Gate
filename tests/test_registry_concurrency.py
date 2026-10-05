@@ -22,6 +22,32 @@ def definition(tool_id: str, generation: str) -> ToolDefinition:
 
 
 class ToolRegistryConcurrencyTest(unittest.TestCase):
+    def test_dispatch_guard_does_not_hold_registry_lock(self) -> None:
+        registry = ToolRegistry()
+        target = definition("mcp.demo.target", "initial")
+        registry.register(target, lambda _: {})
+
+        def guard() -> None:
+            worker = threading.Thread(target=lambda: registry.register(definition("mcp.demo.other", "new"), lambda _: {}))
+            worker.start()
+            worker.join(timeout=1)
+            self.assertFalse(worker.is_alive(), "Credential/policy guard held registry lock")
+
+        self.assertTrue(registry.invoke(target.id, {}, dispatch_guard=guard, expected_definition=target).ok)
+
+    def test_record_replacement_after_guard_never_enters_handler(self) -> None:
+        from lingshu_gate.registry import ToolDispatchRejectedError
+
+        registry = ToolRegistry()
+        target = definition("mcp.demo.target", "old")
+        calls: list[str] = []
+        registry.register(target, lambda _: calls.append("old") or {})
+        def guard() -> None:
+            registry.register(definition(target.id, "new"), lambda _: calls.append("new") or {}, replace=True)
+        with self.assertRaises(ToolDispatchRejectedError):
+            registry.invoke(target.id, {}, dispatch_guard=guard, expected_definition=target)
+        self.assertEqual(calls, [])
+
     def test_handler_execution_does_not_hold_registry_lock(self) -> None:
         registry = ToolRegistry()
         entered = threading.Event()

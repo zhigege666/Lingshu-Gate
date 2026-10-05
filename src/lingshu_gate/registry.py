@@ -86,6 +86,10 @@ class ToolRecord:
     contextual: bool = False
 
 
+class ToolDispatchRejectedError(ToolExecutionError):
+    """The selected record changed before dispatch; no handler was entered."""
+
+
 class ToolNotFoundError(KeyError):
     """Raised when a requested tool is not registered."""
 
@@ -257,17 +261,23 @@ class ToolRegistry:
         *,
         context: ToolInvocationContext | None = None,
         dispatch_guard: Callable[[], None] | None = None,
+        expected_definition: ToolDefinition | None = None,
     ) -> ToolInvokeResponse:
         # Only protect snapshot lookup. Handlers can perform long-running I/O and
         # may themselves register tools, so invoking them while holding the registry
         # lock would serialize unrelated traffic and risk lock-order deadlocks.
+        # Authentication/SQLite reads cannot run under the registry lock:
+        # control-plane transactions can themselves inspect the registry.
+        if dispatch_guard is not None:
+            dispatch_guard()
         with self._lock:
-            if dispatch_guard is not None:
-                dispatch_guard()
             try:
                 record = self._tools[tool_id]
             except KeyError as exc:
                 raise ToolNotFoundError(tool_id) from exc
+            if expected_definition is not None and record.definition is not expected_definition:
+                raise ToolDispatchRejectedError("catalog_schema_revision_conflict",
+                    "The selected registry record changed before dispatch.")
 
         sensitive_inputs = _metadata_fields(record.definition.metadata, "sensitive_input_fields")
         sensitive_outputs = _metadata_fields(record.definition.metadata, "sensitive_output_fields")

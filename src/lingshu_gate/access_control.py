@@ -23,7 +23,7 @@ from lingshu_gate.invocation_payloads import snapshot
 from lingshu_gate.retention_store import RetentionStore
 from lingshu_gate.mcp_runtime import McpRuntimeManager
 from lingshu_gate.models import ToolDefinition, ToolInvokeResponse
-from lingshu_gate.registry import ToolExecutionError, ToolInvocationContext, ToolRegistry
+from lingshu_gate.registry import ToolDispatchRejectedError, ToolExecutionError, ToolInvocationContext, ToolRegistry
 from lingshu_gate.user_credential_store import UserCredentialBindingError
 
 ACCESS_RANK = {"none": 0, "read": 1, "write": 2, "unknown": -1}
@@ -1601,6 +1601,10 @@ class AccessControlStore:
             dispatch_guard()
             guard_passed = True
 
+        registry_dispatch: dict[str, Any] = (
+            {"dispatch_guard": checked_guard, "expected_definition": definition} if dispatch_guard is not None else {}
+        )
+
         started = perf_counter()
         try:
             if definition.source == "mcp" and self.mcp_runtime:
@@ -1625,7 +1629,7 @@ class AccessControlStore:
                 response = registry.invoke(
                     tool_id,
                     arguments,
-                    **({"dispatch_guard": checked_guard} if dispatch_guard is not None else {}),
+                    **registry_dispatch,
                     context=ToolInvocationContext(
                         actor_id=principal.id,
                         username=principal.username,
@@ -1670,6 +1674,8 @@ class AccessControlStore:
                 granted_access=decision["granted_access"],
             ) from exc
         except ToolExecutionError as exc:
+            if isinstance(exc, ToolDispatchRejectedError):
+                guard_passed = False
             response = ToolInvokeResponse(ok=False, tool_id=tool_id, error=str(exc), output=exc.to_payload())
         except Exception as exc:  # noqa: BLE001 - 工具边界统一返回失败响应
             response = ToolInvokeResponse(ok=False, tool_id=tool_id, error=str(exc))
