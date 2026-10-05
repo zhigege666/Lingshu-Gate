@@ -50,6 +50,8 @@ The list separates recorded tool scope, UTC expiry/remaining time, rate/concurre
 
 Scope details and **Adjust scope** use a centered, bounded dialog. Limits appear before the tools table. Its summary, filters, table header, pagination and actions stay visible while tool rows scroll. The MCP selector displays a single server ID; both the MCP name and ID remain searchable. Closing during an available-scope read discards that response, and a response for a previous grant cannot replace the next editor.
 
+The scope editor keeps rules and unavailable counts in compact lines; the information button opens full scope and token-family rules without changing the draft. Quick selection and refresh share one row, with a separate filter row and table toolbar. At the supported desktop sizes, the tool table has at least 240 px of internal scrolling space while pagination and the primary review action remain visible.
+
 ## Update the existing connection in Gate
 
 **Adjust scope → Review connection update → Confirm update** supports adding MCPs and tools within the connection's existing OAuth scopes. The owner confirms the change in Gate; another client OAuth flow, a new authorization code and replacement tokens are not required. The same access token and its refresh family follow the updated live grant on subsequent requests. Newly discovered or reclassified tools never join automatically.
