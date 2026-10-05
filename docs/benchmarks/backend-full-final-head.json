@@ -1,0 +1,33 @@
+{
+  "source_sha": "f51d1b18d7475034b61567be00ef999128918e83",
+  "production_source_sha": "d99be556ff48e018792268abeb7c5a22c5517476",
+  "command": "uv run --frozen pytest -q -ra --junitxml=<temporary XML>",
+  "passed": 1734,
+  "skipped": 3,
+  "failures": 0,
+  "errors": 0,
+  "warnings": 5,
+  "pytest_duration_seconds": 1289.04,
+  "junit_duration_seconds": 1288.99,
+  "skip_cases": [
+    {
+      "nodeid": "tests/test_mcp_playwright_interop.py::test_fixed_peer_rejects_modern_discovery_with_real_http_400_null_id",
+      "reason": "fixed Playwright MCP test installation not supplied"
+    },
+    {
+      "nodeid": "tests/test_mcp_playwright_interop.py::test_fixed_peer_auto_initializes_and_lists_without_any_browser_call[None]",
+      "reason": "fixed Playwright MCP test installation not supplied"
+    },
+    {
+      "nodeid": "tests/test_mcp_playwright_interop.py::test_fixed_peer_auto_initializes_and_lists_without_any_browser_call[auto]",
+      "reason": "fixed Playwright MCP test installation not supplied"
+    }
+  ],
+  "skip_setup": "GATE_PLAYWRIGHT_MCP_ROOT was not supplied for the opt-in @playwright/mcp@0.0.83 / playwright-core@1.64.0-alpha-1790635538000 installation; no browser calls are part of these three cases.",
+  "warnings_reason": "Existing record_property measurements with junit_family=xunit2; no product test failure.",
+  "pytest_log_sha256": "f05d41175a6391cce72212a0df4ea87e197e61288903d5bbefd5e9deba67d000",
+  "junit_xml_sha256": "0f1d4a98e108106d2a17d6ba005561a39c9f9b1719368cc90fd7a758374085d3",
+  "product_changes_during_run": false,
+  "frontend_assets_rebuilt_during_run": false,
+  "package_proof": "package-schema-workers-final-head-linux.json"
+}
