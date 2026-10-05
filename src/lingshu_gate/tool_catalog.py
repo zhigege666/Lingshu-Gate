@@ -21,13 +21,17 @@ from referencing import Registry
 from referencing.exceptions import NoSuchResource, Unresolvable
 
 from lingshu_gate.access_control import AccessControlStore
+from lingshu_gate.application.mcp_group_routing import McpGroupRoutingService
 from lingshu_gate.auth import AuthPrincipal
+from lingshu_gate.domain.mcp_group_routing import GroupToolCall, GroupToolSelection
+from lingshu_gate.domain.mcp_groups import McpGroupError
 from lingshu_gate.models import ToolDefinition, ToolInvokeResponse
 from lingshu_gate.protocol.tool_namespace import public_tool_name
 from lingshu_gate.ports.catalog_target import CatalogTarget, CatalogTargetResolver
 from lingshu_gate.registry import ToolExecutionError, ToolNotFoundError, ToolRegistry
 
-CATALOG_TOOL_NAMES = ("gate_catalog_search", "gate_tool_describe", "gate_tool_invoke", "gate_instance_list")
+CATALOG_TOOL_NAMES = ("gate_catalog_search", "gate_tool_describe", "gate_tool_invoke", "gate_instance_list",
+                      "gate_instance_session_open", "gate_instance_session_close")
 MAX_PAGE_OFFSET = 10_000
 CURSOR_TTL_SECONDS = 300
 MAX_INVOKE_ARGUMENT_BYTES = 1_048_576
@@ -37,6 +41,8 @@ class CatalogSearch(BaseModel):
     model_config = ConfigDict(extra="forbid", strict=True)
     query: str = Field(default="", max_length=256)
     instance_id: str | None = Field(default=None, min_length=1, max_length=256)
+    group_id: str | None = Field(default=None, pattern=r"^[a-f0-9]{32}$")
+    tool_ref: str | None = Field(default=None, min_length=1, max_length=512)
     limit: int = Field(default=20, ge=1, le=100)
     max_bytes: int = Field(default=16_384, ge=2_048, le=65_536)
     cursor: str | None = Field(default=None, max_length=1_024)
@@ -54,7 +60,17 @@ class CatalogInvoke(BaseModel):
     tool_ref: str = Field(min_length=1, max_length=512)
     instance_id: str | None = Field(default=None, min_length=1, max_length=256)
     schema_revision: str = Field(pattern=r"^[0-9a-f]{64}$")
+    session_id: str | None = Field(default=None, pattern=r"^[a-f0-9]{32}$")
     arguments: dict[str, Any]
+
+
+class CatalogSessionOpen(GroupToolSelection):
+    schema_revision: str = Field(pattern=r"^[0-9a-f]{64}$")
+
+
+class CatalogSessionClose(BaseModel):
+    model_config = ConfigDict(extra="forbid", strict=True)
+    session_id: str = Field(pattern=r"^[a-f0-9]{32}$")
 
 
 def schema_revision(definition: ToolDefinition) -> str:
@@ -77,11 +93,13 @@ def _reject(code: str, message: str) -> ToolExecutionError:
 
 class ToolCatalog:
     def __init__(self, registry: ToolRegistry, access: AccessControlStore, *,
-                 target_resolver: CatalogTargetResolver | None = None) -> None:
+                 target_resolver: CatalogTargetResolver | None = None,
+                 group_router: McpGroupRoutingService | None = None) -> None:
         self.registry = registry
         self.access = access
         self.database = access.database
         self.target_resolver = target_resolver or RegistryCatalogTargetResolver(registry)
+        self.group_router = group_router
         self._queue_lock = threading.Lock()
         self._sync_lock = threading.Lock()
         self._pending: dict[str, ToolDefinition | None] = {}
@@ -125,7 +143,7 @@ class ToolCatalog:
                             connection.execute("DELETE FROM gate_tool_catalog WHERE tool_ref=?", (tool_ref,))
                             continue
                         policy = {key: definition.metadata[key] for key in
-                                  ("required_control_permission", "classification_control_plane")
+                                  ("required_control_permission", "classification_control_plane", "group_management_control_plane")
                                   if key in definition.metadata}
                         connection.execute("""
                             INSERT INTO gate_tool_catalog
@@ -182,13 +200,35 @@ class ToolCatalog:
         generation = self.synchronize()
         epoch = self._epoch()
         kind = "instances" if instances else "tools"
-        binding = self._binding(principal, request, kind, generation, epoch)
-        offset = self._offset(request.cursor, binding)
         terms = re.findall(r"[^\W_]+", request.query.casefold(), re.UNICODE)
         if len(terms) > 8 or len(request.query.encode()) > 1_024:
             raise _reject("catalog_query_limit", "Use at most eight keywords and 256 characters.")
         if request.query.strip() and not terms:
             raise _reject("catalog_query_invalid", "Use at least one keyword.")
+        if request.group_id is not None:
+            router = self._groups()
+            # Warm the existing bounded structural snapshot before capturing its
+            # marker; cold manifest metadata can legitimately change the marker.
+            items = router.directory_page(principal, group_id=request.group_id, keywords=terms,
+                tool_ref=request.tool_ref, instance_id=request.instance_id, offset=0,
+                limit=request.limit + 1, instances=instances)
+            marker = router.directory_revision(request.group_id)
+            binding = self._binding(principal, request, kind + _json(marker), generation, epoch)
+            offset = self._offset(request.cursor, binding)
+            if offset:
+                items = router.directory_page(principal, group_id=request.group_id, keywords=terms,
+                    tool_ref=request.tool_ref, instance_id=request.instance_id, offset=offset,
+                    limit=request.limit + 1, instances=instances)
+            output = self._page(items, request, kind, offset, binding)
+            if marker != router.directory_revision(request.group_id):
+                raise _reject("catalog_changed", "Service or instance configuration changed during search.")
+            if generation != self._generation or epoch != self._epoch():
+                raise _reject("catalog_changed", "Catalog or permissions changed during search.")
+            return output
+        if request.tool_ref is not None:
+            raise _reject("catalog_parameters_invalid", "tool_ref filtering requires an explicit group_id.")
+        binding = self._binding(principal, request, kind, generation, epoch)
+        offset = self._offset(request.cursor, binding)
         where: list[str] = []
         parameters: list[Any] = []
         if terms:
@@ -218,6 +258,13 @@ class ToolCatalog:
             rows = connection.execute(query, tuple(parameters)).fetchall()
         items = ([{"instance_id": row["instance_id"], "group_id": None} for row in rows]
                  if instances else [dict(row) for row in rows])
+        output = self._page(items, request, kind, offset, binding)
+        if generation != self._generation or epoch != self._epoch():
+            raise _reject("catalog_changed", "Catalog or permissions changed during search.")
+        return output
+
+    def _page(self, items: list[dict[str, Any]], request: CatalogSearch, kind: str,
+              offset: int, binding: str) -> dict[str, Any]:
         # Fetch at most limit+1 authorized summaries; never serialize a directory.
         selected = items[:request.limit]
         while True:
@@ -229,9 +276,12 @@ class ToolCatalog:
             selected = selected[:-1]
             if not selected:
                 raise _reject("catalog_output_limit", "Increase max_bytes to fit a single summary.")
-        if generation != self._generation or epoch != self._epoch():
-            raise _reject("catalog_changed", "Catalog or permissions changed during search.")
         return output
+
+    def _groups(self) -> McpGroupRoutingService:
+        if self.group_router is None:
+            raise _reject("catalog_tool_unavailable", "The selected tool is unavailable.")
+        return self.group_router
 
     def selected(self, principal: AuthPrincipal, tool_ref: str, instance_id: str | None = None) -> ToolDefinition:
         self.synchronize()
@@ -248,9 +298,17 @@ class ToolCatalog:
         return definition
 
     def describe(self, principal: AuthPrincipal, request: CatalogDescribe) -> dict[str, Any]:
-        definition = self.selected(principal, request.tool_ref, request.instance_id)
-        output = {"tool_ref": definition.id, "instance_id": instance_for(definition),
-                  "schema_revision": schema_revision(definition), "name": definition.name,
+        if request.tool_ref.startswith("mcp-group:"):
+            if request.instance_id is None:
+                raise _reject("catalog_instance_required", "Select an explicit instance for this logical tool.")
+            described = self._groups().describe(principal, tool_ref=request.tool_ref, instance_id=request.instance_id)
+            definition = ToolDefinition.model_validate(described["definition"])
+            revision = described["schema_revision"]
+        else:
+            definition = self.selected(principal, request.tool_ref, request.instance_id)
+            revision = schema_revision(definition)
+        output = {"tool_ref": request.tool_ref, "instance_id": instance_for(definition),
+                  "schema_revision": revision, "name": definition.name,
                   "description": definition.description, "input_schema": definition.input_schema or {"type": "object"}}
         output_schema = definition.metadata.get("outputSchema") or definition.metadata.get("output_schema")
         if isinstance(output_schema, dict):
@@ -267,6 +325,11 @@ class ToolCatalog:
     def invoke(self, principal: AuthPrincipal, request: CatalogInvoke, *,
                refresh_principal: Callable[[], AuthPrincipal] | None = None,
                correlation_id: str | None = None) -> ToolInvokeResponse:
+        if request.tool_ref.startswith("mcp-group:"):
+            return self._invoke_group(principal, request, refresh_principal=refresh_principal,
+                                      correlation_id=correlation_id)
+        if request.session_id is not None:
+            raise _reject("catalog_parameters_invalid", "A routing session applies only to a logical tool.")
         definition = self.selected(principal, request.tool_ref, request.instance_id)
         try:
             if request.instance_id is not None and request.instance_id != instance_for(definition):
@@ -301,9 +364,55 @@ class ToolCatalog:
         return self.access.invoke_tool(self.registry, principal, definition.id, request.arguments,
             correlation_id=correlation_id, dispatch_guard=guard)
 
+    def _invoke_group(self, principal: AuthPrincipal, request: CatalogInvoke, *,
+                      refresh_principal: Callable[[], AuthPrincipal] | None,
+                      correlation_id: str | None) -> ToolInvokeResponse:
+        if request.instance_id is None or request.session_id is None:
+            raise _reject("catalog_instance_session_required", "Select an instance and explicitly open a routing session.")
+        router = self._groups()
+        call = GroupToolCall(tool_ref=request.tool_ref, instance_id=request.instance_id,
+                             session_id=request.session_id, arguments=request.arguments)
+        # The existing group port holds the selected config/runtime locks and
+        # rechecks current physical and logical policy after their queue waits.
+        with router.dispatch_guard(principal, call) as (current, target):
+            definition = self.registry.get_definition(target.tool_id)
+            try:
+                if request.schema_revision != target.schema_revision or schema_revision(definition) != target.definition_fingerprint:
+                    raise _reject("catalog_schema_revision_conflict", "The selected logical contract changed; describe it again.")
+                _validate_arguments(definition.input_schema or {"type": "object"}, request.arguments)
+            except ToolExecutionError as exc:
+                self.access._record_invocation_audit(current, definition,
+                    correlation_id=correlation_id or secrets.token_hex(16),
+                    decision={**self.access.evaluate(current, definition), "allowed": False, "reason": exc.code},
+                    outcome="not_invoked", duration_ms=None, payload={"values_recorded": False})
+                raise
+
+            def guard() -> None:
+                if refresh_principal is not None and refresh_principal() != principal:
+                    raise _reject("catalog_identity_changed", "The invocation connection changed before dispatch.")
+                # Re-enter the existing port to recheck session closure, authority,
+                # publication and descriptor changes at the actual call boundary.
+                with router.dispatch_guard(current, call) as (_, latest):
+                    if latest != target:
+                        raise _reject("catalog_schema_revision_conflict", "The selected target changed before dispatch.")
+
+            return self.access.invoke_tool(self.registry, current, target.tool_id, request.arguments,
+                correlation_id=correlation_id, dispatch_guard=guard,
+                expected_definition_revision=target.definition_fingerprint, allow_read_retry=False)
+
     def call(self, name: str, arguments: dict[str, Any], principal: AuthPrincipal, *,
              refresh_principal: Callable[[], AuthPrincipal] | None = None,
              correlation_id: str | None = None) -> ToolInvokeResponse:
+        try:
+            return self._call(name, arguments, principal, refresh_principal=refresh_principal,
+                              correlation_id=correlation_id)
+        except McpGroupError as exc:
+            code = "catalog_tool_unavailable" if exc.code == "group_tool_unavailable" else exc.code
+            raise _reject(code, str(exc)) from None
+
+    def _call(self, name: str, arguments: dict[str, Any], principal: AuthPrincipal, *,
+              refresh_principal: Callable[[], AuthPrincipal] | None,
+              correlation_id: str | None) -> ToolInvokeResponse:
         self.check_namespace()
         if name == "gate_tool_invoke":
             return self.invoke(principal, CatalogInvoke.model_validate(arguments),
@@ -312,6 +421,16 @@ class ToolCatalog:
             output = self.describe(principal, CatalogDescribe.model_validate(arguments))
         elif name in {"gate_catalog_search", "gate_instance_list"}:
             output = self.search(principal, CatalogSearch.model_validate(arguments), instances=name == "gate_instance_list")
+        elif name == "gate_instance_session_open":
+            selection = CatalogSessionOpen.model_validate(arguments)
+            router = self._groups()
+            target = router.resolve(principal, tool_ref=selection.tool_ref, instance_id=selection.instance_id)
+            if selection.schema_revision != target.schema_revision:
+                raise _reject("catalog_schema_revision_conflict", "The logical contract changed; describe it again.")
+            output = router.open_session(principal, GroupToolSelection(tool_ref=selection.tool_ref, instance_id=selection.instance_id))
+        elif name == "gate_instance_session_close":
+            closing = CatalogSessionClose.model_validate(arguments)
+            output = self._groups().close_session(principal, closing.session_id)
         else:
             raise _reject("catalog_entry_unavailable", "Select one of the catalog entries.")
         if refresh_principal is not None and refresh_principal() != principal:
@@ -324,11 +443,15 @@ def catalog_tools() -> list[dict[str, Any]]:
         "Search authorized tools by keywords. Returns bounded summaries and stable tool_ref/schema_revision; no full schemas.",
         "Describe one authorized tool_ref. Returns its full input schema within max_bytes; never truncates a schema.",
         "Invoke one described tool with its schema_revision and original arguments. Current permissions are checked independently.",
-        "List authorized service instances, adapted from server_id. Select an instance_id to search; grouping is not implemented.",
+        "List authorized instances; optional group_id and logical tool_ref select a service contract. Never selects a default.",
+        "Explicitly open an instance routing session for a described logical tool. This does not create authorization or retry calls.",
+        "Close this connection's instance routing session; future invocations require an explicitly opened session.",
     )
-    models: tuple[type[BaseModel], ...] = (CatalogSearch, CatalogDescribe, CatalogInvoke, CatalogSearch)
+    models: tuple[type[BaseModel], ...] = (CatalogSearch, CatalogDescribe, CatalogInvoke, CatalogSearch,
+                                         CatalogSessionOpen, CatalogSessionClose)
     return [{"name": name, "description": description, "inputSchema": model.model_json_schema(),
-             "annotations": {"readOnlyHint": name != "gate_tool_invoke", "openWorldHint": name == "gate_tool_invoke"}}
+             "annotations": {"readOnlyHint": name in CATALOG_TOOL_NAMES[:2] or name == "gate_instance_list",
+                             "openWorldHint": name == "gate_tool_invoke"}}
             for name, description, model in zip(CATALOG_TOOL_NAMES, descriptions, models)]
 
 

@@ -36,6 +36,9 @@ from lingshu_gate.persistence.console_csrf_migration import (
 from lingshu_gate.persistence.tool_catalog_migration import (
     TOOL_CATALOG_MIGRATION_ID, apply_tool_catalog_migration,
 )
+from lingshu_gate.persistence.catalog_group_epoch_migration import (
+    CATALOG_GROUP_EPOCH_MIGRATION_ID, apply_catalog_group_epoch_migration,
+)
 from lingshu_gate.persistence.mcp_groups_migration import MCP_GROUPS_MIGRATION_ID, apply_mcp_groups_migration
 from lingshu_gate.persistence.mcp_group_requests_migration import MCP_GROUP_REQUESTS_MIGRATION_ID, apply_mcp_group_requests_migration
 from lingshu_gate.persistence.mcp_group_routing_migration import MCP_GROUP_ROUTING_MIGRATION_ID, apply_mcp_group_routing_migration
@@ -87,7 +90,8 @@ class SQLiteDatabase:
              Migration(TOOL_CATALOG_MIGRATION_ID, apply_tool_catalog_migration),
              Migration(MCP_GROUPS_MIGRATION_ID, apply_mcp_groups_migration),
              Migration(MCP_GROUP_REQUESTS_MIGRATION_ID, apply_mcp_group_requests_migration),
-             Migration(MCP_GROUP_ROUTING_MIGRATION_ID, apply_mcp_group_routing_migration)),
+             Migration(MCP_GROUP_ROUTING_MIGRATION_ID, apply_mcp_group_routing_migration),
+             Migration(CATALOG_GROUP_EPOCH_MIGRATION_ID, apply_catalog_group_epoch_migration)),
         ).run()
 
     def _apply_baseline_migration(self, connection: sqlite3.Connection) -> None:

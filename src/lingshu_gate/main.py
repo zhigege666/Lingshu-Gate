@@ -174,6 +174,7 @@ def create_app() -> FastAPI:
     mcp_group_service = McpGroupService(mcp_group_store, mcp_config_store, mcp_runtime, registry=registry)
     register_mcp_group_tools(registry, mcp_group_service)
     mcp_group_router = McpGroupRoutingService(mcp_group_service, registry, access_store, auth_store)
+    tool_catalog.group_router = mcp_group_router
     mcp_configuration_service = McpConfigurationService(
         mcp_config_store,
         mcp_runtime,

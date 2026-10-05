@@ -105,6 +105,11 @@ class McpConfigStore:
         with self.mutation_lock:
             return revision == self._metadata_revision
 
+    def metadata_revision(self) -> int:
+        """Structural invalidation marker; contains no credentials or authority."""
+        with self.mutation_lock:
+            return self._metadata_revision
+
     def list_configs(self) -> McpConfigListResponse:
         configs: list[McpConfigResponse] = []
         errors: list[str] = []

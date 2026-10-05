@@ -1277,7 +1277,8 @@ class AccessControlStore:
             if principal.auth_type == "oauth" and (source != "mcp" or tool_id not in oauth_tools or server_id not in oauth_servers):
                 return 0
             granted_access = granted()
-            cache_key = (server_id, source, permission, policy, effective_access, status, granted_access)
+            cache_key = (server_id, source, permission, policy, effective_access, status, granted_access,
+                         tool_id if source == "builtin" else None)
             if principal.auth_type != "oauth" and cache_key in decisions:
                 return decisions[cache_key]
             definition = ToolDefinition.model_construct(

@@ -49,3 +49,13 @@ def register_catalog_routes(app: FastAPI, *, catalog: ToolCatalog, require_authe
     def instances(body: dict[str, Any], request: Request,
                   principal: AuthPrincipal = Depends(require_authenticated)) -> dict[str, Any]:
         return call("gate_instance_list", body, request)
+
+    @app.post("/v1/catalog/sessions/open", tags=["tools"])
+    def session_open(body: dict[str, Any], request: Request,
+                     principal: AuthPrincipal = Depends(require_authenticated)) -> dict[str, Any]:
+        return call("gate_instance_session_open", body, request)
+
+    @app.post("/v1/catalog/sessions/close", tags=["tools"])
+    def session_close(body: dict[str, Any], request: Request,
+                      principal: AuthPrincipal = Depends(require_authenticated)) -> dict[str, Any]:
+        return call("gate_instance_session_close", body, request)

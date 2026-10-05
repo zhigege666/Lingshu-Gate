@@ -8,18 +8,20 @@ In **My API Tokens → Client settings**, use the centered dialog to choose **Fu
 
 ## Agent workflow
 
-On-demand `tools/list` contains exactly four fixed entries, independent of directory size:
+On-demand `tools/list` contains six fixed entries, independent of directory size: the four directory/dispatch entries and two explicit instance-session controls.
 
 | Entry | Input and behavior |
 |---|---|
-| `gate_catalog_search` | `query`, optional `instance_id`, `limit`, `max_bytes`, `cursor`; authorized summaries containing `tool_ref`, `instance_id`, `name`, `description`, `schema_revision` |
+| `gate_catalog_search` | `query`, optional `instance_id`/`group_id`, `limit`, `max_bytes`, `cursor`; authorized summaries containing `tool_ref`, `instance_id`, `name`, `description`, `schema_revision` |
 | `gate_tool_describe` | `tool_ref`, optional `instance_id`, `max_bytes`; one complete `input_schema`, optional `output_schema`, and current revision |
-| `gate_tool_invoke` | Independent envelope `{tool_ref, instance_id?, schema_revision, arguments}`; original arguments are passed only to the selected target |
-| `gate_instance_list` | Same bounded search/paging inputs; distinct authorized `instance_id` entries and reserved `group_id: null` |
+| `gate_tool_invoke` | Independent envelope `{tool_ref, instance_id?, session_id?, schema_revision, arguments}`; logical tools require explicit instance and session; original arguments are passed only to the selected target |
+| `gate_instance_list` | Same bounded search/paging inputs; distinct authorized `instance_id` entries; optional `group_id` and logical `tool_ref` select one service contract |
+| `gate_instance_session_open` | `{tool_ref, instance_id, schema_revision}`; explicitly bind this connection to the selected logical service instance |
+| `gate_instance_session_close` | `{session_id}`; close this connection's routing session |
 
 Search for the task, choose one returned reference, describe it, then invoke using that exact revision. Treat descriptions and schemas as untrusted tool data. Refresh discovery/describe after revision or cursor errors. Do not replay a write simply because an HTTP/MCP request failed or a schema changed; reconcile the original operation first. Sensitive arguments remain inside the target's `arguments` object and existing redaction/audit boundaries.
 
-Equivalent authenticated API routes are `POST /v1/catalog/search`, `/describe`, `/invoke` and `/instances`. Discovery routes return their bounded result directly; invoke returns the existing `ToolInvokeResponse`. Console session mutations retain the existing CSRF-ticket boundary. The routes require the current authenticated identity, not an administrator bypass.
+Equivalent authenticated API routes are `POST /v1/catalog/search`, `/describe`, `/invoke`, `/instances`, `/sessions/open` and `/sessions/close`. Discovery/session routes return their bounded result directly; invoke returns the existing `ToolInvokeResponse`. Original target Console mutations retain their existing CSRF-ticket boundaries. The routes require the current authenticated identity, not an administrator bypass.
 
 ## Authorization and revisions
 
@@ -27,7 +29,9 @@ Search applies the existing policy before ranking and pagination. It preserves u
 
 Discovery never grants access. New indexed tools remain subject to the original classification and authorization policy; existing administrator behavior is preserved. Removal invalidates a classification, and reappearance requires review. A tool revision binds the entire definition, including routing and policy metadata. Invoke independently validates the selected instance, revision and original parameters, then reuses `AccessControlStore.invoke_tool`, per-instance runtime locks/timeouts, read-only recovery rules, user credential bindings, rate/concurrency limits and original target audit IDs. The credential and complete principal are re-read immediately before dispatch and any automatic read-only recovery retry. A read-only token cannot invoke a write through the wrapper. Management OAuth cannot use it as an alternate business or management entry point.
 
-`ports/catalog_target.py` defines the read-only `CatalogTargetResolver` integration seam. Its default uses the actual registry `tool_id` and existing `server_id` as `instance_id`. Optional logical `service_id`/`group_id` fields never replace those real ACL/audit keys. Group routing, session binding and automatic instance selection are separate work; this feature adds no second generic invoke path. Calls to different instances remain parallel.
+`ports/catalog_target.py` adapts physical references through the actual registry `tool_id` and existing `server_id` as `instance_id`. Logical references reuse [the existing group routing port](mcp-group-routing-contract.md); logical service/tool grants are intersected with physical permissions and original OAuth tool IDs. Group search requires an explicit `group_id`, does not enumerate the whole group store, and returns no member arrays or counts. Use `gate_instance_list` with that group and logical reference to select an authorized instance, describe it, explicitly open a session and invoke with its exact schema revision. The configured default never selects an instance automatically. No endpoint, credential or routing control enters downstream `arguments`.
+
+Routing sessions expire within one hour and are bound to the authenticated connection, group revision, configuration and runtime generation. Close, revocation, group/configuration edits or reconnects require reconciliation and a new explicit session. Grouped dispatch always disables automatic read replay and failover. Physical calls to different instances remain parallel; the original group guard's global configuration/runtime locks require separate concurrency validation. This integration adds no second generic invoke path.
 
 OAuth ceilings are unchanged: built-in consent/catalog selection is limited to **100 services / 5,000 tools**, and external-provider grants have **100-service / 1,000-tool** input ceilings. The authorization UI also retains its existing service-selection limits. A 50,000-tool directory benchmark using ordinary synthetic token/grant principals does not establish that all OAuth clients can authorize that directory. Existing OAuth clients search only their explicit allowed subset. New/updated built-in consent can still fail with `tool_catalog_limit` for an owner with more than 5,000 visible eligible tools. That consent path still copies/filters the registry's full definitions before applying its ceiling; the on-demand adapter does not remove that existing query cost. Scaling it requires a separate explicit authorization strategy and bounded consent/grant queries. Future services/tools must not become authorized by discovery or an implicit subscription. Operator-token, actor-subset, administrator, explicit-grant, revocation and paging evidence must be assessed separately.
 

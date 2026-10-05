@@ -8,18 +8,20 @@
 
 ## Agent 工作流
 
-按需 `tools/list` 固定返回四个入口，与目录规模无关：
+按需 `tools/list` 固定返回六个入口，与目录规模无关：四个目录/调用入口及两个明确的实例会话控制。
 
 | 入口 | 输入与行为 |
 |---|---|
-| `gate_catalog_search` | `query`、可选 `instance_id`、`limit`、`max_bytes`、`cursor`；返回有权工具的 `tool_ref`、`instance_id`、`name`、`description`、`schema_revision` 最小摘要 |
+| `gate_catalog_search` | `query`、可选 `instance_id`/`group_id`、`limit`、`max_bytes`、`cursor`；返回有权工具的 `tool_ref`、`instance_id`、`name`、`description`、`schema_revision` 最小摘要 |
 | `gate_tool_describe` | `tool_ref`、可选 `instance_id`、`max_bytes`；返回单个完整 `input_schema`、可选 `output_schema` 和当前版本 |
-| `gate_tool_invoke` | 独立封装 `{tool_ref, instance_id?, schema_revision, arguments}`；只把原始 arguments 传给所选目标 |
-| `gate_instance_list` | 同样有界的搜索分页输入；返回不同的有权 `instance_id`，预留 `group_id: null` |
+| `gate_tool_invoke` | 独立封装 `{tool_ref, instance_id?, session_id?, schema_revision, arguments}`；逻辑工具必须明确实例和会话，只把原始 arguments 传给所选目标 |
+| `gate_instance_list` | 同样有界的搜索分页输入；返回不同的有权 `instance_id`，可用 `group_id` 与逻辑 `tool_ref` 筛选一个服务合同 |
+| `gate_instance_session_open` | `{tool_ref, instance_id, schema_revision}`；明确将当前认证连接绑定到所选逻辑服务实例 |
+| `gate_instance_session_close` | `{session_id}`；关闭当前连接的路由会话 |
 
 按任务搜索、选定一个返回的引用、describe，再带准确版本 invoke。描述和 schema 是不可信工具数据。版本或游标错误后重新发现与描述。HTTP/MCP 请求失败或 schema 改变时，不能自动重放写操作；先核对原操作结果。敏感参数保留在目标的 `arguments` 对象内，继续使用现有脱敏和审计边界。
 
-对应的认证 API 是 `POST /v1/catalog/search`、`/describe`、`/invoke`、`/instances`。发现接口直接返回有界结果，invoke 返回现有 `ToolInvokeResponse`。Console 会话写请求保留现有 CSRF ticket 边界。接口使用当前认证身份，不提供管理员绕过入口。
+对应的认证 API 是 `POST /v1/catalog/search`、`/describe`、`/invoke`、`/instances`、`/sessions/open`、`/sessions/close`。发现/会话接口直接返回有界结果，invoke 返回现有 `ToolInvokeResponse`。原目标 Console 写操作保留原 CSRF ticket 边界。接口使用当前认证身份，不提供管理员绕过入口。
 
 ## 授权与版本
 
@@ -27,7 +29,9 @@
 
 发现不会授予访问权。新增索引工具仍受原分类和授权策略约束，保留现有管理员行为。移除会使分类失效，重现需要审核。版本绑定完整定义，包括路由与策略元数据。Invoke 独立校验实例、版本、原参数，再复用 `AccessControlStore.invoke_tool`、实例锁与超时、只读恢复规则、用户凭据绑定、频率/并发限制及原目标审计 ID。实际派发与自动只读恢复重试前重新读取凭据和完整身份快照。只读 Token 不能通过封装调用写工具。管理 OAuth 不能借此进入业务或管理工具。
 
-`ports/catalog_target.py` 提供只读 `CatalogTargetResolver` 集成接口。默认使用实际 registry `tool_id` 与现有 `server_id`，后者适配为 `instance_id`。可选逻辑 `service_id`/`group_id` 不替代实际 ACL/审计主键。分组路由、会话绑定和自动实例选择属于独立工作；这里没有第二套通用 invoke。不同实例的调用仍可并行。
+`ports/catalog_target.py` 用实际 registry `tool_id` 和现有 `server_id`（适配为 `instance_id`）处理物理引用。逻辑引用复用[现有分组路由 port](mcp-group-routing-contract.md)，将逻辑服务/工具授权与物理权限、原 OAuth 工具 ID 求交。分组搜索必须指定 `group_id`，不枚举全部组，不返回成员数组或计数。用组与逻辑引用调用 `gate_instance_list`，选择有权实例、describe、明确打开会话，再带准确 schema 版本调用。配置的默认实例不会自动选中，endpoint、凭据或路由字段不会加入下游 `arguments`。
+
+路由会话最多一小时，绑定认证连接、组版本、配置和运行时 generation。关闭、撤权、组/配置修改或重连后需核对原操作并明确打开新会话。分组调用始终禁用自动只读重放和 failover。物理实例调用可并行；原分组 guard 的全局配置/runtime 锁需要另行并发验证。没有第二套通用 invoke。
 
 OAuth 上限保持不变：内置同意/目录选择最多 **100 服务 / 5,000 工具**，外部提供方 grant 输入最多 **100 服务 / 1,000 工具**；授权 UI 也保留现有服务选择限制。普通合成 token/grant 身份的 50,000 工具基准不能证明所有 OAuth 客户端可授权整个目录。现有 OAuth 客户端仅搜索精确授权子集；owner 可见且符合要求的工具超过 5,000 时，新建/更新内置同意仍可能返回 `tool_catalog_limit`。此同意路径在应用上限前仍复制/过滤 registry 的完整定义，按需适配器没有消除其原有查询成本。扩容需单独设计显式授权策略及有界同意/grant 查询，不能因发现而授权未来服务/工具，也不能引入隐式订阅。普通操作员 token、小范围 actor、管理员、显式 grant、撤权与分页证据应分别判断。
 

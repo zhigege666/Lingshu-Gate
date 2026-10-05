@@ -118,6 +118,41 @@ class McpGroupRoutingService:
                       for variant in selected[offset:offset + limit]],
             "total": len(selected), "offset": offset, "limit": limit}
 
+    def directory_revision(self, group_id: str) -> tuple[int | None, int]:
+        """Internal cursor marker; never a public discovery count or descriptor."""
+        row = self.groups.store.database.query_one("SELECT revision FROM mcp_groups WHERE id=?", (group_id,))
+        return (int(row[0]) if row is not None else None, self.groups.configs.metadata_revision())
+
+    def directory_page(self, actor: AuthPrincipal, *, group_id: str, keywords: list[str],
+                       tool_ref: str | None, instance_id: str | None, offset: int,
+                       limit: int, instances: bool) -> list[dict[str, Any]]:
+        """Reuse group partitions and current authority; materialize only a page.
+
+        This adapter deliberately omits member counts, full member arrays and
+        contracts. Physical-instance and logical grants were intersected in the
+        existing snapshot before keyword ordering or pagination.
+        """
+        _, visible, variants = self._snapshot(group_id, actor)
+        selected = [variant for variant in variants
+            if all(word in variant.search_text for word in keywords)
+            and (tool_ref is None or logical_tool_ref(group_id, variant.summary.variant_id) == tool_ref)
+            and (instance_id is None or any(member.instance_id == instance_id for member in variant.members))]
+        if instances:
+            identifiers = sorted({member.instance_id for variant in selected for member in variant.members
+                if instance_id is None or member.instance_id == instance_id})
+            return [{"instance_id": identifier, "group_id": group_id}
+                    for identifier in identifiers[offset:offset + limit]]
+        selected.sort(key=lambda variant: (variant.summary.original_tool_name, variant.summary.variant_id))
+        definitions = {item.definition.id: item.definition for item in visible}
+        summaries = []
+        for variant in selected[offset:offset + limit]:
+            definition = definitions[variant.members[0].tool_id]
+            summaries.append({"tool_ref": logical_tool_ref(group_id, variant.summary.variant_id),
+                "instance_id": instance_id, "group_id": group_id,
+                "name": definition.name, "description": definition.description[:1_024],
+                "schema_revision": variant.summary.variant_id})
+        return summaries
+
     def resolve(self, actor: AuthPrincipal, *, tool_ref: str, instance_id: str) -> CatalogTarget:
         selection = GroupToolSelection(tool_ref=tool_ref, instance_id=instance_id)
         _, group_id, variant_id = selection.tool_ref.split(":")
