@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import json
+import hashlib
 from dataclasses import replace
 from threading import Event, Thread
 
@@ -15,6 +16,8 @@ from lingshu_gate.mcp_runtime import McpRuntimeManager, McpServerRuntime, McpSer
 from lingshu_gate.mcp_runtime_state_store import McpRuntimeStateStore
 from lingshu_gate.mcp_http_client import StreamableHttpMcpClient
 from lingshu_gate.registry import ToolExecutionError
+from lingshu_gate.access_control import _tool_fingerprint
+from lingshu_gate.models import ToolDefinition
 
 from test_mcp_groups import PASSWORD, catalog_tool, create, draft
 from test_mcp_groups import gate as gate
@@ -410,3 +413,48 @@ def test_output_only_contract_change_requires_review_and_is_never_auto_published
     page = service.search(gate["principal"], group_id=group["id"])
     pending = next(item for item in page["tools"] if any(member["instance_id"] == "instance-0" for member in item["instances"]))
     assert pending["compatibility"] == "review_required"
+
+
+@pytest.mark.parametrize("change", ["migrate", "add_group"])
+def test_legacy_missing_output_contract_stays_published_without_hash_format_drift(gate, routing, change):
+    service, _, peers = routing
+    manager = service.groups.runtime
+    runtime = manager._servers["instance-0"]
+    # Reproduce the exact v0.4.4 discovery serialization; no output/default
+    # field is invented merely because the new discovery code understands it.
+    old = ToolDefinition(id="mcp.instance-0.inspect", name="inspect", description="Synthetic contract", source="mcp",
+        permission=manager._permission_from_manifest(runtime.manifest), input_schema={}, metadata={
+            "server_id": "instance-0", "server_name": runtime.manifest.name,
+            "launch_type": runtime.manifest.launch.type, "transport_type": runtime.manifest.transport.type,
+            "original_tool_name": "inspect", "annotations": {"readOnlyHint": True}})
+    old_payload = {"id": old.id, "name": old.name, "description": old.description,
+        "permission": old.permission, "source": old.source, "input_schema": old.input_schema,
+        "annotations": {"readOnlyHint": True}, "required_control_permission": None,
+        "output_schema": None, "sensitive_input_fields": None, "sensitive_output_fields": None}
+    legacy_fingerprint = hashlib.sha256(json.dumps(old_payload, ensure_ascii=False, sort_keys=True,
+        separators=(",", ":")).encode()).hexdigest()
+    gate["registry"].update_definition(old)
+    gate["access"].synchronize_tools([old])
+    gate["access"].set_classification(server_id="instance-0", tool_id=old.id, access="read", destructive=False,
+        idempotent=False, reviewer_id=gate["principal"].id)
+    gate["access"].publish_classifications(server_id="instance-0", reviewer_id=gate["principal"].id)
+    before = dict(gate["database"].query_one("SELECT * FROM mcp_tool_classifications WHERE tool_id=?", (old.id,)))
+    raw = [{"name": "inspect", "description": old.description, "inputSchema": {}, "annotations": {"readOnlyHint": True}}]
+    records = manager._mcp_tool_records(runtime, raw, strict=True)
+    current = records[0].definition
+    assert current.model_dump() == old.model_dump()
+    assert _tool_fingerprint(current) == before["fingerprint"] == legacy_fingerprint
+    old_snapshot = [{"id": old.id, "name": old.name, "description": old.description,
+        "input_schema": old.input_schema, "annotations": old.metadata["annotations"]}]
+    legacy_snapshot = hashlib.sha256(json.dumps(old_snapshot, ensure_ascii=False, sort_keys=True,
+        separators=(",", ":")).encode()).hexdigest()
+    assert manager._tool_snapshot_digest(records) == legacy_snapshot
+    if change == "migrate":
+        gate["database"].initialize()
+    else:
+        create(gate, members=["instance-0"])
+    gate["registry"].update_definition(current)
+    gate["access"].synchronize_tools([current])
+    assert dict(gate["database"].query_one("SELECT * FROM mcp_tool_classifications WHERE tool_id=?", (old.id,))) == before
+    assert gate["access"].invoke_tool(gate["registry"], gate["principal"], old.id, {"legacy": True}).ok
+    assert peers["instance-0"].calls == [("inspect", {"legacy": True})]
