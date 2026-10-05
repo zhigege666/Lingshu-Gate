@@ -1508,7 +1508,10 @@ class AccessControlStore:
         correlation_id: str | None = None,
     ) -> ToolInvokeResponse:
         definition = registry.get_definition(tool_id)
-        self.synchronize_tools([definition])
+        # Synchronize the requested definition without projecting every
+        # classification row merely to discard synchronize_tools()'s return.
+        with self.database.session() as connection:
+            self._synchronize_tools(connection, [definition])
         decision = self.evaluate(principal, definition)
         correlation_id = correlation_id or str(uuid4())
         summary = _payload_summary(arguments)

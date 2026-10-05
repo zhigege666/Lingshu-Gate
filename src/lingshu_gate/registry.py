@@ -218,6 +218,12 @@ class ToolRegistry:
         with self._lock:
             return [record.definition for record in self._tools.values()]
 
+    def get_definitions(self, tool_ids: Iterable[str]) -> list[ToolDefinition]:
+        """Read one atomic snapshot of requested IDs without traversing the registry."""
+        requested = tuple(dict.fromkeys(tool_ids))
+        with self._lock:
+            return [self._tools[key].definition for key in requested if key in self._tools]
+
     def get_definition(self, tool_id: str) -> ToolDefinition:
         with self._lock:
             try:
