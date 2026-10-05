@@ -192,12 +192,13 @@ def validate_arguments(schema: dict[str, Any], arguments: dict[str, Any], *,
 def _worker() -> None:
     # No inherited Gate runtime, lease or credential object. The parent kills
     # this process on cancellation/deadline, including regex CPU exhaustion.
-    try:
-        import resource
-        resource.setrlimit(resource.RLIMIT_CPU, (2, 3))
-        resource.setrlimit(resource.RLIMIT_AS, (512 * 1024 * 1024, 512 * 1024 * 1024))
-    except ImportError:
-        pass  # Parent process termination supplies the portable wall-time bound.
+    if sys.platform == "linux":
+        try:
+            import resource
+            resource.setrlimit(resource.RLIMIT_CPU, (2, 3))
+            resource.setrlimit(resource.RLIMIT_AS, (512 * 1024 * 1024, 512 * 1024 * 1024))
+        except ImportError:
+            pass  # Parent process termination supplies the portable wall-time bound.
     from jsonschema import FormatChecker
     from jsonschema.validators import validator_for
     from referencing import Registry
