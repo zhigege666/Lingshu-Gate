@@ -638,38 +638,49 @@ def test_catalog_malformed_registry_contract_fails_closed_without_mutating_revie
     handler.assert_not_called()
 
 
-@pytest.mark.parametrize("change", ["tools_permission", "token_scopes", "token_revoked", "delegation"])
+@pytest.mark.parametrize("change", ["tools_permission", "token_scopes", "token_revoked", "token_deleted",
+                                    "token_expired", "user_disabled", "delegation"])
 def test_catalog_rechecks_current_authority_after_waiting_for_configuration_lock(gate, change):
     group = create(gate)
-    catalog_tool(gate, "instance-0")
+    _, handler = catalog_tool(gate, "instance-0")
     token, _ = catalog_token(gate, ["operations.manage", "tools.read"])
     actor = gate["auth"]._principal_from_api_token(token["token"])
     if change == "delegation":
         actor = replace(actor, delegated_scopes=("operations.manage",))
-    with gate["configs"].mutation_lock, ThreadPoolExecutor(max_workers=1) as pool:
-        started = threading.Event()
-        def read():
-            started.set()
-            return gate["catalog"].catalog(group["id"], actor)
-        future = pool.submit(read)
-        assert started.wait(2)
-        if change == "tools_permission":
-            gate["database"].execute("DELETE FROM role_permissions WHERE permission_id=(SELECT id FROM control_permissions WHERE code='tools.read')")
-        elif change == "token_scopes":
-            gate["database"].execute("UPDATE api_tokens SET scopes_json=? WHERE id=?", (json.dumps(["operations.manage"]), token["id"]))
-        elif change == "token_revoked":
-            gate["database"].execute("UPDATE api_tokens SET revoked_at='2026-10-05T00:00:00Z' WHERE id=?", (token["id"],))
-        gate["configs"].mutation_lock.release()
-        try:
-            if change == "token_revoked":
-                with pytest.raises(McpGroupError) as denied:
-                    future.result(timeout=10)
-                assert denied.value.status == 403
-            else:
-                result = future.result(timeout=10)
-                assert result.total == result.visible_tool_count == result.visible_member_count == 0
-        finally:
-            gate["configs"].mutation_lock.acquire()
+    checked = threading.Event()
+    original_check = gate["service"].check
+    def initial_check(current, **kwargs):
+        original_check(current, **kwargs)
+        checked.set()
+    with patch.object(gate["service"], "check", side_effect=initial_check), \
+            patch.object(gate["access"], "visible_tool_contracts", wraps=gate["access"].visible_tool_contracts) as projection, \
+            ThreadPoolExecutor(max_workers=1) as pool:
+        with gate["configs"].mutation_lock:
+            future = pool.submit(gate["catalog"].catalog, group["id"], actor)
+            assert checked.wait(3), "Initial authorization must succeed before authority changes"
+            assert not future.done(), "The configuration lock must still block the catalog"
+            if change == "tools_permission":
+                gate["database"].execute("DELETE FROM role_permissions WHERE permission_id=(SELECT id FROM control_permissions WHERE code='tools.read')")
+            elif change == "token_scopes":
+                gate["database"].execute("UPDATE api_tokens SET scopes_json=? WHERE id=?", (json.dumps(["operations.manage"]), token["id"]))
+            elif change == "token_revoked":
+                gate["database"].execute("UPDATE api_tokens SET revoked_at='2026-10-05T00:00:00Z' WHERE id=?", (token["id"],))
+            elif change == "token_deleted":
+                gate["database"].execute("DELETE FROM api_tokens WHERE id=?", (token["id"],))
+            elif change == "token_expired":
+                gate["database"].execute("UPDATE api_tokens SET expires_at='2000-01-01T00:00:00Z' WHERE id=?", (token["id"],))
+            elif change == "user_disabled":
+                gate["database"].execute("UPDATE users SET status='disabled' WHERE id=?", (actor.id,))
+        if change in {"token_revoked", "token_deleted", "token_expired", "user_disabled"}:
+            with pytest.raises(McpGroupError) as denied:
+                future.result(timeout=10)
+            assert denied.value.status == 403
+            assert denied.value.code == ("group_admin_required" if change == "user_disabled" else "group_connection_invalid")
+            projection.assert_not_called()
+        else:
+            result = future.result(timeout=10)
+            assert result.total == result.visible_tool_count == result.visible_member_count == 0
+    handler.assert_not_called()
 
 
 def test_catalog_excludes_other_sources_forged_ids_and_unconfirmed_recreated_members(gate):
