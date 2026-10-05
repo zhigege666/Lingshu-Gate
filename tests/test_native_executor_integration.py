@@ -16,6 +16,7 @@ from types import SimpleNamespace
 from unittest.mock import patch
 
 import pytest
+import yaml
 
 from lingshu_gate.adapters.native_executor.controller import PodmanController
 from lingshu_gate.adapters.native_executor.executor import NativeNetworkExecutor
@@ -71,6 +72,7 @@ class Transport:
     def __init__(self, objects, tool, dependency):
         self.objects, self.tool, self.dependency = objects, tool, dependency
         self.calls = []
+        self.manager, self.version, self.engines = "npm", "11.6.0", "^20.17.0 || >=22.9.0"
 
     def request(self, url, **kwargs):
         self.calls.append((url, {**kwargs, "material": dict(kwargs["material"])}))
@@ -80,9 +82,9 @@ class Transport:
             assert f"want {self.objects.commit} ".encode() in kwargs["body"]
             assert b"main" not in kwargs["body"]
             return 200, packet(b"NAK\n") + packet(b"\x01PACKfixture") + b"0000"
-        if url.endswith("/npm/11.6.0"):
-            return 200, json.dumps({"name": "npm", "version": "11.6.0", "engines": {"node": "^20.17.0 || >=22.9.0"}, "dist": {"integrity": sri(self.tool), "tarball": "https://registry.npmjs.org/npm/-/npm-11.6.0.tgz"}}).encode()
-        if url.endswith("/npm/-/npm-11.6.0.tgz"):
+        if url.endswith("/" + self.manager + "/" + self.version):
+            return 200, json.dumps({"name": self.manager, "version": self.version, "engines": {"node": self.engines}, "dist": {"integrity": sri(self.tool), "tarball": f"https://registry.npmjs.org/{self.manager}/-/{self.manager}-{self.version}.tgz"}}).encode()
+        if url.endswith(f"/{self.manager}/-/{self.manager}-{self.version}.tgz"):
             return 200, self.tool
         if url.endswith("/dep/-/dep-1.0.0.tgz"):
             return 200, self.dependency
@@ -112,7 +114,9 @@ class FixtureController(PodmanController):
         directory.mkdir()
         output = directory / "output"
         output.mkdir()
-        result = {"returncode": 0, "node_version": self.node_version, "package_manager_version": "11.6.0", "duration_ms": 1}
+        result = {"returncode": 0, "node_version": self.node_version, "package_manager_version": request.get("version", "11.6.0"), "duration_ms": 1}
+        if request["kind"] == "tool_probe":
+            result["package_manager_version"] = json.loads((mounts["/tool"] / "package" / "package.json").read_text())["version"]
         if request["kind"] == "git":
             (output / "objects").mkdir()
             lines = []
@@ -121,7 +125,7 @@ class FixtureController(PodmanController):
                 lines.append(f"{oid} {kind} {len(content)}")
             (output / "objects.list").write_text("\n".join(lines))
             result.update({"object_format": "sha1", "commit_sha": request["commit_sha"]})
-        elif request["kind"] == "npm_seed":
+        elif request["kind"] in {"npm_seed", "pnpm_seed", "yarn_seed"}:
             (output / "cache").mkdir()
             (output / "cache" / "verified-cache").write_text("fixture")
         elif request["kind"] == "command":
@@ -129,7 +133,7 @@ class FixtureController(PodmanController):
             package = output / "project" / "node_modules" / "dep"
             package.mkdir(parents=True, exist_ok=True)
             (package / "index.js").write_text("fixture dependency")
-            if request["command"] == ["npm", "run", "build"]:
+            if request["command"][1:] == ["run", "build"]:
                 (output / "project" / "built.js").write_text("fixture build")
             if self.mutate:
                 self.mutate(output / "project")
@@ -216,6 +220,69 @@ def test_git_exact_import_tool_prepare_install_build_artifact_and_idempotency(fl
     assert [call[0]["kind"] for call in flow.controller.calls] == ["git", "tool_probe", "npm_seed", "command", "command"]
     assert flow.network.settings()["executor"]["available"]
     assert len([url for url, _ in flow.transport.calls if url.endswith(".tgz")]) == 2
+
+
+def use_manager(flow, name, version):
+    engines = ">=16.14" if name == "pnpm" and version.startswith("8.") else ">=18.12" if name == "pnpm" else ">=4.0.0"
+    cli = "bin/pnpm.cjs" if name == "pnpm" else "bin/yarn.js"
+    flow.transport.manager, flow.transport.version, flow.transport.engines = name, version, engines
+    flow.transport.tool = archive({"package/package.json": json.dumps({"name": name, "version": version, "engines": {"node": engines}}).encode(), "package/" + cli: b"// reviewed fixture"})
+    package = {"name": "fixture", "version": "1.0.0", "packageManager": name + "@" + version, "bin": "index.mjs", "dependencies": {"dep": "1.0.0"}, "scripts": {"build": "fixture-build", "preinstall": "fixture-untrusted-script"}}
+    if name == "yarn":
+        lockfile = "yarn.lock"
+        content = f'# yarn lockfile v1\n\ndep@1.0.0:\n  version "1.0.0"\n  resolved "https://registry.yarnpkg.com/dep/-/dep-1.0.0.tgz#{hashlib.sha1(flow.transport.dependency).hexdigest()}"\n  integrity {sri(flow.transport.dependency)}\n'.encode()
+    else:
+        lockfile = "pnpm-lock.yaml"
+        major = int(version.split(".")[0])
+        pin = {"specifier": "1.0.0", "version": "1.0.0"}
+        data = {"lockfileVersion": "6.0" if major == 8 else "9.0", "settings": {"autoInstallPeers": True, "excludeLinksFromLockfile": False}, "packages": {("/" if major == 8 else "") + "dep@1.0.0": {"resolution": {"integrity": sri(flow.transport.dependency)}}}}
+        if major == 8:
+            data["dependencies"] = {"dep": pin}
+        else:
+            data["importers"] = {".": {"dependencies": {"dep": pin}}}
+            data["snapshots"] = {"dep@1.0.0": {}}
+        content = yaml.safe_dump(data).encode()
+    objects = Objects({"package.json": json.dumps(package).encode(), lockfile: content, "index.mjs": b"export {};"})
+    flow.objects = flow.controller.objects = flow.transport.objects = objects
+    return lockfile, content
+
+
+@pytest.mark.parametrize("name,version", [("yarn", "1.22.22"), ("pnpm", "8.15.9"), ("pnpm", "9.15.4")])
+def test_selected_manager_git_prepare_cache_install_build_and_artifact_closed_flow(flow, name, version):
+    lockfile, content = use_manager(flow, name, version)
+    with patch("lingshu_gate.build_deploy._run_command", side_effect=AssertionError("Host project execution is prohibited")):
+        result = build(flow, acquire(flow))
+    assert result["status"] == "success", result
+    artifact = Path(flow.builds.get_build(result["build_id"])["artifact_dir"])
+    assert (artifact / lockfile).read_bytes() == content
+    assert (artifact / "built.js").read_text() == "fixture build"
+    assert (artifact / "node_modules" / "dep" / "index.js").is_file()
+    assert [request["kind"] for request, _ in flow.controller.calls] == ["git", "tool_probe", name + "_seed", "command", "command"]
+    seeded = next((request, mounts) for request, mounts in flow.controller.calls if request["kind"] == name + "_seed")
+    assert seeded[0]["version"] == version and "lockfile_sha256" in seeded[0]["binding"]
+    commands = [request["command"] for request, _ in flow.controller.calls if request["kind"] == "command"]
+    assert commands == [[name, "install", "--frozen-lockfile"], [name, "run", "build"]]
+    assert "pnpm_8_9_registry_lock_v3_store" in flow.executor.readiness()["support"]["offline_install"]
+    assert not list(flow.controller.workspaces.iterdir())
+
+
+@pytest.mark.parametrize("name,version", [("yarn", "1.22.22"), ("pnpm", "9.15.4")])
+def test_frozen_install_lock_mutation_cannot_publish_artifact(flow, name, version):
+    lockfile, _ = use_manager(flow, name, version)
+    upload = acquire(flow)
+    flow.controller.mutate = lambda root: (root / lockfile).write_text("changed by lifecycle")
+    result = build(flow, upload)
+    assert result["status"] == "failed", result
+    artifact = Path(flow.builds.get_build(result["build_id"])["artifact_dir"])
+    assert not list(artifact.iterdir())
+
+
+@pytest.mark.parametrize("version", ["10.18.0", "11.0.0"])
+def test_pnpm_unreviewed_cache_format_blocks_plan_before_tool_or_content_acquisition(flow, version):
+    with pytest.raises(ToolExecutionError) as rejected:
+        flow.executor.validate_plan({"package_manager": {"name": "pnpm", "version": version}, "steps": [{"phase": "install", "command": ["pnpm", "install", "--frozen-lockfile"]}]})
+    assert rejected.value.code == "pnpm_cache_format_unsupported"
+    assert not flow.controller.calls and not flow.transport.calls
 
 
 def test_artifact_secret_and_external_link_rejection_keeps_source_and_old_deployment(flow):

@@ -51,7 +51,8 @@ Network 设置响应现在返回观测到的 `executor.available`、稳定 code�
 | Git | HTTPS smart v0/v1、SHA-1 完整 commit、精确 branch/tag 广告、浅层固定 commit 获取、隔离 strict pack 解析、原始 object 校验导出 | SSH、helper、redirect、hook/filter、submodule/LFS、SHA-256 仓库、不支持协议 |
 | 代理 | HTTP CONNECT、SOCKS5/SOCKS5H，使用已验证数字上游 IP 和原 host 的 TLS SNI/证书校验 | HTTPS 代理传输、未审 host/port、代理远程 DNS 选择、direct 回退 |
 | 工具准备 | 固定官方 npm 9–11、pnpm 8–11、Yarn Classic 1.22 分发包；官方 SHA-512、可选声明 integrity、有界无链接解包、实际 CLI/Node 探测 | 缺失/未知 metadata、engines 不匹配、缓存变化、工具 lifecycle、Corepack/global install/Node bootstrap |
-| 依赖安装 | 仅 registry 的 npm package-lock/shrinkwrap v2/v3、有界完整 packages 表、强固定 SRI、可信 tarball 获取、npm 缓存准备和 `npm ci --offline` | pnpm/Yarn/Python 缓存安装；npm workspace/link/bundled；Git/file/custom origin；弱/缺失 integrity；项目 manager/network rc |
+| 依赖安装 | registry-only npm lock v2/v3；pnpm 8/9 匹配锁和官方 v3 store；Yarn Classic 1.22 v1 锁和官方 offline mirror/cache；强固定 SRI、有界获取及离线冻结安装 | pnpm 10/11 package-ID store、Berry、workspace/link/patch/override/bundled、Git/file/alias/custom origin、弱/缺失 integrity 和项目 rc/hook |
+| Python | 本适配器之外既有 upload/direct `requirements.txt` legacy 路径 | Git/profile Python sandbox 安装、Poetry/uv/bootstrap；本批没有 Python cache adapter |
 | 构建 | 所选受审 npm/pnpm/Yarn 的 `run build`，在无秘密离线 sandbox 执行，含已有足够源码的 build-only 项目 | 任意命令、路径、镜像；联网回退；非计划 manager/Node 下载 |
 
 既有 manager 矩阵描述源码与计划格式，不代表本适配器支持全部缓存安装。未支持安装命令在计划/排队时可见地阻断；其他未支持 npm 缓存形态在依赖获取前拒绝。不会把所选 manager 改为 npm。多锁文件继续遵循精确 `packageManager`、已保存 override 和 shrinkwrap 原生优先级。
@@ -68,7 +69,9 @@ HTTPS 禁 redirects、编码响应、环境代理和自动重试，限制 header
 
 同一 socket supervisor 贯穿 TCP connect、代理协商、显式 TLS handshake、发送和响应，始终使用原 deadline 并重算剩余预算。握手后取消会在构造/发送 origin 认证前重查。连接中和握手中 socket 在阻塞操作前注册，确保全程取消均能关闭它们。
 
-可信获取不执行项目或依赖代码。Git 在无网络 sandbox 只解析 pack，原始 object 导出绕过 checkout、attributes、filters。官方工具解包不执行 lifecycle；npm 缓存准备只使用 SRI 已验证的官方 cache library 和 blobs。项目容器把只读 source/tool/cache 复制到有界工作目录，没有 proxy/auth 环境、外部网络、SSH agent 或 Gate socket/home。项目及依赖 lifecycle 都在用户确认的 install/build 范围中运行。
+可信获取不执行项目或依赖代码。Git 在无网络 sandbox 只解析 pack，原始 object 导出绕过 checkout、attributes、filters。官方工具解包不执行 lifecycle；npm 缓存准备只使用 SRI 已验证的官方 cache library 和 blobs。Yarn 接收只读、已校验的 registry mirror（存在旧 SHA-1 fragment 时额外核验），固定 CLI 使用仅携带依赖请求的 seed manifest 执行 `--offline --frozen-lockfile --ignore-scripts`。pnpm 8/9 由官方 CLI 将已验证本地 tarball 写入 SHA-512 寻址的 v3 store，再禁用 hook/script 验证 seed 的离线冻结安装。导出缓存前删除 seed 项目和 node_modules。原锁字节保持不变，项目安装后再次核对。项目容器把只读 source/tool/cache 复制到有界工作目录，没有 proxy/auth 环境、外部网络、SSH agent 或 Gate socket/home。项目及依赖 lifecycle 都在用户确认的 install/build 范围中运行。
+
+pnpm 10/11 的工具准备和 build-only 仍可用，但依赖安装在获取前返回 `pnpm_cache_format_unsupported`。其索引还绑定 package ID，本地 file seeding 不能直接证明同一 registry index；下一步需要按版本、完整性和 registry ID 绑定的受审缓存写入器，再验证真实离线冻结闭包，不能伪造 store JSON 或替换 npm。v3 路径要求 SHA-512、匹配的单项目锁且无 patch/override。Yarn 要求有界 Classic v1 registry 记录及单一强 SRI；两条路径都拒绝 alias、自定义 registry 路径前缀和不完整/未支持闭包。缓存语义对照了 [Yarn Classic 精确版本 tarball 实现](https://github.com/yarnpkg/yarn/blob/v1.22.22/src/fetchers/tarball-fetcher.js)和 [pnpm 9.15.4 精确 v3 index 路径](https://github.com/pnpm/pnpm/blob/v9.15.4/store/cafs/src/getFilePathInCafs.ts)。
 
 ## 日志、输出与恢复
 
@@ -88,6 +91,6 @@ journal 独立持久记录 `cleanup_state=pending/cleaned`。已确认取消、�
 
 ## 证据与剩余验收
 
-合成测试使用假 socket/engine，验证真实 HTTPS framing/策略、原始 object、官方解包/cache、GitImport/BuildDeploy 链、幂等、秘密/链接拒绝、整组取消/超时/未知/重启及 Core guard。未连接用户仓库、代理、凭据，未运行项目脚本。实际 Podman namespaces/controllers、Git HTTP 协商、npm 离线 cache/install、官方工具探测和恶意 lifecycle 隔离仍是未测宿主验收项。实际数量见分支提交/检查报告；合成通过不是宿主验收。
+合成测试使用假 socket/engine，验证真实 HTTPS framing/策略、原始 object、官方解包/cache、npm/pnpm 8–9/Yarn Classic 的 GitImport/BuildDeploy 链、幂等、秘密/链接/锁改写拒绝、整组取消/超时/未知/重启及 Core guard。未连接用户仓库、代理、凭据，未运行项目脚本。实际 Podman namespaces/controllers、Git HTTP 协商、npm/pnpm/Yarn 离线 cache/install、官方工具探测和恶意 lifecycle 隔离仍是未测宿主验收项。Native-only、Core-gateway 阶段不代表 Docker 用户完整交付/构建/部署/启动链完成。实际数量见分支提交/检查报告；合成通过不是宿主验收。
 
 Podman 参数与 rootless 语义对照了[官方 run 文档](https://docs.podman.io/en/latest/markdown/podman-run.1.html)。控制器委派与整组终止仍须实际自检及管理员验收。

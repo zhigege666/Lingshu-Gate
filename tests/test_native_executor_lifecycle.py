@@ -131,7 +131,7 @@ def test_restart_reconciliation_stops_orphan_without_dispatch(engine):
 
 
 @pytest.mark.parametrize("exit_code,state_name", [(0, "completed"), (23, "failed")])
-@pytest.mark.parametrize("kind", ["command", "npm_seed", "git", "tool_probe"])
+@pytest.mark.parametrize("kind", ["command", "npm_seed", "pnpm_seed", "yarn_seed", "git", "tool_probe"])
 def test_shared_result_cannot_forge_phase_success_before_observed_exit(engine, exit_code, state_name, kind):
     controller, calls, state = engine
     state["exit_code"] = exit_code

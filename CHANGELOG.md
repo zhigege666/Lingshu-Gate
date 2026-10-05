@@ -2,7 +2,7 @@
 
 ## Unreleased — Native executor
 
-- Implement the optional Native/Linux rootless Podman executor, trusted pinned HTTPS/Git acquisition, official exact tool cache, registry-only npm offline install/build, observed readiness and durable phase/container/cgroup reconciliation. Core remains gateway-only. pnpm/Yarn/Python cache installs and unsupported origins are refused; physical host acceptance remains untested.
+- Implement the optional Native/Linux rootless Podman executor, trusted pinned HTTPS/Git acquisition, official exact tool cache, registry-only npm/pnpm 8–9/Yarn Classic offline frozen install/build, observed readiness and durable phase/container/cgroup reconciliation. Core remains gateway-only. pnpm 10/11, Yarn Berry, Python sandbox caches and unsupported origins are refused; physical host acceptance remains untested.
 
 ## 0.4.4
 

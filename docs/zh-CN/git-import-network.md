@@ -12,7 +12,7 @@ Git 拉取和依赖安装分别配置默认值。项目明确选择 `inherit`（
 
 ## 来源到交付
 
-Native adapter 代码已存在，宿主准备与真实验收分开。首个缓存闭环仅支持 registry-only npm lock v2/v3；pnpm/Yarn/Python 安装及不安全 npm 缓存形态明确拒绝。固定官方 npm/pnpm/Yarn 工具准备和所选离线 Node build script 已实现。见[执行决策](git-executor-decision.md)及[精确支持矩阵](native-executor.md#获取与包支持)。Core 远程阶段/制品/runtime 交付不在本范围。
+Native adapter 代码已存在，宿主准备与真实验收分开。缓存闭环覆盖 registry-only npm lock v2/v3、pnpm 8/9 v3 store、Yarn Classic 1.22 mirror；pnpm 10/11、Berry、Python sandbox 安装及不安全缓存形态明确拒绝。固定官方 npm/pnpm/Yarn 工具准备和所选离线 Node build script 已实现。见[执行决策](git-executor-decision.md)及[精确支持矩阵](native-executor.md#获取与包支持)。Core 远程阶段/制品/runtime 交付不在本范围。
 
 来源表单接受 HTTPS 仓库 URL、分支/tag/完整 commit、相对项目子目录、私有仓库凭据引用、独立 Git/安装网络选择，以及 Node/Python 运行模板。任何网络请求前先验证输入。安全执行器必须从实际环境解析完整 commit SHA；歧义或不存在的 ref 均失败。导入计划绑定 SHA、来源选择、凭据修订、网络修订、策略修订、限制和摘要。拉取单独要求明确确认及幂等键，固定取该 SHA，不重新解析移动分支。执行器输出有界 ZIP，不输出 Git 工作目录。Gate 经 `ProjectUploadStore` 验证并导入，附上源码/文件清单摘要、仓库 commit、所选修订和来源记录，继续原有构建部署链路。
 
@@ -47,7 +47,7 @@ Native adapter 代码已存在，宿主准备与真实验收分开。首个缓�
 
 ## 依赖支持矩阵
 
-下列是有版本边界的源码/计划规则，不代表真实安装已验收或 Native 全缓存支持。Native 仅支持 npm registry-only 缓存安装，pnpm/Yarn/Python 缓存安装明确拒绝。请求版本必须存在于官方元数据并满足对应 Node engines；未知版本失败，默认策略不能替换显式声明。
+下列是有版本边界的源码/计划规则，不代表真实安装已验收或 Native 全缓存支持。Native 已实现 registry-only npm、pnpm 8/9、Yarn Classic 冻结缓存安装；pnpm 10/11、Berry、Python sandbox 安装明确拒绝。请求版本必须存在于官方元数据并满足对应 Node engines；未知版本失败，默认策略不能替换显式声明。
 
 | 工具 | 锁格式 | 冻结命令 | Node 要求 / 边界 |
 |---|---|---|---|
@@ -57,7 +57,7 @@ Native adapter 代码已存在，宿主准备与真实验收分开。首个缓�
 | pnpm 11，含 11.5.0 | 9 / 9.0 | `pnpm install --frozen-lockfile` | 实际 Node >=22.13 **且**满足精确官方 engines；不自动升级 Node |
 | Yarn Classic 1.22.x | v1 | `yarn install --frozen-lockfile` | 核验精确官方分发的 engines |
 | Yarn Berry / pnpm 12 / 其他 Node 工具 | — | — | 明确不支持，不回退 Classic/npm/其他版本 |
-| Python requirements | requirements.txt | 既有 `python -m pip install -r requirements.txt` | 沿用 Python/pip 流程，不新增 Poetry/uv/bootstrap 支持 |
+| Python requirements | requirements.txt | 既有 `python -m pip install -r requirements.txt` | 仅既有 upload/direct Python/pip legacy 路径，不属于本适配器；Git/profile sandbox 安装及 Poetry/uv/bootstrap 不支持 |
 
 pnpm 11.5.0 版本证据：[官方 package engines](https://github.com/pnpm/pnpm/blob/v11.5.0/pnpm/package.json)、[安装命令语义](https://github.com/pnpm/pnpm/blob/v11.5.0/installing/commands/src/install.ts)、[提交的 9.0 锁文件](https://github.com/pnpm/pnpm/blob/v11.5.0/pnpm-lock.yaml)。仅阅读官方元数据/源码，未安装或运行 pnpm 分发包。运行时/工具自动下载及依赖出口变更必须由受审查执行器禁止，不能依赖工具自身的默认行为。
 

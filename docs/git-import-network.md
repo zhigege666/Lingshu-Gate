@@ -12,7 +12,7 @@ This development branch implements an optional [Native/Linux rootless Podman exe
 
 ## Source to delivery
 
-Native adapter code is now present. Administrator provisioning and real acceptance remain separate. The first dependency cache workflow is registry-only npm lock v2/v3; pnpm/Yarn/Python installs and unsafe npm cache shapes fail explicitly. Official pinned npm/pnpm/Yarn tool preparation and selected offline Node build scripts are implemented. See the [execution decision](git-executor-decision.md) and [precise supported matrix](native-executor.md#acquisition-and-package-support). Core remote phase/artifact/runtime delivery remains outside this scope.
+Native adapter code is now present. Administrator provisioning and real acceptance remain separate. The registry cache workflows cover npm lock v2/v3, pnpm 8/9 v3 stores and Yarn Classic 1.22 mirrors; pnpm 10/11, Berry, Python sandbox installs and unsafe cache shapes fail explicitly. Official pinned npm/pnpm/Yarn tool preparation and selected offline Node build scripts are implemented. See the [execution decision](git-executor-decision.md) and [precise supported matrix](native-executor.md#acquisition-and-package-support). Core remote phase/artifact/runtime delivery remains outside this scope.
 
 The source form accepts HTTPS repository URL, branch/tag/full commit, relative project directory, private repository credential reference, independent Git/install network selections, and Node/Python runtime template. Preview validates input before any network request. A safe executor must resolve a full commit SHA in its actual environment; ambiguous or missing refs fail. The import plan binds that SHA, source selection, credential revisions, network revisions, policy revision, limits, and a digest. Acquisition requires separate explicit confirmation and an idempotency key. It fetches that exact SHA, never re-resolves a moving branch. The executor exports a bounded ZIP without a working Git directory. Gate validates and imports it through `ProjectUploadStore`, then attaches source/file-list digests, repository commit, selected revisions and provenance. It does not create a parallel builder or deployment path.
 
@@ -47,7 +47,7 @@ Without an exact declaration/override, isolated plans visibly pin policy version
 
 ## Supported dependency matrix
 
-These are bounded source/plan rules, not a claim of tested real installs or full Native cache support. The Native adapter supports npm registry-only cache installs; pnpm/Yarn/Python cache installation is explicitly refused. Every requested version must exist in official metadata and satisfy its exact Node engines. Unknown versions fail; the default policy never replaces an explicit declaration.
+These are bounded source/plan rules, not a claim of tested real installs or full Native cache support. The Native adapter implements registry-only npm, pnpm 8/9 and Yarn Classic frozen cache installs; pnpm 10/11, Berry and Python sandbox installation are explicitly refused. Every requested version must exist in official metadata and satisfy its exact Node engines. Unknown versions fail; the default policy never replaces an explicit declaration.
 
 | Manager | Lock format | Frozen command | Node requirement / boundary |
 |---|---|---|---|
@@ -57,7 +57,7 @@ These are bounded source/plan rules, not a claim of tested real installs or full
 | pnpm 11, including 11.5.0 | 9 / 9.0 | `pnpm install --frozen-lockfile` | Actual Node >=22.13 **and** exact official engines; no Node auto-upgrade |
 | Yarn Classic 1.22.x | v1 | `yarn install --frozen-lockfile` | Verify exact official distribution engines |
 | Yarn Berry / pnpm 12 / other Node managers | — | — | Explicitly unsupported; no Classic/npm/version fallback |
-| Python requirements | requirements.txt | Existing `python -m pip install -r requirements.txt` | Existing Python/pip flow; no added Poetry/uv/bootstrap support |
+| Python requirements | requirements.txt | Existing `python -m pip install -r requirements.txt` | Legacy upload/direct Python/pip only, outside this adapter; Git/profile sandbox installs and Poetry/uv/bootstrap are unsupported |
 
 Version-specific pnpm 11.5.0 evidence: [official package engines](https://github.com/pnpm/pnpm/blob/v11.5.0/pnpm/package.json), [installation command semantics](https://github.com/pnpm/pnpm/blob/v11.5.0/installing/commands/src/install.ts), [committed 9.0 lockfile](https://github.com/pnpm/pnpm/blob/v11.5.0/pnpm-lock.yaml). Only official metadata/source was read; no pnpm distribution was installed or run. Runtime/tool auto-download and dependency-origin changes must be disabled by the reviewed executor. This is independent of the tools' default behavior.
 

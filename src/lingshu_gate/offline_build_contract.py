@@ -30,7 +30,8 @@ def _deny(message: str) -> NoReturn:
     raise ToolExecutionError("offline_contract_invalid", message, next_action="Prepare a complete reviewed source/tool/dependency inventory; online fallback is prohibited.")
 
 
-def _integrity(value: str) -> tuple[str, bytes]:
+def parse_strong_sri(value: str) -> tuple[str, bytes]:
+    """Validate one canonical strong content hash before any cache parsing."""
     if not isinstance(value, str) or len(value) > 128:
         _deny("Dependency integrity exceeds its bounded SRI field")
     matched = re.fullmatch(r"(sha256|sha384|sha512)-([A-Za-z0-9+/]+={0,2})", value)
@@ -102,7 +103,7 @@ def validate_dependency_graph(nodes: Iterable[DependencyNode], roots: tuple[str,
         metadata_bytes += len(node.key.encode()) + len(node.source_url.encode()) + len(node.integrity.encode()) + sum(len(key.encode()) for key in node.dependencies)
         if metadata_bytes > GRAPH_LIMITS["metadata_bytes"]:
             _deny("Dependency graph exceeds its metadata byte limit")
-        _integrity(node.integrity)
+        parse_strong_sri(node.integrity)
         try:
             validate_endpoint(node.source_url, {"https"})
             parts = urlsplit(node.source_url)
@@ -132,7 +133,7 @@ def verify_dependency_content(node: DependencyNode, chunks: Iterable[bytes], *, 
     """Verify bounded downloaded/cache content; never fetch or extract it."""
     if type(max_bytes) is not int or not 0 < max_bytes <= 50 * 1024 * 1024:
         _deny("Dependency content requires a positive bounded byte limit")
-    algorithm, expected = _integrity(node.integrity)
+    algorithm, expected = parse_strong_sri(node.integrity)
     digest = hashlib.new(algorithm)
     total = 0
     for chunk in chunks:

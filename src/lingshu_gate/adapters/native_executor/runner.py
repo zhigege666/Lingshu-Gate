@@ -25,7 +25,7 @@ def protect_runner() -> None:
 
 
 def environment() -> dict[str, str]:
-    return {"PATH": "/tool/shims:/work/project/node_modules/.bin:/usr/local/bin:/usr/bin:/bin", "HOME": "/tmp/gate-home", "LANG": "C.UTF-8", "CI": "true", "COREPACK_ENABLE_NETWORK": "0", "COREPACK_ENABLE_AUTO_PIN": "0", "npm_config_cache": "/work/cache", "npm_config_offline": "true", "npm_config_audit": "false", "npm_config_fund": "false", "npm_config_update_notifier": "false", "npm_config_userconfig": "/dev/null", "npm_config_globalconfig": "/dev/null", "npm_config_registry": "https://registry.npmjs.org/", "npm_config_manage_package_manager_versions": "false", "npm_config_package_manager_strict": "false", "npm_config_package_manager_strict_version": "false", "npm_config_use_node_version": "", "YARN_IGNORE_PATH": "1", "YARN_ENABLE_NETWORK": "0", "NODE_OPTIONS": "", "GIT_CONFIG_NOSYSTEM": "1", "GIT_CONFIG_GLOBAL": "/dev/null", "GIT_CONFIG_SYSTEM": "/dev/null", "GIT_TERMINAL_PROMPT": "0", "GIT_NO_REPLACE_OBJECTS": "1", "GIT_LFS_SKIP_SMUDGE": "1"}
+    return {"PATH": "/tool/shims:/work/project/node_modules/.bin:/usr/local/bin:/usr/bin:/bin", "HOME": "/tmp/gate-home", "LANG": "C.UTF-8", "CI": "true", "COREPACK_ENABLE_NETWORK": "0", "COREPACK_ENABLE_AUTO_PIN": "0", "npm_config_cache": "/work/cache", "npm_config_store_dir": "/work/cache", "npm_config_package_import_method": "copy", "npm_config_ignore_pnpmfile": "true", "npm_config_offline": "true", "npm_config_audit": "false", "npm_config_fund": "false", "npm_config_update_notifier": "false", "npm_config_userconfig": "/dev/null", "npm_config_globalconfig": "/dev/null", "npm_config_registry": "https://registry.npmjs.org/", "npm_config_manage_package_manager_versions": "false", "npm_config_package_manager_strict": "false", "npm_config_package_manager_strict_version": "false", "npm_config_use_node_version": "", "YARN_CACHE_FOLDER": "/work/cache", "YARN_IGNORE_PATH": "1", "YARN_ENABLE_NETWORK": "0", "NODE_OPTIONS": "", "GIT_CONFIG_NOSYSTEM": "1", "GIT_CONFIG_GLOBAL": "/dev/null", "GIT_CONFIG_SYSTEM": "/dev/null", "GIT_TERMINAL_PROMPT": "0", "GIT_NO_REPLACE_OBJECTS": "1", "GIT_LFS_SKIP_SMUDGE": "1"}
 
 
 def execute(argv: list[str], *, cwd: Path = ROOT, output: Path | None = None, input_path: Path | None = None) -> int:
@@ -140,10 +140,62 @@ def seed_npm() -> dict:
     return {"returncode": execute(["/usr/local/bin/node", "-e", code])}
 
 
+def install_arguments(name: str, *, scripts: bool = True) -> list[str]:
+    options = {
+        "npm": ["ci", "--offline", "--no-audit", "--no-fund", "--cache=/work/cache"],
+        "pnpm": ["install", "--offline", "--frozen-lockfile", "--ignore-pnpmfile", "--store-dir=/work/cache", "--package-import-method=copy"],
+        "yarn": ["install", "--offline", "--frozen-lockfile", "--non-interactive", "--no-default-rc", "--disable-pnp", "--cache-folder=/work/cache"],
+    }
+    return options[name] + ([] if scripts else ["--ignore-scripts"])
+
+
+def seed_manager(request: dict) -> dict:
+    name = request["manager"]
+    if (request["kind"], name) not in {("yarn_seed", "yarn"), ("pnpm_seed", "pnpm")}:
+        raise ValueError("seed_manager_mismatch")
+    result = tool_probe(request)
+    if result["package_manager_version"] != request["version"]:
+        raise ValueError("tool_version_mismatch")
+    seed = ROOT / "seed"
+    seed.mkdir()
+    lock = "yarn.lock" if name == "yarn" else "pnpm-lock.yaml"
+    for filename in ("package.json", lock):
+        shutil.copyfile(Path("/dependencies") / filename, seed / filename)
+    (ROOT / "cache").mkdir()
+    executable = ["/usr/local/bin/node", "/tool/package/" + TOOL_BINS[name]]
+    try:
+        if name == "pnpm":
+            # The reviewed v3 store indexes tarballs by SHA-512, independent
+            # of local-file vs registry IDs. Let the official CLI write it.
+            entries = json.loads(Path("/dependencies/index.json").read_text())
+            for offset in range(0, len(entries), 64):
+                files = ["/dependencies/" + item["file"] for item in entries[offset:offset + 64]]
+                status = execute([*executable, "store", "add", "--offline", "--ignore-pnpmfile", "--store-dir=/work/cache", *files], cwd=seed)
+                if status:
+                    return {"returncode": status}
+            arguments = install_arguments(name, scripts=False)
+        else:
+            # A trusted mirror config resides outside the seed/project. No
+            # project rc, lifecycle, bin or package-manager downloader is used.
+            configuration = Path("/tmp/gate-yarnrc")
+            configuration.write_text('yarn-offline-mirror "/dependencies/mirror"\nyarn-offline-mirror-pruning false\n')
+            arguments = [*install_arguments(name, scripts=False), "--use-yarnrc", str(configuration)]
+        # Complete frozen closure must succeed using only the seeded store or
+        # mirror before the script-bearing original project is admitted.
+        status = execute([*executable, *arguments], cwd=seed)
+        if (seed / lock).read_bytes() != (Path("/dependencies") / lock).read_bytes():
+            raise ValueError("seed_lock_changed")
+        result["returncode"] = status
+        return result
+    finally:
+        shutil.rmtree(seed)
+
+
 def command(request: dict) -> dict:
     name = request["manager"]
     argv = request["command"]
-    if name not in TOOL_BINS or argv not in [[name, "run", "build"], ["npm", "ci"]]:
+    installs = {"npm": ["npm", "ci"], "pnpm": ["pnpm", "install", "--frozen-lockfile"], "yarn": ["yarn", "install", "--frozen-lockfile"]}
+    if name not in TOOL_BINS or argv not in [[name, "run", "build"], installs[name]]:
         raise ValueError("command_not_generated")
     project = ROOT / "project"
     shutil.copytree("/input", project, symlinks=True)
@@ -155,7 +207,7 @@ def command(request: dict) -> dict:
         (ROOT / "cache").chmod(0o700)
     # Review/override cannot activate an unplanned different package manager.
     executable = ["/usr/local/bin/node", "/tool/package/" + TOOL_BINS[name]]
-    args = ["ci", "--offline", "--no-audit", "--no-fund", "--cache=/work/cache"] if argv == ["npm", "ci"] else ["run", "build"]
+    args = install_arguments(name) if argv == installs[name] else (["--offline", "--no-default-rc", "--cache-folder=/work/cache"] if name == "yarn" else []) + ["run", "build"]
     result = tool_probe(request)
     if result["package_manager_version"] != request["version"]:
         raise ValueError("tool_version_mismatch")
@@ -174,7 +226,7 @@ def main() -> None:
                 if time.monotonic() >= deadline:
                     raise ValueError("runner_admission_timeout")
                 time.sleep(0.02)
-        result = selftest() if kind == "selftest" else git_decode(request) if kind == "git" else tool_probe(request) if kind == "tool_probe" else seed_npm() if kind == "npm_seed" else command(request) if kind == "command" else {"returncode": 1}
+        result = selftest() if kind == "selftest" else git_decode(request) if kind == "git" else tool_probe(request) if kind == "tool_probe" else seed_npm() if kind == "npm_seed" else seed_manager(request) if kind in {"yarn_seed", "pnpm_seed"} else command(request) if kind == "command" else {"returncode": 1}
     except Exception:
         result = {"returncode": 1}
     (ROOT / "result.json").write_text(json.dumps(result))

@@ -1,4 +1,4 @@
-"""Official tool cache and bounded npm lock tarball acquisition, without scripts."""
+"""Official tools and bounded registry lock content acquisition, without scripts."""
 from __future__ import annotations
 
 import hashlib
@@ -9,7 +9,6 @@ import io
 import json
 import re
 import shutil
-import stat
 import tarfile
 import time
 from pathlib import Path, PurePosixPath
@@ -19,10 +18,12 @@ from uuid import uuid4
 
 from lingshu_gate.adapters.native_executor.controller import PodmanController, reject
 from lingshu_gate.adapters.native_executor.https import PinnedHTTPS
+from lingshu_gate.adapters.native_executor.locked_dependencies import NAME, pnpm_tarballs, yarn_tarballs
 from lingshu_gate.git_source import digest_json
 from lingshu_gate.node_toolchain import node_version_supported, tool_preparation
 from lingshu_gate.offline_build_contract import DependencyNode, verify_dependency_content
 from lingshu_gate.adapters.native_executor.shims import SHIM_REVISION, install_shims
+from lingshu_gate.safe_files import open_regular_file
 
 OFFICIAL = "https://registry.npmjs.org/"
 BINARIES = {"npm": "bin/npm-cli.js", "pnpm": "bin/pnpm.cjs", "yarn": "bin/yarn.js"}
@@ -109,10 +110,22 @@ def extract_official(content: bytes, target: Path, limits: dict[str, int]) -> No
                 output.chmod(0o555 if member.mode & 0o111 else 0o444)
 
 
+def checked_content(path: Path, maximum: int = 4 * 1024 * 1024) -> bytes:
+    try:
+        with open_regular_file(path, maximum=maximum) as (reader, info):
+            content = reader.read(maximum + 1)
+            if len(content) != info.st_size:
+                raise ValueError
+        return content
+    except (OSError, ValueError):
+        reject("executor_project_metadata_rejected", "Project metadata is not unchanged bounded regular content")
+
+
 def checked_json(path: Path, maximum: int = 4 * 1024 * 1024) -> dict[str, Any]:
-    if path.is_symlink() or not stat.S_ISREG(path.lstat().st_mode) or path.stat().st_size > maximum:
-        reject("executor_project_metadata_rejected", "Project metadata is linked, non-regular or oversized")
-    value = json.loads(path.read_text())
+    try:
+        value = json.loads(checked_content(path, maximum))
+    except (ValueError, RecursionError):
+        reject("executor_project_metadata_rejected", "Project metadata has invalid bounded JSON")
     if not isinstance(value, dict):
         reject("executor_project_metadata_rejected", "Project metadata must be an object")
     return value
@@ -125,18 +138,48 @@ def project_policy(root: Path, manager: dict[str, Any], *, install: bool) -> Non
         if path.name.lower() in {".npmrc", ".yarnrc", ".yarnrc.yml", ".pnpmfile.cjs", "pnpm-workspace.yaml", "pip.conf", ".pypirc", ".netrc"}:
             reject("dependency_configuration_unsupported", "Project tool/network configuration requires a separately reviewed cache workflow")
     package = checked_json(root / "package.json")
-    if install and package.get("workspaces"):
-        reject("dependency_cache_workflow_unsupported", "npm workspace/link cache closure is not supported in this adapter")
+    if install and any(package.get(field) for field in ("workspaces", "resolutions", "overrides", "pnpm", "installConfig", "bundleDependencies", "bundledDependencies", "dependenciesMeta")):
+        reject("dependency_cache_workflow_unsupported", "Workspace, patch, override, PnP and bundled workflows require separate cache review")
     if install:
+        cache_manager_supported(manager)
         lockfile = manager.get("lockfile")
-        if lockfile not in {"package-lock.json", "npm-shrinkwrap.json"} or manager.get("name") != "npm":
-            reject("dependency_cache_workflow_unsupported", "Only registry-only npm lock v2/v3 frozen installs are reviewed; no manager substitution is permitted")
+        accepted = {"npm": {"package-lock.json", "npm-shrinkwrap.json"}, "pnpm": {"pnpm-lock.yaml"}, "yarn": {"yarn.lock"}}
+        if lockfile not in accepted[manager["name"]]:
+            reject("dependency_cache_workflow_unsupported", "Frozen installation requires the selected manager's native lockfile")
         if lockfile == "package-lock.json" and (root / "npm-shrinkwrap.json").exists():
             reject("dependency_lock_changed", "npm shrinkwrap precedence conflicts with the confirmed selection")
-        path = root / str(lockfile)
-        content = path.read_bytes() if not path.is_symlink() and path.stat().st_size <= 4 * 1024 * 1024 else b""
+        content = checked_content(root / str(lockfile))
         if hashlib.sha256(content).hexdigest() != manager.get("lockfile_sha256"):
             reject("dependency_lock_changed", "Dependency lock differs from the confirmed plan")
+        seed_manifest(package)
+
+
+def cache_manager_supported(manager: dict[str, Any]) -> None:
+    name, version = manager.get("name"), str(manager.get("version", ""))
+    if name not in BINARIES or not re.fullmatch(r"\d+\.\d+\.\d+", version):
+        reject("dependency_cache_workflow_unsupported", "Cache installation requires a selected exact official manager")
+    major = int(version.split(".")[0])
+    if name == "pnpm" and major not in {8, 9}:
+        reject("pnpm_cache_format_unsupported", "pnpm 10/11 package-ID-dependent stores require a separately reviewed cache adapter")
+    if name == "yarn" and not version.startswith("1.22."):
+        reject("dependency_cache_workflow_unsupported", "Only Yarn Classic 1.22 registry mirrors are supported")
+
+
+def seed_manifest(package: dict[str, Any]) -> dict[str, Any]:
+    """Carry dependency requests only; never project scripts, bin or hooks."""
+    value: dict[str, Any] = {"name": "gate-cache-seed", "version": "0.0.0", "private": True}
+    for field in ("dependencies", "devDependencies", "optionalDependencies", "peerDependencies"):
+        entries = package.get(field, {})
+        if not isinstance(entries, dict) or len(entries) > 5000 or any(not isinstance(key, str) or not NAME.fullmatch(key) or not isinstance(request, str) or not re.fullmatch(r"[A-Za-z0-9*<>=~^| .+-]{1,256}", request) for key, request in entries.items()):
+            reject("dependency_cache_workflow_unsupported", "Project dependency requests require bounded registry ranges/tags; Git/file/link/alias protocols are unsupported")
+        if entries:
+            value[field] = entries
+    meta = package.get("peerDependenciesMeta", {})
+    if not isinstance(meta, dict) or len(meta) > 5000 or any(not isinstance(key, str) or not NAME.fullmatch(key) or not isinstance(options, dict) or set(options) != {"optional"} or type(options["optional"]) is not bool for key, options in meta.items()):
+        reject("dependency_cache_workflow_unsupported", "Peer metadata supports only bounded optional boolean declarations")
+    if meta:
+        value["peerDependenciesMeta"] = meta
+    return value
 
 
 class ToolCache:
@@ -304,6 +347,47 @@ class ToolCache:
                 (temporary / filename).write_bytes(content)
                 index.append({"file": filename, "integrity": integrity})
             (temporary / "index.json").write_text(json.dumps(index))
+            return temporary
+        except BaseException:
+            shutil.rmtree(temporary)
+            raise
+
+    def dependencies(self, root: Path, manager: dict[str, Any], *, network: dict[str, Any], material: dict[str, Any], deadline: float, cancelled: Callable[[], bool]) -> Path:
+        if manager["name"] == "npm":
+            return self.npm_dependencies(root, manager, network=network, material=material, deadline=deadline, cancelled=cancelled)
+        project_policy(root, manager, install=True)
+        registry = network["npm_registry"].rstrip("/")
+        self._rule(registry + "/")
+        lock = checked_content(root / manager["lockfile"])
+        records = yarn_tarballs(lock, registry) if manager["name"] == "yarn" else pnpm_tarballs(lock, registry, manager["version"])
+        temporary = self.controller.root / ("dependencies-" + uuid4().hex)
+        temporary.mkdir(mode=0o700)
+        total = 0
+        seen: dict[str, str] = {}
+        index: list[dict[str, str]] = []
+        try:
+            (temporary / "mirror").mkdir()
+            for item in records:
+                if cancelled():
+                    from lingshu_gate.ports.safe_network_executor import SafeExecutionCancelled
+                    raise SafeExecutionCancelled("dependency_acquisition_cancelled")
+                if item.filename in seen:
+                    if seen[item.filename] != item.integrity:
+                        reject("dependency_lock_unsupported", "Conflicting content hashes share a registry mirror filename")
+                    continue
+                content = self._fetch(item.source, network=network, material=material, deadline=deadline, maximum=50 * 1024 * 1024, cancelled=cancelled)
+                verify_dependency_content(DependencyNode(manager["name"], item.source, item.integrity), chunks(content), max_bytes=50 * 1024 * 1024)
+                if item.legacy_sha1 and hashlib.sha1(content).hexdigest() != item.legacy_sha1:
+                    reject("dependency_integrity_unverified", "Yarn legacy tarball hash disagrees with its strong verified content")
+                total += len(content)
+                if total > 200 * 1024 * 1024 or time.monotonic() >= deadline:
+                    reject("dependency_cache_limit", "Dependency tarballs exceed the bounded download budget")
+                seen[item.filename] = item.integrity
+                (temporary / "mirror" / item.filename).write_bytes(content)
+                index.append({"file": "mirror/" + item.filename, "integrity": item.integrity})
+            (temporary / "index.json").write_text(json.dumps(index))
+            (temporary / manager["lockfile"]).write_bytes(lock)
+            (temporary / "package.json").write_text(json.dumps(seed_manifest(checked_json(root / "package.json"))))
             return temporary
         except BaseException:
             shutil.rmtree(temporary)

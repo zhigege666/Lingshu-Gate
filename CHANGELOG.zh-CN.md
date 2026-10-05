@@ -2,7 +2,7 @@
 
 ## Unreleased — Native executor
 
-- 实现可选 Native/Linux rootless Podman 执行器、可信固定 HTTPS/Git 获取、官方精确工具缓存、registry-only npm 离线安装/构建、真实 readiness 及持久阶段/container/cgroup 对账。Core 仍为 gateway；pnpm/Yarn/Python 缓存安装及未支持 origin 明确拒绝，真实宿主验收未测。
+- 实现可选 Native/Linux rootless Podman 执行器、可信固定 HTTPS/Git 获取、官方精确工具缓存、registry-only npm/pnpm 8–9/Yarn Classic 离线冻结安装/构建、真实 readiness 及持久阶段/container/cgroup 对账。Core 仍为 gateway；pnpm 10/11、Yarn Berry、Python sandbox 缓存安装及未支持 origin 明确拒绝，真实宿主验收未测。
 
 ## 0.4.4
 

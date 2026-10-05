@@ -13,11 +13,12 @@ from uuid import uuid4
 from lingshu_gate.adapters.native_executor.controller import PodmanController, reject
 from lingshu_gate.adapters.native_executor.git import HTTPSGitBackend
 from lingshu_gate.adapters.native_executor.https import PROXY_SCHEMES, PinnedHTTPS
-from lingshu_gate.adapters.native_executor.packages import ToolCache, project_policy
+from lingshu_gate.adapters.native_executor.packages import ToolCache, cache_manager_supported, project_policy
 from lingshu_gate.git_acquisition import VerifiedGitAcquisition
 from lingshu_gate.git_source import digest_json, network_secret_values
 from lingshu_gate.native_executor_config import NativeExecutorConfig
 from lingshu_gate.network_artifact import export_network_artifact
+from lingshu_gate.node_toolchain import INSTALL_COMMANDS
 from lingshu_gate.ports.safe_network_executor import REQUIRED_CAPABILITIES, TEST_TARGETS, SafeExecutionCancelled
 
 
@@ -71,8 +72,11 @@ class NativeNetworkExecutor:
     def validate_plan(self, plan: dict[str, Any]) -> None:
         self.require_ready()
         for step in plan.get("steps", []):
-            if step.get("phase") == "install" and step.get("command") != ["npm", "ci"]:
-                reject("dependency_cache_workflow_unsupported", "This Native adapter supports npm registry lock v2/v3 installs only; pnpm/Yarn/Python installs require a reviewed cache adapter")
+            if step.get("phase") == "install":
+                manager = plan.get("package_manager") or {}
+                cache_manager_supported(manager)
+                if step.get("command") != INSTALL_COMMANDS[manager["name"]]:
+                    reject("dependency_cache_workflow_unsupported", "Only the selected manager's generated frozen registry install is supported")
 
     def _admit(self) -> None:
         self.require_ready()
@@ -152,9 +156,9 @@ class NativeNetworkExecutor:
             self._selection(network, material, "install")
             manager = network.get("package_manager") or {}
             name = manager.get("name")
-            if command not in [["npm", "ci"], [name, "run", "build"]] or name not in {"npm", "pnpm", "yarn"}:
+            if name not in INSTALL_COMMANDS or command not in [INSTALL_COMMANDS[name], [name, "run", "build"]]:
                 reject("dependency_cache_workflow_unsupported", "The selected generated command has no reviewed offline adapter")
-            phase = "install" if command == ["npm", "ci"] else "build"
+            phase = "install" if command == INSTALL_COMMANDS[name] else "build"
             key = self._phase_key(network, phase)
             self._cwd(cwd, network)
             project_policy(cwd, manager, install=phase == "install")
@@ -167,16 +171,18 @@ class NativeNetworkExecutor:
             if phase == "install":
                 assert self.controller.journal is not None
                 with self.controller.journal.trusted_phase(key + ":acquire", {"binding": binding, "manager": manager}, "dependency_acquisition"):
-                    dependencies = self.tools.npm_dependencies(cwd, manager, network=network, material=material, deadline=deadline, cancelled=cancelled)
-                seeded = self.controller.run(key + ":seed", {"kind": "npm_seed", "binding": binding}, mounts={"/tool": tool, "/dependencies": dependencies}, timeout=max(1, min(120, int(deadline - time.monotonic()))), cancelled=cancelled)
+                    dependencies = self.tools.dependencies(cwd, manager, network=network, material=material, deadline=deadline, cancelled=cancelled)
+                seeded = self.controller.run(key + ":seed", {"kind": name + "_seed", "manager": name, "version": manager["version"], "binding": binding}, mounts={"/tool": tool, "/dependencies": dependencies}, timeout=max(1, min(120, int(deadline - time.monotonic()))), cancelled=cancelled)
                 if seeded["returncode"]:
-                    reject("dependency_cache_seed_failed", "Isolated verified npm cache preparation failed")
+                    reject("dependency_cache_seed_failed", "Selected official manager could not prove the complete offline frozen cache closure")
                 mounts["/cache"] = seeded["output"] / "cache"
             result = self.controller.run(key, {"kind": "command", "manager": name, "version": manager["version"], "command": command, "binding": binding}, mounts=mounts, timeout=max(1, int(deadline - time.monotonic())), cancelled=cancelled)
             if result["returncode"] == 0:
                 output_root = result["output"] / "project"
                 if output_root.is_symlink() or not output_root.is_dir() or output_root.resolve() != output_root:
                     reject("executor_output_root_rejected", "Frozen project root is not the exact sandbox-owned directory")
+                if phase == "install":
+                    project_policy(output_root, manager, install=True)
                 # Copy only a frozen, bounded contained tree, then publish to
                 # the existing source path. BuildDeploy remains artifact owner.
                 exported = cwd.parent / ("native-export-" + uuid4().hex)

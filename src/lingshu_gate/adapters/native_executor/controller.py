@@ -254,7 +254,7 @@ class PodmanController:
 
     def readiness(self) -> dict[str, Any]:
         missing = sorted(set(self.missing + list(self.evidence.blocked_reasons("offline_build"))))
-        return {"available": not missing and not self._stop.is_set(), "code": "safe_executor_ready" if not missing and not self._stop.is_set() else "safe_executor_unavailable", "backend": "native_rootless_podman", "missing": missing + (["executor_closed"] if self._stop.is_set() else []), "support": {"git": "https_sha1", "tools": ["npm", "pnpm", "yarn_classic"], "offline_install": ["npm_registry_lock_v2_v3"], "pnpm_yarn_install": "unsupported_cache_workflow", "python_install": "unsupported_cache_workflow"}}
+        return {"available": not missing and not self._stop.is_set(), "code": "safe_executor_ready" if not missing and not self._stop.is_set() else "safe_executor_unavailable", "backend": "native_rootless_podman", "missing": missing + (["executor_closed"] if self._stop.is_set() else []), "support": {"git": "https_sha1", "tools": ["npm", "pnpm", "yarn_classic"], "offline_install": ["npm_registry_lock_v2_v3", "pnpm_8_9_registry_lock_v3_store", "yarn_classic_1_22_registry_mirror"], "pnpm_10_11_install": "unsupported_package_id_cache_format", "yarn_berry_install": "unsupported", "python_install": "legacy_upload_direct_only_outside_native_adapter", "core_execution": "gateway_only"}}
 
     def require_ready(self) -> None:
         state = self.readiness()
@@ -325,7 +325,7 @@ class PodmanController:
         if not readiness:
             self.require_ready()
         assert self.journal is not None
-        if not 0 < timeout <= 1800 or request.get("kind") not in {"selftest", "git", "tool_probe", "npm_seed", "command"}:
+        if not 0 < timeout <= 1800 or request.get("kind") not in {"selftest", "git", "tool_probe", "npm_seed", "yarn_seed", "pnpm_seed", "command"}:
             reject("executor_request_rejected", "Unrecognized executor phase or deadline")
         if not self._gate.acquire(blocking=False):
             reject("executor_busy", "The bounded Native executor is busy")
