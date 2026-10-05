@@ -43,6 +43,8 @@ class VerifiedExternalIdentity:
     audiences: tuple[str, ...]
     scopes: tuple[str, ...]
     expires_at: datetime
+    canonical_resource: str
+    jwks_uri: str
 
 
 def fetch_jwks(uri: str) -> dict[str, Any]:
@@ -203,7 +205,8 @@ class ExternalJwtVerifier:
         if not isinstance(exp, (int, float)) or isinstance(exp, bool):
             raise ExternalJwtError("invalid external expiry")
         return VerifiedExternalIdentity(issuer, subject, client_id, verified_audiences, scopes,
-                                        datetime.fromtimestamp(exp, timezone.utc))
+                                        datetime.fromtimestamp(exp, timezone.utc),
+                                        config.canonical_resource(verified_audiences[0]) or "", uri)
 
     def _key(self, issuer: str, uri: str, kid: str, config: ExternalConnectionConfig) -> RSAPublicKey:
         pair = (issuer, uri)

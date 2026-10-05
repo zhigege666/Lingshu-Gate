@@ -71,6 +71,8 @@ class AuthPrincipal:
     oauth_target_revision: int = 0
     oauth_tool_snapshots: tuple[tuple[str, str], ...] = ()
     oauth_subject: str | None = None
+    oauth_audiences: tuple[str, ...] = ()
+    oauth_jwks_uri: str | None = None
 
 
 def utc_now() -> datetime:
@@ -792,7 +794,8 @@ class AuthStore:
             external_tool_ids=tuple(grant["tool_allowlist"]), external_access=access,
             external_expires_at=min(identity.expires_at, datetime.fromisoformat(grant["expires_at"])).isoformat(),
             external_rate_per_minute=int(grant["rate_per_minute"]), external_concurrency=int(grant["concurrency"]),
-            oauth_issuer=identity.issuer, oauth_subject=identity.subject, oauth_client_id=identity.client_id)
+            oauth_issuer=identity.issuer, oauth_subject=identity.subject, oauth_client_id=identity.client_id,
+            oauth_audiences=identity.audiences, oauth_resource=identity.canonical_resource, oauth_jwks_uri=identity.jwks_uri)
         return self._enforce_password_change(principal, request)
 
     def authenticate_request(self, request: Request) -> AuthPrincipal:

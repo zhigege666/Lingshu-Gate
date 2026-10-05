@@ -5,9 +5,10 @@ from dataclasses import dataclass
 from typing import Any
 
 from pydantic import BaseModel, ConfigDict, Field, StrictStr
+from lingshu_gate.mcp_manifest import MCP_SERVER_ID_PATTERN
 
 TOOL_REF_PATTERN = r"^mcp-group:[a-f0-9]{32}:[a-f0-9]{64}$"
-INSTANCE_ID_PATTERN = r"^[A-Za-z0-9][A-Za-z0-9_.-]{0,127}$"
+INSTANCE_ID_PATTERN = MCP_SERVER_ID_PATTERN
 
 
 class GroupToolSelection(BaseModel):

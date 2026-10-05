@@ -2,6 +2,12 @@
 
 [简体中文](zh-CN/mcp-group-routing-contract.md) · [Groups](mcp-groups.md)
 
+Instance selection reuses the existing manifest ID pattern, including leading `_`, `-` and `.`. It adds no 128-character routing limit; existing manifest, filesystem and request budgets still apply. No stored instance is renamed. Slash, URL and unknown routing fields remain rejected.
+
+External OAuth rechecks configuration validity, enabled status, client allowlist, issuer/JWKS binding, every verified audience's canonical-resource mapping, subject link, expiry and grant after lock waits. The authenticated principal and invocation context carry only the signature-verified, non-secret audience/resource/JWKS proof. Adapters must preserve that proof; routing arguments cannot provide or replace it. Missing proof fails closed.
+
+Shared runtime connection binding uses a fresh runtime epoch and monotonic generation, advanced on client replacement/clear and before every shared connect/reconnect attempt, including failures and restoration. It never derives continuity from object addresses, timestamps or a downstream session ID. Reusing an SID or restoring client A after A→B→A cannot revive an old routing session. Generation changes during dispatch also fail the guard; the original operation must be reconciled before a new session is opened.
+
 This internal port is implemented on the exact 0.4.4 base. The on-demand directory owns the public MCP invocation entry. Grouping adds no second generic invocation endpoint and does not register grouped aliases as downstream tools.
 
 `McpGroupRoutingService.resolve(actor, tool_ref=..., instance_id=...)` returns `CatalogTarget` with actual `server_id`, original `tool_id`, explicit `instance_id`, logical `service_id`, `group_id`, `group_revision`, `schema_revision` and `definition_fingerprint`. `schema_revision` is the partition's complete contract fingerprint. Logical references use `mcp-group:<group-id>:<partition-fingerprint>`. Existing `mcp.<server-id>.<name>` IDs and APIs remain available.

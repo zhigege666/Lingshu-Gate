@@ -2,6 +2,12 @@
 
 [English](../mcp-group-routing-contract.md) · [分组](mcp-groups.md)
 
+实例选择复用原 manifest ID 合同，允许 `_`、`-`、`.` 开头，不新增 128 字符路由限制，也不重命名既有实例；原 manifest、文件系统与请求预算继续生效。斜杠、URL 与未知路由字段仍被拒绝。
+
+外部 OAuth 在锁等待后重新检查完整配置有效性、启用状态、client allowlist、issuer/JWKS 绑定、每个已验证 audience 的 canonical-resource 映射、subject link、过期时间及 grant。认证主体和调用上下文仅携带签名验证后的非秘密 audience/resource/JWKS 证明，适配器必须保留；路由参数不能提供或替换它，缺少证明时拒绝。
+
+共享运行连接使用每个 runtime 的新 epoch 和单调 generation；替换/清空客户端及每次共享 connect/reconnect 尝试（含失败和恢复）均推进 generation，不再从对象地址、时间戳或下游 SID 推导连续性。复用 SID 或 A→B→A 恢复旧客户端不能复活旧路由会话；派发期间 generation 变化也使 guard 失败，必须先对账再显式打开新会话。
+
 本内部 port 基于 exact 0.4.4 实现。公开 MCP 调用入口由按需目录持有。分组不增加第二套通用调用端点，也不把逻辑别名注册成下游工具。
 
 `McpGroupRoutingService.resolve(actor, tool_ref=..., instance_id=...)` 返回 `CatalogTarget`：包含实际 `server_id`、原 `tool_id`、显式 `instance_id`、逻辑 `service_id`、`group_id`、`group_revision`、`schema_revision` 和 `definition_fingerprint`。`schema_revision` 是分区的完整合同指纹。逻辑引用格式为 `mcp-group:<group-id>:<partition-fingerprint>`。原 `mcp.<server-id>.<name>` 标识和 API 保持可用。

@@ -1721,6 +1721,16 @@ class AccessControlStore:
                         oauth_token_expires_at=principal.oauth_token_expires_at,
                         oauth_target_revision=principal.oauth_target_revision,
                         oauth_tool_snapshots=principal.oauth_tool_snapshots,
+                        oauth_subject=principal.oauth_subject,
+                        oauth_audiences=principal.oauth_audiences,
+                        oauth_jwks_uri=principal.oauth_jwks_uri,
+                        external_grant_id=principal.external_grant_id,
+                        external_server_ids=principal.external_server_ids,
+                        external_tool_ids=principal.external_tool_ids,
+                        external_access=principal.external_access,
+                        external_expires_at=principal.external_expires_at,
+                        external_rate_per_minute=principal.external_rate_per_minute,
+                        external_concurrency=principal.external_concurrency,
                     ),
                 )
         except UserCredentialBindingError as exc:
