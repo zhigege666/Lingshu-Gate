@@ -78,7 +78,7 @@ HTTPS 禁 redirects、编码响应、环境代理和自动重试，限制 header
 
 只有冻结、有界输出进入既有 source/artifact 路径。inventory 绑定路径、类型、mode、字节数、文件 hash、链接目标；冻结的项目/object 根目录本身也不能是链接。导出只保留 contained relative package links，拒绝 external/cyclic/special 和已知秘密值，复用 500 MiB、30,000 条、30 秒制品上限。失败不发布部分新制品、不替换已有部署。管理员对账须检查原 coordinator operation 和私有 job 记录，不能删除 journal 或换新 key 当重试捷径。
 
-固定 PID 1 runner 在放行项目代码前关闭 Linux dumpability，阻止同 UID 子进程通过 ptrace 或 `/proc` 文件描述符修改它。脚本阶段先等待 cgroup 观测持久落账，再以引擎观测到的容器退出码结束。项目自行创建 `result.json` 不能证明成功或提前结束仍在运行的阶段；共享结果字段也不提供可信 manager/Node 版本。
+固定 PID 1 runner 在放行项目代码前关闭 Linux dumpability，阻止同 UID 子进程通过 ptrace 或 `/proc` 文件描述符修改它。所有内容阶段（包括依赖归档及缓存准备）等待 cgroup 观测持久落账并再次检查取消后才执行，再以引擎观测到的容器退出码结束。项目自行创建 `result.json` 不能证明成功或提前结束仍在运行的阶段；共享结果字段也不提供脚本阶段的可信 manager/Node 版本。
 
 冻结后的结果、inventory、Git object、artifact 使用 nonblocking/no-follow 文件描述符打开，并经 `fstat` 确认普通文件。结果 JSON 读取上限为 8 KiB/一秒；FIFO、设备、目录、inode 交换及超限输出在解析前拒绝。拒绝结果记录为已确认失败的阶段，释放 controller admission。
 

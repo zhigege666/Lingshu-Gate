@@ -168,7 +168,7 @@ def main() -> None:
     kind = request["kind"]
     try:
         protect_runner()
-        if kind == "command":
+        if kind != "selftest":
             deadline = time.monotonic() + 10
             while not Path("/gate-control/admitted").is_file():
                 if time.monotonic() >= deadline:
@@ -178,11 +178,10 @@ def main() -> None:
     except Exception:
         result = {"returncode": 1}
     (ROOT / "result.json").write_text(json.dumps(result))
-    if kind == "command":
+    if kind != "selftest":
         status = result["returncode"]
         sys.exit(status if type(status) is int and 0 <= status <= 255 else 1)
-    # Remain observable until the controller freezes this cgroup, including
-    # fast phases. Only that controller can establish whole-group termination.
+    # Selftest deliberately leaves a descendant for whole-group stop evidence.
     time.sleep(60)
     sys.exit(result["returncode"])
 

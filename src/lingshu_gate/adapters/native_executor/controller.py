@@ -332,6 +332,7 @@ class PodmanController:
         job: dict[str, Any] | None = None
         cgroup: str | None = None
         command_exit: int | None = None
+        admitted = False
         directory: Path | None = None
         started = time.monotonic()
         try:
@@ -356,24 +357,25 @@ class PodmanController:
                 if pid and not cgroup:
                     cgroup = self._cgroup(pid)
                     self.journal.update(key, "running", cgroup=cgroup)
-                    if request["kind"] == "command":
-                        # PID 1 admits project code only after this durable
-                        # cgroup observation. A fast command cannot outrun it.
-                        (directory / "control" / "admitted").write_text("observed\n")
                 if self._stop.is_set() or cancelled() or time.monotonic() >= deadline:
                     self.terminate(job["name"], cgroup)
                     self.journal.update(key, "cancelled" if cancelled() or self._stop.is_set() else "failed")
                     if cancelled() or self._stop.is_set():
                         raise SafeExecutionCancelled("executor_cancelled_after_whole_group_stop")
                     raise TimeoutError("executor_phase_timeout")
+                if cgroup and not admitted and request["kind"] != "selftest":
+                    # Admit only after durable cgroup observation and a fresh
+                    # cancellation check, including untrusted tar decoding.
+                    (directory / "control" / "admitted").write_text("observed\n")
+                    admitted = True
                 report_file = directory / "output" / "result.json"
-                if request["kind"] != "command" and report_file.is_file():
+                if request["kind"] == "selftest" and report_file.is_file():
                     break
                 if not info.get("State", {}).get("Running"):
-                    if request["kind"] == "command":
+                    if request["kind"] != "selftest":
                         command_exit = info.get("State", {}).get("ExitCode")
                         if type(command_exit) is not int or not 0 <= command_exit <= 255:
-                            raise InterruptedError("executor_command_exit_unknown")
+                            raise InterruptedError("executor_phase_exit_unknown")
                     break
                 time.sleep(0.05)
             # Container exit alone is insufficient. Observe the whole cgroup;
@@ -386,10 +388,11 @@ class PodmanController:
             result = read_regular_result(report_file)
             if type(result.get("returncode")) is not int:
                 reject("executor_result_rejected", "Phase result lacks a bounded exit status")
-            if request["kind"] == "command":
-                # Shared output is untrusted: scripts can forge result.json.
+            if request["kind"] != "selftest":
+                # Shared output is untrusted even during cache decoding.
                 # Only the engine-observed PID 1 exit establishes success.
                 result["returncode"] = command_exit
+            if request["kind"] == "command":
                 result["package_manager_version"] = request.get("version")
                 result["node_version"] = self.node_version
             result.update({"duration_ms": int((time.monotonic() - started) * 1000), "output": directory / "output", "job_key": key})

@@ -25,7 +25,7 @@ def engine(tmp_path):
     controller.missing = []
     controller.evidence = ExecutorReadiness("linux_rootless_oci", "linux", ROOTLESS_CHECKS | PHASE_CHECKS["git_acquisition"] | PHASE_CHECKS["offline_build"])
     calls = []
-    state = {"running": False, "exists": False, "empty": True, "output": True, "exit_code": None}
+    state = {"running": False, "exists": False, "empty": True, "output": True, "exit_code": 0}
     def cli(argv, **kwargs):
         calls.append(argv)
         if argv[0] == "create":
@@ -45,7 +45,7 @@ def engine(tmp_path):
             state["running"] = True
             return b""
         if argv[:2] == ["container", "inspect"]:
-            if state.get("name") and state["exit_code"] is not None and (controller.workspaces / state["name"] / "control" / "admitted").is_file():
+            if state.get("name") and state["output"] and state["exit_code"] is not None and (controller.workspaces / state["name"] / "control" / "admitted").is_file():
                 state["running"] = False
             job = controller.journal.lookup_name(argv[2])
             return json.dumps([{"Id": state.get("replacement_id", "b" * 64), "Config": {"Labels": {"io.lingshu-gate.job": state.get("replacement_digest", job["digest"])}}, "Mounts": state.get("mounts", []), "State": {"Running": state["running"], "Pid": 123 if state["running"] else 0, "Status": "running" if state["running"] else "exited" if any(call[0] == "start" for call in calls) else "configured", "ExitCode": state["exit_code"]}}]).encode() if state["exists"] else b""
@@ -73,7 +73,8 @@ def test_output_is_frozen_only_after_whole_group_stop_and_key_is_not_replayed(en
         result = controller.run("fixture:prepare", {"kind": "tool_probe", "manager": "npm"}, timeout=10, cancelled=lambda: False)
     assert result["returncode"] == 0
     assert controller.journal.lookup("fixture:prepare")["state"] == "completed"
-    assert any(argv[0] == "kill" for argv in calls)
+    assert any(argv[0] == "rm" for argv in calls)
+    assert not any(argv[0] == "kill" for argv in calls)
     with pytest.raises(InterruptedError):
         controller.run("fixture:prepare", {"kind": "tool_probe", "manager": "npm"}, timeout=10, cancelled=lambda: False)
     assert sum(argv[0] == "create" for argv in calls) == 1
@@ -130,12 +131,13 @@ def test_restart_reconciliation_stops_orphan_without_dispatch(engine):
 
 
 @pytest.mark.parametrize("exit_code,state_name", [(0, "completed"), (23, "failed")])
-def test_shared_result_cannot_forge_command_success_before_observed_exit(engine, exit_code, state_name):
+@pytest.mark.parametrize("kind", ["command", "npm_seed", "git", "tool_probe"])
+def test_shared_result_cannot_forge_phase_success_before_observed_exit(engine, exit_code, state_name, kind):
     controller, calls, state = engine
     state["exit_code"] = exit_code
     # The fake engine publishes a forged returncode=0 before container start.
     # Admission must still capture the cgroup, then await the engine exit.
-    result = controller.run("fixture:command", {"kind": "command", "manager": "npm", "command": ["npm", "run", "build"]}, timeout=10, cancelled=lambda: False)
+    result = controller.run("fixture:command", {"kind": kind, "manager": "npm", "command": ["npm", "run", "build"]}, timeout=10, cancelled=lambda: False)
     assert result["returncode"] == exit_code
     row = controller.journal.lookup("fixture:command")
     assert row["state"] == state_name and row["cgroup"] == "/fixture/sandbox"
