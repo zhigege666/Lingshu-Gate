@@ -62,6 +62,7 @@ from lingshu_gate.logging import configure_logging, log_event
 from lingshu_gate.mcp_config_store import McpConfigStore
 from lingshu_gate.mcp_gateway import register_mcp_gateway_route
 from lingshu_gate.tool_catalog import ToolCatalog
+from lingshu_gate.oauth_candidate_catalog import OAuthCandidateCatalog
 from lingshu_gate.interfaces.control_api.catalog_routes import register_catalog_routes
 from lingshu_gate.mcp_runtime import McpRuntimeManager
 from lingshu_gate.mcp_runtime_state_store import McpRuntimeStateStore
@@ -365,7 +366,8 @@ def create_app() -> FastAPI:
     auth_store.external_connections = external_connection_store
     auth_store.external_verifier = external_jwt_verifier
     app.state.external_jwt_verifier = external_jwt_verifier
-    oauth_server = OAuthServer(OAuthStore(database), auth_store, access_store, registry, settings.data_dir)
+    oauth_server = OAuthServer(OAuthStore(database), auth_store, access_store, registry, settings.data_dir,
+                              candidate_catalog=OAuthCandidateCatalog(tool_catalog, access_store))
     auth_store.builtin_oauth = oauth_server
     app.state.oauth_server = oauth_server
     register_oauth_routes(app, server=oauth_server, observability=observability_store)

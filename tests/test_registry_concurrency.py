@@ -66,6 +66,17 @@ class ToolRegistryConcurrencyTest(unittest.TestCase):
         thread.join(timeout=3)
         self.assertFalse(thread.is_alive())
 
+    def test_selected_definition_copies_do_not_modify_registry_owned_contracts(self) -> None:
+        registry = ToolRegistry()
+        target = definition("mcp.demo.selected", "original")
+        registry.register(target, lambda _: {})
+        selected = registry.get_definitions([target.id])[0]
+        selected.metadata["generation"] = "tampered"
+        selected.input_schema["type"] = "string"
+        actual = registry.get_definition(target.id)
+        self.assertEqual(actual.metadata["generation"], "original")
+        self.assertEqual(actual.input_schema["type"], "object")
+
     def test_handler_execution_does_not_hold_registry_lock(self) -> None:
         registry = ToolRegistry()
         entered = threading.Event()

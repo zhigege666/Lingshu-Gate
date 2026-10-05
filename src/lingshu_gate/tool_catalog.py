@@ -7,6 +7,7 @@ import hmac
 import json
 import re
 import secrets
+import sqlite3
 import threading
 import time
 from collections.abc import Callable
@@ -165,6 +166,14 @@ class ToolCatalog:
         row = self.database.query_one("SELECT policy FROM gate_catalog_epochs WHERE id=1")
         assert row is not None
         return int(row[0])
+
+    def revision_marker(self, connection: sqlite3.Connection) -> tuple[int, int]:
+        """Read shared index/policy revisions in the caller's SQL snapshot."""
+        with self._queue_lock:
+            generation = self._generation
+        row = connection.execute("SELECT policy FROM gate_catalog_epochs WHERE id=1").fetchone()
+        assert row is not None
+        return generation, int(row[0])
 
     def _binding(self, principal: AuthPrincipal, request: CatalogSearch, kind: str, generation: int, epoch: int) -> str:
         payload = [asdict(principal), request.model_dump(exclude={"cursor"}), kind, generation, epoch]

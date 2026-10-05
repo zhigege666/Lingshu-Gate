@@ -357,7 +357,7 @@ class ToolRegistry:
         """Read one atomic snapshot of requested IDs without traversing the registry."""
         requested = tuple(dict.fromkeys(tool_ids))
         with self._lock:
-            return [self._tools[key].definition for key in requested if key in self._tools]
+            return [self._structures[key].copy_definition() for key in requested if key in self._structures]
 
     def get_definition(self, tool_id: str) -> ToolDefinition:
         with self._lock:

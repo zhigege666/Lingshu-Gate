@@ -3,7 +3,7 @@ import { InfoCircleOutlined } from "@ant-design/icons"
 import type { OAuthGrant, OAuthScopeOptions } from "./oauth-api"
 
 /** Compact grant summary; disclosure is read-only and never changes the draft. */
-export function ScopeRules({ options, grant, loading, added, addedWrite, removed, zh, open, onOpenChange }: { options: OAuthScopeOptions | null; grant: OAuthGrant; loading: boolean; added: number; addedWrite: number; removed: number; zh: boolean; open: boolean; onOpenChange: (open: boolean) => void }) {
+export function ScopeRules({ options, grant, loading, added, addedWrite, removed, zh, open, onOpenChange }: { options: Pick<OAuthScopeOptions, "scopes" | "effective_scopes" | "family_scope_limits"> | null; grant: OAuthGrant; loading: boolean; added: number; addedWrite: number; removed: number; zh: boolean; open: boolean; onOpenChange: (open: boolean) => void }) {
   const scopes = options?.scopes || grant.scopes
   return <div className="oauth-scope-rule-row">
     <span className="oauth-scope-rule-summary oauth-muted" role="status">{loading ? zh ? "正在读取本人可授权范围…" : "Loading your available scope…" : `${zh ? "OAuth 上限" : "OAuth ceiling"}: ${scopes.join(" · ") || "—"} · ${options ? zh ? "本人当前获准且已发布的工具" : "Currently permitted, published tools" : zh ? "可授权目录尚未读取，请刷新" : "Catalog not loaded; refresh available scope"}`}</span>

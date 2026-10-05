@@ -46,6 +46,10 @@ def main() -> None:
         access.publish_classifications(server_id="synthetic-fixture", reviewer_id=admin_id)
         access.save_grant(subject_type="user", subject_id=viewer["id"], server_id="synthetic-fixture",
                           permission_type_code="read", created_by=admin_id)
+        if os.environ.get("GATE_E2E_OAUTH_CATALOG_SCALE") == "1":
+            from oauth_catalog_fixture import seed_oauth_catalog
+
+            seed_oauth_catalog(app)
         from http_peer import synthetic_http_peer
 
         with synthetic_http_peer(Path(os.environ["GATE_E2E_TEMP_ROOT"])):

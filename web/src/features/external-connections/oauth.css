@@ -13,6 +13,8 @@
 .oauth-filters { display: grid; grid-template-columns: minmax(180px, 1fr) minmax(140px, 220px) max-content; gap: 12px; margin: 12px 0; }
 .oauth-selection { margin: 12px 0; font-size: 13px; }
 .oauth-tools { min-width: 0; }
+.oauth-paged-navigation { display: flex; align-items: center; justify-content: space-between; gap: 8px; flex-shrink: 0; min-height: 32px; font-size: 13px; }
+.oauth-paged-tools .oauth-filters > .ant-input-affix-wrapper:nth-child(2) { flex: 0 1 230px; min-width: 160px; }
 .oauth-bulk-selection { display: grid; grid-template-columns: 150px minmax(0, 1fr); align-items: start; gap: 12px; margin-top: 8px; }
 .oauth-bulk-selection > span { white-space: nowrap; line-height: 32px; }
 .oauth-bulk-selection .ant-radio-group { display: flex; flex-wrap: wrap; gap: 8px; }
