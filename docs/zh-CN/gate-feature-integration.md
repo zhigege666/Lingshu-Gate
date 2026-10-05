@@ -37,3 +37,19 @@ Catalog/group 迁移保留 OAuth 输入的 0012–0016 顺序。Native 不增加
 Backend 回归包含 OAuth A/B、普通／management 资源、直接 MCP/HTTP 兼容、catalog/group 权限与派发锁、配置／runtime／migrations，以及 Native acquisition/journal/cleanup 全套。包验证需从构建 wheel 执行 schema 验证子进程，移除 checkout import path，确认 deadline/取消子进程被回收，并从同一 artifact 导入 Native 模块。实际 Linux frozen worker、本地假数据浏览器验证如执行，单独报告证据。
 
 真实 rootless Podman namespace/controller、受审 image/cache、凭据／provider／client 和 nx5 部署仍由操作员／根代理验收。缺少已配置宿主前提时，四项 opt-in Native host 测试保持 skip，不降级 host shell。合成集成成功不表示 Docker 用户交付／构建／部署／启动链完成。
+
+## 已记录的验证检查点
+
+生产源码与测试检查点为 **`31b7cca9155d36094250a47bc7f688797b8217a7`**。后续证据提交仅修改文档；这些结果不代表新的产品测试检查点或生产部署。版本仍为 0.4.4。
+
+| 检查点上的验证 | 结果 |
+|---|---|
+| 完整 backend | 2,126 passed、7 skipped、0 failed；954.48 秒 |
+| 前端 | 74 个文件中的 439 项 Vitest 用例通过；冻结 npm 安装、type/UX 检查、Console/OAuth 构建通过 |
+| 合成 Chromium 浏览器 | 196 项常规用例通过；最初跳过的 11 项规模用例随后启用 5,000 服务／50,000 工具夹具并全部通过 |
+| 安装 wheel 与 Linux frozen worker | 14 个真实 schema 子进程全部回收，覆盖超时／取消与后续复用；2 项 native 入口探测和 6 项已安装 wheel 的 Native 模块导入通过；排除 checkout |
+| 静态／仓库检查 | Ruff、mypy（158 个源码文件）、仓库身份、版本、Compose 配置与空白检查通过 |
+
+仓库内证据：[完整验证记录](../benchmarks/gate-feature-integration-validation-31b7cca.json)、[合并／源码 blob 溯源](../benchmarks/gate-feature-integration-provenance-31b7cca.json)、[wheel／frozen worker 观测与产物校验和](../benchmarks/gate-feature-integration-package-workers-31b7cca.json)、[完整 backend 输出](../benchmarks/gate-feature-integration-backend-31b7cca.log)。
+
+导出保留观测结果与原始 runner 记录的哈希。临时绝对路径替换为具名相对路径，用于说明导入与命令，不是下载链接；本次文档导出不发布二进制。数据全部为合成输入，不含真实凭据。七项 backend skip 为四项操作员准备的 Podman 用例与三项固定外部 Playwright MCP 安装用例，与已执行的 207 项 Console/OAuth 浏览器用例不同。根代理已独立复审检查点上的真实合并祖先、源码 blob、关闭修复及迁移／锁组合，无新增 P1/P2。真实宿主、凭据／provider／client、正式发行包与 nx5 验收仍待完成。

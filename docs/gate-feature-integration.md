@@ -37,3 +37,19 @@ Final results must name the exact combined candidate SHA. Earlier input benchmar
 Backend regressions include OAuth A/B, normal and management resources, direct MCP/HTTP compatibility, catalog/group authority and dispatch locks, configuration/runtime/migrations and the Native acquisition/journal/cleanup suite. Package validation must execute schema-validation subprocesses from the built wheel with the checkout absent from the import path, confirm deadline/cancellation children are reaped and import the Native modules from that same artifact. Linux frozen-worker checks and local synthetic browser checks are separate evidence where executed.
 
 Real rootless Podman namespaces/controllers, reviewed image/cache behavior, credentials/providers/clients and nx5 deployment still need operator/root acceptance. The four opt-in Native host tests remain skipped without operator-provisioned prerequisites; they do not use a host-shell fallback. No integrated synthetic result completes the Docker user delivery/build/deploy/start chain.
+
+## Recorded validation checkpoint
+
+The production-source and test checkpoint is **`31b7cca9155d36094250a47bc7f688797b8217a7`**. The subsequent evidence commit changes documentation only; these results do not claim a new product test checkpoint or a production deployment. Version remains 0.4.4.
+
+| Check at the checkpoint | Result |
+|---|---|
+| Complete backend | 2,126 passed, 7 skipped, 0 failed; 954.48 seconds |
+| Frontend | 439 Vitest cases in 74 files passed; frozen npm install, type/UX checks and Console/OAuth builds passed |
+| Synthetic Chromium browser | 196 regular cases passed; the 11 initially skipped scale cases then passed with the 5,000-service/50,000-tool fixture enabled |
+| Installed wheel and Linux frozen workers | 14 actual schema children reaped, including deadline/cancellation and subsequent reuse; 2 direct native entry probes and 6 installed-wheel Native module imports passed; checkout excluded |
+| Static/repository checks | Ruff, mypy (158 source files), repository identity, version, Compose configuration and whitespace checks passed |
+
+Repository evidence: [complete validation record](benchmarks/gate-feature-integration-validation-31b7cca.json), [merge/source blob provenance](benchmarks/gate-feature-integration-provenance-31b7cca.json), [wheel/frozen-worker observations and artifact checksums](benchmarks/gate-feature-integration-package-workers-31b7cca.json), and [complete backend output](benchmarks/gate-feature-integration-backend-31b7cca.log).
+
+The exports retain the observed results and original runner-record hashes. Temporary absolute paths are replaced by named relative aliases; they describe imports and commands, rather than download links. This documentation export publishes no binaries. All inputs are synthetic and contain no real credentials. The seven backend skips are four operator-provisioned Podman cases and three fixed external Playwright MCP installation cases. These differ from the 207 executed Console/OAuth browser cases. Root independently reviewed the true merge ancestry, source blobs, teardown fix and migration/lock composition at the checkpoint with no new P1/P2 finding. Real host, credential/provider/client, release-package and nx5 acceptance remain outstanding.

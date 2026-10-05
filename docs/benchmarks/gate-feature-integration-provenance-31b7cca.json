@@ -1,0 +1,524 @@
+{
+  "source_sha": "31b7cca9155d36094250a47bc7f688797b8217a7",
+  "inputs": {
+    "oauth": "d8d4833bfdefbf7e679190565294f38f7a109145",
+    "native": "76bfe2c4eeae7f1a693e1d86b03c78e6098866d1",
+    "supplemental_evidence": "6f3e87145a8ff581d8738ffbc3ee6f374ab56010"
+  },
+  "merge": "31f51950eaaea02c2099e7b63d784d5ec5ec10c9 d8d4833bfdefbf7e679190565294f38f7a109145 76bfe2c4eeae7f1a693e1d86b03c78e6098866d1",
+  "production_extra_diff": "src/lingshu_gate/main.py independent teardown on unknown Native close",
+  "text_conflicts": [
+    "CHANGELOG.md",
+    "CHANGELOG.zh-CN.md"
+  ],
+  "reviewed_implementation_path_checks": "byte-equal to each corresponding input except combined main.py",
+  "supplemental_raw_evidence_preserved": true,
+  "production_source_sha": "31b7cca9155d36094250a47bc7f688797b8217a7",
+  "test_checkpoint_sha": "31b7cca9155d36094250a47bc7f688797b8217a7",
+  "evidence_export": {
+    "scope": "Documentation-only export; no product change or new test execution.",
+    "raw_runner_json_sha256": "1334ae695e17a3e773afdba3f0a2f1577f00b0225be2aada5a1e2000100619f9",
+    "path_normalization": "Runner-local absolute roots replaced by relative aliases. These paths describe observed imports/commands and are not downloadable assets.",
+    "credentials": "Synthetic data only; no real credentials or provider/client acceptance."
+  },
+  "main_baseline": "d4786fd368e932bc758ea29da1a597c9d9551794",
+  "implementation_blob_checks": {
+    "oauth": {
+      "source_sha": "d8d4833bfdefbf7e679190565294f38f7a109145",
+      "source_is_actual_ancestor": true,
+      "selection": "Paths changed from main baseline in src/ or web/, excluding composed main.py.",
+      "matched_files": 69,
+      "files": [
+        {
+          "path": "src/lingshu_gate/access_control.py",
+          "mode": "100644",
+          "blob": "3631b59964b4501806998f5edfba2f035ed5d6dd"
+        },
+        {
+          "path": "src/lingshu_gate/application/mcp_configuration.py",
+          "mode": "100644",
+          "blob": "11ef8967395f07e617a6985da22acc51591f0c55"
+        },
+        {
+          "path": "src/lingshu_gate/application/mcp_group_catalog.py",
+          "mode": "100644",
+          "blob": "41566d5b2d449042e3aa8d9d5ace2ebfc417152b"
+        },
+        {
+          "path": "src/lingshu_gate/application/mcp_group_routing.py",
+          "mode": "100644",
+          "blob": "bca144db32e3b74f41998a51930920b7fe93db8a"
+        },
+        {
+          "path": "src/lingshu_gate/application/mcp_group_structures.py",
+          "mode": "100644",
+          "blob": "f0fd30610fe3d5f4a160acdee2920194b63c024e"
+        },
+        {
+          "path": "src/lingshu_gate/application/mcp_groups.py",
+          "mode": "100644",
+          "blob": "363d51fea5e0f5187a712e33568afb2c658e1e12"
+        },
+        {
+          "path": "src/lingshu_gate/application/schema_validation.py",
+          "mode": "100644",
+          "blob": "b72d59ddf76c09ba0c7dd15df2594d88285a6b65"
+        },
+        {
+          "path": "src/lingshu_gate/application/tool_authority.py",
+          "mode": "100644",
+          "blob": "b0e3c97750439568c21f435c62cbe96d99e1ce34"
+        },
+        {
+          "path": "src/lingshu_gate/auth.py",
+          "mode": "100644",
+          "blob": "399966a4f53e0284faccd703ca61bf90147698a4"
+        },
+        {
+          "path": "src/lingshu_gate/cli.py",
+          "mode": "100644",
+          "blob": "cd2560f96ee8f3140652b62313d15efce3aa4b3f"
+        },
+        {
+          "path": "src/lingshu_gate/database.py",
+          "mode": "100644",
+          "blob": "fa20d59d1f085c399d54cd8b5cd442b5244d91e1"
+        },
+        {
+          "path": "src/lingshu_gate/domain/dispatch_lock.py",
+          "mode": "100644",
+          "blob": "f43e5a2a93804005e0d599a2266cc4734a358cdb"
+        },
+        {
+          "path": "src/lingshu_gate/domain/mcp_group_catalog.py",
+          "mode": "100644",
+          "blob": "20db8c84e8f2e1086ac4a29be2f22f6e79c80588"
+        },
+        {
+          "path": "src/lingshu_gate/domain/mcp_group_routing.py",
+          "mode": "100644",
+          "blob": "d2a3c5a449ace3c89215250feaf96d80186270cc"
+        },
+        {
+          "path": "src/lingshu_gate/domain/mcp_groups.py",
+          "mode": "100644",
+          "blob": "cbc42e1a3c5a585791e989a1f962bc3a7d55c1db"
+        },
+        {
+          "path": "src/lingshu_gate/domain/tool_structure.py",
+          "mode": "100644",
+          "blob": "55bdd06149be6ed1b239cd2bf4bea3ab36a82442"
+        },
+        {
+          "path": "src/lingshu_gate/external_jwt.py",
+          "mode": "100644",
+          "blob": "cc76236049502a26a85a6a9833d7791b10857ea8"
+        },
+        {
+          "path": "src/lingshu_gate/interfaces/control_api/catalog_routes.py",
+          "mode": "100644",
+          "blob": "764d2071ad55fa492a6e99d4522cf3161ae097cf"
+        },
+        {
+          "path": "src/lingshu_gate/interfaces/control_api/mcp_group_routes.py",
+          "mode": "100644",
+          "blob": "7cd756ecb8114f388de84a5fc28f02fcede31458"
+        },
+        {
+          "path": "src/lingshu_gate/interfaces/control_api/oauth_routes.py",
+          "mode": "100644",
+          "blob": "d62c25a3c72622ab4a5e15b3bf947e723ef17f4b"
+        },
+        {
+          "path": "src/lingshu_gate/mcp_config_store.py",
+          "mode": "100644",
+          "blob": "3b52a3fb005147d1eeb658d25f5eae6c39c6721f"
+        },
+        {
+          "path": "src/lingshu_gate/mcp_gateway.py",
+          "mode": "100644",
+          "blob": "b38e490bcf70ecf10acd3aa73a362e7284d2533e"
+        },
+        {
+          "path": "src/lingshu_gate/mcp_group_mcp.py",
+          "mode": "100644",
+          "blob": "85af8bcc0cadf9789bcef5bfbb56e445d208b763"
+        },
+        {
+          "path": "src/lingshu_gate/mcp_manifest.py",
+          "mode": "100644",
+          "blob": "461503d3b5115590e18b2686bb52d9e6c1c86bdd"
+        },
+        {
+          "path": "src/lingshu_gate/mcp_runtime.py",
+          "mode": "100644",
+          "blob": "f661b33a15436d1a382e0fbb5a1320af3c5e5b52"
+        },
+        {
+          "path": "src/lingshu_gate/oauth_candidate_catalog.py",
+          "mode": "100644",
+          "blob": "a2026e98ceec1e37cbab90406dee5c0a856328d2"
+        },
+        {
+          "path": "src/lingshu_gate/oauth_server.py",
+          "mode": "100644",
+          "blob": "c58304b1d0df4f45aff1e2d3b22b47bcf49b31fb"
+        },
+        {
+          "path": "src/lingshu_gate/persistence/catalog_group_epoch_migration.py",
+          "mode": "100644",
+          "blob": "55cf863611eb8c613e1afc562bccd4b8e657a5b7"
+        },
+        {
+          "path": "src/lingshu_gate/persistence/mcp_group_requests_migration.py",
+          "mode": "100644",
+          "blob": "682c25bc418aef22b1355035d8842c6f913088d8"
+        },
+        {
+          "path": "src/lingshu_gate/persistence/mcp_group_routing_migration.py",
+          "mode": "100644",
+          "blob": "85fc42ca9f2394b652bb4930920d7af33cc01371"
+        },
+        {
+          "path": "src/lingshu_gate/persistence/mcp_groups.py",
+          "mode": "100644",
+          "blob": "2f782b215a7eb48fac2908668f7abcdf2a5c8093"
+        },
+        {
+          "path": "src/lingshu_gate/persistence/mcp_groups_migration.py",
+          "mode": "100644",
+          "blob": "a0b2d357a3e08b2fb1e63340cbcc25277632192f"
+        },
+        {
+          "path": "src/lingshu_gate/persistence/tool_catalog_migration.py",
+          "mode": "100644",
+          "blob": "44c1db016884db4cc3206994f4dbac35cc18f024"
+        },
+        {
+          "path": "src/lingshu_gate/ports/catalog_target.py",
+          "mode": "100644",
+          "blob": "55ba75e0a00a31b5b74d8d74294f41a2e0018999"
+        },
+        {
+          "path": "src/lingshu_gate/ports/control_plane.py",
+          "mode": "100644",
+          "blob": "a54ec3bf4842ee0aac75734d31bbcb76c5a8fb4b"
+        },
+        {
+          "path": "src/lingshu_gate/ports/mcp_group_routing.py",
+          "mode": "100644",
+          "blob": "2ef369f15610e13a845bd0cf46113361d07a437f"
+        },
+        {
+          "path": "src/lingshu_gate/ports/oauth_candidate_catalog.py",
+          "mode": "100644",
+          "blob": "47844c13c3919ba2a0399f74741481f4cc882d35"
+        },
+        {
+          "path": "src/lingshu_gate/registry.py",
+          "mode": "100644",
+          "blob": "f31ad43b9455735edd30816dd11320cb978b5bf9"
+        },
+        {
+          "path": "src/lingshu_gate/tool_catalog.py",
+          "mode": "100644",
+          "blob": "df6374807a53921b544f6b1001e81f1e7ec7ef89"
+        },
+        {
+          "path": "web/e2e/mcp-client-mode.spec.ts",
+          "mode": "100644",
+          "blob": "d64f8bafdf21d1d0c4b549749c2060b4f90462a2"
+        },
+        {
+          "path": "web/e2e/mcp-groups.spec.ts",
+          "mode": "100644",
+          "blob": "aa4bd117e0b34b77b8dc5b25ae85bedc4a964c34"
+        },
+        {
+          "path": "web/e2e/oauth-grants.spec.ts",
+          "mode": "100644",
+          "blob": "e3ec04b342bd00a977efd6d358d7968e63541e15"
+        },
+        {
+          "path": "web/e2e/oauth-paged-catalog.spec.ts",
+          "mode": "100644",
+          "blob": "8a8cc158dffe1d187802a7e8f7805badb92ed658"
+        },
+        {
+          "path": "web/src/App.tsx",
+          "mode": "100644",
+          "blob": "6f060c8b744e079ef66deb4c9768d9742d5e5b3e"
+        },
+        {
+          "path": "web/src/api/mcp-groups.test.ts",
+          "mode": "100644",
+          "blob": "9f9dfa81189f9e7dfca3fb47e50f5f1cdcf1cf9a"
+        },
+        {
+          "path": "web/src/api/mcp-groups.ts",
+          "mode": "100644",
+          "blob": "cda2d24c06513eb52844b1bf66b0c210c02a63e4"
+        },
+        {
+          "path": "web/src/components/form-dialog.tsx",
+          "mode": "100644",
+          "blob": "7d70a40ec81adde03a9e68cadf38618882e3b50c"
+        },
+        {
+          "path": "web/src/features/external-connections/oauth-api.ts",
+          "mode": "100644",
+          "blob": "fdcabea7d7a17b16d6d5c26b925137c4016290cd"
+        },
+        {
+          "path": "web/src/features/external-connections/oauth-paged-tool-picker.tsx",
+          "mode": "100644",
+          "blob": "f97489008c02a5fc51cad429ef345f1f2b29811e"
+        },
+        {
+          "path": "web/src/features/external-connections/oauth-scope-availability.tsx",
+          "mode": "100644",
+          "blob": "3399303efc6cbb13fd7cc584b9c811623822d43d"
+        },
+        {
+          "path": "web/src/features/external-connections/oauth-scope-difference.tsx",
+          "mode": "100644",
+          "blob": "6a0d3e0fdbb954a2b9de007f1f24c85c90356eb1"
+        },
+        {
+          "path": "web/src/features/external-connections/oauth-scope-rules.tsx",
+          "mode": "100644",
+          "blob": "3cbfffc87a56734198e48afe452215a0fa62b467"
+        },
+        {
+          "path": "web/src/features/external-connections/oauth-tool-picker.tsx",
+          "mode": "100644",
+          "blob": "d2821839b2f842dfb5a26afcfbce6ee3bae6135d"
+        },
+        {
+          "path": "web/src/features/external-connections/oauth-tool-selection.test.ts",
+          "mode": "100644",
+          "blob": "e9bbfd6417433183de0fdbbb0985a963d78a8bcf"
+        },
+        {
+          "path": "web/src/features/external-connections/oauth-tool-selection.ts",
+          "mode": "100644",
+          "blob": "d9dc8b3bfc87ff1cf2b74743aebd7da03f162abd"
+        },
+        {
+          "path": "web/src/features/external-connections/oauth.css",
+          "mode": "100644",
+          "blob": "9421fe4320d11e8409afc09b5f188be7ea2366fd"
+        },
+        {
+          "path": "web/src/features/mcp-client-settings-dialog.tsx",
+          "mode": "100644",
+          "blob": "9696aff88341cfdfa47c699fc7dcbdd6fed94dc4"
+        },
+        {
+          "path": "web/src/features/mcp-client-settings.css",
+          "mode": "100644",
+          "blob": "de4dd8186336cc77248da522c45539e3644c798a"
+        },
+        {
+          "path": "web/src/features/mcp-client-settings.test.ts",
+          "mode": "100644",
+          "blob": "f6507efa6396fff74f02e72efc1f3e1d16c20ed2"
+        },
+        {
+          "path": "web/src/features/mcp-client-settings.ts",
+          "mode": "100644",
+          "blob": "7334673ba7698f3e1aad70a49c0ee6a2a7e9cea8"
+        },
+        {
+          "path": "web/src/features/servers/group-copy.ts",
+          "mode": "100644",
+          "blob": "3c0d6a30ecefa7cac9c9dc82eaf3a39269f89677"
+        },
+        {
+          "path": "web/src/features/servers/group-create-recovery.test.ts",
+          "mode": "100644",
+          "blob": "9a0c551f69dfc68ba3fa43e4485a7b015a901805"
+        },
+        {
+          "path": "web/src/features/servers/group-create-recovery.ts",
+          "mode": "100644",
+          "blob": "a20e32f2902c2704e9735bd90d3bda4daca3d232"
+        },
+        {
+          "path": "web/src/features/servers/group-editor.tsx",
+          "mode": "100644",
+          "blob": "ee0f5c3a93e30083e222c1621e0031caeff19534"
+        },
+        {
+          "path": "web/src/features/servers/groups-view.tsx",
+          "mode": "100644",
+          "blob": "7b679a0b9981a24481a7cafba19755fc7ef3196c"
+        },
+        {
+          "path": "web/src/pages/oauth-grants.tsx",
+          "mode": "100644",
+          "blob": "9bd63dae2217871abd440f90015d48024a0e7f18"
+        },
+        {
+          "path": "web/src/pages/personal-tokens-page.tsx",
+          "mode": "100644",
+          "blob": "def517dd1fbab98a87f97c9b8cc93bbcde5d951f"
+        },
+        {
+          "path": "web/src/pages/servers-page.css",
+          "mode": "100644",
+          "blob": "dab2b67a96f2f75dec303b73ae470a23abcfc12f"
+        },
+        {
+          "path": "web/src/pages/servers-page.tsx",
+          "mode": "100644",
+          "blob": "529862a58dd769e07bd253bb095488b06b7c9462"
+        }
+      ]
+    },
+    "native": {
+      "source_sha": "76bfe2c4eeae7f1a693e1d86b03c78e6098866d1",
+      "source_is_actual_ancestor": true,
+      "selection": "Paths changed from main baseline in src/ or web/, excluding composed main.py.",
+      "matched_files": 25,
+      "files": [
+        {
+          "path": "src/lingshu_gate/adapters/native_executor/__init__.py",
+          "mode": "100644",
+          "blob": "3470d3b737d604a5b000ef8e732213e27a553983"
+        },
+        {
+          "path": "src/lingshu_gate/adapters/native_executor/controller.py",
+          "mode": "100644",
+          "blob": "9ca63ac495637a3ed78f2737adf7cc79d2f1d8e8"
+        },
+        {
+          "path": "src/lingshu_gate/adapters/native_executor/executor.py",
+          "mode": "100644",
+          "blob": "e8b24bf9cc5744a2f2d36533fff14964e2c80ad3"
+        },
+        {
+          "path": "src/lingshu_gate/adapters/native_executor/git.py",
+          "mode": "100644",
+          "blob": "563723d49c4e223f35d1606175ce12793899f9f5"
+        },
+        {
+          "path": "src/lingshu_gate/adapters/native_executor/https.py",
+          "mode": "100644",
+          "blob": "af28f692d76f548f5c0d89e7e65d35e285bd708a"
+        },
+        {
+          "path": "src/lingshu_gate/adapters/native_executor/journal.py",
+          "mode": "100644",
+          "blob": "043c5abf44dc6709c508bf3fbcdeb0c1567e35f1"
+        },
+        {
+          "path": "src/lingshu_gate/adapters/native_executor/locked_dependencies.py",
+          "mode": "100644",
+          "blob": "38ab388851fa92e09e3919d502f00cb6b17e7484"
+        },
+        {
+          "path": "src/lingshu_gate/adapters/native_executor/packages.py",
+          "mode": "100644",
+          "blob": "55291c7b3ca197fe47c39f5222531ae52248cb6d"
+        },
+        {
+          "path": "src/lingshu_gate/adapters/native_executor/pending.py",
+          "mode": "100644",
+          "blob": "cb93b75c0fcd3aff180a5010bd7671c3ee536ba4"
+        },
+        {
+          "path": "src/lingshu_gate/adapters/native_executor/runner.py",
+          "mode": "100644",
+          "blob": "41cf0cff178ec319b80b0c9e7f22cbe7b4fafd9d"
+        },
+        {
+          "path": "src/lingshu_gate/adapters/native_executor/shims.py",
+          "mode": "100644",
+          "blob": "4abba62c87c95b199d5a52f02f34fb688a594a1f"
+        },
+        {
+          "path": "src/lingshu_gate/adapters/safe_network_factory.py",
+          "mode": "100644",
+          "blob": "fb8843ba80997201f7fded83755bfad19c0c4205"
+        },
+        {
+          "path": "src/lingshu_gate/build_deploy.py",
+          "mode": "100644",
+          "blob": "227a50dc88d3005584f214551dee65b77dfdf712"
+        },
+        {
+          "path": "src/lingshu_gate/config.py",
+          "mode": "100644",
+          "blob": "f9e34c282a87867d2ba3fb819138569e92e7dcba"
+        },
+        {
+          "path": "src/lingshu_gate/git_acquisition.py",
+          "mode": "100644",
+          "blob": "a3ed8a7f48abac458040f183ac78d29fb3c74e14"
+        },
+        {
+          "path": "src/lingshu_gate/git_import_mcp.py",
+          "mode": "100644",
+          "blob": "13b6fe11a0f8fcdefd18d73ba42abe6a264a89bd"
+        },
+        {
+          "path": "src/lingshu_gate/git_source.py",
+          "mode": "100644",
+          "blob": "27c3b4d6fb1df2751cfe45010564e64b6970bd46"
+        },
+        {
+          "path": "src/lingshu_gate/native_executor_config.py",
+          "mode": "100644",
+          "blob": "582cd3a8bc9a9c7ef28b8ecdb6ae1728def6d21a"
+        },
+        {
+          "path": "src/lingshu_gate/network_artifact.py",
+          "mode": "100644",
+          "blob": "e3a2cd14aca7727277c48229cc023881829e82bc"
+        },
+        {
+          "path": "src/lingshu_gate/network_settings.py",
+          "mode": "100644",
+          "blob": "c350664c470e3ca729dea1bf9eab986d485d7c15"
+        },
+        {
+          "path": "src/lingshu_gate/offline_build_contract.py",
+          "mode": "100644",
+          "blob": "11b3b8fcd1a4f7d4b06d6c7e02e73928b4fda292"
+        },
+        {
+          "path": "src/lingshu_gate/ports/git_acquisition.py",
+          "mode": "100644",
+          "blob": "7fbad5eee79936fa34abb25eaaaf6861657d97d6"
+        },
+        {
+          "path": "src/lingshu_gate/ports/safe_network_executor.py",
+          "mode": "100644",
+          "blob": "cea7fdfe9d57de97dbe1b5c09e685e30cdc5c412"
+        },
+        {
+          "path": "src/lingshu_gate/project_delivery_mcp.py",
+          "mode": "100644",
+          "blob": "b20d88149fc551e219340318ba49bb1feed2a5bb"
+        },
+        {
+          "path": "src/lingshu_gate/safe_files.py",
+          "mode": "100644",
+          "blob": "808de13dc33da4256f31a3714308fdaea2939f2c"
+        }
+      ]
+    }
+  },
+  "additional_product_fix": "6a0054963369cc882bbaae03be40f96c91af3204",
+  "supplemental_evidence_blob_checks": [
+    {
+      "path": "docs/benchmarks/backend-full-final-head.json",
+      "blob": "767c3a5205f2678ecb9a17ea3ae1f71bafe185fa"
+    },
+    {
+      "path": "docs/benchmarks/package-schema-workers-final-head-linux.json",
+      "blob": "583f8c0e77fbf3d2d8d9eae35c4f4cb866fbd3fc"
+    }
+  ]
+}
