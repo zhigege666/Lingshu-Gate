@@ -1637,6 +1637,8 @@ class AccessControlStore:
 
         if expected_definition_revision is not None and tool_definition_revision(definition) != expected_definition_revision:
             raise ToolExecutionError("group_tool_contract_changed", "The selected tool contract changed; describe it again.")
+        # Synchronize the requested definition without projecting every
+        # classification row merely to discard synchronize_tools()'s return.
         with self.database.session() as connection:
             self._synchronize_tools(connection, [definition])
         decision = self.evaluate(principal, definition)
