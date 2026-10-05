@@ -1,0 +1,219 @@
+"""Request-local contract candidates, never business-equivalence or routing IDs."""
+from __future__ import annotations
+
+import hashlib
+import json
+import math
+from collections import Counter
+from dataclasses import dataclass
+from typing import Any, Literal
+
+from pydantic import BaseModel, ConfigDict
+
+from lingshu_gate.domain.mcp_groups import McpGroupError
+from lingshu_gate.models import ToolDefinition
+
+MAX_CATALOG_TOOLS = 50_000
+MAX_SCHEMA_BYTES = 128 * 1024
+MAX_SCHEMA_NODES = 10_000
+MAX_SCHEMA_DEPTH = 64
+MAX_CATALOG_CONTRACT_BYTES = 32 * 1024 * 1024
+
+
+def canonical_contract(value: Any) -> str:
+    """Sort object keys only; preserve arrays, types and every schema keyword."""
+    nodes = 0
+    encoded_bytes = 0
+
+    def visit(item: Any, depth: int) -> None:
+        nonlocal nodes, encoded_bytes
+        nodes += 1
+        if depth > MAX_SCHEMA_DEPTH or nodes > MAX_SCHEMA_NODES:
+            raise ValueError("schema_complexity_limit")
+        if isinstance(item, dict):
+            encoded_bytes += 2 + len(item) + max(0, len(item) - 1)
+        elif isinstance(item, list):
+            encoded_bytes += 2 + max(0, len(item) - 1)
+        else:
+            if isinstance(item, str):
+                if len(item) > MAX_SCHEMA_BYTES:
+                    raise ValueError("schema_size_limit")
+            elif isinstance(item, float):
+                if not math.isfinite(item):
+                    raise ValueError("schema_non_json")
+            elif item is not None and not isinstance(item, (bool, int)):
+                raise ValueError("schema_non_json")
+            encoded_bytes += len(json.dumps(item, ensure_ascii=False, allow_nan=False).encode("utf-8"))
+        # Count JSON bytes before materializing the complete normalized string.
+        if encoded_bytes > MAX_SCHEMA_BYTES:
+            raise ValueError("schema_size_limit")
+        if isinstance(item, dict):
+            for key, child in item.items():
+                if not isinstance(key, str):
+                    raise ValueError("schema_non_json")
+                visit(key, depth + 1)
+                visit(child, depth + 1)
+        elif isinstance(item, list):
+            for child in item:
+                visit(child, depth + 1)
+
+    visit(value, 0)
+    result = json.dumps(value, sort_keys=True, ensure_ascii=False, separators=(",", ":"), allow_nan=False)
+    if len(result.encode("utf-8")) > MAX_SCHEMA_BYTES:
+        raise ValueError("schema_size_limit")
+    return result
+
+
+def _digest(value: str) -> str:
+    return hashlib.sha256(value.encode("utf-8")).hexdigest()
+
+
+class ReviewedToolSafety(BaseModel):
+    model_config = ConfigDict(frozen=True, extra="forbid")
+    required_access: Literal["read", "write"]
+    destructive: bool
+    idempotent: bool
+    open_world: bool
+
+
+class GroupToolVariant(BaseModel):
+    model_config = ConfigDict(frozen=True, extra="forbid")
+    variant_id: str
+    original_tool_name: str
+    compatibility: Literal["reviewed_contract_match", "single_member", "review_required", "uncomparable"]
+    input_schema_digest: str | None
+    output_schema_present: bool
+    output_schema_digest: str | None
+    safety_digest: str | None
+    safety: ReviewedToolSafety | None
+    visible_member_count: int
+    visible_variant_count: int = 1
+
+
+class GroupToolCatalogPage(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    group_id: str
+    group_revision: int
+    business_equivalence: Literal["unverified"] = "unverified"
+    variants: list[GroupToolVariant]
+    total: int
+    visible_tool_count: int
+    visible_member_count: int
+    offset: int
+    limit: int
+
+
+class GroupToolMember(BaseModel):
+    model_config = ConfigDict(frozen=True, extra="forbid")
+    instance_id: str
+    instance_name: str
+    tool_id: str
+
+
+class GroupToolVariantPage(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    group_id: str
+    group_revision: int
+    business_equivalence: Literal["unverified"] = "unverified"
+    variant: GroupToolVariant
+    members: list[GroupToolMember]
+    total: int
+    offset: int
+    limit: int
+
+
+@dataclass(frozen=True)
+class VisibleCatalogTool:
+    definition: ToolDefinition
+    instance_id: str
+    instance_name: str
+    classification: dict[str, Any] | None
+
+
+@dataclass
+class CatalogVariant:
+    summary: GroupToolVariant
+    members: list[GroupToolMember]
+    search_text: str
+
+
+def _reviewed_safety(row: dict[str, Any] | None) -> ReviewedToolSafety | None:
+    if (not row or row["status"] != "published" or not row["reviewed_by"] or not row["reviewed_at"]
+            or row["effective_access"] not in {"read", "write"}):
+        return None
+    return ReviewedToolSafety(required_access=row["effective_access"], destructive=bool(row["destructive"]),
+                              idempotent=bool(row["idempotent"]), open_world=bool(row["open_world"]))
+
+
+def build_catalog(group_id: str, tools: list[VisibleCatalogTool]) -> list[CatalogVariant]:
+    """Partition only already-authorized tools. No authorization result is cached."""
+    if len(tools) > MAX_CATALOG_TOOLS:
+        raise McpGroupError("group_catalog_capacity", "The visible catalog exceeds the bounded comparison capacity.", 503)
+    buckets: dict[tuple[str, ...], CatalogVariant] = {}
+    used_bytes = 0
+    for item in tools:
+        definition = item.definition
+        name = definition.metadata["original_tool_name"]
+        output_present = "outputSchema" in definition.metadata
+        safety = _reviewed_safety(item.classification)
+        comparison: Literal["reviewed_contract_match", "review_required", "uncomparable"] = (
+            "reviewed_contract_match" if safety else "review_required"
+        )
+        input_text = output_text = safety_text = ""
+        try:
+            if not isinstance(definition.input_schema, dict):
+                raise ValueError("schema_non_object")
+            if output_present and not isinstance(definition.metadata["outputSchema"], dict):
+                raise ValueError("schema_non_object")
+            input_text = canonical_contract(definition.input_schema)
+            output_text = canonical_contract({"present": output_present, "schema": definition.metadata.get("outputSchema")})
+            # These fields are bound by the current reviewed fingerprint. Hints
+            # cannot supply required_access or override the Gate classification.
+            safety_text = canonical_contract({
+                "review": safety.model_dump() if safety else None,
+                "declared_permission": definition.permission,
+                "required_control_permission": definition.metadata.get("required_control_permission"),
+                "sensitive_input_fields": definition.metadata.get("sensitive_input_fields"),
+                "sensitive_output_fields": definition.metadata.get("sensitive_output_fields"),
+                "annotations": {key: value for key, value in definition.metadata.get("annotations", {}).items()
+                                if key in {"readOnlyHint", "destructiveHint", "idempotentHint", "openWorldHint"}
+                                and isinstance(value, bool)},
+            })
+        except (ValueError, TypeError, AttributeError):
+            comparison = "uncomparable"
+            input_text = output_text = safety_text = ""
+        used_bytes += len(input_text.encode("utf-8")) + len(output_text.encode("utf-8")) + len(safety_text.encode("utf-8"))
+        if used_bytes > MAX_CATALOG_CONTRACT_BYTES:
+            raise McpGroupError("group_catalog_capacity", "The visible contracts exceed the bounded comparison capacity.", 503)
+        # Pending/stale/unrepresentable contracts remain individual variants.
+        discriminator = "" if comparison == "reviewed_contract_match" else definition.id
+        key = (name, input_text, output_text, safety_text, discriminator)
+        member = GroupToolMember(instance_id=item.instance_id, instance_name=item.instance_name, tool_id=definition.id)
+        if key not in buckets:
+            identifier = _digest(json.dumps([group_id, *key], ensure_ascii=False, separators=(",", ":")))
+            buckets[key] = CatalogVariant(GroupToolVariant(
+                variant_id=identifier, original_tool_name=name, compatibility=comparison,
+                input_schema_digest=_digest(input_text) if input_text else None,
+                output_schema_present=output_present,
+                output_schema_digest=_digest(output_text) if output_present and output_text else None,
+                safety_digest=_digest(safety_text) if safety_text else None,
+                safety=safety, visible_member_count=0,
+            ), [], "")
+        buckets[key].members.append(member)
+    counts = Counter(item.summary.original_tool_name for item in buckets.values())
+    for variant in buckets.values():
+        variant.members.sort(key=lambda member: (member.instance_id, member.tool_id))
+        members = len({member.instance_id for member in variant.members})
+        compatibility = variant.summary.compatibility
+        if compatibility == "reviewed_contract_match" and members == 1:
+            compatibility = "single_member"
+        variant.summary = variant.summary.model_copy(update={
+            "visible_member_count": members, "visible_variant_count": counts[variant.summary.original_tool_name],
+            "compatibility": compatibility,
+        })
+        variant.search_text = " ".join([variant.summary.original_tool_name, *(
+            f"{member.instance_id} {member.instance_name} {member.tool_id}" for member in variant.members
+        )]).casefold()
+    return sorted(buckets.values(), key=lambda item: (
+        item.summary.original_tool_name.casefold(), item.summary.original_tool_name, item.summary.variant_id,
+    ))

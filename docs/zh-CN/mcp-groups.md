@@ -22,6 +22,8 @@
 | `GET /v1/mcp/groups/instances` | 完整搜索实例名称/ID 并分页；可选 group_id 或 ungrouped=true；refresh=true 仅重建元数据 |
 | `GET /v1/mcp/groups/requests/{request_key}` | 核对当前用户的创建结果；未找到不表示早先请求失败 |
 | `GET /v1/mcp/groups/{id}` | 读取已保存元数据、revision、成员 ID 与可用状态 |
+| `GET /v1/mcp/groups/{id}/catalog` | 只读当前可见的合同变体摘要；完整 `q` 搜索后按 `offset`/`limit` 分页，每页最多100条 |
+| `GET /v1/mcp/groups/{id}/catalog/{variant_id}` | 重新读取可见变体，分页返回原实例/工具 ID，每页最多100个成员 |
 | `POST /v1/mcp/groups/csrf` | 用 `action`、`request_digest` 和更新/删除时的组 ID 获取短期、绑定会话/请求体/方法/目标的单次票据 |
 | `POST /v1/mcp/groups` | 创建明确确认的组元数据与成员关系 |
 | `PUT /v1/mcp/groups/{id}` | 使用 `expected_revision` CAS 替换元数据/成员 |
@@ -35,6 +37,18 @@ Console 每次请求限时 15 秒，写入不自动重放。超时表示结果�
 
 创建结果未确认后，Console 只将请求键保存在 sessionStorage，并绑定 /v1/auth/me 返回的当前用户 ID 和当前 Gate origin，不存已提交正文或凭据。刷新后进入组目录，可明确点击只读“核对保存结果”，无法恢复未保存的编辑内容。查询失败或 GET 404 仍保留键，不会启动另一次创建。成功对账或确认“放弃恢复记录”前禁用新建；放弃不会删除可能已保存的组。明确放弃原未确认编辑器时也会忘记其恢复键。切换用户不会显示或清除另一用户的键。这仅为同标签页浏览器恢复，不是服务端草稿存储；浏览器存储不可用会显示提示，不能依赖刷新恢复。首次请求收到确定的容量拒绝时，保留草稿，不将本次视为未知创建。
 
+## 只读合同候选
+
+目录端点保留当前管理员与 `operations.manage` 边界，并将实时读取的工具控制权限、token/delegation 上限与既有工具策略取交集。仅有元数据权限的 token 可以读取组元数据，但工具目录为空。业务及管理 OAuth 不增加端点或 scope。只有组内仍存在的有效成员和身份精确匹配的 Registry MCP 工具参与；排除内置工具、伪造 ID 和删除/重建后尚未明确重新确认的成员。总数、变体数、成员数、搜索及详情页均只来自调用者可见工具。已隐藏、变化或移除的变体统一返回404。成功响应使用 `Cache-Control: no-store`。
+
+同一精确原始名称的工具，仅在规范化后的输入/输出声明一致，且当前已发布、指纹匹配的 Gate 审核一致时共享候选。审核比较包含实际读写权限、destructive/idempotent/open-world 属性，以及绑定审核的声明权限、控制权限、敏感字段与 annotation 元数据。下游 `readOnlyHint` 不提供或降低实际访问权限。只排序对象键，保留数组、类型及全部 schema 关键字；输出 schema 缺失与 `{}` 不同。这是保守的声明比较，不是 schema 验证、引用解析或业务等价证明。每个响应明确返回 `business_equivalence: unverified`。
+
+不同合同保留为明确变体。待审核、失效或未经审核的合同不聚合；既有管理员策略允许查看时，各自保留为 `review_required`。无法表示或超出单个复杂度上限的合同为 `uncomparable`。只有一个已审核可见成员时为 `single_member`，同一审核合同的多个可见成员为 `reviewed_contract_match`。变体 ID 只属于此只读视图，不注册为工具、可调用别名或路由目标。成员详情保留原工具 ID 和直连调用接口。
+
+每次查询使用新的 Registry/授权快照。已有元数据缓存只含实例 ID/名称，不缓存工具访问结论、候选结果或成员可见性。GET 不同步分类、不发布审核、不改授权、不重新连接服务，也不调用下游工具。等待配置锁后再次检查当前权限与 token。搜索先覆盖完整可见目录再分页；每一页均为新快照，成员或授权变化可能改变后续页。
+
+每请求最多比较50,000个可见工具及32 MiB规范化合同，超限统一返回 HTTP503 `group_catalog_capacity`，不返回部分结果。单个 JSON 合同限128 KiB、10,000个访问节点及64层深度。回归使用100个真实合成配置文件、5,000个实际合成 Registry 定义与已发布测试审核，检查完整目录搜索及嵌套成员分页，不证明真实下游连接或生产延迟。Console 组编辑器保持不变，目录查询本阶段尚无新增界面。
+
 ## 支持边界
 
-本切片**尚未实现**逻辑工具兼容审核、schema revision 目录、Agent 路由信封、未来实例自动授权或会话绑定。不新增同名工具聚合、endpoint 路由或跨实例重试/failover。共享下游客户端与每次新建的用户凭据客户端保持原有生命周期，不宣称浏览器会话隔离。Git transport 与隔离 worker 的 readiness 缺口保持不变。
+本切片**尚未实现**业务等价确认、持久化 schema revision 目录、Agent 路由信封、未来实例自动授权或会话绑定。合同候选不创建可调用逻辑工具、endpoint 路由或跨实例重试/failover。共享下游客户端与每次新建的用户凭据客户端保持原有生命周期，不宣称浏览器会话隔离。Git transport 与隔离 worker 的 readiness 缺口保持不变。

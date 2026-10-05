@@ -65,6 +65,8 @@ Incoming MCP handshake compatibility does not create an authenticated session or
 
 Tool-discovery classification and grant snapshots are scoped to one request and are not shared between principals or retained for later calls. The next discovery or invocation reads current grants, expiration, and classification state again. Sectioned server-detail reads keep the existing `operations.manage` boundary and return only the requested diagnostic data; selecting a section does not bypass authorization or manifest credential masking.
 
+The unreleased group contract catalog requires a current administrator connection and `operations.manage`, then separately applies current tool permissions, published fingerprint checks and token/delegation ceilings. Its totals and variants contain only visible tools; no authorization result is cached. Queries perform no classification/grant/runtime mutation. A matching declaration and reviewed safety record is only a contract candidate: `business_equivalence` remains `unverified`, and its view ID grants no invocation, routing, fallback or new OAuth scope. Original tool IDs and direct invocation remain unchanged. [Group directory boundary](docs/mcp-groups.md).
+
 Administrators should:
 
 - classify and publish tools only after human review;

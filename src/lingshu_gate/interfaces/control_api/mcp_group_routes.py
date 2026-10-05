@@ -5,20 +5,23 @@ import hashlib
 import json
 from typing import Any, Literal, TypeVar
 
-from fastapi import FastAPI, HTTPException, Path, Query, Request
+from fastapi import FastAPI, HTTPException, Path, Query, Request, Response
 from fastapi.responses import JSONResponse
 from pydantic import BaseModel, ValidationError
 
 from lingshu_gate.application.console_session_security import ConsoleCsrfError, ConsoleSessionCsrf
 from lingshu_gate.application.mcp_groups import McpGroupService
+from lingshu_gate.application.mcp_group_catalog import McpGroupCatalogService
 from lingshu_gate.auth import AuthPrincipal, AuthStore
 from lingshu_gate.domain.mcp_groups import McpGroupCreate, McpGroupDelete, McpGroupError, McpGroupUpdate
+from lingshu_gate.domain.mcp_group_catalog import GroupToolCatalogPage, GroupToolVariantPage
 from lingshu_gate.interfaces.control_api.console_security import console_origin_allowed
 
 Body = TypeVar("Body", bound=BaseModel)
 
 
-def register_mcp_group_routes(app: FastAPI, *, auth: AuthStore, service: McpGroupService) -> None:
+def register_mcp_group_routes(app: FastAPI, *, auth: AuthStore, service: McpGroupService,
+                             catalog: McpGroupCatalogService | None = None) -> None:
     csrf = ConsoleSessionCsrf(auth)
 
     def principal(request: Request, body: dict[str, Any] | None = None, *, write: bool = False) -> AuthPrincipal:
@@ -89,6 +92,28 @@ def register_mcp_group_routes(app: FastAPI, *, auth: AuthStore, service: McpGrou
             return service.create_result(request_key, principal(request))
         except McpGroupError as exc:
             raise error(exc) from None
+
+    if catalog is not None:
+        @app.get("/v1/mcp/groups/{group_id}/catalog", response_model=GroupToolCatalogPage, tags=["mcp-groups"])
+        def tool_catalog(group_id: str, request: Request, response: Response, q: str = Query(default="", max_length=200),
+                         offset: int = Query(default=0, ge=0, le=100000),
+                         limit: int = Query(default=20, ge=1, le=100)) -> GroupToolCatalogPage:
+            response.headers.update({"Cache-Control": "no-store", "Pragma": "no-cache"})
+            try:
+                return catalog.catalog(group_id, principal(request), q=q, offset=offset, limit=limit)
+            except McpGroupError as exc:
+                raise error(exc) from None
+
+        @app.get("/v1/mcp/groups/{group_id}/catalog/{variant_id}", response_model=GroupToolVariantPage, tags=["mcp-groups"])
+        def tool_variant(group_id: str, request: Request, response: Response,
+                         variant_id: str = Path(pattern=r"^[a-f0-9]{64}$"),
+                         offset: int = Query(default=0, ge=0, le=100000),
+                         limit: int = Query(default=20, ge=1, le=100)) -> GroupToolVariantPage:
+            response.headers.update({"Cache-Control": "no-store", "Pragma": "no-cache"})
+            try:
+                return catalog.variant(group_id, variant_id, principal(request), offset=offset, limit=limit)
+            except McpGroupError as exc:
+                raise error(exc) from None
 
     @app.get("/v1/mcp/groups/{group_id}", tags=["mcp-groups"])
     def detail(group_id: str, request: Request) -> dict[str, Any]:

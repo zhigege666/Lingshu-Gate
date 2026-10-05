@@ -1187,6 +1187,33 @@ class AccessControlStore:
                     }))
             return visible
 
+    def visible_tool_contracts(
+        self, principal: AuthPrincipal, definitions: Iterable[ToolDefinition], *, connection: sqlite3.Connection,
+    ) -> list[tuple[ToolDefinition, dict[str, Any] | None]]:
+        """Read-only current policy projection; do not analyze or persist on a catalog GET."""
+        items = list(definitions)
+        keys = [(_server_id(item), item.id) for item in items]
+        classifications = self._load_classifications(connection, keys)
+        grants = self._effective_access_map(connection, principal, keys)
+        result: list[tuple[ToolDefinition, dict[str, Any] | None]] = []
+        for definition, key in zip(items, keys, strict=True):
+            classification = classifications.get(key)
+            # An old published row cannot authorize a changed registry contract.
+            # Unlike discovery synchronization, this query leaves the row intact.
+            if classification:
+                try:
+                    if classification["fingerprint"] != _tool_fingerprint(definition):
+                        classification = None
+                except (ValueError, TypeError, RecursionError):
+                    classification = None
+            decision = self._evaluate(principal, definition, classification, partial(grants.__getitem__, key))
+            permission = "tools.read" if decision["required_access"] == "read" else "tools.invoke"
+            # Legacy admin discovery bypass does not widen this read-only
+            # directory's freshly loaded explicit control-permission ceiling.
+            if decision["allowed"] and ("*" in principal.permissions or permission in principal.permissions):
+                result.append((definition, classification))
+        return result
+
     def evaluate(self, principal: AuthPrincipal, definition: ToolDefinition) -> dict[str, Any]:
         key = (_server_id(definition), definition.id)
         with self.database.session() as connection:

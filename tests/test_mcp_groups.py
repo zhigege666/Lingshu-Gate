@@ -18,6 +18,7 @@ from fastapi.testclient import TestClient
 from lingshu_gate.access_control import AccessControlStore
 from lingshu_gate.application.mcp_configuration import McpConfigurationService
 from lingshu_gate.application.mcp_groups import McpGroupService
+from lingshu_gate.application.mcp_group_catalog import McpGroupCatalogService
 from lingshu_gate.auth import AuthStore
 from lingshu_gate.config import Settings
 from lingshu_gate.database import SQLiteDatabase
@@ -25,9 +26,10 @@ from lingshu_gate.domain.mcp_groups import McpGroupCreate, McpGroupDraft, McpGro
 from lingshu_gate.interfaces.control_api.mcp_group_routes import register_mcp_group_routes
 from lingshu_gate.mcp_config_store import McpConfigStore
 from lingshu_gate.mcp_runtime import McpRuntimeManager
-from lingshu_gate.models import McpServerListResponse
+from lingshu_gate.models import McpServerListResponse, ToolDefinition
 from lingshu_gate.observability_store import ObservabilityStore
 from lingshu_gate.persistence.mcp_groups import McpGroupStore
+from lingshu_gate.registry import ToolNotFoundError, ToolRegistry
 
 PASSWORD = "Synthetic-Groups-123!"
 
@@ -50,12 +52,15 @@ def gate(tmp_path, monkeypatch):
     runtime.list_servers.return_value = McpServerListResponse(servers=[], load_errors=[])
     store = McpGroupStore(database, ObservabilityStore(database))
     service = McpGroupService(store, configs, runtime)
+    registry = ToolRegistry()
+    catalog = McpGroupCatalogService(service, registry, access)
     app = FastAPI()
-    register_mcp_group_routes(app, auth=auth, service=service)
+    register_mcp_group_routes(app, auth=auth, service=service, catalog=catalog)
     with TestClient(app) as client:
         client.cookies.set(auth.cookie_name, cookie)
         yield {"service": service, "store": store, "database": database, "configs": configs,
-               "runtime": runtime, "auth": auth, "principal": principal, "client": client, "access": access}
+               "runtime": runtime, "auth": auth, "principal": principal, "client": client, "access": access,
+               "registry": registry, "catalog": catalog}
 
 
 def draft(*, with_request=True, **values):
@@ -517,3 +522,222 @@ def test_receipt_migration_preserves_preexisting_group_metadata(gate):
     assert current["members"] == [{**item, "available": True} for item in group["members"]]
     assert db.query_one("SELECT COUNT(*) FROM mcp_group_requests")[0] == 0
     assert db.query_one("SELECT COUNT(*) FROM schema_migrations WHERE id='0014_gate_mcp_group_requests'")[0] == 1
+
+
+_MISSING_OUTPUT = object()
+
+
+def catalog_tool(gate, instance, *, name="query", access="read", schema=None,
+                 output=_MISSING_OUTPUT, metadata=None, published=True):
+    definition = ToolDefinition(id=f"mcp.{instance}.{name}", name=name, description="Synthetic contract",
+        source="mcp", input_schema={} if schema is None else schema,
+        metadata={"server_id": instance, "original_tool_name": name, "annotations": {"readOnlyHint": True},
+                  **({"outputSchema": output} if output is not _MISSING_OUTPUT else {}), **(metadata or {})})
+    handler = Mock(return_value={"synthetic": True})
+    gate["registry"].register(definition, handler, replace=True)
+    gate["access"].synchronize_tools([definition])
+    gate["access"].set_classification(server_id=instance, tool_id=definition.id, access=access,
+        destructive=access == "write", idempotent=False, reviewer_id=gate["principal"].id)
+    if published:
+        gate["access"].publish_classifications(reviewer_id=gate["principal"].id, tool_ids=[definition.id])
+    return definition, handler
+
+
+def catalog_path(group, suffix=""):
+    return f'/v1/mcp/groups/{group["id"]}/catalog{suffix}'
+
+
+def catalog_token(gate, scopes):
+    token = gate["auth"].create_api_token(principal=gate["principal"], name="Synthetic catalog reader", scopes=scopes)
+    return token, {"Authorization": f'Bearer {token["token"]}'}
+
+
+def test_catalog_current_review_candidates_preserve_ids_and_do_not_mutate(gate):
+    group = create(gate)
+    first, first_handler = catalog_tool(gate, "instance-0", schema={"type": "object", "properties": {"x": {"type": "string"}}})
+    second, second_handler = catalog_tool(gate, "instance-1", schema={"properties": {"x": {"type": "string"}}, "type": "object"})
+    before = gate["database"].query_all("SELECT * FROM mcp_tool_classifications ORDER BY tool_id")
+    response = gate["client"].get(catalog_path(group))
+    assert response.status_code == 200 and response.headers["cache-control"] == "no-store"
+    body = response.json()
+    assert body["business_equivalence"] == "unverified"
+    assert body["total"] == 1 and body["visible_tool_count"] == body["visible_member_count"] == 2
+    variant = body["variants"][0]
+    assert variant["compatibility"] == "reviewed_contract_match" and variant["visible_member_count"] == 2
+    assert "members" not in variant and "input_schema" not in variant
+    detail = gate["client"].get(catalog_path(group, "/" + variant["variant_id"]), params={"offset": 1, "limit": 1})
+    assert detail.status_code == 200 and detail.headers["cache-control"] == "no-store"
+    assert detail.json()["total"] == 2 and [item["tool_id"] for item in detail.json()["members"]] == [second.id]
+    assert before == gate["database"].query_all("SELECT * FROM mcp_tool_classifications ORDER BY tool_id")
+    assert gate["registry"].get_definition(first.id) == first
+    with pytest.raises(ToolNotFoundError):
+        gate["registry"].get_definition(variant["variant_id"])
+    first_handler.assert_not_called()
+    second_handler.assert_not_called()
+
+
+def test_catalog_only_counts_visible_members_variants_and_current_scopes(gate):
+    group = create(gate)
+    readable, _ = catalog_tool(gate, "instance-0", access="read")
+    hidden, _ = catalog_tool(gate, "instance-1", access="write", output={})
+    token, headers = catalog_token(gate, ["operations.manage", "tools.read"])
+    response = gate["client"].get(catalog_path(group), headers=headers)
+    body = response.json()
+    assert response.status_code == 200 and body["visible_member_count"] == body["visible_tool_count"] == body["total"] == 1
+    assert body["variants"][0]["visible_variant_count"] == 1
+    assert "instance-1" not in json.dumps(body) and hidden.id not in json.dumps(body)
+    assert gate["client"].get(catalog_path(group), params={"q": hidden.id}, headers=headers).json()["total"] == 0
+    all_body = gate["client"].get(catalog_path(group)).json()
+    hidden_variant = next(item for item in all_body["variants"] if item["safety"]["required_access"] == "write")
+    assert gate["client"].get(catalog_path(group, "/" + hidden_variant["variant_id"]), headers=headers).status_code == 404
+    gate["database"].execute("UPDATE api_tokens SET scopes_json=? WHERE id=?", (json.dumps(["operations.manage"]), token["id"]))
+    assert gate["client"].get(catalog_path(group), headers=headers).json()["visible_tool_count"] == 0
+    gate["database"].execute("UPDATE api_tokens SET scopes_json=? WHERE id=?", (json.dumps(["operations.manage", "tools.read"]), token["id"]))
+    gate["access"].set_classification(server_id="instance-0", tool_id=readable.id, access="read",
+        destructive=False, idempotent=False, reviewer_id=gate["principal"].id)
+    body = gate["client"].get(catalog_path(group), headers=headers).json()
+    assert body["variants"][0]["compatibility"] == "review_required"
+    assert body["variants"][0]["safety"] is None
+
+
+def test_catalog_changed_fingerprint_is_not_authorized_by_old_review_and_get_never_syncs(gate):
+    group = create(gate)
+    catalog_tool(gate, "instance-0")
+    second, handler = catalog_tool(gate, "instance-1")
+    token, headers = catalog_token(gate, ["operations.manage", "tools.read"])
+    old = gate["client"].get(catalog_path(group), headers=headers).json()["variants"][0]["variant_id"]
+    gate["registry"].register(second.model_copy(update={"input_schema": {"type": "object"}}), handler, replace=True)
+    before = [dict(row) for row in gate["database"].query_all("SELECT * FROM mcp_tool_classifications ORDER BY tool_id")]
+    response = gate["client"].get(catalog_path(group), headers=headers)
+    assert response.status_code == 200 and response.json()["visible_tool_count"] == 1
+    assert response.json()["variants"][0]["variant_id"] == old
+    admin = gate["client"].get(catalog_path(group)).json()
+    assert admin["total"] == 2 and sum(item["compatibility"] == "review_required" for item in admin["variants"]) == 1
+    assert before == [dict(row) for row in gate["database"].query_all("SELECT * FROM mcp_tool_classifications ORDER BY tool_id")]
+    handler.assert_not_called()
+
+
+@pytest.mark.parametrize("malformed", ["cycle", "non_json"])
+def test_catalog_malformed_registry_contract_fails_closed_without_mutating_review(gate, malformed):
+    group = create(gate)
+    original, handler = catalog_tool(gate, "instance-0")
+    _, headers = catalog_token(gate, ["operations.manage", "tools.read"])
+    schema = {"value": b"synthetic-non-json"}
+    if malformed == "cycle":
+        schema = {}
+        schema["self"] = schema
+    gate["registry"].register(original.model_copy(update={"input_schema": schema}), handler, replace=True)
+    before = [dict(row) for row in gate["database"].query_all("SELECT * FROM mcp_tool_classifications")]
+    response = gate["client"].get(catalog_path(group), headers=headers)
+    assert response.status_code == 200 and response.json()["visible_tool_count"] == 0
+    admin = gate["client"].get(catalog_path(group))
+    assert admin.status_code == 200 and admin.json()["visible_tool_count"] == 1
+    assert admin.json()["variants"][0]["compatibility"] == "uncomparable"
+    assert admin.json()["variants"][0]["safety"] is None
+    assert before == [dict(row) for row in gate["database"].query_all("SELECT * FROM mcp_tool_classifications")]
+    handler.assert_not_called()
+
+
+@pytest.mark.parametrize("change", ["tools_permission", "token_scopes", "token_revoked", "delegation"])
+def test_catalog_rechecks_current_authority_after_waiting_for_configuration_lock(gate, change):
+    group = create(gate)
+    catalog_tool(gate, "instance-0")
+    token, _ = catalog_token(gate, ["operations.manage", "tools.read"])
+    actor = gate["auth"]._principal_from_api_token(token["token"])
+    if change == "delegation":
+        actor = replace(actor, delegated_scopes=("operations.manage",))
+    with gate["configs"].mutation_lock, ThreadPoolExecutor(max_workers=1) as pool:
+        started = threading.Event()
+        def read():
+            started.set()
+            return gate["catalog"].catalog(group["id"], actor)
+        future = pool.submit(read)
+        assert started.wait(2)
+        if change == "tools_permission":
+            gate["database"].execute("DELETE FROM role_permissions WHERE permission_id=(SELECT id FROM control_permissions WHERE code='tools.read')")
+        elif change == "token_scopes":
+            gate["database"].execute("UPDATE api_tokens SET scopes_json=? WHERE id=?", (json.dumps(["operations.manage"]), token["id"]))
+        elif change == "token_revoked":
+            gate["database"].execute("UPDATE api_tokens SET revoked_at='2026-10-05T00:00:00Z' WHERE id=?", (token["id"],))
+        gate["configs"].mutation_lock.release()
+        try:
+            if change == "token_revoked":
+                with pytest.raises(McpGroupError) as denied:
+                    future.result(timeout=10)
+                assert denied.value.status == 403
+            else:
+                result = future.result(timeout=10)
+                assert result.total == result.visible_tool_count == result.visible_member_count == 0
+        finally:
+            gate["configs"].mutation_lock.acquire()
+
+
+def test_catalog_excludes_other_sources_forged_ids_and_unconfirmed_recreated_members(gate):
+    group = create(gate)
+    original, _ = catalog_tool(gate, "instance-0")
+    gate["registry"].register(original.model_copy(update={"id": "gate.synthetic", "source": "builtin"}), Mock())
+    gate["registry"].register(original.model_copy(update={"id": "mcp.forged.query"}), Mock())
+    assert gate["client"].get(catalog_path(group)).json()["visible_tool_count"] == 1
+    configuration = McpConfigurationService(gate["configs"], gate["runtime"], Mock(), group_store=gate["store"])
+    gate["runtime"].has_server.return_value = False
+    configuration.delete("instance-0")
+    gate["configs"].save_config({"id": "instance-0", "launch": {"type": "external"},
+        "transport": {"type": "streamable_http", "endpoint": "https://mcp.example.test/mcp"}})
+    assert gate["client"].get(catalog_path(group)).json()["visible_tool_count"] == 0
+    body = draft(expected_revision=2, reconfirm_members=["instance-0"])
+    assert gate["client"].put(f'/v1/mcp/groups/{group["id"]}', json=body,
+        headers=ticket(gate, body, "update", group["id"])).status_code == 200
+    assert gate["client"].get(catalog_path(group)).json()["visible_tool_count"] == 1
+
+
+@pytest.mark.parametrize("auth_type", ["oauth", "disabled"])
+def test_catalog_does_not_add_oauth_or_disabled_auth_authority(gate, auth_type):
+    group = create(gate)
+    with patch.object(gate["auth"], "authenticate_request", return_value=replace(gate["principal"], auth_type=auth_type)):
+        assert gate["client"].get(catalog_path(group)).status_code == 403
+
+
+def test_catalog_requires_current_admin_and_bounds_query_fields(gate):
+    group = create(gate)
+    gate["auth"].create_user(username="synthetic-catalog-viewer", password=PASSWORD, role="viewer")
+    _, cookie, _ = gate["auth"].login(username="synthetic-catalog-viewer", password=PASSWORD)
+    original_cookie = gate["client"].cookies.get(gate["auth"].cookie_name)
+    gate["client"].cookies.set(gate["auth"].cookie_name, cookie)
+    assert gate["client"].get(catalog_path(group)).status_code == 403
+    gate["client"].cookies.set(gate["auth"].cookie_name, original_cookie)
+    for params in [{"limit": 101}, {"limit": 0}, {"offset": -1}, {"q": "x" * 201}]:
+        assert gate["client"].get(catalog_path(group), params=params).status_code == 422
+    assert gate["client"].get(catalog_path(group, "/invalid")).status_code == 422
+
+
+def test_catalog_5000_actual_tools_100_instances_complete_search_and_nested_paging(gate, record_property):
+    members = [f"bulk-{index:03d}" for index in range(100)]
+    definitions = []
+    for instance in members:
+        gate["configs"].save_config({"id": instance, "name": f"Synthetic {instance}", "launch": {"type": "external"},
+            "transport": {"type": "streamable_http", "endpoint": "https://mcp.example.test/mcp"}})
+        for index in range(50):
+            name = f"query-{index:03d}"
+            definition = ToolDefinition(id=f"mcp.{instance}.{name}", name=name, description="Synthetic catalog contract",
+                source="mcp", input_schema={"type": "object", "properties": {"id": {"type": "string"}}},
+                metadata={"server_id": instance, "original_tool_name": name, "annotations": {"readOnlyHint": True}})
+            gate["registry"].register(definition, Mock())
+            definitions.append(definition)
+    classifications = gate["access"].synchronize_tools(definitions)
+    for start in range(0, len(classifications), 500):
+        gate["access"].confirm_classifications(reviewer_id=gate["principal"].id, publish=True,
+            items=[{"server_id": row["server_id"], "tool_id": row["tool_id"], "expected_fingerprint": row["fingerprint"]}
+                   for row in classifications[start:start + 500]])
+    group = create(gate, members=members)
+    token, headers = catalog_token(gate, ["operations.manage", "tools.read"])
+    started = time.perf_counter()
+    body = gate["client"].get(catalog_path(group), params={"offset": 49, "limit": 1}, headers=headers).json()
+    record_property("catalog_5000_tools_query_seconds", time.perf_counter() - started)
+    assert body["visible_tool_count"] == 5000 and body["visible_member_count"] == 100 and body["total"] == 50
+    assert len(body["variants"]) == 1 and body["variants"][0]["visible_member_count"] == 100
+    search = gate["client"].get(catalog_path(group), params={"q": "mcp.bulk-099.query-049"}, headers=headers).json()
+    assert search["total"] == 1 and search["variants"][0]["original_tool_name"] == "query-049"
+    detail = gate["client"].get(catalog_path(group, "/" + search["variants"][0]["variant_id"]),
+        params={"offset": 97, "limit": 100}, headers=headers).json()
+    assert detail["total"] == 100
+    assert [item["tool_id"] for item in detail["members"]] == [f"mcp.bulk-{index:03d}.query-049" for index in range(97, 100)]

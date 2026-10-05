@@ -25,6 +25,7 @@ from lingshu_gate.adapters.control_plane import (
 from lingshu_gate.application.health import HealthService, StartupState
 from lingshu_gate.application.mcp_configuration import McpConfigurationService
 from lingshu_gate.application.mcp_groups import McpGroupService
+from lingshu_gate.application.mcp_group_catalog import McpGroupCatalogService
 from lingshu_gate.persistence.mcp_groups import McpGroupStore
 from lingshu_gate.interfaces.control_api.mcp_group_routes import register_mcp_group_routes
 from lingshu_gate.application.external_mcp_configuration import ExternalMcpConfigurationService
@@ -421,7 +422,8 @@ def create_app() -> FastAPI:
         require_operations_manager=require_operations_manager,
     )
     register_external_mcp_config_routes(app, auth=auth_store, service=external_mcp_configuration_service)
-    register_mcp_group_routes(app, auth=auth_store, service=mcp_group_service)
+    register_mcp_group_routes(app, auth=auth_store, service=mcp_group_service,
+                             catalog=McpGroupCatalogService(mcp_group_service, registry, access_store))
     register_mcp_runtime_routes(
         app,
         settings=settings,
