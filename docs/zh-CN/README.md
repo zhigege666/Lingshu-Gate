@@ -15,7 +15,7 @@
 | [按需工具发现](on-demand-tools.md) | 六个有界发现/会话入口、每客户端模式、保留原授权与合成规模基准 |
 | [按需目录集成溯源](on-demand-integration.md) | 精确分组提交映射、冲突处理与定向安全证据 |
 | [按需目录集成验收记录](on-demand-integration-validation.md) | 精确测试检查点、物理/分组实测及原生 worker 证据 |
-| [Gate 功能集成候选](gate-feature-integration.md) | OAuth/catalog/group/Native 输入、合并溯源、31b7cca 测试检查点与仓库内证据、支持限制 |
+| [Gate 功能集成候选](gate-feature-integration.md) | OAuth/catalog/group/Native 溯源、a3b57f7 前端恢复验证、继承的 31b7cca 后端证据及支持限制 |
 | [MCP 分组](mcp-groups.md) | 逻辑组、显式实例、管理员管理和合同分区 |
 | [MCP 分组路由适配](mcp-group-routing-contract.md) | 按需目录内部接口与绑定认证连接的实例会话 |
 | [项目交付](project-delivery.md) | 上传、构建、部署、启动流程，`gate_*` 工具和自带 Delivery Skill |

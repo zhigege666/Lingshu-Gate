@@ -9,6 +9,7 @@
 | OAuth UI, saved-grant verification, candidate paging and public catalog/groups | `d8d4833bfdefbf7e679190565294f38f7a109145` | First parent of the ordinary three-way merge; its copied public `f51d1b18d7475034b61567be00ef999128918e83` / production `d99be556ff48e018792268abeb7c5a22c5517476` changes are already included |
 | Native isolated acquisition/offline execution and security follow-ups | `76bfe2c4eeae7f1a693e1d86b03c78e6098866d1` | Second parent; all nineteen Native commits retained as actual ancestry |
 | Public catalog final full-suite/package evidence | `6f3e87145a8ff581d8738ffbc3ee6f374ab56010` | Documentation/data-only cherry-pick; no repeated product patch |
+| OAuth scope save response-loss recovery | `9af3ddb5f5d7699f3c2bfe408c4f09cf04861020` | Conflict-free cherry-pick as `a3b57f708ae3d848382e46ee9c9b85ccae8e5722`; all twelve changed blobs match the source |
 
 The merge is `31f5195`; the documentation-only evidence copy is `a089dc2`. There is no ancestry-only merge or one-sided source replacement. The inputs change 151 and 54 paths respectively, with nine overlapping paths. The only textual conflicts are the English and Chinese CHANGELOG unreleased headings; both sets of entries are retained under one unreleased section. README, security guides, guide indexes and `main.py` merge automatically.
 
@@ -40,7 +41,7 @@ Real rootless Podman namespaces/controllers, reviewed image/cache behavior, cred
 
 ## Recorded validation checkpoint
 
-The production-source and test checkpoint is **`31b7cca9155d36094250a47bc7f688797b8217a7`**. The subsequent evidence commit changes documentation only; these results do not claim a new product test checkpoint or a production deployment. Version remains 0.4.4.
+The initial combined production-source and complete-test checkpoint is **`31b7cca9155d36094250a47bc7f688797b8217a7`**. Evidence export `75a033881d19d5225c0adbc3cf2f4916822c6fbe` changes documentation only. The later OAuth recovery change has its separate frontend checkpoint below; the initial results remain bound to their recorded source. Version remains 0.4.4 and no production deployment is claimed.
 
 | Check at the checkpoint | Result |
 |---|---|
@@ -53,3 +54,13 @@ The production-source and test checkpoint is **`31b7cca9155d36094250a47bc7f68879
 Repository evidence: [complete validation record](benchmarks/gate-feature-integration-validation-31b7cca.json), [merge/source blob provenance](benchmarks/gate-feature-integration-provenance-31b7cca.json), [wheel/frozen-worker observations and artifact checksums](benchmarks/gate-feature-integration-package-workers-31b7cca.json), and [complete backend output](benchmarks/gate-feature-integration-backend-31b7cca.log).
 
 The exports retain the observed results and original runner-record hashes. Temporary absolute paths are replaced by named relative aliases; they describe imports and commands, rather than download links. This documentation export publishes no binaries. All inputs are synthetic and contain no real credentials. The seven backend skips are four operator-provisioned Podman cases and three fixed external Playwright MCP installation cases. These differ from the 207 executed Console/OAuth browser cases. Root independently reviewed the true merge ancestry, source blobs, teardown fix and migration/lock composition at the checkpoint with no new P1/P2 finding. Real host, credential/provider/client, release-package and nx5 acceptance remain outstanding.
+
+## OAuth response-loss integration checkpoint
+
+The subsequent combined production-source and frontend test checkpoint is **`a3b57f708ae3d848382e46ee9c9b85ccae8e5722`**, including the independently reviewed `9af3ddb` recovery fix. When a scope update commits but its response is lost, the Console retains the draft, marks the result unknown and blocks review/save. Explicit refresh reads the actual saved grant, current catalog and retained selection before unlocking; failed reads keep the lock. Old confirmations cannot be replayed, and a later edit requires a fresh confirmation at the actual revision. Quota drafts remain intact. See the [response-loss scenarios](oauth-catalog-scaling.md#committed-save-with-a-lost-response).
+
+At this exact integrated checkpoint, frozen npm installation, frontend type/UX checks, all **439 Vitest cases in 74 files**, and both Console/OAuth builds passed. All **98 browser cases** in `oauth-grants`, `oauth-consent` and `oauth-paged-catalog` passed with the 5,000-service/50,000-tool fixture enabled, in **291.19 seconds**, with zero skips, failures, retries or flaky cases. Both real post-commit response-loss cases passed.
+
+The backend result is inherited from `31b7cca`: **2,126 passed / 7 skipped**, without a new full-backend execution. Git tree records for `src/`, `tests/`, `scripts/`, Python dependency definitions/lock, and npm dependency definitions/lock are identical to that checkpoint. Prior wheel/frozen-worker observations retain their original source SHA and artifact hashes; no new wheel/native bundle is claimed for the rebuilt frontend assets.
+
+Read the [integrated validation and all 98 case results](benchmarks/gate-feature-integration-validation-a3b57f7.json) and [input-blob/backend-inheritance proof](benchmarks/gate-feature-integration-provenance-a3b57f7.json). These records preserve parent/root's separate independent reviews of `31b7cca` composition and `9af3ddb` recovery, both with no new P1/P2 findings. A subsequent documentation export does not change the product or frontend checkpoint. Browser execution remains synthetic; real Podman, provider/client, formal packaging and nx5 acceptance remain separate.

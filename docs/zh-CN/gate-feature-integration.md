@@ -9,6 +9,7 @@
 | OAuth UI、已存 grant 验证、候选分页、公共 catalog/group | `d8d4833bfdefbf7e679190565294f38f7a109145` | 普通三方合并的第一父提交，已包含复制的公共 `f51d1b18d7475034b61567be00ef999128918e83`／产品 `d99be556ff48e018792268abeb7c5a22c5517476` 改动 |
 | Native 隔离获取／离线执行及安全修复 | `76bfe2c4eeae7f1a693e1d86b03c78e6098866d1` | 第二父提交，十九个 Native 提交全部保留真实祖先关系 |
 | 公共 catalog 最终完整回归／包验证证据 | `6f3e87145a8ff581d8738ffbc3ee6f374ab56010` | 仅复制文档／数据，不重复产品 patch |
+| OAuth 范围保存响应丢失恢复 | `9af3ddb5f5d7699f3c2bfe408c4f09cf04861020` | 无冲突复制为 `a3b57f708ae3d848382e46ee9c9b85ccae8e5722`；十二个变更 blob 与来源完全一致 |
 
 合并为 `31f5195`，纯文档证据复制为 `a089dc2`。未用伪祖先合并或单方源码覆盖。两输入分别修改 151、54 个路径，九个路径重叠。仅中英文 CHANGELOG 未发布标题存在文本冲突，双方条目保留到同一未发布区；README、安全指南、文档索引和 `main.py` 自动合并。
 
@@ -40,7 +41,7 @@ Backend 回归包含 OAuth A/B、普通／management 资源、直接 MCP/HTTP �
 
 ## 已记录的验证检查点
 
-生产源码与测试检查点为 **`31b7cca9155d36094250a47bc7f688797b8217a7`**。后续证据提交仅修改文档；这些结果不代表新的产品测试检查点或生产部署。版本仍为 0.4.4。
+初始组合生产源码与完整测试检查点为 **`31b7cca9155d36094250a47bc7f688797b8217a7`**。证据导出 `75a033881d19d5225c0adbc3cf2f4916822c6fbe` 仅修改文档。随后 OAuth 恢复改动具有下述独立前端检查点；初始结果仍绑定其记录来源。版本仍为 0.4.4，不表示已生产部署。
 
 | 检查点上的验证 | 结果 |
 |---|---|
@@ -53,3 +54,13 @@ Backend 回归包含 OAuth A/B、普通／management 资源、直接 MCP/HTTP �
 仓库内证据：[完整验证记录](../benchmarks/gate-feature-integration-validation-31b7cca.json)、[合并／源码 blob 溯源](../benchmarks/gate-feature-integration-provenance-31b7cca.json)、[wheel／frozen worker 观测与产物校验和](../benchmarks/gate-feature-integration-package-workers-31b7cca.json)、[完整 backend 输出](../benchmarks/gate-feature-integration-backend-31b7cca.log)。
 
 导出保留观测结果与原始 runner 记录的哈希。临时绝对路径替换为具名相对路径，用于说明导入与命令，不是下载链接；本次文档导出不发布二进制。数据全部为合成输入，不含真实凭据。七项 backend skip 为四项操作员准备的 Podman 用例与三项固定外部 Playwright MCP 安装用例，与已执行的 207 项 Console/OAuth 浏览器用例不同。根代理已独立复审检查点上的真实合并祖先、源码 blob、关闭修复及迁移／锁组合，无新增 P1/P2。真实宿主、凭据／provider／client、正式发行包与 nx5 验收仍待完成。
+
+## OAuth 响应丢失集成检查点
+
+后续组合生产源码与前端测试检查点为 **`a3b57f708ae3d848382e46ee9c9b85ccae8e5722`**，包含已独立复审的 `9af3ddb` 恢复修复。范围更新已提交但响应丢失时，Console 保留草稿、标记结果未知并阻止核对／保存；明确刷新读取实际已保存 grant、当前目录并核验保留选择后才解锁，读取失败继续锁定。旧确认不能重放，后续编辑需按实际版本取得新确认，配额草稿保留。详见[响应丢失场景](oauth-catalog-scaling.md#保存已提交但响应丢失)。
+
+该精确集成检查点上，冻结 npm 安装、前端 type/UX 检查、74 个文件中的 **439 项 Vitest 用例**及 Console/OAuth 两份构建均通过。启用 5,000 服务／50,000 工具夹具后，`oauth-grants`、`oauth-consent`、`oauth-paged-catalog` 三份浏览器 spec 的 **98 项用例全部通过**，耗时 **291.19 秒**，无 skip、失败、重试或 flaky；两个真实提交后丢失响应的用例均通过。
+
+后端沿用 `31b7cca` 的 **2,126 passed / 7 skipped**，没有重新执行完整后端。`src/`、`tests/`、`scripts/`、Python 依赖定义／锁和 npm 依赖定义／锁的 Git tree 记录与该检查点完全一致。旧 wheel／frozen worker 观测仍绑定原源码 SHA 与产物哈希，不声称已为重建后的前端资源生成新 wheel／native bundle。
+
+仓库内可读[集成验证及全部 98 项逐例结果](../benchmarks/gate-feature-integration-validation-a3b57f7.json)与[输入 blob／后端继承证明](../benchmarks/gate-feature-integration-provenance-a3b57f7.json)。记录保留根代理对 `31b7cca` 组合及 `9af3ddb` 恢复的独立复审来源，两次均无新增 P1/P2。后续文档导出不改变产品或前端检查点。浏览器执行仍为合成验收；真实 Podman、provider／client、正式打包及 nx5 验收单列。

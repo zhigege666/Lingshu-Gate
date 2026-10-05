@@ -15,7 +15,7 @@ This documentation describes the current Gate product boundary. English is autho
 | [On-demand tools](on-demand-tools.md) | Six bounded discovery/session entries, per-client modes, unchanged authorization and synthetic scale benchmarks |
 | [On-demand integration provenance](on-demand-integration.md) | Exact group commit mapping, conflict resolution and targeted security evidence |
 | [On-demand integration validation](on-demand-integration-validation.md) | Exact test checkpoints, physical/group measurements and native worker evidence |
-| [Gate feature integration candidate](gate-feature-integration.md) | OAuth/catalog/groups/Native inputs, merge provenance, recorded 31b7cca test checkpoint and repository evidence, support limits |
+| [Gate feature integration candidate](gate-feature-integration.md) | OAuth/catalog/groups/Native provenance, a3b57f7 frontend recovery checks, inherited 31b7cca backend evidence and support limits |
 | [MCP groups](mcp-groups.md) | Logical groups, explicit instances, administrator management and contract partitions |
 | [MCP group routing adapter](mcp-group-routing-contract.md) | Internal interface for the on-demand directory and connection-bound instance sessions |
 | [Project delivery](project-delivery.md) | Upload/build/deploy/start workflow, `gate_*` tools, and bundled Delivery Skill |
