@@ -349,12 +349,24 @@
 
 .page-toolbar-search > .ant-input-affix-wrapper {
   max-width: 480px;
+  height: var(--ant-control-height, 36px);
 }
 
-.page-toolbar-search .ant-input-suffix .ant-btn {
-  height: 24px;
-  width: 24px;
-  min-width: 24px;
+.page-toolbar-clear-slot {
+  position: relative;
+  display: inline-block;
+  width: var(--ant-control-height, 36px);
+  height: 1em;
+}
+
+.page-toolbar-clear-slot > .ant-btn {
+  position: absolute;
+  top: 50%;
+  right: -6px;
+  transform: translateY(-50%);
+  height: var(--ant-control-height, 36px);
+  width: var(--ant-control-height, 36px);
+  min-width: var(--ant-control-height, 36px);
 }
 
 .page-toolbar-search .ant-input-prefix {

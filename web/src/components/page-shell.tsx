@@ -76,7 +76,7 @@ export function PageToolbar({ query, onQueryChange, placeholder, resultCount, re
         placeholder={placeholder}
         aria-label={placeholder}
         prefix={<SearchOutlined />}
-        suffix={query ? <Button type="text" size="small" icon={<CloseOutlined />} onClick={() => onQueryChange("")} aria-label={clearLabel} /> : null}
+        suffix={<span className="page-toolbar-clear-slot">{query && <Button type="text" size="small" icon={<CloseOutlined />} onClick={() => onQueryChange("")} aria-label={clearLabel} />}</span>}
       />}
       {resultCount !== undefined && <span className="page-result-count"><strong>{resultCount}</strong> {resultLabel || ""}</span>}
       {resetFilters && <Button className="page-toolbar-reset" aria-label={resetFilters.label} type="text" size="small" icon={<ReloadOutlined />} disabled={resetFilters.disabled} onClick={resetFilters.onReset}>{resetFilters.label}</Button>}

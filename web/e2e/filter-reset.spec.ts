@@ -27,22 +27,51 @@ for (const view of ['accessUsers','accessRoles','accessGrants','credentials','pe
   })
 }
 
-for(const width of [390,1366,2048]) {
-  test(`E2E-591-${width} @visual reset is compact and does not shift the list`,async({page})=>{
-    await page.setViewportSize({width,height:900})
+const toolbarCases = [
+  ...[390, 1366, 2048].map(width => ({ width, height: 900, locale: 'en-US', theme: 'light', name: String(width) })),
+  ...[[1600, 900], [1920, 1080], [2560, 1080], [2560, 1440]].flatMap(([width, height]) =>
+    ['en-US', 'zh-CN'].flatMap(locale => ['light', 'dark'].map(theme => ({ width, height, locale, theme, name: `${width}x${height}-${locale}-${theme}` })))),
+]
+for (const { width, height, locale, theme, name } of toolbarCases) {
+  test(`E2E-591-${name} @visual reset is compact and does not shift the list`, async ({ page }, testInfo) => {
+    await page.setViewportSize({ width, height })
+    await page.addInitScript(({ locale, theme }) => {
+      localStorage.setItem('lingshu-gate-console-locale', locale)
+      localStorage.setItem('lingshu-gate-console-theme', theme)
+    }, { locale, theme })
     await page.goto('/console/#/downstreamCredentials')
-    const reset=page.getByRole('button',{name:'Reset Filters',exact:true})
+    const reset=page.getByRole('button',{name:locale === 'zh-CN' ? '重置筛选' : 'Reset Filters',exact:true})
     await expect(reset).toBeDisabled()
+    await expect(page.locator('html')).toHaveAttribute('lang', locale)
+    await expect.poll(() => page.locator('html').evaluate(el => el.classList.contains('dark'))).toBe(theme === 'dark')
     const before=await page.locator('.downstream-credentials-table').boundingBox()
+    const input = page.locator('.page-toolbar-search > .ant-input-affix-wrapper')
+    const inputBefore = (await input.boundingBox())!
+    await page.screenshot({ path: testInfo.outputPath('toolbar-empty.png') })
     await page.locator('.page-toolbar-search input').fill('Synthetic')
     await expect(reset).toBeEnabled()
+    const clear = page.getByRole('button', { name: locale === 'zh-CN' ? '清除搜索' : 'Clear Search', exact: true })
+    expect((await input.boundingBox())!.height).toBe(inputBefore.height)
+    expect((await clear.boundingBox())!.height).toBe(inputBefore.height)
+    await expectInViewportAndUnobscured(clear)
     const after=await page.locator('.downstream-credentials-table').boundingBox()
     expect(Math.abs(after!.y-before!.y)).toBeLessThan(2)
     expect((await reset.boundingBox())!.width).toBeLessThan(180)
     await expectInViewportAndUnobscured(reset)
+    await page.screenshot({ path: testInfo.outputPath('toolbar-search.png') })
+    // Keyboard clearing exercises the same-sized action without scrolling it.
+    await clear.focus()
+    await page.keyboard.press('Enter')
+    await expect(page.locator('.page-toolbar-search input')).toHaveValue('')
+    await expect(clear).toHaveCount(0)
+    expect((await input.boundingBox())!.height).toBe(inputBefore.height)
+    expect(Math.abs((await page.locator('.downstream-credentials-table').boundingBox())!.y-before!.y)).toBeLessThan(2)
+    await page.locator('.page-toolbar-search input').fill('Synthetic')
     await reset.click()
     await expect(page.locator('.page-toolbar-search input')).toHaveValue('')
     await expect(reset).toBeDisabled()
+    expect(Math.abs((await page.locator('.downstream-credentials-table').boundingBox())!.y-before!.y)).toBeLessThan(2)
+    await page.screenshot({ path: testInfo.outputPath('toolbar-reset.png') })
   })
 }
 

@@ -5,14 +5,49 @@ import { login, expectInViewportAndUnobscured } from './helpers'
 import { listFixtures } from './synthetic-data'
 
 const output = process.env.GATE_REMAINING_PANELS_DIR
+async function trailingSpace(viewport: Locator) {
+  return viewport.evaluate(element => {
+    const number = (value: string) => Number.parseFloat(value) || 0
+    let reserved = 0
+    for (let node: Element | null = element; node; node = node.parentElement) {
+      const style = getComputedStyle(node)
+      reserved += number(style.paddingBottom) + number(style.borderBottomWidth) + number(style.marginBottom)
+      for (let sibling = node.nextElementSibling; sibling; sibling = sibling.nextElementSibling) {
+        const siblingStyle = getComputedStyle(sibling)
+        // A side-by-side grid panel does not consume height below this list.
+        if (siblingStyle.display === 'none' || sibling.getBoundingClientRect().top < node.getBoundingClientRect().bottom - 2) continue
+        reserved += sibling.getBoundingClientRect().height + number(siblingStyle.marginTop) + number(siblingStyle.marginBottom)
+        reserved += number(getComputedStyle(node.parentElement!).rowGap)
+      }
+      if (node.classList.contains('console-content')) break
+    }
+    return reserved
+  })
+}
 async function expectUsesSpace(viewport: Locator, reserve = 100) {
-  await expect.poll(() => viewport.evaluate((el, reserved) => {
-    const rect = el.getBoundingClientRect()
-    return el.clientHeight >= Math.min(el.scrollHeight, innerHeight - rect.top - reserved) - 2
-  }, reserve)).toBe(true)
+  try {
+    await expect.poll(() => viewport.evaluate((el, reserved) => {
+      const rect = el.getBoundingClientRect()
+      return el.clientHeight >= Math.min(el.scrollHeight, innerHeight - rect.top - reserved) - 2
+    }, reserve)).toBe(true)
+  } catch (cause) {
+    console.log('Synthetic remaining-space failure', await viewport.evaluate((el, reserved) => ({
+      viewport: innerHeight, reserve: reserved, top: el.getBoundingClientRect().top,
+      client: el.clientHeight, content: el.scrollHeight,
+      ancestors: Array.from((function* () { for (let node: Element | null = el; node; node = node.parentElement) yield node })()).slice(0, 8).map(node => ({
+        class: node.className, height: node.getBoundingClientRect().height,
+        maxHeight: getComputedStyle(node).maxHeight, flex: getComputedStyle(node).flex,
+        bottomPadding: getComputedStyle(node).paddingBottom,
+        remaining: getComputedStyle(node).getPropertyValue('--remaining-list-height'),
+        pageRemaining: getComputedStyle(node).getPropertyValue('--remaining-viewport-height'),
+        top: node.getBoundingClientRect().top, bottom: node.getBoundingClientRect().bottom,
+      })),
+    }), reserve))
+    throw cause
+  }
   return viewport.evaluate(el => ({ top: el.getBoundingClientRect().top, bottom: el.getBoundingClientRect().bottom, client: el.clientHeight, content: el.scrollHeight }))
 }
-for (const [width, height] of [[2048, 1119], [1188, 761], [1366, 768], [390, 844]]) test(`E2E-${width === 2048 ? 550 : width === 1366 ? 551 : width === 390 ? 552 : 553} @remaining-panels below-fold identities, uploads and build logs ${width}`, async ({ page }) => {
+for (const [width, height] of [[1600, 900], [1920, 1080], [2560, 1080], [2560, 1440], [2048, 1119], [1188, 761], [1366, 768], [390, 844]]) test(`E2E-${width === 2048 ? 550 : width === 1366 ? 551 : width === 390 ? 552 : 553} @remaining-panels below-fold identities, uploads and build logs ${width}x${height}`, async ({ page }) => {
   test.skip(!output, 'Opt-in affected remaining-height panels')
   test.setTimeout(60_000)
   await login(page)
@@ -110,7 +145,12 @@ for (const [width, height] of [[2048, 1119], [1188, 761], [1366, 768], [390, 844
   await expect(logViewport).toBeVisible()
   expect(await logViewport.locator('tbody tr').count()).toBeLessThanOrEqual(50)
   await logViewport.evaluate(el => { window.scrollBy(0, el.getBoundingClientRect().top - (document.querySelector('header')?.getBoundingClientRect().height || 0) - 100) })
-  measures.push({ view: 'buildLogs', geometry: await expectUsesSpace(logViewport, 44) })
+  // Reserve actual pagination, card padding and page padding. A fixed 44px
+  // budget omitted the 56px pager alone and rejected a fully occupied panel.
+  const logReserve = await trailingSpace(logViewport)
+  measures.push({ view: 'buildLogs', reserve: logReserve, geometry: await expectUsesSpace(logViewport, logReserve) })
+  const logPager = logViewport.locator('..').locator('.list-pagination')
+  await expectInViewportAndUnobscured(logPager)
   await logViewport.evaluate(el => { el.scrollTop = el.scrollHeight })
   await expectInViewportAndUnobscured(logViewport.getByText('Synthetic build log 199', { exact: true }))
   await expectInViewportAndUnobscured(logViewport.locator('thead th').first())

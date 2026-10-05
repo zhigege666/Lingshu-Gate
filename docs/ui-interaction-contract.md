@@ -70,6 +70,8 @@ Tool arguments use the tool's schema. Manifest editing uses the actual project m
 
 For local versus remote filtering, name the behavior. A remote query keeps draft filters distinct from applied filters and makes pending changes visible; **Reset conditions** clears the draft and immediately requests defaults; **Apply filters** submits other draft edits. Local filtering may update immediately over loaded records. This is a migration target, not a claim that every current page already follows it. Refresh must identify its scope and must not silently request every page's data.
 
+In `PageToolbar`, the search input and its clear action use the same control height. Reserve the action's inline space while the query is empty; showing or removing it must not change the toolbar height or move the list below. The absent action is not a keyboard target. Retain separate reset-filter semantics and localized accessible names.
+
 ## Migrated shared patterns and consumers
 
 The following are implemented consumers in this tree, not a claim that every state has passed browser or independent review. Domain-specific confirmation, permissions, request ownership, and secret lifecycles remain with callers.

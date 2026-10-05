@@ -100,8 +100,10 @@ test('E2E-581 @retention-ui explicit cleanup confirmation, manual refresh and ca
   expect(count(calls, 'PUT', '/v1/retention/policy')).toBe(0)
 })
 
-test('E2E-582 @retention-ui conflict preserves draft and delayed stale preview cannot save', async ({ page }) => {
+for (const [width, height] of [[1280, 720], [1600, 900], [1920, 1080], [2560, 1080], [2560, 1440]]) test(`E2E-582 @retention-ui conflict preserves draft and delayed stale preview cannot save ${width}x${height}`, async ({ page }) => {
   test.skip(!output, 'Opt-in mock CAS and stale preview recovery')
+  mkdirSync(output!, { recursive: true })
+  await page.setViewportSize({ width, height })
   let stale = false, release!: () => void
   const delayed = new Promise<void>(resolve => { release = resolve })
   const calls = await setup(page, async (route, call) => {
@@ -111,10 +113,21 @@ test('E2E-582 @retention-ui conflict preserves draft and delayed stale preview c
     return route.fulfill({ json: preview(call.body as object, stale ? 2 : 1) })
   })
   const dialog = modal(page), save = dialog.getByRole('button', { name: '保存策略', exact: true })
+  // Policy warnings and submission errors have different semantics; keep both
+  // warnings visible and locate only FormDialog's persistent failure region.
+  await expect(dialog.locator('.ant-alert[role="alert"]')).toHaveCount(2)
+  await expect(dialog.locator('.ant-alert[role="alert"]').filter({ hasText: '敏感字段会脱敏' })).toBeVisible()
+  await expect(dialog.locator('.ant-alert[role="alert"]').filter({ hasText: '清理工作进程未启用' })).toBeVisible()
   await dialog.getByRole('spinbutton', { name: '运行日志保留天数', exact: true }).fill('3')
+  await expect(save).toBeEnabled()
+  await expectInViewportAndUnobscured(save)
   await save.click()
   await page.getByRole('alertdialog', { name: '确认缩短保留时间？', exact: true }).getByRole('button', { name: '确认', exact: true }).click()
-  await expect(dialog.getByRole('alert')).toContainText('Synthetic revision conflict')
+  const formError = dialog.locator('[data-slot="alert"][role="alert"]')
+  await expect(formError).toBeVisible()
+  await expect(formError).toContainText('Synthetic revision conflict')
+  await expectInViewportAndUnobscured(formError)
+  await page.screenshot({ path: join(output!, `retention-conflict-${width}x${height}.png`) })
   await expect(save).toBeDisabled()
   await dialog.getByRole('button', { name: '重新读取策略', exact: true }).click()
   await expect(dialog.getByRole('spinbutton', { name: '运行日志保留天数', exact: true })).toHaveValue('3')
@@ -124,7 +137,11 @@ test('E2E-582 @retention-ui conflict preserves draft and delayed stale preview c
   await expect(dialog.getByRole('button', { name: '取消', exact: true })).toBeDisabled()
   await expect.poll(() => count(calls, 'POST', '/v1/retention/preview')).toBe(2)
   release()
-  await expect(dialog.getByRole('alert')).toContainText('预览已过期或策略已改变')
+  await expect(formError).toBeVisible()
+  await expect(formError).toContainText('预览已过期或策略已改变')
+  await expectInViewportAndUnobscured(formError)
+  await expectInViewportAndUnobscured(dialog.getByRole('button', { name: '重新读取策略', exact: true }))
+  await page.screenshot({ path: join(output!, `retention-stale-${width}x${height}.png`) })
   expect(count(calls, 'PUT', '/v1/retention/policy')).toBe(1)
   expect(count(calls, 'POST', '/v1/retention/jobs')).toBe(0)
 })

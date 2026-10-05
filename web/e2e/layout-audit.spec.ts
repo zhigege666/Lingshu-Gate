@@ -7,7 +7,7 @@ import { servers, tools, credentials, listFixtures } from './synthetic-data'
 // Explicit evidence collection, not a pass claim about layout or authorization.
 const destination = process.env.GATE_LAYOUT_EVIDENCE_DIR
 const verifyLayout = process.env.GATE_LAYOUT_ASSERT === '1'
-for (const [width, height] of [[2048, 1222], [1366, 768], [390, 844], [1280, 600]]) {
+for (const [width, height] of [[1600, 900], [1920, 1080], [2560, 1080], [2560, 1440], [2048, 1222], [1366, 768], [390, 844], [1280, 600]]) {
   test(`Layout evidence ${width}x${height} @layout-evidence`, async ({ page }) => {
     test.skip(!destination, 'Set GATE_LAYOUT_EVIDENCE_DIR to collect synthetic presentation evidence')
     test.setTimeout(90_000)
@@ -41,8 +41,30 @@ for (const [width, height] of [[2048, 1222], [1366, 768], [390, 844], [1280, 600
         const trend = page.locator('[data-dashboard-trend]')
         const ranking = page.locator('[data-dashboard-ranking] ol')
         await expect(ranking.locator('li')).toHaveCount(10)
-        expect(await ranking.evaluate(el => el.clientHeight)).toBeLessThanOrEqual(256)
-        expect(await trend.evaluate(el => el.getBoundingClientRect().height)).toBeLessThan(480)
+        // The desktop overview now uses the remaining viewport (up to 520px),
+        // rather than the earlier fixed 256px ranking/480px chart budgets.
+        // Check usable bounded space and the independently scrolling ranking.
+        if (width >= 1100 && height >= 768) {
+          await expectInViewportAndUnobscured(trend)
+          const panels = page.locator('.dashboard-insights')
+          const bounds = (await panels.boundingBox())!
+          expect(bounds.height).toBeLessThanOrEqual(520)
+          expect(bounds.height).toBeGreaterThanOrEqual(Math.min(260, height - bounds.y - 20))
+          expect(bounds.y + bounds.height).toBeLessThanOrEqual(height - 20)
+          const body = ranking.locator('..')
+          const footer = body.locator(':scope > a')
+          await expectInViewportAndUnobscured(footer)
+          const bodyBox = (await body.boundingBox())!, footerBox = (await footer.boundingBox())!, rankBox = (await ranking.boundingBox())!
+          expect(rankBox.y + rankBox.height).toBeLessThanOrEqual(footerBox.y)
+          const trailing = await body.evaluate(el => Number.parseFloat(getComputedStyle(el).paddingBottom))
+          const footerMargin = await footer.evaluate(el => Number.parseFloat(getComputedStyle(el).marginTop))
+          const available = bodyBox.y + bodyBox.height - rankBox.y - trailing - footerBox.height - footerMargin
+          expect(await ranking.evaluate(el => el.clientHeight)).toBeGreaterThanOrEqual(Math.min(await ranking.evaluate(el => el.scrollHeight), available) - 2)
+          expect(footerBox.y + footerBox.height).toBeLessThanOrEqual(bodyBox.y + bodyBox.height)
+        } else {
+          expect(await ranking.evaluate(el => el.clientHeight)).toBeLessThanOrEqual(256)
+          expect(await trend.evaluate(el => el.getBoundingClientRect().height)).toBeLessThan(480)
+        }
         const ticks = await page.locator('[data-trend-axis] > span:visible').evaluateAll(elements => elements.map(el => ({ text: el.textContent, x: el.getBoundingClientRect().x, right: el.getBoundingClientRect().right })))
         expect(ticks.length).toBeLessThanOrEqual(width === 390 ? 4 : 7)
         expect(new Set(ticks.map(t => t.text)).size).toBe(ticks.length)
