@@ -130,6 +130,43 @@ def test_restart_reconciliation_stops_orphan_without_dispatch(engine):
         controller.journal.reserve(job["key"], {"source": "a"}, "command")
 
 
+def test_acquisition_staging_requires_reserved_identity_and_is_cleaned_after_consumption(engine):
+    controller, calls, state = engine
+    with pytest.raises(ToolExecutionError) as rejected:
+        controller.acquisition_output("fixture:unreserved")
+    assert rejected.value.code == "executor_staging_binding_missing"
+    with controller.journal.trusted_phase("fixture:acquire", {"digest": "a"}, "dependency_acquisition"):
+        output = controller.acquisition_output("fixture:acquire")
+        assert output.parent.parent == controller.workspaces
+        (output / "content.tgz").write_bytes(b"fixture")
+    assert output.is_dir()
+    controller.release_acquisition("fixture:acquire")
+    assert not list(controller.workspaces.iterdir())
+    assert controller.journal.lookup("fixture:acquire")["cleanup_state"] == "cleaned"
+    assert not any(call[0] in {"create", "start"} for call in calls)
+
+
+@pytest.mark.parametrize("phase", ["git_acquisition", "dependency_acquisition"])
+def test_restart_reconciles_unknown_staging_with_same_key_and_no_replay(engine, phase):
+    controller, calls, state = engine
+    with pytest.raises(InterruptedError), controller.journal.trusted_phase("fixture:acquire", {"digest": "a"}, phase):
+        output = controller.acquisition_output("fixture:acquire")
+        (output / "content.tgz").write_bytes(b"x" * 1024 * 1024)
+        raise InterruptedError("fixture host acquisition outcome unknown")
+    controller.release_acquisition("fixture:acquire")
+    assert output.is_dir()
+    assert controller.journal.lookup("fixture:acquire")["cleanup_state"] == "pending"
+    controller.journal.close()
+    controller.journal = JobJournal(controller.root)
+    controller.reconcile()
+    assert not list(controller.workspaces.iterdir())
+    assert controller.journal.lookup("fixture:acquire")["state"] == "interrupted_terminated"
+    assert controller.journal.lookup("fixture:acquire")["cleanup_state"] == "cleaned"
+    with pytest.raises(InterruptedError):
+        controller.journal.reserve("fixture:acquire", {"digest": "a"}, phase)
+    assert not any(call[0] in {"create", "start"} for call in calls)
+
+
 @pytest.mark.parametrize("exit_code,state_name", [(0, "completed"), (23, "failed")])
 @pytest.mark.parametrize("kind", ["command", "npm_seed", "pnpm_seed", "yarn_seed", "git", "tool_probe"])
 def test_shared_result_cannot_forge_phase_success_before_observed_exit(engine, exit_code, state_name, kind):

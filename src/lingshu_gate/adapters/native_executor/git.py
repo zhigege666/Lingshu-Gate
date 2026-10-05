@@ -127,12 +127,17 @@ class HTTPSGitBackend:
         identity = request.get("execution", {})
         import_id = str(identity.get("import_id") or uuid4().hex)
         assert self.controller.journal is not None
-        with self.controller.journal.trusted_phase("git:" + import_id + ":acquire", request, "git_acquisition"):
-            with self._fetch_exact(request, material=material, cancel=cancel, deadline=deadline) as objects:
-                yield objects
+        key = "git:" + import_id
+        try:
+            with self.controller.journal.trusted_phase(key + ":acquire", request, "git_acquisition"):
+                staging = self.controller.acquisition_output(key + ":acquire")
+                with self._fetch_exact(request, material=material, cancel=cancel, deadline=deadline, staging=staging, key=key) as objects:
+                    yield objects
+        finally:
+            self.controller.release_acquisition(key + ":acquire")
 
     @contextmanager
-    def _fetch_exact(self, request: dict[str, Any], *, material: dict[str, Any], cancel: threading.Event, deadline: float) -> Iterator[FrozenObjects]:
+    def _fetch_exact(self, request: dict[str, Any], *, material: dict[str, Any], cancel: threading.Event, deadline: float, staging: Path, key: str) -> Iterator[FrozenObjects]:
         self.controller.require_ready()
         commit = request["commit_sha"]
         if not COMMIT_RE.fullmatch(commit):
@@ -140,8 +145,6 @@ class HTTPSGitBackend:
         body = packet(f"want {commit} multi_ack_detailed side-band-64k ofs-delta\n".encode()) + packet(b"deepen 1\n") + b"0000" + packet(b"done\n")
         url = request["source"]["repository_url"].rstrip("/") + "/git-upload-pack"
         result: dict[str, Any] | None = None
-        staging = self.controller.root / ("fetch-" + uuid4().hex)
-        staging.mkdir(mode=0o700)
         try:
             credential = material.get("git_credential")
             auth = "basic" if isinstance(credential, str) and ":" in credential else "bearer"
@@ -157,13 +160,10 @@ class HTTPSGitBackend:
                 reject("git_pack_rejected", "Git acquisition did not return a bounded pack")
             (staging / "pack.bin").write_bytes(content)
             identity = request.get("execution", {})
-            key = "git:" + str(identity.get("import_id") or uuid4().hex)
             result = self.controller.run(key, {"kind": "git", "commit_sha": commit, "binding": identity}, mounts={"/pack": staging}, timeout=max(1, min(120, int(deadline - time.monotonic()))), cancelled=cancel.is_set)
             if result["returncode"] or result.get("commit_sha") != commit or result.get("object_format") != "sha1":
                 reject("git_pack_rejected", "Isolated Git decoding rejected the confirmed source")
             yield FrozenObjects(result["output"] / "objects", commit)
         finally:
-            import shutil
-            shutil.rmtree(staging)
             if result:
                 self.controller.release_output(result)

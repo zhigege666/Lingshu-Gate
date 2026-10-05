@@ -314,82 +314,71 @@ class ToolCache:
         self._validate_pin(metadata, manager.get("declared_integrity"))
         return target
 
-    def npm_dependencies(self, root: Path, manager: dict[str, Any], *, network: dict[str, Any], material: dict[str, Any], deadline: float, cancelled: Callable[[], bool]) -> Path:
+    def npm_dependencies(self, root: Path, manager: dict[str, Any], *, network: dict[str, Any], material: dict[str, Any], deadline: float, cancelled: Callable[[], bool], key: str) -> Path:
         project_policy(root, manager, install=True)
         lock = checked_json(root / manager["lockfile"])
         if lock.get("lockfileVersion") not in {2, 3} or not isinstance(lock.get("packages"), dict) or "" not in lock["packages"] or len(lock["packages"]) > 5000:
             reject("dependency_cache_workflow_unsupported", "npm cache requires a complete bounded v2/v3 packages table")
         registry = network["npm_registry"].rstrip("/") + "/"
         self._rule(registry)
-        temporary = self.controller.root / ("dependencies-" + uuid4().hex)
-        temporary.mkdir(mode=0o700)
+        temporary = self.controller.acquisition_output(key)
         index: list[dict[str, str]] = []
         total = 0
-        try:
-            for path, entry in lock["packages"].items():
-                if path == "":
-                    continue
-                if not isinstance(path, str) or not path.startswith("node_modules/") or PurePosixPath(path).as_posix() != path or ".." in PurePosixPath(path).parts or not isinstance(entry, dict) or entry.get("link") or entry.get("inBundle"):
-                    reject("dependency_cache_workflow_unsupported", "npm linked, workspace or bundled cache entries are unsupported")
-                url, integrity = entry.get("resolved"), entry.get("integrity")
-                if not isinstance(url, str) or not isinstance(integrity, str) or not url.startswith((OFFICIAL, registry)):
-                    reject("dependency_origin_rejected", "Every npm package requires a pinned approved registry tarball and integrity; Git/file/link sources are unsupported")
-                self._rule(url)
-                if "/-/" not in url or not url.endswith(".tgz"):
-                    reject("dependency_origin_rejected", "npm content source must be a fixed registry tarball")
-                source = registry + url.removeprefix(OFFICIAL) if url.startswith(OFFICIAL) else url
-                content = self._fetch(source, network=network, material=material, deadline=deadline, maximum=50 * 1024 * 1024, cancelled=cancelled)
-                verify_dependency_content(DependencyNode("npm", url, integrity), chunks(content), max_bytes=50 * 1024 * 1024)
-                total += len(content)
-                if total > 200 * 1024 * 1024 or time.monotonic() >= deadline:
-                    reject("dependency_cache_limit", "Dependency tarballs exceed the bounded download budget")
-                filename = hashlib.sha256(content).hexdigest() + ".tgz"
-                (temporary / filename).write_bytes(content)
-                index.append({"file": filename, "integrity": integrity})
-            (temporary / "index.json").write_text(json.dumps(index))
-            return temporary
-        except BaseException:
-            shutil.rmtree(temporary)
-            raise
-
-    def dependencies(self, root: Path, manager: dict[str, Any], *, network: dict[str, Any], material: dict[str, Any], deadline: float, cancelled: Callable[[], bool]) -> Path:
+        for path, entry in lock["packages"].items():
+            if path == "":
+                continue
+            if not isinstance(path, str) or not path.startswith("node_modules/") or PurePosixPath(path).as_posix() != path or ".." in PurePosixPath(path).parts or not isinstance(entry, dict) or entry.get("link") or entry.get("inBundle"):
+                reject("dependency_cache_workflow_unsupported", "npm linked, workspace or bundled cache entries are unsupported")
+            url, integrity = entry.get("resolved"), entry.get("integrity")
+            if not isinstance(url, str) or not isinstance(integrity, str) or not url.startswith((OFFICIAL, registry)):
+                reject("dependency_origin_rejected", "Every npm package requires a pinned approved registry tarball and integrity; Git/file/link sources are unsupported")
+            self._rule(url)
+            if "/-/" not in url or not url.endswith(".tgz"):
+                reject("dependency_origin_rejected", "npm content source must be a fixed registry tarball")
+            source = registry + url.removeprefix(OFFICIAL) if url.startswith(OFFICIAL) else url
+            content = self._fetch(source, network=network, material=material, deadline=deadline, maximum=50 * 1024 * 1024, cancelled=cancelled)
+            verify_dependency_content(DependencyNode("npm", url, integrity), chunks(content), max_bytes=50 * 1024 * 1024)
+            total += len(content)
+            if total > 200 * 1024 * 1024 or time.monotonic() >= deadline:
+                reject("dependency_cache_limit", "Dependency tarballs exceed the bounded download budget")
+            filename = hashlib.sha256(content).hexdigest() + ".tgz"
+            (temporary / filename).write_bytes(content)
+            index.append({"file": filename, "integrity": integrity})
+        (temporary / "index.json").write_text(json.dumps(index))
+        return temporary
+    def dependencies(self, root: Path, manager: dict[str, Any], *, network: dict[str, Any], material: dict[str, Any], deadline: float, cancelled: Callable[[], bool], key: str) -> Path:
         if manager["name"] == "npm":
-            return self.npm_dependencies(root, manager, network=network, material=material, deadline=deadline, cancelled=cancelled)
+            return self.npm_dependencies(root, manager, network=network, material=material, deadline=deadline, cancelled=cancelled, key=key)
         project_policy(root, manager, install=True)
         registry = network["npm_registry"].rstrip("/")
         self._rule(registry + "/")
         lock = checked_content(root / manager["lockfile"])
         records = yarn_tarballs(lock, registry) if manager["name"] == "yarn" else pnpm_tarballs(lock, registry, manager["version"])
-        temporary = self.controller.root / ("dependencies-" + uuid4().hex)
-        temporary.mkdir(mode=0o700)
+        temporary = self.controller.acquisition_output(key)
         total = 0
         seen: dict[str, tuple[str, str]] = {}
         index: list[dict[str, str]] = []
-        try:
-            (temporary / "mirror").mkdir()
-            for item in records:
-                if cancelled():
-                    from lingshu_gate.ports.safe_network_executor import SafeExecutionCancelled
-                    raise SafeExecutionCancelled("dependency_acquisition_cancelled")
-                if item.filename in seen:
-                    integrity, legacy_sha1 = seen[item.filename]
-                    if integrity != item.integrity or item.legacy_sha1 and item.legacy_sha1 != legacy_sha1:
-                        reject("dependency_lock_unsupported", "Conflicting content hashes share a registry mirror filename")
-                    continue
-                content = self._fetch(item.source, network=network, material=material, deadline=deadline, maximum=50 * 1024 * 1024, cancelled=cancelled)
-                verify_dependency_content(DependencyNode(manager["name"], item.source, item.integrity), chunks(content), max_bytes=50 * 1024 * 1024)
-                if item.legacy_sha1 and hashlib.sha1(content).hexdigest() != item.legacy_sha1:
-                    reject("dependency_integrity_unverified", "Yarn legacy tarball hash disagrees with its strong verified content")
-                total += len(content)
-                if total > 200 * 1024 * 1024 or time.monotonic() >= deadline:
-                    reject("dependency_cache_limit", "Dependency tarballs exceed the bounded download budget")
-                seen[item.filename] = (item.integrity, hashlib.sha1(content).hexdigest())
-                (temporary / "mirror" / item.filename).write_bytes(content)
-                index.append({"file": "mirror/" + item.filename, "integrity": item.integrity})
-            (temporary / "index.json").write_text(json.dumps(index))
-            (temporary / manager["lockfile"]).write_bytes(lock)
-            (temporary / "package.json").write_text(json.dumps(seed_manifest(checked_json(root / "package.json"))))
-            return temporary
-        except BaseException:
-            shutil.rmtree(temporary)
-            raise
+        (temporary / "mirror").mkdir()
+        for item in records:
+            if cancelled():
+                from lingshu_gate.ports.safe_network_executor import SafeExecutionCancelled
+                raise SafeExecutionCancelled("dependency_acquisition_cancelled")
+            if item.filename in seen:
+                integrity, legacy_sha1 = seen[item.filename]
+                if integrity != item.integrity or item.legacy_sha1 and item.legacy_sha1 != legacy_sha1:
+                    reject("dependency_lock_unsupported", "Conflicting content hashes share a registry mirror filename")
+                continue
+            content = self._fetch(item.source, network=network, material=material, deadline=deadline, maximum=50 * 1024 * 1024, cancelled=cancelled)
+            verify_dependency_content(DependencyNode(manager["name"], item.source, item.integrity), chunks(content), max_bytes=50 * 1024 * 1024)
+            if item.legacy_sha1 and hashlib.sha1(content).hexdigest() != item.legacy_sha1:
+                reject("dependency_integrity_unverified", "Yarn legacy tarball hash disagrees with its strong verified content")
+            total += len(content)
+            if total > 200 * 1024 * 1024 or time.monotonic() >= deadline:
+                reject("dependency_cache_limit", "Dependency tarballs exceed the bounded download budget")
+            seen[item.filename] = (item.integrity, hashlib.sha1(content).hexdigest())
+            (temporary / "mirror" / item.filename).write_bytes(content)
+            index.append({"file": "mirror/" + item.filename, "integrity": item.integrity})
+        (temporary / "index.json").write_text(json.dumps(index))
+        (temporary / manager["lockfile"]).write_bytes(lock)
+        (temporary / "package.json").write_text(json.dumps(seed_manifest(checked_json(root / "package.json"))))
+        return temporary

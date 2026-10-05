@@ -150,7 +150,7 @@ class NativeNetworkExecutor:
         clock = time.monotonic()
         result: dict[str, Any] | None = None
         seeded: dict[str, Any] | None = None
-        dependencies: Path | None = None
+        acquisition_key: str | None = None
         exported: Path | None = None
         try:
             self._selection(network, material, "install")
@@ -170,8 +170,9 @@ class NativeNetworkExecutor:
             binding = {"execution": network["execution"], "network_sha256": digest_json({key: value for key, value in network.items() if key != "package_manager"}), "lockfile_sha256": manager.get("lockfile_sha256")}
             if phase == "install":
                 assert self.controller.journal is not None
-                with self.controller.journal.trusted_phase(key + ":acquire", {"binding": binding, "manager": manager}, "dependency_acquisition"):
-                    dependencies = self.tools.dependencies(cwd, manager, network=network, material=material, deadline=deadline, cancelled=cancelled)
+                acquisition_key = key + ":acquire"
+                with self.controller.journal.trusted_phase(acquisition_key, {"binding": binding, "manager": manager}, "dependency_acquisition"):
+                    dependencies = self.tools.dependencies(cwd, manager, network=network, material=material, deadline=deadline, cancelled=cancelled, key=acquisition_key)
                 seeded = self.controller.run(key + ":seed", {"kind": name + "_seed", "manager": name, "version": manager["version"], "binding": binding}, mounts={"/tool": tool, "/dependencies": dependencies}, timeout=max(1, min(120, int(deadline - time.monotonic()))), cancelled=cancelled)
                 if seeded["returncode"]:
                     reject("dependency_cache_seed_failed", "Selected official manager could not prove the complete offline frozen cache closure")
@@ -208,12 +209,15 @@ class NativeNetworkExecutor:
         except TimeoutError:
             return {"returncode": 124, "timed_out": True, "stdout": "", "stderr": "", "duration_ms": int((time.monotonic() - clock) * 1000), "started_at": started, "finished_at": timestamp()}
         finally:
-            if dependencies:
-                shutil.rmtree(dependencies)
-            if result:
+            # Unknown consumers retain both their output and mounted cache/
+            # acquisition inputs. Startup reconciles all resources first.
+            cleanup = self.controller.journal is not None and not self.controller.journal.unfinished()
+            if result and cleanup:
                 self.controller.release_output(result)
-            if seeded:
+            if seeded and cleanup:
                 self.controller.release_output(seeded)
+            if acquisition_key:
+                self.controller.release_acquisition(acquisition_key)
             if exported:
                 shutil.rmtree(exported)
             self._gate.release()

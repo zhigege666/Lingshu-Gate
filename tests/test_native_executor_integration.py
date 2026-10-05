@@ -107,8 +107,9 @@ class FixtureController(PodmanController):
         mounts = mounts or {}
         job = self.journal.reserve(key, {"request": request, "mounts": {key: self._inventory(value) for key, value in mounts.items()}}, request["kind"])
         self.calls.append((request, mounts))
-        if self.interrupt:
+        if self.interrupt is True or self.interrupt == request["kind"]:
             self.journal.update(key, "unknown")
+            self.missing.append("job_termination_unknown")
             raise InterruptedError("unknown fixture completion with secret-value")
         directory = self.workspaces / job["name"]
         directory.mkdir()
@@ -315,6 +316,23 @@ def test_unknown_sandbox_outcome_is_interrupted_and_cannot_cancel_or_delete(flow
         flow.builds.cancel_build(result["build_id"])
     with pytest.raises(Exception, match="reconciliation"):
         flow.builds.delete_build(result["build_id"])
+
+
+@pytest.mark.parametrize("name,version", [("npm", "11.6.0"), ("yarn", "1.22.22"), ("pnpm", "9.15.4")])
+def test_unknown_consumer_retains_acquisition_and_seed_inputs_for_reconciliation(flow, name, version):
+    if name != "npm":
+        use_manager(flow, name, version)
+    upload_id = acquire(flow)
+    flow.controller.interrupt = "command"
+    result = build(flow, upload_id)
+    assert result["status"] == "interrupted", result
+    acquisition = flow.controller.journal.lookup("build:" + result["build_id"] + ":install:acquire")
+    seeded = flow.controller.journal.lookup("build:" + result["build_id"] + ":install:seed")
+    assert acquisition["state"] == seeded["state"] == "completed"
+    assert acquisition["cleanup_state"] == seeded["cleanup_state"] == "pending"
+    assert (flow.controller.workspaces / acquisition["name"] / "output" / "index.json").is_file()
+    assert (flow.controller.workspaces / seeded["name"] / "output" / "cache" / "verified-cache").is_file()
+    assert not flow.executor.readiness()["available"]
     assert "secret-value" not in json.dumps(flow.builds.list_build_logs(result["build_id"]))
 
 

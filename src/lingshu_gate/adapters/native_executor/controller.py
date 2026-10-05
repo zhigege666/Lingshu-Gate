@@ -261,6 +261,24 @@ class PodmanController:
         if not state["available"]:
             raise ToolExecutionError(state["code"], "Native isolated executor is not ready", details={"missing": state["missing"]}, next_action="Provision and validate the listed prerequisites; Core and host fallback remain disabled.")
 
+    def acquisition_output(self, key: str) -> Path:
+        """Only a durably reserved trusted acquisition may allocate staging."""
+        assert self.journal is not None
+        job = self.journal.lookup(key)
+        if not job or job["state"] != "running" or job["phase"] not in {"git_acquisition", "dependency_acquisition"} or job["container_id"] or job["cgroup"]:
+            reject("executor_staging_binding_missing", "Acquisition staging requires its running journal identity")
+        directory = self.workspaces / job["name"]
+        directory.mkdir(mode=0o700)
+        output = directory / "output"
+        output.mkdir(mode=0o700)
+        return output
+
+    def release_acquisition(self, key: str) -> None:
+        assert self.journal is not None
+        job = self.journal.lookup(key)
+        if job and not self.journal.unfinished():
+            self.release_output({"output": self.workspaces / job["name"] / "output"})
+
     def reconcile(self) -> None:
         assert self.journal is not None
         for job in self.journal.unfinished():

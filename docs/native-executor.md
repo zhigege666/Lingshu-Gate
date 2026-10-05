@@ -87,6 +87,8 @@ Frozen result, inventory, Git object and artifact reads use nonblocking/no-follo
 
 The journal separately persists `cleanup_state=pending/cleaned`. Confirmed cancellation, timeout and other failed phases remove their workspace before releasing admission; successful output is removed after consumption. Startup reconciles both unfinished execution and terminal leftover directories, so a crash after termination does not accumulate bounded tmpfs usage. Unknown execution retains its output and blocks readiness. Cleanup failure remains pending and blocks readiness until reconciliation succeeds.
 
+Git pack and dependency-tarball staging also live in journal-owned `workspaces/<job-name>/output`, under that same tmpfs quota. Allocation requires the already running acquisition row. After consumption, the phase's durable cleanup state is cleared; a process crash reconciles and cleans it without replaying acquisition. An unknown consumer retains the verified tarballs and seeded read-only cache as well as its own output until all resources are reconciled.
+
 The existing confirmed local deployment/start/rollback path is unchanged. Prepared tools are not installed into the host runtime. A manager-based runtime still needs its separately reviewed administrator registry; direct Node entrypoints retain their existing runtime rules. Build isolation does not change the existing unsandboxed Native managed-process runtime or add Core delivery/start support.
 
 ## Evidence and remaining acceptance

@@ -87,6 +87,8 @@ pnpm 10/11 的工具准备和 build-only 仍可用，但依赖安装在获取前
 
 journal 独立持久记录 `cleanup_state=pending/cleaned`。已确认取消、超时及其他失败阶段在释放 admission 前删除工作区，成功输出在消费后删除。启动同时对账未终止执行和终态残留目录，避免终止后崩溃积累 tmpfs 占用。未知执行保留输出并阻断 readiness；清理失败仍为 pending，并阻断 readiness，直到成功对账。
 
+Git pack 和 dependency tarball 暂存也位于 journal 对应的 `workspaces/<job-name>/output`，受同一 tmpfs 总配额约束。只有已落账且运行中的获取阶段可分配目录；消费后清除持久 cleanup 状态，进程崩溃由同一记录对账清理，不重跑获取。未知消费者同时保留已校验包、已准备只读缓存及自身输出，直到全部资源完成对账。
+
 既有明确确认的本地 deploy/start/rollback 保持。准备工具不会安装到宿主 runtime；manager 启动仍要求独立管理员 runtime registry，直接 Node 入口保留原规则。构建隔离不改变既有 Native managed-process 的非隔离运行时，也不增加 Core 交付/启动。
 
 ## 证据与剩余验收
