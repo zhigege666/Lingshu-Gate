@@ -93,9 +93,10 @@ def selftest() -> dict:
         checks.append("namespaces_distinct")
     if len(Path("/proc/net/route").read_text().splitlines()) == 1 and set(os.listdir("/sys/class/net")) == {"lo"}:
         checks.append("network_disconnected")
-    try:
-        Path("/root-readonly-probe").write_text("probe")
-    except OSError:
+    mounts = [line.split() for line in Path("/proc/self/mountinfo").read_text().splitlines()]
+    root_ro = any(fields[4] == "/" and "ro" in fields[5].split(",") for fields in mounts)
+    tools_ro = all(any(fields[4] == target and "ro" in fields[5].split(",") for fields in mounts) for target in ("/gate-runner.py", "/request.json", "/sys/fs/cgroup"))
+    if root_ro and tools_ro:
         checks.append("root_readonly")
     status = Path("/proc/self/status").read_text()
     if "NoNewPrivs:\t1" in status:
@@ -125,7 +126,7 @@ def seed_npm() -> dict:
     (ROOT / "cache").mkdir()
     # cacache is part of the SRI-verified official npm distribution. Seed only
     # verified tarballs, without parsing or executing project/package scripts.
-    code = "const fs=require('fs');const c=require('/tool/package/node_modules/cacache');(async()=>{for(const x of JSON.parse(fs.readFileSync('/dependencies/index.json','utf8'))){await c.put('/work/cache','gate:'+x.integrity,fs.readFileSync('/dependencies/'+x.file),{integrity:x.integrity});}})().catch(()=>process.exit(1));"
+    code = "const fs=require('fs');const c=require('/tool/package/node_modules/cacache');(async()=>{for(const x of JSON.parse(fs.readFileSync('/dependencies/index.json','utf8'))){await c.put('/work/cache/_cacache','gate:'+x.integrity,fs.readFileSync('/dependencies/'+x.file),{integrity:x.integrity});}})().catch(()=>process.exit(1));"
     return {"returncode": execute(["/usr/local/bin/node", "-e", code])}
 
 

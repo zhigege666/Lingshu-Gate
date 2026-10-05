@@ -109,6 +109,8 @@ class GitImportService:
         material = self._material(base)
         try:
             sha = executor.resolve_commit(base, material=material, timeout_seconds=15)
+        except ToolExecutionError:
+            raise
         except Exception:
             raise ToolExecutionError("git_resolution_failed", "Commit resolution failed in the execution environment", next_action="Inspect executor status and repository access; do not reuse an unconfirmed moving ref.") from None
         finally:
@@ -250,6 +252,8 @@ class GitImportService:
             status, error = "interrupted", "operation_interrupted"
         except TimeoutError:
             error = "git_import_timeout"
+        except ToolExecutionError as exc:
+            error = exc.code
         except Exception:
             # Executor exceptions/output can contain credentials. Persist stable code only.
             error = "git_snapshot_rejected" if phase == "validate" else "git_import_failed"

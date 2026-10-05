@@ -14,7 +14,7 @@ from lingshu_gate.adapters.native_executor.controller import PodmanController, r
 from lingshu_gate.adapters.native_executor.https import PROXY_SCHEMES, PinnedHTTPS
 from lingshu_gate.git_source import COMMIT_RE
 from lingshu_gate.ports.git_acquisition import GitObject
-from lingshu_gate.ports.safe_network_executor import ExecutorReadiness, SafeExecutionCancelled
+from lingshu_gate.ports.safe_network_executor import ExecutorReadiness
 
 
 def packet(data: bytes) -> bytes:
@@ -71,8 +71,9 @@ class FrozenObjects:
 class HTTPSGitBackend:
     proxy_schemes = PROXY_SCHEMES
 
-    def __init__(self, controller: PodmanController, https: PinnedHTTPS) -> None:
+    def __init__(self, controller: PodmanController, https: PinnedHTTPS, *, closed: threading.Event | None = None) -> None:
         self.controller, self.https = controller, https
+        self.closed = closed or threading.Event()
 
     def readiness(self) -> ExecutorReadiness:
         self.controller.require_ready()
@@ -80,7 +81,7 @@ class HTTPSGitBackend:
 
     def _advertisement(self, request: dict[str, Any], material: dict[str, Any], deadline: float) -> dict[str, str]:
         url = request["source"]["repository_url"].rstrip("/") + "/info/refs?service=git-upload-pack"
-        _, content = self.https.request(url, rule=request["host_rule"], material=material, deadline=deadline, maximum=1024 * 1024, credential=material.get("git_credential"), headers={"Accept": "application/x-git-upload-pack-advertisement"})
+        _, content = self.https.request(url, rule=request["host_rule"], material=material, deadline=deadline, maximum=1024 * 1024, credential=material.get("git_credential"), headers={"Accept": "application/x-git-upload-pack-advertisement"}, cancelled=self.closed.is_set)
         rows = list(packets(content))
         if rows[:2] != [b"# service=git-upload-pack\n", b""]:
             reject("git_protocol_unsupported", "Only bounded smart HTTPS Git protocol v0/v1 is supported")
@@ -114,6 +115,15 @@ class HTTPSGitBackend:
 
     @contextmanager
     def fetch_exact(self, request: dict[str, Any], *, material: dict[str, Any], cancel: threading.Event, deadline: float) -> Iterator[FrozenObjects]:
+        identity = request.get("execution", {})
+        import_id = str(identity.get("import_id") or uuid4().hex)
+        assert self.controller.journal is not None
+        with self.controller.journal.trusted_phase("git:" + import_id + ":acquire", request, "git_acquisition"):
+            with self._fetch_exact(request, material=material, cancel=cancel, deadline=deadline) as objects:
+                yield objects
+
+    @contextmanager
+    def _fetch_exact(self, request: dict[str, Any], *, material: dict[str, Any], cancel: threading.Event, deadline: float) -> Iterator[FrozenObjects]:
         self.controller.require_ready()
         commit = request["commit_sha"]
         if not COMMIT_RE.fullmatch(commit):
@@ -124,13 +134,7 @@ class HTTPSGitBackend:
         staging = self.controller.root / ("fetch-" + uuid4().hex)
         staging.mkdir(mode=0o700)
         try:
-            try:
-                _, response = self.https.request(url, rule=request["host_rule"], material=material, deadline=deadline, maximum=request["limits"]["transfer_bytes"], method="POST", body=body, credential=material.get("git_credential"), headers={"Content-Type": "application/x-git-upload-pack-request", "Accept": "application/x-git-upload-pack-result"}, cancelled=cancel.is_set)
-            except InterruptedError:
-                # Synchronous socket context has closed; no sandbox dispatched.
-                if cancel.is_set():
-                    raise SafeExecutionCancelled("trusted_git_fetch_closed") from None
-                raise
+            _, response = self.https.request(url, rule=request["host_rule"], material=material, deadline=deadline, maximum=request["limits"]["transfer_bytes"], method="POST", body=body, credential=material.get("git_credential"), headers={"Content-Type": "application/x-git-upload-pack-request", "Accept": "application/x-git-upload-pack-result"}, cancelled=cancel.is_set)
             pack = io.BytesIO()
             for row in packets(response):
                 if row.startswith(b"\x01"):

@@ -32,20 +32,27 @@ class NativeNetworkExecutor:
     def __init__(self, config: NativeExecutorConfig, build_root: Path, *, controller: PodmanController | None = None, https: PinnedHTTPS | None = None) -> None:
         self.controller = controller or PodmanController(config)
         self.https = https or PinnedHTTPS(proxy_hosts=config.proxy_hosts)
-        self.git = VerifiedGitAcquisition(HTTPSGitBackend(self.controller, self.https))
+        self._closed = threading.Event()
+        self.git = VerifiedGitAcquisition(HTTPSGitBackend(self.controller, self.https, closed=self._closed))
         self.tools = ToolCache(self.controller, self.https)
         self.build_root = build_root.resolve()
         self._gate = threading.BoundedSemaphore(1)
-        self._closed = threading.Event()
 
     def start(self) -> None:
         self.controller.start()
 
     def readiness(self) -> dict[str, Any]:
-        return self.controller.readiness()
+        state = self.controller.readiness()
+        busy = getattr(self.https, "dns_busy", None)
+        if busy is not None and busy.is_set():
+            state = {**state, "available": False, "code": "safe_executor_unavailable", "missing": [*state["missing"], "trusted_dns_resolution_in_progress"]}
+        return state
 
     def require_ready(self) -> None:
-        self.controller.require_ready()
+        state = self.readiness()
+        if not state["available"]:
+            from lingshu_gate.registry import ToolExecutionError
+            raise ToolExecutionError(state["code"], "Native isolated execution boundary is unavailable", details={"missing": state["missing"]})
         if self._closed.is_set():
             reject("safe_executor_unavailable", "Native executor has closed")
 
@@ -82,7 +89,11 @@ class NativeNetworkExecutor:
     def export_snapshot(self, request: dict[str, Any], *, material: dict[str, Any], cancel: threading.Event) -> bytes:
         self._admit()
         try:
-            return self.git.export_snapshot(request, material=material, cancel=cancel)
+            closed = self._closed
+            class CombinedCancel(threading.Event):
+                def is_set(self) -> bool:
+                    return cancel.is_set() or closed.is_set()
+            return self.git.export_snapshot(request, material=material, cancel=CombinedCancel())
         finally:
             self._gate.release()
 
@@ -115,7 +126,9 @@ class NativeNetworkExecutor:
         try:
             self._selection(network, material, "install")
             key = self._phase_key(network, "prepare")
-            result = self.tools.prepare(specification, network=network, material=material, deadline=time.monotonic() + min(timeout_seconds, 120), cancelled=lambda: cancel_requested() or self._closed.is_set(), key=key)
+            assert self.controller.journal is not None
+            with self.controller.journal.trusted_phase(key + ":acquire", {"specification": specification, "network": network}, "tool_acquisition"):
+                result = self.tools.prepare(specification, network=network, material=material, deadline=time.monotonic() + min(timeout_seconds, 120), cancelled=lambda: cancel_requested() or self._closed.is_set(), key=key)
             return {field: value for field, value in result.items() if field != "cache_path"} | {"started_at": started, "finished_at": timestamp()}
         finally:
             self._gate.release()
@@ -152,7 +165,9 @@ class NativeNetworkExecutor:
             mounts = {"/tool": tool, "/input": cwd}
             binding = {"execution": network["execution"], "network_sha256": digest_json({key: value for key, value in network.items() if key != "package_manager"}), "lockfile_sha256": manager.get("lockfile_sha256")}
             if phase == "install":
-                dependencies = self.tools.npm_dependencies(cwd, manager, network=network, material=material, deadline=deadline, cancelled=cancelled)
+                assert self.controller.journal is not None
+                with self.controller.journal.trusted_phase(key + ":acquire", {"binding": binding, "manager": manager}, "dependency_acquisition"):
+                    dependencies = self.tools.npm_dependencies(cwd, manager, network=network, material=material, deadline=deadline, cancelled=cancelled)
                 seeded = self.controller.run(key + ":seed", {"kind": "npm_seed", "binding": binding}, mounts={"/tool": tool, "/dependencies": dependencies}, timeout=max(1, min(120, int(deadline - time.monotonic()))), cancelled=cancelled)
                 if seeded["returncode"]:
                     reject("dependency_cache_seed_failed", "Isolated verified npm cache preparation failed")
@@ -193,4 +208,3 @@ class NativeNetworkExecutor:
             if exported:
                 shutil.rmtree(exported)
             self._gate.release()
-

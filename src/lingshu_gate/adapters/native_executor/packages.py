@@ -20,7 +20,6 @@ from lingshu_gate.adapters.native_executor.https import PinnedHTTPS
 from lingshu_gate.git_source import digest_json
 from lingshu_gate.node_toolchain import node_version_supported, tool_preparation
 from lingshu_gate.offline_build_contract import DependencyNode, verify_dependency_content
-from lingshu_gate.ports.safe_network_executor import SafeExecutionCancelled
 
 OFFICIAL = "https://registry.npmjs.org/"
 BINARIES = {"npm": "bin/npm-cli.js", "pnpm": "bin/pnpm.cjs", "yarn": "bin/yarn.js"}
@@ -144,12 +143,7 @@ class ToolCache:
         credential = None
         if not official and urlsplit(url).netloc == urlsplit(network["npm_registry"]).netloc:
             credential = material.get("npm_credential")
-        try:
-            return self.https.request(url, rule=self._rule(url), material=material, deadline=deadline, maximum=maximum, credential=credential, cancelled=cancelled)[1]
-        except InterruptedError:
-            if cancelled():
-                raise SafeExecutionCancelled("trusted_tool_fetch_closed") from None
-            raise
+        return self.https.request(url, rule=self._rule(url), material=material, deadline=deadline, maximum=maximum, credential=credential, cancelled=cancelled)[1]
 
     def prepare(self, specification: dict[str, Any], *, network: dict[str, Any], material: dict[str, Any], deadline: float, cancelled: Callable[[], bool], key: str) -> dict[str, Any]:
         self.controller.require_ready()

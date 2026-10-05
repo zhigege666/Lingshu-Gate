@@ -127,6 +127,8 @@ class PodmanController:
 
     def terminate(self, name: str, cgroup: str | None) -> None:
         info = self.inspect(name)
+        if info is not None and not cgroup and info.get("State", {}).get("Pid"):
+            cgroup = self._cgroup(int(info["State"]["Pid"]))
         if info is not None and info.get("State", {}).get("Running"):
             self._cli(["kill", "--signal=KILL", info["Id"]])
         deadline = time.monotonic() + 5
@@ -332,30 +334,34 @@ class PodmanController:
 
     @staticmethod
     def _inventory(path: Path) -> str:
-        digest = hashlib.sha256()
         paths = [path] if path.is_file() else sorted(_bounded_paths(path))
         count = total = 0
         deadline = time.monotonic() + 30
+        entries = []
         for item in paths:
             count += 1
             if count > 30000 or time.monotonic() > deadline:
                 reject("executor_content_limit", "Content inventory exceeds its entry/deadline limit")
             relative = item.name if path.is_file() else item.relative_to(path).as_posix()
-            digest.update(relative.encode() + b"\0")
-            if item.is_symlink():
-                digest.update(os.readlink(item).encode())
-            elif item.is_file():
-                if not stat.S_ISREG(item.lstat().st_mode):
-                    reject("executor_content_type_rejected", "Content inventory requires regular files")
+            info = item.lstat()
+            entry: dict[str, Any] = {"path": relative, "mode": stat.S_IMODE(info.st_mode)}
+            if stat.S_ISLNK(info.st_mode):
+                entry.update({"type": "link", "target": os.readlink(item)})
+            elif stat.S_ISREG(info.st_mode):
+                digest = hashlib.sha256()
                 with item.open("rb") as stream:
                     while chunk := stream.read(64 * 1024):
                         total += len(chunk)
                         if total > 500 * 1024 * 1024 or time.monotonic() > deadline:
                             reject("executor_content_limit", "Content inventory exceeds its byte/deadline limit")
                         digest.update(chunk)
-            elif not item.is_dir():
+                entry.update({"type": "file", "size": info.st_size, "sha256": digest.hexdigest()})
+            elif stat.S_ISDIR(info.st_mode):
+                entry["type"] = "directory"
+            else:
                 reject("executor_content_type_rejected", "Content inventory contains unsupported types")
-        return digest.hexdigest()
+            entries.append(entry)
+        return hashlib.sha256(json.dumps(entries, sort_keys=True, separators=(",", ":")).encode()).hexdigest()
 
     def release_output(self, result: dict[str, Any]) -> None:
         path = result.get("output")

@@ -43,7 +43,7 @@ PROCESS_READ_CHUNK_BYTES = 16 * 1024
 PROCESS_POLL_INTERVAL_SECONDS = 0.1
 PROCESS_TERMINATE_GRACE_SECONDS = 1.0
 SUPPORTED_LOCAL_RUNTIMES = {"node", "python"}
-TERMINAL_BUILD_STATUSES = {"success", "failed", "unsupported", "cancelled"}
+TERMINAL_BUILD_STATUSES = {"success", "failed", "unsupported", "cancelled", "interrupted"}
 BUILD_EXECUTOR_WORKERS = 2
 STEP_EXECUTOR_WORKERS = 4
 # 构建子进程不继承服务进程的令牌、代理或用户级配置；仅保留定位
@@ -149,6 +149,16 @@ class BuildDeployStore:
         self.root.mkdir(parents=True, exist_ok=True)
         self.executor = ThreadPoolExecutor(max_workers=BUILD_EXECUTOR_WORKERS, thread_name_prefix="gate-build")
         self._step_lock = threading.Lock()
+        self._reconcile_isolated_builds()
+
+    def _reconcile_isolated_builds(self) -> None:
+        # The single coordinator never resumes a persisted isolated phase. The
+        # Native journal reconciles physical resources independently at startup.
+        with self.database.session() as connection:
+            rows = connection.execute("SELECT id,plan_json FROM builds WHERE status IN ('queued','running','cancel_requested')").fetchall()
+            for row in rows:
+                if self._requires_safe_network(json.loads(row["plan_json"])):
+                    connection.execute("UPDATE builds SET status='interrupted',error='operation_interrupted',updated_at=? WHERE id=?", (iso_now(), row["id"]))
 
     def _require_local_execution(self, operation: str) -> None:
         if self.local_execution_enabled:
@@ -181,6 +191,8 @@ class BuildDeployStore:
     def delete_build(self, build_id: str) -> dict[str, Any]:
         build = self.get_build(build_id)
         status = str(build.get("status") or "")
+        if status == "interrupted":
+            raise ResourceDeleteConflict(code="build_requires_reconciliation", message="Interrupted execution requires resource reconciliation before deletion.", resource_type="build", resource_id=build_id, dependencies={"execution_state": "unknown"})
         if status not in TERMINAL_BUILD_STATUSES:
             raise ResourceDeleteConflict(
                 code="build_active" if status in {"queued", "running", "cancel_requested"} else "build_not_terminal",
@@ -642,6 +654,16 @@ class BuildDeployStore:
         preflight = self.preflight_upload(upload_id, runtime_override=runtime_override, project_root=project_root, refresh=refresh, package_manager_override=package_manager_override)
         plan = self._delivery_plan(self.uploads.get_upload(upload_id), preflight, run_install=run_install, run_build=run_build)
         validation = validate_plan(plan)
+        if self._requires_safe_network(plan) and self.safe_network_executor is not None:
+            check = getattr(self.safe_network_executor, "validate_plan", None)
+            if check:
+                try:
+                    check(plan)
+                except ToolExecutionError as exc:
+                    plan["buildable"] = False
+                    plan["executor_block"] = exc.to_payload()
+                    validation["ok"] = False
+                    validation["errors"].append(exc.code)
         self.observability.emit_event("gate.build.plan", source="builds", subject_type="upload", subject_id=upload_id, payload={"runtime": plan.get("runtime"), "buildable": plan.get("buildable"), "plan_steps": len(plan.get("steps") or []), "plan_valid": validation["ok"]})
         return {"preflight": preflight, "plan": plan, "validation": {"ok": validation["ok"], "errors": validation["errors"]}}
 
@@ -1012,6 +1034,8 @@ class BuildDeployStore:
         return {"deployment": deployment, "server": server.model_dump(mode="json"), "message": "rolled_back"}
 
     def _run_build_job(self, build_id: str, upload: dict[str, Any], runtime: str, upload_root: Path, source_dir: Path, artifact_dir: Path, plan: dict[str, Any], timeout_seconds: int) -> None:
+        if self.get_build(build_id)["status"] == "interrupted":
+            return
         upload_id = str(upload.get("id") or "")
         plan_steps = list(plan.get("steps") or [])
         commands: list[list[str]] = plan_commands(plan)
@@ -1059,6 +1083,10 @@ class BuildDeployStore:
             _mark_pending_steps(step_states, "skipped")
             self._insert_build_log(build_id, sequence=self._next_build_log_sequence(build_id), phase="cancel", level="warning", message=error, command=[], result={"returncode": 130, "stdout": "", "stderr": error, "started_at": iso_now(), "finished_at": iso_now(), "duration_ms": 0})
             self.observability.add_log("warning", f"Build cancelled: {error}", source="builds", event_type="gate.build.cancelled", payload={"build_id": build_id, "upload_id": upload_id, "runtime": runtime})
+        except InterruptedError:
+            status, error = "interrupted", "operation_interrupted"
+            _mark_pending_steps(step_states, "interrupted")
+            self._insert_build_log(build_id, sequence=self._next_build_log_sequence(build_id), phase="reconcile", level="error", message="Isolated execution outcome is unknown; automatic replay is blocked", command=[], result=None)
         except Exception as exc:  # noqa: BLE001 - background worker must persist failures
             status = "failed"
             error = str(exc)

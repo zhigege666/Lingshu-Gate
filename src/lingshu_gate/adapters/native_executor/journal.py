@@ -6,9 +6,12 @@ import sqlite3
 import threading
 from pathlib import Path
 from typing import Any
+from contextlib import contextmanager
+from collections.abc import Iterator
 
 from lingshu_gate.git_source import digest_json
 from lingshu_gate.registry import ToolExecutionError
+from lingshu_gate.ports.safe_network_executor import SafeExecutionCancelled
 
 
 class JobJournal:
@@ -52,6 +55,24 @@ class JobJournal:
         with self._mutex:
             row = self.connection.execute("SELECT * FROM jobs WHERE key=?", (key,)).fetchone()
             return dict(row) if row else None
+
+    @contextmanager
+    def trusted_phase(self, key: str, descriptor: dict[str, Any], phase: str) -> Iterator[None]:
+        self.reserve(key, descriptor, phase)
+        self.update(key, "running")
+        try:
+            yield
+        except SafeExecutionCancelled:
+            self.update(key, "cancelled")
+            raise
+        except InterruptedError:
+            self.update(key, "unknown")
+            raise
+        except BaseException:
+            self.update(key, "failed")
+            raise
+        else:
+            self.update(key, "completed")
 
     def close(self) -> None:
         import fcntl
