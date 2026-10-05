@@ -4,12 +4,16 @@ from __future__ import annotations
 import json
 import os
 import stat
+import socket
 import threading
+import time
 from unittest.mock import patch
 
 import pytest
 
 from lingshu_gate.adapters.native_executor.controller import PodmanController, read_regular_result
+from lingshu_gate.adapters.native_executor.executor import NativeNetworkExecutor
+from lingshu_gate.adapters.native_executor.https import PinnedHTTPS
 from lingshu_gate.adapters.native_executor.journal import JobJournal
 from lingshu_gate.adapters.native_executor.pending import PendingDNS
 from lingshu_gate.native_executor_config import NativeExecutorConfig
@@ -226,6 +230,59 @@ def test_shutdown_keeps_unknown_dns_workspace_and_owner_until_worker_stops(engin
     finally:
         release.set()
         worker.join(1)
+
+
+@pytest.mark.parametrize("reason", ["deadline", "cancel"])
+def test_request_wrapper_dns_unknown_retains_staging_admission_barrier_and_shutdown_owner(engine, reason):
+    controller, calls, state = engine
+    release, stopped = threading.Event(), threading.Event()
+    def resolver(host, port, **kwargs):
+        if reason == "cancel":
+            stopped.set()
+        assert release.wait(5)
+        return [(socket.AF_INET, socket.SOCK_STREAM, 0, "", ("93.184.216.34", port))]
+    client = PinnedHTTPS(resolver=resolver)
+    executor = NativeNetworkExecutor(controller.config, controller.root / "builds", controller=controller, https=client)
+    key = "fixture:request-dns"
+    try:
+        with patch.object(client, "_connect", side_effect=AssertionError("Pending DNS must never dispatch sockets")):
+            with pytest.raises(PendingDNS) as pending, controller.journal.trusted_phase(key, {"source": "fixture"}, "dependency_acquisition"):
+                output = controller.acquisition_output(key)
+                (output / "content.tgz").write_bytes(b"verified fixture")
+                client.request("https://registry.npmjs.org/fixture", rule={"host": "registry.npmjs.org", "port": 443}, material={"proxy": None}, deadline=time.monotonic() + 0.1, maximum=4096, cancelled=stopped.is_set)
+            assert pending.value.worker.is_alive()
+            assert controller.journal.lookup(key)["state"] == "unknown"
+            assert not controller.journal.trusted_work_stopped()
+            controller.release_acquisition(key)
+            assert output.is_dir() and not executor.readiness()["available"]
+            with pytest.raises(ToolExecutionError) as denied:
+                executor.probe("https://registry.npmjs.org/", material={"proxy": None}, timeout_seconds=5, max_response_bytes=4096, method="HEAD")
+            assert denied.value.code == "safe_executor_unavailable"
+            with pytest.raises(InterruptedError, match="active_work_reconciliation_blocked"):
+                executor.close()
+            assert output.is_dir() and controller.journal.lookup(key)["state"] == "unknown"
+            with pytest.raises(ToolExecutionError) as owned:
+                JobJournal(controller.root)
+            assert owned.value.code == "executor_owner_busy"
+            assert not any(call[0] in {"create", "start"} for call in calls)
+            release.set()
+            pending.value.worker.join(1)
+            assert not pending.value.worker.is_alive()
+            controller.reconcile()
+            assert not output.parent.exists()
+            assert controller.journal.lookup(key)["state"] == "interrupted_terminated"
+            assert controller.journal.lookup(key)["cleanup_state"] == "cleaned"
+            executor.close()
+            assert controller.journal is None
+            # Successful shutdown releases the owner only after reconciliation;
+            # a fresh process can acquire it without replaying the old phase.
+            controller.journal = JobJournal(controller.root)
+            assert not controller.journal.unfinished()
+            assert controller.journal.lookup(key)["state"] == "interrupted_terminated"
+    finally:
+        release.set()
+        if client._dns_worker:
+            client._dns_worker.join(1)
 
 
 @pytest.mark.parametrize("exit_code,state_name", [(0, "completed"), (23, "failed")])

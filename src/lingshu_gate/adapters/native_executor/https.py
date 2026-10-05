@@ -230,6 +230,10 @@ class PinnedHTTPS:
         budget = SocketBudget(deadline, cancelled)
         try:
             return self._request(url, rule=rule, material=material, deadline=deadline, maximum=maximum, method=method, body=body, credential=credential, auth_scheme=auth_scheme, headers=headers, cancelled=cancelled, socket_budget=budget)
+        except PendingDNS:
+            # A live resolver is not a stopped socket. Preserve its exact handle
+            # even when the shared deadline expired or cancellation was asked.
+            raise
         except (OSError, http.client.HTTPException):
             budget.remaining()  # Classify an interrupted connect/handshake/send.
             raise

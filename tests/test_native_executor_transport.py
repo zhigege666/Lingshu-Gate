@@ -12,6 +12,7 @@ import pytest
 
 from lingshu_gate.adapters.native_executor.https import PinnedHTTPS
 from lingshu_gate.adapters.native_executor.git import HTTPSGitBackend, packet
+from lingshu_gate.adapters.native_executor.pending import PendingDNS
 from lingshu_gate.registry import ToolExecutionError
 from lingshu_gate.ports.safe_network_executor import SafeExecutionCancelled
 
@@ -157,6 +158,38 @@ def test_unfinished_dns_is_unknown_and_cannot_claim_cancellation_or_spawn_more()
         assert busy.value.code == "network_dns_resolver_busy"
     finally:
         release.set()
+
+
+@pytest.mark.parametrize("reason", ["deadline", "cancel"])
+@pytest.mark.parametrize("dns_stage", ["upstream", "proxy"])
+def test_request_wrapper_preserves_live_dns_worker_after_deadline_or_cancel(reason, dns_stage):
+    release, stopped = threading.Event(), threading.Event()
+    calls = []
+    def slow(host, port, **kwargs):
+        calls.append((host, port))
+        if dns_stage == "upstream" or host == "proxy.example.invalid":
+            if reason == "cancel":
+                stopped.set()
+            assert release.wait(5)
+        return resolver(host, port)
+    client = PinnedHTTPS(resolver=slow, proxy_hosts=({"host": "proxy.example.invalid", "port": 8080, "private_cidrs": []},))
+    material = {"proxy": None if dns_stage == "upstream" else "http://proxy.example.invalid:8080"}
+    try:
+        with patch.object(client, "_connect", side_effect=AssertionError("Unfinished DNS must never connect")) as connect:
+            with pytest.raises(PendingDNS) as pending:
+                client.request("https://git.example.invalid/project", rule={"host": "git.example.invalid", "port": 443}, material=material, deadline=time.monotonic() + 0.1, maximum=4096, credential="fixture-token", cancelled=stopped.is_set)
+            assert pending.value.worker is client._dns_worker and pending.value.worker.is_alive()
+            assert client.dns_pending()
+            previous = list(calls)
+            with pytest.raises(ToolExecutionError) as busy:
+                request(client)
+            assert busy.value.code == "network_dns_resolver_busy" and calls == previous
+            connect.assert_not_called()
+    finally:
+        release.set()
+        if client._dns_worker:
+            client._dns_worker.join(1)
+    assert not client.dns_pending()
 
 
 def test_basic_git_credential_is_only_inside_origin_tls_request():

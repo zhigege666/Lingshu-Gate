@@ -65,7 +65,7 @@ Git/install 网络选择仍在原 digest 计划中独立固定为 `inherit`/`dir
 
 snapshot/artifact 扫描包含各 Basic token/代理 password 分量、其 URL/base64 编码及完整认证材料；公开 username 本身不列为秘密。短秘密分量仍扫描，过滤过宽时返回同样的有界拒绝，不静默省略。这也拒绝已授权端点把裸 token 反射进 Git 内容的情况。
 
-HTTPS 禁 redirects、编码响应、环境代理和自动重试，限制 headers/body/deadline。DNS 只允许一个有界在途 resolver 槽。超时但未实际退出的 resolver 为未知结果，阻断网络 readiness，不能冒充已取消。可信 socket 关闭后才确认其取消；项目执行只接收已校验、无秘密内容。
+HTTPS 禁 redirects、编码响应、环境代理和自动重试，限制 headers/body/deadline。DNS 只允许一个有界在途 resolver 槽。超时但未实际退出的 resolver 为未知结果，阻断网络 readiness，不能冒充已取消。HTTPS request wrapper 在普通 socket 错误分类之前保留 `PendingDNS` 及精确存活 worker handle；deadline 到期或取消不能将其转换为获取阶段已确认 failed/cancelled。可信 socket 关闭后才确认其取消；项目执行只接收已校验、无秘密内容。
 
 持久 `unknown` 独立阻断 readiness（`job_reconciliation_required`），清除 `dns_busy` 不会放行。只有本进程保存了精确 DNS worker 已退出、获取调用者已结束的证据，才允许自动对账。空闲 readiness 检查或下一次 admission 取得同一排他准入锁，先完成资源与全部残留清理，再报告可用或创建新 job。旧获取阶段仍为 `interrupted_terminated`，同 key 不重跑；其他未知/遗留状态或丢失 worker 证据须重启对账。活跃消费者阻止删除输入/cache；所有待清理资源都检查后才删除任何工作区。清理结束前，并发观察者报告 `job_reconciliation_in_progress`；任何恢复/清理失败报告 `job_reconciliation_incomplete` 并继续阻断准入。关闭时，已记录 DNS worker 仍存活就保留 journal owner 与未知输入。
 

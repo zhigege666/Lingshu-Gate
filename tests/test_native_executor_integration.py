@@ -434,6 +434,55 @@ def test_dns_timeout_blocks_until_reconciled_and_repeated_success_keeps_workspac
             client._dns_worker.join(1)
 
 
+@pytest.mark.parametrize("reason", ["deadline", "cancel"])
+def test_dependency_request_wrapper_preserves_unknown_until_dns_reconciliation_then_restores_readiness(flow, reason):
+    source, network = native_input(flow)
+    flow.executor.prepare_package_manager(tool_preparation("npm", "11.6.0"), network=network, material={"proxy": None}, timeout_seconds=120, cancel_requested=lambda: False)
+    release, stopped = threading.Event(), threading.Event()
+    def resolver(host, port, **kwargs):
+        if reason == "cancel":
+            stopped.set()
+        assert release.wait(5)
+        return [(socket.AF_INET, socket.SOCK_STREAM, 0, "", ("93.184.216.34", port))]
+    client = PinnedHTTPS(resolver=resolver)
+    flow.executor.https = flow.executor.tools.https = flow.executor.git.backend.https = client
+    key = "build:" + network["execution"]["build_id"] + ":install:acquire"
+    try:
+        # request/_request/addresses and the trusted phase all run unchanged;
+        # only the resolver and engine observation are synthetic.
+        with patch.object(client, "_connect", side_effect=AssertionError("Unfinished DNS must never connect")) as connect, patch.object(flow.controller, "inspect", return_value=None) as inspect:
+            with pytest.raises(PendingDNS) as pending:
+                flow.executor.run_command(["npm", "ci"], cwd=source, environment={}, network=network, material={"proxy": None}, timeout_seconds=1, cancel_requested=stopped.is_set)
+            assert pending.value.worker.is_alive()
+            job = flow.controller.journal.lookup(key)
+            assert job["state"] == "unknown" and job["cleanup_state"] == "pending"
+            retained = flow.controller.workspaces / job["name"] / "output"
+            assert retained.is_dir() and not flow.executor.readiness()["available"]
+            with pytest.raises(ToolExecutionError) as denied:
+                flow.executor.prepare_package_manager(tool_preparation("npm", "11.6.0"), network=network, material={"proxy": None}, timeout_seconds=120, cancel_requested=lambda: False)
+            assert denied.value.code == "safe_executor_unavailable"
+            connect.assert_not_called()
+            inspect.assert_not_called()
+            release.set()
+            pending.value.worker.join(1)
+            assert not pending.value.worker.is_alive()
+            assert flow.executor.readiness()["available"]
+            assert flow.controller.journal.lookup(key)["state"] == "interrupted_terminated"
+            assert not list(flow.controller.workspaces.iterdir())
+            assert not flow.controller.journal.unfinished()
+        # Subsequent pure fixture work may proceed; the interrupted key never
+        # replays and no real network request is used for the successful job.
+        flow.executor.https = flow.executor.tools.https = flow.executor.git.backend.https = flow.transport
+        next_source, next_network = native_input(flow)
+        flow.executor.prepare_package_manager(tool_preparation("npm", "11.6.0"), network=next_network, material={"proxy": None}, timeout_seconds=120, cancel_requested=lambda: False)
+        result = flow.executor.run_command(["npm", "ci"], cwd=next_source, environment={}, network=next_network, material={"proxy": None}, timeout_seconds=120, cancel_requested=lambda: False)
+        assert result["returncode"] == 0 and not list(flow.controller.workspaces.iterdir())
+    finally:
+        release.set()
+        if client._dns_worker:
+            client._dns_worker.join(1)
+
+
 @pytest.mark.parametrize("state", ["unknown", "running", "reserved"])
 def test_unproven_unknown_or_stale_journal_state_cannot_admit(flow, state):
     _, network = native_input(flow)
