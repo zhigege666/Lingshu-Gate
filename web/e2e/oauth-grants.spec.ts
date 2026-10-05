@@ -1,5 +1,5 @@
 import { expect, test, type Page } from "@playwright/test"
-import { mkdirSync, readFileSync } from "node:fs"
+import { mkdirSync, readFileSync, writeFileSync } from "node:fs"
 import path from "node:path"
 import { fileURLToPath } from "node:url"
 import type { OAuthGrant, OAuthScopeUnavailableServer, OAuthTool } from "../src/features/external-connections/oauth-api"
@@ -7,6 +7,8 @@ import { expectInViewportAndUnobscured } from "./helpers"
 
 // Built Console UI, owner-scoped synthetic responses only; no real credentials.
 const assets = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../../src/lingshu_gate/static/console")
+const sourceVersion = readFileSync(path.resolve(assets, "../../_version.py"), "utf8").match(/^__version__\s*=\s*["']([^"']+)["']/m)?.[1]
+if (!sourceVersion) throw new Error("The OAuth fixture requires the current source version")
 const now = Math.floor(Date.now() / 1000)
 const tools = Array.from({ length: 5000 }, (_, index) => ({ id: `synthetic-tool-${index}`, name: `Named tool ${index}`, server_id: `synthetic-mcp-${Math.floor(index / 50)}`, server_name: `Named MCP ${Math.floor(index / 50)}`, access: index % 2 ? "write" as const : "read" as const, snapshot: "synthetic", currently_authorized: true }))
 function grant(index: number, state = "active", large = false): OAuthGrant {
@@ -24,7 +26,7 @@ async function setup(page: Page, locale: Locale, records: OAuthGrant[], theme = 
   }, { locale, theme })
   await page.route("**/console/", route => route.fulfill({ contentType: "text/html", body: readFileSync(path.join(assets, "index.html"), "utf8") }))
   await page.route("**/console/assets/**", route => { const name = path.basename(new URL(route.request().url()).pathname); return route.fulfill({ contentType: name.endsWith(".css") ? "text/css" : "application/javascript", body: readFileSync(path.join(assets, "assets", name)) }) })
-  await page.route("**/healthz", route => route.fulfill({ json: { version: "0.4.1" } }))
+  await page.route("**/healthz", route => route.fulfill({ json: { version: sourceVersion } }))
   await page.route("**/v1/**", route => {
     const pathname = new URL(route.request().url()).pathname
     if (pathname === "/v1/auth/me") return route.fulfill({ json: { id: "synthetic-owner", username: "synthetic-owner", display_name: "Synthetic owner", status: "active", role: "custom", roles: ["custom"], permissions: ["console.view", "credentials.manage.self"], auth_type: "session", scopes: [], must_change_password: false } })
@@ -154,7 +156,7 @@ for (const locale of ["en-US", "zh-CN"] as const) {
     const later = { ...tools[1], id: "synthetic-later-tool", server_id: "synthetic-later-mcp", server_name: "Later MCP" }
     model.candidates = [tools[0], later]
     await refresh.click()
-    await expect(editor).toContainText(zh ? "草稿保留了 1 个当前不可授权选择" : "Your draft retains 1 currently unavailable selections")
+    await expect(editor.locator(".oauth-unavailable-selection")).toContainText(zh ? "草稿中 1 项当前不可授权" : "1 draft selections are unavailable")
     await expect(editor.getByRole("radio", { name: zh ? "自定义" : "Custom", exact: true })).toBeChecked()
     await expect(editor.getByRole("spinbutton", { name: zh ? "每分钟调用上限" : "Calls per minute", exact: true })).toHaveValue("30")
     await expect(editor.locator('tr[data-row-key="synthetic-tool-1"]').getByRole("checkbox")).toBeChecked()
@@ -204,10 +206,15 @@ for (const size of sizes) for (const locale of ["en-US", "zh-CN"] as const) {
     const editor = page.getByRole("dialog", { name: zh ? "调整授权范围" : "Adjust authorization scope", exact: true })
     await expect(editor.getByRole("button", { name: zh ? "移除不可授权选择" : "Remove unavailable selections", exact: true })).toBeVisible()
     await editor.getByRole("radio", { name: zh ? "MCP 整组" : "MCP groups", exact: true }).check()
+    await editor.evaluate(async element => { await Promise.all(element.getAnimations().map(animation => animation.finished)) })
+    await expect(page.locator("header [data-gate-version]")).toContainText(`v${sourceVersion}`)
     const controls = [
       editor.getByRole("radio", { name: zh ? "仅选全部当前只读" : "All current read-only tools", exact: true }),
       editor.getByRole("button", { name: zh ? "刷新可授权范围" : "Refresh available scope", exact: true }),
       editor.getByRole("button", { name: zh ? "查看不可授权原因" : "Why unavailable", exact: true }),
+      editor.getByRole("button", { name: zh ? "查看范围与授权规则" : "Scope details", exact: true }),
+      editor.getByRole("button", { name: zh ? "核对并更新连接" : "Review connection update", exact: true }),
+      editor.getByRole("button", { name: zh ? "关闭" : "Close", exact: true }).filter({ hasNot: page.locator("svg") }),
       editor.locator(".ant-pagination-next"),
     ]
     for (const control of controls) await expectInViewportAndUnobscured(control)
@@ -219,14 +226,29 @@ for (const size of sizes) for (const locale of ["en-US", "zh-CN"] as const) {
         const control = label.querySelector("input")!.getBoundingClientRect()
         return { oneLine: range.getClientRects().length === 1, sameRow: Math.abs((text.top + text.bottom) / 2 - (control.top + control.bottom) / 2) < 3 }
       })
-      return { labels, overflow: body.scrollHeight - body.clientHeight, pageWidth: document.documentElement.scrollWidth, dialog: element.getBoundingClientRect().toJSON(), tableHeight: element.querySelector(".ant-table-body")!.clientHeight }
+      const table = element.querySelector(".ant-table-body")!.getBoundingClientRect()
+      const fullyVisibleRows = Array.from(element.querySelectorAll(".ant-table-body tr[data-row-key]")).filter(row => { const rect = row.getBoundingClientRect(); return rect.height > 0 && rect.top >= table.top - 1 && rect.bottom <= table.bottom + 1 }).length
+      const sameRow = (items: Element[]) => {
+        const centers = items.map(item => { const rect = item.getBoundingClientRect(); return rect.top + rect.height / 2 })
+        return Math.max(...centers) - Math.min(...centers) < 3
+      }
+      const bulk = element.querySelector(".oauth-bulk-selection")!
+      const bulkSameRow = sameRow([bulk.querySelector(".oauth-bulk-label")!, ...Array.from(bulk.querySelectorAll(".ant-radio-wrapper")), bulk.querySelector(":scope > .ant-btn")!])
+      const filtersSameRow = sameRow(Array.from(element.querySelector(".oauth-filters")!.children))
+      const toolbarSameRow = sameRow(Array.from(element.querySelector(".oauth-selection")!.children))
+      const footer = element.querySelector(":scope > .border-t")!.getBoundingClientRect()
+      return { labels, overflow: body.scrollHeight - body.clientHeight, pageWidth: document.documentElement.scrollWidth, dialog: element.getBoundingClientRect().toJSON(), tableHeight: table.height, fullyVisibleRows, bulkSameRow, filtersSameRow, toolbarSameRow, footerHeight: footer.height }
     })
     expect(layout.labels.every(label => label.oneLine && label.sameRow)).toBe(true)
     expect(layout.overflow).toBe(0)
     expect(layout.pageWidth).toBeLessThanOrEqual(size.width)
-    expect(layout.dialog.top).toBeGreaterThanOrEqual(0)
-    expect(layout.dialog.bottom).toBeLessThanOrEqual(size.height)
-    expect(layout.tableHeight).toBeGreaterThan(40)
+    expect(layout.dialog.top).toBeGreaterThanOrEqual(32)
+    expect(layout.dialog.bottom).toBeLessThanOrEqual(size.height - 32)
+    expect(layout.tableHeight).toBeGreaterThanOrEqual(240)
+    expect(layout.fullyVisibleRows).toBeGreaterThanOrEqual(6)
+    expect(layout.bulkSameRow && layout.filtersSameRow && layout.toolbarSameRow).toBe(true)
+    expect(layout.footerHeight).toBeLessThanOrEqual(56)
+    writeFileSync(testInfo.outputPath("oauth-bulk-layout.json"), JSON.stringify({ locale, viewport: size, sourceVersion, ...layout }, null, 2))
     await page.screenshot({ path: testInfo.outputPath("oauth-bulk-draft.png"), animations: "disabled" })
     expect(model.writes).toHaveLength(0)
   })
@@ -352,7 +374,10 @@ for (const locale of ['en-US', 'zh-CN'] as const) for (const mixed of [false, tr
     model.familyScopes = ['tools.read']
     await page.getByRole('button', { name: zh ? '调整授权范围' : 'Adjust scope', exact: true }).click()
     const editor = page.getByRole('dialog', { name: zh ? '调整授权范围' : 'Adjust authorization scope', exact: true })
-    await expect(editor).toContainText(zh ? '仅有 tools.read 的令牌不能调用新增写工具' : 'a tools.read-only token cannot invoke newly added write tools')
+    const scopeDetails = editor.getByRole('button', { name: zh ? '查看范围与授权规则' : 'Scope details', exact: true })
+    await scopeDetails.click()
+    await expect(editor.locator('.oauth-scope-info')).toContainText(zh ? '仅有 tools.read 的令牌不能调用新增写工具' : 'a tools.read-only token cannot invoke newly added write tools')
+    await scopeDetails.click()
     await editor.locator('tr[data-row-key="synthetic-tool-1"]').getByRole('checkbox').check()
     if (mixed) await editor.locator('tr[data-row-key="synthetic-tool-0"]').getByRole('checkbox').uncheck()
     const update = editor.getByRole('button', { name: zh ? '核对并更新连接' : 'Review connection update', exact: true })

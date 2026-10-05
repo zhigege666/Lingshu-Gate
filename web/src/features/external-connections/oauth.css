@@ -18,6 +18,13 @@
 .oauth-bulk-selection .ant-radio-group { display: flex; flex-wrap: wrap; gap: 8px; }
 .oauth-bulk-selection p { margin-top: 4px; }
 .oauth-scope-availability { font-size: 13px; }
+.oauth-bulk-label { display: flex; align-items: center; gap: 4px; }
+.oauth-scope-rule-row { display: flex; align-items: center; gap: 8px; min-width: 0; min-height: 28px; }
+.oauth-scope-rule-summary { min-width: 0; flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.oauth-scope-info-trigger { flex-shrink: 0; width: 28px; height: 28px; padding: 0; }
+.oauth-scope-info { width: min(560px, calc(100vw - 96px)); font-size: 13px; line-height: 1.5; }
+.oauth-scope-info p { margin: 0 0 8px; }
+.oauth-scope-info p:last-child { margin-bottom: 0; }
 .oauth-loading { display: flex; align-items: center; gap: 12px; padding: 24px 0; }
 .oauth-admin-layout { display: grid; grid-template-columns: minmax(340px, 1fr) minmax(360px, 1.5fr); align-items: start; gap: 24px; }
 .oauth-admin-panel { border: 1px solid hsl(var(--border)); border-radius: var(--radius); padding: 20px; min-width: 0; }
@@ -49,6 +56,27 @@
   .oauth-grant-scope-body .ant-table-header,
   .oauth-grant-scope-body .ant-pagination { flex-shrink: 0; }
   .oauth-grant-scope-body .ant-table-body { flex: 1 1 auto; min-height: 0; max-height: none !important; overscroll-behavior: contain; }
+  .oauth-grant-edit-dialog { gap: 8px; }
+  .oauth-grant-edit-dialog > :first-child { gap: 4px; }
+  .oauth-grant-edit-dialog > :first-child p { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .oauth-grant-edit-dialog > .border-t { min-height: 56px; padding-top: 12px; }
+  .oauth-grant-edit-body { gap: 8px; }
+  .oauth-grant-edit-body .oauth-tools { gap: 8px; }
+  .oauth-grant-edit-body .oauth-scope-availability .oauth-actions { flex-wrap: nowrap; justify-content: flex-start; gap: 8px; min-height: 28px; }
+  .oauth-grant-edit-body .oauth-unavailable-selection { padding: 2px 12px; min-height: 36px; }
+  .oauth-grant-edit-body .oauth-unavailable-selection .ant-alert-title { font-size: 13px; }
+  .oauth-grant-edit-body .oauth-unavailable-selection .ant-alert-action { margin-inline-start: 12px; }
+  .oauth-grant-edit-body .oauth-bulk-selection { grid-template-columns: 130px minmax(0, 1fr) max-content; align-items: center; gap: 8px; margin: 0; min-height: 36px; }
+  .oauth-grant-edit-body .oauth-bulk-selection .ant-radio-group { flex-wrap: nowrap; gap: 8px; }
+  .oauth-grant-edit-body .oauth-bulk-selection .ant-radio-wrapper { white-space: nowrap; margin-inline-end: 0; }
+  .oauth-grant-edit-body .oauth-filters { gap: 8px; margin: 0; }
+  .oauth-grant-edit-body .oauth-selection { flex-wrap: nowrap; gap: 8px; margin: 0; min-height: 36px; }
+  .oauth-grant-edit-body .oauth-selection > span { min-width: 0; flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .oauth-grant-edit-body .oauth-selection .oauth-actions { flex-wrap: nowrap; gap: 8px; flex-shrink: 0; }
+  .oauth-grant-edit-body .oauth-selection .ant-radio-group { white-space: nowrap; }
+  .oauth-grant-edit-body .ant-table-body { min-height: min(240px, max(0px, calc(100dvh - 540px))); }
+  .oauth-grant-edit-body .ant-table-tbody > tr > td { padding-block: 4px; }
+  .oauth-grant-edit-body .ant-pagination { margin-block: 8px 0; }
 }
 .oauth-grant-limits { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 16px; }
 .oauth-grant-limits label { display: grid; grid-template-columns: max-content minmax(0, 1fr); align-items: center; gap: 8px; font-size: 13px; white-space: nowrap; }
