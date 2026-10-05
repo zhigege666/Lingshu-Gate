@@ -1,0 +1,39 @@
+# Gate feature integration candidate
+
+[简体中文](zh-CN/gate-feature-integration.md) · [OAuth paging](oauth-catalog-scaling.md) · [Native executor](native-executor.md)
+
+`test/gate-feature-integration-20261005` combines reviewed development inputs on exact main `d4786fd368e932bc758ea29da1a597c9d9551794`, version 0.4.4. It is an unreleased test candidate. Main, tags, deployment and host provisioning are outside this integration.
+
+| Input | Exact source | Integration treatment |
+|---|---|---|
+| OAuth UI, saved-grant verification, candidate paging and public catalog/groups | `d8d4833bfdefbf7e679190565294f38f7a109145` | First parent of the ordinary three-way merge; its copied public `f51d1b18d7475034b61567be00ef999128918e83` / production `d99be556ff48e018792268abeb7c5a22c5517476` changes are already included |
+| Native isolated acquisition/offline execution and security follow-ups | `76bfe2c4eeae7f1a693e1d86b03c78e6098866d1` | Second parent; all nineteen Native commits retained as actual ancestry |
+| Public catalog final full-suite/package evidence | `6f3e87145a8ff581d8738ffbc3ee6f374ab56010` | Documentation/data-only cherry-pick; no repeated product patch |
+
+The merge is `31f5195`; the documentation-only evidence copy is `a089dc2`. There is no ancestry-only merge or one-sided source replacement. The inputs change 151 and 54 paths respectively, with nine overlapping paths. The only textual conflicts are the English and Chinese CHANGELOG unreleased headings; both sets of entries are retained under one unreleased section. README, security guides, guide indexes and `main.py` merge automatically.
+
+## Composition and safety review
+
+The same application now constructs the shared catalog, explicit group router and OAuth candidate index alongside the Native factory. GitImport and BuildDeploy share the configured isolated executor and immutable network selections; group definitions retain their separate store and existing configuration service boundary. The Core role neither constructs nor starts the Native engine boundary, even when an enabled Native configuration is supplied.
+
+The catalog/group migrations remain the OAuth input's unchanged 0012–0016 sequence. Native adds no competing Gate migration; its private job journal has a separate single-owner SQLite file. Existing configuration and runtime locks, immutable registry snapshots, selected-instance guards, current-authority checks, management-resource allowlists and direct MCP interfaces remain from their reviewed sources.
+
+Combined lifespan tests expose and correct one interaction: an unknown Native close must not skip independent external-configuration/runtime shutdown. Those cleanups run in `finally`, while the Native error and retained journal lease remain intact. `gate.shutdown_complete` is emitted only after successful close; unknown work is not described as terminated. The new composition tests cover success, unknown close, Core exclusion and coexistence of the catalog/group migrations.
+
+## Package-manager support
+
+| Phase | Supported | Explicit limits |
+|---|---|---|
+| Official fixed tool preparation | npm 9–11, pnpm 8–11, Yarn Classic 1.22 with integrity/engine checks | No latest, global install, Corepack, automatic Node download or project-selected image |
+| Frozen offline dependency install | npm registry locks v2/v3; pnpm 8/9 reviewed v3 stores; Yarn Classic 1.22 registry mirror/cache | pnpm 10/11 package-ID stores, Yarn Berry, workspaces/link/patch/Git/custom-origin/weak-integrity caches remain refused |
+| Offline build | Selected verified npm/pnpm/Yarn `run build`, including supported build-only projects | No arbitrary command/path/image, network/secret inheritance or manager substitution |
+| Python | Existing uploaded-project/direct legacy path outside Native | Git/profile-backed Python sandbox caches are unsupported |
+| Docker Core | Existing gateway/catalog/OAuth/group control plane | No engine/socket, project execution, remote worker/deployment or stdio bridge |
+
+## Validation contract
+
+Final results must name the exact combined candidate SHA. Earlier input benchmarks, screenshots and full-suite counts remain historical evidence for their recorded source SHAs; they are not validation of this combined tree. Run frozen Python/npm preparation, Ruff, mypy, full backend, frontend type/UX checks, Vitest, both frontend builds, identity/version checks, Compose syntax and whitespace checks. Keep asset builds separate from backend/browser runs that read those assets.
+
+Backend regressions include OAuth A/B, normal and management resources, direct MCP/HTTP compatibility, catalog/group authority and dispatch locks, configuration/runtime/migrations and the Native acquisition/journal/cleanup suite. Package validation must execute schema-validation subprocesses from the built wheel with the checkout absent from the import path, confirm deadline/cancellation children are reaped and import the Native modules from that same artifact. Linux frozen-worker checks and local synthetic browser checks are separate evidence where executed.
+
+Real rootless Podman namespaces/controllers, reviewed image/cache behavior, credentials/providers/clients and nx5 deployment still need operator/root acceptance. The four opt-in Native host tests remain skipped without operator-provisioned prerequisites; they do not use a host-shell fallback. No integrated synthetic result completes the Docker user delivery/build/deploy/start chain.
