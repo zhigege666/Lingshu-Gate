@@ -205,18 +205,12 @@ class ToolCatalog:
             raise _reject("catalog_query_invalid", "Use at least one keyword.")
         if request.group_id is not None:
             router = self._groups()
-            # Warm the existing bounded structural snapshot before capturing its
-            # marker; cold manifest metadata can legitimately change the marker.
-            items = router.directory_page(principal, group_id=request.group_id, keywords=terms,
-                tool_ref=request.tool_ref, instance_id=request.instance_id, offset=0,
-                limit=request.limit + 1, instances=instances)
             marker = router.directory_revision(request.group_id)
             binding = self._binding(principal, request, kind + _json(marker), generation, epoch)
             offset = self._offset(request.cursor, binding)
-            if offset:
-                items = router.directory_page(principal, group_id=request.group_id, keywords=terms,
-                    tool_ref=request.tool_ref, instance_id=request.instance_id, offset=offset,
-                    limit=request.limit + 1, instances=instances)
+            items = router.directory_page(principal, group_id=request.group_id, keywords=terms,
+                tool_ref=request.tool_ref, instance_id=request.instance_id, offset=offset,
+                limit=request.limit + 1, instances=instances)
             output = self._page(items, request, kind, offset, binding)
             if marker != router.directory_revision(request.group_id):
                 raise _reject("catalog_changed", "Service or instance configuration changed during search.")

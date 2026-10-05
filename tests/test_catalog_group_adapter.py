@@ -361,3 +361,42 @@ def test_selected_group_describe_and_invoke_never_prepare_other_instances(gate, 
         schema_revision=current["schema_revision"], session_id=session_id, arguments={}))
     assert response.ok and seen and max(seen) == 1
     assert len(peers["instance-0"].calls) == 1 and not peers["instance-1"].calls and not peers["instance-2"].calls
+
+
+def test_group_paging_prepares_one_projection_and_invalid_cursor_none(gate, integrated, monkeypatch):
+    catalog, group, _ = integrated
+    actor = gate["principal"]
+    original, calls = catalog.group_router._snapshot, []
+    def observed(*args, **kwargs):
+        calls.append(True)
+        return original(*args, **kwargs)
+    monkeypatch.setattr(catalog.group_router, "_snapshot", observed)
+    request = CatalogSearch(group_id=group["id"], limit=1)
+    first = catalog.search(actor, request, instances=True)
+    assert len(calls) == 1 and first["next_cursor"]
+    calls.clear()
+    second = catalog.search(actor, request.model_copy(update={"cursor": first["next_cursor"]}), instances=True)
+    assert len(calls) == 1 and first["instances"] != second["instances"]
+    calls.clear()
+    with pytest.raises(ToolExecutionError):
+        catalog.search(actor, request.model_copy(update={"cursor": "invalid"}), instances=True)
+    assert not calls
+
+
+def test_group_preparation_prunes_ungranted_instances_but_keeps_tool_override(gate, integrated, monkeypatch):
+    catalog, group, _ = integrated
+    gate["auth"].create_user(username="synthetic-tool-reader", password="Synthetic-Reader-123!", role="operator")
+    actor, _, _ = gate["auth"].login(username="synthetic-tool-reader", password="Synthetic-Reader-123!")
+    gate["access"].save_grant(subject_type="user", subject_id=actor.id, server_id="instance-0",
+        tool_id="mcp.instance-0.inspect", permission_type_code="read", created_by=gate["principal"].id)
+    gate["access"].save_grant(subject_type="user", subject_id=actor.id, server_id=logical_service_id(group["id"]),
+        permission_type_code="read", created_by=gate["principal"].id)
+    original, counts = catalog.group_router.structures.get_many, []
+    def bounded(entries):
+        entries = tuple(entries)
+        counts.append(len(entries))
+        assert {item.structure.metadata["server_id"] for item in entries} == {"instance-0"}
+        return original(entries)
+    monkeypatch.setattr(catalog.group_router.structures, "get_many", bounded)
+    assert len(catalog.search(actor, CatalogSearch(group_id=group["id"]))["tools"]) == 1
+    assert counts == [1]

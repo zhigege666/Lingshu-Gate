@@ -62,7 +62,7 @@ class McpGroupRoutingService:
 
     def _snapshot(self, group_id: str, actor: AuthPrincipal, *,
                   instance_id: str | None = None) -> tuple[dict[str, Any], list[VisibleCatalogTool], list[CatalogVariant]]:
-        current_tool_principal(self.auth, actor)
+        actor = current_tool_principal(self.auth, actor)
         for _ in range(3):
             with self.groups.store.database.session() as connection:
                 try:
@@ -83,6 +83,17 @@ class McpGroupRoutingService:
                 and entry.structure.id == f'mcp.{entry.structure.metadata["server_id"]}.{entry.structure.metadata["original_tool_name"]}']
             if sum(item.structure.byte_count for item in candidates) > MAX_CATALOG_CONTRACT_BYTES:
                 raise McpGroupError("group_catalog_capacity", "The service exceeds bounded catalog capacity.", 503)
+            # Cheap, conservative physical admission before schema preparation.
+            # Exact tool overrides (including none) use the original grant map.
+            # Fresh contract/publication/control checks still happen below; no
+            # visibility or grant result survives this request.
+            keys = [(entry.structure.metadata["server_id"], entry.structure.id) for entry in candidates]
+            with self.groups.store.database.session() as connection:
+                grants = self.access._effective_access_map(connection, actor, keys)
+            oauth_tools, oauth_instances = set(actor.external_tool_ids), set(actor.external_server_ids)
+            candidates = [entry for entry, key in zip(candidates, keys, strict=True)
+                if (grants[key] != "none" or entry.structure.metadata.get("classification_control_plane") is True)
+                and (actor.auth_type != "oauth" or key[0] in oauth_instances and key[1] in oauth_tools)]
             prepared = self.structures.get_many(candidates)
             by_id = {item.definition.id: item for item in prepared}
             actor = current_tool_principal(self.auth, actor)
@@ -134,6 +145,9 @@ class McpGroupRoutingService:
 
     def directory_revision(self, group_id: str) -> tuple[int | None, int]:
         """Internal cursor marker; never a public discovery count or descriptor."""
+        # Warm metadata alone before capturing the marker. Preparing a complete
+        # authorized group just to warm this cache doubled paginated searches.
+        self.groups.configs.selected_instance_metadata(set())
         row = self.groups.store.database.query_one("SELECT revision FROM mcp_groups WHERE id=?", (group_id,))
         return (int(row[0]) if row is not None else None, self.groups.configs.metadata_revision())
 
