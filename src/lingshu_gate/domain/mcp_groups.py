@@ -43,6 +43,10 @@ class McpGroupDraft(BaseModel):
         return sorted(value)
 
 
+class McpGroupCreate(McpGroupDraft):
+    request_key: StrictStr = Field(pattern=r"^[a-f0-9]{32}$")
+
+
 class McpGroupUpdate(McpGroupDraft):
     expected_revision: StrictInt = Field(ge=1)
 

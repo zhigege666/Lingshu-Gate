@@ -2,12 +2,14 @@
 from __future__ import annotations
 
 import json
+import hashlib
+import re
 import sqlite3
 from datetime import datetime, timezone
 from typing import Any
 
 from lingshu_gate.auth import AuthPrincipal
-from lingshu_gate.domain.mcp_groups import McpGroupDraft, McpGroupError
+from lingshu_gate.domain.mcp_groups import McpGroupCreate, McpGroupDraft, McpGroupError
 from lingshu_gate.mcp_config_store import McpConfigStore
 from lingshu_gate.mcp_runtime import McpRuntimeManager
 from lingshu_gate.persistence.mcp_groups import McpGroupStore
@@ -18,7 +20,8 @@ class McpGroupService:
         self.store, self.configs, self.runtime = store, configs, runtime
 
     @staticmethod
-    def authorize(connection: sqlite3.Connection, principal: AuthPrincipal) -> None:
+    def authorize(connection: sqlite3.Connection, principal: AuthPrincipal, *, write: bool = False) -> None:
+        required = {"operations.manage", "tools.invoke"} if write else {"operations.manage"}
         user = connection.execute("SELECT status,must_change_password FROM users WHERE id=?", (principal.id,)).fetchone()
         roles = {row[0] for row in connection.execute("SELECT r.code FROM user_roles ur JOIN roles r ON r.id=ur.role_id "
             "WHERE ur.user_id=? AND r.enabled=1", (principal.id,))}
@@ -26,9 +29,9 @@ class McpGroupService:
             "JOIN roles r ON r.id=ur.role_id AND r.enabled=1 JOIN role_permissions rp ON rp.role_id=r.id "
             "JOIN control_permissions p ON p.id=rp.permission_id WHERE ur.user_id=?", (principal.id,))}
         if (principal.auth_type not in {"session", "token"} or user is None or user["status"] != "active"
-                or user["must_change_password"] or "admin" not in roles or "operations.manage" not in permissions
-                or "operations.manage" not in principal.permissions):
-            raise McpGroupError("group_admin_required", "Use a current administrator with operations.manage.", 403)
+                or user["must_change_password"] or "admin" not in roles or not required.issubset(permissions)
+                or not required.issubset(principal.permissions)):
+            raise McpGroupError("group_admin_required", "Use a current administrator with operations.manage; writes also require tools.invoke.", 403)
         if principal.auth_type == "session":
             row = connection.execute("SELECT user_id,purpose,expires_at FROM auth_sessions WHERE id=?", (principal.session_id,)).fetchone()
             valid = bool(row and row["user_id"] == principal.id and row["purpose"] == "console")
@@ -36,24 +39,24 @@ class McpGroupService:
             row = connection.execute("SELECT user_id,expires_at,revoked_at,scopes_json FROM api_tokens WHERE id=?", (principal.token_id,)).fetchone()
             scopes = set(json.loads(row["scopes_json"])) if row else set()
             valid = bool(row and row["user_id"] == principal.id and row["revoked_at"] is None
-                         and ("*" in scopes or "operations.manage" in scopes)
-                         and ("*" in principal.scopes or "operations.manage" in principal.scopes))
+                         and ("*" in scopes or required.issubset(scopes))
+                         and ("*" in principal.scopes or required.issubset(principal.scopes)))
         try:
             expired = bool(row and row["expires_at"] and datetime.fromisoformat(row["expires_at"].replace("Z", "+00:00")) <= datetime.now(timezone.utc))
         except (ValueError, TypeError):
             expired = True
         if not valid or expired or (principal.delegated_scopes is not None
-                and "*" not in principal.delegated_scopes and "operations.manage" not in principal.delegated_scopes):
-            raise McpGroupError("group_connection_invalid", "The administrator connection is unavailable or lacks operations.manage.", 403)
+                and "*" not in principal.delegated_scopes and not required.issubset(principal.delegated_scopes)):
+            raise McpGroupError("group_connection_invalid", "The administrator connection is unavailable or lacks the required read/write scopes.", 403)
 
-    def check(self, principal: AuthPrincipal) -> None:
+    def check(self, principal: AuthPrincipal, *, write: bool = False) -> None:
         with self.store.database.session() as connection:
-            self.authorize(connection, principal)
+            self.authorize(connection, principal, write=write)
 
-    def _catalog(self) -> dict[str, dict[str, Any]]:
-        return {config.id: {"instance_id": config.id, "name": config.manifest.get("name") or config.id,
+    def _catalog(self, *, refresh: bool = False) -> dict[str, dict[str, Any]]:
+        return {config.instance_id: {"instance_id": config.instance_id, "name": config.name,
                            "available": True, "status": "not_loaded"}
-                for config in self.configs.list_configs().configs}
+                for config in self.configs.instance_metadata(refresh=refresh)}
 
     def list_groups(self, principal: AuthPrincipal, **query: Any) -> dict[str, Any]:
         return self.store.list_groups(**query, authorize=lambda connection: self.authorize(connection, principal))
@@ -68,13 +71,13 @@ class McpGroupService:
             return result
 
     def instances(self, principal: AuthPrincipal, *, q: str, group_id: str | None, ungrouped: bool,
-                  offset: int, limit: int) -> dict[str, Any]:
+                  offset: int, limit: int, refresh: bool = False) -> dict[str, Any]:
         self.check(principal)
         with self.configs.mutation_lock, self.store.database.session() as connection:
             # Never acquire runtime locks under a SQLite writer: discovery does the reverse.
             states = {server.id: server.status for server in self.runtime.list_servers().servers}
             self.authorize(connection, principal)
-            catalog = self._catalog()
+            catalog = self._catalog(refresh=refresh)
             for key, item in catalog.items():
                 item["status"] = states.get(key, "not_loaded")
             if group_id:
@@ -97,14 +100,28 @@ class McpGroupService:
             return {"instances": page, "total": len(items), "offset": offset, "limit": limit}
 
     def save(self, draft: McpGroupDraft, principal: AuthPrincipal, *, group_id: str | None = None,
-             expected_revision: int | None = None) -> dict[str, Any]:
+             expected_revision: int | None = None, request_key: str | None = None,
+             request_digest: str | None = None) -> dict[str, Any]:
         with self.configs.mutation_lock:
-            self.check(principal)
-            available = set(self._catalog())
+            self.check(principal, write=True)
+            if group_id is None:
+                if isinstance(draft, McpGroupCreate):
+                    request_key = request_key or draft.request_key
+                if request_key is None or not re.fullmatch(r"[a-f0-9]{32}", request_key):
+                    raise McpGroupError("group_request_key_required", "A new group needs an actor-bound request key.", 422)
+                request_digest = request_digest or hashlib.sha256(json.dumps(draft.model_dump(), ensure_ascii=False,
+                    sort_keys=True, separators=(",", ":")).encode()).hexdigest()
+            # Read current files under the same mutation lock, even when list metadata is cached.
+            available = set(self._catalog(refresh=True))
             return self.store.save(draft, group_id=group_id, expected_revision=expected_revision,
-                                   actor_id=principal.id, authorize=lambda connection: self.authorize(connection, principal),
-                                   available_instances=available)
+                                   actor_id=principal.id, authorize=lambda connection: self.authorize(connection, principal, write=True),
+                                   available_instances=available, request_key=request_key, request_digest=request_digest)
+
+    def create_result(self, request_key: str, principal: AuthPrincipal) -> dict[str, Any]:
+        return self.store.create_result(request_key, actor_id=principal.id,
+            authorize=lambda connection: self.authorize(connection, principal))
 
     def delete(self, group_id: str, revision: int, principal: AuthPrincipal) -> dict[str, Any]:
+        self.check(principal, write=True)
         return self.store.delete(group_id, revision, actor_id=principal.id,
-                                 authorize=lambda connection: self.authorize(connection, principal))
+                                 authorize=lambda connection: self.authorize(connection, principal, write=True))

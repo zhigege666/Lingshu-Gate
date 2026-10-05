@@ -15,7 +15,9 @@ async function fixture(page: Page, locale = 'en-US', theme = 'dark') {
   const records = new Map([[alpha, record(alpha, 'Synthetic alpha')], [beta, record(beta, 'Synthetic beta', ['instance-0999'])]])
   const writes: { method: string; path: string; body: Record<string, unknown> }[] = []
   const requests: string[] = []
-  let failure = false, delay: ((route: Route) => Promise<boolean>) | undefined
+  const instanceQueries: URLSearchParams[] = []
+  const receipts = new Map<string, { body: string; id: string }>()
+  let failure = false, loseResponse = false, delay: ((route: Route) => Promise<boolean>) | undefined
   await page.route('**/v1/**', async route => {
     const req = route.request(), url = new URL(req.url()), path = url.pathname
     requests.push(`${req.method()} ${path}`)
@@ -25,13 +27,26 @@ async function fixture(page: Page, locale = 'en-US', theme = 'dark') {
       if (req.method() !== 'GET') {
         const body = req.postDataJSON(); writes.push({ method: req.method(), path, body })
         if (failure) return route.fulfill({ status: 409, json: { detail: { code: 'group_revision_conflict', message: 'Synthetic concurrent revision' } } })
+        if (req.method() === 'POST' && receipts.has(body.request_key)) {
+          const receipt = receipts.get(body.request_key)!
+          if (receipt.body !== JSON.stringify(body)) return route.fulfill({ status: 409, json: { detail: { code: 'group_request_conflict' } } })
+          return route.fulfill({ json: records.get(receipt.id) })
+        }
         const id = req.method() === 'POST' ? 'c'.repeat(32) : path.split('/').at(-1)!
         if (req.method() === 'DELETE') { records.delete(id); return route.fulfill({ json: { id, deleted: true, metadata_only: true } }) }
         const next = { ...record(id, body.name, body.members), description: body.description, status: body.status, revision: (records.get(id)?.revision ?? 0) + 1 }
-        records.set(id, next); return route.fulfill({ json: next })
+        records.set(id, next)
+        if (req.method() === 'POST') receipts.set(body.request_key, { body: JSON.stringify(body), id })
+        if (loseResponse) { loseResponse = false; return route.abort('failed') }
+        return route.fulfill({ json: next })
+      }
+      if (path.includes('/requests/')) {
+        const receipt = receipts.get(path.split('/').at(-1)!)
+        return route.fulfill({ status: receipt ? 200 : 404, json: receipt ? records.get(receipt.id) : { detail: { code: 'group_request_not_found' } } })
       }
       const q = (url.searchParams.get('q') || '').toLowerCase(), offset = Number(url.searchParams.get('offset') || 0), limit = Number(url.searchParams.get('limit') || 20)
       if (path.endsWith('/instances')) {
+        instanceQueries.push(url.searchParams)
         const group = records.get(url.searchParams.get('group_id') || '')
         const all = instances.filter(item => (!group || group.members.some(member => member.instance_id === item.instance_id)) && `${item.name} ${item.instance_id}`.toLowerCase().includes(q))
         return route.fulfill({ json: { instances: all.slice(offset, offset + limit), total: all.length, offset, limit } })
@@ -53,7 +68,7 @@ async function fixture(page: Page, locale = 'en-US', theme = 'dark') {
   await page.goto('/console/#/servers')
   await page.locator('.mcp-group-view-switch').getByText(locale === 'zh-CN' ? '组' : 'Groups', { exact: true }).click()
   await expect(page.locator('.service-entry').filter({ hasText: 'Synthetic alpha' })).toBeVisible()
-  return { records, writes, requests, setFailure: (value: boolean) => { failure = value }, setDelay: (value: typeof delay) => { delay = value } }
+  return { records, writes, requests, instanceQueries, setFailure: (value: boolean) => { failure = value }, setLoseResponse: () => { loseResponse = true }, setDelay: (value: typeof delay) => { delay = value } }
 }
 
 for (const [width, height] of [[1600, 900], [1920, 1080], [2560, 1080], [2560, 1440]]) for (const locale of ['en-US', 'zh-CN']) for (const theme of ['light', 'dark']) {
@@ -106,6 +121,118 @@ test('cross-page selection and complete search survive save failure/retry', asyn
   await expect(dialog).toHaveCount(0)
   expect(gate.writes.map(item => item.body.members)).toEqual([['instance-0000', 'instance-0020', 'instance-0999'], ['instance-0000', 'instance-0020', 'instance-0999']])
   expect(gate.writes.every(item => !('endpoint' in item.body) && !('scopes' in item.body))).toBe(true)
+  expect(gate.writes[0].body.request_key).toMatch(/^[a-f0-9]{32}$/)
+  expect(gate.writes[1].body.request_key).toBe(gate.writes[0].body.request_key)
+})
+
+test('lost create response retries the same bound request instead of another group', async ({ page }, info) => {
+  await page.setViewportSize({ width: 1600, height: 900 })
+  const gate = await fixture(page)
+  await page.getByRole('button', { name: 'Create group', exact: true }).click()
+  const dialog = page.getByRole('dialog')
+  await dialog.getByLabel('Name', { exact: true }).fill('Synthetic lost creation')
+  gate.setLoseResponse()
+  await dialog.getByRole('button', { name: 'Save group', exact: true }).click()
+  await expect(dialog.getByRole('button', { name: 'Check saved result', exact: true })).toBeVisible()
+  await expect(dialog.getByRole('alert')).toContainText('creation result is unconfirmed')
+  for (const name of ['Check saved result', 'Retry original creation', 'Save group']) await expectInViewportAndUnobscured(dialog.getByRole('button', { name, exact: true }))
+  const output = process.env.GATE_GROUP_EVIDENCE_DIR || info.outputPath('evidence'); mkdirSync(output, { recursive: true })
+  await page.screenshot({ path: join(output, 'create-recovery-en-US-dark-1600x900.png') })
+  expect(Array.from(gate.records.values()).filter(item => item.name === 'Synthetic lost creation')).toHaveLength(1)
+  await dialog.getByRole('button', { name: 'Save group', exact: true }).click()
+  await expect(dialog).toHaveCount(0)
+  expect(gate.writes).toHaveLength(2)
+  expect(gate.writes[0].body).toEqual(gate.writes[1].body)
+  expect(Array.from(gate.records.values()).filter(item => item.name === 'Synthetic lost creation')).toHaveLength(1)
+})
+
+test('changed unconfirmed creation reconciles the saved group while keeping new edits', async ({ page }, info) => {
+  await page.setViewportSize({ width: 1600, height: 900 })
+  const gate = await fixture(page, 'zh-CN', 'light')
+  await page.getByRole('button', { name: '创建组', exact: true }).click()
+  const dialog = page.getByRole('dialog')
+  await dialog.getByLabel('名称', { exact: true }).fill('首次提交')
+  gate.setLoseResponse()
+  await dialog.getByRole('button', { name: '保存组', exact: true }).click()
+  await expect(dialog.getByRole('button', { name: '核对保存结果', exact: true })).toBeVisible()
+  await dialog.getByLabel('名称', { exact: true }).fill('保留新的修改')
+  await dialog.getByRole('button', { name: '保存组', exact: true }).click()
+  await expect(dialog.getByRole('alert')).toContainText('草稿已修改')
+  for (const name of ['核对保存结果', '重试原创建', '保存组']) await expectInViewportAndUnobscured(dialog.getByRole('button', { name, exact: true }))
+  const output = process.env.GATE_GROUP_EVIDENCE_DIR || info.outputPath('evidence'); mkdirSync(output, { recursive: true })
+  await page.screenshot({ path: join(output, 'create-recovery-zh-CN-light-1600x900.png') })
+  expect(gate.writes).toHaveLength(1)
+  await dialog.getByRole('button', { name: '核对保存结果', exact: true }).click()
+  await expect(dialog.getByRole('button', { name: '重新读取已保存组', exact: true })).toBeVisible()
+  await expect(dialog.getByLabel('名称', { exact: true })).toHaveValue('保留新的修改')
+  await dialog.getByRole('button', { name: '保存组', exact: true }).click()
+  await expect(dialog).toHaveCount(0)
+  expect(gate.writes.map(item => item.method)).toEqual(['POST', 'PUT'])
+  expect(gate.writes[1].body.expected_revision).toBe(1)
+  expect(gate.writes[1].body).not.toHaveProperty('request_key')
+  expect(Array.from(gate.records.values()).filter(item => item.name === '保留新的修改')).toHaveLength(1)
+})
+
+test('explicit retry of an unconfirmed original creation preserves later edits', async ({ page }) => {
+  const gate = await fixture(page)
+  let originalKey = '', aborted = false
+  gate.setDelay(async route => {
+    if (route.request().method() !== 'POST' || new URL(route.request().url()).pathname !== '/v1/mcp/groups' || aborted) return false
+    originalKey = route.request().postDataJSON().request_key; aborted = true
+    await route.abort('failed'); return true
+  })
+  await page.getByRole('button', { name: 'Create group', exact: true }).click()
+  const dialog = page.getByRole('dialog')
+  await dialog.getByLabel('Name', { exact: true }).fill('Original submitted draft')
+  await dialog.getByRole('button', { name: 'Save group', exact: true }).click()
+  await expect(dialog.getByRole('button', { name: 'Retry original creation', exact: true })).toBeVisible()
+  await dialog.getByLabel('Name', { exact: true }).fill('Edits after failure')
+  await dialog.getByRole('button', { name: 'Check saved result', exact: true }).click()
+  await expect(dialog.getByRole('alert')).toContainText('No saved result')
+  await dialog.getByRole('button', { name: 'Retry original creation', exact: true }).click()
+  await expect(dialog.getByRole('button', { name: 'Reload saved group', exact: true })).toBeVisible()
+  await expect(dialog.getByLabel('Name', { exact: true })).toHaveValue('Edits after failure')
+  expect(gate.writes[0].body.request_key).toBe(originalKey)
+  expect(gate.writes[0].body.name).toBe('Original submitted draft')
+  await dialog.getByRole('button', { name: 'Save group', exact: true }).click()
+  await expect(dialog).toHaveCount(0)
+  expect(gate.writes.map(item => item.method)).toEqual(['POST', 'PUT'])
+})
+
+test('explicit catalog refresh is separate from normal search and paging', async ({ page }) => {
+  const gate = await fixture(page)
+  await page.getByRole('button', { name: 'Create group', exact: true }).click()
+  const dialog = page.getByRole('dialog')
+  await expect(dialog).toContainText('Instance 0000')
+  await dialog.locator('.ant-pagination-next').click()
+  await expect(dialog).toContainText('Instance 0020')
+  expect(gate.instanceQueries.every(query => query.get('refresh') !== 'true')).toBe(true)
+  await dialog.getByRole('button', { name: 'Refresh', exact: true }).click()
+  await expect.poll(() => gate.instanceQueries.at(-1)?.get('refresh')).toBe('true')
+  await expect(dialog.getByRole('button', { name: 'Refresh', exact: true })).toBeEnabled()
+  await dialog.getByRole('searchbox', { name: 'Search instances by name or ID' }).fill('0999')
+  await expect(dialog).toContainText('Instance 0999')
+  expect(gate.instanceQueries.at(-1)?.get('refresh')).toBe('false')
+})
+
+test('readonly management connection can inspect groups without write actions', async ({ page }) => {
+  const gate = await fixture(page)
+  await page.route('**/v1/auth/me', async route => {
+    const response = await route.fetch({ timeout: 10_000, maxRedirects: 0 })
+    const user = await response.json()
+    user.auth_type = 'token'; user.scopes = ['operations.manage', 'tools.read', 'mcp.read', 'console.view']
+    user.permissions = user.permissions.filter((permission: string) => permission !== 'tools.invoke' && permission !== '*')
+    await route.fulfill({ response, json: user })
+  })
+  await page.reload()
+  await page.locator('.mcp-group-view-switch').getByText('Groups', { exact: true }).click()
+  await expect(page.locator('.service-entry').filter({ hasText: 'Synthetic alpha' })).toBeVisible()
+  await page.locator('.service-entry').filter({ hasText: 'Synthetic alpha' }).click()
+  await expect(page.locator('.mcp-group-detail h1')).toHaveText('Synthetic alpha')
+  await expect(page.getByRole('button', { name: 'Create group', exact: true })).toHaveCount(0)
+  await expect(page.getByRole('button', { name: 'Edit group', exact: true })).toHaveCount(0)
+  await expect(page.getByRole('button', { name: 'Delete group', exact: true })).toHaveCount(0)
+  expect(gate.writes).toHaveLength(0)
 })
 
 test('keyboard dirty close keeps or discards the exact draft and restores focus', async ({ page }) => {
@@ -212,14 +339,29 @@ test('pending save blocks duplicate submission and keyboard close', async ({ pag
   await expect(page.getByRole('dialog')).toHaveCount(0)
 })
 
-test('real isolated Console creates/archives/deletes metadata through bound CSRF', async ({ page }) => {
+test('real isolated Console reconciles lost create response then archives/deletes through bound CSRF', async ({ page }) => {
   await login(page)
+  const creations: { key: string; id: string }[] = []
+  await page.route('**/v1/mcp/groups', async route => {
+    if (route.request().method() !== 'POST') return route.continue()
+    const response = await route.fetch({ timeout: 10_000, maxRedirects: 0 })
+    if (response.status() !== 200) return route.fulfill({ response })
+    creations.push({ key: route.request().postDataJSON().request_key, id: (await response.json()).id })
+    if (creations.length === 1) return route.abort('failed')
+    return route.fulfill({ response })
+  })
   await page.goto('/console/#/servers')
   await page.locator('.mcp-group-view-switch').getByText('Groups', { exact: true }).click()
   await page.getByRole('button', { name: 'Create group', exact: true }).click()
   await page.getByRole('dialog').getByLabel('Name', { exact: true }).fill('Synthetic ephemeral collection')
   await page.getByRole('dialog').getByRole('button', { name: 'Save group', exact: true }).click()
+  await expect(page.getByRole('dialog').getByRole('button', { name: 'Check saved result', exact: true })).toBeVisible()
+  await page.getByRole('dialog').getByRole('button', { name: 'Save group', exact: true }).click()
   await expect(page.getByRole('dialog')).toHaveCount(0)
+  expect(creations).toHaveLength(2)
+  expect(creations[0]).toEqual(creations[1])
+  const once = await page.request.get('/v1/mcp/groups?status=all&q=Synthetic%20ephemeral%20collection')
+  expect((await once.json()).total).toBe(1)
   await expect(page.locator('.mcp-group-detail h1')).toHaveText('Synthetic ephemeral collection')
   await page.getByRole('button', { name: 'Edit group', exact: true }).click()
   await page.getByRole('dialog').getByRole('radio', { name: 'Archived', exact: true }).check()

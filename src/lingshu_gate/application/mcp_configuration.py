@@ -222,6 +222,7 @@ class McpConfigurationService:
 
     def reload(self) -> McpConfigApplyResponse:
         with getattr(self._config_store, "mutation_lock", nullcontext()):
+            self._config_store.invalidate_instance_metadata()
             if self._group_store is not None:
                 present = {config.id for config in self._config_store.list_configs().configs}
                 self._group_store.reconcile_instances(present)

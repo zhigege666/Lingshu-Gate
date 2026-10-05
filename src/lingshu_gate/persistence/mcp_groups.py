@@ -42,10 +42,20 @@ class McpGroupStore:
                     "total": total, "offset": offset, "limit": limit}
 
     def save(self, draft: McpGroupDraft, *, group_id: str | None, expected_revision: int | None,
-             actor_id: str, authorize: Authorize, available_instances: set[str]) -> dict[str, Any]:
+             actor_id: str, authorize: Authorize, available_instances: set[str],
+             request_key: str | None = None, request_digest: str | None = None) -> dict[str, Any]:
         with self.database.session() as connection:
             connection.execute("BEGIN IMMEDIATE")
             authorize(connection)
+            if group_id is None:
+                if request_key is None or request_digest is None:
+                    raise McpGroupError("group_request_key_required", "A new group needs a bound request key.", 422)
+                receipt = connection.execute("SELECT request_digest,group_id FROM mcp_group_requests WHERE actor_id=? AND request_key=?",
+                    (actor_id, request_key)).fetchone()
+                if receipt:
+                    if receipt["request_digest"] != request_digest:
+                        raise McpGroupError("group_request_conflict", "This create request was used with a different body; reconcile its saved result before editing.")
+                    return self._receipt_result(connection, receipt["group_id"])
             previous = self.detail(connection, group_id) if group_id else None
             if previous and previous["revision"] != expected_revision:
                 raise McpGroupError("group_revision_conflict", "The group changed; reload it before saving. Your draft has not been applied.")
@@ -71,10 +81,27 @@ class McpGroupStore:
                  (old_members.get(item, "active") == "active" or item in draft.reconfirm_members) else "missing")
                 for item in draft.members))
             result = self.detail(connection, group_id)
+            if not previous:
+                connection.execute("INSERT INTO mcp_group_requests VALUES(?,?,?,?,?)", (actor_id, request_key, request_digest, group_id, now))
             self.observability.emit_event("gate.mcp.group_updated" if previous else "gate.mcp.group_created",
                 subject_type="mcp_group", subject_id=group_id,
                 payload={"actor_id": actor_id, "previous": previous, "current": result, "metadata_only": True}, connection=connection)
             return result
+
+    @classmethod
+    def _receipt_result(cls, connection: sqlite3.Connection, group_id: str) -> dict[str, Any]:
+        try:
+            return cls.detail(connection, group_id)
+        except McpGroupError:
+            raise McpGroupError("group_request_deleted", "This request created a group that was deleted; it cannot recreate that group.") from None
+
+    def create_result(self, request_key: str, *, actor_id: str, authorize: Authorize) -> dict[str, Any]:
+        with self.database.session() as connection:
+            authorize(connection)
+            receipt = connection.execute("SELECT group_id FROM mcp_group_requests WHERE actor_id=? AND request_key=?", (actor_id, request_key)).fetchone()
+            if receipt is None:
+                raise McpGroupError("group_request_not_found", "No saved result has been found yet; this does not prove the earlier request failed.", 404)
+            return self._receipt_result(connection, receipt["group_id"])
 
     def delete(self, group_id: str, expected_revision: int, *, actor_id: str, authorize: Authorize) -> dict[str, Any]:
         with self.database.session() as connection:

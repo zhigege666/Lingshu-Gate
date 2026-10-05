@@ -1,6 +1,6 @@
 import { useEffect, useId, useRef, useState } from "react"
 import { Alert, Button, Input, Pagination, Radio, Table, Tag } from "antd"
-import { mcpGroupsApi, type McpGroup, type McpGroupInstance } from "@/api/mcp-groups"
+import { canonicalGroupBody, mcpGroupsApi, type McpGroup, type McpGroupDraft, type McpGroupInstance } from "@/api/mcp-groups"
 import { FormDialog } from "@/components/form-dialog"
 import { useConfirm } from "@/components/confirm-dialog"
 import { useDraftCloseGuard } from "@/components/use-draft-close-guard"
@@ -27,34 +27,73 @@ export function McpGroupEditor({ group, locale, t, onClose, onSaved, returnFocus
   const [catalogError, setCatalogError] = useState("")
   const [error, setError] = useState("")
   const [pending, setPending] = useState(false)
+  const [creationUnknown, setCreationUnknown] = useState(false), [creationInfo, setCreationInfo] = useState("")
+  const createAttempt = useRef<{ key: string; fingerprint: string; body: McpGroupDraft } | null>(null)
+  const seenRefresh = useRef(0)
   const lock = useRef(false), generation = useRef(0), alive = useRef(true)
   const writeController = useRef<AbortController | null>(null)
   const [returnFocus] = useState(() => document.activeElement instanceof HTMLElement ? document.activeElement : null)
   const baseline = useRef(JSON.stringify([group?.name ?? "", group?.description ?? "", group?.status ?? "active", [...selected].sort()]))
   const dirty = baseline.current !== JSON.stringify([name, description, status, [...selected].sort()]) || reconfirmed.length > 0
   const { confirm, confirmDialog } = useConfirm(t, true)
-  const close = useDraftCloseGuard({ dirty, pending, locale, confirm, onClose })
+  const close = useDraftCloseGuard({ dirty: dirty || creationUnknown, pending, locale,
+    confirm: options => confirm(creationUnknown ? { ...options, description: c.createClose } : options), onClose })
   useEffect(() => { alive.current = true; return () => { alive.current = false; generation.current++; writeController.current?.abort() } }, [])
   useEffect(() => {
     const controller = new AbortController(), current = ++generation.current
+    const forceRefresh = seenRefresh.current !== refresh; seenRefresh.current = refresh
     setLoading(true); setCatalog(null); setCatalogError("")
-    void mcpGroupsApi.instances({ q: query, offset: (page - 1) * 20, limit: 20 }, controller.signal)
+    void mcpGroupsApi.instances({ q: query, offset: (page - 1) * 20, limit: 20, refresh: forceRefresh }, controller.signal)
       .then(next => { if (alive.current && current === generation.current) setCatalog(next) })
       .catch(cause => { if (alive.current && current === generation.current) setCatalogError(groupError(cause, locale)) })
       .finally(() => { if (alive.current && current === generation.current) setLoading(false) })
     return () => { generation.current++; controller.abort() }
   }, [query, page, refresh, locale])
 
-  async function save() {
-    if (lock.current || !name.trim() || selected.length > 1000) return
+  function adoptCreated(next: McpGroup) {
+    setSnapshot(next); setCreationUnknown(false); setCreationInfo(c.createRecovered); setError("")
+    baseline.current = JSON.stringify([next.name, next.description, next.status, next.members.map(item => item.instance_id).sort()])
+    setMissing(next.members.filter(item => selected.includes(item.instance_id) && (item.available === false || item.status === "missing")).map(item => item.instance_id))
+  }
+  async function checkCreation() {
+    if (lock.current || !createAttempt.current) return
+    lock.current = true; setPending(true); setError("")
+    const controller = new AbortController(); writeController.current = controller
+    try { const next = await mcpGroupsApi.createResult(createAttempt.current.key, controller.signal); if (alive.current) adoptCreated(next) }
+    catch (cause) { if (alive.current) setError(groupError(cause, locale)) }
+    finally { lock.current = false; if (alive.current) setPending(false) }
+  }
+  async function save(retryOriginal = false) {
+    if (lock.current || (!retryOriginal && !name.trim()) || selected.length > 1000) return
+    let body: McpGroupDraft = { name, description, status, members: [...selected].sort(),
+      reconfirm_members: reconfirmed.filter(item => selected.includes(item)), confirmed: true,
+      ...(snapshot ? { expected_revision: snapshot.revision } : {}) }
+    if (!snapshot) {
+      const fingerprint = canonicalGroupBody(body)
+      if (!createAttempt.current) createAttempt.current = { key: crypto.randomUUID().replace(/-/g, ""), fingerprint, body }
+      else if (!retryOriginal && createAttempt.current.fingerprint !== fingerprint) { setError(c.createChanged); setCreationUnknown(true); return }
+      body = { ...(retryOriginal ? createAttempt.current.body : body), request_key: createAttempt.current.key }
+    }
+    const wasUnknown = creationUnknown
     lock.current = true; setPending(true); setError("")
     const controller = new AbortController(); writeController.current = controller
     try {
-      const next = await mcpGroupsApi.save(snapshot?.id, { name, description, status, members: [...selected].sort(),
-        reconfirm_members: reconfirmed.filter(item => selected.includes(item)), confirmed: true,
-        ...(snapshot ? { expected_revision: snapshot.revision } : {}) }, controller.signal)
-      if (alive.current) { baseline.current = JSON.stringify([name, description, status, [...selected].sort()]); onSaved(next); onClose() }
-    } catch (cause) { if (alive.current) setError(groupError(cause, locale)) }
+      const next = await mcpGroupsApi.save(snapshot?.id, body, controller.signal)
+      if (alive.current) {
+        if (retryOriginal) adoptCreated(next)
+        else { baseline.current = JSON.stringify([name, description, status, [...selected].sort()]); onSaved(next); onClose() }
+      }
+    } catch (cause) { if (alive.current) {
+      let feedback = groupError(cause, locale)
+      if (!snapshot) {
+        const message = cause instanceof Error ? cause.message : String(cause)
+        const rejected = !wasUnknown && /invalid_group_request|group_instance_unavailable|group_capacity|group_admin_required|group_connection_invalid|csrf/.test(message)
+        if (rejected) createAttempt.current = null
+        setCreationUnknown(!rejected)
+        if (!rejected && !/group_request_conflict|group_request_deleted|group_request_timeout/.test(message)) feedback = `${c.createUnconfirmed} ${feedback}`
+      }
+      setError(feedback)
+    } }
     finally { lock.current = false; if (alive.current) setPending(false) }
   }
   async function reload() {
@@ -66,7 +105,7 @@ export function McpGroupEditor({ group, locale, t, onClose, onSaved, returnFocus
     try {
       const next = await mcpGroupsApi.detail(snapshot.id, controller.signal)
       if (alive.current) {
-        setSnapshot(next); setName(next.name); setDescription(next.description); setStatus(next.status)
+        setSnapshot(next); setName(next.name); setDescription(next.description); setStatus(next.status); setCreationInfo("")
         setSelected(next.members.map(item => item.instance_id)); setMissing(next.members.filter(item => item.available === false || item.status === "missing").map(item => item.instance_id)); setReconfirmed([])
         baseline.current = JSON.stringify([next.name, next.description, next.status, next.members.map(item => item.instance_id).sort()]); setRefresh(value => value + 1)
       }
@@ -78,7 +117,8 @@ export function McpGroupEditor({ group, locale, t, onClose, onSaved, returnFocus
     <FormDialog open title={snapshot ? c.edit : c.newGroup} description={c.metadata} closeLabel={t("close")}
       className="mcp-group-dialog" bodyClassName="mcp-group-dialog-body" dirty={dirty} pending={pending} error={error}
       onClose={() => void close()} onCloseAutoFocus={event => { event.preventDefault(); if (returnFocus?.isConnected) returnFocus.focus(); else returnFocusFallback() }}
-      footer={<><Button disabled={pending} onClick={() => void close()}>{t("cancel")}</Button>{snapshot && <Button disabled={pending} onClick={() => void reload()}>{c.reload}</Button>}<Button type="primary" aria-label={c.save} aria-busy={pending} loading={pending} disabled={pending || !name.trim() || selected.length > 1000} onClick={() => void save()}>{c.save}</Button></>}>
+      footer={<><Button disabled={pending} onClick={() => void close()}>{t("cancel")}</Button>{creationUnknown && !snapshot && <><Button disabled={pending} onClick={() => void checkCreation()}>{c.checkCreate}</Button><Button disabled={pending} onClick={() => void save(true)}>{c.retryCreate}</Button></>}{snapshot && <Button disabled={pending} onClick={() => void reload()}>{c.reload}</Button>}<Button type="primary" aria-label={c.save} aria-busy={pending} loading={pending} disabled={pending || !name.trim() || selected.length > 1000} onClick={() => void save()}>{c.save}</Button></>}>
+      {creationInfo && <Alert type="info" showIcon title={creationInfo} />}
       <div className="mcp-group-form-row"><label htmlFor={`${id}-name`}>{c.name}</label><Input id={`${id}-name`} autoFocus maxLength={128} value={name} disabled={pending} onChange={event => setName(event.target.value)} /></div>
       <div className="mcp-group-form-row"><label htmlFor={`${id}-description`}>{c.description}</label><Input id={`${id}-description`} maxLength={500} value={description} disabled={pending} onChange={event => setDescription(event.target.value)} /></div>
       <div className="mcp-group-form-row"><span id={`${id}-state`}>{c.state}</span><Radio.Group aria-labelledby={`${id}-state`} disabled={pending} value={status} options={[{ value: "active", label: c.active }, { value: "archived", label: c.archived }]} onChange={event => setStatus(event.target.value as "active" | "archived")} /></div>

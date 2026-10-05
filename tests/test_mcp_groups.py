@@ -3,9 +3,13 @@ from __future__ import annotations
 
 import hashlib
 import json
+import time
+import threading
+from pathlib import Path
 from concurrent.futures import ThreadPoolExecutor
 from dataclasses import replace
 from unittest.mock import Mock, patch
+from uuid import uuid4
 
 import pytest
 from fastapi import FastAPI
@@ -17,7 +21,7 @@ from lingshu_gate.application.mcp_groups import McpGroupService
 from lingshu_gate.auth import AuthStore
 from lingshu_gate.config import Settings
 from lingshu_gate.database import SQLiteDatabase
-from lingshu_gate.domain.mcp_groups import McpGroupDraft, McpGroupError
+from lingshu_gate.domain.mcp_groups import McpGroupCreate, McpGroupDraft, McpGroupError, McpGroupUpdate
 from lingshu_gate.interfaces.control_api.mcp_group_routes import register_mcp_group_routes
 from lingshu_gate.mcp_config_store import McpConfigStore
 from lingshu_gate.mcp_runtime import McpRuntimeManager
@@ -54,9 +58,10 @@ def gate(tmp_path, monkeypatch):
                "runtime": runtime, "auth": auth, "principal": principal, "client": client, "access": access}
 
 
-def draft(**values):
+def draft(*, with_request=True, **values):
     return {"name": "Synthetic group", "description": "Metadata only", "status": "active",
-            "members": ["instance-0", "instance-1"], "confirmed": True, **values}
+            "members": ["instance-0", "instance-1"], "confirmed": True,
+            **({"request_key": uuid4().hex} if with_request and "expected_revision" not in values else {}), **values}
 
 
 def ticket(gate, body, action="create", group_id=None):
@@ -107,7 +112,7 @@ def test_cas_and_audit_rollback_are_atomic(gate):
     assert stale.status_code == 409 and stale.json()["detail"]["code"] == "group_revision_conflict"
     with patch.object(gate["store"].observability, "emit_event", side_effect=RuntimeError("synthetic audit failure")):
         with pytest.raises(RuntimeError, match="audit failure"):
-            gate["service"].save(McpGroupDraft(**draft(name="Not committed", members=[])), gate["principal"],
+            gate["service"].save(McpGroupDraft(**draft(name="Not committed", members=[], with_request=False)), gate["principal"],
                                    group_id=group["id"], expected_revision=2)
     current = gate["client"].get(f'/v1/mcp/groups/{group["id"]}').json()
     assert current["name"] == group["name"] and current["revision"] == 2 and len(current["members"]) == 2
@@ -118,7 +123,7 @@ def test_concurrent_revisions_have_one_winner(gate):
     group = create(gate)
     def update(index):
         try:
-            gate["service"].save(McpGroupDraft(**draft(name=f"Writer {index}")), gate["principal"], group_id=group["id"], expected_revision=1)
+            gate["service"].save(McpGroupDraft(**draft(name=f"Writer {index}", with_request=False)), gate["principal"], group_id=group["id"], expected_revision=1)
             return "saved"
         except McpGroupError as exc:
             return exc.code
@@ -177,8 +182,16 @@ def test_api_token_scope_is_independent_of_console_cookie(gate):
     denied = gate["client"].post("/v1/mcp/groups", json=draft(), headers={"Authorization": f'Bearer {token["token"]}'})
     assert denied.status_code == 403
     scoped = gate["auth"].create_api_token(principal=gate["principal"], name="Synthetic group token", scopes=["operations.manage"])
-    accepted = gate["client"].post("/v1/mcp/groups", json=draft(), headers={"Authorization": f'Bearer {scoped["token"]}'})
+    readonly = {"Authorization": f'Bearer {scoped["token"]}'}
+    assert gate["client"].get("/v1/mcp/groups/instances", headers=readonly).status_code == 200
+    assert gate["client"].post("/v1/mcp/groups", json=draft(), headers=readonly).status_code == 403
+    writer = gate["auth"].create_api_token(principal=gate["principal"], name="Synthetic writer", scopes=["operations.manage", "tools.invoke"])
+    accepted = gate["client"].post("/v1/mcp/groups", json=draft(), headers={"Authorization": f'Bearer {writer["token"]}'})
     assert accepted.status_code == 200
+    group = accepted.json()
+    assert gate["client"].get(f'/v1/mcp/groups/{group["id"]}', headers=readonly).status_code == 200
+    assert gate["client"].put(f'/v1/mcp/groups/{group["id"]}', json=draft(expected_revision=1), headers=readonly).status_code == 403
+    assert gate["client"].request("DELETE", f'/v1/mcp/groups/{group["id"]}', json={"confirmed": True, "expected_revision": 1}, headers=readonly).status_code == 403
 
 
 @pytest.mark.parametrize("values", [{"members": ["instance-0", "instance-0"]}, {"members": ["not-registered"]},
@@ -192,7 +205,7 @@ def test_validation_never_creates_or_routes_instances(gate, values):
 
 def test_complete_group_and_instance_search_pagination_has_no_tool_schemas(gate):
     for index in range(23):
-        gate["service"].save(McpGroupDraft(**draft(name=f"Group {index:02}", members=["instance-0"])), gate["principal"])
+        gate["service"].save(McpGroupCreate(**draft(name=f"Group {index:02}", members=["instance-0"])), gate["principal"])
     page = gate["client"].get("/v1/mcp/groups", params={"offset": 20, "limit": 10}).json()
     assert page["total"] == 23 and len(page["groups"]) == 3
     assert gate["client"].get("/v1/mcp/groups", params={"q": "GROUP 22"}).json()["total"] == 1
@@ -267,10 +280,174 @@ def test_group_upgrade_is_additive_and_keeps_existing_grants_and_files(gate):
 
 def test_thousand_members_searches_the_complete_metadata_catalog(gate):
     catalog = {f"large-{index:04}": {"instance_id": f"large-{index:04}", "name": f"Instance {index:04}", "available": True, "status": "not_loaded"} for index in range(1000)}
-    with patch.object(gate["service"], "_catalog", side_effect=lambda: {key: dict(value) for key, value in catalog.items()}):
-        group = gate["service"].save(McpGroupDraft(**draft(members=list(catalog))), gate["principal"])
+    with patch.object(gate["service"], "_catalog", side_effect=lambda **kwargs: {key: dict(value) for key, value in catalog.items()}):
+        group = gate["service"].save(McpGroupCreate(**draft(members=list(catalog))), gate["principal"])
         assert len(group["members"]) == 1000
         tail = gate["service"].instances(gate["principal"], q="", group_id=group["id"], ungrouped=False, offset=980, limit=20)
         assert tail["total"] == 1000 and tail["instances"][-1]["instance_id"] == "large-0999"
         search = gate["service"].instances(gate["principal"], q="Instance 0999", group_id=group["id"], ungrouped=False, offset=0, limit=20)
         assert search["total"] == 1 and "outputSchema" not in json.dumps(search)
+
+
+def test_five_thousand_real_manifest_queries_reuse_metadata_snapshot(gate, record_property):
+    configs, client = gate["configs"], gate["client"]
+    for index in range(3):
+        configs.delete_config(f"instance-{index}")
+    for index in range(5000):
+        (configs.config_dir / f"scale-{index:04}.json").write_text(json.dumps({
+            "id": f"scale-{index:04}", "name": f"Scale instance {index:04}",
+            "launch": {"type": "external", "env": {"SYNTHETIC_PRIVATE_VALUE": "fixture-value-never-cached"}},
+            "transport": {"type": "streamable_http", "endpoint": "https://mcp.example.test/mcp"}}))
+    with patch.object(configs, "_load_raw", wraps=configs._load_raw) as reads:
+        started = time.perf_counter()
+        response = client.get("/v1/mcp/groups/instances?offset=4980&limit=20")
+        cold = time.perf_counter() - started
+        assert response.status_code == 200 and response.json()["total"] == 5000
+        assert response.json()["instances"][-1]["instance_id"] == "scale-4999"
+        assert reads.call_count == 5000
+        started = time.perf_counter()
+        for index in range(30):
+            result = client.get("/v1/mcp/groups/instances", params={"q": f"Scale instance {index:04}", "offset": 0, "limit": 20})
+            assert result.status_code == 200 and result.json()["total"] == 1
+        warm = time.perf_counter() - started
+        assert reads.call_count == 5000, "Warm searches/pages must perform zero additional manifest reads"
+        assert cold < 15 and warm < 10, (cold, warm)
+        snapshot = configs._instance_metadata
+        assert snapshot is not None and len(snapshot) == 5000
+        assert all(set(vars(item)) == {"instance_id", "name"} for item in snapshot)
+        assert "fixture-value-never-cached" not in repr(snapshot) and "endpoint" not in response.text
+        readings = {"instances": 5000, "cold_seconds": round(cold, 4), "warm_30_queries_seconds": round(warm, 4),
+                    "cold_manifest_reads": 5000, "warm_manifest_reads": 0}
+        record_property("metadata_query_measurements", json.dumps(readings))
+        print("GROUP_METADATA_MEASUREMENTS " + json.dumps(readings))
+
+
+def test_metadata_snapshot_invalidates_on_mutation_reload_refresh_and_ttl(gate):
+    configs, client = gate["configs"], gate["client"]
+    def names(**params):
+        result = client.get("/v1/mcp/groups/instances", params=params)
+        assert result.status_code == 200
+        return {item["instance_id"]: item["name"] for item in result.json()["instances"]}
+    assert len(names()) == 3
+    manifest = configs.load_manifest("instance-0").model_dump(mode="json", exclude={"manifest_path"})
+    manifest["name"] = "Updated metadata"
+    configs.save_config(manifest, expected_id="instance-0", overwrite=True)
+    assert names()["instance-0"] == "Updated metadata"
+    manifest["id"] = "new-instance"
+    configs.save_config(manifest)
+    assert "new-instance" in names()
+    configs.delete_config("new-instance")
+    assert "new-instance" not in names()
+    path = Path(configs.get_config("instance-0").path)
+    path.write_text(json.dumps({**manifest, "id": "instance-0", "name": "External refresh"}))
+    assert names()["instance-0"] == "Updated metadata"
+    assert names(refresh=True)["instance-0"] == "External refresh"
+    path.write_text(json.dumps({**manifest, "id": "instance-0", "name": "External reload"}))
+    McpConfigurationService(configs, gate["runtime"], Mock(), group_store=gate["store"]).reload()
+    assert names()["instance-0"] == "External reload"
+    with patch("lingshu_gate.mcp_config_store.time.monotonic", return_value=configs._metadata_built_at + 30):
+        path.write_text(json.dumps({**manifest, "id": "instance-0", "name": "Expired snapshot"}))
+        assert names()["instance-0"] == "Expired snapshot"
+
+
+def test_save_checks_current_files_even_when_read_snapshot_is_warm(gate):
+    assert gate["client"].get("/v1/mcp/groups/instances").status_code == 200
+    Path(gate["configs"].get_config("instance-0").path).unlink()
+    body = draft()
+    response = gate["client"].post("/v1/mcp/groups", json=body, headers=ticket(gate, body))
+    assert response.status_code == 409 and response.json()["detail"]["code"] == "group_instance_unavailable"
+    assert gate["database"].query_one("SELECT COUNT(*) FROM mcp_groups")[0] == 0
+
+
+def test_create_receipt_replays_reconciles_and_never_resurrects(gate):
+    body = draft()
+    first = gate["client"].post("/v1/mcp/groups", json=body, headers=ticket(gate, body)).json()
+    # First response is treated as lost by the caller; retry obtains a fresh CSRF ticket.
+    replay = gate["client"].post("/v1/mcp/groups", json=body, headers=ticket(gate, body))
+    assert replay.status_code == 200 and replay.json() == first
+    result = gate["client"].get(f'/v1/mcp/groups/requests/{body["request_key"]}')
+    assert result.status_code == 200 and result.json()["id"] == first["id"]
+    assert gate["database"].query_one("SELECT COUNT(*) FROM mcp_groups")[0] == 1
+    assert gate["database"].query_one("SELECT COUNT(*) FROM events WHERE type='gate.mcp.group_created'")[0] == 1
+    changed = {**body, "description": "Different submitted body"}
+    rejected = gate["client"].post("/v1/mcp/groups", json=changed, headers=ticket(gate, changed))
+    assert rejected.status_code == 409 and rejected.json()["detail"]["code"] == "group_request_conflict"
+    deletion = {"confirmed": True, "expected_revision": 1}
+    assert gate["client"].request("DELETE", f'/v1/mcp/groups/{first["id"]}', json=deletion, headers=ticket(gate, deletion, "delete", first["id"])).status_code == 200
+    retired = gate["client"].post("/v1/mcp/groups", json=body, headers=ticket(gate, body))
+    assert retired.status_code == 409 and retired.json()["detail"]["code"] == "group_request_deleted"
+    assert gate["database"].query_one("SELECT COUNT(*) FROM mcp_groups")[0] == 0
+
+
+def test_create_receipts_are_actor_isolated_and_audit_atomic(gate):
+    body = draft()
+    with patch.object(gate["store"].observability, "emit_event", side_effect=RuntimeError("synthetic audit failure")):
+        with pytest.raises(RuntimeError, match="synthetic audit failure"):
+            gate["service"].save(McpGroupCreate(**body), gate["principal"])
+    assert gate["database"].query_one("SELECT COUNT(*) FROM mcp_group_requests")[0] == 0
+    first = gate["client"].post("/v1/mcp/groups", json=body, headers=ticket(gate, body)).json()
+    gate["auth"].create_user(username="synthetic-receipt-admin", password=PASSWORD, role="admin")
+    _, cookie, _ = gate["auth"].login(username="synthetic-receipt-admin", password=PASSWORD)
+    gate["client"].cookies.set(gate["auth"].cookie_name, cookie)
+    assert gate["client"].get(f'/v1/mcp/groups/requests/{body["request_key"]}').status_code == 404
+    second = gate["client"].post("/v1/mcp/groups", json=body, headers=ticket(gate, body))
+    assert second.status_code == 200 and second.json()["id"] != first["id"]
+
+
+def test_concurrent_create_retries_have_one_group_and_receipt(gate):
+    body = McpGroupCreate(**draft())
+    with ThreadPoolExecutor(max_workers=3) as pool:
+        results = list(pool.map(lambda _: gate["service"].save(body, gate["principal"]), range(3)))
+    assert len({item["id"] for item in results}) == 1
+    assert gate["database"].query_one("SELECT COUNT(*) FROM mcp_group_requests")[0] == 1
+
+
+@pytest.mark.parametrize("change", ["invoke_permission", "token_scopes", "token_revoked"])
+@pytest.mark.parametrize("action", ["create", "update", "delete"])
+def test_queued_writer_rechecks_revoked_permission_and_token_ceiling(gate, change, action):
+    group = create(gate) if action != "create" else None
+    token = gate["auth"].create_api_token(principal=gate["principal"], name="Synthetic queued writer", scopes=["operations.manage", "tools.invoke"])
+    principal = gate["auth"]._principal_from_api_token(str(token["token"]))
+    assert principal is not None
+    reached = threading.Event()
+    original_check = gate["service"].check
+    def checked(actor, **kwargs):
+        original_check(actor, **kwargs)
+        reached.set()
+    with patch.object(gate["service"], "check", side_effect=checked), ThreadPoolExecutor(max_workers=1) as pool:
+        with gate["database"].session() as blocker:
+            blocker.execute("BEGIN IMMEDIATE")
+            if group and action == "update":
+                future = pool.submit(gate["service"].save, McpGroupUpdate(**draft(expected_revision=1)), principal, group_id=group["id"], expected_revision=1)
+            elif group:
+                future = pool.submit(gate["service"].delete, group["id"], 1, principal)
+            else:
+                future = pool.submit(gate["service"].save, McpGroupCreate(**draft()), principal)
+            assert reached.wait(3), "Writer must pass its initial check before revocation"
+            if change == "invoke_permission":
+                blocker.execute("DELETE FROM role_permissions WHERE permission_id=(SELECT id FROM control_permissions WHERE code='tools.invoke')")
+            elif change == "token_scopes":
+                blocker.execute("UPDATE api_tokens SET scopes_json=? WHERE id=?", (json.dumps(["operations.manage"]), token["id"]))
+            else:
+                blocker.execute("UPDATE api_tokens SET revoked_at='2026-10-04T00:00:00Z' WHERE id=?", (token["id"],))
+        with pytest.raises(McpGroupError) as rejected:
+            future.result(timeout=10)
+        assert rejected.value.status == 403
+    assert gate["database"].query_one("SELECT COUNT(*) FROM mcp_groups")[0] == bool(group)
+    assert gate["database"].query_one("SELECT COUNT(*) FROM mcp_group_requests")[0] == bool(group)
+    if group:
+        unchanged = gate["client"].get(f'/v1/mcp/groups/{group["id"]}')
+        assert unchanged.status_code == 200 and unchanged.json()["revision"] == 1
+
+
+def test_receipt_migration_preserves_preexisting_group_metadata(gate):
+    group = create(gate)
+    db = gate["database"]
+    db.execute("DROP TABLE mcp_group_requests")
+    db.execute("DELETE FROM schema_migrations WHERE id='0014_gate_mcp_group_requests'")
+    db.initialize()
+    current = gate["client"].get(f'/v1/mcp/groups/{group["id"]}').json()
+    assert current["id"] == group["id"] and current["revision"] == group["revision"]
+    assert current["members"] == [{**item, "available": True} for item in group["members"]]
+    assert db.query_one("SELECT COUNT(*) FROM mcp_group_requests")[0] == 0
+    assert db.query_one("SELECT COUNT(*) FROM schema_migrations WHERE id='0014_gate_mcp_group_requests'")[0] == 1

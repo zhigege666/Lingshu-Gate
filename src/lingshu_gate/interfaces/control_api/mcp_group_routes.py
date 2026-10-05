@@ -5,14 +5,14 @@ import hashlib
 import json
 from typing import Any, Literal, TypeVar
 
-from fastapi import FastAPI, HTTPException, Query, Request
+from fastapi import FastAPI, HTTPException, Path, Query, Request
 from fastapi.responses import JSONResponse
 from pydantic import BaseModel, ValidationError
 
 from lingshu_gate.application.console_session_security import ConsoleCsrfError, ConsoleSessionCsrf
 from lingshu_gate.application.mcp_groups import McpGroupService
 from lingshu_gate.auth import AuthPrincipal, AuthStore
-from lingshu_gate.domain.mcp_groups import McpGroupDelete, McpGroupDraft, McpGroupError, McpGroupUpdate
+from lingshu_gate.domain.mcp_groups import McpGroupCreate, McpGroupDelete, McpGroupError, McpGroupUpdate
 from lingshu_gate.interfaces.control_api.console_security import console_origin_allowed
 
 Body = TypeVar("Body", bound=BaseModel)
@@ -21,9 +21,9 @@ Body = TypeVar("Body", bound=BaseModel)
 def register_mcp_group_routes(app: FastAPI, *, auth: AuthStore, service: McpGroupService) -> None:
     csrf = ConsoleSessionCsrf(auth)
 
-    def principal(request: Request, body: dict[str, Any] | None = None) -> AuthPrincipal:
+    def principal(request: Request, body: dict[str, Any] | None = None, *, write: bool = False) -> AuthPrincipal:
         actor = auth.authenticate_request(request)
-        service.check(actor)
+        service.check(actor, write=write or body is not None)
         if body is not None and actor.auth_type == "session":
             if not console_origin_allowed(request):
                 raise HTTPException(403, detail={"code": "cross_origin_denied", "message": "Use the same-origin Console."})
@@ -39,7 +39,7 @@ def register_mcp_group_routes(app: FastAPI, *, auth: AuthStore, service: McpGrou
         try:
             return model.model_validate(body)
         except ValidationError:
-            raise HTTPException(422, detail={"code": "invalid_group_request", "message": "Check the name, state, distinct instance IDs, confirmation and revision; unknown fields are not supported."}) from None
+            raise HTTPException(422, detail={"code": "invalid_group_request", "message": "Check the name, state, distinct instance IDs, confirmation, revision and create request key; unknown fields are not supported."}) from None
 
     # Scope the handler to this router's service errors, without changing global errors.
     def error(exc: McpGroupError) -> HTTPException:
@@ -50,7 +50,7 @@ def register_mcp_group_routes(app: FastAPI, *, auth: AuthStore, service: McpGrou
                request_digest: str = Query(pattern=r"^[a-f0-9]{64}$"),
                group_id: str | None = Query(default=None, pattern=r"^[a-f0-9]{32}$")) -> JSONResponse:
         try:
-            actor = principal(request)
+            actor = principal(request, write=True)
             if actor.auth_type != "session" or not console_origin_allowed(request):
                 raise HTTPException(403, detail={"code": "session_origin_required"})
             if (action == "create") != (group_id is None):
@@ -75,11 +75,18 @@ def register_mcp_group_routes(app: FastAPI, *, auth: AuthStore, service: McpGrou
     @app.get("/v1/mcp/groups/instances", tags=["mcp-groups"])
     def instances(request: Request, q: str = Query(default="", max_length=200), group_id: str | None = None,
                   ungrouped: bool = False, offset: int = Query(default=0, ge=0, le=100000),
-                  limit: int = Query(default=20, ge=1, le=100)) -> dict[str, Any]:
+                  limit: int = Query(default=20, ge=1, le=100), refresh: bool = False) -> dict[str, Any]:
         if group_id is not None and ungrouped:
             raise HTTPException(422, detail={"code": "invalid_group_filter"})
         try:
-            return service.instances(principal(request), q=q, group_id=group_id, ungrouped=ungrouped, offset=offset, limit=limit)
+            return service.instances(principal(request), q=q, group_id=group_id, ungrouped=ungrouped, offset=offset, limit=limit, refresh=refresh)
+        except McpGroupError as exc:
+            raise error(exc) from None
+
+    @app.get("/v1/mcp/groups/requests/{request_key}", tags=["mcp-groups"])
+    def create_result(request: Request, request_key: str = Path(pattern=r"^[a-f0-9]{32}$")) -> dict[str, Any]:
+        try:
+            return service.create_result(request_key, principal(request))
         except McpGroupError as exc:
             raise error(exc) from None
 
@@ -93,7 +100,9 @@ def register_mcp_group_routes(app: FastAPI, *, auth: AuthStore, service: McpGrou
     @app.post("/v1/mcp/groups", tags=["mcp-groups"])
     def create(body: dict[str, Any], request: Request) -> dict[str, Any]:
         try:
-            return service.save(validated(McpGroupDraft, body), principal(request, body))
+            draft = validated(McpGroupCreate, body)
+            digest = hashlib.sha256(json.dumps(body, ensure_ascii=False, sort_keys=True, separators=(",", ":")).encode()).hexdigest()
+            return service.save(draft, principal(request, body), request_key=draft.request_key, request_digest=digest)
         except McpGroupError as exc:
             raise error(exc) from None
 

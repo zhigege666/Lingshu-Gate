@@ -3,7 +3,7 @@ import { queryString, request } from "./http"
 export type McpGroupSummary = { id: string; name: string; description: string; status: "active" | "archived"; revision: number; member_count: number; missing_count: number; created_at: string; updated_at: string }
 export type McpGroup = Omit<McpGroupSummary, "member_count" | "missing_count"> & { members: { instance_id: string; status: "active" | "missing"; available?: boolean }[] }
 export type McpGroupInstance = { instance_id: string; name: string; status: string; available: boolean; groups: { id: string; name: string; status: string }[] }
-export type McpGroupDraft = { name: string; description: string; status: "active" | "archived"; members: string[]; reconfirm_members: string[]; confirmed: true; expected_revision?: number }
+export type McpGroupDraft = { name: string; description: string; status: "active" | "archived"; members: string[]; reconfirm_members: string[]; confirmed: true; expected_revision?: number; request_key?: string }
 export type GroupPage<T> = { total: number; offset: number; limit: number } & T
 
 export const GROUP_REQUEST_TIMEOUT_MS = 15_000
@@ -42,7 +42,8 @@ async function mutate<T>(action: "create" | "update" | "delete", groupId: string
 export const mcpGroupsApi = {
   list: (filters: { q?: string; status?: string; offset?: number; limit?: number }, signal?: AbortSignal) => groupRequest<GroupPage<{ groups: McpGroupSummary[] }>>("/v1/mcp/groups" + queryString(filters), {}, signal),
   detail: (id: string, signal?: AbortSignal) => groupRequest<McpGroup>("/v1/mcp/groups/" + encodeURIComponent(id), {}, signal),
-  instances: (filters: { q?: string; group_id?: string; ungrouped?: boolean; offset?: number; limit?: number }, signal?: AbortSignal) => groupRequest<GroupPage<{ instances: McpGroupInstance[] }>>("/v1/mcp/groups/instances" + queryString(filters), {}, signal),
+  createResult: (key: string, signal?: AbortSignal) => groupRequest<McpGroup>("/v1/mcp/groups/requests/" + encodeURIComponent(key), {}, signal),
+  instances: (filters: { q?: string; group_id?: string; ungrouped?: boolean; offset?: number; limit?: number; refresh?: boolean }, signal?: AbortSignal) => groupRequest<GroupPage<{ instances: McpGroupInstance[] }>>("/v1/mcp/groups/instances" + queryString(filters), {}, signal),
   save: (id: string | undefined, body: McpGroupDraft, signal?: AbortSignal) => mutate<McpGroup>(id ? "update" : "create", id, body, signal),
   delete: (id: string, revision: number, signal?: AbortSignal) => mutate<{ deleted: boolean }>("delete", id, { expected_revision: revision, confirmed: true }, signal),
 }

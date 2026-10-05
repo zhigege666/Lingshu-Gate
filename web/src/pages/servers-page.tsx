@@ -37,6 +37,7 @@ type Props = {
   canReadTools: boolean
   canManageClassifications: boolean
   canManageHttpTrust?: boolean
+  canWriteGroups?: boolean
   canManageGroups?: boolean
   onServerAction: (id: string, action: Action) => Promise<void> | void
   onRefresh: () => Promise<void> | void
@@ -211,7 +212,7 @@ export function ServersPage(props: Props) {
   return <>
     {props.canManageGroups && <div className="mcp-group-view-switch"><Segmented aria-label={`${gc.groups} / ${gc.instances}`} disabled={groupBusy} value={directoryView} onChange={value => setDirectoryView(String(value))} options={[{ value: "instances", label: gc.instances }, { value: "groups", label: gc.groups }]} /></div>}
     <div ref={workspace} className="server-workspace" data-selected={directoryView === "instances" && Boolean(selected)}>
-    {directoryView === "groups" && props.canManageGroups ? <McpGroupsView locale={locale} t={t} serverIds={new Set(servers.map(item => item.id))} onBusyChange={setGroupBusy} onSelectInstance={id => { chooseServer(id); setDirectoryView("instances"); replaceConsoleRouteHash(`#/servers/${encodeURIComponent(id)}`) }} /> : <>
+    {directoryView === "groups" && props.canManageGroups ? <McpGroupsView locale={locale} t={t} canWrite={Boolean(props.canWriteGroups)} serverIds={new Set(servers.map(item => item.id))} onBusyChange={setGroupBusy} onSelectInstance={id => { chooseServer(id); setDirectoryView("instances"); replaceConsoleRouteHash(`#/servers/${encodeURIComponent(id)}`) }} /> : <>
     <aside className="service-directory" aria-label={c.directory}>
       <div className="service-directory-header">
         <div className="service-directory-title service-directory-heading">

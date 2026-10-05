@@ -13,7 +13,12 @@ const copy = {
     deleteTitle: "Delete this group?", reloadTitle: "Reload saved group?", reloadHint: "Discard this draft and read the current saved revision.",
     failed: "Request failed", conflict: "The group changed. Your draft is intact; reload the saved group before trying again.",
     unavailable: "A newly selected instance is unavailable. Refresh the catalog and check the selection.",
-    forbidden: "A current administrator with operations.manage is required.", csrf: "The request ticket is invalid or expired. Try again to obtain a fresh ticket.",
+    forbidden: "A current administrator with operations.manage is required; writes also require tools.invoke.", csrf: "The request ticket is invalid or expired. Try again to obtain a fresh ticket.",
+    checkCreate: "Check saved result", retryCreate: "Retry original creation", createChanged: "The creation result is unconfirmed and this draft changed. Check the saved result or retry the original creation first; your edits are preserved.",
+    createRecovered: "The saved group was recovered. Your current edits are preserved; save to update this group.", createAbsent: "No saved result was found yet. Retry the original creation; absence does not prove that the earlier request failed.",
+    createUnconfirmed: "The creation result is unconfirmed. Check its saved result or retry the original creation.",
+    createDeleted: "This creation belongs to a group that was deleted. It will not be recreated; start a new draft if needed.",
+    createClose: "The creation result is unconfirmed. Closing does not delete a group that may already be saved. Check its result first; a new draft creates a separate group.",
     timeout: "The request timed out. Its result is unconfirmed; refresh the saved group/list before retrying.",
     notFound: "The group no longer exists. Refresh the list.", refresh: "Refresh", paging: "Instance pages", memberLimit: "Select up to 1,000 instances.", notLoaded: "Not loaded",
   },
@@ -29,7 +34,12 @@ const copy = {
     deleteTitle: "删除此组？", reloadTitle: "重新读取已保存组？", reloadHint: "放弃当前草稿，读取最新保存版本。",
     failed: "请求失败", conflict: "组已被修改。草稿仍保留；请重新读取已保存组后再尝试。",
     unavailable: "新选实例已不可用，请刷新目录并核对选择。",
-    forbidden: "需要当前有效管理员及 operations.manage 权限。", csrf: "请求票据无效或已过期，请重试以获取新票据。",
+    forbidden: "需要当前有效管理员及 operations.manage 权限；写入还需 tools.invoke。", csrf: "请求票据无效或已过期，请重试以获取新票据。",
+    checkCreate: "核对保存结果", retryCreate: "重试原创建", createChanged: "创建结果未确认且草稿已修改。请先核对保存结果或重试原创建；当前编辑仍保留。",
+    createRecovered: "已找回保存的组。当前编辑仍保留，保存即可更新此组。", createAbsent: "暂未找到保存结果。请重试原创建；未找到不代表上次请求失败。",
+    createUnconfirmed: "创建结果尚未确认，请核对保存结果或重试原创建。",
+    createDeleted: "此创建请求对应的组已删除，不会重新创建；需要时请另开新草稿。",
+    createClose: "创建结果尚未确认。关闭不会删除可能已保存的组。请先核对结果；另开新草稿会创建另一个组。",
     timeout: "请求超时，结果尚未确认；请刷新已保存组或列表后再重试。",
     notFound: "组已不存在，请刷新列表。", refresh: "刷新", paging: "实例分页", memberLimit: "最多选择 1,000 个实例。", notLoaded: "未载入",
   },
@@ -43,6 +53,9 @@ export function groupError(cause: unknown, locale: Locale): string {
   if (message.includes("group_admin_required") || message.includes("group_connection_invalid")) return c.forbidden
   if (message.includes("csrf")) return c.csrf
   if (message.includes("group_request_timeout")) return c.timeout
+  if (message.includes("group_request_conflict")) return c.createChanged
+  if (message.includes("group_request_not_found")) return c.createAbsent
+  if (message.includes("group_request_deleted")) return c.createDeleted
   if (message.includes("group_not_found")) return c.notFound
   return `${c.failed}: ${message}`
 }

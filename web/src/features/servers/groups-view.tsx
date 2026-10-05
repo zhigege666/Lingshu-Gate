@@ -7,8 +7,8 @@ import { localizeStatus, type Locale, type TFunction } from "@/i18n"
 import { McpGroupEditor } from "./group-editor"
 import { groupCopy, groupError } from "./group-copy"
 
-export function McpGroupsView({ locale, t, serverIds, onSelectInstance, onBusyChange }: {
-  locale: Locale; t: TFunction; serverIds: Set<string>; onSelectInstance: (id: string) => void; onBusyChange: (busy: boolean) => void
+export function McpGroupsView({ locale, t, serverIds, onSelectInstance, onBusyChange, canWrite }: {
+  locale: Locale; t: TFunction; serverIds: Set<string>; onSelectInstance: (id: string) => void; onBusyChange: (busy: boolean) => void; canWrite: boolean
 }) {
   const c = groupCopy(locale)
   const [query, setQuery] = useState(""), [state, setState] = useState("active"), [page, setPage] = useState(1)
@@ -57,6 +57,16 @@ export function McpGroupsView({ locale, t, serverIds, onSelectInstance, onBusyCh
     return () => { membersGeneration.current++; controller.abort() }
   }, [selection, memberQuery, memberPage, refresh, locale])
   function choose(id: string) { setSelection(id); setMemberPage(1); setMemberQuery("") }
+  async function refreshDirectory() {
+    if (lock.current) return
+    lock.current = true; setBusy(true); setMutationError("")
+    const controller = new AbortController(); mutation.current = controller
+    try {
+      await mcpGroupsApi.instances({ limit: 1, refresh: true }, controller.signal)
+      if (alive.current) setRefresh(value => value + 1)
+    } catch (cause) { if (alive.current) setMutationError(groupError(cause, locale)) }
+    finally { lock.current = false; if (alive.current) setBusy(false) }
+  }
   async function remove() {
     if (!detail || lock.current) return
     lock.current = true; setBusy(true); setMutationError("")
@@ -72,7 +82,7 @@ export function McpGroupsView({ locale, t, serverIds, onSelectInstance, onBusyCh
   return <>
     <aside className="service-directory" aria-label={c.groups}>
       <div className="service-directory-header">
-        <div className="service-directory-title"><h2>{c.groups}</h2><Button disabled={busy} onClick={() => setEditing({ group: null })}>{c.newGroup}</Button></div>
+        <div className="service-directory-title"><h2>{c.groups}</h2>{canWrite && <Button disabled={busy} onClick={() => setEditing({ group: null })}>{c.newGroup}</Button>}</div>
         <PageToolbar query={query} onQueryChange={value => { setQuery(value); setPage(1) }} placeholder={c.searchGroups} clearLabel={t("clearSearch")} />
         <Radio.Group aria-label={c.state} value={state} disabled={busy} options={[{ value: "active", label: c.active }, { value: "archived", label: c.archived }, { value: "all", label: c.all }]} onChange={event => { setState(String(event.target.value)); setPage(1) }} />
         <Button block disabled={busy} aria-pressed={selection === "__ungrouped"} onClick={() => choose("__ungrouped")}>{c.ungrouped}</Button>
@@ -89,7 +99,7 @@ export function McpGroupsView({ locale, t, serverIds, onSelectInstance, onBusyCh
     </aside>
     <section className="service-detail mcp-group-detail" aria-label={c.groups}>
       <PageHeader closeLabel={t("close")} variant="detail" title={selection === "__ungrouped" ? c.ungrouped : detail?.name || c.groups} description={detail?.id} titleExtra={detail && <Tag>{detail.status === "active" ? c.active : c.archived}</Tag>}
-        actions={<><Button ref={fallbackFocus} disabled={busy} onClick={() => setRefresh(value => value + 1)}>{c.refresh}</Button>{detail && <><Button disabled={busy} onClick={() => setEditing({ group: detail })}>{c.edit}</Button><Button danger disabled={busy} onClick={() => void remove()}>{c.delete}</Button></>}</>} />
+        actions={<><Button ref={fallbackFocus} disabled={busy} onClick={() => void refreshDirectory()}>{c.refresh}</Button>{detail && canWrite && <><Button disabled={busy} onClick={() => setEditing({ group: detail })}>{c.edit}</Button><Button danger disabled={busy} onClick={() => void remove()}>{c.delete}</Button></>}</>} />
       <p className="service-description mcp-group-policy">{c.metadata}</p>
       {detail?.description && <p className="mcp-group-policy">{detail.description}</p>}
       {(detailError || memberError || mutationError) && <Alert role="alert" type="error" showIcon title={mutationError || detailError || memberError} action={<Button disabled={busy} onClick={() => setRefresh(value => value + 1)}>{c.retry}</Button>} />}
