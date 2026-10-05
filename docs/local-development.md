@@ -179,6 +179,9 @@ entry points, symlinks, special files and source changes during the build, and n
 `build/lib`, old wheel staging directory, native artifact or user-selected build path. A source distribution
 includes the hooks and built static assets so a wheel can be built from it without Node.js. Editable installs
 still work before building the frontend; noneditable wheels reject `--skip-build` because it bypasses validation.
+The final wheel zip and every RECORD hash/size are checked in private staging before atomic output replacement;
+an invalid archive never becomes the reported build result. Regression tests include failed-build retries and
+concurrent wheel builds from one source tree.
 Run `uv run pytest -q tests/test_wheel_build.py tests/test_release_packaging.py` for packaging regressions.
 
 The release workflow builds each native archive on its matching operating system and architecture. On a matching local host, a maintainer can build one target:

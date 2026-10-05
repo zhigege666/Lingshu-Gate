@@ -3,10 +3,15 @@
 from __future__ import annotations
 
 import atexit
+import base64
+import csv
 import hashlib
+import io
+import os
 import shutil
 import tempfile
-from pathlib import Path
+from pathlib import Path, PurePosixPath
+from zipfile import ZipFile
 
 from setuptools.command.build_py import build_py
 from setuptools.command.bdist_wheel import bdist_wheel
@@ -55,6 +60,39 @@ def _verify_static_inventory(package: Path, expected: dict[str, str]) -> None:
             f"Wheel static assets do not match the source snapshot: "
             f"{missing} missing, {extra} extra, {changed} changed"
         )
+
+
+def _verify_wheel_archive(wheel: Path, expected: dict[str, str]) -> None:
+    """Check the final zip and RECORD before exposing it as a build result."""
+    with ZipFile(wheel) as archive:
+        names = archive.namelist()
+        if len(names) != len(set(names)) or any(
+            name.startswith("/") or "\\" in name or ":" in name
+            or ".." in PurePosixPath(name).parts or str(PurePosixPath(name)) != name
+            for name in names
+        ):
+            raise RuntimeError("Wheel archive contains duplicate or unsafe paths")
+        actual = {
+            name.removeprefix("lingshu_gate/"): hashlib.sha256(archive.read(name)).hexdigest()
+            for name in names if name.startswith("lingshu_gate/static/")
+        }
+        if actual != expected:
+            raise RuntimeError("Wheel archive static assets do not match the source snapshot")
+        records = [name for name in names if name.endswith(".dist-info/RECORD")]
+        if len(records) != 1:
+            raise RuntimeError("Wheel archive must contain exactly one RECORD")
+        rows = list(csv.reader(io.StringIO(archive.read(records[0]).decode("utf-8"))))
+        if any(len(row) != 3 for row in rows) or len(rows) != len(names) or {row[0] for row in rows} != set(names):
+            raise RuntimeError("Wheel RECORD file list does not match the archive")
+        for name, digest, size in rows:
+            if name == records[0]:
+                expected_digest, expected_size = "", ""
+            else:
+                payload = archive.read(name)
+                encoded = base64.urlsafe_b64encode(hashlib.sha256(payload).digest()).decode().rstrip("=")
+                expected_digest, expected_size = "sha256=" + encoded, str(len(payload))
+            if (digest, size) != (expected_digest, expected_size):
+                raise RuntimeError("Wheel RECORD hash or size does not match the archive")
 
 
 def _new_staging(project: Path) -> Path:
@@ -109,12 +147,38 @@ class FreshBdistWheel(bdist_wheel):
         self._static_source = Path(self.get_finalized_command("build_py").get_package_dir("lingshu_gate"))
         self._static_snapshot = _static_inventory(self._static_source)
         stage = _new_staging(Path.cwd())
+        destination = Path(self.dist_dir)
+        before = len(self.distribution.dist_files)
         # The default bdist directory may survive a failed install/archive.
         # Override even a custom --bdist-dir; never reset or delete that path.
         self.bdist_dir = str(stage / "wheel")
+        self.dist_dir = str(stage / "dist")
         try:
             super().run()
+            wheels = list((stage / "dist").glob("*.whl"))
+            if len(wheels) != 1:
+                raise RuntimeError("Wheel build must produce exactly one staged archive")
+            wheel = wheels[0]
+            _verify_wheel_archive(wheel, self._static_snapshot)
+            if _static_inventory(self._static_source) != self._static_snapshot:
+                raise RuntimeError("Wheel static source changed while archiving; finish the frontend build and retry")
+            destination.mkdir(parents=True, exist_ok=True)
+            # Publish only verified bytes. The random file belongs to this
+            # invocation; replace does not follow a preexisting output symlink.
+            descriptor, temporary_name = tempfile.mkstemp(prefix=".lingshu-gate-wheel-", dir=destination)
+            os.close(descriptor)
+            temporary = Path(temporary_name)
+            published = destination / wheel.name
+            try:
+                shutil.copyfile(wheel, temporary)
+                os.replace(temporary, published)
+            finally:
+                temporary.unlink(missing_ok=True)
+            self.distribution.dist_files[before:] = [
+                (command, version, str(published)) for command, version, _path in self.distribution.dist_files[before:]
+            ]
         finally:
+            self.dist_dir = str(destination)
             shutil.rmtree(stage, ignore_errors=True)
 
     def write_wheelfile(self, wheelfile_base: str, **kwargs: str) -> None:

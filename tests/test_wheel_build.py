@@ -13,6 +13,7 @@ import tarfile
 import textwrap
 import zipfile
 from pathlib import Path
+from concurrent.futures import ThreadPoolExecutor
 
 import pytest
 
@@ -57,11 +58,11 @@ def _project(root: Path) -> Path:
 
 
 def _build(project: Path, *, sdist: bool = False, successful: bool = True,
-           config_settings: tuple[str, ...] = ()) -> Path | subprocess.CompletedProcess[str]:
+           config_settings: tuple[str, ...] = (), output_name: str = "output") -> Path | subprocess.CompletedProcess[str]:
     uv = shutil.which("uv")
     if uv is None:
         pytest.skip("uv is required to exercise the standard isolated wheel build")
-    output = project.parent / "output"
+    output = project.parent / output_name
     result = subprocess.run(
         [uv, "build", "--sdist" if sdist else "--wheel", "--offline", "--python", sys.executable,
          "--out-dir", str(output), *("--config-setting=" + value for value in config_settings)],
@@ -357,3 +358,92 @@ def test_static_fifo_refuses_build_without_opening_it(tmp_path: Path) -> None:
     result = _build(project, successful=False)
     assert isinstance(result, subprocess.CompletedProcess)
     assert "special entry" in result.stderr
+
+
+@pytest.mark.parametrize("fault", ["missing", "extra", "changed", "record", "record_hash", "record_size", "path"])
+def test_final_archive_validation_rejects_corruption(tmp_path: Path, fault: str) -> None:
+    project = _project(tmp_path)
+    module = project / "scripts/release/wheel_build.py"
+    operations = {
+        "missing": 'files.pop("lingshu_gate/static/oauth/assets/current.js")',
+        "extra": 'files["lingshu_gate/static/console/assets/previous-A.js"] = b"synthetic extra"',
+        "changed": 'files["lingshu_gate/static/oauth/assets/current.js"] = b"synthetic changed"',
+        "record": 'files[next(name for name in files if name.endswith(".dist-info/RECORD"))] = b"invalid,sha256=bad,0\\n"',
+        "record_hash": 'key = next(name for name in files if name.endswith(".dist-info/RECORD")); '
+                       'files[key] = files[key].replace(b"sha256=", b"sha256=bad", 1)',
+        "record_size": 'key = next(name for name in files if name.endswith(".dist-info/RECORD")); '
+                       'rows = list(csv.reader(io.StringIO(files[key].decode()))); rows[0][2] = "0"; '
+                       'files[key] = ("\\n".join(",".join(row) for row in rows) + "\\n").encode()',
+        "path": 'files["lingshu_gate/static/console/../../escape.js"] = b"synthetic escape"',
+    }
+    marker = "            _verify_wheel_archive(wheel, self._static_snapshot)"
+    injected = (
+        "            with ZipFile(wheel) as archive:\n"
+        "                files = {name: archive.read(name) for name in archive.namelist()}\n"
+        "            " + operations[fault] + "\n"
+        '            with ZipFile(wheel, "w") as archive:\n'
+        "                for name, payload in files.items():\n"
+        "                    archive.writestr(name, payload)\n"
+    )
+    code = module.read_text().replace(marker, injected + marker)
+    assert code != module.read_text()
+    module.write_text(code)
+    result = _build(project, successful=False)
+    assert isinstance(result, subprocess.CompletedProcess)
+    assert ("Wheel archive" in result.stderr or "Wheel RECORD" in result.stderr)
+    assert not list((project / "build").glob("lingshu-gate-wheel-*"))
+
+
+def test_failed_archive_then_retry_has_no_old_resources(tmp_path: Path) -> None:
+    project = _project(tmp_path)
+    module = project / "scripts/release/wheel_build.py"
+    original = module.read_text()
+    marker = "            _verify_wheel_archive(wheel, self._static_snapshot)"
+    injection = (
+        '            with ZipFile(wheel, "a") as archive:\n'
+        '                archive.writestr("lingshu_gate/static/oauth/assets/previous-A.js", b"synthetic old A")\n'
+    )
+    module.write_text(original.replace(marker, injection + marker))
+    failed = _build(project, successful=False)
+    assert isinstance(failed, subprocess.CompletedProcess)
+    assert "Wheel archive static assets do not match" in failed.stderr
+    assert not list((project / "build").glob("lingshu-gate-wheel-*"))
+    module.write_text(original)
+    wheel = _build(project)
+    assert isinstance(wheel, Path)
+    _assert_assets(wheel, project / "src/lingshu_gate")
+    assert not list((project / "build").glob("lingshu-gate-wheel-*"))
+
+
+def test_concurrent_wheel_builds_have_private_copy_install_and_archive_trees(tmp_path: Path) -> None:
+    project = _project(tmp_path)
+    old = project / "build/lib/lingshu_gate/static/console/assets/previous-A.js"
+    old.parent.mkdir(parents=True)
+    old.write_text("synthetic preserved old A")
+    with ThreadPoolExecutor(max_workers=2) as executor:
+        jobs = [executor.submit(_build, project, output_name=name) for name in ("first-output", "second-output")]
+        wheels = [job.result() for job in jobs]
+    for wheel in wheels:
+        assert isinstance(wheel, Path)
+        _assert_assets(wheel, project / "src/lingshu_gate")
+    assert old.read_text() == "synthetic preserved old A"
+    assert not list((project / "build").glob("lingshu-gate-wheel-*"))
+
+
+def test_output_replacement_preserves_a_symlinks_user_data_target(tmp_path: Path) -> None:
+    project = _project(tmp_path)
+    output = tmp_path / "output"
+    output.mkdir()
+    user_data = tmp_path / "user-data.txt"
+    user_data.write_text("synthetic preserved output target")
+    destination = output / "lingshu_gate-0.4.4-py3-none-any.whl"
+    try:
+        destination.symlink_to(user_data)
+    except OSError:
+        pytest.skip("symlinks are not available on this test host")
+    wheel = _build(project)
+    assert isinstance(wheel, Path)
+    _assert_assets(wheel, project / "src/lingshu_gate")
+    assert not destination.is_symlink()
+    assert user_data.read_text() == "synthetic preserved output target"
+    assert not list(output.glob(".lingshu-gate-wheel-*"))
