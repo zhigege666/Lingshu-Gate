@@ -13,6 +13,7 @@ from lingshu_gate.domain.mcp_group_routing import GroupToolCall, GroupToolSelect
 from lingshu_gate.domain.mcp_groups import McpGroupError, McpGroupUpdate
 from lingshu_gate.mcp_runtime import McpRuntimeManager, McpServerRuntime, McpServerState
 from lingshu_gate.mcp_runtime_state_store import McpRuntimeStateStore
+from lingshu_gate.mcp_http_client import StreamableHttpMcpClient
 from lingshu_gate.registry import ToolExecutionError
 
 from test_mcp_groups import PASSWORD, catalog_tool, create, draft
@@ -302,3 +303,110 @@ def test_admin_instance_picker_returns_only_compact_declared_contract_revisions(
     catalog_tool(gate, "instance-2", name="inspect", metadata={"contract_version": "2"})
     changed = gate["service"].instances(gate["principal"], q="", group_id=None, ungrouped=False, offset=0, limit=20)
     assert len({item["contract_revision"] for item in changed["instances"]}) == 2
+
+
+class ReusedSessionPeer(StreamableHttpMcpClient):
+    def __init__(self, manifest, settings):
+        super().__init__(manifest, settings)
+        self.session_id = "A"
+        self.calls = []
+        self.fail_start = False
+        self.raw_tools = [{"name": "inspect", "inputSchema": {}, "annotations": {"readOnlyHint": True}}]
+
+    def start(self):
+        if self.fail_start:
+            raise RuntimeError("Synthetic connect failure")
+
+    def list_tools(self):
+        return self.raw_tools
+
+    def call_tool(self, name, arguments):
+        self.calls.append((name, dict(arguments)))
+        return {"instance": self.manifest.id, "arguments": arguments}
+
+
+@pytest.mark.parametrize("change", ["same_sid", "sid_aba", "client_aba", "failed_then_restore"])
+def test_reconnect_generations_never_restore_an_old_group_session(gate, routing, change):
+    service, group, _ = routing
+    manager = service.groups.runtime
+    runtime = manager._servers["instance-0"]
+    peer = ReusedSessionPeer(runtime.manifest, manager.settings)
+    runtime.client = peer
+    runtime.tools = peer.list_tools()
+    manager._register_mcp_tools(runtime)
+    gate["access"].synchronize_tools(gate["registry"].list_definitions())
+    gate["access"].set_classification(server_id="instance-0", tool_id="mcp.instance-0.inspect", access="read",
+        destructive=False, idempotent=False, reviewer_id=gate["principal"].id)
+    gate["access"].publish_classifications(server_id="instance-0", reviewer_id=gate["principal"].id)
+    page = service.search(gate["principal"], group_id=group["id"])
+    variant = next(item for item in page["tools"] if any(member["instance_id"] == "instance-0" for member in item["instances"]))
+    selected = GroupToolSelection(tool_ref=variant["tool_ref"], instance_id="instance-0")
+    session = service.open_session(gate["principal"], selected)
+    before = runtime.connection_generation
+    if change == "client_aba":
+        runtime.client = ReusedSessionPeer(runtime.manifest, manager.settings)
+        runtime.client = peer
+    else:
+        if change == "failed_then_restore":
+            peer.fail_start = True
+            with pytest.raises(ToolExecutionError):
+                manager._recover_expired_session_locked("instance-0", runtime, "inspect", {}, retry_read_only=False)
+            peer.fail_start = False
+        for sid in (["B", "A"] if change == "sid_aba" else ["A"]):
+            peer.session_id = sid
+            with pytest.raises(ToolExecutionError, match="not automatically replayed"):
+                manager._recover_expired_session_locked("instance-0", runtime, "inspect", {}, retry_read_only=False)
+    assert runtime.client is peer and peer.session_id == "A"
+    assert runtime.connection_generation > before
+    assert runtime.last_started_at == "2026-10-05T00:00:00Z"
+    with pytest.raises(McpGroupError, match="changed"):
+        invoke(gate, service, gate["principal"], GroupToolCall(**selected.model_dump(), session_id=session["session_id"]))
+    assert peer.calls == []
+
+
+def test_a_reconnect_inside_dispatch_invalidates_the_current_group_call(gate, routing):
+    service, group, _ = routing
+    selected = selection(service, group, gate["principal"])
+    session = service.open_session(gate["principal"], selected)
+    runtime = service.groups.runtime._servers["instance-0"]
+    with pytest.raises(ToolExecutionError, match="bound connection changed"):
+        with service.dispatch_guard(gate["principal"], GroupToolCall(**selected.model_dump(), session_id=session["session_id"])):
+            runtime.advance_connection_generation()
+
+
+@pytest.mark.parametrize("instance", ["_legacy", "-prod", ".service", "x" * 180])
+def test_legacy_instance_ids_save_search_resolve_and_dispatch_without_renaming(gate, routing, instance):
+    service, _, _ = routing
+    gate["configs"].save_config({"id": instance, "launch": {"type": "external"},
+        "transport": {"type": "streamable_http", "endpoint": "https://mcp.example.test/mcp"}})
+    group = create(gate, members=[instance])
+    catalog_tool(gate, instance, name="inspect")
+    peer = SyntheticPeer(instance)
+    service.groups.runtime._servers[instance] = McpServerRuntime(gate["configs"].load_manifest(instance),
+        state=McpServerState.RUNNING, client=peer)
+    selected = selection(service, group, gate["principal"], instance)
+    assert service.resolve(gate["principal"], **selected.model_dump()).server_id == instance
+    session = service.open_session(gate["principal"], selected)
+    result = invoke(gate, service, gate["principal"], GroupToolCall(**selected.model_dump(), session_id=session["session_id"]))
+    assert result.ok and peer.calls == [("inspect", {})]
+
+
+def test_output_only_contract_change_requires_review_and_is_never_auto_published(gate, routing):
+    service, group, _ = routing
+    selected = selection(service, group, gate["principal"])
+    before = gate["registry"].get_definition("mcp.instance-0.inspect")
+    original_review = gate["database"].query_one("SELECT reviewed_at FROM mcp_tool_classifications WHERE tool_id=?", (before.id,))[0]
+    changed = before.model_copy(update={"metadata": {**before.metadata, "outputSchema": {"type": "object"}}})
+    gate["registry"].update_definition(changed)
+    gate["access"].synchronize_tools([changed])
+    row = gate["database"].query_one("SELECT status,effective_access,reviewed_at FROM mcp_tool_classifications WHERE tool_id=?", (changed.id,))
+    assert row["status"] == "stale" and row["effective_access"] == "unknown"
+    assert row["reviewed_at"] == original_review  # Retain history, never current authority.
+    gate["access"].publish_classifications(server_id="instance-0", reviewer_id=gate["principal"].id)
+    assert gate["database"].query_one("SELECT status FROM mcp_tool_classifications WHERE tool_id=?", (changed.id,))[0] == "stale"
+    assert before.input_schema == changed.input_schema
+    with pytest.raises(McpGroupError):
+        service.resolve(gate["principal"], **selected.model_dump())
+    page = service.search(gate["principal"], group_id=group["id"])
+    pending = next(item for item in page["tools"] if any(member["instance_id"] == "instance-0" for member in item["instances"]))
+    assert pending["compatibility"] == "review_required"

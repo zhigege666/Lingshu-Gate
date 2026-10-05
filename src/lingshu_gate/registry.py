@@ -55,6 +55,16 @@ class ToolInvocationContext:
     oauth_token_expires_at: int = 0
     oauth_target_revision: int = 0
     oauth_tool_snapshots: tuple[tuple[str, str], ...] = ()
+    oauth_subject: str | None = None
+    oauth_audiences: tuple[str, ...] = ()
+    oauth_jwks_uri: str | None = None
+    external_grant_id: str | None = None
+    external_server_ids: tuple[str, ...] = ()
+    external_tool_ids: tuple[str, ...] = ()
+    external_access: tuple[str, ...] = ()
+    external_expires_at: str | None = None
+    external_rate_per_minute: int = 0
+    external_concurrency: int = 0
 
 
 class ToolExecutionError(RuntimeError):

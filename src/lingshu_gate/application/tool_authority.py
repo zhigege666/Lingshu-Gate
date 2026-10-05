@@ -48,8 +48,15 @@ def current_tool_principal(auth: AuthStore, actor: AuthPrincipal) -> AuthPrincip
                 refreshed = auth.builtin_oauth.refresh_verified_principal(actor)
             else:
                 store = auth.external_connections
-                if (store is None or not store.configuration().enabled
-                        or actor.oauth_issuer not in store.configuration().trusted_issuers
+                config = store.configuration() if store is not None else None
+                if (store is None or config is None or not config.enabled or config.validation_errors()
+                        or actor.oauth_issuer not in config.trusted_issuers
+                        or actor.oauth_client_id not in config.client_allowlist
+                        or dict(config.issuer_jwks).get(actor.oauth_issuer or "") != actor.oauth_jwks_uri
+                        or not actor.oauth_jwks_uri or not actor.oauth_resource or not actor.oauth_audiences
+                        or any(config.canonical_resource(aud) != actor.oauth_resource for aud in actor.oauth_audiences)
+                        or not actor.external_expires_at
+                        or datetime.fromisoformat(actor.external_expires_at) <= datetime.now(timezone.utc)
                         or not actor.oauth_issuer or not actor.oauth_subject
                         or store.resolve_subject(actor.oauth_issuer, actor.oauth_subject) != actor.id):
                     raise ValueError("oauth_unavailable")

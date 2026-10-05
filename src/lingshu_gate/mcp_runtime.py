@@ -185,6 +185,19 @@ class McpServerRuntime:
     desired_intent: McpRuntimeIntent | None = None
     runtime_role: str = "local"
     docker_binary: str = "docker"
+    connection_epoch: str = field(default_factory=lambda: uuid4().hex, init=False)
+    connection_generation: int = field(default=0, init=False)
+
+    def __setattr__(self, name: str, value: Any) -> None:
+        # Replacing, clearing or restoring a client is an irreversible generation
+        # transition, including A -> B -> A. Initial construction has no observer.
+        if name == "client" and "client" in self.__dict__:
+            self.advance_connection_generation()
+        object.__setattr__(self, name, value)
+
+    def advance_connection_generation(self) -> None:
+        """Caller holds runtime.lock; advance before every shared connect attempt."""
+        object.__setattr__(self, "connection_generation", self.connection_generation + 1)
 
     @property
     def pid(self) -> int | None:
@@ -279,9 +292,15 @@ class McpRuntimeManager:
                     raise ToolExecutionError("group_instance_unavailable", "The selected instance is not running.")
                 # Persist only a process-bound opaque generation, never the
                 # endpoint, client object, downstream session ID or credentials.
-                identity = [self._route_process_generation, str(id(runtime)), str(id(runtime.client)),
-                            runtime.last_started_at or "", getattr(runtime.client, "session_id", None) or ""]
-                yield hashlib.sha256(json.dumps(identity).encode()).hexdigest()
+                generation = self._route_generation(runtime)
+                yield generation
+                if self._route_generation(runtime) != generation:
+                    raise ToolExecutionError("group_session_changed", "The bound connection changed; reconcile and open a new routing session.")
+
+    def _route_generation(self, runtime: McpServerRuntime) -> str:
+        identity = [self._route_process_generation, runtime.manifest.id,
+                    runtime.connection_epoch, runtime.connection_generation]
+        return hashlib.sha256(json.dumps(identity).encode()).hexdigest()
 
     def load_manifests(self, *, restore_startup_policy: bool = True) -> None:
         loader = McpConfigLoader(self.settings.config_dir)
@@ -676,6 +695,7 @@ class McpRuntimeManager:
                         log_sink=lambda level, message, event_type, payload: self._log_runtime(server_id, level, message, event_type, payload),
                     )
                 runtime.client = client
+                runtime.advance_connection_generation()
                 client.start()
                 runtime.tools = client.list_tools()
                 self._register_mcp_tools(runtime)
@@ -800,6 +820,7 @@ class McpRuntimeManager:
             client = StreamableHttpMcpClient(manifest, self.settings, log_sink=lambda level, message, event_type, payload: self._log_runtime(server_id, level, message, event_type, payload))
             runtime.client = client
             with client.operation_bounds(cancel, deadline, credential_revisions=credential_revisions) if cancel is not None and deadline is not None else nullcontext():
+                runtime.advance_connection_generation()
                 client.start()
                 runtime.tools = client.list_tools()
             snapshot = self._register_mcp_tools(runtime, before_replace=before_replace, strict=before_replace is not None)
@@ -1334,6 +1355,7 @@ class McpRuntimeManager:
         self._log_runtime(server_id, "warning", "MCP session expired; reconnecting", "gate.mcp.session_reconnect_started", {})
         try:
             # 客户端已经清除了失效的 session id；初始化继续使用原凭据和协议配置。
+            runtime.advance_connection_generation()
             client.start()
             tools = client.list_tools()
             records = self._mcp_tool_records(runtime, tools, strict=True)

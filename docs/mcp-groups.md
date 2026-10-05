@@ -59,4 +59,6 @@ Before structural copying or fingerprinting, selected input is bounded to 50,000
 
 ## Support boundary
 
+Upgrade review: discovery now retains complete `outputSchema`, including the distinction between absence and `{}`. Previously published tools whose retained output contract changes become `stale` and require explicit classification review/publication. An output-only change also partitions the catalog and invalidates grouped selection. Discovery never silently republishes a tool to avoid a review interruption.
+
 The internal routing adapter implements explicit instance envelopes and persistent session binding; the on-demand directory owns public invocation integration. Contract fingerprints identify conservative partitions rather than business equivalence. No future member receives automatic authorization, and no endpoint routing or cross-instance retry/failover is provided. Shared downstream clients and per-call user-credential clients retain their existing lifecycle; this feature makes no private downstream-session isolation claim. The Git transport and isolated worker readiness gap is unchanged.
