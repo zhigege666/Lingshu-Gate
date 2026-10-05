@@ -2,14 +2,17 @@
 from __future__ import annotations
 
 import json
+import os
+import stat
 from unittest.mock import patch
 
 import pytest
 
-from lingshu_gate.adapters.native_executor.controller import PodmanController
+from lingshu_gate.adapters.native_executor.controller import PodmanController, read_regular_result
 from lingshu_gate.adapters.native_executor.journal import JobJournal
 from lingshu_gate.native_executor_config import NativeExecutorConfig
 from lingshu_gate.ports.safe_network_executor import ExecutorReadiness, PHASE_CHECKS, ROOTLESS_CHECKS, SafeExecutionCancelled
+from lingshu_gate.registry import ToolExecutionError
 
 
 @pytest.fixture
@@ -124,3 +127,69 @@ def test_shared_result_cannot_forge_command_success_before_observed_exit(engine,
     assert not any(argv[0] == "kill" for argv in calls)
     assert not state["running"] and not state["exists"]
     controller.release_output(result)
+
+
+@pytest.mark.parametrize("kind", ["fifo", "directory", "symlink", "oversized"])
+def test_invalid_result_is_terminal_and_releases_admission_for_next_job(engine, kind):
+    controller, calls, state = engine
+    freeze = controller._freeze
+    def malformed(root):
+        path = root / "result.json"
+        path.unlink()
+        if kind == "fifo":
+            os.mkfifo(path)
+        elif kind == "directory":
+            path.mkdir()
+        elif kind == "symlink":
+            path.symlink_to("/dev/null")
+        else:
+            path.write_bytes(b" " * 8193)
+        freeze(root)
+    with patch.object(controller, "_freeze", side_effect=malformed), pytest.raises(ToolExecutionError) as rejected:
+        controller.run("fixture:bad-result", {"kind": "tool_probe"}, timeout=10, cancelled=lambda: False)
+    assert rejected.value.code == "executor_result_rejected"
+    assert controller.journal.lookup("fixture:bad-result")["state"] == "failed"
+    assert not list(controller.workspaces.iterdir())
+    result = controller.run("fixture:next-result", {"kind": "tool_probe"}, timeout=10, cancelled=lambda: False)
+    assert result["returncode"] == 0
+    controller.release_output(result)
+
+
+def test_result_device_type_is_checked_on_open_descriptor(tmp_path):
+    result = tmp_path / "result.json"
+    result.write_text('{"returncode":0}')
+    info = result.stat()
+    fields = list(info)
+    fields[0] = stat.S_IFCHR | 0o600
+    with patch("lingshu_gate.adapters.native_executor.controller.os.fstat", return_value=os.stat_result(fields)), pytest.raises(ToolExecutionError) as rejected:
+        read_regular_result(result)
+    assert rejected.value.code == "executor_result_rejected"
+
+
+def test_result_symlink_swap_after_open_is_rejected_without_reading_target(tmp_path):
+    result, outside = tmp_path / "result.json", tmp_path / "outside.json"
+    result.write_text('{"returncode":0}')
+    outside.write_text('{"private":"fixture-secret"}')
+    open_file = os.open
+    def swapped(path, flags):
+        descriptor = open_file(path, flags)
+        result.unlink()
+        result.symlink_to(outside)
+        return descriptor
+    with patch("lingshu_gate.adapters.native_executor.controller.os.open", side_effect=swapped), pytest.raises(ToolExecutionError) as rejected:
+        read_regular_result(result)
+    assert rejected.value.code == "executor_result_rejected"
+    assert outside.read_text() == '{"private":"fixture-secret"}'
+
+
+def test_inventory_regular_file_swapped_for_fifo_before_open_never_blocks(tmp_path):
+    result = tmp_path / "file"
+    result.write_text("fixture")
+    open_file = os.open
+    def swapped(path, flags):
+        result.unlink()
+        os.mkfifo(result)
+        assert flags & os.O_NONBLOCK and flags & os.O_NOFOLLOW
+        return open_file(path, flags)
+    with patch("lingshu_gate.safe_files.os.open", side_effect=swapped), pytest.raises(ValueError, match="safe_regular_file_rejected"):
+        PodmanController._inventory(tmp_path)

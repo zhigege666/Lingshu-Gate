@@ -19,6 +19,7 @@ from lingshu_gate.adapters.native_executor.journal import JobJournal
 from lingshu_gate.native_executor_config import NativeExecutorConfig
 from lingshu_gate.ports.safe_network_executor import PHASE_CHECKS, ROOTLESS_CHECKS, ExecutorReadiness, SafeExecutionCancelled
 from lingshu_gate.registry import ToolExecutionError
+from lingshu_gate.safe_files import open_regular_file
 
 CID = re.compile(r"^[0-9a-f]{64}$")
 MEMORY = 1024 * 1024 * 1024
@@ -43,6 +44,31 @@ def _bounded_paths(root: Path) -> Iterator[Path]:
         if count > 30000:
             reject("executor_content_limit", "Content inventory exceeds its entry limit")
         yield path
+
+
+def read_regular_result(path: Path, *, maximum: int = 8192) -> dict[str, Any]:
+    """Open untrusted output without following links or blocking on a FIFO."""
+    deadline = time.monotonic() + 1
+    try:
+        with open_regular_file(path, maximum=maximum) as (reader, info):
+            content = bytearray()
+            while True:
+                if time.monotonic() >= deadline:
+                    raise ValueError
+                chunk = reader.read(min(4096, maximum + 1 - len(content)))
+                if not chunk:
+                    break
+                content.extend(chunk)
+                if len(content) > maximum:
+                    raise ValueError
+            if len(content) != info.st_size:
+                raise ValueError
+        value = json.loads(content)
+        if not isinstance(value, dict) or time.monotonic() >= deadline:
+            raise ValueError
+        return value
+    except (OSError, ValueError, RecursionError):
+        reject("executor_result_rejected", "Frozen phase result is not an unchanged bounded regular JSON file")
 
 
 class PodmanController:
@@ -318,9 +344,7 @@ class PodmanController:
             self.terminate(job["name"], cgroup)
             self.journal.update(key, "terminated")
             self._freeze(directory / "output")
-            if report_file.is_symlink() or report_file.stat().st_size > 8192:
-                reject("executor_result_rejected", "Frozen phase result exceeds its structural bounds")
-            result = json.loads(report_file.read_text())
+            result = read_regular_result(report_file)
             if type(result.get("returncode")) is not int:
                 reject("executor_result_rejected", "Phase result lacks a bounded exit status")
             if request["kind"] == "command":
@@ -337,6 +361,8 @@ class PodmanController:
         except BaseException:
             if job and self.journal:
                 row = self.journal.lookup(key)
+                if row and row["state"] == "terminated":
+                    self.journal.update(key, "failed")
                 if row and row["state"] not in {"terminated", "completed", "failed", "cancelled"}:
                     try:
                         self.terminate(job["name"], cgroup)
@@ -345,6 +371,9 @@ class PodmanController:
                         self.journal.update(key, "unknown")
                         self.missing.append("job_termination_unknown")
                         raise InterruptedError("executor_phase_outcome_unknown") from None
+                row = self.journal.lookup(key)
+                if directory and row and row["state"] in {"failed", "cancelled"}:
+                    self.release_output({"output": directory / "output"})
             raise
         finally:
             if job:
@@ -377,13 +406,13 @@ class PodmanController:
                 entry.update({"type": "link", "target": os.readlink(item)})
             elif stat.S_ISREG(info.st_mode):
                 digest = hashlib.sha256()
-                with item.open("rb") as stream:
+                with open_regular_file(item, maximum=500 * 1024 * 1024 - total) as (stream, opened):
                     while chunk := stream.read(64 * 1024):
                         total += len(chunk)
                         if total > 500 * 1024 * 1024 or time.monotonic() > deadline:
                             reject("executor_content_limit", "Content inventory exceeds its byte/deadline limit")
                         digest.update(chunk)
-                entry.update({"type": "file", "size": info.st_size, "sha256": digest.hexdigest()})
+                entry.update({"type": "file", "size": opened.st_size, "sha256": digest.hexdigest()})
             elif stat.S_ISDIR(info.st_mode):
                 entry["type"] = "directory"
             else:

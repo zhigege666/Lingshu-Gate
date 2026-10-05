@@ -70,6 +70,8 @@ HTTPS 禁 redirects、编码响应、环境代理和自动重试，限制 header
 
 固定 PID 1 runner 在放行项目代码前关闭 Linux dumpability，阻止同 UID 子进程通过 ptrace 或 `/proc` 文件描述符修改它。脚本阶段先等待 cgroup 观测持久落账，再以引擎观测到的容器退出码结束。项目自行创建 `result.json` 不能证明成功或提前结束仍在运行的阶段；共享结果字段也不提供可信 manager/Node 版本。
 
+冻结后的结果、inventory、Git object、artifact 使用 nonblocking/no-follow 文件描述符打开，并经 `fstat` 确认普通文件。结果 JSON 读取上限为 8 KiB/一秒；FIFO、设备、目录、inode 交换及超限输出在解析前拒绝。拒绝结果记录为已确认失败的阶段，释放 controller admission。
+
 既有明确确认的本地 deploy/start/rollback 保持。准备工具不会安装到宿主 runtime；manager 启动仍要求独立管理员 runtime registry，直接 Node 入口保留原规则。构建隔离不改变既有 Native managed-process 的非隔离运行时，也不增加 Core 交付/启动。
 
 ## 证据与剩余验收

@@ -15,6 +15,7 @@ from lingshu_gate.adapters.native_executor.https import PROXY_SCHEMES, PinnedHTT
 from lingshu_gate.git_source import COMMIT_RE
 from lingshu_gate.ports.git_acquisition import GitObject
 from lingshu_gate.ports.safe_network_executor import ExecutorReadiness
+from lingshu_gate.safe_files import open_regular_file
 
 
 def packet(data: bytes) -> bytes:
@@ -46,11 +47,11 @@ class FrozenObjects:
         self.root, self.commit_sha = root, commit
         # The isolated trusted decoder writes only validated object IDs/kinds.
         listing = root.parent / "objects.list"
-        if listing.is_symlink() or listing.stat().st_size > 1024 * 1024:
-            reject("git_object_list_rejected", "Frozen object listing exceeded its bound")
+        with open_regular_file(listing, maximum=1024 * 1024) as (reader, _):
+            content = reader.read(1024 * 1024 + 1)
         self.entries: dict[str, tuple[str, int]] = {}
         total = 0
-        for line in listing.read_text().splitlines():
+        for line in content.decode().splitlines():
             oid, kind, raw_size = line.split(" ")
             size = int(raw_size)
             total += size
@@ -66,7 +67,9 @@ class FrozenObjects:
         kind, size = self.entries[oid]
         if path.is_symlink() or not path.is_file() or path.stat().st_size != size:
             reject("git_object_rejected", "Frozen Git object changed or has an invalid type")
-        with path.open("rb") as stream:
+        with open_regular_file(path, maximum=size) as (stream, opened):
+            if opened.st_size != size:
+                reject("git_object_rejected", "Frozen Git object size changed")
             yield GitObject(kind, size, stream)
 
 

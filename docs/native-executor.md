@@ -70,6 +70,8 @@ Only frozen, bounded output reaches the existing source/artifact path. Inventori
 
 The fixed PID 1 runner disables Linux dumpability before admitting project code; this prevents same-UID children from modifying its process through ptrace or `/proc` file descriptors. Script stages wait for a durably recorded cgroup observation, then finish with the engine-observed container exit code. A project-created `result.json` cannot establish success or end a running stage; shared result fields never supply the trusted manager/Node versions.
 
+Frozen result, inventory, Git object and artifact reads use nonblocking/no-follow descriptors and `fstat` regular-file checks. Result JSON has an 8 KiB/one-second read budget; FIFO, device, directory, changed inode and oversized output fail before parsing. A rejected result records a confirmed failed phase and releases controller admission.
+
 The existing confirmed local deployment/start/rollback path is unchanged. Prepared tools are not installed into the host runtime. A manager-based runtime still needs its separately reviewed administrator registry; direct Node entrypoints retain their existing runtime rules. Build isolation does not change the existing unsandboxed Native managed-process runtime or add Core delivery/start support.
 
 ## Evidence and remaining acceptance
