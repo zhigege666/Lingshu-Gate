@@ -1,4 +1,4 @@
-"""Keep ordinary setuptools wheel builds independent of old build/lib data."""
+"""Build and install wheels in private staging, with exact static inventories."""
 
 from __future__ import annotations
 
@@ -9,6 +9,7 @@ import tempfile
 from pathlib import Path
 
 from setuptools.command.build_py import build_py
+from setuptools.command.bdist_wheel import bdist_wheel
 
 
 def _static_inventory(package: Path) -> dict[str, str]:
@@ -16,6 +17,8 @@ def _static_inventory(package: Path) -> dict[str, str]:
     for directory in (static, *static.parents):
         if directory.is_symlink():
             raise RuntimeError(f"Wheel static assets contain a symlink: {directory}")
+    if static.is_dir() and any(path.name not in {"console", "oauth"} for path in static.iterdir()):
+        raise RuntimeError("Wheel static assets contain an unexpected entry outside Console/OAuth")
     inventory: dict[str, str] = {}
     for name, entry in (("console", "index.html"), ("oauth", "oauth.html")):
         root = package / "static" / name
@@ -92,3 +95,38 @@ class FreshBuildPy(build_py):
         except BaseException:
             shutil.rmtree(stage, ignore_errors=True)
             raise
+
+
+class FreshBdistWheel(bdist_wheel):
+    """Prevent a previous failed wheel's install tree from entering an archive."""
+
+    def run(self) -> None:
+        if self.dry_run:
+            super().run()
+            return
+        if self.skip_build:
+            raise RuntimeError("Wheel builds cannot skip the fresh build and static inventory checks")
+        self._static_source = Path(self.get_finalized_command("build_py").get_package_dir("lingshu_gate"))
+        self._static_snapshot = _static_inventory(self._static_source)
+        stage = _new_staging(Path.cwd())
+        # The default bdist directory may survive a failed install/archive.
+        # Override even a custom --bdist-dir; never reset or delete that path.
+        self.bdist_dir = str(stage / "wheel")
+        try:
+            super().run()
+        finally:
+            shutil.rmtree(stage, ignore_errors=True)
+
+    def write_wheelfile(self, wheelfile_base: str, **kwargs: str) -> None:
+        # setuptools' editable_wheel uses this method only to write metadata;
+        # it does not run bdist_wheel or copy static files from a checkout.
+        if "editable_wheel" in self.distribution.command_obj and not hasattr(self, "_static_snapshot"):
+            super().write_wheelfile(wheelfile_base, **kwargs)
+            return
+        # This hook runs after install_lib and before WheelFile writes RECORD
+        # and the archive. Check the actual installed payload as well as lib.
+        if not self.dry_run:
+            _verify_static_inventory(Path(self.bdist_dir) / "lingshu_gate", self._static_snapshot)
+            if _static_inventory(self._static_source) != self._static_snapshot:
+                raise RuntimeError("Wheel static source changed while installing; finish the frontend build and retry")
+        super().write_wheelfile(wheelfile_base, **kwargs)

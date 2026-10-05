@@ -1,9 +1,14 @@
 from __future__ import annotations
 
 import os
+import base64
+import csv
+import hashlib
+import io
 import shutil
 import subprocess
 import sys
+import sysconfig
 import tarfile
 import textwrap
 import zipfile
@@ -31,6 +36,7 @@ def _project(root: Path) -> Path:
         scripts = "scripts"
         [tool.setuptools.cmdclass]
         build_py = "scripts.release.wheel_build.FreshBuildPy"
+        bdist_wheel = "scripts.release.wheel_build.FreshBdistWheel"
         [tool.setuptools.package-data]
         lingshu_gate = ["static/console/**/*", "static/oauth/**/*"]
     '''))
@@ -50,14 +56,15 @@ def _project(root: Path) -> Path:
     return project
 
 
-def _build(project: Path, *, sdist: bool = False, successful: bool = True) -> Path | subprocess.CompletedProcess[str]:
+def _build(project: Path, *, sdist: bool = False, successful: bool = True,
+           config_settings: tuple[str, ...] = ()) -> Path | subprocess.CompletedProcess[str]:
     uv = shutil.which("uv")
     if uv is None:
         pytest.skip("uv is required to exercise the standard isolated wheel build")
     output = project.parent / "output"
     result = subprocess.run(
         [uv, "build", "--sdist" if sdist else "--wheel", "--offline", "--python", sys.executable,
-         "--out-dir", str(output)],
+         "--out-dir", str(output), *("--config-setting=" + value for value in config_settings)],
         cwd=project, capture_output=True, text=True, timeout=30,
     )
     if not successful:
@@ -76,6 +83,18 @@ def _assert_assets(wheel: Path, package: Path) -> None:
     with zipfile.ZipFile(wheel) as archive:
         actual = {name: archive.read(name) for name in archive.namelist() if name.startswith("lingshu_gate/static/")}
         assert actual == expected
+        assert len(archive.namelist()) == len(set(archive.namelist()))
+        record = next(name for name in archive.namelist() if name.endswith(".dist-info/RECORD"))
+        rows = list(csv.reader(io.StringIO(archive.read(record).decode())))
+        assert len(rows) == len(archive.namelist())
+        assert {row[0] for row in rows} == set(archive.namelist())
+        for name, digest, size in rows:
+            if name == record:
+                assert (digest, size) == ("", "")
+            else:
+                payload = archive.read(name)
+                encoded = base64.urlsafe_b64encode(hashlib.sha256(payload).digest()).decode().rstrip("=")
+                assert (digest, size) == ("sha256=" + encoded, str(len(payload)))
 
 
 def test_standard_repeated_build_does_not_reuse_or_delete_old_build_lib(tmp_path: Path) -> None:
@@ -180,9 +199,10 @@ def test_staging_parent_symlink_refuses_build_and_preserves_target(tmp_path: Pat
     assert (outside / "sentinel").read_text() == "synthetic preserved"
 
 
-def test_missing_frontend_refuses_noneditable_wheel(tmp_path: Path) -> None:
+@pytest.mark.parametrize("relative", ["console/index.html", "oauth/oauth.html"])
+def test_missing_frontend_refuses_noneditable_wheel(tmp_path: Path, relative: str) -> None:
     project = _project(tmp_path)
-    (project / "src/lingshu_gate/static/oauth/oauth.html").unlink()
+    (project / "src/lingshu_gate/static" / relative).unlink()
     result = _build(project, successful=False)
     assert isinstance(result, subprocess.CompletedProcess)
     assert "Wheel Console/OAuth assets are missing" in result.stderr
@@ -216,7 +236,8 @@ def test_standard_editable_install_works_before_frontend_build(tmp_path: Path) -
 
 
 @pytest.mark.parametrize("fault", ["missing", "extra", "changed"])
-def test_static_snapshot_validation_rejects_backend_copy_faults(tmp_path: Path, fault: str) -> None:
+@pytest.mark.parametrize("scope", ["console", "oauth"])
+def test_static_snapshot_validation_rejects_backend_copy_faults(tmp_path: Path, fault: str, scope: str) -> None:
     project = _project(tmp_path)
     module = project / "scripts/release/wheel_build.py"
     # Inject only a synthetic build-copy fault after the real superclass copy.
@@ -226,7 +247,8 @@ def test_static_snapshot_validation_rejects_backend_copy_faults(tmp_path: Path, 
         "extra": '(Path(self.build_lib) / "lingshu_gate/static/console/assets/previous.js").write_text("synthetic extra")',
         "changed": '(Path(self.build_lib) / "lingshu_gate/static/console/assets/current.js").write_text("synthetic changed")',
     }
-    code = module.read_text().replace("            super().run()\n            _verify_static_inventory", "            super().run()\n            " + operations[fault] + "\n            _verify_static_inventory")
+    operation = operations[fault].replace("static/console/", "static/" + scope + "/")
+    code = module.read_text().replace("            super().run()\n            _verify_static_inventory", "            super().run()\n            " + operation + "\n            _verify_static_inventory")
     assert code != module.read_text()
     module.write_text(code)
     result = _build(project, successful=False)
@@ -249,3 +271,89 @@ def test_source_mutation_during_build_refuses_wheel(tmp_path: Path) -> None:
     assert isinstance(result, subprocess.CompletedProcess)
     assert "Wheel static source changed while building" in result.stderr
     assert not list((project / "build").glob("lingshu-gate-wheel-*"))
+
+
+@pytest.mark.parametrize("custom", [False, True])
+def test_wheel_ignores_and_preserves_previous_install_tree(tmp_path: Path, custom: bool) -> None:
+    project = _project(tmp_path)
+    if custom:
+        stale_root = tmp_path / "user-selected-install"
+        settings = ("--build-option=--bdist-dir=" + str(stale_root),)
+    else:
+        # Match setuptools' default on this host, including Windows/macOS.
+        stale_root = project / "build" / ("bdist." + sysconfig.get_platform()) / "wheel"
+        settings = ()
+    stale = stale_root / "lingshu_gate"
+    for scope in ("console", "oauth"):
+        asset = stale / "static" / scope / "assets" / "previous-A.js"
+        asset.parent.mkdir(parents=True)
+        asset.write_text("synthetic old installed hash A")
+    user_file = stale / "user_data.txt"
+    user_file.write_text("synthetic preserved user data")
+    wheel = _build(project, config_settings=settings)
+    assert isinstance(wheel, Path)
+    _assert_assets(wheel, project / "src/lingshu_gate")
+    with zipfile.ZipFile(wheel) as archive:
+        assert "lingshu_gate/user_data.txt" not in archive.namelist()
+    assert user_file.read_text() == "synthetic preserved user data"
+    for scope in ("console", "oauth"):
+        assert (stale / "static" / scope / "assets/previous-A.js").read_text() == "synthetic old installed hash A"
+    assert not list((project / "build").glob("lingshu-gate-wheel-*"))
+
+
+def test_skip_build_cannot_bypass_clean_staging_checks(tmp_path: Path) -> None:
+    project = _project(tmp_path)
+    result = _build(project, successful=False, config_settings=("--build-option=--skip-build",))
+    assert isinstance(result, subprocess.CompletedProcess)
+    assert "cannot skip the fresh build" in result.stderr
+
+
+@pytest.mark.parametrize("scope", ["console", "oauth"])
+@pytest.mark.parametrize("fault", ["missing", "extra", "changed"])
+def test_installed_payload_is_checked_before_wheel_archive(tmp_path: Path, scope: str, fault: str) -> None:
+    project = _project(tmp_path)
+    module = project / "scripts/release/wheel_build.py"
+    asset = f'Path(self.bdist_dir) / "lingshu_gate/static/{scope}/assets/current.js"'
+    operations = {
+        "missing": f"({asset}).unlink()",
+        "extra": f'({asset}).with_name("unexpected.js").write_text("synthetic extra")',
+        "changed": f'({asset}).write_text("synthetic changed")',
+    }
+    marker = '            _verify_static_inventory(Path(self.bdist_dir)'
+    code = module.read_text().replace(marker, "            " + operations[fault] + "\n" + marker)
+    assert code != module.read_text()
+    module.write_text(code)
+    result = _build(project, successful=False)
+    assert isinstance(result, subprocess.CompletedProcess)
+    assert "Wheel static assets do not match the source snapshot" in result.stderr
+    assert not list((project / "build").glob("lingshu-gate-wheel-*"))
+
+
+def test_unknown_static_scope_refuses_build(tmp_path: Path) -> None:
+    project = _project(tmp_path)
+    extra = project / "src/lingshu_gate/static/unexpected"
+    extra.mkdir()
+    (extra / "private.txt").write_text("synthetic-never-copy")
+    result = _build(project, successful=False)
+    assert isinstance(result, subprocess.CompletedProcess)
+    assert "unexpected entry outside Console/OAuth" in result.stderr
+    assert "synthetic-never-copy" not in result.stdout + result.stderr
+
+
+def test_staging_parent_file_is_preserved(tmp_path: Path) -> None:
+    project = _project(tmp_path)
+    existing = project / "build"
+    existing.write_text("synthetic user file")
+    result = _build(project, successful=False)
+    assert isinstance(result, subprocess.CompletedProcess)
+    assert "regular project build directory" in result.stderr
+    assert existing.read_text() == "synthetic user file"
+
+
+@pytest.mark.skipif(os.name != "posix", reason="POSIX special file boundary")
+def test_static_fifo_refuses_build_without_opening_it(tmp_path: Path) -> None:
+    project = _project(tmp_path)
+    os.mkfifo(project / "src/lingshu_gate/static/oauth/assets/special.js")
+    result = _build(project, successful=False)
+    assert isinstance(result, subprocess.CompletedProcess)
+    assert "special entry" in result.stderr

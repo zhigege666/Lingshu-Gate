@@ -70,6 +70,7 @@ scripts = "scripts"
 
 [tool.setuptools.cmdclass]
 build_py = "scripts.release.wheel_build.FreshBuildPy"
+bdist_wheel = "scripts.release.wheel_build.FreshBdistWheel"
 
 [tool.setuptools.package-data]
 lingshu_gate = ["static/console/**/*", "static/oauth/**/*"]
