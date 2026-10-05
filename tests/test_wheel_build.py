@@ -372,7 +372,7 @@ def test_final_archive_validation_rejects_corruption(tmp_path: Path, fault: str)
         "record_hash": 'key = next(name for name in files if name.endswith(".dist-info/RECORD")); '
                        'files[key] = files[key].replace(b"sha256=", b"sha256=bad", 1)',
         "record_size": 'key = next(name for name in files if name.endswith(".dist-info/RECORD")); '
-                       'rows = list(csv.reader(io.StringIO(files[key].decode()))); rows[0][2] = "0"; '
+                       'rows = list(csv.reader(io.StringIO(files[key].decode()))); rows[0][2] = str(int(rows[0][2]) + 1); '
                        'files[key] = ("\\n".join(",".join(row) for row in rows) + "\\n").encode()',
         "path": 'files["lingshu_gate/static/console/../../escape.js"] = b"synthetic escape"',
     }
