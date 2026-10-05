@@ -1,0 +1,2 @@
+include scripts/release/__init__.py
+include scripts/release/wheel_build.py

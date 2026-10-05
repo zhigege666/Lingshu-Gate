@@ -1,0 +1,251 @@
+from __future__ import annotations
+
+import os
+import shutil
+import subprocess
+import sys
+import tarfile
+import textwrap
+import zipfile
+from pathlib import Path
+
+import pytest
+
+REPOSITORY_ROOT = Path(__file__).resolve().parents[1]
+
+
+def _project(root: Path) -> Path:
+    project = root / "project"
+    project.mkdir()
+    (project / "pyproject.toml").write_text(textwrap.dedent('''\
+        [build-system]
+        requires = ["setuptools==81.0.0"]
+        build-backend = "setuptools.build_meta"
+        [project]
+        name = "lingshu-gate"
+        version = "0.4.4"
+        [tool.setuptools.packages.find]
+        where = ["src"]
+        [tool.setuptools.package-dir]
+        "" = "src"
+        scripts = "scripts"
+        [tool.setuptools.cmdclass]
+        build_py = "scripts.release.wheel_build.FreshBuildPy"
+        [tool.setuptools.package-data]
+        lingshu_gate = ["static/console/**/*", "static/oauth/**/*"]
+    '''))
+    scripts = project / "scripts" / "release"
+    scripts.mkdir(parents=True)
+    for name in ("__init__.py", "wheel_build.py"):
+        shutil.copyfile(REPOSITORY_ROOT / "scripts" / "release" / name, scripts / name)
+    shutil.copyfile(REPOSITORY_ROOT / "MANIFEST.in", project / "MANIFEST.in")
+    package = project / "src" / "lingshu_gate"
+    package.mkdir(parents=True)
+    (package / "__init__.py").write_text("")
+    for scope, entry in (("console", "index.html"), ("oauth", "oauth.html")):
+        static = package / "static" / scope
+        (static / "assets").mkdir(parents=True)
+        (static / entry).write_text("synthetic entry")
+        (static / "assets" / "current.js").write_text("synthetic current bundle")
+    return project
+
+
+def _build(project: Path, *, sdist: bool = False, successful: bool = True) -> Path | subprocess.CompletedProcess[str]:
+    uv = shutil.which("uv")
+    if uv is None:
+        pytest.skip("uv is required to exercise the standard isolated wheel build")
+    output = project.parent / "output"
+    result = subprocess.run(
+        [uv, "build", "--sdist" if sdist else "--wheel", "--offline", "--python", sys.executable,
+         "--out-dir", str(output)],
+        cwd=project, capture_output=True, text=True, timeout=30,
+    )
+    if not successful:
+        assert result.returncode != 0
+        assert not list(output.glob("*.whl"))
+        return result
+    assert result.returncode == 0, result.stdout + result.stderr
+    return next(output.glob("*.tar.gz" if sdist else "*.whl"))
+
+
+def _assert_assets(wheel: Path, package: Path) -> None:
+    expected = {
+        "lingshu_gate/" + path.relative_to(package).as_posix(): path.read_bytes()
+        for path in (package / "static").rglob("*") if path.is_file()
+    }
+    with zipfile.ZipFile(wheel) as archive:
+        actual = {name: archive.read(name) for name in archive.namelist() if name.startswith("lingshu_gate/static/")}
+        assert actual == expected
+
+
+def test_standard_repeated_build_does_not_reuse_or_delete_old_build_lib(tmp_path: Path) -> None:
+    project = _project(tmp_path)
+    package = project / "src" / "lingshu_gate"
+    first = _build(project)
+    assert isinstance(first, Path)
+    _assert_assets(first, package)
+    cache = project / "build" / "lib" / "lingshu_gate"
+    for scope in ("console", "oauth"):
+        old = cache / "static" / scope / "assets" / "previous.js"
+        old.parent.mkdir(parents=True)
+        old.write_text("synthetic stale bundle")
+        original = package / "static" / scope / "assets" / "current.js"
+        original.rename(original.with_name("replacement.js"))
+    removed = cache / "removed_module.py"
+    removed.write_text("synthetic removed module")
+    sources = project / "src" / "lingshu_gate.egg-info" / "SOURCES.txt"
+    with sources.open("a") as output:
+        output.write("src/lingshu_gate/static/console/assets/previous.js\n")
+    second = _build(project)
+    assert isinstance(second, Path)
+    _assert_assets(second, package)
+    with zipfile.ZipFile(second) as archive:
+        assert "lingshu_gate/removed_module.py" not in archive.namelist()
+    assert removed.read_text() == "synthetic removed module"
+    assert (cache / "static/console/assets/previous.js").read_text() == "synthetic stale bundle"
+    assert not list((project / "build").glob("lingshu-gate-wheel-*"))
+
+
+def test_current_hash_wins_even_when_cache_file_is_newer(tmp_path: Path) -> None:
+    project = _project(tmp_path)
+    package = project / "src" / "lingshu_gate"
+    stale = project / "build/lib/lingshu_gate/static/console/assets/current.js"
+    stale.parent.mkdir(parents=True)
+    stale.write_text("synthetic wrong bytes")
+    os.utime(stale, (2_000_000_000, 2_000_000_000))
+    wheel = _build(project)
+    assert isinstance(wheel, Path)
+    _assert_assets(wheel, package)
+    assert stale.read_text() == "synthetic wrong bytes"
+
+
+def test_sdist_keeps_build_hook_and_rebuilds_fresh_wheel(tmp_path: Path) -> None:
+    project = _project(tmp_path)
+    source = _build(project, sdist=True)
+    assert isinstance(source, Path)
+    extracted = tmp_path / "extracted"
+    extracted.mkdir()
+    with tarfile.open(source) as archive:
+        assert any(member.name.endswith("scripts/release/wheel_build.py") for member in archive.getmembers())
+        archive.extractall(extracted, filter="data")
+    restored = next(extracted.iterdir())
+    wheel = _build(restored)
+    assert isinstance(wheel, Path)
+    _assert_assets(wheel, restored / "src/lingshu_gate")
+
+
+def test_source_symlink_refuses_build_without_reading_target(tmp_path: Path) -> None:
+    project = _project(tmp_path)
+    private = tmp_path / "private.txt"
+    private.write_text("synthetic-never-copy")
+    link = project / "src/lingshu_gate/static/console/assets/private.js"
+    try:
+        link.symlink_to(private)
+    except OSError:
+        pytest.skip("symlinks are not available on this test host")
+    result = _build(project, successful=False)
+    assert isinstance(result, subprocess.CompletedProcess)
+    assert "Wheel static assets contain a symlink" in result.stderr
+    assert "synthetic-never-copy" not in result.stdout + result.stderr
+
+
+@pytest.mark.parametrize("relative", ["src", "src/lingshu_gate", "src/lingshu_gate/static"])
+def test_source_ancestor_symlink_refuses_build(tmp_path: Path, relative: str) -> None:
+    project = _project(tmp_path)
+    original = project / relative
+    outside = tmp_path / "outside"
+    original.rename(outside)
+    try:
+        original.symlink_to(outside, target_is_directory=True)
+    except OSError:
+        pytest.skip("symlinks are not available on this test host")
+    result = _build(project, successful=False)
+    assert isinstance(result, subprocess.CompletedProcess)
+    assert "Wheel static assets contain a symlink" in result.stderr
+    assert outside.is_dir()
+
+
+def test_staging_parent_symlink_refuses_build_and_preserves_target(tmp_path: Path) -> None:
+    project = _project(tmp_path)
+    outside = tmp_path / "outside"
+    outside.mkdir()
+    (outside / "sentinel").write_text("synthetic preserved")
+    try:
+        (project / "build").symlink_to(outside, target_is_directory=True)
+    except OSError:
+        pytest.skip("symlinks are not available on this test host")
+    result = _build(project, successful=False)
+    assert isinstance(result, subprocess.CompletedProcess)
+    assert "Wheel staging requires a regular project build directory" in result.stderr
+    assert (outside / "sentinel").read_text() == "synthetic preserved"
+
+
+def test_missing_frontend_refuses_noneditable_wheel(tmp_path: Path) -> None:
+    project = _project(tmp_path)
+    (project / "src/lingshu_gate/static/oauth/oauth.html").unlink()
+    result = _build(project, successful=False)
+    assert isinstance(result, subprocess.CompletedProcess)
+    assert "Wheel Console/OAuth assets are missing" in result.stderr
+
+
+def test_standard_editable_install_works_before_frontend_build(tmp_path: Path) -> None:
+    project = _project(tmp_path)
+    shutil.rmtree(project / "src/lingshu_gate/static")
+    uv = shutil.which("uv")
+    if uv is None:
+        pytest.skip("uv is required to exercise the standard editable build")
+    environment = tmp_path / "editable-env"
+    prepared = subprocess.run(
+        [uv, "venv", "--offline", "--python", sys.executable, str(environment)],
+        capture_output=True, text=True, timeout=30,
+    )
+    assert prepared.returncode == 0, prepared.stdout + prepared.stderr
+    python = environment / ("Scripts/python.exe" if os.name == "nt" else "bin/python")
+    installed = subprocess.run(
+        [uv, "pip", "install", "--offline", "--python", str(python), "--no-deps", "--editable", str(project)],
+        cwd=tmp_path, capture_output=True, text=True, timeout=30,
+    )
+    assert installed.returncode == 0, installed.stdout + installed.stderr
+    imported = subprocess.run(
+        [str(python), "-I", "-c", "import lingshu_gate; print(lingshu_gate.__file__)"],
+        cwd=tmp_path, capture_output=True, text=True, timeout=30,
+    )
+    assert imported.returncode == 0, imported.stdout + imported.stderr
+    assert Path(imported.stdout.strip()).resolve() == project / "src/lingshu_gate/__init__.py"
+    assert not (project / "build").exists()
+
+
+@pytest.mark.parametrize("fault", ["missing", "extra", "changed"])
+def test_static_snapshot_validation_rejects_backend_copy_faults(tmp_path: Path, fault: str) -> None:
+    project = _project(tmp_path)
+    module = project / "scripts/release/wheel_build.py"
+    # Inject only a synthetic build-copy fault after the real superclass copy.
+    # The real validation must prevent that altered payload becoming a wheel.
+    operations = {
+        "missing": '(Path(self.build_lib) / "lingshu_gate/static/console/assets/current.js").unlink()',
+        "extra": '(Path(self.build_lib) / "lingshu_gate/static/console/assets/previous.js").write_text("synthetic extra")',
+        "changed": '(Path(self.build_lib) / "lingshu_gate/static/console/assets/current.js").write_text("synthetic changed")',
+    }
+    code = module.read_text().replace("            super().run()\n            _verify_static_inventory", "            super().run()\n            " + operations[fault] + "\n            _verify_static_inventory")
+    assert code != module.read_text()
+    module.write_text(code)
+    result = _build(project, successful=False)
+    assert isinstance(result, subprocess.CompletedProcess)
+    assert "Wheel static assets do not match the source snapshot" in result.stderr
+    assert not list((project / "build").glob("lingshu-gate-wheel-*"))
+
+
+def test_source_mutation_during_build_refuses_wheel(tmp_path: Path) -> None:
+    project = _project(tmp_path)
+    module = project / "scripts/release/wheel_build.py"
+    code = module.read_text().replace(
+        "            super().run()\n            _verify_static_inventory",
+        '            super().run()\n            (source / "static/console/assets/current.js").write_text("synthetic mutation")\n'
+        "            _verify_static_inventory",
+    )
+    assert code != module.read_text()
+    module.write_text(code)
+    result = _build(project, successful=False)
+    assert isinstance(result, subprocess.CompletedProcess)
+    assert "Wheel static source changed while building" in result.stderr
+    assert not list((project / "build").glob("lingshu-gate-wheel-*"))
