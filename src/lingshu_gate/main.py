@@ -55,6 +55,8 @@ from lingshu_gate.interfaces.control_api.dependencies import (
 from lingshu_gate.logging import configure_logging, log_event
 from lingshu_gate.mcp_config_store import McpConfigStore
 from lingshu_gate.mcp_gateway import register_mcp_gateway_route
+from lingshu_gate.tool_catalog import ToolCatalog
+from lingshu_gate.interfaces.control_api.catalog_routes import register_catalog_routes
 from lingshu_gate.mcp_runtime import McpRuntimeManager
 from lingshu_gate.mcp_runtime_state_store import McpRuntimeStateStore
 from lingshu_gate.memory_diagnostics import log_memory_snapshot
@@ -94,6 +96,7 @@ def create_app() -> FastAPI:
     registry = create_registry()
     database = SQLiteDatabase(settings.db_url, settings.data_dir)
     access_store = AccessControlStore(database)
+    tool_catalog = ToolCatalog(registry, access_store)
     auth_store = AuthStore(settings, database)
     observability_store = ObservabilityStore(database)
     retention_store = RetentionStore(database)
@@ -303,6 +306,7 @@ def create_app() -> FastAPI:
     state.registry = registry
     state.database = database
     state.access_store = access_store
+    state.tool_catalog = tool_catalog
     state.auth_store = auth_store
     state.observability_store = observability_store
     state.project_upload_store = project_upload_store
@@ -405,6 +409,7 @@ def create_app() -> FastAPI:
         observability_store=observability_store,
         require_authenticated=require_authenticated,
     )
+    register_catalog_routes(app, catalog=tool_catalog, require_authenticated=require_authenticated)
     register_mcp_config_routes(
         app,
         settings=settings,
@@ -463,6 +468,7 @@ def create_app() -> FastAPI:
         access_store,
         auth_store.authenticate_mcp_request,
         oauth_boundary=external_oauth_discovery,
+        catalog=tool_catalog,
     )
     register_mcp_gateway_route(
         app, settings, registry, access_store, auth_store.authenticate_mcp_request,

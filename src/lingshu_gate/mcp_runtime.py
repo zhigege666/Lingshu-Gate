@@ -1275,23 +1275,28 @@ class McpRuntimeManager:
 
     def invoke_mcp_tool(
         self, server_id: str, tool_name: str, arguments: dict[str, Any], *, retry_read_only: bool = False,
+        dispatch_guard: Callable[[], None] | None = None,
     ) -> dict[str, Any]:
         runtime = self._get_runtime(server_id)
         with runtime.lock:
             if runtime.state != McpServerState.RUNNING or not runtime.client:
                 raise RuntimeError(f"MCP server is not running: {server_id} ({runtime.state.value})")
             try:
+                if dispatch_guard is not None:
+                    dispatch_guard()
                 return runtime.client.call_tool(tool_name, arguments)
             except McpSessionExpiredError:
                 if runtime.manifest.launch.type != "external":
                     raise
                 return self._recover_expired_session_locked(
                     server_id, runtime, tool_name, arguments, retry_read_only=retry_read_only,
+                    dispatch_guard=dispatch_guard,
                 )
 
     def _recover_expired_session_locked(
         self, server_id: str, runtime: McpServerRuntime, tool_name: str,
         arguments: dict[str, Any], *, retry_read_only: bool,
+        dispatch_guard: Callable[[], None] | None = None,
     ) -> dict[str, Any]:
         """持有服务锁，只重连一次；写调用与变更后的工具定义不重放。"""
         client = runtime.client
@@ -1337,6 +1342,8 @@ class McpRuntimeManager:
                 next_action="Check the original operation result before invoking again.",
             )
         try:
+            if dispatch_guard is not None:
+                dispatch_guard()
             return client.call_tool(tool_name, arguments)
         except McpSessionExpiredError as exc:
             # 新会话仍失效时到此停止，避免递归重连或无限重试。
@@ -1388,6 +1395,7 @@ class McpRuntimeManager:
         self, server_id: str, tool_name: str, arguments: dict[str, Any], *,
         user_id: str, retry_read_only: bool = False,
         audit_snapshot: Callable[[dict[str, Any]], None] | None = None,
+        dispatch_guard: Callable[[], None] | None = None,
     ) -> dict[str, Any]:
         # Secrets stay local to this invocation and are never handed to audit storage.
         secrets: list[str] = []
@@ -1396,6 +1404,7 @@ class McpRuntimeManager:
                 server_id, tool_name, arguments, user_id=user_id,
                 retry_read_only=retry_read_only,
                 audit_secrets=secrets if audit_snapshot is not None else None,
+                dispatch_guard=dispatch_guard,
             )
         except Exception as exc:
             if audit_snapshot is not None and not isinstance(exc, UserCredentialBindingError):
@@ -1418,6 +1427,7 @@ class McpRuntimeManager:
         user_id: str,
         retry_read_only: bool = False,
         audit_secrets: list[str] | None = None,
+        dispatch_guard: Callable[[], None] | None = None,
     ) -> dict[str, Any]:
         """解析用户文件引用，并在需要时使用当前用户自己的下游凭据。"""
 
@@ -1452,7 +1462,8 @@ class McpRuntimeManager:
                 raise RuntimeError(f"fileRef resolution failed ({exc.code}): {exc}") from exc
         if not slots:
             try:
-                return self.invoke_mcp_tool(server_id, tool_name, prepared_arguments, retry_read_only=retry_read_only)
+                return self.invoke_mcp_tool(server_id, tool_name, prepared_arguments, retry_read_only=retry_read_only,
+                                            **({"dispatch_guard": dispatch_guard} if dispatch_guard is not None else {}))
             finally:
                 # Reconnection can replace/refresh the client's resolved credentials.
                 if audit_secrets is not None and hasattr(runtime.client, "audit_redaction_values"):
@@ -1502,6 +1513,10 @@ class McpRuntimeManager:
             if audit_secrets is not None and hasattr(client, "audit_redaction_values"):
                 audit_secrets.extend(client.audit_redaction_values())
             try:
+                if dispatch_guard is not None:
+                    with runtime.lock:
+                        dispatch_guard()
+                        return client.call_tool(tool_name, prepared_arguments)
                 return client.call_tool(tool_name, prepared_arguments)
             except McpSessionExpiredError:
                 # 用户会话仍使用当前用户凭据，不能借用或覆盖共享客户端与健康状态。
@@ -1526,6 +1541,10 @@ class McpRuntimeManager:
                         next_action="Check the original operation result before invoking again.",
                     )
                 try:
+                    if dispatch_guard is not None:
+                        with runtime.lock:
+                            dispatch_guard()
+                            return client.call_tool(tool_name, prepared_arguments)
                     return client.call_tool(tool_name, prepared_arguments)
                 except McpSessionExpiredError as exc:
                     raise ToolExecutionError(

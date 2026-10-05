@@ -1550,9 +1550,11 @@ class AccessControlStore:
         arguments: dict[str, Any],
         *,
         correlation_id: str | None = None,
+        dispatch_guard: Callable[[], None] | None = None,
     ) -> ToolInvokeResponse:
         definition = registry.get_definition(tool_id)
-        self.synchronize_tools([definition])
+        with self.database.session() as connection:
+            self._synchronize_tools(connection, [definition])
         decision = self.evaluate(principal, definition)
         correlation_id = correlation_id or str(uuid4())
         summary = _payload_summary(arguments)
@@ -1580,6 +1582,14 @@ class AccessControlStore:
                                           decision=denied, outcome="not_invoked", duration_ms=None, payload=summary)
             raise
         recorded_outputs: list[dict[str, Any]] = []
+        guard_passed = dispatch_guard is None
+
+        def checked_guard() -> None:
+            nonlocal guard_passed
+            assert dispatch_guard is not None
+            dispatch_guard()
+            guard_passed = True
+
         started = perf_counter()
         try:
             if definition.source == "mcp" and self.mcp_runtime:
@@ -1592,6 +1602,7 @@ class AccessControlStore:
                     tool_name,
                     arguments,
                     user_id=principal.id,
+                    **({"dispatch_guard": checked_guard} if dispatch_guard is not None else {}),
                     audit_snapshot=recorded_outputs.append if recorded_input is not None else None,
                     retry_read_only=(
                         decision["classification_status"] == "published"
@@ -1603,6 +1614,7 @@ class AccessControlStore:
                 response = registry.invoke(
                     tool_id,
                     arguments,
+                    **({"dispatch_guard": checked_guard} if dispatch_guard is not None else {}),
                     context=ToolInvocationContext(
                         actor_id=principal.id,
                         username=principal.username,
@@ -1653,12 +1665,14 @@ class AccessControlStore:
         finally:
             self._release_external_invocation(external_lease)
         duration_ms = max(0, round((perf_counter() - started) * 1000))
+        if not guard_passed:
+            decision = {**decision, "allowed": False, "reason": "catalog dispatch rejected"}
         self._record_invocation_audit(
             principal,
             definition,
             correlation_id=correlation_id,
             decision=decision,
-            outcome="success" if response.ok else "error",
+            outcome="not_invoked" if not guard_passed else "success" if response.ok else "error",
             duration_ms=duration_ms,
             payload=summary,
             recorded_input=recorded_input,

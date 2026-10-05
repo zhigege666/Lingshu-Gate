@@ -256,11 +256,14 @@ class ToolRegistry:
         arguments: dict[str, Any],
         *,
         context: ToolInvocationContext | None = None,
+        dispatch_guard: Callable[[], None] | None = None,
     ) -> ToolInvokeResponse:
         # Only protect snapshot lookup. Handlers can perform long-running I/O and
         # may themselves register tools, so invoking them while holding the registry
         # lock would serialize unrelated traffic and risk lock-order deadlocks.
         with self._lock:
+            if dispatch_guard is not None:
+                dispatch_guard()
             try:
                 record = self._tools[tool_id]
             except KeyError as exc:

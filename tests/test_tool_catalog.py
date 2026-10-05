@@ -1,14 +1,26 @@
 """Permission, pagination and incremental discovery without full schemas."""
 from dataclasses import replace
+from concurrent.futures import ThreadPoolExecutor
+from threading import Barrier
+import json
 
 import pytest
+from fastapi import FastAPI, Request
+from fastapi.testclient import TestClient
 
 from lingshu_gate.access_control import AccessControlStore
 from lingshu_gate.auth import AuthPrincipal
 from lingshu_gate.database import SQLiteDatabase
 from lingshu_gate.models import ToolDefinition
+from lingshu_gate.mcp_gateway import register_mcp_gateway_route
+from lingshu_gate.config import Settings
+from lingshu_gate.interfaces.control_api.catalog_routes import register_catalog_routes
+from lingshu_gate.protocol.version import MCP_PROTOCOL_VERSION
+from lingshu_gate.transports.http import build_protocol_request
 from lingshu_gate.registry import ToolExecutionError, ToolRecord, ToolRegistry
-from lingshu_gate.tool_catalog import CatalogDescribe, CatalogSearch, ToolCatalog
+from lingshu_gate.tool_catalog import (
+    CATALOG_TOOL_NAMES, CatalogDescribe, CatalogInvoke, CatalogSearch, ToolCatalog, schema_revision, _validate_arguments,
+)
 
 
 @pytest.fixture
@@ -95,3 +107,150 @@ def test_none_tool_override_and_hidden_ranking(catalog):
     service.registry.register(ToolDefinition(id="mcp.hidden.exact", name="read", description="read", source="mcp",
         metadata={"server_id": "hidden"}), lambda _: {})
     assert service.search(principal, CatalogSearch(query="read"))["tools"] == output["tools"]
+
+
+def test_oauth_exact_allowlist_and_publication(catalog):
+    service, principal = catalog
+    oauth = replace(principal, auth_type="oauth", scopes=("mcp.read",), delegated_scopes=("mcp.read",),
+        external_grant_id="synthetic", external_server_ids=("one",), external_tool_ids=("mcp.one.read_1",),
+        external_access=("read",), external_expires_at="2999-01-01T00:00:00+00:00")
+    assert [item["tool_ref"] for item in service.search(oauth, CatalogSearch())["tools"]] == ["mcp.one.read_1"]
+    service.database.execute("UPDATE mcp_tool_classifications SET status='stale' WHERE tool_id='mcp.one.read_1'")
+    assert service.search(oauth, CatalogSearch())["tools"] == []
+    assert service.search(replace(oauth, oauth_resource="https://gate.example.test/mcp/manage"), CatalogSearch())["tools"] == []
+
+
+def test_invoke_uses_original_audit_and_validates_arguments_revision_instance(catalog):
+    service, principal = catalog
+    described = service.describe(principal, CatalogDescribe(tool_ref="mcp.one.read_0"))
+    request = CatalogInvoke(tool_ref=described["tool_ref"], schema_revision=described["schema_revision"], arguments={"key": "sample"})
+    assert service.invoke(principal, request).output == {"key": "sample"}
+    audit = service.database.query_one("SELECT tool_id,server_id,outcome FROM invocation_audits ORDER BY rowid DESC LIMIT 1")
+    assert tuple(audit) == ("mcp.one.read_0", "one", "success")
+    for changed in (request.model_copy(update={"schema_revision": "0" * 64}),
+                    request.model_copy(update={"arguments": {"key": 1}}),
+                    request.model_copy(update={"arguments": {"key": "x", "extra": True}}),
+                    request.model_copy(update={"instance_id": "two"})):
+        with pytest.raises(ToolExecutionError):
+            service.invoke(principal, changed)
+
+
+def test_read_token_cannot_invoke_write_and_oauth_cannot_guess_target(catalog):
+    service, principal = catalog
+    service.database.execute("UPDATE mcp_tool_classifications SET effective_access='write' WHERE tool_id='mcp.one.read_0'")
+    service.access.save_grant(subject_type="user", subject_id="alice", server_id="one", permission_type_code="write", created_by="alice")
+    definition = service.registry.get_definition("mcp.one.read_0")
+    request = CatalogInvoke(tool_ref=definition.id, schema_revision=schema_revision(definition), arguments={"key": "x"})
+    reader = replace(principal, auth_type="token", scopes=("tools.read",))
+    with pytest.raises(ToolExecutionError) as error:
+        service.invoke(reader, request)
+    assert error.value.code == "catalog_tool_unavailable"
+    assert service.search(reader, CatalogSearch())["tools"]
+    assert definition.id not in {t["tool_ref"] for t in service.search(reader, CatalogSearch())["tools"]}
+
+
+def test_dispatch_reauthenticates_after_queue_admission(catalog, monkeypatch):
+    service, principal = catalog
+    definition = service.registry.get_definition("mcp.one.read_0")
+    calls = []
+    service.registry.register(definition, lambda _: calls.append("dispatched") or {}, replace=True)
+    reader = replace(principal, auth_type="token", token_id="synthetic", scopes=("tools.read",))
+    current = [reader]
+    original = service.access.invoke_tool
+    def queued(*args, **kwargs):
+        current[0] = replace(reader, scopes=())
+        return original(*args, **kwargs)
+    monkeypatch.setattr(service.access, "invoke_tool", queued)
+    result = service.invoke(reader, CatalogInvoke(tool_ref=definition.id, schema_revision=schema_revision(definition),
+        arguments={"key": "x"}), refresh_principal=lambda: current[0])
+    assert not result.ok
+    assert result.output["error"]["code"] == "catalog_identity_changed"
+    assert calls == []
+    assert service.database.query_one("SELECT outcome FROM invocation_audits ORDER BY rowid DESC LIMIT 1")[0] == "not_invoked"
+
+
+def test_multiple_instances_dispatch_concurrently(catalog):
+    service, principal = catalog
+    service.access.save_grant(subject_type="user", subject_id="alice", server_id="two", permission_type_code="read", created_by="alice")
+    barrier = Barrier(2)
+    for instance in ("one", "two"):
+        definition = service.registry.get_definition(f"mcp.{instance}.read_0")
+        service.registry.register(definition, lambda _: {"parallel": barrier.wait(timeout=5) >= 0}, replace=True)
+    def invoke(instance):
+        definition = service.registry.get_definition(f"mcp.{instance}.read_0")
+        return service.invoke(principal, CatalogInvoke(tool_ref=definition.id, schema_revision=schema_revision(definition), arguments={"key": "x"}))
+    with ThreadPoolExecutor(max_workers=2) as executor:
+        assert all(result.ok for result in executor.map(invoke, ("one", "two")))
+
+
+def test_bounded_outputs_and_query_parameters(catalog):
+    service, principal = catalog
+    output = service.search(principal, CatalogSearch(max_bytes=2048, limit=1))
+    assert len(json.dumps(output, ensure_ascii=False, separators=(",", ":")).encode()) <= 2048
+    assert output["has_more"]
+    with pytest.raises(ToolExecutionError):
+        service.search(principal, CatalogSearch(query="a b c d e f g h i"))
+    definition = service.registry.get_definition("mcp.one.read_0")
+    service.registry.register(definition.model_copy(update={"input_schema": {"type": "object", "description": "x" * 3000}}), lambda _: {}, replace=True)
+    admin = replace(principal, role="admin", roles=("admin",))
+    with pytest.raises(ToolExecutionError) as error:
+        service.describe(admin, CatalogDescribe(tool_ref=definition.id, max_bytes=2048))
+    assert error.value.code == "catalog_schema_limit"
+
+
+@pytest.mark.parametrize("schema,arguments", [
+    ({"$ref": "https://schema.example.test/tool"}, {}),
+    ({"$dynamicRef": "#/x"}, {}),
+    ({"$schema": "https://schema.example.test/unknown"}, {}),
+    ({"type": "object", "$defs": {"x": {"$ref": "#/$defs/x"}}, "$ref": "#/$defs/x"}, {}),
+    ({"type": "object"}, {"x": "x" * 65536}),
+])
+def test_schema_validation_fails_closed_without_remote_fetch(schema, arguments):
+    with pytest.raises(ToolExecutionError):
+        _validate_arguments(schema, arguments)
+
+
+def test_local_reference_full_schema_validation():
+    schema = {"type": "object", "$defs": {"key": {"type": "integer", "minimum": 1}},
+              "properties": {"key": {"$ref": "#/$defs/key"}}, "required": ["key"]}
+    _validate_arguments(schema, {"key": 1})
+    with pytest.raises(ToolExecutionError):
+        _validate_arguments(schema, {"key": 0})
+
+
+def test_mcp_and_api_adapters_keep_legacy_listing_and_hide_direct_calls(catalog):
+    service, principal = catalog
+    app = FastAPI()
+    def require(request: Request) -> AuthPrincipal:
+        return principal
+    register_catalog_routes(app, catalog=service, require_authenticated=require)
+    register_mcp_gateway_route(app, Settings(), service.registry, service.access, require, catalog=service)
+    client = TestClient(app)
+    headers = {"accept": "application/json,text/event-stream", "MCP-Protocol-Version": MCP_PROTOCOL_VERSION}
+    def rpc(method, params=None, mode="on_demand"):
+        current_params, protocol_headers = build_protocol_request(method, params or {},
+            client_name="catalog-test", client_version="1.0", protocol_version=MCP_PROTOCOL_VERSION)
+        return client.post("/mcp" + (f"?tool_mode={mode}" if mode else ""), headers={**headers, **protocol_headers},
+            json={"jsonrpc": "2.0", "id": 1, "method": method, "params": current_params})
+    listed = rpc("tools/list")
+    assert listed.status_code == 200
+    assert [tool["name"] for tool in listed.json()["result"]["tools"]] == list(CATALOG_TOOL_NAMES)
+    assert len(rpc("tools/list", mode="").json()["result"]["tools"]) == 4
+    assert "error" in rpc("tools/call", {"name": "mcp__one__read_0"}).json()
+    searched = rpc("tools/call", {"name": "gate_catalog_search", "arguments": {"query": "read", "limit": 1}})
+    assert len(searched.json()["result"]["structuredContent"]["tools"]) == 1
+    described = client.post("/v1/catalog/describe", json={"tool_ref": "mcp.one.read_0"}).json()
+    invoked = client.post("/v1/catalog/invoke", json={"tool_ref": described["tool_ref"], "schema_revision": described["schema_revision"], "arguments": {"key": "x"}})
+    assert invoked.json()["ok"]
+    assert client.post("/v1/catalog/search", json={"limit": 1000}).status_code == 400
+    assert client.post("/v1/catalog/describe", json={"tool_ref": "mcp.two.read_0"}).status_code == 404
+    assert rpc("tools/list", mode="invalid").status_code == 400
+
+
+def test_reserved_name_collision_fails_closed(catalog):
+    service, principal = catalog
+    service.registry.register(ToolDefinition(id="gate_catalog_search", name="Collision", description="Hidden"), lambda _: {})
+    with pytest.raises(ToolExecutionError) as error:
+        service.call("gate_catalog_search", {}, principal)
+    assert error.value.code == "catalog_namespace_conflict"
+    assert "Hidden" not in error.value.message
