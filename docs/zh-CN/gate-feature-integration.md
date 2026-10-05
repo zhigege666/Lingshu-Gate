@@ -61,6 +61,23 @@ Backend 回归包含 OAuth A/B、普通／management 资源、直接 MCP/HTTP �
 
 该精确集成检查点上，冻结 npm 安装、前端 type/UX 检查、74 个文件中的 **439 项 Vitest 用例**及 Console/OAuth 两份构建均通过。启用 5,000 服务／50,000 工具夹具后，`oauth-grants`、`oauth-consent`、`oauth-paged-catalog` 三份浏览器 spec 的 **98 项用例全部通过**，耗时 **291.19 秒**，无 skip、失败、重试或 flaky；两个真实提交后丢失响应的用例均通过。
 
-后端沿用 `31b7cca` 的 **2,126 passed / 7 skipped**，没有重新执行完整后端。`src/`、`tests/`、`scripts/`、Python 依赖定义／锁和 npm 依赖定义／锁的 Git tree 记录与该检查点完全一致。旧 wheel／frozen worker 观测仍绑定原源码 SHA 与产物哈希，不声称已为重建后的前端资源生成新 wheel／native bundle。
+后端沿用 `31b7cca` 的 **2,126 passed / 7 skipped**，没有重新执行完整后端。`src/`、`tests/`、`scripts/`、Python 依赖定义／锁和 npm 依赖定义／锁的 Git tree 记录与该检查点完全一致。旧 wheel／frozen worker 观测仍绑定原源码 SHA 与产物哈希。该前端检查点未包含重新打包；后续新包验收见下。
 
-仓库内可读[集成验证及全部 98 项逐例结果](../benchmarks/gate-feature-integration-validation-a3b57f7.json)与[输入 blob／后端继承证明](../benchmarks/gate-feature-integration-provenance-a3b57f7.json)。记录保留根代理对 `31b7cca` 组合及 `9af3ddb` 恢复的独立复审来源，两次均无新增 P1/P2。后续文档导出不改变产品或前端检查点。浏览器执行仍为合成验收；真实 Podman、provider／client、正式打包及 nx5 验收单列。
+仓库内可读[集成验证及全部 98 项逐例结果](../benchmarks/gate-feature-integration-validation-a3b57f7.json)与[输入 blob／后端继承证明](../benchmarks/gate-feature-integration-provenance-a3b57f7.json)。记录保留根代理对 `31b7cca` 组合及 `9af3ddb` 恢复的独立复审来源，两次均无新增 P1/P2。后续文档导出不改变产品或前端检查点。浏览器执行仍为合成验收；真实 Podman、provider／client、nx5 及完整平台发行矩阵验收单列。
+
+## 最新 wheel 与 Linux native 包验收
+
+最新 0.4.4 候选包从 **`ed34c5a474747b2f0933b8fbee7fccf193ee7315`** 构建，该树与已测产品 **`a3b57f708ae3d848382e46ee9c9b85ccae8e5722`** 仅有文档差异。标准 native builder 使用固定 **CPython 3.13.15、Node 22.23.2、PyInstaller 6.22.2**、冻结依赖及官方 Node archive 校验和，生成完整 Linux x86_64 archive、启动脚本、BUILD-INFO、SPDX SBOM 与第三方许可。未执行发行或部署。
+
+| 新产物 | SHA-256 | 字节 |
+|---|---|---:|
+| `lingshu_gate-0.4.4-py3-none-any.whl` | `023f39a0bbf3830d8e1a41280face4feb429e117679e07effe07603a2412c8d4` | 1,785,586 |
+| `lingshu-gate-v0.4.4-linux-x86_64.tar.gz` | `314f6ff0c9b6d072c629e126875c02a20a23493efeffbf90cc5e3321ddd179ec` | 33,843,127 |
+
+wheel、隔离安装与严格解包 native 中的全部 **97 份 Console 和 3 份 OAuth 文件**，均与当前 dist 及 `a3b57f7` 浏览器已测构建逐字节一致。恢复 chunk `external-connections-page-5G7cff7c.js` 的 SHA-256 为 `f590c4b7289fd21e299bdfb32cec47c25aa18c5e6a35798f02197ceaf3605c90`；两个实际启动包都通过 HTTP 提供该精确内容，含未知保存及已保存版本读取代码。wheel 全部 RECORD 条目与 native 的 453 项 BUILD-INFO 文件记录均通过；archive 校验和、有界解包及 glibc 2.35 上限检查通过，包含并核对了 200 个 SPDX package 与 196 项第三方许可记录。
+
+新安装 wheel 与新 native executable 通过 **14 项真实 schema 子进程用例**，覆盖超时／取消／回收及后续复用；**2 项 native worker 入口探测**、**6 项 Native 模块导入**及 **4 项 CLI 版本／帮助探测**均通过。两个真实包进程的 readiness／health／恢复 chunk HTTP 检查通过，均已停止并回收。OAuth 保持默认关闭并返回 HTTP 404；native readiness smoke 与最终 wheel／archive 身份检查也通过。隔离测试不启动 Podman engine 或项目 job，不使用真实凭据。
+
+首次 wheel 核对拒绝了忽略目录 `build/lib` 中的 141 份旧 Console 与 2 份旧 OAuth 文件。只清理已核实的生成目录后重建、重装，最终多余／缺失文件为零。首次离线依赖解析缺少固定 `annotated-doc` metadata，随后按导出的精确版本和哈希验证完成安装。记录保留这些准备阶段失败与修复，未改变产品源码。
+
+仓库内证据：[新包哈希、工具链与完整静态资源清单](../benchmarks/gate-feature-integration-packages-ed34c5a.json)、[新 wheel／native schema worker](../benchmarks/gate-feature-integration-package-workers-ed34c5a.json)、[实际包／CLI smoke](../benchmarks/gate-feature-integration-package-http-smoke-ed34c5a.json)。候选二进制及 SHA256SUMS 保留于 cloud 的忽略目录 `dist/candidates/ed34c5a`；本次证据导出不发布二进制。完整后端仍沿用 `31b7cca`。真实 Podman、外部 Playwright MCP、provider／client、nx5、其他平台及完整正式发行矩阵仍未验。
