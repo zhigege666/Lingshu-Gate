@@ -22,6 +22,7 @@ from lingshu_gate.adapters.native_executor.https import PinnedHTTPS
 from lingshu_gate.git_source import digest_json
 from lingshu_gate.node_toolchain import node_version_supported, tool_preparation
 from lingshu_gate.offline_build_contract import DependencyNode, verify_dependency_content
+from lingshu_gate.adapters.native_executor.shims import SHIM_REVISION, install_shims
 
 OFFICIAL = "https://registry.npmjs.org/"
 BINARIES = {"npm": "bin/npm-cli.js", "pnpm": "bin/pnpm.cjs", "yarn": "bin/yarn.js"}
@@ -219,6 +220,8 @@ class ToolCache:
                 package = checked_json(temporary / "package" / "package.json", 1024 * 1024)
                 if package.get("name") != name or package.get("version") != version or (package.get("engines") or {}).get("node") != engines or not (temporary / "package" / BINARIES[str(name)]).is_file():
                     reject("package_manager_archive_rejected", "Official archive does not match its exact metadata or reviewed CLI")
+                install_shims(temporary, str(name))
+                metadata["shim_revision"] = SHIM_REVISION
                 fingerprint = self.controller._inventory(temporary)
                 temporary.rename(target)
                 metadata["fingerprint"] = fingerprint
@@ -228,6 +231,13 @@ class ToolCache:
                     shutil.rmtree(temporary)
         if not metadata.get("fingerprint") or self.controller._inventory(target) != metadata["fingerprint"]:
             reject("package_manager_cache_changed", "Verified tool cache changed")
+        if metadata.get("shim_revision") != SHIM_REVISION:
+            if (target / "shims").exists():
+                reject("package_manager_shims_unprepared", "Cached launchers require a reviewed preparation migration")
+            install_shims(target, str(name))
+            metadata["shim_revision"] = SHIM_REVISION
+            metadata["fingerprint"] = self.controller._inventory(target)
+            self._write_metadata(pointer, metadata)
         if not metadata.get("archive_hashes"):
             # Upgrade old pointers only by fetching and re-verifying the same
             # official archive. Never derive an unrelated hash from extraction.
@@ -256,7 +266,7 @@ class ToolCache:
             reject("package_manager_specification_rejected", "Manager version is not an exact generated pin")
         metadata = checked_json(self.root / f"{name}-{version}.json", 8192)
         target = self.root / digest_json({"name": name, "version": version, "integrity": metadata["dist"]["integrity"]})
-        if self.controller._inventory(target) != metadata.get("fingerprint"):
+        if self.controller._inventory(target) != metadata.get("fingerprint") or metadata.get("shim_revision") != SHIM_REVISION:
             reject("package_manager_cache_changed", "Prepared tool is missing or changed")
         self._validate_pin(metadata, manager.get("declared_integrity"))
         return target

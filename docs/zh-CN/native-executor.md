@@ -56,6 +56,8 @@ Network 设置响应现在返回观测到的 `executor.available`、稳定 code�
 
 工具缓存身份绑定官方分发包字节、版本和 SRI。各项目可选声明 hash 独立对照已验证 archive hash；无 pin、大小写等价 hash 和不同受支持算法不会把其他项目的 pin 绑定到共享缓存。错误请求 pin 在 CLI 探测前拒绝。
 
+Gate 生成经 fingerprint 绑定的只读 `/tool/shims`，将所选 manager（含脚本内嵌套调用）固定到 `/usr/local/bin/node` 和已验证 CLI。镜像中的其他 manager/Corepack 明确拒绝。`npx`/`pnpx` 只执行 contained 的已有项目 binary，不下载、不自动安装包。管理员专用 `test_native_executor_host_acceptance.py` 在 `LINGSHU_GATE_TEST_EXECUTOR_ROOT`、`LINGSHU_GATE_TEST_EXECUTOR_IMAGE` 指向已准备且受审 sandbox 时，实际验证嵌套 npm 及已有/缺失 npx；测试不准备宿主，云端默认跳过。
+
 Git/install 网络选择仍在原 digest 计划中独立固定为 `inherit`/`direct`/`profile`。目标 DNS 的每个地址必须符合 host/port/private CIDR，公有/禁止地址混合回答整体拒绝。连接使用数字地址、原 host TLS SNI；HTTP CONNECT/SOCKS 也只接收该数字上游，不让代理重选 DNS。代理端点须另行匹配管理员受审 host 规则。Git 凭据值为 `username:token` 时用 origin-bound HTTP Basic（适合要求 Basic 的 smart Git host），仅 token 时用 Bearer；registry 凭据用 origin-bound Bearer；HTTP/SOCKS 代理认证引用使用 `username:password`。代理认证不进入上游 TLS 请求，镜像 registry 凭据不发给官方 metadata。
 
 HTTPS 禁 redirects、编码响应、环境代理和自动重试，限制 headers/body/deadline。DNS 只允许一个有界在途 resolver 槽。超时但未实际退出的 resolver 为未知结果，阻断网络 readiness，不能冒充已取消。可信 socket 关闭后才确认其取消；项目执行只接收已校验、无秘密内容。
