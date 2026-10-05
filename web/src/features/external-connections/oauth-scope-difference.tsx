@@ -18,12 +18,14 @@ export function ScopeDifference({ before, selected, catalog, zh }: { before: Sco
   const [query, setQuery] = useState("")
   const [page, setPage] = useState(1)
   const changes = useMemo(() => scopeDifference(before, selected, catalog), [before, selected, catalog])
+  const chosen = new Set(selected)
+  const writeCount = catalog.filter(tool => chosen.has(tool.id) && tool.access === "write").length
   const names = new Map(catalog.map(tool => [tool.id, tool]))
   const rows = [...changes.added.map(tool => ({ key: `added:${tool.id}`, tool, added: true })), ...changes.removed.map(tool => ({ key: `removed:${tool.id}`, tool: { ...names.get(tool.id), ...tool }, added: false }))]
   const search = query.trim().toLocaleLowerCase()
   const filtered = rows.filter(row => `${row.tool.name || ""} ${row.tool.id} ${row.tool.server_name || ""} ${row.tool.server_id}`.toLocaleLowerCase().includes(search))
   return <section aria-label={zh ? "工具变更明细" : "Tool change details"} className="oauth-scope-difference">
-    <p role="status">{zh ? `新增 / 重新确认 ${changes.added.length} 个工具（写入 ${changes.added.filter(tool => tool.access === "write").length}）；从当前连接移除 ${changes.removed.length} 个。` : `${changes.added.length} added / reconfirmed tools (${changes.added.filter(tool => tool.access === "write").length} write); ${changes.removed.length} removed from this connection.`}</p>
+    <p role="status">{zh ? `新增 / 重新确认 ${changes.added.length} 个工具（写入 ${changes.added.filter(tool => tool.access === "write").length}）；从当前连接移除 ${changes.removed.length} 个（写入 ${changes.removed.filter(tool => tool.access === "write").length}）；更新后共有 ${writeCount} 个写工具。` : `${changes.added.length} added / reconfirmed tools (${changes.added.filter(tool => tool.access === "write").length} write); ${changes.removed.length} removed (${changes.removed.filter(tool => tool.access === "write").length} write); ${writeCount} write tools after update.`}</p>
     <Input aria-label={zh ? "搜索工具变更" : "Search tool changes"} allowClear value={query} onChange={event => { setQuery(event.target.value); setPage(1) }} />
     <Table rowKey="key" size="small" dataSource={filtered} scroll={{ x: 540, y: "clamp(180px, 30dvh, 320px)" }} tableLayout="fixed"
       pagination={{ pageSize: 50, current: Math.min(page, Math.max(1, Math.ceil(filtered.length / 50))), showSizeChanger: false, onChange: setPage, showTotal: total => `${total}` }}

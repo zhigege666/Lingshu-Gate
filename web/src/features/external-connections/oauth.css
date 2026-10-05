@@ -13,6 +13,11 @@
 .oauth-filters { display: grid; grid-template-columns: minmax(180px, 1fr) minmax(140px, 220px) max-content; gap: 12px; margin: 12px 0; }
 .oauth-selection { margin: 12px 0; font-size: 13px; }
 .oauth-tools { min-width: 0; }
+.oauth-bulk-selection { display: grid; grid-template-columns: 150px minmax(0, 1fr); align-items: start; gap: 12px; margin-top: 8px; }
+.oauth-bulk-selection > span { white-space: nowrap; line-height: 32px; }
+.oauth-bulk-selection .ant-radio-group { display: flex; flex-wrap: wrap; gap: 8px; }
+.oauth-bulk-selection p { margin-top: 4px; }
+.oauth-scope-availability { font-size: 13px; }
 .oauth-loading { display: flex; align-items: center; gap: 12px; padding: 24px 0; }
 .oauth-admin-layout { display: grid; grid-template-columns: minmax(340px, 1fr) minmax(360px, 1.5fr); align-items: start; gap: 24px; }
 .oauth-admin-panel { border: 1px solid hsl(var(--border)); border-radius: var(--radius); padding: 20px; min-width: 0; }
@@ -39,6 +44,7 @@
   .oauth-grant-scope-body .ant-table,
   .oauth-grant-scope-body .ant-table-container { display: flex; flex-direction: column; flex: 1 1 auto; min-height: 0; min-width: 0; }
   .oauth-grant-scope-body .oauth-filters,
+  .oauth-grant-scope-body .oauth-bulk-selection,
   .oauth-grant-scope-body .oauth-selection,
   .oauth-grant-scope-body .ant-table-header,
   .oauth-grant-scope-body .ant-pagination { flex-shrink: 0; }

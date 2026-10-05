@@ -10,8 +10,10 @@ import { ManagementTargetsDialog } from "@/features/external-connections/managem
 import { ManagementTargetsEditor } from "@/features/external-connections/management-targets-editor"
 import { managementTargetRows } from "@/features/external-connections/management-targets-model"
 import { OAuthToolPicker } from "@/features/external-connections/oauth-tool-picker"
+import { scopeEditorTools } from "@/features/external-connections/oauth-tool-selection"
+import { ScopeAvailability } from "@/features/external-connections/oauth-scope-availability"
 import { ScopeDifference, scopeDifference } from "@/features/external-connections/oauth-scope-difference"
-import { oauthError, oauthRequest, OAuthRequestError, type OAuthGrant, type OAuthScopeOptions, type OAuthScopePreview } from "@/features/external-connections/oauth-api"
+import { oauthError, oauthRequest, OAuthRequestError, type OAuthGrant, type OAuthScopeOptions, type OAuthScopePreview, type OAuthTool } from "@/features/external-connections/oauth-api"
 import { filterGrants, grantRemaining, grantState, utcGrantTime, type GrantFilter } from "@/features/external-connections/oauth-grants-model"
 import type { Locale, TFunction } from "@/i18n"
 import "@/features/external-connections/oauth.css"
@@ -34,6 +36,7 @@ export function BuiltinOAuthGrants({ locale, t }: { locale: Locale; t: TFunction
   const [targetEditing, setTargetEditing] = useState<OAuthGrant | null>(null)
   const [editing, setEditing] = useState<OAuthGrant | null>(null)
   const [scopeOptions, setScopeOptions] = useState<OAuthScopeOptions | null>(null)
+  const [rememberedTools, setRememberedTools] = useState<OAuthTool[]>([])
   const [scopeLoading, setScopeLoading] = useState(false)
   const scopeGeneration = useRef(0)
   const [notice, setNotice] = useState("")
@@ -46,10 +49,12 @@ export function BuiltinOAuthGrants({ locale, t }: { locale: Locale; t: TFunction
   const lock = useRef(false)
   const version = useRef(0)
   const { confirm, confirmDialog } = useConfirm(t)
-  const editorTools = useMemo(() => [...new Map([...(editing?.tools || []), ...(scopeOptions?.tools || [])].map(tool => [tool.id, tool])).values()], [editing, scopeOptions])
+  const editorTools = useMemo(() => scopeEditorTools(rememberedTools, scopeOptions?.tools ?? null, selected), [rememberedTools, scopeOptions, selected])
+  const availableIds = useMemo(() => new Set(scopeOptions?.tools.map(tool => tool.id) || []), [scopeOptions])
+  const unavailableSelected = scopeOptions ? selected.filter(id => !availableIds.has(id)) : []
   const changes = useMemo(() => scopeDifference(editing?.tools || [], selected, editorTools), [editing, selected, editorTools])
   const dirty = Boolean(editing && (changes.added.length || changes.removed.length || expiry !== editing.expires_at || rate !== editing.rate_per_minute || concurrency !== editing.concurrency))
-  function closeEditor() { scopeGeneration.current++; setEditing(null); setScopeOptions(null); setScopeLoading(false) }
+  function closeEditor() { scopeGeneration.current++; setEditing(null); setScopeOptions(null); setRememberedTools([]); setScopeLoading(false) }
   const close = useDraftCloseGuard({ dirty, pending: busy, locale, confirm, onClose: closeEditor })
   async function load() {
     const current = ++version.current
@@ -74,7 +79,7 @@ export function BuiltinOAuthGrants({ locale, t }: { locale: Locale; t: TFunction
   function edit(grant: OAuthGrant) {
     if (grantState(grant, Math.floor(Date.now() / 1000)) !== "active") return
     setEditing(grant); setSelected(grant.tools.map(tool => tool.id)); setExpiry(grant.expires_at); setRate(grant.rate_per_minute); setConcurrency(grant.concurrency); setFormError("")
-    setScopeOptions(null); void readScopeOptions(grant)
+    setScopeOptions(null); setRememberedTools(grant.tools); void readScopeOptions(grant)
   }
   async function readScopeOptions(target: OAuthGrant) {
     const generation = ++scopeGeneration.current
@@ -83,12 +88,13 @@ export function BuiltinOAuthGrants({ locale, t }: { locale: Locale; t: TFunction
       const next = await oauthRequest<OAuthScopeOptions>(`/v1/auth/oauth/grants/${target.id}/scope-options`)
       if (generation !== scopeGeneration.current) return
       if (next.grant_revision !== target.revision) throw new OAuthRequestError("revision_conflict", 409)
+      setRememberedTools(previous => [...new Map([...previous, ...next.tools].map(tool => [tool.id, tool])).values()])
       setScopeOptions(next)
     } catch (cause) { if (generation === scopeGeneration.current) { setScopeOptions(null); setFormError(oauthError(cause, zh)) } }
     finally { if (generation === scopeGeneration.current) setScopeLoading(false) }
   }
   async function save() {
-    if (lock.current || !editing || scopeLoading || !scopeOptions || !selected.length) return
+    if (lock.current || !editing || scopeLoading || !scopeOptions || !selected.length || unavailableSelected.length) return
     const target = editing, current = version.current, generation = scopeGeneration.current
     const body = { expected_revision: target.revision, tool_ids: [...selected], expires_at: expiry, rate_per_minute: rate, concurrency }
     lock.current = true; setBusy(true); setFormError(""); setNotice("")
@@ -146,12 +152,14 @@ export function BuiltinOAuthGrants({ locale, t }: { locale: Locale; t: TFunction
       {viewing && <><p>{viewing.client_name} · {stateLabel(grantState(viewing, snapshotAt))}</p><p className="oauth-wrap">{viewing.resource}</p><div className="oauth-grant-identifiers"><label>Grant ID<Input readOnly value={viewing.id} /></label><Button onClick={() => void copyId(viewing.id)}>{zh ? "复制授权 ID" : "Copy grant ID"}</Button><label>Client ID<Input readOnly value={viewing.client_id} /></label><Button onClick={() => void copyId(viewing.client_id)}>{zh ? "复制客户端 ID" : "Copy client ID"}</Button></div>{copyMessage && <p role="status">{copyMessage}</p>}<p className="text-sm">{zh ? "这是已保存的工具范围；历史记录不代表当前仍获准调用。" : "This is recorded tool scope; historical records do not establish current invocation permission."}</p>{viewing.resource_kind === "management" && <ManagementTargetsEditor rows={managementTargetRows(viewing.management_targets || {})} onChange={() => undefined} zh={zh} readOnly />}<OAuthToolPicker key={viewing.id} tools={viewing.tools} selected={[]} onChange={() => undefined} zh={zh} readOnly fillViewport={viewing.resource_kind !== "management"} /></>}
     </FormDialog>
     <ManagementTargetsDialog grant={targetEditing} locale={locale} t={t} onCloseAutoFocus={event => { if (targetTrigger.current?.isConnected) { event.preventDefault(); targetTrigger.current.focus() } }} onClose={() => setTargetEditing(null)} onSaved={next => { setGrants(items => items.map(item => item.id === next.id ? next : item)); setSnapshotAt(Math.floor(Date.now() / 1000)); setNotice(zh ? "管理目标已更新；旧计划失效，权限上限未改变。" : "Management targets updated; old plans are stale and scope ceilings unchanged.") }} />
-    <FormDialog open={Boolean(editing)} title={zh ? "调整授权范围" : "Adjust authorization scope"} closeLabel={t("close")} onClose={() => void close()} dirty={dirty} pending={busy} error={formError} className="oauth-grant-scope-dialog" bodyClassName="oauth-grant-scope-body" footer={<>{formError && editing && <Button disabled={busy || scopeLoading} onClick={() => void readScopeOptions(editing)}>{zh ? "刷新可授权范围" : "Refresh available scope"}</Button>}<Button disabled={busy} onClick={() => void close()}>{t("close")}</Button><Button type="primary" disabled={busy || scopeLoading || !dirty || !selected.length || !editing || !scopeOptions || grantState(editing, Math.floor(Date.now() / 1000)) !== "active"} onClick={() => void save()}>{zh ? "核对并更新连接" : "Review connection update"}</Button></>}>
+    <FormDialog open={Boolean(editing)} title={zh ? "调整授权范围" : "Adjust authorization scope"} closeLabel={t("close")} onClose={() => void close()} dirty={dirty} pending={busy} error={formError} className="oauth-grant-scope-dialog" bodyClassName="oauth-grant-scope-body" footer={<>{editing && <Button aria-label={zh ? "刷新可授权范围" : "Refresh available scope"} aria-busy={scopeLoading} loading={scopeLoading} disabled={busy || scopeLoading} onClick={() => void readScopeOptions(editing)}>{zh ? "刷新可授权范围" : "Refresh available scope"}</Button>}<Button disabled={busy} onClick={() => void close()}>{t("close")}</Button><Button type="primary" disabled={busy || scopeLoading || !dirty || !selected.length || unavailableSelected.length > 0 || !editing || !scopeOptions || grantState(editing, Math.floor(Date.now() / 1000)) !== "active"} onClick={() => void save()}>{zh ? "核对并更新连接" : "Review connection update"}</Button></>}>
       {editing && <><p className="oauth-wrap">{editing.client_name} · {editing.resource}</p>{!editing.scope_currently_authorized && <Alert type="warning" title={zh ? `当前只有 ${editing.effective_tool_count} 个原工具仍获准。只有本人当前获准的工具才可确认更新。` : `Only ${editing.effective_tool_count} original tools remain authorized. Only tools you currently have permission to use can be confirmed.`} />}
         {scopeLoading && <p role="status">{zh ? "正在读取本人可授权范围…" : "Loading your available scope…"}</p>}
         {scopeOptions && <div className="oauth-muted" role="status"><p>{zh ? "现有 OAuth scope 上限：" : "Existing OAuth scope ceiling: "}{scopeOptions.scopes.join(" · ") || "—"}{scopeOptions.effective_scopes.join(" ") !== scopeOptions.scopes.join(" ") && <span>{zh ? "；当前客户端允许：" : "; currently allowed by client: "}{scopeOptions.effective_scopes.join(" · ") || "—"}</span>}</p><p>{zh ? "各令牌族仍受自己的 scope 上限约束；仅有 tools.read 的令牌不能调用新增写工具。" : "Each token family keeps its own scope ceiling; a tools.read-only token cannot invoke newly added write tools."}{scopeOptions.family_scope_limits.length > 0 && <> {scopeOptions.family_scope_limits.map(limit => `${limit.count} × ${limit.scopes.join(" + ") || "—"}`).join("; ")}</>}</p></div>}
+        {scopeOptions && <ScopeAvailability options={scopeOptions} zh={zh} />}
+        {unavailableSelected.length > 0 && <Alert type="warning" title={zh ? `草稿保留了 ${unavailableSelected.length} 个当前不可授权选择。移除这些选择后才能保存。` : `Your draft retains ${unavailableSelected.length} currently unavailable selections. Remove them before saving.`} action={<Button disabled={busy || scopeLoading} onClick={() => setSelected(ids => ids.filter(id => availableIds.has(id)))}>{zh ? "移除不可授权选择" : "Remove unavailable selections"}</Button>} />}
         <p className="oauth-muted" role="status">{zh ? `新增 / 重新确认 ${changes.added.length} 个工具（写入 ${changes.added.filter(tool => tool.access === "write").length}）；从当前连接移除 ${changes.removed.length} 个。` : `${changes.added.length} added / reconfirmed tools (${changes.added.filter(tool => tool.access === "write").length} write); ${changes.removed.length} removed from this connection.`}</p>
-        <div className="oauth-grant-limits"><label>{zh ? "到期时间（UTC）" : "Expiry (UTC)"}<Input type="datetime-local" aria-label={zh ? "到期时间（UTC）" : "Expiry (UTC)"} disabled={busy} max={new Date(editing.expires_at * 1000).toISOString().slice(0, 16)} value={new Date(expiry * 1000).toISOString().slice(0, 16)} onChange={event => { const next = Date.parse(`${event.target.value}:00Z`); if (Number.isFinite(next)) setExpiry(Math.floor(next / 1000)) }} /></label><label>{zh ? "每分钟调用上限" : "Calls per minute"}<InputNumber aria-label={zh ? "每分钟调用上限" : "Calls per minute"} disabled={busy} min={1} max={editing.rate_per_minute} precision={0} value={rate} onChange={value => setRate(value ?? 1)} /></label><label>{zh ? "并发上限" : "Concurrent calls"}<InputNumber aria-label={zh ? "并发上限" : "Concurrent calls"} disabled={busy} min={1} max={editing.concurrency} precision={0} value={concurrency} onChange={value => setConcurrency(value ?? 1)} /></label></div><OAuthToolPicker tools={editorTools} selected={selected} onChange={setSelected} zh={zh} disabled={busy || scopeLoading} fillViewport /></>}
+        <div className="oauth-grant-limits"><label>{zh ? "到期时间（UTC）" : "Expiry (UTC)"}<Input type="datetime-local" aria-label={zh ? "到期时间（UTC）" : "Expiry (UTC)"} disabled={busy} max={new Date(editing.expires_at * 1000).toISOString().slice(0, 16)} value={new Date(expiry * 1000).toISOString().slice(0, 16)} onChange={event => { const next = Date.parse(`${event.target.value}:00Z`); if (Number.isFinite(next)) setExpiry(Math.floor(next / 1000)) }} /></label><label>{zh ? "每分钟调用上限" : "Calls per minute"}<InputNumber aria-label={zh ? "每分钟调用上限" : "Calls per minute"} disabled={busy} min={1} max={editing.rate_per_minute} precision={0} value={rate} onChange={value => setRate(value ?? 1)} /></label><label>{zh ? "并发上限" : "Concurrent calls"}<InputNumber aria-label={zh ? "并发上限" : "Concurrent calls"} disabled={busy} min={1} max={editing.concurrency} precision={0} value={concurrency} onChange={value => setConcurrency(value ?? 1)} /></label></div><OAuthToolPicker tools={editorTools} eligibleTools={scopeOptions?.tools ?? null} selected={selected} onChange={setSelected} zh={zh} disabled={busy || scopeLoading || !scopeOptions} fillViewport bulkActions /></>}
     </FormDialog>{confirmDialog}<Toaster toast={toast} onClose={dismissToast} closeLabel={t("close")} />
   </div>
 }

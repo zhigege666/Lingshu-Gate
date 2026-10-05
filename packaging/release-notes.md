@@ -33,3 +33,9 @@ Real-client management-scope requests and real HTTP peer/deployment acceptance r
 真实客户端管理 scope 请求与真实 HTTP peer/部署验收仍未验证。本版不实现分组路由、海量目录检索、DCR/CIMD 或生产 `SafeNetworkExecutor`；真实 Git 拉取、代理测试、工具准备和指定网络安装仍阻断。安装或配置本版不会启用这些操作或登记凭据。
 
 [验证记录](../docs/zh-CN/release-validation-0.4.4.md) 区分合成后端/浏览器证据、独立视觉复核与真实客户端验收。正式发布须通过既有发行工作流，构建五种原生目标（Linux x86_64/ARM64、Windows x86_64、macOS x86_64/ARM64）、Compose、两个离线 Core 镜像、应用 SPDX SBOM、镜像摘要与 SHA256SUMS，共 11 项资产及来源证明。须回读核验全部发行任务、校验和、SBOM、来源证明和发布标题/正文；历史 tag 与制品保持不可变。
+
+## Pending release integration — OAuth scope selection / 待发行整合 — OAuth 范围选择
+
+The independent test branch adds explicit full-catalog read-only/all/custom choices, MCP group checkboxes and always-available refresh. Refresh and failures retain the draft; unavailable choices require explicit removal. Owner-visible exclusion counts explain publication and scope ceilings without widening authorization. Admin API-token invocation does not establish OAuth publication eligibility. These changes await integration and acceptance and are not part of the already tagged 0.4.4 artifacts.
+
+独立测试分支增加明确的全目录只读/全部/自定义选择、MCP 整组复选及常驻刷新。刷新和失败保留草稿；失效选择需显式移除。仅本人可见工具的排除计数说明发布门禁和 scope 上限，不扩大授权；管理员 API Token 调用成功不证明符合 OAuth 发布门禁。这些变更仍待整合及验收，不属于已打 tag 的 0.4.4 制品。

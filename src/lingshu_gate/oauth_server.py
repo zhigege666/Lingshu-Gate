@@ -585,6 +585,41 @@ class OAuthServer:
         removed = [key for key in grant["tools"] if key not in tools or key in added]
         return added, removed
 
+    def _scope_unavailable_servers(self, connection: sqlite3.Connection, principal: AuthPrincipal,
+                                   grant: dict[str, Any], client: Any,
+                                   catalog: dict[str, dict[str, Any]]) -> list[dict[str, Any]]:
+        # Diagnostics follow current tool visibility, including the admin's
+        # explicit API/Console bypass. Never enumerate another user's services.
+        visible = self.access.visible_tools(principal, self.registry.list_definitions(), connection=connection)
+        classifications = {(row["server_id"], row["tool_id"]): row for row in
+                           connection.execute("SELECT * FROM mcp_tool_classifications").fetchall()}
+        groups: dict[str, dict[str, Any]] = {}
+        client_scopes = set(json.loads(client["scopes_json"]))
+        for tool in visible:
+            server_id = tool.metadata.get("server_id")
+            if tool.source != "mcp" or not server_id or tool.id in catalog:
+                continue
+            classification = classifications.get((str(server_id), tool.id))
+            if not classification or classification["status"] != "published":
+                reason = "classification_not_published"
+            elif classification["effective_access"] not in {"read", "write"}:
+                reason = "classification_unavailable"
+            else:
+                scope = "tools.read" if classification["effective_access"] == "read" else "tools.invoke"
+                if scope not in grant["scopes"]:
+                    reason = "grant_scope_ceiling"
+                elif scope not in client_scopes:
+                    reason = "client_scope_ceiling"
+                else:
+                    reason = "classification_unavailable"
+            name = tool.metadata.get("server_name")
+            group = groups.setdefault(str(server_id), {"server_id": str(server_id),
+                "server_name": name.strip() if isinstance(name, str) and name.strip() else None, "counts": {}})
+            group["counts"][reason] = group["counts"].get(reason, 0) + 1
+        return [{"server_id": group["server_id"], "server_name": group["server_name"],
+                 "reasons": [{"code": code, "count": count} for code, count in sorted(group["counts"].items())]}
+                for _, group in sorted(groups.items())]
+
     def scope_options(self, principal: AuthPrincipal, grant_id: str, session: str) -> dict[str, Any]:
         with self.store.transaction() as connection:
             principal = self._console_owner(principal, session)
@@ -601,7 +636,9 @@ class OAuthServer:
             return {"csrf": csrf, "expires_at": payload["expires_at"], "grant_revision": grant["revision"],
                     "scopes": grant["scopes"], "effective_scopes": sorted(set(grant["scopes"]) & set(json.loads(client["scopes_json"]))),
                     "family_scope_limits": [{"scopes": list(scopes), "count": count} for scopes, count in sorted(family_limits.items())],
-                    "tools": list(catalog.values())}
+                    "tools": list(catalog.values()),
+                    "unavailable_servers": self._scope_unavailable_servers(connection, principal, grant, client, catalog),
+                    "can_review_classifications": self.access.has_control_permission(principal, "classifications.manage")}
 
     def preview_scope(self, principal: AuthPrincipal, grant_id: str, session: str, csrf: str,
                       revision: int, tool_ids: list[str], expires_at: int, rate: int, concurrency: int) -> dict[str, Any]:

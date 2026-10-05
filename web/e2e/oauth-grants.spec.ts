@@ -2,7 +2,7 @@ import { expect, test, type Page } from "@playwright/test"
 import { mkdirSync, readFileSync } from "node:fs"
 import path from "node:path"
 import { fileURLToPath } from "node:url"
-import type { OAuthGrant, OAuthTool } from "../src/features/external-connections/oauth-api"
+import type { OAuthGrant, OAuthScopeUnavailableServer, OAuthTool } from "../src/features/external-connections/oauth-api"
 import { expectInViewportAndUnobscured } from "./helpers"
 
 // Built Console UI, owner-scoped synthetic responses only; no real credentials.
@@ -16,7 +16,8 @@ type Locale = "en-US" | "zh-CN"
 async function setup(page: Page, locale: Locale, records: OAuthGrant[], theme = "light") {
   const model = { records, writes: [] as { path: string; body: Record<string, unknown> }[], failure: false,
     candidates: null as OAuthTool[] | null, previews: [] as Record<string, unknown>[], confirmation: "", scopeFailure: false, previewFailure: false, writeFailure: false,
-    familyScopes: ["tools.read", "tools.invoke"] as string[] }
+    familyScopes: ["tools.read", "tools.invoke"] as string[], optionsReads: 0,
+    unavailable: [] as OAuthScopeUnavailableServer[], canReview: false }
   await page.addInitScript(({ locale, theme }) => {
     localStorage.setItem("lingshu-gate-console-locale", locale); localStorage.setItem("lingshu-gate-console-theme", theme)
     Object.defineProperty(navigator, "clipboard", { configurable: true, value: { writeText: async () => undefined } })
@@ -31,10 +32,14 @@ async function setup(page: Page, locale: Locale, records: OAuthGrant[], theme = 
     if (pathname.startsWith("/v1/auth/oauth/grants/")) {
       const id = pathname.split("/")[5]
       const existing = model.records.find(grant => grant.id === id)!
-      if (pathname.endsWith('/scope-options')) return route.fulfill(model.scopeFailure ? { status: 503, json: { error: 'request_failed' } } : {
+      if (pathname.endsWith('/scope-options')) {
+        model.optionsReads++
+        return route.fulfill(model.scopeFailure ? { status: 503, json: { error: 'request_failed' } } : {
         json: { csrf: 'synthetic-options-csrf-' + 's'.repeat(32), expires_at: now + 600, grant_revision: existing.revision,
-          tools: model.candidates || existing.tools, scopes: existing.scopes, effective_scopes: existing.scopes, family_scope_limits: [{ scopes: model.familyScopes, count: 1 }] },
+          tools: model.candidates || existing.tools, scopes: existing.scopes, effective_scopes: existing.scopes, family_scope_limits: [{ scopes: model.familyScopes, count: 1 }],
+          unavailable_servers: model.unavailable, can_review_classifications: model.canReview },
       })
+      }
       const body = route.request().postDataJSON()
       if (pathname.endsWith('/scope-preview')) {
         if (model.previewFailure) return route.fulfill({ status: 409, json: { error: 'tool_scope_changed' } })
@@ -67,7 +72,165 @@ function stateTab(page: Page, name: string) { return page.locator(".oauth-grants
 function rows(page: Page) { return page.locator(".ant-table-tbody tr[data-row-key]") }
 async function capture(page: Page, name: string) { const directory = process.env.GATE_OAUTH_SCREENSHOT_DIR; if (directory) { mkdirSync(directory, { recursive: true }); await page.screenshot({ path: path.join(directory, `${name}.png`), animations: "disabled" }) } }
 
+for (const locale of ["en-US", "zh-CN"] as const) {
+  const zh = locale === "zh-CN"
+  test(`OAuth bulk selection replaces the full current catalog across filters and pages ${locale} @large-data`, async ({ page }) => {
+    await page.setViewportSize({ width: 1600, height: 900 })
+    const model = await setup(page, locale, [grant(1)])
+    model.candidates = tools
+    await page.getByRole("button", { name: zh ? "调整授权范围" : "Adjust scope", exact: true }).click()
+    const editor = page.getByRole("dialog", { name: zh ? "调整授权范围" : "Adjust authorization scope", exact: true })
+    await expect(editor.getByText(zh ? "正在读取本人可授权范围…" : "Loading your available scope…", { exact: true })).toHaveCount(0)
+    await editor.locator(".ant-pagination-next").click()
+    await editor.getByRole("textbox", { name: zh ? "搜索当前范围内的工具" : "Search tools in the current scope", exact: true }).fill("synthetic-tool-4999")
+    await expect(editor.locator("tr[data-row-key]")).toHaveCount(1)
+    await editor.getByRole("radio", { name: zh ? "仅选全部当前只读" : "All current read-only tools", exact: true }).check()
+    await expect(editor.locator(".oauth-selection [role=status]")).toContainText("2500 / 5000")
+    await expect(editor.locator('tr[data-row-key="synthetic-tool-4999"]').getByRole("checkbox")).not.toBeChecked()
+    const update = editor.getByRole("button", { name: zh ? "核对并更新连接" : "Review connection update", exact: true })
+    await update.click()
+    const review = page.getByRole("alertdialog")
+    expect(model.previews[0].tool_ids).toEqual(tools.filter(tool => tool.access === "read").map(tool => tool.id))
+    expect(model.writes).toHaveLength(0)
+    await review.getByRole("button", { name: zh ? "取消" : "Cancel", exact: true }).click()
+    await editor.getByRole("radio", { name: zh ? "选中全部当前工具" : "All current tools", exact: true }).check()
+    await expect(editor.locator(".oauth-selection [role=status]")).toContainText("5000 / 5000")
+    await editor.getByRole("radio", { name: zh ? "自定义" : "Custom", exact: true }).check()
+    await update.click()
+    expect(model.previews[1].tool_ids).toEqual(tools.map(tool => tool.id))
+    await review.getByRole("button", { name: zh ? "取消" : "Cancel", exact: true }).click()
+    expect(model.writes).toHaveLength(0)
+  })
+
+  test(`OAuth MCP group checkbox spans hidden tools and group pages ${locale} @large-data`, async ({ page }) => {
+    await page.setViewportSize({ width: 1600, height: 900 })
+    const model = await setup(page, locale, [grant(1)])
+    model.candidates = tools
+    await page.getByRole("button", { name: zh ? "调整授权范围" : "Adjust scope", exact: true }).click()
+    const editor = page.getByRole("dialog", { name: zh ? "调整授权范围" : "Adjust authorization scope", exact: true })
+    await editor.getByRole("button", { name: zh ? "清空选择" : "Clear selection", exact: true }).click()
+    await editor.getByRole("radio", { name: zh ? "MCP 整组" : "MCP groups", exact: true }).check()
+    await expect(editor.getByText("1–15 / 100", { exact: true })).toBeVisible()
+    await editor.locator(".ant-pagination-next").click()
+    const row = editor.locator("tr[data-row-key]").first()
+    const groupId = await row.getAttribute("data-row-key")
+    await row.getByRole("checkbox").check()
+    await expect(row).toContainText("50 / 50")
+    await row.getByRole("button", { name: zh ? "查看工具" : "View tools", exact: true }).click()
+    await expect(editor.locator("tr[data-row-key]")).toHaveCount(50)
+    await editor.getByRole("textbox", { name: zh ? "搜索当前范围内的工具" : "Search tools in the current scope", exact: true }).fill(tools.find(tool => tool.server_id === groupId)!.id)
+    await editor.locator("tr[data-row-key]").getByRole("checkbox").uncheck()
+    await editor.getByRole("radio", { name: zh ? "MCP 整组" : "MCP groups", exact: true }).check()
+    const group = editor.locator(`tr[data-row-key="${groupId}"]`)
+    await expect(group).toContainText("49 / 50")
+    await expect(group.getByRole("checkbox")).toHaveJSProperty("indeterminate", true)
+    await group.getByRole("checkbox").check()
+    await expect(group).toContainText("50 / 50")
+    await editor.getByRole("button", { name: zh ? "核对并更新连接" : "Review connection update", exact: true }).click()
+    expect(model.previews[0].tool_ids).toEqual(expect.arrayContaining(tools.filter(tool => tool.server_id === groupId).map(tool => tool.id)))
+    expect(model.previews[0].tool_ids).toHaveLength(50)
+    await page.getByRole("alertdialog").getByRole("button", { name: zh ? "取消" : "Cancel", exact: true }).click()
+    await group.getByRole("checkbox").uncheck()
+    await expect(group).toContainText("0 / 50")
+    expect(model.writes).toHaveLength(0)
+  })
+
+  test(`OAuth refresh retains quota and unavailable draft without selecting later services ${locale}`, async ({ page }) => {
+    await page.setViewportSize({ width: 1600, height: 900 })
+    const original = { ...grant(1), tools: tools.slice(0, 2), effective_tool_count: 2 }
+    const model = await setup(page, locale, [original])
+    await page.getByRole("button", { name: zh ? "调整授权范围" : "Adjust scope", exact: true }).click()
+    const editor = page.getByRole("dialog", { name: zh ? "调整授权范围" : "Adjust authorization scope", exact: true })
+    const refresh = editor.getByRole("button", { name: zh ? "刷新可授权范围" : "Refresh available scope", exact: true })
+    await expect(refresh).toBeEnabled()
+    await editor.getByRole("radio", { name: zh ? "选中全部当前工具" : "All current tools", exact: true }).check()
+    await editor.getByRole("spinbutton", { name: zh ? "每分钟调用上限" : "Calls per minute", exact: true }).fill("30")
+    model.scopeFailure = true
+    await refresh.click()
+    await expect(editor.getByRole("alert")).toBeVisible()
+    await expect(editor.locator(".oauth-selection [role=status]")).toContainText(zh ? "草稿保留 2 个工具选择；可授权目录尚未读取" : "2 draft tool selections retained; the available catalog has not been loaded")
+    await expect(editor.locator('tr[data-row-key="synthetic-tool-1"]').getByRole("checkbox")).toBeChecked()
+    model.scopeFailure = false
+    const later = { ...tools[1], id: "synthetic-later-tool", server_id: "synthetic-later-mcp", server_name: "Later MCP" }
+    model.candidates = [tools[0], later]
+    await refresh.click()
+    await expect(editor).toContainText(zh ? "草稿保留了 1 个当前不可授权选择" : "Your draft retains 1 currently unavailable selections")
+    await expect(editor.getByRole("radio", { name: zh ? "自定义" : "Custom", exact: true })).toBeChecked()
+    await expect(editor.getByRole("spinbutton", { name: zh ? "每分钟调用上限" : "Calls per minute", exact: true })).toHaveValue("30")
+    await expect(editor.locator('tr[data-row-key="synthetic-tool-1"]').getByRole("checkbox")).toBeChecked()
+    await expect(editor.locator('tr[data-row-key="synthetic-later-tool"]').getByRole("checkbox")).not.toBeChecked()
+    const update = editor.getByRole("button", { name: zh ? "核对并更新连接" : "Review connection update", exact: true })
+    await expect(update).toBeDisabled()
+    await editor.getByRole("button", { name: zh ? "移除不可授权选择" : "Remove unavailable selections", exact: true }).click()
+    await expect(editor.locator('tr[data-row-key="synthetic-tool-1"]')).toHaveCount(0)
+    await update.click()
+    expect(model.previews[0].tool_ids).toEqual([tools[0].id])
+    expect(model.previews[0].rate_per_minute).toBe(30)
+    expect(model.optionsReads).toBe(3)
+    expect(model.writes).toHaveLength(0)
+    await page.getByRole("alertdialog").getByRole("button", { name: zh ? "取消" : "Cancel", exact: true }).click()
+  })
+
+  test(`OAuth owner-visible exclusions provide classification review without a mutation ${locale}`, async ({ page }) => {
+    const model = await setup(page, locale, [grant(1)])
+    model.unavailable = [{ server_id: "synthetic-plane", server_name: "Synthetic Plane MCP", reasons: [{ code: "classification_not_published", count: 30 }] }]
+    model.canReview = true
+    await page.getByRole("button", { name: zh ? "调整授权范围" : "Adjust scope", exact: true }).click()
+    const editor = page.getByRole("dialog", { name: zh ? "调整授权范围" : "Adjust authorization scope", exact: true })
+    await editor.getByRole("button", { name: zh ? "查看不可授权原因" : "Why unavailable", exact: true }).click()
+    const reasons = page.getByRole("dialog", { name: zh ? "不可授权原因" : "Unavailable scope reasons", exact: true })
+    await expect(reasons).toContainText("Synthetic Plane MCP")
+    await expect(reasons).toContainText(zh ? "分类尚未发布；需审核并发布 · 30" : "Classification is unpublished; review and publish it · 30")
+    const review = reasons.getByRole("link", { name: zh ? "在新页审核工具分类" : "Review tool classifications in a new tab", exact: true })
+    await expect(review).toHaveAttribute("href", "#/toolClassifications")
+    await expect(review).toHaveAttribute("target", "_blank")
+    expect(model.writes).toHaveLength(0)
+    expect(model.previews).toHaveLength(0)
+    await page.keyboard.press("Escape")
+    await expect(reasons).toHaveCount(0)
+    await expect(editor).toBeVisible()
+  })
+}
+
 const sizes = [{ width: 1600, height: 900 }, { width: 1920, height: 1080 }, { width: 2560, height: 1080 }, { width: 2560, height: 1440 }]
+for (const size of sizes) for (const locale of ["en-US", "zh-CN"] as const) {
+  test(`OAuth bulk controls and unavailable draft fit desktop ${locale}-${size.width}x${size.height}`, async ({ page }, testInfo) => {
+    const zh = locale === "zh-CN"
+    await page.setViewportSize(size)
+    const model = await setup(page, locale, [grant(1)])
+    model.candidates = tools.slice(1)
+    model.unavailable = [{ server_id: "synthetic-plane", server_name: "Synthetic Plane MCP", reasons: [{ code: "classification_not_published", count: 30 }] }]
+    await page.getByRole("button", { name: zh ? "调整授权范围" : "Adjust scope", exact: true }).click()
+    const editor = page.getByRole("dialog", { name: zh ? "调整授权范围" : "Adjust authorization scope", exact: true })
+    await expect(editor.getByRole("button", { name: zh ? "移除不可授权选择" : "Remove unavailable selections", exact: true })).toBeVisible()
+    await editor.getByRole("radio", { name: zh ? "MCP 整组" : "MCP groups", exact: true }).check()
+    const controls = [
+      editor.getByRole("radio", { name: zh ? "仅选全部当前只读" : "All current read-only tools", exact: true }),
+      editor.getByRole("button", { name: zh ? "刷新可授权范围" : "Refresh available scope", exact: true }),
+      editor.getByRole("button", { name: zh ? "查看不可授权原因" : "Why unavailable", exact: true }),
+      editor.locator(".ant-pagination-next"),
+    ]
+    for (const control of controls) await expectInViewportAndUnobscured(control)
+    const layout = await editor.evaluate(element => {
+      const body = element.querySelector(".oauth-grant-scope-body")!
+      const labels = Array.from(element.querySelectorAll(".oauth-grant-limits label")).map(label => {
+        const range = document.createRange(); range.selectNode(label.firstChild!)
+        const text = range.getBoundingClientRect()
+        const control = label.querySelector("input")!.getBoundingClientRect()
+        return { oneLine: range.getClientRects().length === 1, sameRow: Math.abs((text.top + text.bottom) / 2 - (control.top + control.bottom) / 2) < 3 }
+      })
+      return { labels, overflow: body.scrollHeight - body.clientHeight, pageWidth: document.documentElement.scrollWidth, dialog: element.getBoundingClientRect().toJSON(), tableHeight: element.querySelector(".ant-table-body")!.clientHeight }
+    })
+    expect(layout.labels.every(label => label.oneLine && label.sameRow)).toBe(true)
+    expect(layout.overflow).toBe(0)
+    expect(layout.pageWidth).toBeLessThanOrEqual(size.width)
+    expect(layout.dialog.top).toBeGreaterThanOrEqual(0)
+    expect(layout.dialog.bottom).toBeLessThanOrEqual(size.height)
+    expect(layout.tableHeight).toBeGreaterThan(40)
+    await page.screenshot({ path: testInfo.outputPath("oauth-bulk-draft.png"), animations: "disabled" })
+    expect(model.writes).toHaveLength(0)
+  })
+}
 for (const size of sizes) for (const locale of ["en-US", "zh-CN"] as const) for (const theme of ["light", "dark"]) {
   const suffix = `${locale}-${theme}-${size.width}x${size.height}`
   test(`grant reduction has one main scroll and single-line MCP IDs ${suffix}`, async ({ page }, testInfo) => {
@@ -144,6 +307,8 @@ for (const size of sizes) for (const locale of ["en-US", "zh-CN"] as const) for 
     const trigger = revoked.getByRole("button", { name: zh ? "112 个工具" : "112 tools", exact: true })
     await trigger.click()
     const details = page.getByRole("dialog", { name: zh ? "授权详情" : "Grant details", exact: true })
+    // Measure the settled dialog, rather than a fractional enter-animation frame.
+    await details.evaluate(async element => { await Promise.all(element.getAnimations().map(animation => animation.finished)) })
     await expect(details.getByLabel("Grant ID", { exact: true })).toHaveValue(grant(2).id)
     await expect(details.getByRole("textbox", { name: zh ? "搜索当前范围内的工具" : "Search tools in the current scope", exact: true })).toBeEnabled()
     await expect(details.getByRole("checkbox")).toHaveCount(0)
@@ -318,6 +483,7 @@ test('a late scope response cannot overwrite another grant editor', async ({ pag
   await page.locator(`[data-row-key="${grant(1).id}"]`).getByRole('button', { name: 'Adjust scope', exact: true }).click()
   await received
   await page.keyboard.press('Escape')
+  await expect(page.getByRole('dialog', { name: 'Adjust authorization scope', exact: true })).toHaveCount(0)
   await page.locator(`[data-row-key="${second.id}"]`).getByRole('button', { name: 'Adjust scope', exact: true }).click()
   const editor = page.getByRole('dialog', { name: 'Adjust authorization scope', exact: true })
   await expect(editor.getByText('Loading your available scope…', { exact: true })).toHaveCount(0)
