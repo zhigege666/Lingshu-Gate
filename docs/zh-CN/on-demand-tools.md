@@ -33,7 +33,7 @@
 
 路由会话最多一小时，绑定认证连接、组版本、配置和运行时 generation。关闭、撤权、组/配置修改或重连后需核对原操作并明确打开新会话。分组调用始终禁用自动只读重放和 failover。物理与分组的不同实例可并行：分组派发持有配置/runtime-map 共享租约及所选实例锁；配置/分组修改和 runtime 替换仍独占。租约或实例锁等待后重检权限。没有第二套通用 invoke。
 
-OAuth 上限保持不变：内置同意/目录选择最多 **100 服务 / 5,000 工具**，外部提供方 grant 输入最多 **100 服务 / 1,000 工具**。50,000 工具的普通 operator 目录基准不能证明 OAuth 可用性。当前内置 verify/refresh 会先重建 owner 完整 eligible 目录，再与现有 grant 求交；即使 grant 只含一个工具，owner 有超过 5,000 个 eligible 工具也可能在到达按需入口之前认证失败。这影响既有小 grant 及新同意，是等待独立审查 OAuth 修复的功能扩展阻断；准确修复及 large-owner 回归接入前，不声称现有小授权子集可用。原同意 UI 与服务选择上限保持；不能因发现而授权未来服务/工具，不能引入隐式订阅。普通 token、OAuth、小范围 actor、管理员、显式 grant、撤权与分页证据需分别判断。
+OAuth 上限保持不变：内置 grant 最多 **100 服务 / 5,000 工具**，外部提供方 grant 输入最多 **100 服务 / 1,000 工具**。OAuth 阶段 A 修复 `dfa18dde3169df173be72400054c4d567dc2cb1b` 已复制为 `1b4592d`：验证、token refresh 与进程内 verified-principal refresh 仅查询数据库 grant 的显式 IDs，既有小 grant 不再依赖 owner 全 eligible 目录。请求定义从 registry 持有的快照原子复制；JWT claims 或新发现工具均不扩展 grant。旧全目录同意/选择路径仍保留原上限，owner 候选分页是待集成的独立阶段。单凭 50,000 工具 operator 目录基准不能证明 OAuth 可用性。普通 token、OAuth、小范围 actor、管理员、显式 grant、撤权及分页证据需分别判断；未来服务/工具仍需显式授权。
 
 ## 资源限制与索引生命周期
 
@@ -55,3 +55,5 @@ SQLite FTS5 只存名称、有界描述、稳定引用和最小策略字段，�
 ## 复现与验证边界
 
 运行 `uv run python scripts/benchmark_tool_catalog.py --iterations 30 --output /tmp/gate-catalog-benchmark.json`。默认生成 **5,000 服务、50,000 工具**，每工具 20 个输入字段，包含一个无权服务。脚本记录实际响应字节、median/p95 延迟、进程 RSS、首次索引时间、旧完整列表对照及有界重复搜索观察。使用临时状态，不连接真实下游、不使用真实凭据或生产服务。已执行结果见[性能记录](performance-review.md)及提交的测量 JSON。合成单进程热缓存测量不能作为生产 SLA 或真实端到端 MCP 容量证明。
+
+`uv run python scripts/benchmark_group_catalog.py --iterations 30 --output /tmp/gate-group-benchmark.json` 单独验证 1,000 成员、50,000 工具的分组，每工具一个输入字段，满足原有 32 MiB 结构上限。实测冷/暖分组搜索、小范围 actor、选定实例描述、公共 API 搜索及公共 MCP 描述/调用，并断言真实物理审计及未选中 peer 零调用。仅结构契约缓存，授权不缓存；搜索先求交当前物理与逻辑策略，再排序分页。schema 准备前排除无物理授权候选，每页仅构建一次授权投影。选定描述/调用仅重新校验单条成员记录及该实例工具，避免反复投影整组。全组搜索仍比物理 FTS 索引和选定操作昂贵。合成 token/session、echo peer 与子进程数据不能证明真实提供方 OAuth 或下游延迟。

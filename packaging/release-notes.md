@@ -4,6 +4,8 @@
 
 Development source addition, not part of the published 0.4.4 assets: per-client on-demand tool discovery exposes six bounded MCP discovery/session entries and matching catalog APIs. It uses an incremental SQLite FTS directory, existing permission evaluation and real-target invocation audit, revision/parameter/instance checks and credential revalidation before dispatch. Console offers a local client-mode dialog, and the Delivery Skill preserves its original confirmations and digests through the invoke envelope. Synthetic 5,000-service/50,000-tool regression/benchmark evidence and remaining real-client/session-isolation limits are documented in [on-demand tools](../docs/on-demand-tools.md).
 
+The development integration adds explicit grouped-instance sessions, shared read leases for parallel instances, bounded killable schema validation and deidentified rejection audit. Saved built-in OAuth grants are revalidated against their explicit IDs instead of the owner's entire directory; selection ceilings remain unchanged. Exact copied commits and integration evidence are in [provenance](../docs/on-demand-integration.md). No release assets or tags were published by this source work.
+
 0.4.4 adds confirmed external HTTP MCP configuration through REST and four built-in management tools: `gate_mcp_config_plan`, `gate_mcp_config_apply`, `gate_mcp_config_status` and `gate_mcp_config_cancel`. The bundled Delivery Skill selects external HTTP configuration separately from ZIP delivery and the blocked Git execution path.
 
 - Planning is offline by default. An explicit bounded probe requires its own authorization. Apply binds the exact manifest, plan digest, prior configuration digest, action choices and managed credential revisions; plans expire after five minutes and are single use. Operations retain actor ownership, revision CAS, idempotent completion, cancellation, cooperative deadlines and connection ownership checks.
@@ -22,6 +24,8 @@ Real-client management-scope requests and real HTTP peer/deployment acceptance r
 ## 简体中文 — 版本概述
 
 开发源码补充，未包含在已发布的 0.4.4 制品中：每客户端按需发现通过六个有界 MCP 发现/会话入口及对应目录 API 提供工具访问，使用 SQLite FTS 增量目录、原权限判定及实际目标调用审计、版本/参数/实例校验和派发前凭据复核。Console 提供本地客户端模式弹窗；Delivery Skill 通过 invoke 封装保留原确认及摘要。5,000 服务/50,000 工具合成回归与基准证据，以及真实客户端/会话隔离的剩余边界，见[按需工具指南](../docs/zh-CN/on-demand-tools.md)。
+
+开发集成另加显式分组实例会话、允许实例并发的共享读租约、有界且可终止的 schema 验证，以及脱敏拒绝审计。内置 OAuth 既有 grant 根据其显式 IDs 重新校验，不重建 owner 全目录；选择上限保持。精确复制提交与集成证据见[溯源](../docs/zh-CN/on-demand-integration.md)。此次源码工作未发布 release 制品或 tag。
 
 0.4.4 通过 REST 与四个内置管理工具增加外部 HTTP MCP 的确认配置流程：`gate_mcp_config_plan`、`gate_mcp_config_apply`、`gate_mcp_config_status`、`gate_mcp_config_cancel`。自带 Delivery Skill 将外部 HTTP 配置与 ZIP 交付、仍阻断的 Git 执行路径分别路由。
 
