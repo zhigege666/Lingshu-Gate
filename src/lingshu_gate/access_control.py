@@ -1341,6 +1341,20 @@ class AccessControlStore:
             required_control_permission = required_control_permission.strip()
         roles = set(getattr(principal, "roles", ()) or (principal.role,))
         if (
+            definition.source == "builtin" and server_id == "gate_mcp_groups"
+            and definition.metadata.get("group_management_control_plane") is True
+        ):
+            from lingshu_gate.mcp_group_mcp import GROUP_MANAGEMENT_TOOL_IDS
+
+            required = "read" if definition.permission == "read" else "write"
+            allowed = (definition.id in GROUP_MANAGEMENT_TOOL_IDS and principal.auth_type in {"session", "token"}
+                and "admin" in roles and self.has_control_permission(principal, "operations.manage")
+                and _token_scope_allows(principal, required)
+                and (required == "read" or self.has_control_permission(principal, "tools.invoke")))
+            return {"allowed": allowed, "reason": "group administration matched" if allowed else "group administration denied",
+                "server_id": server_id, "required_access": required, "granted_access": required if allowed else "none",
+                "classification_status": "control_plane"}
+        if (
             definition.metadata.get("classification_control_plane") is True
             and required_control_permission == "classifications.manage"
         ):

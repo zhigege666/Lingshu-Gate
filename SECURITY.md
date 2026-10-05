@@ -62,6 +62,8 @@ The pinned Bookworm Python base contains `perl-base` 5.36.0-7+deb12u3. Core inst
 
 ## Access-control boundary
 
+MCP groups reference existing instance configurations and grant no access on creation or membership changes. Logical directory and routing reads intersect current identity/token/OAuth ceilings, logical service/tool grants and the exact original instance/tool policy. Complete contracts and advertised versions partition incompatible tools. Connection-bound routing sessions require explicit instance selection, invalidate on configuration/runtime drift, and never choose another peer or replay a write. The internal guard leaves dispatch and physical-tool audit with the existing invoker. Administrator group writes retain current `operations.manage`/`tools.invoke`, confirmation, CSRF for Console, revision CAS and transactional audit; the separate management OAuth resource remains limited to its original four external-configuration tools. See [the internal adapter contract](docs/mcp-group-routing-contract.md) for lifecycle and generation limits.
+
 Effective tool access is the intersection of authentication state, control permission, resource grant, published read/write classification, and API-token scope. Tool annotations and discovered schemas are untrusted hints; they never grant access by themselves.
 
 Expired external HTTP sessions may be re-established during an authorized call. Automatic replay is limited to one attempt for a published read-only classification with unchanged tool metadata. Writes, unpublished classifications, and changed definitions are not replayed; reconnection never publishes classifications or changes grants. Per-user session recovery retains that user's credentials and does not reuse the shared discovery session.

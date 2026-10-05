@@ -26,6 +26,8 @@ from lingshu_gate.application.health import HealthService, StartupState
 from lingshu_gate.application.mcp_configuration import McpConfigurationService
 from lingshu_gate.application.mcp_groups import McpGroupService
 from lingshu_gate.application.mcp_group_catalog import McpGroupCatalogService
+from lingshu_gate.application.mcp_group_routing import McpGroupRoutingService
+from lingshu_gate.mcp_group_mcp import register_mcp_group_tools
 from lingshu_gate.persistence.mcp_groups import McpGroupStore
 from lingshu_gate.interfaces.control_api.mcp_group_routes import register_mcp_group_routes
 from lingshu_gate.application.external_mcp_configuration import ExternalMcpConfigurationService
@@ -169,7 +171,9 @@ def create_app() -> FastAPI:
         register_system_debug_tool(registry, system_debug_service)
 
     mcp_group_store = McpGroupStore(database, observability_store)
-    mcp_group_service = McpGroupService(mcp_group_store, mcp_config_store, mcp_runtime)
+    mcp_group_service = McpGroupService(mcp_group_store, mcp_config_store, mcp_runtime, registry=registry)
+    register_mcp_group_tools(registry, mcp_group_service)
+    mcp_group_router = McpGroupRoutingService(mcp_group_service, registry, access_store, auth_store)
     mcp_configuration_service = McpConfigurationService(
         mcp_config_store,
         mcp_runtime,
@@ -320,6 +324,8 @@ def create_app() -> FastAPI:
     state.mcp_runtime = mcp_runtime
     state.mcp_config_store = mcp_config_store
     state.mcp_configuration_service = mcp_configuration_service
+    state.mcp_group_service = mcp_group_service
+    state.mcp_group_router = mcp_group_router
     state.external_mcp_configuration_service = external_mcp_configuration_service
     state.credential_store = credential_store
     state.user_credential_store = user_credential_store

@@ -19,6 +19,8 @@ from test_mcp_groups import gate as gate
 
 
 class SyntheticPeer:
+    pid = None
+
     def __init__(self, instance: str) -> None:
         self.instance = instance
         self.calls: list[tuple[str, dict]] = []
@@ -258,3 +260,15 @@ def test_advertised_contract_version_partitions_even_when_schema_matches(gate, r
     service, group, _ = routing
     catalog_tool(gate, "instance-2", name="inspect", metadata={"contract_version": "2"})
     assert service.search(gate["principal"], group_id=group["id"])["total"] == 2
+
+
+def test_admin_instance_picker_returns_only_compact_declared_contract_revisions(gate, routing):
+    _, _, _ = routing
+    gate["service"].registry = gate["registry"]
+    page = gate["service"].instances(gate["principal"], q="", group_id=None, ungrouped=False, offset=0, limit=20)
+    versions = {item["contract_revision"] for item in page["instances"]}
+    assert len(versions) == 1 and len(next(iter(versions))) == 64
+    assert "input_schema" not in json.dumps(page) and "endpoint" not in json.dumps(page)
+    catalog_tool(gate, "instance-2", name="inspect", metadata={"contract_version": "2"})
+    changed = gate["service"].instances(gate["principal"], q="", group_id=None, ungrouped=False, offset=0, limit=20)
+    assert len({item["contract_revision"] for item in changed["instances"]}) == 2

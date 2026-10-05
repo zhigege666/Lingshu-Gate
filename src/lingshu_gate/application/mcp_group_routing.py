@@ -106,7 +106,7 @@ class McpGroupRoutingService:
             raise McpGroupError("invalid_group_query", "Use bounded search and pagination.", 422)
         group, _, variants = self._snapshot(group_id, actor)
         selected = [variant for variant in variants if q.strip().casefold() in variant.search_text]
-        return {"service_id": logical_service_id(group_id), "group_revision": group["revision"],
+        return {"service_id": logical_service_id(group_id), "group_revision": group["revision"] if selected else None,
             "tools": [{**variant.summary.model_dump(), "tool_ref": logical_tool_ref(group_id, variant.summary.variant_id),
                        "instances": [member.model_dump() for member in variant.members]}
                       for variant in selected[offset:offset + limit]],

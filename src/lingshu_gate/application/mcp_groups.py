@@ -10,14 +10,45 @@ from typing import Any
 
 from lingshu_gate.auth import AuthPrincipal
 from lingshu_gate.domain.mcp_groups import McpGroupCreate, McpGroupDraft, McpGroupError
+from lingshu_gate.domain.mcp_group_catalog import MAX_CATALOG_CONTRACT_BYTES, MAX_CATALOG_TOOLS, normalize_tool_contract
+from lingshu_gate.registry import RegistrySnapshotCapacityError, ToolRegistry
 from lingshu_gate.mcp_config_store import McpConfigStore
 from lingshu_gate.mcp_runtime import McpRuntimeManager
 from lingshu_gate.persistence.mcp_groups import McpGroupStore
 
 
 class McpGroupService:
-    def __init__(self, store: McpGroupStore, configs: McpConfigStore, runtime: McpRuntimeManager) -> None:
+    def __init__(self, store: McpGroupStore, configs: McpConfigStore, runtime: McpRuntimeManager,
+                 registry: ToolRegistry | None = None) -> None:
         self.store, self.configs, self.runtime = store, configs, runtime
+        self.registry = registry
+
+    def _contract_versions(self, ids: set[str]) -> dict[str, str]:
+        """Metadata-only, bounded directory fingerprints for the administrator table."""
+        if self.registry is None:
+            return {}
+        try:
+            snapshot = self.registry.mcp_snapshot(ids, max_tools=MAX_CATALOG_TOOLS)
+        except RegistrySnapshotCapacityError:
+            return {}
+        if sum(entry.structure.byte_count for entry in snapshot.tools) > MAX_CATALOG_CONTRACT_BYTES:
+            return {}
+        signatures: dict[str, list[tuple[str, str, str, str]]] = {}
+        invalid: set[str] = set()
+        for entry in snapshot.tools:
+            definition = entry.structure.copy_definition()
+            instance = definition.metadata["server_id"]
+            name = definition.metadata.get("original_tool_name")
+            if not isinstance(name, str) or definition.id != f"mcp.{instance}.{name}":
+                invalid.add(instance)
+                continue
+            try:
+                contract = normalize_tool_contract(definition)
+                signatures.setdefault(instance, []).append((name, contract.input_text, contract.output_text, contract.policy_text))
+            except (ValueError, TypeError, AttributeError):
+                invalid.add(instance)
+        return {instance: hashlib.sha256(json.dumps(sorted(values), ensure_ascii=False, separators=(",", ":")).encode()).hexdigest()
+                for instance, values in signatures.items() if instance not in invalid}
 
     @staticmethod
     def authorize(connection: sqlite3.Connection, principal: AuthPrincipal, *, write: bool = False) -> None:
@@ -94,7 +125,9 @@ class McpGroupService:
             items = sorted((item for item in catalog.values() if needle in f'{item["instance_id"]} {item["name"]}'.casefold()),
                            key=lambda item: (str(item["name"]).casefold(), item["instance_id"]))
             page = items[offset:offset + limit]
+            versions = self._contract_versions({item["instance_id"] for item in page})
             for item in page:
+                item["contract_revision"] = versions.get(item["instance_id"])
                 item["groups"] = [dict(row) for row in connection.execute("SELECT g.id,g.name,g.status FROM mcp_groups g "
                     "JOIN mcp_group_members m ON m.group_id=g.id WHERE m.server_id=? ORDER BY g.name,g.id", (item["instance_id"],))]
             return {"instances": page, "total": len(items), "offset": offset, "limit": limit}
