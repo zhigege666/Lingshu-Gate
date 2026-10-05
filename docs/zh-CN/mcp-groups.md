@@ -14,7 +14,7 @@
 
 ## 管理 API
 
-所有端点要求当前有效管理员、当前 operations.manage 权限，以及有效 Console 会话或带对应 scope 的 API token。写入（含 CSRF 签发）还要求当前角色权限与每层 token/委托 scope 上限都包含 tools.invoke。管理员 API token 只有 operations.manage 时可以读取，不能创建/更新/删除组；不会扩大既有 token。业务 OAuth 与管理 OAuth 均不能管理组。原四个管理 MCP 工具及资源/scope 上限保持不变；本切片不新增 MCP 工具。
+所有端点要求当前有效管理员、当前 operations.manage 权限，以及有效 Console 会话或带对应 scope 的 API token。写入（含 CSRF 签发）还要求当前角色权限与每层 token/委托 scope 上限都包含 tools.invoke。管理员 API token 只有 operations.manage 时可以读取，不能创建/更新/删除组；不会扩大既有 token。业务 OAuth 与管理 OAuth 均不能管理组。原四个管理 OAuth 工具及资源/scope 上限保持不变。API-token 管理员另有 `gate_mcp_group_list`、`gate_mcp_group_get`、`gate_mcp_group_save` 和 `gate_mcp_group_delete`；两种 OAuth 资源均不允许分组工具。Console 写入使用专用 CSRF REST 适配。
 
 | 方法与路径 | 操作 |
 |---|---|
@@ -49,7 +49,7 @@ Registry 发布持有独立的结构副本。`register`、原子替换及显式 
 
 同一精确原始名称的工具，仅在规范化后的输入/输出声明一致，且当前已发布、指纹匹配的 Gate 审核一致时共享候选。审核比较包含实际读写权限、destructive/idempotent/open-world 属性，以及绑定审核的声明权限、控制权限、敏感字段与 annotation 元数据。下游 `readOnlyHint` 不提供或降低实际访问权限。只排序对象键，保留数组、类型及全部 schema 关键字；输出 schema 缺失与 `{}` 不同。这是保守的声明比较，不是 schema 验证、引用解析或业务等价证明。每个响应明确返回 `business_equivalence: unverified`。
 
-不同合同保留为明确变体。待审核、失效或未经审核的合同不聚合；既有管理员策略允许查看时，各自保留为 `review_required`。无法表示或超出单个复杂度上限的合同为 `uncomparable`。只有一个已审核可见成员时为 `single_member`，同一审核合同的多个可见成员为 `reviewed_contract_match`。变体 ID 只属于此只读视图，不注册为工具、可调用别名或路由目标。成员详情保留原工具 ID 和直连调用接口。
+不同合同保留为明确变体。待审核、失效或未经审核的合同不聚合；既有管理员策略允许查看时，各自保留为 `review_required`。无法表示或超出单个复杂度上限的合同为 `uncomparable`。只有一个已审核可见成员时为 `single_member`，同一审核合同的多个可见成员为 `reviewed_contract_match`。变体 ID 不注册为工具或直接调用别名。[内部路由适配](mcp-group-routing-contract.md) 接收带逻辑组前缀的 `tool_ref`、显式实例和绑定会话；公开调用入口由按需目录持有。成员详情保留原工具 ID 和直连调用接口。
 
 结构缓存键同时包含每条不可变定义的发布 revision 和**实际不可变对象身份**。只保留定义、指纹及规范化声明，最多50,000条及64 MiB计费结构字节；字节计费包含 JSON/字符串内容及每条记录预留量，不保证进程 RSS 上限。每请求先持有全部已缓存不可变命中的引用，再在缓存锁外准备缺项；缺项插入不会使本次已持有的命中重新计算。LRU 淘汰后，后续请求可能重新冷准备；工作集超过缓存时只准备请求开始时的缺项，不承诺热读零 miss。固定准备锁避免并发重复冷计算，等待两秒仍忙则返回可重试 HTTP 409 `group_catalog_busy`。不缓存主体、审核、授权、访问结论、候选结果或成员可见性。另有元数据缓存只含实例 ID/名称。
 
