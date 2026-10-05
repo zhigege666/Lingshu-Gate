@@ -9,7 +9,7 @@ import sqlite3
 import threading
 from collections import deque
 from collections.abc import Callable, Mapping
-from contextlib import nullcontext
+from contextlib import AbstractContextManager, nullcontext
 from datetime import datetime, timedelta, timezone
 from functools import partial
 from time import monotonic, perf_counter
@@ -1629,6 +1629,8 @@ class AccessControlStore:
         dispatch_guard: Callable[[], None] | None = None,
         expected_definition_revision: str | None = None,
         allow_read_retry: bool = True,
+        arguments_validator: Callable[[], None] | None = None,
+        dispatch_context: AbstractContextManager[None] | None = None,
     ) -> ToolInvokeResponse:
         definition = registry.get_definition(tool_id)
         from lingshu_gate.registry import tool_definition_revision
@@ -1639,7 +1641,10 @@ class AccessControlStore:
             self._synchronize_tools(connection, [definition])
         decision = self.evaluate(principal, definition)
         correlation_id = correlation_id or str(uuid4())
-        summary = _payload_summary(arguments)
+        # On-demand inputs have not crossed their bounded validator yet. Do not
+        # serialize or retain attacker-controlled deep/large values for audits
+        # before permission and external rate/concurrency admission.
+        summary = _payload_summary(arguments) if arguments_validator is None else {"values_recorded": False}
         if not decision["allowed"]:
             self._record_invocation_audit(
                 principal,
@@ -1655,7 +1660,8 @@ class AccessControlStore:
                 required_access=decision["required_access"],
                 granted_access=decision["granted_access"],
             )
-        recorded_input = snapshot(arguments) if RetentionStore(self.database).policy()["payload_mode"] == "redacted" else None
+        recorded_input = (snapshot(arguments) if arguments_validator is None
+            and RetentionStore(self.database).policy()["payload_mode"] == "redacted" else None)
         try:
             external_lease = self._acquire_external_invocation(principal)
         except AccessDeniedError as exc:
@@ -1664,7 +1670,7 @@ class AccessControlStore:
                                           decision=denied, outcome="not_invoked", duration_ms=None, payload=summary)
             raise
         recorded_outputs: list[dict[str, Any]] = []
-        guard_passed = dispatch_guard is None
+        guard_passed = dispatch_guard is None and arguments_validator is None and dispatch_context is None
 
         def checked_guard() -> None:
             nonlocal guard_passed
@@ -1678,61 +1684,67 @@ class AccessControlStore:
 
         started = perf_counter()
         try:
-            if definition.source == "mcp" and self.mcp_runtime:
-                server_id = str(definition.metadata.get("server_id") or "")
-                tool_name = str(definition.metadata.get("original_tool_name") or "")
-                if not server_id or not tool_name:
-                    raise RuntimeError(f"MCP tool metadata is incomplete: {tool_id}")
-                output = self.mcp_runtime.invoke_mcp_tool_for_user(
-                    server_id,
-                    tool_name,
-                    arguments,
-                    user_id=principal.id,
-                    **({"dispatch_guard": checked_guard} if dispatch_guard is not None else {}),
-                    audit_snapshot=recorded_outputs.append if recorded_input is not None else None,
-                    retry_read_only=(
-                        allow_read_retry and decision["classification_status"] == "published"
-                        and decision["required_access"] == "read"
-                    ),
-                )
-                response = ToolInvokeResponse(ok=True, tool_id=tool_id, output=output)
-            else:
-                response = registry.invoke(
-                    tool_id,
-                    arguments,
-                    **registry_dispatch,
-                    context=ToolInvocationContext(
-                        actor_id=principal.id,
-                        username=principal.username,
-                        auth_type=principal.auth_type,
-                        token_id=getattr(principal, "token_id", None),
-                        correlation_id=correlation_id,
-                        roles=tuple(getattr(principal, "roles", ()) or (principal.role,)),
-                        permissions=tuple(getattr(principal, "permissions", ())),
-                        scopes=tuple(getattr(principal, "scopes", ())),
-                        delegated_scopes=getattr(principal, "delegated_scopes", None),
-                        session_id=getattr(principal, "session_id", None),
-                        oauth_builtin=principal.oauth_builtin,
-                        oauth_issuer=principal.oauth_issuer,
-                        oauth_resource=principal.oauth_resource,
-                        oauth_client_id=principal.oauth_client_id,
-                        oauth_grant_id=principal.external_grant_id if principal.oauth_builtin else None,
-                        oauth_family_id=principal.oauth_family_id,
-                        oauth_token_expires_at=principal.oauth_token_expires_at,
-                        oauth_target_revision=principal.oauth_target_revision,
-                        oauth_tool_snapshots=principal.oauth_tool_snapshots,
-                        oauth_subject=principal.oauth_subject,
-                        oauth_audiences=principal.oauth_audiences,
-                        oauth_jwks_uri=principal.oauth_jwks_uri,
-                        external_grant_id=principal.external_grant_id,
-                        external_server_ids=principal.external_server_ids,
-                        external_tool_ids=principal.external_tool_ids,
-                        external_access=principal.external_access,
-                        external_expires_at=principal.external_expires_at,
-                        external_rate_per_minute=principal.external_rate_per_minute,
-                        external_concurrency=principal.external_concurrency,
-                    ),
-                )
+            if arguments_validator is not None:
+                arguments_validator()
+                summary = _payload_summary(arguments)
+                if RetentionStore(self.database).policy()["payload_mode"] == "redacted":
+                    recorded_input = snapshot(arguments)
+            with dispatch_context or nullcontext():
+                if definition.source == "mcp" and self.mcp_runtime:
+                    server_id = str(definition.metadata.get("server_id") or "")
+                    tool_name = str(definition.metadata.get("original_tool_name") or "")
+                    if not server_id or not tool_name:
+                        raise RuntimeError(f"MCP tool metadata is incomplete: {tool_id}")
+                    output = self.mcp_runtime.invoke_mcp_tool_for_user(
+                        server_id,
+                        tool_name,
+                        arguments,
+                        user_id=principal.id,
+                        **({"dispatch_guard": checked_guard} if dispatch_guard is not None else {}),
+                        audit_snapshot=recorded_outputs.append if recorded_input is not None else None,
+                        retry_read_only=(
+                            allow_read_retry and decision["classification_status"] == "published"
+                            and decision["required_access"] == "read"
+                        ),
+                    )
+                    response = ToolInvokeResponse(ok=True, tool_id=tool_id, output=output)
+                else:
+                    response = registry.invoke(
+                        tool_id,
+                        arguments,
+                        **registry_dispatch,
+                        context=ToolInvocationContext(
+                            actor_id=principal.id,
+                            username=principal.username,
+                            auth_type=principal.auth_type,
+                            token_id=getattr(principal, "token_id", None),
+                            correlation_id=correlation_id,
+                            roles=tuple(getattr(principal, "roles", ()) or (principal.role,)),
+                            permissions=tuple(getattr(principal, "permissions", ())),
+                            scopes=tuple(getattr(principal, "scopes", ())),
+                            delegated_scopes=getattr(principal, "delegated_scopes", None),
+                            session_id=getattr(principal, "session_id", None),
+                            oauth_builtin=principal.oauth_builtin,
+                            oauth_issuer=principal.oauth_issuer,
+                            oauth_resource=principal.oauth_resource,
+                            oauth_client_id=principal.oauth_client_id,
+                            oauth_grant_id=principal.external_grant_id if principal.oauth_builtin else None,
+                            oauth_family_id=principal.oauth_family_id,
+                            oauth_token_expires_at=principal.oauth_token_expires_at,
+                            oauth_target_revision=principal.oauth_target_revision,
+                            oauth_tool_snapshots=principal.oauth_tool_snapshots,
+                            oauth_subject=principal.oauth_subject,
+                            oauth_audiences=principal.oauth_audiences,
+                            oauth_jwks_uri=principal.oauth_jwks_uri,
+                            external_grant_id=principal.external_grant_id,
+                            external_server_ids=principal.external_server_ids,
+                            external_tool_ids=principal.external_tool_ids,
+                            external_access=principal.external_access,
+                            external_expires_at=principal.external_expires_at,
+                            external_rate_per_minute=principal.external_rate_per_minute,
+                            external_concurrency=principal.external_concurrency,
+                        ),
+                    )
         except UserCredentialBindingError as exc:
             credential_decision = {
                 **decision,

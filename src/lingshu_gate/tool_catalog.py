@@ -11,18 +11,16 @@ import threading
 import time
 from collections.abc import Callable
 from dataclasses import asdict
+from contextlib import contextmanager
 from typing import Any
 
 from pydantic import BaseModel, ConfigDict, Field
-from jsonschema import FormatChecker
-from jsonschema.exceptions import SchemaError, ValidationError as SchemaValidationError
-from jsonschema.validators import validator_for
-from referencing import Registry
-from referencing.exceptions import NoSuchResource, Unresolvable
 
-from lingshu_gate.access_control import AccessControlStore
+from lingshu_gate.access_control import AccessControlStore, AccessDeniedError
 from lingshu_gate.application.mcp_group_routing import McpGroupRoutingService
 from lingshu_gate.auth import AuthPrincipal
+from lingshu_gate.application.schema_validation import validate_arguments as _validate_arguments
+from lingshu_gate.observability_store import ObservabilityStore
 from lingshu_gate.domain.mcp_group_routing import GroupToolCall, GroupToolSelection
 from lingshu_gate.domain.mcp_groups import McpGroupError
 from lingshu_gate.models import ToolDefinition, ToolInvokeResponse
@@ -298,6 +296,7 @@ class ToolCatalog:
         return definition
 
     def describe(self, principal: AuthPrincipal, request: CatalogDescribe) -> dict[str, Any]:
+        generation, epoch = self.synchronize(), self._epoch()
         if request.tool_ref.startswith("mcp-group:"):
             if request.instance_id is None:
                 raise _reject("catalog_instance_required", "Select an explicit instance for this logical tool.")
@@ -316,7 +315,28 @@ class ToolCatalog:
             output["output_schema"] = output_schema
         if len(_json(output).encode()) > request.max_bytes - 512:
             raise _reject("catalog_schema_limit", "The full schema exceeds max_bytes; it was not truncated.")
+        if generation != self._generation or epoch != self._epoch():
+            raise _reject("catalog_changed", "Catalog or permissions changed during describe.")
         return output
+
+    def _audit_rejection(self, principal: AuthPrincipal, request: CatalogInvoke, correlation_id: str,
+                         definition: ToolDefinition | None, reason: str) -> None:
+        if definition is not None:
+            self.access._record_invocation_audit(principal, definition, correlation_id=correlation_id,
+                decision={**self.access.evaluate(principal, definition), "allowed": False, "reason": reason},
+                outcome="not_invoked", duration_ms=None, payload={"values_recorded": False})
+        else:
+            ObservabilityStore(self.database).emit_event("gate.catalog.invocation_rejected", source="catalog",
+                subject_type="user", subject_id=principal.id, payload={"correlation_id": correlation_id,
+                    "reference_sha256": hashlib.sha256(request.tool_ref.encode()).hexdigest(), "reason": reason})
+
+    @staticmethod
+    def _checked_response(response: ToolInvokeResponse) -> ToolInvokeResponse:
+        error = response.output.get("error") if isinstance(response.output, dict) else None
+        if (not response.ok and isinstance(error, dict) and str(error.get("code", "")).startswith("catalog_")
+                and error.get("code") != "catalog_identity_changed"):
+            raise _reject(error["code"], error["message"])
+        return response
 
     def check_namespace(self) -> None:
         with self._queue_lock:
@@ -329,23 +349,21 @@ class ToolCatalog:
         if request.tool_ref.startswith("mcp-group:"):
             return self._invoke_group(principal, request, refresh_principal=refresh_principal,
                                       correlation_id=correlation_id)
-        if request.session_id is not None:
-            raise _reject("catalog_parameters_invalid", "A routing session applies only to a logical tool.")
-        definition = self.selected(principal, request.tool_ref, request.instance_id)
+        correlation_id = correlation_id or secrets.token_hex(16)
+        self.synchronize()
         try:
-            if request.instance_id is not None and request.instance_id != instance_for(definition):
-                raise _reject("catalog_instance_mismatch", "The selected tool does not belong to the requested instance.")
+            definition = self.registry.get_definition(request.tool_ref)
+        except ToolNotFoundError:
+            self._audit_rejection(principal, request, correlation_id, None, "unavailable")
+            raise _reject("catalog_tool_unavailable", "The selected tool is unavailable.") from None
+
+        def validate() -> None:
+            if (request.session_id is not None or request.instance_id is not None and request.instance_id != instance_for(definition)
+                    or principal.oauth_resource and principal.oauth_resource.endswith("/mcp/manage")):
+                raise _reject("catalog_tool_unavailable", "The selected tool is unavailable.")
             if schema_revision(definition) != request.schema_revision:
                 raise _reject("catalog_schema_revision_conflict", "The selected tool definition changed; describe it again.")
             _validate_arguments(definition.input_schema if definition.input_schema is not None else {"type": "object"}, request.arguments)
-        except ToolExecutionError as exc:
-            # Attribute rejected parameters/versions to the selected target, using
-            # the same redacted audit boundary as ordinary invocation.
-            self.access._record_invocation_audit(principal, definition,
-                correlation_id=correlation_id or secrets.token_hex(16),
-                decision={**self.access.evaluate(principal, definition), "allowed": False, "reason": exc.code},
-                outcome="not_invoked", duration_ms=None, payload={"values_recorded": False})
-            raise
 
         def guard() -> None:
             current = refresh_principal() if refresh_principal is not None else principal
@@ -362,44 +380,77 @@ class ToolCatalog:
             if not self.access.evaluate(current, latest)["allowed"]:
                 raise _reject("catalog_tool_unavailable", "The selected tool is unavailable.")
 
-        return self.access.invoke_tool(self.registry, principal, definition.id, request.arguments,
-            correlation_id=correlation_id, dispatch_guard=guard)
+        try:
+            response = self.access.invoke_tool(self.registry, principal, definition.id, request.arguments,
+                correlation_id=correlation_id, dispatch_guard=guard, arguments_validator=validate)
+        except AccessDeniedError:
+            raise _reject("catalog_tool_unavailable", "The selected tool is unavailable.") from None
+        except ToolNotFoundError:
+            self._audit_rejection(principal, request, correlation_id, definition, "unavailable")
+            raise _reject("catalog_tool_unavailable", "The selected tool is unavailable.") from None
+        return self._checked_response(response)
 
     def _invoke_group(self, principal: AuthPrincipal, request: CatalogInvoke, *,
                       refresh_principal: Callable[[], AuthPrincipal] | None,
                       correlation_id: str | None) -> ToolInvokeResponse:
-        if request.instance_id is None or request.session_id is None:
-            raise _reject("catalog_instance_session_required", "Select an instance and explicitly open a routing session.")
-        router = self._groups()
+        correlation_id = correlation_id or secrets.token_hex(16)
+        try:
+            if request.instance_id is None or request.session_id is None:
+                raise _reject("catalog_tool_unavailable", "The selected tool is unavailable.")
+            router = self._groups()
+            target = router.resolve(principal, tool_ref=request.tool_ref, instance_id=request.instance_id)
+            definition = self.registry.get_definition(target.tool_id)
+        except (McpGroupError, ToolExecutionError, ToolNotFoundError):
+            self._audit_rejection(principal, request, correlation_id, None, "unavailable")
+            raise _reject("catalog_tool_unavailable", "The selected tool is unavailable.") from None
         call = GroupToolCall(tool_ref=request.tool_ref, instance_id=request.instance_id,
                              session_id=request.session_id, arguments=request.arguments)
-        # The existing group port holds the selected config/runtime locks and
-        # rechecks current physical and logical policy after their queue waits.
-        with router.dispatch_guard(principal, call) as (current, target):
-            definition = self.registry.get_definition(target.tool_id)
+
+        def validate() -> None:
+            if request.schema_revision != target.schema_revision or schema_revision(definition) != target.definition_fingerprint:
+                raise _reject("catalog_schema_revision_conflict", "The selected logical contract changed; describe it again.")
+            _validate_arguments(definition.input_schema if definition.input_schema is not None else {"type": "object"}, request.arguments)
+
+        @contextmanager
+        def dispatch():
             try:
-                if request.schema_revision != target.schema_revision or schema_revision(definition) != target.definition_fingerprint:
-                    raise _reject("catalog_schema_revision_conflict", "The selected logical contract changed; describe it again.")
-                _validate_arguments(definition.input_schema if definition.input_schema is not None else {"type": "object"}, request.arguments)
-            except ToolExecutionError as exc:
-                self.access._record_invocation_audit(current, definition,
-                    correlation_id=correlation_id or secrets.token_hex(16),
-                    decision={**self.access.evaluate(current, definition), "allowed": False, "reason": exc.code},
-                    outcome="not_invoked", duration_ms=None, payload={"values_recorded": False})
+                with router.dispatch_guard(principal, call) as (current, latest):
+                    if current != principal or latest != target:
+                        raise _reject("catalog_tool_unavailable", "The selected tool is unavailable.")
+                    yield
+            except McpGroupError:
+                raise _reject("catalog_tool_unavailable", "The selected tool is unavailable.") from None
+
+        def guard() -> None:
+            if refresh_principal is not None and refresh_principal() != principal:
+                raise _reject("catalog_tool_unavailable", "The selected tool is unavailable.")
+            # Selected-target resolution rechecks both physical and logical ACL,
+            # publication and contract after waits; it grants no dispatch itself.
+            try:
+                latest = router.resolve(principal, tool_ref=request.tool_ref, instance_id=call.instance_id)
+            except McpGroupError:
+                raise _reject("catalog_tool_unavailable", "The selected tool is unavailable.") from None
+            if latest != target:
+                raise _reject("catalog_schema_revision_conflict", "The selected target changed before dispatch.")
+
+        try:
+            response = self.access.invoke_tool(self.registry, principal, target.tool_id, request.arguments,
+                correlation_id=correlation_id, dispatch_guard=guard, arguments_validator=validate,
+                dispatch_context=dispatch(), expected_definition_revision=target.definition_fingerprint,
+                allow_read_retry=False)
+        except AccessDeniedError:
+            raise _reject("catalog_tool_unavailable", "The selected tool is unavailable.") from None
+        except ToolNotFoundError:
+            self._audit_rejection(principal, request, correlation_id, definition, "unavailable")
+            raise _reject("catalog_tool_unavailable", "The selected tool is unavailable.") from None
+        except ToolExecutionError as error:
+            # This structural precondition runs before AccessControl's audit
+            # boundary. Failures inside that boundary return an audited response.
+            if error.code != "group_tool_contract_changed":
                 raise
-
-            def guard() -> None:
-                if refresh_principal is not None and refresh_principal() != principal:
-                    raise _reject("catalog_identity_changed", "The invocation connection changed before dispatch.")
-                # Re-enter the existing port to recheck session closure, authority,
-                # publication and descriptor changes at the actual call boundary.
-                with router.dispatch_guard(current, call) as (_, latest):
-                    if latest != target:
-                        raise _reject("catalog_schema_revision_conflict", "The selected target changed before dispatch.")
-
-            return self.access.invoke_tool(self.registry, current, target.tool_id, request.arguments,
-                correlation_id=correlation_id, dispatch_guard=guard,
-                expected_definition_revision=target.definition_fingerprint, allow_read_retry=False)
+            self._audit_rejection(principal, request, correlation_id, definition, "contract_changed")
+            raise _reject("catalog_schema_revision_conflict", "The selected tool contract changed; describe it again.") from None
+        return self._checked_response(response)
 
     def call(self, name: str, arguments: dict[str, Any], principal: AuthPrincipal, *,
              refresh_principal: Callable[[], AuthPrincipal] | None = None,
@@ -454,43 +505,6 @@ def catalog_tools() -> list[dict[str, Any]]:
              "annotations": {"readOnlyHint": name in CATALOG_TOOL_NAMES[:2] or name == "gate_instance_list",
                              "openWorldHint": name == "gate_tool_invoke"}}
             for name, description, model in zip(CATALOG_TOOL_NAMES, descriptions, models)]
-
-
-def _validate_arguments(schema: dict[str, Any], arguments: dict[str, Any]) -> None:
-    """Validate bounded JSON Schema locally; reference resolution never uses I/O."""
-    try:
-        if len(_json(arguments).encode()) > MAX_INVOKE_ARGUMENT_BYTES:
-            raise _reject("catalog_argument_limit", "Arguments exceed 1048576 bytes.")
-        if len(_json(schema).encode()) > 131_072:
-            raise _reject("catalog_schema_limit", "The schema exceeds the validation byte limit.")
-        for value, is_schema in ((schema, True), (arguments, False)):
-            pending = [(value, 0)]
-            nodes = 0
-            while pending:
-                node, depth = pending.pop()
-                nodes += 1
-                if nodes > 8_192 or depth > 32:
-                    raise _reject("catalog_validation_limit", "JSON exceeds the validation depth or node limit.")
-                if isinstance(node, dict):
-                    if is_schema and any(key in node for key in ("$dynamicRef", "$recursiveRef")):
-                        raise _reject("catalog_schema_unsupported", "Dynamic schema references are unsupported.")
-                    if is_schema and "$ref" in node:
-                        ref = node["$ref"]
-                        if not isinstance(ref, str) or not ref.startswith("#/"):
-                            raise _reject("catalog_schema_unsupported", "Only local JSON Pointer schema references are supported.")
-                    pending.extend((child, depth + 1) for child in node.values())
-                elif isinstance(node, list):
-                    pending.extend((child, depth + 1) for child in node)
-        validator_class = validator_for(schema, default=None) if "$schema" in schema else validator_for(schema)
-        if validator_class is None:
-            raise _reject("catalog_schema_unsupported", "The schema dialect is unsupported.")
-        validator_class.check_schema(schema)
-        def no_remote(uri: str) -> Any:
-            raise NoSuchResource(ref=uri)  # type: ignore[call-arg]
-        registry = Registry(retrieve=no_remote)  # type: ignore[call-arg]
-        validator_class(schema, format_checker=FormatChecker(), registry=registry).validate(arguments)
-    except (SchemaValidationError, SchemaError, Unresolvable, ValueError, TypeError, RecursionError):
-        raise _reject("catalog_arguments_invalid", "Arguments or the selected schema failed validation.") from None
 
 
 class RegistryCatalogTargetResolver:

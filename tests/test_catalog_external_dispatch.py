@@ -65,5 +65,5 @@ def test_public_invoke_revoked_during_wait_has_zero_downstream_calls(oauth_http,
     thread.join(timeout=4)
     assert done.is_set() and not results
     assert len(failures) == 1 and isinstance(failures[0], ToolExecutionError)
-    assert failures[0].code == "group_connection_invalid"
+    assert failures[0].code == "catalog_tool_unavailable"
     assert not env.calls

@@ -249,3 +249,96 @@ def test_group_dispatch_shared_lease_still_blocks_mutations(gate, integrated, mo
     assert results[0].ok and written.is_set() and not failures
     with pytest.raises(ToolExecutionError):
         catalog.call("gate_tool_invoke", request.model_dump(), actor)
+
+
+@pytest.mark.parametrize("rejection", ["expired", "other_instance", "revision"])
+def test_resolved_group_rejections_use_one_physical_not_invoked_audit(gate, integrated, rejection):
+    catalog, group, peers = integrated
+    actor = gate["principal"]
+    described = selected(catalog, group, actor)
+    body = {**{key: described[key] for key in ("tool_ref", "instance_id", "schema_revision")},
+        "session_id": opened(catalog, described, actor), "arguments": {"token": "never-record-this-secret"}}
+    if rejection == "expired":
+        gate["database"].execute("UPDATE mcp_group_route_sessions SET expires_at='2000-01-01T00:00:00Z'")
+    elif rejection == "other_instance":
+        body["instance_id"] = "instance-1"
+    else:
+        body["schema_revision"] = "0" * 64
+    with pytest.raises(ToolExecutionError):
+        catalog.call("gate_tool_invoke", body, actor, correlation_id="resolved-group-rejection")
+    rows = gate["database"].query_all("SELECT * FROM invocation_audits")
+    assert len(rows) == 1 and rows[0]["outcome"] == "not_invoked"
+    assert rows[0]["tool_id"] == f'mcp.{body["instance_id"]}.inspect'
+    assert rows[0]["correlation_id"] == "resolved-group-rejection"
+    assert "never-record-this-secret" not in rows[0]["payload_json"]
+    assert not gate["database"].query_all("SELECT * FROM invocation_payloads")
+    assert all(not peer.calls for peer in peers.values())
+
+
+@pytest.mark.parametrize("change", ["physical", "logical", "classification"])
+def test_public_describe_rejects_epoch_changes_after_authorization(gate, integrated, monkeypatch, change):
+    catalog, group, _ = integrated
+    gate["auth"].create_user(username="synthetic-describe-reader", password="Synthetic-Reader-123!", role="operator")
+    actor, _, _ = gate["auth"].login(username="synthetic-describe-reader", password="Synthetic-Reader-123!")
+    for server in ("instance-0", logical_service_id(group["id"])):
+        gate["access"].save_grant(subject_type="user", subject_id=actor.id, server_id=server,
+            permission_type_code="read", created_by=gate["principal"].id)
+    described = selected(catalog, group, actor)
+    authorized, resume = Event(), Event()
+    original = gate["access"].visible_tool_contracts
+    def paused(*args, **kwargs):
+        result = original(*args, **kwargs)
+        authorized.set()
+        assert resume.wait(3)
+        return result
+    monkeypatch.setattr(gate["access"], "visible_tool_contracts", paused)
+    with ThreadPoolExecutor(max_workers=1) as pool:
+        future = pool.submit(catalog.describe, actor, CatalogDescribe(
+            tool_ref=described["tool_ref"], instance_id="instance-0"))
+        assert authorized.wait(2)
+        try:
+            if change == "classification":
+                gate["database"].execute("UPDATE mcp_tool_classifications SET status='pending' WHERE server_id='instance-0'")
+            else:
+                server = "instance-0" if change == "physical" else logical_service_id(group["id"])
+                gate["access"].save_grant(subject_type="user", subject_id=actor.id, server_id=server,
+                    permission_type_code="none", created_by=gate["principal"].id)
+        finally:
+            resume.set()
+        with pytest.raises(ToolExecutionError) as error:
+            future.result(timeout=3)
+    assert error.value.code == "catalog_changed"
+
+
+def test_group_regex_deadline_holds_no_dispatch_leases_and_calls_no_peer(gate, integrated, monkeypatch):
+    import time
+    from lingshu_gate.application import schema_validation
+    catalog, group, peers = integrated
+    actor = gate["principal"]
+    for instance in peers:
+        catalog_tool(gate, instance, name="inspect", schema={"type": "object",
+            "properties": {"text": {"type": "string", "pattern": "^(a+)+$"}}})
+    described = selected(catalog, group, actor)
+    body = {**{key: described[key] for key in ("tool_ref", "instance_id", "schema_revision")},
+        "session_id": opened(catalog, described, actor), "arguments": {"text": "a" * 20_000 + "!"}}
+    launched, children = Event(), []
+    original = schema_validation.subprocess.Popen
+    def started(*args, **kwargs):
+        process = original(*args, **kwargs)
+        children.append(process)
+        launched.set()
+        return process
+    monkeypatch.setattr(schema_validation.subprocess, "Popen", started)
+    with ThreadPoolExecutor(max_workers=1) as pool:
+        future = pool.submit(catalog.call, "gate_tool_invoke", body, actor)
+        assert launched.wait(2)
+        started_at = time.monotonic()
+        manifest = gate["configs"].load_manifest("instance-1").model_dump(exclude={"manifest_path"})
+        gate["configs"].save_config({**manifest, "name": "Changed while validation runs"}, overwrite=True)
+        assert time.monotonic() - started_at < 1
+        with pytest.raises(ToolExecutionError) as error:
+            future.result(timeout=4)
+    assert error.value.code == "catalog_validation_timeout"
+    assert len(children) == 1 and children[0].poll() is not None
+    assert all(not peer.calls for peer in peers.values())
+    assert gate["database"].query_one("SELECT outcome FROM invocation_audits")[0] == "not_invoked"
