@@ -22,6 +22,7 @@ from lingshu_gate.adapters.control_plane import (
     McpRuntimeDriverAdapter,
     SQLiteStateStoreAdapter,
 )
+from lingshu_gate.adapters.safe_network_factory import create_safe_network_executor, unavailable_readiness
 from lingshu_gate.application.health import HealthService, StartupState
 from lingshu_gate.application.mcp_configuration import McpConfigurationService
 from lingshu_gate.application.external_mcp_configuration import ExternalMcpConfigurationService
@@ -104,6 +105,8 @@ def create_app() -> FastAPI:
     user_credential_store = UserCredentialStore(database, settings.data_dir)
     credential_store = CredentialStore(settings.data_dir)
     network_settings_store = NetworkSettingsStore(database, settings.data_dir, credential_store, observability_store)
+    safe_network_executor = create_safe_network_executor(settings)
+    network_settings_store.executor_readiness = getattr(safe_network_executor, "readiness", lambda: unavailable_readiness(settings))
     mcp_config_store = McpConfigStore(settings.config_dir, http_trust_store=McpHttpTrustStore(database))
 
     mcp_runtime = McpRuntimeManager(
@@ -130,6 +133,7 @@ def create_app() -> FastAPI:
         observability_store,
         runtime_role=settings.runtime_role,
         network_settings=network_settings_store,
+        safe_network_executor=safe_network_executor,
     )
     project_delivery_service = ProjectDeliveryMcpService(
         database,
@@ -145,7 +149,7 @@ def create_app() -> FastAPI:
         tool_classification_reconciler=access_store.reconcile_server_tools,
     )
     register_project_delivery_tools(registry, project_delivery_service)
-    git_import_service = GitImportService(project_delivery_service, network_settings_store)
+    git_import_service = GitImportService(project_delivery_service, network_settings_store, executor=safe_network_executor)
     register_git_import_tools(registry, git_import_service)
 
     tool_file_service = ToolFileMcpService(tool_file_store)
@@ -224,6 +228,8 @@ def create_app() -> FastAPI:
                 "Memory snapshot before MCP startup",
             )
             settings.data_dir.mkdir(parents=True, exist_ok=True)
+            if safe_network_executor is not None:
+                safe_network_executor.start()  # type: ignore[attr-defined]
             mcp_runtime.load_manifests()
             mcp_runtime.start_auto_servers()
             log_event(
@@ -257,6 +263,8 @@ def create_app() -> FastAPI:
             raise
         finally:
             await retention_worker.stop()
+            if safe_network_executor is not None:
+                safe_network_executor.close()  # type: ignore[attr-defined]
             if not startup_failed:
                 startup_state.mark_stopping()
             log_event(

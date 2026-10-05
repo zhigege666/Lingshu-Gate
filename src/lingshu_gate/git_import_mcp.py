@@ -206,7 +206,9 @@ class GitImportService:
                 raise _ImportCancelled
             self._progress(import_id, "fetch", "running")
             material = self._material(plan)
-            content = executor.export_snapshot(plan, material=material, cancel=cancel)
+            identity = self.database.query_one("SELECT actor_id FROM git_imports WHERE id=?", (import_id,))
+            execution = {"import_id": import_id, "actor_id": identity["actor_id"] if identity else "", "plan_digest": digest_json(plan)}
+            content = executor.export_snapshot({**plan, "execution": execution}, material=material, cancel=cancel)
             if cancel.is_set():
                 raise _ImportCancelled
             self._progress(import_id, "validate", "running")

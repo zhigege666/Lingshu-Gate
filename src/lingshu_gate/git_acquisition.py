@@ -222,7 +222,7 @@ def _export_tree(objects: GitObjectReader, oid: str, prefix: str, budget: _Budge
 
 def _validated_request(request: dict[str, Any]) -> dict[str, Any]:
     try:
-        allowed = {"source", "network", "host_rule", "git_config", "environment_policy", "limits", "credential_revision", "commit_sha"}
+        allowed = {"source", "network", "host_rule", "git_config", "environment_policy", "limits", "credential_revision", "commit_sha", "execution"}
         if set(request) - allowed or not isinstance(request["network"], dict):
             raise ValueError
         for phase in ("git", "install"):

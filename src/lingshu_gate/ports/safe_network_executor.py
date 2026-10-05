@@ -1,8 +1,4 @@
-"""Contract for a separately reviewed executor. There is no host subprocess adapter.
-
-Capability declarations alone are not a sandbox implementation. Composition must
-only inject an independently validated adapter; production composition injects None.
-"""
+"""Isolated delivery port. Native composition verifies a rootless Podman adapter."""
 
 from __future__ import annotations
 
@@ -130,6 +126,9 @@ class SafeNetworkExecutor(Protocol):
 def require_safe_executor(executor: SafeNetworkExecutor | None) -> SafeNetworkExecutor:
     if executor is None or not REQUIRED_CAPABILITIES <= getattr(executor, "capabilities", frozenset()):
         raise ToolExecutionError("safe_executor_unavailable", "A reviewed isolated network executor is unavailable", next_action="Install and validate a dedicated executor; do not enable host execution or relax Core isolation.")
+    readiness = getattr(executor, "require_ready", None)
+    if readiness is not None:
+        readiness()
     return executor
 
 

@@ -32,7 +32,7 @@ from lingshu_gate.models import ResourceDeleteConflict
 from lingshu_gate.observability_store import ObservabilityStore
 from lingshu_gate.project_uploads import ProjectUploadStore
 from lingshu_gate.network_settings import NetworkSelection, NetworkSettingsStore
-from lingshu_gate.ports.safe_network_executor import SafeNetworkExecutor, require_proxy_support, require_safe_executor
+from lingshu_gate.ports.safe_network_executor import SafeNetworkExecutor, SafeExecutionCancelled, require_proxy_support, require_safe_executor
 from lingshu_gate.registry import ToolExecutionError
 
 IGNORED_COPY_DIRS = {".git", "node_modules", ".venv", "venv", "target", "__pycache__"}
@@ -533,7 +533,10 @@ class BuildDeployStore:
         if self._requires_safe_network(plan):
             if not network_authorized:
                 raise ToolExecutionError("network_permission_denied", "Configured delivery networking requires network.use and a confirmed plan", next_action="Use the digest-bound delivery tools or Git Console flow.")
-            require_safe_executor(self.safe_network_executor)
+            executor = require_safe_executor(self.safe_network_executor)
+            validate_support = getattr(executor, "validate_plan", None)
+            if validate_support:
+                validate_support(plan)
             if self.network_settings is None:
                 raise ToolExecutionError("safe_executor_unavailable", "An execution network policy store is unavailable", next_action="Configure the reviewed executor composition before queuing work.")
         if self.network_settings and plan.get("delivery_network"):
@@ -1129,7 +1132,9 @@ class BuildDeployStore:
             failure_code = "safe_network_execution_failed"
             try:
                 manager = plan.get("package_manager") or {}
-                descriptor = {**network, "package_manager": manager}
+                build = self.get_build(build_id)
+                owner = self.database.query_one("SELECT owner_id FROM project_delivery_resource_owners WHERE resource_type='build' AND resource_id=?", (build_id,))
+                descriptor = {**network, "package_manager": manager, "execution": {"build_id": build_id, "step_id": step["id"], "plan_fingerprint": build.get("plan_fingerprint"), "source_sha256": build.get("source_sha256"), "operation_id": build.get("operation_id"), "actor_id": owner["owner_id"] if owner else None}}
                 if step.get("id") == "node-toolchain":
                     specification = manager["preparation"]
                     result = executor.prepare_package_manager(specification, network=descriptor, material=material, timeout_seconds=min(timeout_seconds, specification["limits"]["timeout_seconds"]), cancel_requested=lambda: self._is_cancel_requested(build_id))
@@ -1159,6 +1164,12 @@ class BuildDeployStore:
                         result["package_manager"]["node_version"] = executed_node_version
                     if tool_source:
                         result["package_manager"]["source"] = tool_source
+            except SafeExecutionCancelled:
+                raise BuildCancelled("Isolated executor confirmed cancellation of the entire sandbox") from None
+            except InterruptedError:
+                raise InterruptedError("operation_interrupted") from None
+            except ToolExecutionError as exc:
+                raise RuntimeError(exc.code) from None
             except Exception:
                 raise RuntimeError(failure_code) from None
             finally:
