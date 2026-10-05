@@ -64,7 +64,7 @@ export function OAuthPagedToolPicker({ grantId, catalog, selection, selected, re
         if (next === "custom") setMode(next)
         else void choose({ mode: next }, next)
       }} options={[{ value: "read", label: zh ? "仅选全部当前只读" : "All current read-only tools" }, { value: "all", label: zh ? "选中全部当前工具" : "All current tools" }, { value: "custom", label: zh ? "自定义" : "Custom" }]} />
-      <Button type="text" loading={loading || disabled} disabled={disabled || loading} onClick={onRefresh}>{zh ? "刷新可授权范围" : "Refresh available scope"}</Button>
+      <Button type="text" aria-label={zh ? "刷新可授权范围" : "Refresh available scope"} aria-busy={loading || disabled} loading={loading || disabled} disabled={disabled || loading} onClick={onRefresh}>{zh ? "刷新可授权范围" : "Refresh available scope"}</Button>
     </div>
     <div className="oauth-filters">
       <Input aria-label={zh ? "搜索当前范围内的工具" : "Search tools in the current scope"} placeholder={zh ? "搜索工具名称、ID 或 MCP" : "Search tool name, ID or MCP"} allowClear value={filters.query} disabled={disabled || !catalog} onChange={event => {

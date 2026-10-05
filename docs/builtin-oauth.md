@@ -74,6 +74,8 @@ Gate does not cache the inbound authorization between requests. Its next `tools/
 
 ## Token and policy contract
 
+If a scope save times out, loses its response or returns an unreadable response, the Console retains the draft and marks the result unknown. Review/save stays blocked until you explicitly refresh available scope. That refresh first rereads the actual saved grant revision, tools and limits, then validates the retained draft against fresh scope metadata. A failed read keeps the unknown state. No write is replayed; any later update requires a fresh preview and confirmation at the actual revision.
+
 The development [catalog-scaling record](oauth-catalog-scaling.md) separates bounded saved-grant verification from implemented candidate pagination and bulk-selection integration. The per-grant 5,000-tool / 100-MCP limits remain; an owner's larger candidate set must not invalidate a smaller existing grant. Synthetic execution and real-client acceptance are reported separately.
 
 | Item | Boundaries |

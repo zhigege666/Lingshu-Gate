@@ -2,6 +2,7 @@ import { expect, test, type APIRequestContext, type Page } from "@playwright/tes
 import { mkdirSync, writeFileSync } from "node:fs"
 import { join } from "node:path"
 import { expectInViewportAndUnobscured } from "./helpers"
+import type { OAuthGrant } from "../src/features/external-connections/oauth-api"
 
 test.skip(process.env.GATE_E2E_OAUTH_CATALOG_SCALE !== "1", "Requires the isolated 5,000-service / 50,000-tool fixture")
 test.setTimeout(60_000)
@@ -24,6 +25,13 @@ async function open(page: Page, locale: "en-US" | "zh-CN") {
   await page.getByRole("button", { name: locale === "zh-CN" ? "调整授权范围" : "Adjust scope", exact: true }).click()
   expect((await response).status()).toBe(200)
   return page.getByRole("dialog", { name: locale === "zh-CN" ? "调整授权范围" : "Adjust authorization scope", exact: true })
+}
+
+async function captureRecovery(page: Page, locale: string, state: string) {
+  const directory = process.env.GATE_OAUTH_SCREENSHOT_DIR
+  if (!directory) return
+  mkdirSync(directory, { recursive: true })
+  await page.screenshot({ path: join(directory, `${state}-${locale}-1600x900.png`), animations: "disabled" })
 }
 
 test("OAuth entry avoids full definitions and the tool route still loads on navigation", async ({ page }) => {
@@ -152,9 +160,14 @@ for (const locale of ["en-US", "zh-CN"] as const) {
     const review = editor.getByRole("button", { name: zh ? "核对并更新连接" : "Review connection update", exact: true })
     await review.click()
     await page.getByRole("alertdialog").getByRole("button", { name: zh ? "确认并更新" : "Confirm update", exact: true }).click()
-    await expect(editor.getByRole("alert")).toContainText(zh ? "连接失败" : "Connection failed")
-    await expect(editor.locator(".oauth-selection")).toContainText(`${expected - 1} /`)
+    await expect(editor.getByRole("alert")).toContainText(zh ? "结果未知" : "result is unknown")
+    await expect(editor.locator(".oauth-selection")).toContainText(String(expected - 1))
+    await expect(review).toBeDisabled()
     await page.unroute(writePattern)
+    const recovered = page.waitForResponse(response => new URL(response.url()).pathname.endsWith("/scope-selection"))
+    await editor.getByRole("button", { name: zh ? "刷新可授权范围" : "Refresh available scope", exact: true }).click()
+    expect((await recovered).status()).toBe(200)
+    await expect(editor.locator(".oauth-selection")).toContainText(`${expected - 1} /`)
     await review.click()
     const saved = page.waitForResponse(response => new URL(response.url()).pathname.endsWith("/scope") && response.request().method() === "POST")
     await page.getByRole("alertdialog").getByRole("button", { name: zh ? "确认并更新" : "Confirm update", exact: true }).click()
@@ -164,5 +177,103 @@ for (const locale of ["en-US", "zh-CN"] as const) {
     expect(after.tools).toHaveLength(expected - 1)
     expect(after.scopes).toEqual(before.scopes)
     expect(after.revision).toBe(before.revision + 1)
+  })
+}
+
+for (const locale of ["en-US", "zh-CN"] as const) {
+  test(`committed scope save with a lost response refreshes actual state ${locale}`, async ({ page }) => {
+    const zh = locale === "zh-CN"
+    await page.setViewportSize({ width: 1600, height: 900 })
+    const editor = await open(page, locale)
+    const before: OAuthGrant = (await (await page.request.get("/v1/auth/oauth/grants")).json()).grants[0]
+    const group = zh ? "oauth-scale-0011" : "oauth-scale-0010"
+    await editor.getByRole("radio", { name: zh ? "MCP 整组" : "MCP groups", exact: true }).check()
+    const selection = page.waitForResponse(response => new URL(response.url()).pathname.endsWith("/scope-selection"))
+    await editor.getByRole("checkbox", { name: zh ? `选择 MCP ${group} 的全部当前可授权工具` : `Select all current available tools in MCP ${group}`, exact: true }).click()
+    const draft = (await (await selection).json()).tool_ids as string[]
+    const limit = editor.getByRole("spinbutton", { name: zh ? "每分钟调用上限" : "Calls per minute", exact: true })
+    await limit.fill(String(before.rate_per_minute - 1))
+    let writes = 0, previews = 0, savedReads = 0
+    const tickets: string[] = [], revisions: number[] = []
+    let submitted: Record<string, unknown> = {}
+    page.on("request", request => { if (new URL(request.url()).pathname === "/v1/auth/oauth/grants") savedReads++ })
+    page.on("response", async response => {
+      if (new URL(response.url()).pathname.endsWith("/scope-preview") && response.ok()) {
+        previews++
+        tickets.push((await response.json()).confirmation)
+        revisions.push(response.request().postDataJSON().expected_revision)
+      }
+    })
+    const scopePath = `/v1/auth/oauth/grants/${before.id}/scope`
+    await page.route(`**${scopePath}`, async route => {
+      writes++
+      if (writes > 1) return route.continue()
+      submitted = route.request().postDataJSON()
+      // Forward the real HTTP write and receive its committed 200 response,
+      // then drop only the browser response. This is not a pre-send abort.
+      const committed = await route.fetch({ maxRedirects: 0, maxRetries: 0 })
+      expect(committed.status()).toBe(200)
+      expect((await committed.json()).revision).toBe(before.revision + 1)
+      await route.abort("failed")
+    })
+    const review = editor.getByRole("button", { name: zh ? "核对并更新连接" : "Review connection update", exact: true })
+    await review.click()
+    await page.getByRole("alertdialog").getByRole("button", { name: zh ? "确认并更新" : "Confirm update", exact: true }).click()
+    await expect(editor.getByRole("alert")).toContainText(zh ? "结果未知" : "result is unknown")
+    const saved: OAuthGrant = (await (await page.request.get("/v1/auth/oauth/grants")).json()).grants[0]
+    expect(saved.revision).toBe(before.revision + 1)
+    expect(saved.tools.map(tool => tool.id).sort()).toEqual([...draft].sort())
+    expect(saved.rate_per_minute).toBe(before.rate_per_minute - 1)
+    expect(saved.scopes).toEqual(before.scopes)
+    // Replaying the consumed confirmation is rejected without another commit.
+    const replay = await page.request.post(scopePath, { data: submitted, headers: { Origin: "http://127.0.0.1:18763" } })
+    expect(replay.status()).toBe(409)
+    expect((await (await page.request.get("/v1/auth/oauth/grants")).json()).grants[0].revision).toBe(saved.revision)
+    await expect(review).toBeDisabled()
+    expect(writes).toBe(1)
+    expect(previews).toBe(1)
+    expect(savedReads).toBe(0)
+    await captureRecovery(page, locale, "save-unknown")
+    const pendingRate = saved.rate_per_minute - (zh ? 1 : 0)
+    if (zh) {
+      await limit.fill(String(pendingRate))
+      await expect(review).toBeDisabled()
+    } else {
+      // A failed authoritative read must not clear uncertainty or unlock save.
+      const readPattern = "**/v1/auth/oauth/grants"
+      await page.route(readPattern, route => route.abort("failed"))
+      await editor.getByRole("button", { name: "Refresh available scope", exact: true }).click()
+      await expect(editor.getByRole("alert")).toContainText("Connection failed")
+      await expect(review).toBeDisabled()
+      await expect(editor.locator(".oauth-selection")).toContainText(String(draft.length))
+      await page.unroute(readPattern)
+    }
+    await editor.getByRole("button", { name: zh ? "刷新可授权范围" : "Refresh available scope", exact: true }).click()
+    await expect(editor.locator(".oauth-scope-refresh-status")).toContainText(zh ? `保存版本 ${saved.revision}` : `Saved grant revision ${saved.revision}`)
+    await expect(editor.locator(".oauth-selection")).toContainText(`${draft.length} /`)
+    await expect(limit).toHaveValue(String(pendingRate))
+    await expect(editor.getByRole("alert")).toHaveCount(0)
+    if (zh) await expect(review).toBeEnabled()
+    else await expect(review).toBeDisabled()
+    expect(writes).toBe(1)
+    expect(previews).toBe(1)
+    expect(savedReads).toBe(zh ? 1 : 2)
+    await captureRecovery(page, locale, "save-reconciled")
+    // A later explicit edit requires a fresh preview/ticket at the actual revision.
+    await limit.fill(String(saved.rate_per_minute - 1))
+    await review.click()
+    const updated = page.waitForResponse(response => new URL(response.url()).pathname === scopePath && response.request().method() === "POST")
+    await page.getByRole("alertdialog").getByRole("button", { name: zh ? "确认并更新" : "Confirm update", exact: true }).click()
+    expect((await updated).status()).toBe(200)
+    await expect(editor).toHaveCount(0)
+    expect(writes).toBe(2)
+    expect(previews).toBe(2)
+    expect(revisions).toEqual([before.revision, saved.revision])
+    expect(tickets[0] !== tickets[1]).toBe(true)
+    const after: OAuthGrant = (await (await page.request.get("/v1/auth/oauth/grants")).json()).grants[0]
+    expect(after.revision).toBe(before.revision + 2)
+    expect(after.tools.map(tool => tool.id).sort()).toEqual([...draft].sort())
+    expect(after.scopes).toEqual(before.scopes)
+    expect(after.rate_per_minute).toBe(saved.rate_per_minute - 1)
   })
 }

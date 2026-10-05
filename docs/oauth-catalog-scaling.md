@@ -54,11 +54,11 @@ Console startup no longer preloads the legacy full-definition `/v1/tools` respon
 
 The HTTP suite uses exactly 5,000 services / 50,000 tools, walks all 50 MCP-group pages, finds a small subset beyond the saved grant and first page, and forbids full registry/classification projection during those requests. Separate 5,000-tool/100-MCP and 101-MCP cases exercise both unchanged selection limits. Regression scenarios cover new published/unpublished services, admin API-token comparison, hidden targets, old narrowed families, owner/publication/client/grant/resource changes, sync races, CSRF/session ownership, quota narrowing and one-use saves.
 
-The opt-in loopback browser fixture uses a synthetic administrator and actual catalog/session/selection/preview/save HTTP with 5,000 services / 50,000 tools. Four desktop sizes in both languages check labels on one line, table space, footer visibility and page overflow. Network failure is injected only at the final save to test draft recovery; the catalog and resolver are not mocked. A separate navigation check mocks only the unrelated legacy tool page with one definition. Author browser evidence is recorded below; independent UI review and real-client acceptance remain separate.
+The opt-in loopback browser fixture uses a synthetic administrator and actual catalog/session/selection/preview/save HTTP with 5,000 services / 50,000 tools. Four desktop sizes in both languages check labels on one line, table space, footer visibility and page overflow. Failure injections cover pre-send save abort, loss of a committed response and a later authoritative-read failure; the catalog and resolver are not mocked. A separate navigation check mocks only the unrelated legacy tool page with one definition. Author browser evidence is recorded below; independent UI review and real-client acceptance remain separate.
 
 ## Fixed production-code validation
 
-The fixed production-code and browser checkpoint is `3583773acbc22129dec9b2cb4e69e6e5486457c5`. Subsequent commits add only documentation, raw measurements and screenshots; production code, tests and dependency locks remain identical to that checkpoint.
+The initial Stage B complete-suite and browser checkpoint is `3583773acbc22129dec9b2cb4e69e6e5486457c5`; its delivery head `d8d4833bfdefbf7e679190565294f38f7a109145` adds only documentation, raw measurements and screenshots. The later response-loss follow-up below changes Console recovery and browser tests. Backend code, backend tests and dependency locks remain identical to the initial checkpoint.
 
 | Executed check at the fixed checkpoint | Result |
 |---|---|
@@ -72,6 +72,16 @@ The fixed production-code and browser checkpoint is `3583773acbc22129dec9b2cb4e6
 An earlier complete attempt at `b857fb45d619a3abaa60d73f0d52f92d8aec2d92` passed 1,759 cases and skipped three, but failed the launcher-mode check: the executor checked out both tracked `100755` scripts as local `700`. Restoring local `755` permissions resolved it without a content or Git executable-bit change. The complete fixed-checkpoint rerun above passed.
 
 Public physical/group benchmark evidence remains separate in [integration validation](on-demand-integration-validation.md). Its 32.229 ms narrow physical-search p95 and 2,517.210 ms warm group-search p95 are different synthetic scenarios at the public code checkpoint, not Stage B endpoint measurements or production guarantees.
+
+## Committed save with a lost response
+
+The follow-up reproduces an actual committed scope update in both locales: Playwright forwards the original POST with `route.fetch()` and zero retries, receives the real server's 200, verifies the incremented revision, then aborts only the browser response. A separate real GET verifies the saved IDs and limits. The initial `d8d4833` Console allowed another review and its refresh failed against the stale grant revision; both regression cases failed before the fix.
+
+The Console now marks an uncertain attempted write, clears stale scope metadata and blocks review/save while retaining IDs and limit drafts. Explicit refresh rereads the saved grant, obtains fresh catalog/CSRF metadata and validates the retained IDs before clearing uncertainty. Reconciliation advances the saved baseline without replacing the draft. A failed authoritative read keeps saving blocked. Matching committed selections need no duplicate write; a later explicit edit obtains a new confirmation at the actual revision.
+
+The two real HTTP cases cover old-ticket replay rejection with no revision change, no automatic preview/write, failed read recovery, retained unsaved quota, and a later independently confirmed update using a different ticket and the incremented revision. The existing pre-send-abort case also requires readback before retry; it remains a separate boundary. Reproduce with `GATE_E2E_OAUTH_CATALOG_SCALE=1 npm exec -- playwright test e2e/oauth-paged-catalog.spec.ts --grep 'committed scope save'` from `web/` after building.
+
+The focused follow-up passed both cases in 41.8 seconds; frontend check, 439 tests in 74 files and both builds also passed. The author opened all four recovery screenshots from that run: [English unknown result](images/console/oauth-catalog/save-unknown-en-US-1600x900.png), [English saved-state readback](images/console/oauth-catalog/save-reconciled-en-US-1600x900.png), [Chinese unknown result](images/console/oauth-catalog/save-unknown-zh-CN-1600x900.png), and [Chinese saved-state readback](images/console/oauth-catalog/save-reconciled-zh-CN-1600x900.png). They are synthetic author evidence at the follow-up source, separate from independent acceptance. The full follow-up browser command includes all three OAuth specs and 98 cases; its fixed-commit result is recorded in the commit delivery.
 
 ## Author browser evidence
 
