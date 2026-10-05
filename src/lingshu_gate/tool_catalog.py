@@ -11,7 +11,7 @@ import sqlite3
 import threading
 import time
 from collections.abc import Callable
-from dataclasses import asdict
+from dataclasses import asdict, replace
 from contextlib import contextmanager
 from typing import Any
 
@@ -34,6 +34,24 @@ CATALOG_TOOL_NAMES = ("gate_catalog_search", "gate_tool_describe", "gate_tool_in
 MAX_PAGE_OFFSET = 10_000
 CURSOR_TTL_SECONDS = 300
 MAX_INVOKE_ARGUMENT_BYTES = 1_048_576
+
+
+def _same_invocation_principal(left: AuthPrincipal, right: AuthPrincipal) -> bool:
+    """Compare proof/ceilings exactly, treating authority collections as sets."""
+    def normalized(actor: AuthPrincipal) -> AuthPrincipal | None:
+        roles = tuple(sorted(set(actor.roles or (actor.role,))))
+        if actor.role not in roles:
+            return None  # A primary role must not introduce authority absent from roles.
+        return replace(actor, role="admin" if "admin" in roles else roles[0], roles=roles,
+            permissions=tuple(sorted(set(actor.permissions))), scopes=tuple(sorted(set(actor.scopes))),
+            delegated_scopes=None if actor.delegated_scopes is None else tuple(sorted(set(actor.delegated_scopes))),
+            external_server_ids=tuple(sorted(set(actor.external_server_ids))),
+            external_tool_ids=tuple(sorted(set(actor.external_tool_ids))),
+            external_access=tuple(sorted(set(actor.external_access))),
+            oauth_audiences=tuple(sorted(set(actor.oauth_audiences))),
+            oauth_tool_snapshots=tuple(sorted(set(actor.oauth_tool_snapshots))))
+    original = normalized(left)
+    return original is not None and original == normalized(right)
 
 
 class CatalogSearch(BaseModel):
@@ -370,7 +388,7 @@ class ToolCatalog:
 
         def guard() -> None:
             current = refresh_principal() if refresh_principal is not None else principal
-            if current != principal:
+            if not _same_invocation_principal(current, principal):
                 raise _reject("catalog_identity_changed", "The invocation identity changed before dispatch.")
             # A runtime refresh may publish an equivalent new object; compare its
             # exact definition revision rather than relying on object identity.
@@ -418,23 +436,26 @@ class ToolCatalog:
         def dispatch():
             try:
                 with router.dispatch_guard(principal, call) as (current, latest):
-                    if current != principal or latest != target:
+                    if not _same_invocation_principal(current, principal) or latest != target:
                         raise _reject("catalog_tool_unavailable", "The selected tool is unavailable.")
                     yield
             except McpGroupError:
                 raise _reject("catalog_tool_unavailable", "The selected tool is unavailable.") from None
 
         def guard() -> None:
-            if refresh_principal is not None and refresh_principal() != principal:
+            if refresh_principal is not None and not _same_invocation_principal(refresh_principal(), principal):
                 raise _reject("catalog_tool_unavailable", "The selected tool is unavailable.")
-            # Selected-target resolution rechecks both physical and logical ACL,
-            # publication and contract after waits; it grants no dispatch itself.
+            # Reuse the bounded selected-instance binding check at the actual
+            # call boundary. A private client can initialize after the outer
+            # context's check while close/expiry remains independent of its locks.
             try:
-                latest = router.resolve(principal, tool_ref=request.tool_ref, instance_id=call.instance_id)
+                with router.dispatch_guard(principal, call) as (current, latest):
+                    if not _same_invocation_principal(current, principal):
+                        raise _reject("catalog_tool_unavailable", "The selected tool is unavailable.")
+                    if latest != target:
+                        raise _reject("catalog_schema_revision_conflict", "The selected target changed before dispatch.")
             except McpGroupError:
                 raise _reject("catalog_tool_unavailable", "The selected tool is unavailable.") from None
-            if latest != target:
-                raise _reject("catalog_schema_revision_conflict", "The selected target changed before dispatch.")
 
         try:
             response = self.access.invoke_tool(self.registry, principal, target.tool_id, request.arguments,
