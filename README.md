@@ -14,7 +14,7 @@ The separate, default-off `/mcp/manage` OAuth resource requires a current admini
 
 ## Features
 
-Development source adds [on-demand tool discovery](docs/on-demand-tools.md): explicitly select `/mcp?tool_mode=on_demand` per client to expose four bounded entries instead of the entire schema catalog. My API Tokens includes client settings; authorization and target audits keep their original boundaries. This addition has not been published as a new release; group routing remains separate.
+Development source adds [on-demand tool discovery](docs/on-demand-tools.md): explicitly select `/mcp?tool_mode=on_demand` per client to expose six bounded entries instead of the entire schema catalog. My API Tokens includes client settings; authorization and target audits keep their original boundaries. This addition has not been published as a new release; explicit group instance sessions reuse the existing routing port.
 
 | Feature | Capability and boundary | Guide |
 |---|---|---|

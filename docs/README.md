@@ -12,7 +12,7 @@ This documentation describes the current Gate product boundary. English is autho
 | [Architecture](architecture.md) | Components, request paths, persistence, and trust boundaries |
 | [Configuration](configuration.md) | Environment variables, directories, manifests, credentials, and reverse proxy settings |
 | [MCP gateway](mcp-gateway.md) | Gateway endpoint, protocol negotiation, downstream HTTP/stdio, discovery, classification, and invocation |
-| [On-demand tools](on-demand-tools.md) | Four bounded discovery entries, per-client modes, unchanged authorization and synthetic scale benchmarks |
+| [On-demand tools](on-demand-tools.md) | Six bounded discovery/session entries, per-client modes, unchanged authorization and synthetic scale benchmarks |
 | [MCP groups](mcp-groups.md) | Logical groups, explicit instances, administrator management and contract partitions |
 | [MCP group routing adapter](mcp-group-routing-contract.md) | Internal interface for the on-demand directory and connection-bound instance sessions |
 | [Project delivery](project-delivery.md) | Upload/build/deploy/start workflow, `gate_*` tools, and bundled Delivery Skill |

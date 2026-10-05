@@ -14,7 +14,7 @@
 
 ## 现有功能
 
-开发源码新增[按需工具发现](docs/zh-CN/on-demand-tools.md)：每客户端明确选择 `/mcp?tool_mode=on_demand`，只暴露四个有界入口，避免发送完整 schema 目录。“我的 API Token”提供客户端设置；授权与目标审计保留原边界。尚未发布新版本，分组路由仍为独立工作。
+开发源码新增[按需工具发现](docs/zh-CN/on-demand-tools.md)：每客户端明确选择 `/mcp?tool_mode=on_demand`，只暴露六个有界入口，避免发送完整 schema 目录。“我的 API Token”提供客户端设置；授权与目标审计保留原边界。尚未发布新版本，明确的分组实例会话复用既有路由 port。
 
 | 功能 | 能力与边界 | 指南 |
 |---|---|---|

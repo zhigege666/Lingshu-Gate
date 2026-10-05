@@ -2,7 +2,7 @@
 
 ## English — release overview
 
-Development source addition, not part of the published 0.4.4 assets: per-client on-demand tool discovery exposes four bounded MCP entries and matching catalog APIs. It uses an incremental SQLite FTS directory, existing permission evaluation and real-target invocation audit, revision/parameter/instance checks and credential revalidation before dispatch. Console offers a local client-mode dialog, and the Delivery Skill preserves its original confirmations and digests through the invoke envelope. Synthetic 5,000-service/50,000-tool regression/benchmark evidence and remaining real-client/group-routing limits are documented in [on-demand tools](../docs/on-demand-tools.md).
+Development source addition, not part of the published 0.4.4 assets: per-client on-demand tool discovery exposes six bounded MCP discovery/session entries and matching catalog APIs. It uses an incremental SQLite FTS directory, existing permission evaluation and real-target invocation audit, revision/parameter/instance checks and credential revalidation before dispatch. Console offers a local client-mode dialog, and the Delivery Skill preserves its original confirmations and digests through the invoke envelope. Synthetic 5,000-service/50,000-tool regression/benchmark evidence and remaining real-client/session-isolation limits are documented in [on-demand tools](../docs/on-demand-tools.md).
 
 0.4.4 adds confirmed external HTTP MCP configuration through REST and four built-in management tools: `gate_mcp_config_plan`, `gate_mcp_config_apply`, `gate_mcp_config_status` and `gate_mcp_config_cancel`. The bundled Delivery Skill selects external HTTP configuration separately from ZIP delivery and the blocked Git execution path.
 
@@ -21,7 +21,7 @@ Real-client management-scope requests and real HTTP peer/deployment acceptance r
 
 ## 简体中文 — 版本概述
 
-开发源码补充，未包含在已发布的 0.4.4 制品中：每客户端按需发现通过四个有界 MCP 入口及对应目录 API 提供工具访问，使用 SQLite FTS 增量目录、原权限判定及实际目标调用审计、版本/参数/实例校验和派发前凭据复核。Console 提供本地客户端模式弹窗；Delivery Skill 通过 invoke 封装保留原确认及摘要。5,000 服务/50,000 工具合成回归与基准证据，以及真实客户端/分组路由的剩余边界，见[按需工具指南](../docs/zh-CN/on-demand-tools.md)。
+开发源码补充，未包含在已发布的 0.4.4 制品中：每客户端按需发现通过六个有界 MCP 发现/会话入口及对应目录 API 提供工具访问，使用 SQLite FTS 增量目录、原权限判定及实际目标调用审计、版本/参数/实例校验和派发前凭据复核。Console 提供本地客户端模式弹窗；Delivery Skill 通过 invoke 封装保留原确认及摘要。5,000 服务/50,000 工具合成回归与基准证据，以及真实客户端/会话隔离的剩余边界，见[按需工具指南](../docs/zh-CN/on-demand-tools.md)。
 
 0.4.4 通过 REST 与四个内置管理工具增加外部 HTTP MCP 的确认配置流程：`gate_mcp_config_plan`、`gate_mcp_config_apply`、`gate_mcp_config_status`、`gate_mcp_config_cancel`。自带 Delivery Skill 将外部 HTTP 配置与 ZIP 交付、仍阻断的 Git 执行路径分别路由。
 

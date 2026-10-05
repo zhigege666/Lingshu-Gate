@@ -17,6 +17,7 @@ import yaml
 from pydantic import ValidationError
 
 from lingshu_gate.application.manifest_edit import restore_masked_mounts
+from lingshu_gate.domain.dispatch_lock import DispatchLock
 from lingshu_gate.logging import log_event
 from lingshu_gate.endpoint_security import REDACTED_ENDPOINT
 from lingshu_gate.mcp_manifest import McpServerManifest, validate_manifest_for_write
@@ -46,14 +47,15 @@ class McpConfigStore:
     def __init__(self, config_dir: Path, *, http_trust_store: McpHttpTrustStore | None = None) -> None:
         self.config_dir = config_dir
         self.http_trust_store = http_trust_store
-        self.mutation_lock = threading.RLock()
+        self.mutation_lock = DispatchLock()
+        self._metadata_lock = threading.RLock()
         self._instance_metadata: tuple[McpInstanceMetadata, ...] | None = None
         self._metadata_index: dict[str, McpInstanceMetadata] = {}
         self._metadata_revision = 0
         self._metadata_built_at = 0.0
 
     def invalidate_instance_metadata(self) -> None:
-        with self.mutation_lock:
+        with self.mutation_lock, self._metadata_lock:
             self._instance_metadata = None
             self._metadata_index = {}
             self._metadata_revision += 1
@@ -76,7 +78,7 @@ class McpConfigStore:
 
     def instance_metadata(self, *, refresh: bool = False) -> tuple[McpInstanceMetadata, ...]:
         """Cache only immutable IDs/names; never credentials, manifests or authority."""
-        with self.mutation_lock:
+        with self.mutation_lock.read_lock(), self._metadata_lock:
             if (refresh or self._instance_metadata is None
                     or time.monotonic() - self._metadata_built_at >= METADATA_SNAPSHOT_TTL_SECONDS):
                 self._publish_instance_metadata(self._read_instance_metadata())
@@ -86,14 +88,14 @@ class McpConfigStore:
     def selected_instance_metadata(self, instance_ids: set[str]) -> tuple[int, dict[str, str]]:
         """Build cold metadata outside the mutation lock, then publish by revision CAS."""
         for _ in range(3):
-            with self.mutation_lock:
+            with self.mutation_lock.read_lock(), self._metadata_lock:
                 revision = self._metadata_revision
                 if (self._instance_metadata is not None
                         and time.monotonic() - self._metadata_built_at < METADATA_SNAPSHOT_TTL_SECONDS):
                     return revision, {instance: self._metadata_index[instance].name for instance in instance_ids
                                       if instance in self._metadata_index}
             records = self._read_instance_metadata()
-            with self.mutation_lock:
+            with self.mutation_lock.read_lock(), self._metadata_lock:
                 if revision != self._metadata_revision:
                     continue
                 self._publish_instance_metadata(records)
@@ -102,12 +104,12 @@ class McpConfigStore:
         raise McpConfigConflict("Instance metadata changed repeatedly; retry the read.")
 
     def metadata_snapshot_current(self, revision: int) -> bool:
-        with self.mutation_lock:
+        with self.mutation_lock.read_lock(), self._metadata_lock:
             return revision == self._metadata_revision
 
     def metadata_revision(self) -> int:
         """Structural invalidation marker; contains no credentials or authority."""
-        with self.mutation_lock:
+        with self.mutation_lock.read_lock(), self._metadata_lock:
             return self._metadata_revision
 
     def list_configs(self) -> McpConfigListResponse:

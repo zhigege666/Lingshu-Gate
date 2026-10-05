@@ -1,5 +1,7 @@
 """One bounded public directory/dispatch path over the existing group port."""
 from dataclasses import replace
+from concurrent.futures import ThreadPoolExecutor
+from threading import Barrier, Event, Thread
 import json
 
 import pytest
@@ -175,3 +177,66 @@ def test_group_read_token_cannot_use_the_shared_invoker_to_write(gate, integrate
         catalog.call("gate_tool_invoke", {"tool_ref": described["tool_ref"], "instance_id": described["instance_id"],
             "schema_revision": described["schema_revision"], "session_id": session, "arguments": {}}, reader)
     assert all(not peer.calls for peer in peers.values())
+
+
+def test_group_calls_to_two_instances_reach_their_peers_concurrently(gate, integrated, monkeypatch):
+    catalog, group, peers = integrated
+    actor = gate["principal"]
+    requests = []
+    for instance in ("instance-0", "instance-1"):
+        described = selected(catalog, group, actor, instance)
+        requests.append(CatalogInvoke(tool_ref=described["tool_ref"], instance_id=instance,
+            schema_revision=described["schema_revision"], session_id=opened(catalog, described, actor), arguments={"target": instance}))
+    barrier = Barrier(2)
+    for instance in ("instance-0", "instance-1"):
+        peer = peers[instance]
+        original = peer.call_tool
+        def synchronized(name, arguments, original=original):
+            barrier.wait(timeout=3)
+            return original(name, arguments)
+        monkeypatch.setattr(peer, "call_tool", synchronized)
+    with ThreadPoolExecutor(max_workers=2) as executor:
+        results = list(executor.map(lambda request: catalog.invoke(actor, request), requests))
+    assert all(response.ok for response in results), results
+    assert len(peers["instance-0"].calls) == len(peers["instance-1"].calls) == 1
+
+
+@pytest.mark.parametrize("write", ["config", "group"])
+def test_group_dispatch_shared_lease_still_blocks_mutations(gate, integrated, monkeypatch, write):
+    catalog, group, peers = integrated
+    actor = gate["principal"]
+    described = selected(catalog, group, actor)
+    request = CatalogInvoke(tool_ref=described["tool_ref"], instance_id="instance-0",
+        schema_revision=described["schema_revision"], session_id=opened(catalog, described, actor), arguments={})
+    entered, release, started, written = Event(), Event(), Event(), Event()
+    original = peers["instance-0"].call_tool
+    def blocked(name, arguments):
+        entered.set()
+        assert release.wait(3)
+        return original(name, arguments)
+    monkeypatch.setattr(peers["instance-0"], "call_tool", blocked)
+    failures, results = [], []
+    def mutate():
+        started.set()
+        try:
+            if write == "group":
+                gate["service"].delete(group["id"], group["revision"], actor)
+            else:
+                manifest = gate["configs"].load_manifest("instance-0").model_dump(exclude={"manifest_path"})
+                gate["configs"].save_config({**manifest, "name": "After invocation"}, overwrite=True)
+        except Exception as error:
+            failures.append(error)
+        finally:
+            written.set()
+    with ThreadPoolExecutor(max_workers=1) as executor:
+        future = executor.submit(catalog.invoke, actor, request)
+        assert entered.wait(2)
+        thread = Thread(target=mutate)
+        thread.start()
+        assert started.wait(1) and not written.wait(.05)
+        release.set()
+        results.append(future.result(timeout=3))
+        thread.join(timeout=3)
+    assert results[0].ok and written.is_set() and not failures
+    with pytest.raises(ToolExecutionError):
+        catalog.call("gate_tool_invoke", request.model_dump(), actor)

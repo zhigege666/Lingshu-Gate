@@ -18,6 +18,7 @@ from uuid import uuid4
 
 from lingshu_gate.config import Settings
 from lingshu_gate.database import SQLiteDatabase
+from lingshu_gate.domain.dispatch_lock import DispatchLock
 from lingshu_gate.domain.operation_deadline import operation_lock
 from lingshu_gate.domain.tool_structure import check_tool_structure
 from lingshu_gate.endpoint_security import redact_endpoint
@@ -279,13 +280,13 @@ class McpRuntimeManager:
         self.state_store = state_store or McpRuntimeStateStore(SQLiteDatabase(settings.db_url, settings.data_dir))
         self._servers: dict[str, McpServerRuntime] = {}
         self.load_errors: list[str] = []
-        self._manager_lock = threading.RLock()
+        self._manager_lock = DispatchLock()
         self._route_process_generation = uuid4().hex
 
     @contextmanager
     def route_instance_guard(self, server_id: str) -> Iterator[str]:
         """Pin the current runtime connection while a logical route is checked/dispatched."""
-        with self._manager_lock:
+        with self._manager_lock.read_lock():
             runtime = self._get_runtime(server_id)
             with runtime.lock:
                 if runtime.state != McpServerState.RUNNING or runtime.client is None:

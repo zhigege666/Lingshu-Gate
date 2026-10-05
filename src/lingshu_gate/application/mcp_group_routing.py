@@ -92,7 +92,7 @@ class McpGroupRoutingService:
                     required = variant.summary.safety.required_access if variant.summary.safety else "write"
                     if ACCESS_RANK[grants[key]] >= ACCESS_RANK[required]:
                         allowed.append(variant)
-            with self.groups.configs.mutation_lock, self.groups.store.database.session() as connection:
+            with self.groups.configs.mutation_lock.read_lock(), self.groups.store.database.session() as connection:
                 try:
                     current_group = self.groups.store.detail(connection, group_id)
                 except McpGroupError:
@@ -149,7 +149,7 @@ class McpGroupRoutingService:
             definition = definitions[variant.members[0].tool_id]
             summaries.append({"tool_ref": logical_tool_ref(group_id, variant.summary.variant_id),
                 "instance_id": instance_id, "group_id": group_id,
-                "name": definition.name, "description": definition.description[:1_024],
+                "name": definition.name[:128], "description": definition.description[:320],
                 "schema_revision": variant.summary.variant_id})
         return summaries
 
@@ -216,7 +216,7 @@ class McpGroupRoutingService:
     @contextmanager
     def dispatch_guard(self, actor: AuthPrincipal, call: GroupToolCall) -> Iterator[tuple[AuthPrincipal, CatalogTarget]]:
         """Read-only resolution/binding port; the existing invocation adapter dispatches."""
-        with self.groups.configs.mutation_lock:
+        with self.groups.configs.mutation_lock.read_lock():
             resolved = self.resolve(actor, tool_ref=call.tool_ref, instance_id=call.instance_id)
             with self.groups.runtime.route_instance_guard(resolved.instance_id) as generation:
                 # Runtime/config waits cannot preserve old authority.
