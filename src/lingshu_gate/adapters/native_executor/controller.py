@@ -254,6 +254,8 @@ class PodmanController:
 
     def readiness(self) -> dict[str, Any]:
         missing = sorted(set(self.missing + list(self.evidence.blocked_reasons("offline_build"))))
+        if self.journal and self.journal.reconciliation_required():
+            missing.append("job_reconciliation_required")
         return {"available": not missing and not self._stop.is_set(), "code": "safe_executor_ready" if not missing and not self._stop.is_set() else "safe_executor_unavailable", "backend": "native_rootless_podman", "missing": missing + (["executor_closed"] if self._stop.is_set() else []), "support": {"git": "https_sha1", "tools": ["npm", "pnpm", "yarn_classic"], "offline_install": ["npm_registry_lock_v2_v3", "pnpm_8_9_registry_lock_v3_store", "yarn_classic_1_22_registry_mirror"], "pnpm_10_11_install": "unsupported_package_id_cache_format", "yarn_berry_install": "unsupported", "python_install": "legacy_upload_direct_only_outside_native_adapter", "core_execution": "gateway_only"}}
 
     def require_ready(self) -> None:
@@ -280,7 +282,17 @@ class PodmanController:
             self.release_output({"output": self.workspaces / job["name"] / "output"})
 
     def reconcile(self) -> None:
+        if not self._gate.acquire(blocking=False):
+            raise InterruptedError("executor_reconciliation_busy")
+        try:
+            self._reconcile()
+        finally:
+            self._gate.release()
+
+    def _reconcile(self) -> None:
         assert self.journal is not None
+        if self._active or not self.journal.trusted_work_stopped():
+            raise InterruptedError("executor_active_work_reconciliation_blocked")
         for job in self.journal.unfinished():
             try:
                 info = self.inspect(job["name"])
@@ -298,13 +310,15 @@ class PodmanController:
                 raise InterruptedError("executor_restart_reconciliation_unknown") from None
         # Terminal phase records retain a separate durable cleanup obligation.
         # Restart can finish deletion after a crash between stop and cleanup.
-        for job in self.journal.cleanup_pending():
+        cleanup = self.journal.cleanup_pending()
+        for job in cleanup:
+            info = self.inspect(job["name"])
+            if info is not None or job["cgroup"] and not self._empty(job["cgroup"]):
+                self.journal.update(job["key"], "unknown")
+                raise InterruptedError("executor_terminal_cleanup_termination_unknown")
+        # Verify all consumers before deleting any retained input/output.
+        for job in cleanup:
             output = self.workspaces / job["name"] / "output"
-            if output.parent.exists():
-                info = self.inspect(job["name"])
-                if info is not None or job["cgroup"] and not self._empty(job["cgroup"]):
-                    self.journal.update(job["key"], "unknown")
-                    raise InterruptedError("executor_terminal_cleanup_termination_unknown")
             self.release_output({"output": output})
 
     def _create(self, job: dict[str, Any], directory: Path, mounts: dict[str, Path]) -> str:
@@ -515,7 +529,7 @@ class PodmanController:
         if self._gate.acquire(timeout=15):
             try:
                 if self.journal:
-                    self.reconcile()
+                    self._reconcile()
                     self.journal.close()
                     self.journal = None
             finally:

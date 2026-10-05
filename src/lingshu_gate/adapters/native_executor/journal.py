@@ -12,12 +12,15 @@ from collections.abc import Iterator
 from lingshu_gate.git_source import digest_json
 from lingshu_gate.registry import ToolExecutionError
 from lingshu_gate.ports.safe_network_executor import SafeExecutionCancelled
+from lingshu_gate.adapters.native_executor.pending import PendingDNS
 
 
 class JobJournal:
     def __init__(self, root: Path) -> None:
         import fcntl
         self._mutex = threading.RLock()
+        self._active_trusted: set[str] = set()
+        self._pending_dns: dict[str, threading.Thread] = {}
         self._lease = (root / "owner.lock").open("a+b")
         try:
             fcntl.flock(self._lease, fcntl.LOCK_EX | fcntl.LOCK_NB)
@@ -48,6 +51,22 @@ class JobJournal:
     def update(self, key: str, state: str, *, container_id: str | None = None, cgroup: str | None = None, result: dict[str, Any] | None = None) -> None:
         with self._mutex, self.connection:
             self.connection.execute("UPDATE jobs SET state=?,container_id=COALESCE(?,container_id),cgroup=COALESCE(?,cgroup),result=COALESCE(?,result),updated_at=CURRENT_TIMESTAMP WHERE key=?", (state, container_id, cgroup, json.dumps(result) if result is not None else None, key))
+            if state in {"completed", "failed", "cancelled", "interrupted_terminated"}:
+                self._pending_dns.pop(key, None)
+
+    def reconciliation_required(self) -> bool:
+        with self._mutex:
+            return self.connection.execute("SELECT 1 FROM jobs WHERE state='unknown' LIMIT 1").fetchone() is not None
+
+    def trusted_work_stopped(self) -> bool:
+        with self._mutex:
+            return not self._active_trusted and all(not worker.is_alive() for worker in self._pending_dns.values())
+
+    def dns_recovery_ready(self) -> bool:
+        """Only live-process DNS evidence permits recovery without a restart."""
+        with self._mutex:
+            rows = self.unfinished()
+            return bool(rows) and not self._active_trusted and all(row["state"] == "unknown" and row["phase"] in {"git_acquisition", "tool_acquisition", "dependency_acquisition"} and not row["container_id"] and not row["cgroup"] and row["key"] in self._pending_dns and not self._pending_dns[row["key"]].is_alive() for row in rows)
 
     def unfinished(self) -> list[dict[str, Any]]:
         with self._mutex:
@@ -73,21 +92,32 @@ class JobJournal:
 
     @contextmanager
     def trusted_phase(self, key: str, descriptor: dict[str, Any], phase: str) -> Iterator[None]:
-        self.reserve(key, descriptor, phase)
-        self.update(key, "running")
+        with self._mutex:
+            self.reserve(key, descriptor, phase)
+            self.update(key, "running")
+            self._active_trusted.add(key)
         try:
             yield
         except SafeExecutionCancelled:
             self.update(key, "cancelled")
             raise
-        except InterruptedError:
-            self.update(key, "unknown")
+        except InterruptedError as error:
+            with self._mutex:
+                if isinstance(error, PendingDNS):
+                    # Retain only the worker, never the request traceback/material.
+                    self._pending_dns[key] = error.worker
+                    self.update(key, "unknown", result={"reconciliation_reason": "trusted_dns_termination_unknown"})
+                else:
+                    self.update(key, "unknown")
             raise
         except BaseException:
             self.update(key, "failed")
             raise
         else:
             self.update(key, "completed")
+        finally:
+            with self._mutex:
+                self._active_trusted.discard(key)
 
     def close(self) -> None:
         import fcntl

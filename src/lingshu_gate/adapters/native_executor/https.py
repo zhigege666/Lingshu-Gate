@@ -13,6 +13,7 @@ import ssl
 import struct
 import time
 import threading
+from lingshu_gate.adapters.native_executor.pending import PendingDNS
 from collections.abc import Callable
 from typing import Any, NoReturn
 from urllib.parse import urlsplit
@@ -93,6 +94,10 @@ class PinnedHTTPS:
         self.context = ssl.create_default_context()
         self._dns_gate = threading.BoundedSemaphore(1)
         self.dns_busy = threading.Event()
+        self._dns_worker: threading.Thread | None = None
+
+    def dns_pending(self) -> bool:
+        return self.dns_busy.is_set() or self._dns_worker is not None and self._dns_worker.is_alive()
 
     def addresses(self, host: str, port: int, rule: dict[str, Any], *, deadline: float | None = None, cancelled: Callable[[], bool] = lambda: False) -> list[str]:
         if host != rule["host"] or port != rule["port"]:
@@ -111,11 +116,13 @@ class PinnedHTTPS:
                 self._dns_gate.release()
                 self.dns_busy.clear()
                 ready.set()
-        threading.Thread(target=resolve, daemon=True, name="gate-trusted-dns").start()
+        worker = threading.Thread(target=resolve, daemon=True, name="gate-trusted-dns")
+        self._dns_worker = worker
+        worker.start()
         limit = min(deadline or time.monotonic() + 5, time.monotonic() + 5)
         while not ready.wait(0.02):
             if time.monotonic() >= limit:
-                raise InterruptedError("trusted_dns_termination_unknown")
+                raise PendingDNS(worker)
         if cancelled():
             raise SafeExecutionCancelled("trusted_dns_closed_before_connect")
         try:

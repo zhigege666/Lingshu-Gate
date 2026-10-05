@@ -11,9 +11,12 @@ import json
 import shutil
 import tarfile
 import time
+import socket
+import threading
 from pathlib import Path
 from types import SimpleNamespace
 from unittest.mock import patch
+from uuid import uuid4
 
 import pytest
 import yaml
@@ -22,6 +25,8 @@ from lingshu_gate.adapters.native_executor.controller import PodmanController
 from lingshu_gate.adapters.native_executor.executor import NativeNetworkExecutor
 from lingshu_gate.adapters.native_executor.git import packet
 from lingshu_gate.adapters.native_executor.journal import JobJournal
+from lingshu_gate.adapters.native_executor.https import PinnedHTTPS
+from lingshu_gate.adapters.native_executor.pending import PendingDNS
 from lingshu_gate.build_deploy import BuildDeployStore
 from lingshu_gate.credential_store import CredentialStore
 from lingshu_gate.database import SQLiteDatabase
@@ -334,6 +339,223 @@ def test_unknown_consumer_retains_acquisition_and_seed_inputs_for_reconciliation
     assert (flow.controller.workspaces / seeded["name"] / "output" / "cache" / "verified-cache").is_file()
     assert not flow.executor.readiness()["available"]
     assert "secret-value" not in json.dumps(flow.builds.list_build_logs(result["build_id"]))
+
+
+def native_input(flow):
+    identity = uuid4().hex
+    source = flow.executor.build_root / identity / "source"
+    source.mkdir(parents=True)
+    package = {"name": "fixture", "version": "1.0.0", "dependencies": {"dep": "1.0.0"}, "scripts": {"build": "fixture-build"}}
+    lock = {"lockfileVersion": 3, "packages": {"": {"dependencies": package["dependencies"]}, "node_modules/dep": {"version": "1.0.0", "resolved": "https://registry.npmjs.org/dep/-/dep-1.0.0.tgz", "integrity": sri(flow.transport.dependency)}}}
+    content = json.dumps(lock).encode()
+    (source / "package.json").write_text(json.dumps(package))
+    (source / "package-lock.json").write_bytes(content)
+    return source, {"install": {"mode": "direct"}, "npm_registry": "https://registry.npmjs.org/", "package_manager": {"name": "npm", "version": "11.6.0", "lockfile": "package-lock.json", "lockfile_sha256": hashlib.sha256(content).hexdigest()}, "execution": {"build_id": identity, "actor_id": "fixture-actor", "plan_fingerprint": "a" * 64, "source_sha256": "b" * 64}}
+
+
+@pytest.mark.parametrize("phase", ["tool_acquisition", "dependency_acquisition", "git_acquisition"])
+def test_dns_timeout_blocks_until_reconciled_and_repeated_success_keeps_workspace_empty(flow, phase):
+    source, network = native_input(flow)
+    if phase != "tool_acquisition":
+        flow.executor.prepare_package_manager(tool_preparation("npm", "11.6.0"), network=network, material={"proxy": None}, timeout_seconds=120, cancel_requested=lambda: False)
+    release = threading.Event()
+    def resolver(host, port, **kwargs):
+        release.wait(10)
+        return [(socket.AF_INET, socket.SOCK_STREAM, 0, "", ("93.184.216.34", port))]
+    client = PinnedHTTPS(resolver=resolver)
+    trigger = True
+    def request(url, **kwargs):
+        nonlocal trigger
+        if trigger:
+            trigger = False
+            # Shorten only the test deadline; this is the production unknown
+            # branch with the real bounded resolver worker still running.
+            client.addresses(kwargs["rule"]["host"], kwargs["rule"]["port"], kwargs["rule"], deadline=time.monotonic() + 0.02)
+        return flow.transport.request(url, **kwargs)
+    flow.executor.https = flow.executor.tools.https = flow.executor.git.backend.https = client
+    key = "build:" + network["execution"]["build_id"] + (":prepare:acquire" if phase == "tool_acquisition" else ":install:acquire")
+    try:
+        with patch.object(client, "request", side_effect=request), patch.object(flow.controller, "inspect", return_value=None) as inspect:
+            with pytest.raises(PendingDNS) as pending:
+                if phase == "tool_acquisition":
+                    flow.executor.prepare_package_manager(tool_preparation("npm", "11.6.0"), network=network, material={"proxy": None}, timeout_seconds=120, cancel_requested=lambda: False)
+                elif phase == "dependency_acquisition":
+                    flow.executor.run_command(["npm", "ci"], cwd=source, environment={}, network=network, material={"proxy": None}, timeout_seconds=120, cancel_requested=lambda: False)
+                else:
+                    identity = uuid4().hex
+                    key = "git:" + identity + ":acquire"
+                    git_request = {"execution": {"import_id": identity}, "source": {"repository_url": URL}, "commit_sha": flow.objects.commit, "host_rule": {"host": "github.com", "port": 443, "private_cidrs": []}, "limits": {"transfer_bytes": 50 * 1024 * 1024}}
+                    with flow.executor.git.backend.fetch_exact(git_request, material={"proxy": None}, cancel=threading.Event(), deadline=time.monotonic() + 120):
+                        raise AssertionError("Timed-out DNS cannot yield Git content")
+            assert flow.controller.journal.lookup(key)["state"] == "unknown"
+            assert "job_reconciliation_required" in flow.executor.readiness()["missing"]
+            calls = len(flow.controller.calls), len(flow.transport.calls)
+            # Clearing a flag is insufficient while the actual worker lives.
+            client.dns_busy.clear()
+            assert not flow.executor.readiness()["available"]
+            with pytest.raises(ToolExecutionError) as blocked:
+                flow.executor.prepare_package_manager(tool_preparation("npm", "11.6.0"), network=network, material={"proxy": None}, timeout_seconds=120, cancel_requested=lambda: False)
+            assert blocked.value.code == "safe_executor_unavailable"
+            assert calls == (len(flow.controller.calls), len(flow.transport.calls))
+            with pytest.raises(InterruptedError, match="active_work_reconciliation_blocked"):
+                flow.controller.reconcile()
+            inspect.assert_not_called()
+            release.set()
+            pending.value.worker.join(1)
+            assert not pending.value.worker.is_alive()
+            # Reader-visible readiness is restored only after real journal /
+            # resource reconciliation, before any subsequent command is admitted.
+            assert flow.executor.readiness()["available"]
+            assert inspect.called
+            old = flow.controller.journal.lookup(key)
+            assert old["state"] == "interrupted_terminated" and old["cleanup_state"] == "cleaned"
+            assert not flow.controller.journal.unfinished()
+            assert not list(flow.controller.workspaces.iterdir())
+            with pytest.raises(InterruptedError):
+                if phase == "tool_acquisition":
+                    flow.executor.prepare_package_manager(tool_preparation("npm", "11.6.0"), network=network, material={"proxy": None}, timeout_seconds=120, cancel_requested=lambda: False)
+                elif phase == "dependency_acquisition":
+                    flow.executor.run_command(["npm", "ci"], cwd=source, environment={}, network=network, material={"proxy": None}, timeout_seconds=120, cancel_requested=lambda: False)
+                else:
+                    with flow.executor.git.backend.fetch_exact(git_request, material={"proxy": None}, cancel=threading.Event(), deadline=time.monotonic() + 120):
+                        raise AssertionError("Reconciled Git acquisition must not replay")
+            for _ in range(6):
+                current, descriptor = native_input(flow)
+                flow.executor.prepare_package_manager(tool_preparation("npm", "11.6.0"), network=descriptor, material={"proxy": None}, timeout_seconds=120, cancel_requested=lambda: False)
+                for command in (["npm", "ci"], ["npm", "run", "build"]):
+                    result = flow.executor.run_command(command, cwd=current, environment={}, network=descriptor, material={"proxy": None}, timeout_seconds=120, cancel_requested=lambda: False)
+                    assert result["returncode"] == 0
+                    assert not flow.controller.journal.unfinished()
+                    assert not list(flow.controller.workspaces.iterdir())
+                assert (current / "built.js").read_text() == "fixture build"
+    finally:
+        release.set()
+        if client._dns_worker:
+            client._dns_worker.join(1)
+
+
+@pytest.mark.parametrize("state", ["unknown", "running", "reserved"])
+def test_unproven_unknown_or_stale_journal_state_cannot_admit(flow, state):
+    _, network = native_input(flow)
+    job = flow.controller.journal.reserve("fixture:stale", {"source": "fixture"}, "dependency_acquisition")
+    # A persisted DNS reason is diagnostic, never live-process stop evidence.
+    flow.controller.journal.update(job["key"], state, result={"reconciliation_reason": "trusted_dns_termination_unknown"})
+    with patch.object(flow.controller, "inspect") as inspect:
+        assert not flow.executor.readiness()["available"]
+        with pytest.raises(ToolExecutionError) as blocked:
+            flow.executor.prepare_package_manager(tool_preparation("npm", "11.6.0"), network=network, material={"proxy": None}, timeout_seconds=120, cancel_requested=lambda: False)
+        assert blocked.value.code == "safe_executor_unavailable"
+        inspect.assert_not_called()
+    assert flow.controller.journal.lookup(job["key"])["state"] == state
+    assert not flow.controller.calls and not flow.transport.calls
+
+
+def record_stopped_dns(flow):
+    worker = threading.Thread(target=lambda: None)
+    worker.start()
+    worker.join(1)
+    assert not worker.is_alive()
+    with pytest.raises(PendingDNS), flow.controller.journal.trusted_phase("fixture:dns", {"source": "fixture"}, "dependency_acquisition"):
+        output = flow.controller.acquisition_output("fixture:dns")
+        (output / "verified.tgz").write_bytes(b"verified fixture")
+        raise PendingDNS(worker)
+    return output
+
+
+def test_stopped_dns_cannot_reap_inputs_of_an_unknown_consumer(flow):
+    retained = record_stopped_dns(flow)
+    seed = flow.controller.journal.reserve("fixture:seed", {"source": "fixture"}, "npm_seed")
+    cache = flow.controller.workspaces / seed["name"] / "output"
+    cache.mkdir(parents=True)
+    (cache / "verified-cache").write_bytes(b"fixture")
+    flow.controller.journal.update(seed["key"], "completed")
+    consumer = flow.controller.journal.reserve("fixture:consumer", {"source": "fixture"}, "command")
+    flow.controller.journal.update(consumer["key"], "unknown", container_id="b" * 64, cgroup="/fixture/sandbox")
+    _, network = native_input(flow)
+    with patch.object(flow.controller, "inspect") as inspect:
+        assert not flow.executor.readiness()["available"]
+        with pytest.raises(ToolExecutionError):
+            flow.executor.prepare_package_manager(tool_preparation("npm", "11.6.0"), network=network, material={"proxy": None}, timeout_seconds=120, cancel_requested=lambda: False)
+        inspect.assert_not_called()
+    assert retained.is_dir() and (cache / "verified-cache").read_bytes() == b"fixture"
+    assert flow.controller.journal.lookup("fixture:dns")["state"] == "unknown"
+    assert flow.controller.journal.lookup(seed["key"])["cleanup_state"] == "pending"
+    assert not flow.controller.calls and not flow.transport.calls
+
+
+def test_dns_reconciliation_failure_keeps_readiness_and_admission_blocked(flow):
+    retained = record_stopped_dns(flow)
+    _, network = native_input(flow)
+    with patch.object(flow.controller, "inspect", side_effect=InterruptedError("fixture engine state unknown")) as inspect:
+        assert not flow.executor.readiness()["available"]
+        with pytest.raises(ToolExecutionError):
+            flow.executor.prepare_package_manager(tool_preparation("npm", "11.6.0"), network=network, material={"proxy": None}, timeout_seconds=120, cancel_requested=lambda: False)
+        assert inspect.called
+    assert retained.is_dir() and flow.controller.journal.lookup("fixture:dns")["state"] == "unknown"
+    assert not flow.controller.calls and not flow.transport.calls
+
+
+def test_cleanup_failure_after_dns_terminalization_still_blocks_admission(flow):
+    retained = record_stopped_dns(flow)
+    _, network = native_input(flow)
+    with patch.object(flow.controller, "inspect", return_value=None), patch.object(flow.controller, "release_output", side_effect=ToolExecutionError("executor_cleanup_path_rejected", "fixture")):
+        state = flow.executor.readiness()
+        assert not state["available"] and "job_reconciliation_incomplete" in state["missing"]
+        assert flow.controller.journal.lookup("fixture:dns")["state"] == "interrupted_terminated"
+        with pytest.raises(ToolExecutionError):
+            flow.executor.prepare_package_manager(tool_preparation("npm", "11.6.0"), network=network, material={"proxy": None}, timeout_seconds=120, cancel_requested=lambda: False)
+    assert retained.is_dir() and not flow.controller.calls and not flow.transport.calls
+
+
+@pytest.mark.parametrize("cleanup_method", ["release_output", "release_acquisition"])
+def test_command_cleanup_failure_releases_gate_but_keeps_admission_blocked(flow, cleanup_method):
+    source, network = native_input(flow)
+    flow.executor.prepare_package_manager(tool_preparation("npm", "11.6.0"), network=network, material={"proxy": None}, timeout_seconds=120, cancel_requested=lambda: False)
+    with patch.object(flow.controller, cleanup_method, side_effect=OSError("fixture cleanup failed")):
+        with pytest.raises(OSError, match="fixture cleanup failed"):
+            flow.executor.run_command(["npm", "ci"], cwd=source, environment={}, network=network, material={"proxy": None}, timeout_seconds=120, cancel_requested=lambda: False)
+    assert not flow.executor._active_call.is_set()
+    assert flow.executor._gate.acquire(blocking=False)
+    flow.executor._gate.release()
+    state = flow.executor.readiness()
+    assert not state["available"] and "job_workspace_cleanup_incomplete" in state["missing"]
+    assert not flow.controller.journal.unfinished()
+    assert flow.controller.journal.cleanup_pending() and list(flow.controller.workspaces.iterdir())
+    calls = len(flow.controller.calls), len(flow.transport.calls)
+    with pytest.raises(ToolExecutionError) as blocked:
+        flow.executor.prepare_package_manager(tool_preparation("npm", "11.6.0"), network=network, material={"proxy": None}, timeout_seconds=120, cancel_requested=lambda: False)
+    assert blocked.value.code == "safe_executor_unavailable"
+    assert calls == (len(flow.controller.calls), len(flow.transport.calls))
+
+
+def test_readiness_and_admission_wait_until_reconciliation_cleanup_finishes(flow):
+    retained = record_stopped_dns(flow)
+    _, network = native_input(flow)
+    entered, release = threading.Event(), threading.Event()
+    results = []
+    remove = flow.controller.release_output
+    def cleanup(result):
+        entered.set()
+        assert release.wait(5)
+        remove(result)
+    worker = threading.Thread(target=lambda: results.append(flow.executor.readiness()))
+    with patch.object(flow.controller, "inspect", return_value=None), patch.object(flow.controller, "release_output", side_effect=cleanup):
+        try:
+            worker.start()
+            assert entered.wait(1)
+            # The DNS row is terminal, but cleanup still owns admission.
+            assert flow.controller.journal.lookup("fixture:dns")["state"] == "interrupted_terminated"
+            state = flow.executor.readiness()
+            assert not state["available"] and "job_reconciliation_in_progress" in state["missing"]
+            with pytest.raises(ToolExecutionError) as blocked:
+                flow.executor.prepare_package_manager(tool_preparation("npm", "11.6.0"), network=network, material={"proxy": None}, timeout_seconds=120, cancel_requested=lambda: False)
+            assert blocked.value.code == "executor_busy"
+            assert retained.is_dir() and not flow.controller.calls and not flow.transport.calls
+        finally:
+            release.set()
+            worker.join(1)
+    assert not worker.is_alive() and results[0]["available"]
+    assert not retained.parent.exists()
 
 
 def test_distribution_integrity_failure_never_probes_or_executes_tool(flow):

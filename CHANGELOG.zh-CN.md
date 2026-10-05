@@ -3,6 +3,7 @@
 ## Unreleased — Native executor
 
 - 实现可选 Native/Linux rootless Podman 执行器、可信固定 HTTPS/Git 获取、官方精确工具缓存、registry-only npm/pnpm 8–9/Yarn Classic 离线冻结安装/构建、真实 readiness 及持久阶段/container/cgroup 对账。Core 仍为 gateway；pnpm 10/11、Yarn Berry、Python sandbox 缓存安装及未支持 origin 明确拒绝，真实宿主验收未测。
+- DNS 超时后的未知获取 job 阻断准入；仅在精确 resolver 与调用者退出、资源对账及残留工作区清理完成后恢复 readiness。保留未知消费者输入，不重跑中断 key；清理失败释放操作锁但继续阻断 readiness。
 
 ## 0.4.4
 

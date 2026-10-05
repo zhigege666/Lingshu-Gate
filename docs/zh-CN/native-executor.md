@@ -67,6 +67,8 @@ snapshot/artifact 扫描包含各 Basic token/代理 password 分量、其 URL/b
 
 HTTPS 禁 redirects、编码响应、环境代理和自动重试，限制 headers/body/deadline。DNS 只允许一个有界在途 resolver 槽。超时但未实际退出的 resolver 为未知结果，阻断网络 readiness，不能冒充已取消。可信 socket 关闭后才确认其取消；项目执行只接收已校验、无秘密内容。
 
+持久 `unknown` 独立阻断 readiness（`job_reconciliation_required`），清除 `dns_busy` 不会放行。只有本进程保存了精确 DNS worker 已退出、获取调用者已结束的证据，才允许自动对账。空闲 readiness 检查或下一次 admission 取得同一排他准入锁，先完成资源与全部残留清理，再报告可用或创建新 job。旧获取阶段仍为 `interrupted_terminated`，同 key 不重跑；其他未知/遗留状态或丢失 worker 证据须重启对账。活跃消费者阻止删除输入/cache；所有待清理资源都检查后才删除任何工作区。清理结束前，并发观察者报告 `job_reconciliation_in_progress`；任何恢复/清理失败报告 `job_reconciliation_incomplete` 并继续阻断准入。关闭时，已记录 DNS worker 仍存活就保留 journal owner 与未知输入。
+
 同一 socket supervisor 贯穿 TCP connect、代理协商、显式 TLS handshake、发送和响应，始终使用原 deadline 并重算剩余预算。握手后取消会在构造/发送 origin 认证前重查。连接中和握手中 socket 在阻塞操作前注册，确保全程取消均能关闭它们。
 
 可信获取不执行项目或依赖代码。Git 在无网络 sandbox 只解析 pack，原始 object 导出绕过 checkout、attributes、filters。官方工具解包不执行 lifecycle；npm 缓存准备只使用 SRI 已验证的官方 cache library 和 blobs。Yarn 接收只读、已校验的 registry mirror（存在旧 SHA-1 fragment 时额外核验），固定 CLI 使用仅携带依赖请求的 seed manifest 执行 `--offline --frozen-lockfile --ignore-scripts`。pnpm 8/9 由官方 CLI 将已验证本地 tarball 写入 SHA-512 寻址的 v3 store，再禁用 hook/script 验证 seed 的离线冻结安装。导出缓存前删除 seed 项目和 node_modules。原锁字节保持不变，项目安装后再次核对。项目容器把只读 source/tool/cache 复制到有界工作目录，没有 proxy/auth 环境、外部网络、SSH agent 或 Gate socket/home。项目及依赖 lifecycle 都在用户确认的 install/build 范围中运行。
@@ -85,7 +87,7 @@ pnpm 10/11 的工具准备和 build-only 仍可用，但依赖安装在获取前
 
 冻结后的结果、inventory、Git object、artifact 使用 nonblocking/no-follow 文件描述符打开，并经 `fstat` 确认普通文件。结果 JSON 读取上限为 8 KiB/一秒；FIFO、设备、目录、inode 交换及超限输出在解析前拒绝。拒绝结果记录为已确认失败的阶段，释放 controller admission。
 
-journal 独立持久记录 `cleanup_state=pending/cleaned`。已确认取消、超时及其他失败阶段在释放 admission 前删除工作区，成功输出在消费后删除。启动同时对账未终止执行和终态残留目录，避免终止后崩溃积累 tmpfs 占用。未知执行保留输出并阻断 readiness；清理失败仍为 pending，并阻断 readiness，直到成功对账。
+journal 独立持久记录 `cleanup_state=pending/cleaned`。已确认取消、超时及其他失败阶段在释放 admission 前删除工作区，成功输出在消费后删除。启动同时对账未终止执行和终态残留目录，避免终止后崩溃积累 tmpfs 占用。未知执行保留输出并阻断 readiness；命令清理失败释放操作锁，但仍为 pending 并阻断 readiness（`job_workspace_cleanup_incomplete`），直到重启对账成功。消费者输出目录缺失不能证明其 container/cgroup 已终止。
 
 Git pack 和 dependency tarball 暂存也位于 journal 对应的 `workspaces/<job-name>/output`，受同一 tmpfs 总配额约束。只有已落账且运行中的获取阶段可分配目录；消费后清除持久 cleanup 状态，进程崩溃由同一记录对账清理，不重跑获取。未知消费者同时保留已校验包、已准备只读缓存及自身输出，直到全部资源完成对账。
 

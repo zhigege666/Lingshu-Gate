@@ -4,12 +4,14 @@ from __future__ import annotations
 import json
 import os
 import stat
+import threading
 from unittest.mock import patch
 
 import pytest
 
 from lingshu_gate.adapters.native_executor.controller import PodmanController, read_regular_result
 from lingshu_gate.adapters.native_executor.journal import JobJournal
+from lingshu_gate.adapters.native_executor.pending import PendingDNS
 from lingshu_gate.native_executor_config import NativeExecutorConfig
 from lingshu_gate.ports.safe_network_executor import ExecutorReadiness, PHASE_CHECKS, ROOTLESS_CHECKS, SafeExecutionCancelled
 from lingshu_gate.registry import ToolExecutionError
@@ -165,6 +167,65 @@ def test_restart_reconciles_unknown_staging_with_same_key_and_no_replay(engine, 
     with pytest.raises(InterruptedError):
         controller.journal.reserve("fixture:acquire", {"digest": "a"}, phase)
     assert not any(call[0] in {"create", "start"} for call in calls)
+
+
+@pytest.mark.parametrize("consumer_output_exists", [True, False])
+def test_reconciliation_observes_all_consumers_before_removing_any_workspace(engine, consumer_output_exists):
+    controller, calls, state = engine
+    seed = controller.journal.reserve("fixture:seed", {"source": "fixture"}, "npm_seed")
+    retained = controller.workspaces / seed["name"] / "output"
+    retained.mkdir(parents=True)
+    (retained / "cache").write_bytes(b"verified fixture")
+    controller.journal.update(seed["key"], "completed")
+    consumer = controller.journal.reserve("fixture:consumer", {"source": "fixture"}, "command")
+    if consumer_output_exists:
+        (controller.workspaces / consumer["name"] / "output").mkdir(parents=True)
+    controller.journal.update(consumer["key"], "completed", cgroup="/fixture/sandbox")
+    state["empty"] = False
+    with patch.object(controller, "release_output", wraps=controller.release_output) as remove, pytest.raises(InterruptedError):
+        controller.reconcile()
+    remove.assert_not_called()
+    assert (retained / "cache").read_bytes() == b"verified fixture"
+    assert controller.journal.lookup(seed["key"])["cleanup_state"] == "pending"
+    assert controller.journal.lookup(consumer["key"])["state"] == "unknown"
+    assert not controller.readiness()["available"]
+
+
+def test_reconciliation_does_not_interrupt_a_live_trusted_phase(engine):
+    controller, calls, state = engine
+    with controller.journal.trusted_phase("fixture:live", {"source": "fixture"}, "dependency_acquisition"):
+        retained = controller.acquisition_output("fixture:live")
+        with pytest.raises(InterruptedError, match="active_work_reconciliation_blocked"):
+            controller.reconcile()
+        assert retained.is_dir()
+        assert controller.journal.lookup("fixture:live")["state"] == "running"
+    controller.release_acquisition("fixture:live")
+
+
+def test_shutdown_keeps_unknown_dns_workspace_and_owner_until_worker_stops(engine):
+    controller, calls, state = engine
+    release = threading.Event()
+    worker = threading.Thread(target=lambda: release.wait(5))
+    worker.start()
+    try:
+        with pytest.raises(PendingDNS), controller.journal.trusted_phase("fixture:dns", {"source": "fixture"}, "dependency_acquisition"):
+            retained = controller.acquisition_output("fixture:dns")
+            raise PendingDNS(worker)
+        with pytest.raises(InterruptedError, match="active_work_reconciliation_blocked"):
+            controller.close()
+        assert retained.is_dir() and controller.journal.lookup("fixture:dns")["state"] == "unknown"
+        with pytest.raises(ToolExecutionError) as owned:
+            JobJournal(controller.root)
+        assert owned.value.code == "executor_owner_busy"
+        release.set()
+        worker.join(1)
+        assert not worker.is_alive()
+        controller.reconcile()
+        assert not retained.parent.exists()
+        assert controller.journal.lookup("fixture:dns")["state"] == "interrupted_terminated"
+    finally:
+        release.set()
+        worker.join(1)
 
 
 @pytest.mark.parametrize("exit_code,state_name", [(0, "completed"), (23, "failed")])

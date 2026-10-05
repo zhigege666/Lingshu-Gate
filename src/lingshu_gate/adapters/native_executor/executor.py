@@ -38,15 +38,30 @@ class NativeNetworkExecutor:
         self.tools = ToolCache(self.controller, self.https)
         self.build_root = build_root.resolve()
         self._gate = threading.BoundedSemaphore(1)
+        self._active_call = threading.Event()
+        self._recovering = threading.Event()
 
     def start(self) -> None:
         self.controller.start()
 
     def readiness(self) -> dict[str, Any]:
+        # Settings/plan readers may observe recovery, but never race an active
+        # operation or infer it from the resolver's busy flag alone.
+        if not self._closed.is_set() and self._gate.acquire(blocking=False):
+            try:
+                self._reconcile_stopped_dns()
+            finally:
+                self._gate.release()
         state = self.controller.readiness()
+        if self._recovering.is_set():
+            state = {**state, "available": False, "code": "safe_executor_unavailable", "missing": [*state["missing"], "job_reconciliation_in_progress"]}
+        pending = getattr(self.https, "dns_pending", None)
         busy = getattr(self.https, "dns_busy", None)
-        if busy is not None and busy.is_set():
+        dns_pending = pending() if callable(pending) else busy is not None and busy.is_set()
+        if dns_pending:
             state = {**state, "available": False, "code": "safe_executor_unavailable", "missing": [*state["missing"], "trusted_dns_resolution_in_progress"]}
+        if not self._active_call.is_set() and self.controller.journal and self.controller.journal.unfinished():
+            state = {**state, "available": False, "code": "safe_executor_unavailable", "missing": sorted(set([*state["missing"], "job_reconciliation_required"]))}
         return state
 
     def require_ready(self) -> None:
@@ -79,16 +94,44 @@ class NativeNetworkExecutor:
                     reject("dependency_cache_workflow_unsupported", "Only the selected manager's generated frozen registry install is supported")
 
     def _admit(self) -> None:
-        self.require_ready()
         if not self._gate.acquire(blocking=False):
             reject("executor_busy", "Native acquisition/offline executor is busy; no automatic retry was dispatched")
+        try:
+            self._reconcile_stopped_dns()
+            self.require_ready()
+            self._active_call.set()
+        except BaseException:
+            self._gate.release()
+            raise
+
+    def _reconcile_stopped_dns(self) -> None:
+        journal = self.controller.journal
+        if self._closed.is_set() or not journal or not journal.dns_recovery_ready():
+            return
+        # Only exact in-process evidence qualifies; generic/lost proof remains
+        # blocked until restart. The interrupted operation is never replayed.
+        self._recovering.set()
+        try:
+            self.controller.reconcile()
+            self.controller.missing = [item for item in self.controller.missing if item != "job_reconciliation_incomplete"]
+        except Exception:
+            # Resource/cleanup uncertainty stays journaled and blocks readiness.
+            # Never turn reconciliation failure into new work or expose errors.
+            if "job_reconciliation_incomplete" not in self.controller.missing:
+                self.controller.missing.append("job_reconciliation_incomplete")
+        finally:
+            self._recovering.clear()
+
+    def _finish(self) -> None:
+        self._active_call.clear()
+        self._gate.release()
 
     def resolve_commit(self, request: dict[str, Any], *, material: dict[str, Any], timeout_seconds: int) -> str:
         self._admit()
         try:
             return self.git.resolve_commit(request, material=material, timeout_seconds=timeout_seconds)
         finally:
-            self._gate.release()
+            self._finish()
 
     def export_snapshot(self, request: dict[str, Any], *, material: dict[str, Any], cancel: threading.Event) -> bytes:
         self._admit()
@@ -99,7 +142,7 @@ class NativeNetworkExecutor:
                     return cancel.is_set() or closed.is_set()
             return self.git.export_snapshot(request, material=material, cancel=CombinedCancel())
         finally:
-            self._gate.release()
+            self._finish()
 
     def probe(self, target: str, *, material: dict[str, Any], timeout_seconds: int, max_response_bytes: int, method: str) -> dict[str, Any]:
         self._admit()
@@ -109,7 +152,7 @@ class NativeNetworkExecutor:
             status, _ = self.https.request(target, rule=ToolCache._rule(target), material=material, deadline=time.monotonic() + timeout_seconds, maximum=max_response_bytes, method="HEAD", cancelled=self._closed.is_set)
             return {"ok": True, "http_status": status}
         finally:
-            self._gate.release()
+            self._finish()
 
     @staticmethod
     def _phase_key(network: dict[str, Any], phase: str) -> str:
@@ -135,7 +178,7 @@ class NativeNetworkExecutor:
                 result = self.tools.prepare(specification, network=network, material=material, deadline=time.monotonic() + min(timeout_seconds, 120), cancelled=lambda: cancel_requested() or self._closed.is_set(), key=key)
             return {field: value for field, value in result.items() if field != "cache_path"} | {"started_at": started, "finished_at": timestamp()}
         finally:
-            self._gate.release()
+            self._finish()
 
     def _cwd(self, cwd: Path, network: dict[str, Any]) -> Path:
         identity = network.get("execution") or {}
@@ -209,15 +252,21 @@ class NativeNetworkExecutor:
         except TimeoutError:
             return {"returncode": 124, "timed_out": True, "stdout": "", "stderr": "", "duration_ms": int((time.monotonic() - clock) * 1000), "started_at": started, "finished_at": timestamp()}
         finally:
-            # Unknown consumers retain both their output and mounted cache/
-            # acquisition inputs. Startup reconciles all resources first.
-            cleanup = self.controller.journal is not None and not self.controller.journal.unfinished()
-            if result and cleanup:
-                self.controller.release_output(result)
-            if seeded and cleanup:
-                self.controller.release_output(seeded)
-            if acquisition_key:
-                self.controller.release_acquisition(acquisition_key)
-            if exported:
-                shutil.rmtree(exported)
-            self._gate.release()
+            try:
+                # Unknown consumers retain both their output and mounted cache/
+                # acquisition inputs. Reconciliation checks all resources first.
+                cleanup = self.controller.journal is not None and not self.controller.journal.unfinished()
+                if result and cleanup:
+                    self.controller.release_output(result)
+                if seeded and cleanup:
+                    self.controller.release_output(seeded)
+                if acquisition_key:
+                    self.controller.release_acquisition(acquisition_key)
+                if exported:
+                    shutil.rmtree(exported)
+            except Exception:
+                if "job_workspace_cleanup_incomplete" not in self.controller.missing:
+                    self.controller.missing.append("job_workspace_cleanup_incomplete")
+                raise
+            finally:
+                self._finish()

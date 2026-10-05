@@ -3,6 +3,7 @@
 ## Unreleased — Native executor
 
 - Implement the optional Native/Linux rootless Podman executor, trusted pinned HTTPS/Git acquisition, official exact tool cache, registry-only npm/pnpm 8–9/Yarn Classic offline frozen install/build, observed readiness and durable phase/container/cgroup reconciliation. Core remains gateway-only. pnpm 10/11, Yarn Berry, Python sandbox caches and unsupported origins are refused; physical host acceptance remains untested.
+- Block admission on unknown acquisition jobs after DNS timeout. Restore readiness only after the exact resolver and caller stop, resource reconciliation and retained workspace cleanup; keep unknown consumers' inputs and never replay interrupted keys. Cleanup failure retains a readiness barrier while releasing the operation gate.
 
 ## 0.4.4
 
