@@ -32,9 +32,9 @@ def p95(samples):
     return round(sorted(samples)[math.ceil(len(samples) * 0.95) - 1] * 1000, 3)
 
 
-@pytest.mark.parametrize("tool_instances,tools_each", [(5000, 10), (1000, 50)],
-                         ids=["five_groups", "maximum_single_group"])
-def test_full_directory_5000_instances_50000_tools(gate, monkeypatch, record_property, tool_instances, tools_each):
+@pytest.mark.parametrize("tool_instances,tools_each,over_cache", [(5000, 10, False), (1000, 50, False), (1000, 50, True)],
+                         ids=["five_groups", "maximum_single_group", "over_cache_bytes"])
+def test_full_directory_5000_instances_50000_tools(gate, monkeypatch, record_property, tool_instances, tools_each, over_cache):
     configs, registry, client = gate["configs"], gate["registry"], gate["client"]
     for index in range(3):
         configs.delete_config(f"instance-{index}")
@@ -53,7 +53,8 @@ def test_full_directory_5000_instances_50000_tools(gate, monkeypatch, record_pro
         for tool_index in range(tools_each):
             name = f"query-{tool_index:02}"
             definition = ToolDefinition(id=f"mcp.{instance}.{name}", name=name, description="Synthetic catalog contract",
-                source="mcp", input_schema={"type": "object", "properties": {"id": {"type": "string"}}},
+                source="mcp", input_schema={"type": "object", "properties": {"id": {"type": "string"}},
+                    **({"description": "s" * 190} if over_cache else {})},
                 metadata={"server_id": instance, "original_tool_name": name, "annotations": {"readOnlyHint": True}})
             registry.register(definition, handler)
             definitions.append(definition)
@@ -67,6 +68,8 @@ def test_full_directory_5000_instances_50000_tools(gate, monkeypatch, record_pro
     groups = [create(gate, name=f"Synthetic scale group {start // 1000}",
         members=[f"scale-{index:04}" for index in range(start, start + 1000)])
         for start in range(0, tool_instances, 1000)]
+    alternating_group = create(gate, name="Synthetic shared scale group",
+        members=[f"scale-{index:04}" for index in range(500)]) if over_cache else None
     assert len(configs.instance_metadata()) == 5000
     _, headers = catalog_token(gate, ["operations.manage", "tools.read"])
     for name in ("_tools", "_structures", "_mcp_index"):
@@ -83,6 +86,22 @@ def test_full_directory_5000_instances_50000_tools(gate, monkeypatch, record_pro
     monkeypatch.setattr(structures, "_tool_fingerprint", counted("fingerprints"))
     monkeypatch.setattr(structures, "normalize_tool_contract", counted("normalizations"))
     monkeypatch.setattr(contracts, "canonical_contract", counted("canonical_serializations"))
+    # Record initial misses independently of preparation. Each HTTP attempt
+    # must prepare only these misses, even when insertion evicts held hits.
+    batch_misses = []
+    original_batch = structures.ToolStructureCache.get_many
+    def observed_batch(cache, entries):
+        items = tuple(entries)
+        with cache._lock:
+            missing = sum((item.revision, item.structure) not in cache._entries for item in items)
+        before = counts.copy()
+        result = original_batch(cache, items)
+        assert counts["fingerprints"] - before["fingerprints"] == missing
+        assert counts["normalizations"] - before["normalizations"] == missing
+        assert counts["canonical_serializations"] - before["canonical_serializations"] == 3 * missing
+        batch_misses.append(missing)
+        return result
+    monkeypatch.setattr(structures.ToolStructureCache, "get_many", observed_batch)
     cold, hot, catalog_pages, member_pages = [], [], [], []
     def query(group, samples, suffix="", **params):
         started = time.perf_counter()
@@ -105,7 +124,14 @@ def test_full_directory_5000_instances_50000_tools(gate, monkeypatch, record_pro
     assert counts == {"fingerprints": expected_preparations, "normalizations": expected_preparations,
                       "canonical_serializations": 3 * expected_preparations}
     cold_counts = counts.copy()
-    assert gate["catalog"].structures.usage()[0] == 50_000
+    cached_count, charged_bytes = gate["catalog"].structures.usage()
+    if over_cache:
+        assert 25_000 < cached_count < 50_000 and charged_bytes <= structures.MAX_STRUCTURE_CACHE_BYTES
+        with gate["catalog"].structures._lock:
+            sample = next(iter(gate["catalog"].structures._entries.values()))
+        assert 50_000 * sample.cache_bytes > structures.MAX_STRUCTURE_CACHE_BYTES
+    else:
+        assert cached_count == 50_000
     for index in range(10):
         body = query(groups[index % len(groups)], hot, limit=100)
         assert body["visible_tool_count"] == 1000 * tools_each
@@ -120,7 +146,24 @@ def test_full_directory_5000_instances_50000_tools(gate, monkeypatch, record_pro
         assert detail["total"] == 1000
         assert [item["tool_id"] for item in detail["members"]] == [
             f"mcp.scale-{number:04}.query-{tools_each - 1:02}" for number in range(last_instance - 2, last_instance + 1)]
-    assert counts == cold_counts, "Hot/search/page requests must perform zero structural fingerprinting or canonical serialization"
+    warm_counts = {name: value - cold_counts[name] for name, value in counts.items()}
+    if over_cache:
+        assert len(batch_misses) == 35
+        assert all(0 < missing < 25_000 for missing in batch_misses[5:])
+        assert warm_counts["fingerprints"] == warm_counts["normalizations"] == sum(batch_misses[5:])
+    else:
+        assert counts == cold_counts, "A retained working set must perform zero additional structural preparation"
+    alternating_misses = []
+    if alternating_group:
+        for group in [alternating_group, groups[0], alternating_group, groups[0]]:
+            prior = len(batch_misses)
+            response = client.get(catalog_path(group), headers=headers)
+            assert response.status_code == 200
+            assert response.json()["visible_tool_count"] == (25_000 if group is alternating_group else 50_000)
+            assert len(batch_misses) == prior + 1
+            alternating_misses.append(batch_misses[-1])
+            assert batch_misses[-1] < 25_000
+    before_writer = counts.copy()
     # A newly published last-member structure forces one cold preparation.
     # Pause it while a real configuration writer acquires the mutation lock.
     last_group, last_instance = groups[-1], tool_instances - 1
@@ -149,8 +192,9 @@ def test_full_directory_5000_instances_50000_tools(gate, monkeypatch, record_pro
             release.set()
         after = reader.result(timeout=20)
     assert after.status_code == 200 and after.json()["visible_tool_count"] == 1000 * tools_each - 1
-    assert counts["fingerprints"] == cold_counts["fingerprints"] + 1
-    assert counts["normalizations"] == cold_counts["normalizations"] + 1
+    if not over_cache:
+        assert counts["fingerprints"] == before_writer["fingerprints"] + 1
+        assert counts["normalizations"] == before_writer["normalizations"] + 1
     assert not invoked
     entries, charged_bytes = gate["catalog"].structures.usage()
     assert entries <= structures.MAX_STRUCTURE_CACHE_ENTRIES and charged_bytes <= structures.MAX_STRUCTURE_CACHE_BYTES
@@ -162,12 +206,16 @@ def test_full_directory_5000_instances_50000_tools(gate, monkeypatch, record_pro
         rss = resource.getrusage(resource.RUSAGE_SELF).ru_maxrss
         peak_rss_kib = round(rss / 1024) if sys.platform == "darwin" else rss
     metrics = {"instances": 5000, "registry_tools": 50_000, "groups": len(groups),
+        "over_cache_bytes": over_cache, "retained_after_cold": cached_count,
+        "estimated_full_working_set_charged_bytes": 50_000 * sample.cache_bytes if over_cache else charged_bytes,
         "members_per_group": 1000, "tools_per_request": 1000 * tools_each,
         "cold_samples": len(cold), "cold_p95_ms": p95(cold), "hot_samples": len(hot), "hot_p95_ms": p95(hot),
         "catalog_page_samples": len(catalog_pages), "catalog_page_p95_ms": p95(catalog_pages),
         "member_page_samples": len(member_pages), "member_page_p95_ms": p95(member_pages),
-        "cold_structure_counts": cold_counts, "warm_and_paged_additional_structure_counts": {
-            name: value - cold_counts[name] - (3 if name == "canonical_serializations" else 1) for name, value in counts.items()},
+        "cold_structure_counts": cold_counts, "warm_and_paged_additional_structure_counts": warm_counts,
+        "warm_initial_miss_min": min(batch_misses[5:35]), "warm_initial_miss_max": max(batch_misses[5:35]),
+        "alternating_group_initial_misses": alternating_misses,
+        "writer_additional_preparations": counts["fingerprints"] - before_writer["fingerprints"],
         "config_writer_lock_wait_ms": round(lock_wait * 1000, 3), "cache_entries": entries,
         "cache_charged_bytes": charged_bytes, "process_peak_rss_kib": peak_rss_kib}
     record_property("directory_scale_measurements", json.dumps(metrics))

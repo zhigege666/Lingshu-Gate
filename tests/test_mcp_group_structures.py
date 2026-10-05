@@ -87,3 +87,33 @@ def test_busy_preparation_fails_with_bounded_retryable_error(monkeypatch):
             cache.get(value)
     assert busy.value.code == "group_catalog_busy" and busy.value.status == 409
     assert cache.usage() == (0, 0)
+
+
+def test_batch_holds_hits_before_misses_evict_them_for_larger_than_cache_input():
+    entries = [entry(index) for index in range(3)]
+    cost = structures.prepare_tool_structure(entries[0]).cache_bytes
+    cache = structures.ToolStructureCache(max_entries=10, max_bytes=2 * cost)
+    with patch.object(structures, "prepare_tool_structure", wraps=structures.prepare_tool_structure) as prepare:
+        first = cache.get_many(entries)
+        assert prepare.call_count == 3
+        for _ in range(3):
+            before = prepare.call_count
+            warm = cache.get_many(entries)
+            assert prepare.call_count - before == 1, "Only the initially absent entry may be prepared"
+            assert [item.fingerprint for item in warm] == [item.fingerprint for item in first]
+            assert all(item.definition is value.structure for item, value in zip(warm, entries, strict=True))
+            assert cache.usage()[0] == 2 and cache.usage()[1] <= 2 * cost
+
+
+def test_batch_preserves_shared_hit_when_two_groups_alternate():
+    entries = [entry(index) for index in range(3)]
+    cache = structures.ToolStructureCache(max_entries=2)
+    with patch.object(structures, "prepare_tool_structure", wraps=structures.prepare_tool_structure) as prepare:
+        cache.get_many(entries[:2])
+        assert prepare.call_count == 2
+        for selection in [entries[1:], entries[:2], entries[1:], entries[:2]]:
+            before = prepare.call_count
+            result = cache.get_many(selection)
+            assert prepare.call_count - before == 1
+            assert [item.definition for item in result] == [item.structure for item in selection]
+            assert cache.usage()[0] == 2

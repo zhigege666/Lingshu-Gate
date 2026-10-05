@@ -69,7 +69,7 @@ class McpGroupCatalogService:
                         raise McpGroupError("group_catalog_capacity", "The group exceeds bounded structural input capacity.", 503)
                     candidates.append(entry)
             # No configuration, Registry or database lock across preparation.
-            prepared = [self.structures.get(entry) for entry in candidates]
+            prepared = self.structures.get_many(candidates)
             by_id = {item.definition.id: item for item in prepared}
             with self.groups.store.database.session() as connection:
                 connection.execute("BEGIN")

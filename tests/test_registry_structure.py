@@ -3,6 +3,8 @@ from __future__ import annotations
 
 import json
 import math
+import threading
+from concurrent.futures import ThreadPoolExecutor
 from dataclasses import FrozenInstanceError
 from types import SimpleNamespace
 from unittest.mock import patch
@@ -200,3 +202,45 @@ def test_5000_instances_50000_tools_snapshot_reads_only_selected_index_buckets()
         with pytest.raises(RegistrySnapshotCapacityError):
             registry.mcp_snapshot(["bulk-0999", "bulk-4999"], max_tools=19)
     assert {entry.structure.metadata["server_id"] for entry in first.tools} == {"bulk-0999", "bulk-4999"}
+
+
+@pytest.mark.parametrize("kind", ["non_object", "bytes", "nodes", "depth", "valid"])
+def test_output_mutation_after_preflight_is_checked_on_frozen_copy_and_preserves_publication(kind):
+    registry, original = ToolRegistry(), tool()
+    registry.register(original, lambda _: {})
+    before = registry.mcp_snapshot(["synthetic"], max_tools=10)
+    changed = registry.get_definition(original.id)
+    output = {"type": "object"}
+    if kind == "non_object":
+        output = []
+    elif kind == "bytes":
+        output = {"description": "x" * (MAX_SCHEMA_BYTES + 1)}
+    elif kind == "nodes":
+        output = {"enum": list(range(tool_structure.MAX_SCHEMA_NODES + 1))}
+    elif kind == "depth":
+        for _ in range(tool_structure.MAX_SCHEMA_DEPTH + 1):
+            output = {"items": output}
+    reached, release = threading.Event(), threading.Event()
+    freeze = tool_structure._freeze_json
+    def paused(value, **kwargs):
+        if value is changed.input_schema:
+            reached.set()
+            assert release.wait(5), "The post-preflight mutation barrier must be bounded"
+        return freeze(value, **kwargs)
+    with patch.object(tool_structure, "_freeze_json", side_effect=paused), ThreadPoolExecutor(max_workers=1) as pool:
+        future = pool.submit(registry.update_definition, changed)
+        try:
+            assert reached.wait(3), "Publication must pass preflight before the output mutation"
+            changed.metadata["outputSchema"] = output
+        finally:
+            release.set()
+        if kind == "valid":
+            future.result(timeout=5)
+            assert not registry.mcp_snapshot_current(before.revisions)
+            output["type"] = "caller-mutation"
+            assert registry.get_definition(original.id).metadata["outputSchema"] == {"type": "object"}
+        else:
+            with pytest.raises(ValueError, match="tool_(output_schema_non_object|structure_.*limit)"):
+                future.result(timeout=5)
+            assert registry.mcp_snapshot_current(before.revisions)
+            assert registry.get_definition(original.id) == original

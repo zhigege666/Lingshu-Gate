@@ -163,3 +163,73 @@ def test_continuously_changing_structure_stops_after_three_attempts_without_part
     assert response.json()["detail"]["retryable"] is True
     assert response.headers["retry-after"] == "1" and response.headers["cache-control"] == "no-store"
     assert "variants" not in response.json()
+
+
+def test_two_http_groups_keep_shared_structural_hit_when_alternating(gate):
+    first = create(gate, name="Synthetic first group", members=["instance-0", "instance-1"])
+    second = create(gate, name="Synthetic second group", members=["instance-1", "instance-2"])
+    for instance in ["instance-0", "instance-1", "instance-2"]:
+        catalog_tool(gate, instance)
+    gate["catalog"].structures = structures.ToolStructureCache(max_entries=2)
+    _, headers = catalog_token(gate, ["operations.manage", "tools.read"])
+    with patch.object(structures, "prepare_tool_structure", wraps=structures.prepare_tool_structure) as prepare:
+        for index, group in enumerate([first, second, first, second, first]):
+            before = prepare.call_count
+            response = gate["client"].get(catalog_path(group), headers=headers)
+            assert response.status_code == 200 and response.json()["visible_tool_count"] == 2
+            assert response.json()["variants"][0]["visible_member_count"] == 2
+            assert prepare.call_count - before == (2 if index == 0 else 1)
+            assert gate["catalog"].structures.usage()[0] == 2
+
+
+@pytest.mark.parametrize("change", ["scopes", "permission", "revoked", "deleted", "expired", "disabled", "admin", "classification"])
+def test_authorization_snapshot_survives_comparison_race_but_next_request_rechecks(gate, change):
+    group = create(gate)
+    catalog_tool(gate, "instance-0")
+    changed_tool, _ = catalog_tool(gate, "instance-1")
+    token, headers = catalog_token(gate, ["operations.manage", "tools.read"])
+    reached, release = threading.Event(), threading.Event()
+    original = application.build_catalog
+    def paused(*args):
+        reached.set()
+        assert release.wait(5), "Bounded release of the comparison barrier"
+        return original(*args)
+    before = (gate["configs"]._metadata_revision, gate["registry"].mcp_snapshot({"instance-0", "instance-1"}, max_tools=10).revisions,
+              gate["database"].query_one("SELECT revision FROM mcp_groups WHERE id=?", (group["id"],))[0])
+    with patch.object(application, "build_catalog", side_effect=paused), ThreadPoolExecutor(max_workers=1) as pool:
+        pending = pool.submit(gate["client"].get, catalog_path(group), headers=headers)
+        try:
+            assert reached.wait(3), "Authorization and visible projection must finish first"
+            assert not pending.done()
+            db = gate["database"]
+            if change == "scopes":
+                db.execute("UPDATE api_tokens SET scopes_json=? WHERE id=?", (json.dumps(["operations.manage"]), token["id"]))
+            elif change == "permission":
+                db.execute("DELETE FROM role_permissions WHERE permission_id=(SELECT id FROM control_permissions WHERE code='tools.read')")
+            elif change == "revoked":
+                db.execute("UPDATE api_tokens SET revoked_at='2026-10-05T00:00:00Z' WHERE id=?", (token["id"],))
+            elif change == "deleted":
+                db.execute("DELETE FROM api_tokens WHERE id=?", (token["id"],))
+            elif change == "expired":
+                db.execute("UPDATE api_tokens SET expires_at='2000-01-01T00:00:00Z' WHERE id=?", (token["id"],))
+            elif change == "disabled":
+                db.execute("UPDATE users SET status='disabled' WHERE id=?", (gate["principal"].id,))
+            elif change == "admin":
+                db.execute("DELETE FROM user_roles WHERE user_id=? AND role_id=(SELECT id FROM roles WHERE code='admin')", (gate["principal"].id,))
+            else:
+                gate["access"].set_classification(server_id="instance-1", tool_id=changed_tool.id, access="write",
+                    destructive=True, idempotent=False, reviewer_id=gate["principal"].id)
+            after = (gate["configs"]._metadata_revision, gate["registry"].mcp_snapshot({"instance-0", "instance-1"}, max_tools=10).revisions,
+                     db.query_one("SELECT revision FROM mcp_groups WHERE id=?", (group["id"],))[0])
+            assert before == after, "Authorization changes must not cause structural revision retries"
+        finally:
+            release.set()
+        response = pending.result(timeout=5)
+    assert response.status_code == 200 and response.json()["visible_tool_count"] == 2
+    following = gate["client"].get(catalog_path(group), headers=headers)
+    if change in {"scopes", "permission", "classification"}:
+        assert following.status_code == 200
+        expected = 1 if change == "classification" else 0
+        assert following.json()["visible_tool_count"] == expected
+    else:
+        assert following.status_code in {401, 403}

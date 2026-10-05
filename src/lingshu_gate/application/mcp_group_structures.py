@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import threading
 from collections import OrderedDict
+from collections.abc import Iterable
 from dataclasses import dataclass
 
 from lingshu_gate.access_control import _tool_fingerprint
@@ -46,6 +47,21 @@ class ToolStructureCache:
         self._bytes = 0
         self._lock = threading.Lock()
         self._preparation_locks = tuple(threading.Lock() for _ in range(64))
+
+    def get_many(self, entries: Iterable[RegistryToolSnapshot]) -> list[PreparedToolStructure]:
+        items = tuple(entries)
+        # Hold every hit before inserting misses can evict an unvisited hit.
+        # These request-local references contain only immutable structure.
+        with self._lock:
+            hits = []
+            for entry in items:
+                key = (entry.revision, entry.structure)
+                cached = self._entries.get(key)
+                hits.append(cached)
+                if cached is not None:
+                    self._entries.move_to_end(key)
+        return [cached if cached is not None else self.get(entry)
+                for entry, cached in zip(items, hits, strict=True)]
 
     def get(self, entry: RegistryToolSnapshot) -> PreparedToolStructure:
         key = (entry.revision, entry.structure)

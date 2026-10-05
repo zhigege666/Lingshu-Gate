@@ -22,17 +22,20 @@ def checked_json_size(value: Any, *, max_bytes: int = MAX_SCHEMA_BYTES,
     return _walk_json(value, max_bytes=max_bytes, max_nodes=max_nodes, max_depth=max_depth, freeze=False)[0]
 
 
-def _walk_json(value: Any, *, max_bytes: int, max_nodes: int, max_depth: int, freeze: bool) -> tuple[int, Any]:
+def _walk_json(value: Any, *, max_bytes: int, max_nodes: int, max_depth: int, freeze: bool,
+               immutable: bool = False) -> tuple[int, Any]:
     nodes = size = 0
+    object_type = Mapping if immutable else dict
+    array_type = tuple if immutable else list
 
     def visit(item: Any, depth: int) -> Any:
         nonlocal nodes, size
         nodes += 1
         if nodes > max_nodes or depth > max_depth:
             raise ValueError("tool_structure_complexity_limit")
-        if isinstance(item, dict):
+        if isinstance(item, object_type):
             size += 2 + len(item) + max(0, len(item) - 1)
-        elif isinstance(item, list):
+        elif isinstance(item, array_type):
             size += 2 + max(0, len(item) - 1)
         elif isinstance(item, str):
             if len(item) > max_bytes:
@@ -62,7 +65,7 @@ def _walk_json(value: Any, *, max_bytes: int, max_nodes: int, max_depth: int, fr
             raise ValueError("tool_structure_non_json")
         if size > max_bytes:
             raise ValueError("tool_structure_size_limit")
-        if isinstance(item, dict):
+        if isinstance(item, object_type):
             children: dict[str, Any] | None = {} if freeze else None
             for key, child in item.items():
                 if not isinstance(key, str):
@@ -72,7 +75,7 @@ def _walk_json(value: Any, *, max_bytes: int, max_nodes: int, max_depth: int, fr
                 if children is not None:
                     children[key] = result
             return MappingProxyType(children) if children is not None else None
-        elif isinstance(item, list):
+        elif isinstance(item, array_type):
             items: list[Any] | None = [] if freeze else None
             for child in item:
                 result = visit(child, depth + 1)
@@ -139,6 +142,14 @@ def freeze_tool_definition(definition: ToolDefinition) -> FrozenToolDefinition:
         max_nodes=MAX_SCHEMA_NODES, max_depth=MAX_SCHEMA_DEPTH)
     metadata_bytes, metadata = _freeze_json(data["metadata"], max_bytes=MAX_METADATA_BYTES,
         max_nodes=MAX_SCHEMA_NODES * 2, max_depth=MAX_SCHEMA_DEPTH + 1)
+    # Preflight observes caller-owned input. Recheck the actual frozen output
+    # against its independent object/size/node/depth budget before publication.
+    if "outputSchema" in metadata:
+        output = metadata["outputSchema"]
+        if not isinstance(output, Mapping):
+            raise ValueError("tool_output_schema_non_object")
+        _walk_json(output, max_bytes=MAX_SCHEMA_BYTES, max_nodes=MAX_SCHEMA_NODES,
+                   max_depth=MAX_SCHEMA_DEPTH, freeze=False, immutable=True)
     headers = {**data, "input_schema": None, "metadata": None}
     byte_count = checked_json_size(headers, max_bytes=MAX_TOOL_STRUCTURE_BYTES) + input_bytes + metadata_bytes - 8
     if byte_count > MAX_TOOL_STRUCTURE_BYTES:
