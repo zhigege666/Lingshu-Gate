@@ -268,6 +268,16 @@ class PodmanController:
             except Exception:
                 self.journal.update(job["key"], "unknown")
                 raise InterruptedError("executor_restart_reconciliation_unknown") from None
+        # Terminal phase records retain a separate durable cleanup obligation.
+        # Restart can finish deletion after a crash between stop and cleanup.
+        for job in self.journal.cleanup_pending():
+            output = self.workspaces / job["name"] / "output"
+            if output.parent.exists():
+                info = self.inspect(job["name"])
+                if info is not None or job["cgroup"] and not self._empty(job["cgroup"]):
+                    self.journal.update(job["key"], "unknown")
+                    raise InterruptedError("executor_terminal_cleanup_termination_unknown")
+            self.release_output({"output": output})
 
     def _create(self, job: dict[str, Any], directory: Path, mounts: dict[str, Path]) -> str:
         # The caller never supplies image, host path, flags or shell commands.
@@ -357,6 +367,8 @@ class PodmanController:
             self.journal.update(key, "completed" if result["returncode"] == 0 else "failed", result={"returncode": result["returncode"], "output_sha256": self._inventory(directory / "output")})
             return result
         except SafeExecutionCancelled:
+            if job and directory:
+                self.release_output({"output": directory / "output"})
             raise
         except BaseException:
             if job and self.journal:
@@ -424,14 +436,28 @@ class PodmanController:
         path = result.get("output")
         if not isinstance(path, Path) or path.parent.parent != self.workspaces or not path.parent.name.startswith("gate-job-"):
             return
+        assert self.journal is not None
+        job = self.journal.lookup_name(path.parent.name)
+        if not job or job["state"] not in {"completed", "failed", "cancelled", "interrupted_terminated"}:
+            reject("executor_cleanup_termination_unconfirmed", "Unconfirmed sandbox output must remain quarantined")
+        if not path.parent.exists():
+            self.journal.mark_cleaned(job["key"])
+            return
+        if path.parent.is_symlink() or path.parent.resolve() != path.parent:
+            reject("executor_cleanup_path_rejected", "Terminal sandbox cleanup path is unsafe")
         # Frozen directories become writable only after all resources terminated.
-        for parent, folders, _ in os.walk(path.parent, followlinks=False):
-            Path(parent).chmod(0o700)
-            for name in folders:
-                item = Path(parent) / name
-                if not item.is_symlink():
-                    item.chmod(0o700)
-        shutil.rmtree(path.parent)
+        try:
+            for parent, folders, _ in os.walk(path.parent, followlinks=False):
+                Path(parent).chmod(0o700)
+                for name in folders:
+                    item = Path(parent) / name
+                    if not item.is_symlink():
+                        item.chmod(0o700)
+            shutil.rmtree(path.parent)
+            self.journal.mark_cleaned(job["key"])
+        except OSError:
+            self.missing.append("job_workspace_cleanup_incomplete")
+            reject("executor_workspace_cleanup_failed", "Terminated sandbox cleanup is pending restart reconciliation")
 
     def close(self) -> None:
         self._stop.set()

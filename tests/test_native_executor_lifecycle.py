@@ -30,6 +30,8 @@ def engine(tmp_path):
         calls.append(argv)
         if argv[0] == "create":
             state.update({"exists": True, "name": next(item.split("=", 1)[1] for item in argv if item.startswith("--name="))})
+            if state.get("payload_bytes"):
+                (controller.workspaces / state["name"] / "output" / "work.bin").write_bytes(b"x" * state["payload_bytes"])
             if state["output"]:
                 (controller.workspaces / state["name"] / "output" / "result.json").write_text('{"returncode":0,"node_version":"22.13.0","package_manager_version":"11.6.0"}')
             return ("b" * 64).encode()
@@ -78,6 +80,8 @@ def test_cancellation_is_confirmed_only_after_cgroup_empty(engine):
     assert controller.journal.lookup("fixture:cancel")["state"] == "cancelled"
     assert not state["running"]
     assert any(argv[0] == "kill" for argv in calls)
+    assert not list(controller.workspaces.iterdir())
+    assert controller.journal.lookup("fixture:cancel")["cleanup_state"] == "cleaned"
 
 
 def test_timeout_terminates_sandbox_before_reporting_failure(engine):
@@ -88,6 +92,8 @@ def test_timeout_terminates_sandbox_before_reporting_failure(engine):
         controller.run("fixture:timeout", {"kind": "tool_probe"}, timeout=1, cancelled=lambda: False)
     assert controller.journal.lookup("fixture:timeout")["state"] == "failed"
     assert not state["running"]
+    assert not list(controller.workspaces.iterdir())
+    assert controller.journal.lookup("fixture:timeout")["cleanup_state"] == "cleaned"
 
 
 def test_uncertain_termination_is_unknown_and_blocks_readiness(engine):
@@ -99,6 +105,8 @@ def test_uncertain_termination_is_unknown_and_blocks_readiness(engine):
     assert controller.journal.lookup("fixture:unknown")["state"] == "unknown"
     assert not controller.readiness()["available"]
     assert not any(argv[0] == "rm" for argv in calls)
+    assert list(controller.workspaces.iterdir())
+    assert controller.journal.lookup("fixture:unknown")["cleanup_state"] == "pending"
 
 
 def test_restart_reconciliation_stops_orphan_without_dispatch(engine):
@@ -193,3 +201,41 @@ def test_inventory_regular_file_swapped_for_fifo_before_open_never_blocks(tmp_pa
         return open_file(path, flags)
     with patch("lingshu_gate.safe_files.os.open", side_effect=swapped), pytest.raises(ValueError, match="safe_regular_file_rejected"):
         PodmanController._inventory(tmp_path)
+
+
+@pytest.mark.parametrize("reason", ["cancel", "timeout"])
+def test_repeated_terminal_jobs_release_workspace_capacity_and_next_job_runs(engine, reason):
+    controller, calls, state = engine
+    state["output"] = False
+    state["payload_bytes"] = 1024 * 1024
+    for index in range(8):
+        if reason == "cancel":
+            with pytest.raises(SafeExecutionCancelled):
+                controller.run(f"fixture:repeat:{index}", {"kind": "tool_probe"}, timeout=10, cancelled=lambda: True)
+        else:
+            clock = iter(range(100))
+            with patch("lingshu_gate.adapters.native_executor.controller.time.monotonic", side_effect=lambda: next(clock)), patch("lingshu_gate.adapters.native_executor.controller.time.sleep"), pytest.raises(TimeoutError):
+                controller.run(f"fixture:repeat:{index}", {"kind": "tool_probe"}, timeout=1, cancelled=lambda: False)
+        assert not list(controller.workspaces.iterdir())
+        assert controller.journal.lookup(f"fixture:repeat:{index}")["cleanup_state"] == "cleaned"
+    state["output"] = True
+    result = controller.run("fixture:repeat:next", {"kind": "tool_probe"}, timeout=10, cancelled=lambda: False)
+    assert result["returncode"] == 0
+    controller.release_output(result)
+
+
+@pytest.mark.parametrize("terminal", ["completed", "failed", "cancelled"])
+def test_restart_reclaims_durable_terminal_workspace_without_dispatch(engine, terminal):
+    controller, calls, state = engine
+    job = controller.journal.reserve("fixture:leftover", {"phase": "fixture"}, "command")
+    controller.journal.update(job["key"], terminal, container_id="b" * 64, cgroup="/fixture/sandbox")
+    output = controller.workspaces / job["name"] / "output"
+    output.mkdir(parents=True)
+    (output / "leftover").write_bytes(b"x" * (1024 * 1024))
+    root = controller.root
+    controller.journal.close()
+    controller.journal = JobJournal(root)
+    controller.reconcile()
+    assert not list(controller.workspaces.iterdir())
+    assert controller.journal.lookup(job["key"])["cleanup_state"] == "cleaned"
+    assert not any(argv[0] in {"create", "start"} for argv in calls)

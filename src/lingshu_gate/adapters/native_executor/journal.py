@@ -29,6 +29,8 @@ class JobJournal:
         self.connection.execute("PRAGMA journal_mode=WAL")
         self.connection.execute("PRAGMA synchronous=FULL")
         self.connection.execute("CREATE TABLE IF NOT EXISTS jobs (key TEXT PRIMARY KEY, digest TEXT NOT NULL, name TEXT NOT NULL UNIQUE, phase TEXT NOT NULL, state TEXT NOT NULL, container_id TEXT, cgroup TEXT, result TEXT, updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP)")
+        if "cleanup_state" not in {row[1] for row in self.connection.execute("PRAGMA table_info(jobs)")}:
+            self.connection.execute("ALTER TABLE jobs ADD COLUMN cleanup_state TEXT NOT NULL DEFAULT 'pending'")
         self.connection.commit()
 
     def reserve(self, key: str, descriptor: dict[str, Any], phase: str) -> dict[str, Any]:
@@ -55,6 +57,19 @@ class JobJournal:
         with self._mutex:
             row = self.connection.execute("SELECT * FROM jobs WHERE key=?", (key,)).fetchone()
             return dict(row) if row else None
+
+    def lookup_name(self, name: str) -> dict[str, Any] | None:
+        with self._mutex:
+            row = self.connection.execute("SELECT * FROM jobs WHERE name=?", (name,)).fetchone()
+            return dict(row) if row else None
+
+    def cleanup_pending(self) -> list[dict[str, Any]]:
+        with self._mutex:
+            return [dict(row) for row in self.connection.execute("SELECT * FROM jobs WHERE cleanup_state='pending' AND state IN ('completed','failed','cancelled','interrupted_terminated')")]
+
+    def mark_cleaned(self, key: str) -> None:
+        with self._mutex, self.connection:
+            self.connection.execute("UPDATE jobs SET cleanup_state='cleaned',updated_at=CURRENT_TIMESTAMP WHERE key=? AND state IN ('completed','failed','cancelled','interrupted_terminated')", (key,))
 
     @contextmanager
     def trusted_phase(self, key: str, descriptor: dict[str, Any], phase: str) -> Iterator[None]:

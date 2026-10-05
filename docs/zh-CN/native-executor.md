@@ -72,6 +72,8 @@ HTTPS 禁 redirects、编码响应、环境代理和自动重试，限制 header
 
 冻结后的结果、inventory、Git object、artifact 使用 nonblocking/no-follow 文件描述符打开，并经 `fstat` 确认普通文件。结果 JSON 读取上限为 8 KiB/一秒；FIFO、设备、目录、inode 交换及超限输出在解析前拒绝。拒绝结果记录为已确认失败的阶段，释放 controller admission。
 
+journal 独立持久记录 `cleanup_state=pending/cleaned`。已确认取消、超时及其他失败阶段在释放 admission 前删除工作区，成功输出在消费后删除。启动同时对账未终止执行和终态残留目录，避免终止后崩溃积累 tmpfs 占用。未知执行保留输出并阻断 readiness；清理失败仍为 pending，并阻断 readiness，直到成功对账。
+
 既有明确确认的本地 deploy/start/rollback 保持。准备工具不会安装到宿主 runtime；manager 启动仍要求独立管理员 runtime registry，直接 Node 入口保留原规则。构建隔离不改变既有 Native managed-process 的非隔离运行时，也不增加 Core 交付/启动。
 
 ## 证据与剩余验收

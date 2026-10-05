@@ -72,6 +72,8 @@ The fixed PID 1 runner disables Linux dumpability before admitting project code;
 
 Frozen result, inventory, Git object and artifact reads use nonblocking/no-follow descriptors and `fstat` regular-file checks. Result JSON has an 8 KiB/one-second read budget; FIFO, device, directory, changed inode and oversized output fail before parsing. A rejected result records a confirmed failed phase and releases controller admission.
 
+The journal separately persists `cleanup_state=pending/cleaned`. Confirmed cancellation, timeout and other failed phases remove their workspace before releasing admission; successful output is removed after consumption. Startup reconciles both unfinished execution and terminal leftover directories, so a crash after termination does not accumulate bounded tmpfs usage. Unknown execution retains its output and blocks readiness. Cleanup failure remains pending and blocks readiness until reconciliation succeeds.
+
 The existing confirmed local deployment/start/rollback path is unchanged. Prepared tools are not installed into the host runtime. A manager-based runtime still needs its separately reviewed administrator registry; direct Node entrypoints retain their existing runtime rules. Build isolation does not change the existing unsandboxed Native managed-process runtime or add Core delivery/start support.
 
 ## Evidence and remaining acceptance
