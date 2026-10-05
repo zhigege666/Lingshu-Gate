@@ -18,6 +18,7 @@ type FormDialogProps = {
   footer: ReactNode
   error?: string | null
   onCloseAutoFocus?: ComponentProps<typeof DialogContent>["onCloseAutoFocus"]
+  onEscapeKeyDown?: ComponentProps<typeof DialogContent>["onEscapeKeyDown"]
 }
 
 /**
@@ -25,7 +26,7 @@ type FormDialogProps = {
  * Keeps actions and persistent failures outside the scrolling fields. The caller
  * owns draft protection, submission, field validation, and secret lifecycles.
  */
-export function FormDialog({ open, onClose, title, description, closeLabel, pending = false, dirty = false, className, bodyClassName, children, footer, error, onCloseAutoFocus }: FormDialogProps) {
+export function FormDialog({ open, onClose, title, description, closeLabel, pending = false, dirty = false, className, bodyClassName, children, footer, error, onCloseAutoFocus, onEscapeKeyDown }: FormDialogProps) {
   const descriptionId = useId()
   const registerExit = useContext(EditorNavigationContext)
   const wasOpen = useRef(false)
@@ -41,7 +42,7 @@ export function FormDialog({ open, onClose, title, description, closeLabel, pend
     <DialogContent className={cn("max-h-[calc(100dvh-2rem)] gap-4", className)} closeDisabled={pending} closeLabel={closeLabel} aria-busy={pending}
       aria-describedby={description ? descriptionId : undefined}
       onCloseAutoFocus={onCloseAutoFocus}
-      onEscapeKeyDown={event => { if (pending) event.preventDefault() }}
+      onEscapeKeyDown={event => { onEscapeKeyDown?.(event); if (pending) event.preventDefault() }}
       onPointerDownOutside={event => {
         // Radix defers dismissal until click. An exiting content layer can still
         // receive pointerdown before another editor opens in the same frame.

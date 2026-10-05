@@ -388,6 +388,13 @@ for (const locale of ['en-US', 'zh-CN'] as const) for (const mixed of [false, tr
     expect(model.writes).toHaveLength(0)
     await editor.locator('tr[data-row-key="synthetic-tool-1"]').getByRole('checkbox').check()
     if (mixed) await editor.locator('tr[data-row-key="synthetic-tool-0"]').getByRole('checkbox').uncheck()
+    // Closing the read-only disclosure must retain an unsaved selection as well.
+    await scopeDetails.click()
+    await page.keyboard.press('Escape')
+    await expect(scopeDetails).toHaveAttribute('aria-expanded', 'false')
+    await expect(editor.locator('tr[data-row-key="synthetic-tool-1"]').getByRole('checkbox')).toBeChecked()
+    if (mixed) await expect(editor.locator('tr[data-row-key="synthetic-tool-0"]').getByRole('checkbox')).not.toBeChecked()
+    await expect(page.getByRole('alertdialog')).toHaveCount(0)
     const update = editor.getByRole('button', { name: zh ? '核对并更新连接' : 'Review connection update', exact: true })
     await update.click()
     const review = page.getByRole('alertdialog', { name: zh ? '确认更新当前连接？' : 'Update this connection?', exact: true })
