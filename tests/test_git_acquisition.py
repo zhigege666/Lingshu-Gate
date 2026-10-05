@@ -7,6 +7,7 @@ import hashlib
 import io
 import threading
 import zipfile
+from urllib.parse import quote
 from contextlib import contextmanager
 from copy import deepcopy
 from unittest.mock import patch
@@ -250,6 +251,30 @@ def test_streamed_secret_lfs_and_encoded_material_rejection(data):
     assert denied.value.code == "git_snapshot_content_rejected"
     assert "synthetic-acquisition-secret" not in str(denied.value)
     assert backend.materials == [{}]
+
+
+@pytest.mark.parametrize("encoding", ["raw", "url", "base64"])
+@pytest.mark.parametrize("field", ["git_credential", "proxy_credential"])
+def test_reflected_bare_basic_or_proxy_secret_never_reaches_snapshot(field, encoding):
+    secret = "fixture-reflected-token/+"
+    reflected = secret if encoding == "raw" else quote(secret, safe="") if encoding == "url" else base64.b64encode(secret.encode()).decode()
+    objects, backend = source([("100644", "index.js", reflected.encode())])
+    objects.partial_reads = 3
+    material = {field: "fixture-username:" + secret}
+    with pytest.raises(ToolExecutionError) as rejected:
+        acquire(objects, backend, material=material)
+    assert rejected.value.code == "git_snapshot_content_rejected"
+    assert secret not in str(rejected.value) and reflected not in str(rejected.value)
+    assert backend.materials == [{}]
+
+
+def test_basic_username_alone_is_allowed_but_short_token_remains_scanned():
+    objects, backend = source([("100644", "index.js", b"fixture-username is public")])
+    assert acquire(objects, backend, material={"git_credential": "fixture-username:unique-private-token"}).inventory()
+    objects, backend = source([("100644", "x.js", b"export {};")])
+    with pytest.raises(ToolExecutionError) as rejected:
+        acquire(objects, backend, material={"git_credential": "fixture-username:e"})
+    assert rejected.value.code == "git_snapshot_content_rejected"
 
 
 @pytest.mark.parametrize("limit,value,code", [

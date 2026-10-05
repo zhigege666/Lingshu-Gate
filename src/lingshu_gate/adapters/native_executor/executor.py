@@ -15,7 +15,7 @@ from lingshu_gate.adapters.native_executor.git import HTTPSGitBackend
 from lingshu_gate.adapters.native_executor.https import PROXY_SCHEMES, PinnedHTTPS
 from lingshu_gate.adapters.native_executor.packages import ToolCache, project_policy
 from lingshu_gate.git_acquisition import VerifiedGitAcquisition
-from lingshu_gate.git_source import digest_json
+from lingshu_gate.git_source import digest_json, network_secret_values
 from lingshu_gate.native_executor_config import NativeExecutorConfig
 from lingshu_gate.network_artifact import export_network_artifact
 from lingshu_gate.ports.safe_network_executor import REQUIRED_CAPABILITIES, TEST_TARGETS, SafeExecutionCancelled
@@ -181,7 +181,7 @@ class NativeNetworkExecutor:
                 # the existing source path. BuildDeploy remains artifact owner.
                 exported = cwd.parent / ("native-export-" + uuid4().hex)
                 exported.mkdir(mode=0o700)
-                export_network_artifact(output_root, exported, ignored={".git"}, forbidden_values=[value for value in material.values() if isinstance(value, str)], cancelled=cancelled)
+                export_network_artifact(output_root, exported, ignored={".git"}, forbidden_values=network_secret_values(material), cancelled=cancelled)
                 for path in exported.rglob("*"):
                     if path.is_file() and not path.is_symlink():
                         path.chmod(path.stat().st_mode | 0o200)

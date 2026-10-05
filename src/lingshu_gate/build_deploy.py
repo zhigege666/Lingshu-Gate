@@ -22,7 +22,7 @@ from lingshu_gate.build_plan import build_plan, finalize_manifest, plan_commands
 from lingshu_gate.build_preflight import check_diff, compute_preflight_fingerprint, fingerprint_key, preflight_diff, run_build_preflight, scope_key as compute_scope_key, tools_signature
 from lingshu_gate.node_toolchain import NodeToolchainOverride, node_requirement, node_version_supported
 from lingshu_gate.network_artifact import NETWORK_ARTIFACT_LIMITS, export_network_artifact
-from lingshu_gate.git_source import verify_git_snapshot
+from lingshu_gate.git_source import verify_git_snapshot, network_secret_values
 from lingshu_gate.credential_store import CredentialStore
 from lingshu_gate.database import SQLiteDatabase
 from lingshu_gate.mcp_config_store import McpConfigStore
@@ -1068,7 +1068,7 @@ class BuildDeployStore:
                         scan_material.update({f"{phase}.{key}": value for key, value in self.network_settings.execution_material(plan["delivery_network"], phase).items()})
                     for prefix in ("npm", "python"):
                         scan_material[prefix] = self.network_settings.credentials.resolve_value(plan["delivery_network"].get(f"{prefix}_credential_ref"))
-                    export_network_artifact(source_dir, artifact_dir, ignored=ARTIFACT_IGNORED_COPY_DIRS, forbidden_values=[value for value in scan_material.values() if isinstance(value, str)], cancelled=lambda: self._is_cancel_requested(build_id))
+                    export_network_artifact(source_dir, artifact_dir, ignored=ARTIFACT_IGNORED_COPY_DIRS, forbidden_values=network_secret_values(scan_material), cancelled=lambda: self._is_cancel_requested(build_id))
                 except InterruptedError:
                     raise BuildCancelled("build cancelled during artifact export") from None
                 finally:

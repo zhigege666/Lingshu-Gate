@@ -60,6 +60,8 @@ Gate 生成经 fingerprint 绑定的只读 `/tool/shims`，将所选 manager（�
 
 Git/install 网络选择仍在原 digest 计划中独立固定为 `inherit`/`direct`/`profile`。目标 DNS 的每个地址必须符合 host/port/private CIDR，公有/禁止地址混合回答整体拒绝。连接使用数字地址、原 host TLS SNI；HTTP CONNECT/SOCKS 也只接收该数字上游，不让代理重选 DNS。代理端点须另行匹配管理员受审 host 规则。Git 凭据值为 `username:token` 时用 origin-bound HTTP Basic（适合要求 Basic 的 smart Git host），仅 token 时用 Bearer；registry 凭据用 origin-bound Bearer；HTTP/SOCKS 代理认证引用使用 `username:password`。代理认证不进入上游 TLS 请求，镜像 registry 凭据不发给官方 metadata。
 
+snapshot/artifact 扫描包含各 Basic token/代理 password 分量、其 URL/base64 编码及完整认证材料；公开 username 本身不列为秘密。短秘密分量仍扫描，过滤过宽时返回同样的有界拒绝，不静默省略。这也拒绝已授权端点把裸 token 反射进 Git 内容的情况。
+
 HTTPS 禁 redirects、编码响应、环境代理和自动重试，限制 headers/body/deadline。DNS 只允许一个有界在途 resolver 槽。超时但未实际退出的 resolver 为未知结果，阻断网络 readiness，不能冒充已取消。可信 socket 关闭后才确认其取消；项目执行只接收已校验、无秘密内容。
 
 同一 socket supervisor 贯穿 TCP connect、代理协商、显式 TLS handshake、发送和响应，始终使用原 deadline 并重算剩余预算。握手后取消会在构造/发送 origin 认证前重查。连接中和握手中 socket 在阻塞操作前注册，确保全程取消均能关闭它们。

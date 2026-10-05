@@ -37,6 +37,24 @@ SNAPSHOT_CHUNK_BYTES = 64 * 1024
 LFS_PREFIX = b"version https://git-lfs.github.com/spec/v1"
 
 
+def network_secret_values(material: dict[str, Any]) -> list[str]:
+    """Derive actual Basic/proxy password components, never usernames alone.
+
+    This uses the same first-colon split as trusted Git/proxy authentication.
+    Preserve every original material value and add its secret component so
+    reflected bare tokens and their existing URL/base64 forms are also scanned.
+    Short components remain active; conservative rejection is intentional.
+    """
+    values = [value for value in material.values() if isinstance(value, str)]
+    for key, value in material.items():
+        if key.rsplit(".", 1)[-1] in {"git_credential", "proxy_credential"} and isinstance(value, str) and ":" in value:
+            _, secret = value.split(":", 1)
+            if not secret:
+                raise ValueError("Network credential secret component is empty")
+            values.append(secret)
+    return list(dict.fromkeys(values))
+
+
 def snapshot_forbidden_values(values: list[str]) -> frozenset[bytes]:
     """Bound scanner state; do not retain arbitrarily large network material."""
     if len(values) > 32 or any(len(value) > 64 * 1024 for value in values):

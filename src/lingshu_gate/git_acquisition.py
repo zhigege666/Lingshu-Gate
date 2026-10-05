@@ -20,7 +20,7 @@ from urllib.parse import urlsplit
 from lingshu_gate.git_source import (
     COMMIT_RE, GIT_ENVIRONMENT_POLICY, GIT_POLICY, SNAPSHOT_CHUNK_BYTES,
     GitSourceInput, SnapshotContentScanner, digest_json, repository_rule,
-    snapshot_forbidden_values, validate_snapshot_path,
+    snapshot_forbidden_values, validate_snapshot_path, network_secret_values,
 )
 from lingshu_gate.network_settings import NetworkSelection
 from lingshu_gate.ports.git_acquisition import GitObject, GitObjectReader, TrustedGitBackend
@@ -304,7 +304,7 @@ class VerifiedGitAcquisition:
         temporary = dict(material)
         try:
             backend = self._backend(prepared, temporary)
-            forbidden = snapshot_forbidden_values([value for value in temporary.values() if isinstance(value, str)])
+            forbidden = snapshot_forbidden_values(network_secret_values(temporary))
             deadline = time.monotonic() + prepared["limits"]["fetch_seconds"]
             budget = _Budget(prepared["limits"], deadline, cancel)
             budget.checkpoint()
