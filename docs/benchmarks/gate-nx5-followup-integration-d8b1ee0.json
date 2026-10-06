@@ -1,0 +1,376 @@
+{
+  "base_sha": "7d145c28a94a00a6c5d6f4f7d4fc38c0e6153436",
+  "source_sha": "d8b1ee076ff39f60a9b633e414932adbd6478129",
+  "source_heads": [
+    "a4f9be911852a9d354fe29804e1eafb8f301f9ba",
+    "2b6a2c5173595787cb57fed394515c4fc0dd73bc"
+  ],
+  "merged_file_count": 14,
+  "branch": "test/gate-nx5-followup-integration-20261006",
+  "version": "0.4.4",
+  "source_merge_commits": [
+    {
+      "sha": "d8b1ee076ff39f60a9b633e414932adbd6478129",
+      "parents": [
+        "abafa735e7d2d8233550daf67ef2cf54b6d52978",
+        "2b6a2c5173595787cb57fed394515c4fc0dd73bc"
+      ]
+    },
+    {
+      "sha": "abafa735e7d2d8233550daf67ef2cf54b6d52978",
+      "parents": [
+        "7d145c28a94a00a6c5d6f4f7d4fc38c0e6153436",
+        "a4f9be911852a9d354fe29804e1eafb8f301f9ba"
+      ]
+    }
+  ],
+  "cli_production_sha": "ae999912e3175bc6f79daf54da1d586836d4d06e",
+  "catalog_production_sha": "93d70525e848a571c429ef80e77f5513640bceb4",
+  "merge_method": "Two normal --no-ff merges; no conflicts, source file sets disjoint and final blobs identical to their respective sources.",
+  "observed_at_utc": "2026-10-06T16:15:11.672408+00:00",
+  "execution_environment": {
+    "location": "saved cloud workspace",
+    "system": "Linux",
+    "architecture": "x86_64",
+    "python": "3.14.4",
+    "pytest": "8.4.2",
+    "cgroup_memory_limit_bytes": 17179869184,
+    "cgroup_cpu_max": "400000 100000",
+    "nx5_execution": false
+  },
+  "dependency_setup": {
+    "command": "uv sync --frozen --python 3.14.4",
+    "exit_code": 0,
+    "packages_checked": 51,
+    "dependency_and_version_files_unchanged": true
+  },
+  "regression_runs": [
+    {
+      "label": "focused",
+      "python": "3.14.4",
+      "files": [
+        "tests/test_cli.py",
+        "tests/test_schema_validation_budget.py",
+        "tests/test_catalog_classification_projection.py",
+        "tests/test_mcp_group_cache_api.py",
+        "tests/test_catalog_group_adapter.py",
+        "tests/test_access_control.py"
+      ],
+      "cases_per_file": {
+        "tests/test_cli.py": 12,
+        "tests/test_schema_validation_budget.py": 13,
+        "tests/test_catalog_classification_projection.py": 27,
+        "tests/test_mcp_group_cache_api.py": 22,
+        "tests/test_catalog_group_adapter.py": 31,
+        "tests/test_access_control.py": 15
+      },
+      "command": "python -m pytest -q tests/test_cli.py tests/test_schema_validation_budget.py tests/test_catalog_classification_projection.py tests/test_mcp_group_cache_api.py tests/test_catalog_group_adapter.py tests/test_access_control.py",
+      "passed": 120,
+      "failed": 0,
+      "skipped": 0,
+      "exit_code": 0,
+      "pytest_reported_seconds": 49.23
+    },
+    {
+      "label": "related",
+      "python": "3.14.4",
+      "files": [
+        "tests/test_mcp_groups.py",
+        "tests/test_mcp_group_catalog.py",
+        "tests/test_mcp_group_structures.py",
+        "tests/test_mcp_group_routing.py",
+        "tests/test_mcp_group_external_authority.py",
+        "tests/test_mcp_group_mcp.py",
+        "tests/test_tool_catalog.py",
+        "tests/test_catalog_denial_audit.py",
+        "tests/test_catalog_principal_ordering.py",
+        "tests/test_catalog_external_dispatch.py",
+        "tests/test_tool_classification_mcp.py",
+        "tests/test_tool_classification_routes.py",
+        "tests/test_oauth_scope_catalog.py",
+        "tests/test_oauth_catalog_scaling.py",
+        "tests/test_oauth_paged_catalog.py"
+      ],
+      "cases_per_file": {
+        "tests/test_mcp_groups.py": 71,
+        "tests/test_mcp_group_catalog.py": 27,
+        "tests/test_mcp_group_structures.py": 6,
+        "tests/test_mcp_group_routing.py": 37,
+        "tests/test_mcp_group_external_authority.py": 10,
+        "tests/test_mcp_group_mcp.py": 8,
+        "tests/test_tool_catalog.py": 26,
+        "tests/test_catalog_denial_audit.py": 6,
+        "tests/test_catalog_principal_ordering.py": 4,
+        "tests/test_catalog_external_dispatch.py": 4,
+        "tests/test_tool_classification_mcp.py": 4,
+        "tests/test_tool_classification_routes.py": 11,
+        "tests/test_oauth_scope_catalog.py": 3,
+        "tests/test_oauth_catalog_scaling.py": 13,
+        "tests/test_oauth_paged_catalog.py": 29
+      },
+      "command": "python -m pytest -q tests/test_mcp_groups.py tests/test_mcp_group_catalog.py tests/test_mcp_group_structures.py tests/test_mcp_group_routing.py tests/test_mcp_group_external_authority.py tests/test_mcp_group_mcp.py tests/test_tool_catalog.py tests/test_catalog_denial_audit.py tests/test_catalog_principal_ordering.py tests/test_catalog_external_dispatch.py tests/test_tool_classification_mcp.py tests/test_tool_classification_routes.py tests/test_oauth_scope_catalog.py tests/test_oauth_catalog_scaling.py tests/test_oauth_paged_catalog.py",
+      "passed": 259,
+      "failed": 0,
+      "skipped": 0,
+      "exit_code": 0,
+      "pytest_reported_seconds": 287.87
+    }
+  ],
+  "scale_cases": [
+    {
+      "case": "five_groups",
+      "nodeid": "tests/test_mcp_group_catalog_scale.py::test_full_directory_5000_instances_50000_tools[five_groups]",
+      "exit_code": 0,
+      "timed_out": false,
+      "wall_seconds": 49.759994,
+      "passed": 1,
+      "failed": 0,
+      "skipped": 0,
+      "pytest_reported_seconds": 41.38,
+      "metrics": {
+        "instances": 5000,
+        "registry_tools": 50000,
+        "groups": 5,
+        "over_cache_bytes": false,
+        "retained_after_cold": 50000,
+        "estimated_full_working_set_charged_bytes": 58700003,
+        "members_per_group": 1000,
+        "tools_per_request": 10000,
+        "cold_samples": 5,
+        "cold_p95_ms": 1753.361,
+        "hot_samples": 10,
+        "hot_p95_ms": 597.728,
+        "catalog_page_samples": 10,
+        "catalog_page_p95_ms": 311.693,
+        "member_page_samples": 10,
+        "member_page_p95_ms": 555.352,
+        "cold_structure_counts": {
+          "fingerprints": 50000,
+          "normalizations": 50000,
+          "canonical_serializations": 150000
+        },
+        "warm_and_paged_additional_structure_counts": {
+          "fingerprints": 0,
+          "normalizations": 0,
+          "canonical_serializations": 0
+        },
+        "warm_initial_miss_min": 0,
+        "warm_initial_miss_max": 0,
+        "alternating_group_initial_misses": [],
+        "writer_additional_preparations": 1,
+        "config_writer_lock_wait_ms": 0.008,
+        "cache_entries": 50000,
+        "cache_charged_bytes": 58700003,
+        "process_peak_rss_kib": 788472
+      },
+      "command": "python -m pytest -q -s tests/test_mcp_group_catalog_scale.py::test_full_directory_5000_instances_50000_tools[five_groups]"
+    },
+    {
+      "case": "maximum_single_group",
+      "nodeid": "tests/test_mcp_group_catalog_scale.py::test_full_directory_5000_instances_50000_tools[maximum_single_group]",
+      "exit_code": 0,
+      "timed_out": false,
+      "wall_seconds": 109.932064,
+      "passed": 1,
+      "failed": 0,
+      "skipped": 0,
+      "pytest_reported_seconds": 101.55,
+      "metrics": {
+        "instances": 5000,
+        "registry_tools": 50000,
+        "groups": 1,
+        "over_cache_bytes": false,
+        "retained_after_cold": 50000,
+        "estimated_full_working_set_charged_bytes": 58700003,
+        "members_per_group": 1000,
+        "tools_per_request": 50000,
+        "cold_samples": 5,
+        "cold_p95_ms": 7534.353,
+        "hot_samples": 10,
+        "hot_p95_ms": 2724.013,
+        "catalog_page_samples": 10,
+        "catalog_page_p95_ms": 1737.521,
+        "member_page_samples": 10,
+        "member_page_p95_ms": 2053.542,
+        "cold_structure_counts": {
+          "fingerprints": 250000,
+          "normalizations": 250000,
+          "canonical_serializations": 750000
+        },
+        "warm_and_paged_additional_structure_counts": {
+          "fingerprints": 0,
+          "normalizations": 0,
+          "canonical_serializations": 0
+        },
+        "warm_initial_miss_min": 0,
+        "warm_initial_miss_max": 0,
+        "alternating_group_initial_misses": [],
+        "writer_additional_preparations": 1,
+        "config_writer_lock_wait_ms": 0.008,
+        "cache_entries": 50000,
+        "cache_charged_bytes": 58700003,
+        "process_peak_rss_kib": 777288
+      },
+      "command": "python -m pytest -q -s tests/test_mcp_group_catalog_scale.py::test_full_directory_5000_instances_50000_tools[maximum_single_group]"
+    },
+    {
+      "case": "over_cache_bytes",
+      "nodeid": "tests/test_mcp_group_catalog_scale.py::test_full_directory_5000_instances_50000_tools[over_cache_bytes]",
+      "exit_code": 0,
+      "timed_out": false,
+      "wall_seconds": 158.761858,
+      "passed": 1,
+      "failed": 0,
+      "skipped": 0,
+      "pytest_reported_seconds": 150.57,
+      "metrics": {
+        "instances": 5000,
+        "registry_tools": 50000,
+        "groups": 1,
+        "over_cache_bytes": true,
+        "retained_after_cold": 42259,
+        "estimated_full_working_set_charged_bytes": 79400000,
+        "members_per_group": 1000,
+        "tools_per_request": 50000,
+        "cold_samples": 5,
+        "cold_p95_ms": 8122.123,
+        "hot_samples": 10,
+        "hot_p95_ms": 3124.263,
+        "catalog_page_samples": 10,
+        "catalog_page_p95_ms": 2530.976,
+        "member_page_samples": 10,
+        "member_page_p95_ms": 3415.138,
+        "cold_structure_counts": {
+          "fingerprints": 250000,
+          "normalizations": 250000,
+          "canonical_serializations": 750000
+        },
+        "warm_and_paged_additional_structure_counts": {
+          "fingerprints": 232230,
+          "normalizations": 232230,
+          "canonical_serializations": 696690
+        },
+        "warm_initial_miss_min": 7741,
+        "warm_initial_miss_max": 7741,
+        "alternating_group_initial_misses": [
+          7741,
+          7741,
+          7741,
+          7741
+        ],
+        "writer_additional_preparations": 15483,
+        "config_writer_lock_wait_ms": 0.007,
+        "cache_entries": 42259,
+        "cache_charged_bytes": 67107295,
+        "process_peak_rss_kib": 778040
+      },
+      "command": "python -m pytest -q -s tests/test_mcp_group_catalog_scale.py::test_full_directory_5000_instances_50000_tools[over_cache_bytes]"
+    }
+  ],
+  "scale_cases_each_in_separate_process": true,
+  "total_test_executions_passed": 382,
+  "total_failed": 0,
+  "total_skipped": 0,
+  "scale_test_unchanged_from_base": true,
+  "scale_assertions_samples_and_thresholds_unchanged": true,
+  "scale_memory_note": "Reported process_peak_rss_kib is cumulative ru_maxrss including fixture and all requests, not a per-request peak or cgroup MemoryCurrent. No same-host pre-change whole-HTTP comparison was run here.",
+  "static_checks": {
+    "python": "3.13.15",
+    "ruff_all": "passed",
+    "mypy": "passed",
+    "mypy_source_files": 158,
+    "repository_identity": "passed",
+    "single_source_version": "0.4.4",
+    "diff_check": "passed"
+  },
+  "production_files_changed_from_base": [
+    "src/lingshu_gate/access_control.py",
+    "src/lingshu_gate/cli.py"
+  ],
+  "file_sha256": {
+    "docs/benchmarks/catalog-classification-projection-5000-50000.json": "2d93e83d1a444914130b3986fda9bafd42ccda5f5609b8e725effeb0342804fc",
+    "docs/benchmarks/catalog-classification-projection-checks.json": "a60545193acadee348f1fe4d5f8fec71299963a03e5ba56e68121fed79ffbf11",
+    "docs/benchmarks/catalog-classification-projection-directory-scale.json": "ba6d0de6457c3b4da63e34a1ad84c5372d27355ae8fc191936c3ea60ff5f7942",
+    "docs/benchmarks/gate-cli-identity-ae99991.json": "a1630d3c2470aeede706f6f8ae365b10cb45d6367c5ccf2e6a4236d4e5e48793",
+    "docs/benchmarks/gate-cli-identity-ae99991.log": "50b4da788fd6f05cc9328a6343aaa2e849116fec35d50f539bcae6a7c551e50e",
+    "docs/catalog-classification-projection.md": "e8a8d0d65749806f054394881313d6a51121c4104d2f9fbe77d66e266f994c6f",
+    "docs/cli-validation.md": "7df3f5ded2cdfb4e2225e07a46e7e8f292439ce1adf61b767db303d6f1f94645",
+    "docs/zh-CN/catalog-classification-projection.md": "f8e192c39259e71f466ea4ab9ab0bfb08a994051f18aac121c229b3827547183",
+    "docs/zh-CN/cli-validation.md": "cbbfe114ef437912367c40bf33cba92333922eb798fa9679e1bb4ce369c3041d",
+    "pyproject.toml": "c6c28fa9e4f2218dc603247c7390d1ac21c075c89948e776d909349260c94bcc",
+    "scripts/benchmark_catalog_classification_projection.py": "fb9d3dae9576a2825a6485c8fff2698ac38022e2ac441e0db1e74caf93f7ec3d",
+    "src/lingshu_gate/_version.py": "5182f7b166332f877065744f615724cc74ee4b9607e0bc6db6c0de6f1d9fcb5d",
+    "src/lingshu_gate/access_control.py": "93c66bd09df78d1da45d9747f25722bd2bdb588cf6c51498f2e2e89e95aa84a7",
+    "src/lingshu_gate/application/schema_validation.py": "933bc0858f4f8059821e9da0bf92d3fe47a354662237b9493d7db005705b79e0",
+    "src/lingshu_gate/cli.py": "3f3e1234d5f627d8ba827939aeb671deb9544af9e3b786497681bd04ac481e47",
+    "tests/test_access_control.py": "7e6746ee2b6733e16f3e25a52700fa3aa86217a480e0b51d8113a4d4219c7ae0",
+    "tests/test_catalog_classification_projection.py": "0caedb110ea34f63e8e8c4a1f90dc7e0f37eba8191adbc343877f64c5836a38b",
+    "tests/test_catalog_denial_audit.py": "35f78c29bb6a6c9aa073f66c9e1082e42fe441ab417f628bb4538a64115bb5dc",
+    "tests/test_catalog_external_dispatch.py": "2151f30e911f882426576ddbef918ea19010a230e91a70b8bf5907e82ab248c9",
+    "tests/test_catalog_group_adapter.py": "48016ae073e1d253b31f92c9fba3026528f3b241b3ae5fc1a98136529f53e99f",
+    "tests/test_catalog_principal_ordering.py": "c9340f0412474d5312730421870464d8aea221c9feca7db6ac4de70bb69d1ab7",
+    "tests/test_cli.py": "2b4bacbc60ff5199ac5316c8808774f9a2304a8723dc0b74a8fed65c9abf062a",
+    "tests/test_mcp_group_cache_api.py": "1daed78d987da2ee3e9070132c7d55918c5563968bd37dc792d1bb05df59770d",
+    "tests/test_mcp_group_catalog.py": "fc8f8823bfa5b9c25772b94dbc18fb744870b7654fda2017dffbabdb327dd316",
+    "tests/test_mcp_group_catalog_scale.py": "5332bc0cb80787113b01b6a34d972eab26e88b0775aa369fd5c97308921d6a39",
+    "tests/test_mcp_group_external_authority.py": "f5e6efd26083d222117283a6441a64bda12ae065ad8963ca35d7c68fda8472e4",
+    "tests/test_mcp_group_mcp.py": "94eca9457f9f1cd0b96e27d537caed36a8f5ec85090ab1c6b0bd022122d8ffe7",
+    "tests/test_mcp_group_routing.py": "4ea2c9d2e2dc139720b81a5a50989594928278257cfb617aa765c4f09a551cc6",
+    "tests/test_mcp_group_structures.py": "e4f255419411bc597a078797fe4f631d8269b0066049400036a55b96ac5821cd",
+    "tests/test_mcp_groups.py": "010b8c871bd9ed947651cb18a3ff931dad47ec67783da24cbc2ab5dd42d95c97",
+    "tests/test_oauth_catalog_scaling.py": "881f71fe94066093f6617cf0bacbb9338b69e0a730aefec79b3136592d056b8a",
+    "tests/test_oauth_paged_catalog.py": "d1065c9525b57c78a167e8cefce78da4611a6231016c86b3f2d91cdd5da29002",
+    "tests/test_oauth_scope_catalog.py": "a4cceb2b42e449e87debca9324adbdb23f4397fd98036b1857b8d49c4f651592",
+    "tests/test_schema_validation_budget.py": "65354ff3be0719c1f47f86d2739419837fb00752f2f6c4364bb37dd8030860ab",
+    "tests/test_tool_catalog.py": "3247e5303953edfb2d1ca82c80dbd5d4d4265b8e752c0c12a8ac6a45f72eeeab",
+    "tests/test_tool_classification_mcp.py": "37452c05fe81e67c166c83d5381cab507fee7ab5226d6a67c549f3072d6dedea",
+    "tests/test_tool_classification_routes.py": "565012a325375ad42324fad05ad4972032b188c20dd8682f305cf58463282968",
+    "uv.lock": "7faa13c909f6ab71a179a2277d653a1e71c3f7aad3321d8849c722c22f308207"
+  },
+  "post_test_exact_schema_worker_argument_process_count": 0,
+  "inherited_evidence": {
+    "cli": "gate-cli-identity-ae99991.json",
+    "catalog_checks": "catalog-classification-projection-checks.json",
+    "allocation_comparison": "catalog-classification-projection-5000-50000.json",
+    "allocation_comparison_rerun_here": false
+  },
+  "nx5_premerge_report": {
+    "provenance": "Delegating root status, not independently executed in this cloud run",
+    "baseline_result_count_reported": 2175,
+    "initial_failures_reported": 3,
+    "cli_failure_pending_new_source_retest": 1,
+    "delivery_path_activation_failures": 2,
+    "delivery_retest_passed": 2,
+    "peer_retest_passed": 3,
+    "wheel_tests_passed_after_installing_uv": 40,
+    "podman_cases_not_run": 4,
+    "new_source_nx5_run_completed": false
+  },
+  "binary_artifacts": {
+    "new_candidates_built": false,
+    "new_candidate_sha256": null,
+    "old_package_evidence_preserved_at_its_original_checkpoints": true
+  },
+  "not_run_here": [
+    "full backend suite on the combined source",
+    "frontend or browser tests",
+    "new web/wheel/sdist/native candidates",
+    "other OS or architecture",
+    "nx5 or Podman",
+    "formal release matrix",
+    "new allocation before/after benchmark"
+  ],
+  "acceptance_limits": "Focused merged-source cloud validation; no full Python 3.14 support, nx5/OOM resolution, or release acceptance claim.",
+  "boundaries": "Only the two reviewed source histories plus integration evidence; no uncommitted OAuth UI, dependency, version or permission changes, SSH, main/tag/release or old binary relabeling.",
+  "test_log": "gate-nx5-followup-integration-d8b1ee0.log",
+  "test_log_sha256": "3e68500e42ad3298c32598f69041865c8c3fc7f9b5bdd0c24f5352c09a30eb7d",
+  "log_normalization": [
+    "absolute temporary paths omitted from command descriptions",
+    "trailing whitespace removed"
+  ],
+  "ui_followup": {
+    "observed_source_sha": "4fc96c8b45635f2ba886eb6cc8f14691c1810319",
+    "merged": false,
+    "status": "Deferred while original UI author addresses the delegating root visual-review follow-up. No concurrent UI edit or frontend rebuild in this stage."
+  }
+}
