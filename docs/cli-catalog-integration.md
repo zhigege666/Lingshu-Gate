@@ -48,13 +48,39 @@ cgroup permits 16 GiB and differs from nx5. Recorded scale RSS is cumulative
 process-lifetime `ru_maxrss`, including fixtures and all requests. It does not
 establish a per-request peak, a leak, or resolution of the nx5 whole-suite OOM.
 
-The delegating root reported 2,175 baseline results on nx5. Of the three initial
-failures, one CLI result awaits new-source retesting; the two Delivery failures
+The delegating root reported 2,175 premerge baseline results on nx5. Of the three
+initial failures, one CLI result required new-source retesting; the two Delivery failures
 passed after activating PATH. Root also reported three passing peer cases and
 40 passing wheel tests after installing `uv`. Four Podman cases remain unrun.
 Those reports are separate from this cloud run and do not accept the new source.
 
-This follow-up did not run the full backend suite, frontend/browser tests, other
+On 2026-10-06, root reported the full backend run on candidate
+`7bc834e38f7b737bca1c660b92de2d3b6f60acd3` at approximately 75%, with no failures
+reported at that observation. The run was still in progress; this is not its
+final result. Root also reported the following host measurements:
+
+| Observation | Reported value |
+|---|---|
+| Temporary mount | `/tmp`, tmpfs, capacity 3.9G |
+| Retained pytest temporary data | `pytest-of-root`, 2.7G |
+| Cgroup memory limit | 3GiB |
+| `memory.stat` anonymous / shmem | 1.55GB / 1.53GB |
+| Total accounted memory | Approximately 3.13GB |
+| OOM events at this observation | 0 |
+
+These are approximate values and unit labels supplied by root, not independent
+cloud measurements or exact byte conversions. The total is retained as reported,
+not reconstructed from the rounded categories. Temporary storage and shmem are
+material environment evidence; the earlier single-process OOM does not by itself
+establish a product leak, and its cause remains unresolved.
+
+After this run finishes, root plans a separate verification with both `TMPDIR`
+and pytest `--basetemp` directed to an owned disk directory for that run on the
+host's `/srv` mount. That verification has not run. Test assertions and system
+safety settings will remain unchanged. No duplicate full suite or old UI
+integration was started here; UI remains pending its refined source SHA.
+
+This cloud follow-up did not run the full backend suite, frontend/browser tests, other
 platforms, nx5/Podman acceptance, or the formal release matrix. It does not claim
 full Python 3.14 support. No web, wheel, sdist or native candidates were rebuilt;
 old binary evidence remains attached to its original source SHA. OAuth UI work

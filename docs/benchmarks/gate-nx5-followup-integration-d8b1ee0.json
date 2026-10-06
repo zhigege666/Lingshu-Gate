@@ -372,5 +372,45 @@
     "observed_source_sha": "4fc96c8b45635f2ba886eb6cc8f14691c1810319",
     "merged": false,
     "status": "Deferred while original UI author addresses the delegating root visual-review follow-up. No concurrent UI edit or frontend rebuild in this stage."
+  },
+  "nx5_in_progress_report": {
+    "candidate_sha": "7bc834e38f7b737bca1c660b92de2d3b6f60acd3",
+    "provenance": "Delegating root observation on nx5; not independently measured in the cloud environment",
+    "recorded_at_utc": "2026-10-06T16:56:44.945618+00:00",
+    "suite": "full backend",
+    "progress_approx_percent": 75,
+    "failures_reported_at_observation": 0,
+    "completed": false,
+    "final_result": null,
+    "temporary_storage": {
+      "mount": "/tmp",
+      "filesystem": "tmpfs",
+      "reported_capacity": "3.9G",
+      "reported_pytest_of_root_residual_usage": "2.7G"
+    },
+    "cgroup_memory": {
+      "reported_limit": "3GiB",
+      "memory_stat_anon_reported": "1.55GB",
+      "memory_stat_shmem_reported": "1.53GB",
+      "total_accounted_memory_reported": "approximately 3.13GB",
+      "oom_events_reported_at_observation": 0
+    },
+    "measurement_note": "Rounded values and unit labels are preserved as reported. No exact byte conversion; the reported total is not reconstructed by adding the rounded categories.",
+    "interpretation": "Temporary storage and shmem are material environment evidence. The earlier single-process OOM alone does not establish a product leak; its cause remains unresolved.",
+    "root_next_verification_plan": {
+      "after_current_run_finishes": true,
+      "temporary_destination": "candidate-owned disk directory for that run on the host /srv mount; concrete local path omitted",
+      "controls": [
+        "TMPDIR",
+        "pytest --basetemp"
+      ],
+      "executed": false,
+      "test_assertions_and_system_safety_settings_unchanged": true
+    },
+    "actions_here": {
+      "duplicate_full_backend_run_started": false,
+      "old_ui_integrated": false,
+      "waiting_for_refined_ui_sha": true
+    }
   }
 }
