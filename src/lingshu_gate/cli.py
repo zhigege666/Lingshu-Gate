@@ -21,7 +21,9 @@ def _port(value: str) -> int:
 
 
 def _parse_args(argv: Sequence[str] | None = None) -> argparse.Namespace:
-    parser = argparse.ArgumentParser(description="Run the Lingshu Gate API, Console, and MCP gateway")
+    parser = argparse.ArgumentParser(
+        prog="lingshu-gate", description="Run the Lingshu Gate API, Console, and MCP gateway"
+    )
     parser.add_argument("--version", action="version", version=f"%(prog)s {__version__}")
     parser.add_argument("--host", help="Bind address (default: 127.0.0.1)")
     parser.add_argument("--port", type=_port, help="HTTP port (default: 8000)")
