@@ -1,0 +1,12 @@
+{
+  "source_sha": "2a84ea44dd8284674cdcd1b57d5ea95efd7b390e",
+  "fixture_services": 5000,
+  "fixture_tools": 50000,
+  "catalog_apis_mocked": false,
+  "locale": "zh-CN",
+  "state": "save-unknown",
+  "viewport": {
+    "width": 1600,
+    "height": 900
+  }
+}

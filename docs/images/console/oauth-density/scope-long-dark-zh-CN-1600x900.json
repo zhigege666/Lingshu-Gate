@@ -1,0 +1,13 @@
+{
+  "source_sha": "2a84ea44dd8284674cdcd1b57d5ea95efd7b390e",
+  "fixture_tools": 5000,
+  "fixture_mcps": 100,
+  "allOAuthApisMocked": true,
+  "locale": "zh-CN",
+  "theme": "dark",
+  "viewport": {
+    "width": 1600,
+    "height": 900
+  },
+  "state": "long client/tool/MCP names, table scrolled, fixed controls"
+}

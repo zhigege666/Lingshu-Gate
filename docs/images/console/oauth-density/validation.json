@@ -1,0 +1,52 @@
+{
+  "code_sha": "2a84ea44dd8284674cdcd1b57d5ea95efd7b390e",
+  "base_sha": "7d145c28a94a00a6c5d6f4f7d4fc38c0e6153436",
+  "source_version": "0.4.4",
+  "checks": {
+    "frontend_check": "passed",
+    "frontend_unit": {
+      "passed": 441,
+      "files": 74,
+      "seconds": 15.86
+    },
+    "frontend_builds": "console and public OAuth passed; existing large OAuth chunk warning",
+    "selected_browser": {
+      "passed": 202,
+      "skipped": 0,
+      "minutes": 9.7,
+      "by_spec": {
+        "external-identity-layout": 6,
+        "oauth-consent": 15,
+        "oauth-density": 24,
+        "oauth-grants": 70,
+        "oauth-management-resource": 40,
+        "oauth-management": 6,
+        "oauth-paged-catalog": 15,
+        "oauth-setup": 26
+      }
+    },
+    "targeted_backend": {
+      "passed": 183,
+      "seconds": 223.05,
+      "specs": [
+        "test_builtin_oauth.py",
+        "test_oauth_scope_catalog.py",
+        "test_oauth_live_scope.py",
+        "test_oauth_paged_catalog.py"
+      ]
+    },
+    "backend_and_locks_unchanged": true,
+    "frozen_dependencies": "passed",
+    "repository_identity": "passed",
+    "source_version_check": "passed",
+    "guide_links": "passed",
+    "whitespace": "passed"
+  },
+  "acceptance": {
+    "synthetic_author_evidence": true,
+    "independent_design_review": "integration owner pending",
+    "real_gate_plane_chatgpt": "integration owner pending",
+    "production_changes": false,
+    "release_publication": false
+  }
+}

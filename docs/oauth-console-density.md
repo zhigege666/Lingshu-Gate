@@ -22,6 +22,37 @@ The desktop layout gives 40% to URL configuration and signing controls and 60% t
 
 Manual resource ownership, disable-before-URL-edit rules, signing-key confirmation/readback, missing-key enable lock, client rotation/disable confirmation and one-time secret acknowledgement retain their original handlers. Real errors stay inline and recoverable. The separate management-resource controls remain default-off with exact-target authorization; the external identity page is outside this layout change.
 
+## Executed validation and author evidence
+
+The fixed code checkpoint is `2a84ea44dd8284674cdcd1b57d5ea95efd7b390e`. The later evidence commit adds documentation and synthetic PNG/JSON files only. Screenshot metadata records this code SHA; the density fixture also records the built Console index SHA256. [The artifact manifest](images/console/oauth-density/manifest.json) identifies the baseline separately and hashes each evidence file.
+
+| Executed check | Result |
+|---|---|
+| Frontend source and behavior | Check passed; 441 tests in 74 files passed in 15.86 seconds; both builds passed. The existing large OAuth chunk warning remains. |
+| Complete selected browser regression at the fixed SHA | 202 passed, no skipped cases, in 9.7 minutes: 24 density/keyboard, 70 personal-grant, 15 public-consent, 15 real paged-catalog, 26 setup, six client-management, 40 management-resource and six external-identity cases. |
+| Targeted authorization backend | 183 passed in 223.05 seconds: built-in OAuth, scope catalog, live scope and paged catalog. Backend source/tests and dependency locks are byte-identical to the integration base; this is not a new complete-backend-suite claim. |
+| Source/configuration discipline | Frozen Python/npm dependencies, repository identity, unchanged 0.4.4 version, guide links and whitespace checks passed. No authorization API or trust-boundary change. |
+
+The normal tool table has 40 px rows. At 1600×900 the [scope baseline](images/console/oauth-density/baseline-scope-en-US-1600x900.png) captured from exact `7d145c2` has seven complete 45 px rows and a partially visible eighth. The new view has nine complete rows. The [configured-page baseline](images/console/oauth-density/baseline-infrastructure-en-US-1600x900.png) still displays the large setup block and places the signing action below the fold. Those two captures intentionally fail the new density expectations; they are comparison evidence, not a baseline test pass.
+
+| Viewport | Complete tool rows, English / Chinese | Scope body vertical / document horizontal overflow |
+|---|---:|---:|
+| 1600×900 | 9 / 9 | 0 / 0 |
+| 1920×1080 | 13 / 13 | 0 / 0 |
+| 2560×1080 | 13 / 13 | 0 / 0 |
+| 2560×1440 | 22 / 22 | 0 / 0 |
+
+Every measured scope label shares one line with its control. The configured page's labels also share their controls' rows, has zero horizontal overflow, and keeps guide/register/signing/client-action/management-switch controls visible at all four sizes. Its 61-client fixture checks 25-row pagination, internal scrolling and page/search scroll reset. Real large-catalog layouts measure MCP-group rows separately: 9, 14, 14 and 15 complete rows in both languages, with zero body/horizontal overflow and no legacy scope-options or full-definition tool read.
+
+| Viewport | Scope screenshots | Configured-management screenshots |
+|---|---|---|
+| 1600×900 | [English](images/console/oauth-density/scope-en-US-1600x900.png) · [中文](images/console/oauth-density/scope-zh-CN-1600x900.png) | [English](images/console/oauth-density/infrastructure-en-US-1600x900.png) · [中文](images/console/oauth-density/infrastructure-zh-CN-1600x900.png) |
+| 1920×1080 | [English](images/console/oauth-density/scope-en-US-1920x1080.png) · [中文](images/console/oauth-density/scope-zh-CN-1920x1080.png) | [English](images/console/oauth-density/infrastructure-en-US-1920x1080.png) · [中文](images/console/oauth-density/infrastructure-zh-CN-1920x1080.png) |
+| 2560×1080 | [English](images/console/oauth-density/scope-en-US-2560x1080.png) · [中文](images/console/oauth-density/scope-zh-CN-2560x1080.png) | [English](images/console/oauth-density/infrastructure-en-US-2560x1080.png) · [中文](images/console/oauth-density/infrastructure-zh-CN-2560x1080.png) |
+| 2560×1440 | [English](images/console/oauth-density/scope-en-US-2560x1440.png) · [中文](images/console/oauth-density/scope-zh-CN-2560x1440.png) | [English](images/console/oauth-density/infrastructure-en-US-2560x1440.png) · [中文](images/console/oauth-density/infrastructure-zh-CN-2560x1440.png) |
+
+The author opened all 16 screenshots above, both baseline captures, both dark long-content scope captures and both dark management captures. The author also opened the real paged 1600×900 examples and all four lost-response/readback screenshots: [English unknown](images/console/oauth-density/save-unknown-en-US-1600x900.png), [English reconciled](images/console/oauth-density/save-reconciled-en-US-1600x900.png), [中文未知](images/console/oauth-density/save-unknown-zh-CN-1600x900.png), [中文回读](images/console/oauth-density/save-reconciled-zh-CN-1600x900.png). All eight real paged layouts have automated geometry evidence; the remaining six are not claimed as manual visual review. Independent design review and real Gate/Plane/ChatGPT acceptance remain with the integration owner. No production credentials, grants, services, SSH session, release tag or release assets are changed here.
+
 ## Reproduce presentation and behavior evidence
 
 Build first, then run from `web/`:
