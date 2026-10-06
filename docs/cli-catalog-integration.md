@@ -84,10 +84,11 @@ after approximately 81%, while executing
 Root reported 1.53GB of temporary-file shmem alongside 1.55GB of Python anonymous
 memory. The full suite did not complete and is not accepted as passed.
 
-Root has started the same `7bc834` source and 3GiB limit with disk-backed `TMPDIR`
-and `--basetemp` in unit `gate-full-backend-7bc-disk`; the result is pending. That
-run has nine consent-page assertion failures with 503 instead of 200. Root
-confirmed that the fresh source archive lacks the generated public OAuth HTML.
+Root then started the same `7bc834` source and 3GiB limit with disk-backed
+`TMPDIR` and `--basetemp` in unit `gate-full-backend-7bc-disk`. The interim report
+recorded nine consent-page assertion failures with 503 instead of 200; root's
+final report records 11 missing-static precondition failures in that old run.
+Root confirmed that the fresh source archive lacks the generated public OAuth HTML.
 Read-only inspection confirms that the route and fixture do not depend on the
 temporary directory for static lookup: the route reads module-relative
 `src/lingshu_gate/static/oauth/oauth.html`, and the fixture does not build or
@@ -105,13 +106,25 @@ npm --prefix web run build
 
 `build` typechecks and builds both Console and public OAuth into the package's
 two static directories. There is no separate `build:oauth` package script, and
-`web/dist` is not the consent route's lookup target. Keep the active root run's
-source unchanged; the root's post-build nine-case retest is pending. Test
-assertions and system safety settings remain unchanged. No duplicate full suite
-was started in this cloud environment.
+`web/dist` is not the consent route's lookup target. The former pending-run and
+post-build-retest notes are historical observations. Root subsequently completed
+the build prerequisites and the single-process nx5 full suite on final source
+`be30faf1c293c64dc90a160150ad182f7a4177a9`: CPython 3.14.4, `MemoryMax=3GiB`,
+`CPU=200%`, and both temporary controls on that run's owned `/srv` disk directory.
+The result was **2201 passed, 4 skipped, 0 failed, 5 warnings in 2632.83 s**.
+All four skips are `test_native_executor_host_acceptance`; rootless Podman,
+image and tmpfs security configuration remains unauthorized. The 184 post-build
+builtin OAuth / release packaging / startup smoke cases overlap the full suite.
+Test assertions and system safety settings remain unchanged. No duplicate full
+suite was started here; this disk retest does not prove a product memory leak was
+fixed. [Combined candidate acceptance](nx5-followup-integration.md) records root's
+441 frontend unit passes, dual build, 88 navigation/overflow checks, API and guide
+checks, retained-log hashes and cleanup. OAuth was disabled with no clients, so
+real ChatGPT authorization remains unaccepted.
 
-This cloud follow-up did not run the full backend suite, frontend/browser tests, other
-platforms, nx5/Podman acceptance, or the formal release matrix. It does not claim
+This earlier CLI/catalog cloud checkpoint did not run the full backend suite,
+frontend/browser tests, other platforms, nx5/Podman acceptance, or the formal
+release matrix. It does not claim
 full Python 3.14 support. No web, wheel, sdist or native candidates were rebuilt;
 old binary evidence remains attached to its original source SHA. OAuth UI work
 was excluded pending its follow-up and review. Versions, dependencies and permission behavior were
@@ -123,3 +136,6 @@ hashes, exact test commands, scope and all three raw scale metrics.
 three independent scale runs. The source reports remain available for
 [CLI identity](cli-validation.md) and
 [catalog classification projection](catalog-classification-projection.md).
+[Final nx5 receipt](benchmarks/gate-nx5-final-acceptance-be30faf.json) records the
+later root-reported acceptance separately; the original interim JSON snapshots
+and cloud test-log hashes remain preserved.

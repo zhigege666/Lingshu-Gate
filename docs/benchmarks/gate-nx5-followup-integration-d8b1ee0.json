@@ -458,6 +458,12 @@
       "root_post_build_retest_pending": true
     }
   },
+  "nx5_final_acceptance": {
+    "evidence": "gate-nx5-final-acceptance-be30faf.json",
+    "provenance": "Final acceptance and retained-log SHA-256 values supplied by the delegating root; raw nx5 logs not fetched or independently verified here",
+    "earlier_nx5_reports_are_historical_snapshots": true,
+    "ui_exclusion_and_not_run_here_describe_this_earlier_cloud_checkpoint_only": true
+  },
   "ui_final_integration": {
     "source_sha": "be30faf1c293c64dc90a160150ad182f7a4177a9",
     "ui_head": "95bfa7d97d936275781d11ec5c4939574390a27f",
