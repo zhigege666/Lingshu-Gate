@@ -1,6 +1,9 @@
 from __future__ import annotations
 
+import os
+import subprocess
 import sys
+import sysconfig
 from pathlib import Path
 
 import pytest
@@ -18,6 +21,40 @@ def test_version_flag_uses_single_version_source(monkeypatch: pytest.MonkeyPatch
 
     assert exc_info.value.code == 0
     assert capsys.readouterr().out.strip() == f"lingshu-gate {__version__}"
+
+
+@pytest.mark.parametrize(
+    ("arguments", "expected_code"),
+    [(["--version"], 0), (["--help"], 0), (["--port", "70000"], 2)],
+    ids=["version", "help", "usage-error"],
+)
+def test_module_and_installed_console_entrypoints_share_product_identity(
+    tmp_path: Path, arguments: list[str], expected_code: int,
+) -> None:
+    console = Path(sysconfig.get_path("scripts")) / ("lingshu-gate.exe" if os.name == "nt" else "lingshu-gate")
+    assert console.is_file(), "Run uv sync to install the declared console entry point before testing"
+    environment = {
+        **os.environ,
+        "LINGSHU_GATE_DB_URL": "not-a-service-database",
+        "NO_COLOR": "1",
+    }
+    results = [
+        subprocess.run(
+            command + arguments, cwd=tmp_path, env=environment, capture_output=True, text=True, timeout=20,
+        )
+        for command in ([sys.executable, "-m", "lingshu_gate.cli"], [str(console)])
+    ]
+    module, installed = results
+    assert (module.returncode, module.stdout, module.stderr) == (
+        installed.returncode, installed.stdout, installed.stderr
+    )
+    assert module.returncode == expected_code
+    if arguments == ["--version"]:
+        assert module.stdout.strip() == f"lingshu-gate {__version__}"
+    else:
+        output = module.stderr if expected_code else module.stdout
+        assert output.startswith("usage: lingshu-gate ")
+    assert "not-a-service-database" not in module.stdout + module.stderr
 
 
 def test_cli_overrides_are_applied_before_settings_load(
