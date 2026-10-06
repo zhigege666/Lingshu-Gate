@@ -1,5 +1,5 @@
 {
-  "source_sha": "2a84ea44dd8284674cdcd1b57d5ea95efd7b390e",
+  "source_sha": "fdcb3545aa88d1ccb3a961fca3e2c47055bfb105",
   "fixture_tools": 5000,
   "fixture_mcps": 100,
   "allOAuthApisMocked": true,
@@ -9,5 +9,6 @@
     "width": 1600,
     "height": 900
   },
-  "state": "long client/tool/MCP names, table scrolled, fixed controls"
+  "state": "long client/tool/MCP names, table scrolled, fixed controls",
+  "bundle_sha256": "4269bf4f7d36a432a9cce3ce92bbadbbe04cea3a77b886213ea09709e7e2d0e0"
 }
