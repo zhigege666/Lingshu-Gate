@@ -32,6 +32,7 @@
 | [浏览器回归](browser-regression.md) | 隔离真实后端 Playwright、合成大列表、场景编号及证据边界 |
 | [外部 OAuth 资源访问](external-connections.md) | 默认关闭的 JWT 验证、信任配置、个人委托与实际接入边界 |
 | [内置 OAuth 授权](builtin-oauth.md) | 复用已有用户、静态客户端、同意、刷新/撤销与公网代理放行清单 |
+| [OAuth Console 密度](oauth-console-density.md) | 开发中的范围编辑器与已配置管理布局、不变授权边界及合成证据 |
 | [发行产物](releases.md) | 平台归档、checksum、SBOM、构建元数据、离线镜像和发布规则 |
 | [0.4.0 验证记录](release-validation.md) | 已执行检查、合成截图与剩余验收缺口 |
 | [0.4.1 验证记录](release-validation-0.4.1.md) | OAuth 兼容/配置、本人授权与运行版本证据 |

@@ -3,10 +3,10 @@ import { InfoCircleOutlined } from "@ant-design/icons"
 import type { OAuthGrant, OAuthScopeOptions } from "./oauth-api"
 
 /** Compact grant summary; disclosure is read-only and never changes the draft. */
-export function ScopeRules({ options, grant, loading, added, addedWrite, removed, zh, open, onOpenChange }: { options: Pick<OAuthScopeOptions, "scopes" | "effective_scopes" | "family_scope_limits"> | null; grant: OAuthGrant; loading: boolean; added: number; addedWrite: number; removed: number; zh: boolean; open: boolean; onOpenChange: (open: boolean) => void }) {
+export function ScopeRules({ options, grant, loading, summary, added, addedWrite, removed, zh, open, onOpenChange }: { options: Pick<OAuthScopeOptions, "scopes" | "effective_scopes" | "family_scope_limits"> | null; grant: OAuthGrant; loading: boolean; summary: string; added: number; addedWrite: number; removed: number; zh: boolean; open: boolean; onOpenChange: (open: boolean) => void }) {
   const scopes = options?.scopes || grant.scopes
   return <div className="oauth-scope-rule-row">
-    <span className="oauth-scope-rule-summary oauth-muted" role="status">{loading ? zh ? "正在读取本人可授权范围…" : "Loading your available scope…" : `${zh ? "OAuth 上限" : "OAuth ceiling"}: ${scopes.join(" · ") || "—"} · ${options ? zh ? "本人当前获准且已发布的工具" : "Currently permitted, published tools" : zh ? "可授权目录尚未读取，请刷新" : "Catalog not loaded; refresh available scope"}`}</span>
+    <span className="oauth-scope-rule-summary oauth-muted" role="status">{loading ? zh ? "正在读取本人可授权范围…" : "Loading your available scope…" : summary}</span>
     <Popover trigger="click" placement="bottomLeft" arrow={false} open={open} onOpenChange={onOpenChange} getPopupContainer={trigger => trigger.closest<HTMLElement>('[role="dialog"]') || trigger.parentElement!} title={zh ? "范围与授权规则" : "Scope and authorization rules"} content={<div className="oauth-scope-info">
       <p className="oauth-wrap">{grant.client_name} · {grant.resource}</p>
       <p>{zh ? "现有 OAuth scope 上限：" : "Existing OAuth scope ceiling: "}{scopes.join(" · ") || "—"}{options && <><br />{zh ? "当前客户端允许：" : "Currently allowed by client: "}{options.effective_scopes.join(" · ") || "—"}</>}</p>
@@ -15,7 +15,7 @@ export function ScopeRules({ options, grant, loading, added, addedWrite, removed
       {!grant.scope_currently_authorized && <p>{zh ? `原工具中当前仍获准 ${grant.effective_tool_count} 项；更新只接受当前可授权工具。` : `${grant.effective_tool_count} original tools remain authorized; updates accept currently available tools.`}</p>}
       <p>{zh ? `新增 / 重新确认 ${added} 个工具（写入 ${addedWrite}）；从当前连接移除 ${removed} 个。保存前将核对完整差异。` : `${added} added / reconfirmed tools (${addedWrite} write); ${removed} removed. Review the complete difference before saving.`}</p>
     </div>}>
-      <Button type="text" size="small" className="oauth-scope-info-trigger" aria-label={zh ? "查看范围与授权规则" : "Scope details"} aria-expanded={open} icon={<InfoCircleOutlined aria-hidden />} />
+      <Button type="text" size="small" className="oauth-scope-rules-button" aria-label={zh ? "查看范围与授权规则" : "Scope details"} aria-expanded={open} icon={<InfoCircleOutlined aria-hidden />}>{zh ? "授权规则" : "Authorization rules"}</Button>
     </Popover>
   </div>
 }

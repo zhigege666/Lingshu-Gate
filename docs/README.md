@@ -32,6 +32,7 @@ This documentation describes the current Gate product boundary. English is autho
 | [Browser regression](browser-regression.md) | Isolated real-backend Playwright, synthetic large lists, scenario IDs and evidence boundaries |
 | [External OAuth resource access](external-connections.md) | Default-disabled JWT verification, trust configuration, personal delegations and integration boundaries |
 | [Built-in OAuth authorization](builtin-oauth.md) | Existing Gate users, static clients, consent, refresh/revoke and public proxy allowlist |
+| [OAuth Console density](oauth-console-density.md) | Development scope-editor and configured-management layout, unchanged authorization and synthetic evidence |
 | [Release artifacts](releases.md) | Platform archives, checksums, SBOM, build metadata, offline images, and publishing rules |
 | [0.4.0 validation record](release-validation.md) | Executed checks, synthetic screenshots and remaining acceptance gaps |
 | [0.4.1 validation record](release-validation-0.4.1.md) | OAuth compatibility/setup, personal grants and runtime version evidence |
