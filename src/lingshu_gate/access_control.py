@@ -633,6 +633,32 @@ class AccessControlStore:
             result.update({(row["server_id"], row["tool_id"]): dict(row) for row in rows})
         return result
 
+    @staticmethod
+    def _load_catalog_classifications(
+        connection: sqlite3.Connection,
+        tool_keys: Iterable[tuple[str, str]],
+    ) -> dict[tuple[str, str], dict[str, Any]]:
+        """Read only current policy and reviewed-safety columns for a directory.
+
+        Evidence and analysis fields remain available to the complete loader.
+        This projection is request-local; publication, fingerprint and grants
+        are still rechecked before any catalog ordering or pagination.
+        """
+        keys = sorted(set(tool_keys))
+        result: dict[tuple[str, str], dict[str, Any]] = {}
+        for offset in range(0, len(keys), 250):
+            batch = keys[offset:offset + 250]
+            placeholders = ",".join("(?, ?)" for _ in batch)
+            rows = connection.execute(
+                "SELECT server_id,tool_id,fingerprint,status,effective_access,"
+                "reviewed_by,reviewed_at,destructive,idempotent,open_world "
+                "FROM mcp_tool_classifications "
+                f"WHERE (server_id, tool_id) IN (VALUES {placeholders})",
+                tuple(value for key in batch for value in key),
+            ).fetchall()
+            result.update({(row["server_id"], row["tool_id"]): dict(row) for row in rows})
+        return result
+
     def _synchronize_tools(
         self,
         connection: sqlite3.Connection,
@@ -1195,7 +1221,7 @@ class AccessControlStore:
         """Read-only current policy projection; do not analyze or persist on a catalog GET."""
         items = list(definitions)
         keys = [(_server_id(item), item.id) for item in items]
-        classifications = self._load_classifications(connection, keys)
+        classifications = self._load_catalog_classifications(connection, keys)
         grants = self._effective_access_map(connection, principal, keys)
         result: list[tuple[ToolDefinition | FrozenToolDefinition, dict[str, Any] | None]] = []
         for definition, key in zip(items, keys, strict=True):
