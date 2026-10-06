@@ -208,6 +208,94 @@ for (const locale of ["en-US", "zh-CN"] as const) {
     await expect(editor.locator("tr[data-row-key]")).toHaveCount(50)
     await expect(before).toContainText(selection)
   })
+  test(`remote MCP selector keyboard loads retries and returns focus ${locale}`, async ({ page }) => {
+    const zh = locale === "zh-CN"
+    await page.setViewportSize({ width: 1600, height: 900 })
+    let scopeWrites = 0, fullReads = 0
+    page.on("request", request => {
+      const path = new URL(request.url()).pathname
+      if (path.endsWith("/scope-preview") || path.endsWith("/scope")) scopeWrites++
+      if (path === "/v1/tools" || path.endsWith("/scope-options")) fullReads++
+    })
+    const editor = await open(page, locale)
+    const selection = await editor.locator(".oauth-selection [role=status]").innerText()
+    const filter = editor.getByRole("combobox", { name: zh ? "按 MCP 筛选" : "Filter by MCP", exact: true })
+    const more = editor.getByRole("button", { name: zh ? "加载更多 MCP" : "Load more MCPs", exact: true })
+    const isGroups = (url: URL) => url.pathname.endsWith("/scope-catalog") && url.searchParams.get("view") === "groups"
+    const initial = page.waitForResponse(response => { const url = new URL(response.url()); return isGroups(url) && !url.searchParams.has("cursor") && url.searchParams.get("query") === "" })
+    await filter.focus()
+    await page.keyboard.press("ArrowDown")
+    const first = await initial
+    expect(first.status()).toBe(200)
+    const initialPage = await first.json()
+    expect(initialPage.items).toHaveLength(15)
+    await expect(more).toBeEnabled()
+    await page.keyboard.press("Tab")
+    await expect(more).toBeFocused()
+    await expect(filter).toHaveAttribute("aria-expanded", "true")
+    await captureRecovery(page, locale, "selector-keyboard")
+    await page.keyboard.press("Shift+Tab")
+    await expect(filter).toBeFocused()
+    await page.keyboard.press("Tab")
+    const nextPage = page.waitForResponse(response => { const url = new URL(response.url()); return isGroups(url) && url.searchParams.get("cursor") === initialPage.next_cursor })
+    await page.keyboard.press("Enter")
+    const second = await nextPage
+    expect(second.status()).toBe(200)
+    expect((await second.json()).items).toHaveLength(15)
+    await expect(filter).toBeFocused()
+    await expect(more).toBeEnabled()
+    await page.keyboard.press("Tab")
+    await expect(more).toBeFocused()
+    await page.keyboard.press("Escape")
+    await expect(filter).toBeFocused()
+    await expect(filter).toHaveAttribute("aria-expanded", "false")
+    const reopened = page.waitForResponse(response => { const url = new URL(response.url()); return isGroups(url) && !url.searchParams.has("cursor") })
+    await page.keyboard.press("ArrowDown")
+    expect((await reopened).status()).toBe(200)
+    await expect(more).toBeEnabled()
+    let failedCursor = "", injected = false
+    const routePattern = "**/v1/auth/oauth/grants/*/scope-catalog?**"
+    // Inject only one read failure. Successful pages and retry use the real owner-visible catalog.
+    await page.route(routePattern, route => {
+      const url = new URL(route.request().url())
+      if (!injected && isGroups(url) && url.searchParams.has("cursor")) {
+        injected = true; failedCursor = url.searchParams.get("cursor")!
+        return route.fulfill({ status: 503, json: { error: "scope_catalog_unavailable" } })
+      }
+      return route.continue()
+    })
+    await page.keyboard.press("Tab")
+    await expect(more).toBeFocused()
+    await page.keyboard.press("Enter")
+    const retry = editor.getByRole("button", { name: zh ? "重试" : "Retry", exact: true })
+    await expect(retry).toBeEnabled()
+    await expect(filter).toBeFocused()
+    await page.keyboard.press("Tab")
+    await expect(retry).toBeFocused()
+    const retried = page.waitForResponse(response => { const url = new URL(response.url()); return isGroups(url) && url.searchParams.get("cursor") === failedCursor && response.status() === 200 })
+    await page.keyboard.press("Space")
+    expect((await retried).status()).toBe(200)
+    await expect(filter).toBeFocused()
+    await expect(retry).toHaveCount(0)
+    await expect(more).toBeEnabled()
+    await page.keyboard.press("Escape")
+    await expect(filter).toBeFocused()
+    await expect(filter).toHaveAttribute("aria-expanded", "false")
+    const lastOpen = page.waitForResponse(response => { const url = new URL(response.url()); return isGroups(url) && !url.searchParams.has("cursor") })
+    await page.keyboard.press("ArrowDown")
+    expect((await lastOpen).status()).toBe(200)
+    await expect(more).toBeEnabled()
+    await page.keyboard.press("Tab")
+    await expect(more).toBeFocused()
+    await page.keyboard.press("Tab")
+    await expect(filter).toHaveAttribute("aria-expanded", "false")
+    await expect(editor.getByRole("radiogroup", { name: zh ? "按读写权限筛选" : "Filter by access", exact: true })).toBeFocused()
+    expect(injected).toBe(true)
+    await page.unroute(routePattern)
+    await expect(editor.locator(".oauth-selection [role=status]")).toHaveText(selection)
+    expect(scopeWrites).toBe(0)
+    expect(fullReads).toBe(0)
+  })
   test(`committed scope save with a lost response refreshes actual state ${locale}`, async ({ page }) => {
     const zh = locale === "zh-CN"
     await page.setViewportSize({ width: 1600, height: 900 })

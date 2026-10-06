@@ -41,7 +41,7 @@ export function OAuthManagementResource({ businessReady, keysReady, zh, t, onNot
   }
   return <section className="oauth-admin-panel">
     <h2>{zh ? "独立管理连接" : "Separate management connection"}</h2>
-    <p>{zh ? "管理地址固定为 /mcp/manage，默认关闭；普通 /mcp 继续使用现有业务授权。管理连接只允许四个外部配置工具，须逐项同意创建/更新目标。" : "Management uses /mcp/manage and is disabled by default. Ordinary /mcp keeps its business authorization. Management allows only four external configuration tools with individually approved create/update targets."}</p>
+    <p>{zh ? "用于外部 MCP 配置，需单独授权；业务连接保留原权限。" : "Configure external MCPs with separate authorization; business access stays unchanged."}</p>
     <div className="oauth-actions"><label className="flex items-center gap-2"><span>{zh ? "启用管理 OAuth" : "Enable management OAuth"}</span><Switch aria-label={zh ? "启用管理 OAuth" : "Enable management OAuth"} checked={Boolean(config?.enabled)} disabled={busy || !config || (!config.enabled && (!businessReady || !keysReady))} onChange={value => void change(value)} /></label><Button disabled={busy} onClick={() => void load()}>{zh ? "重读管理状态" : "Reload management state"}</Button></div>
     <p className="oauth-wrap">{config?.resource || (zh ? "先保存内置 OAuth 的可信地址。" : "Save trusted built-in OAuth URLs first.")}</p>
     {!businessReady || !keysReady ? <p>{zh ? "先启用内置 OAuth，并确认活动签名密钥；未知状态不能新启用管理资源。" : "Enable built-in OAuth and confirm an active signing key first. Unknown status cannot enable management."}</p> : null}

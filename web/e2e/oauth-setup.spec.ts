@@ -180,6 +180,7 @@ for (const locale of ["en-US", "zh-CN"] as const) {
     const model = await setup(page, locale)
     async function editAndSave(name: string) {
       await page.getByRole("button", { name: model.client.name, exact: true }).click()
+      await page.getByRole("dialog", { name: zh ? "客户端详情" : "Client details", exact: true }).getByRole("button", { name: zh ? "编辑客户端" : "Edit client", exact: true }).click()
       const dialog = page.getByRole("dialog", { name: zh ? "编辑客户端" : "Edit client", exact: true })
       await expect(page.getByRole("status").filter({ hasText: zh ? "客户端已保存" : "Client saved" })).toHaveCount(0)
       await dialog.getByLabel(zh ? "客户端名称" : "Client name", { exact: true }).fill(name)

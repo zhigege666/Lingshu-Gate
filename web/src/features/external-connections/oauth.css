@@ -124,6 +124,8 @@
 .oauth-identity-fields dd { min-width: 0; overflow-wrap: anywhere; }
 .oauth-identity-fields dd:has(input) { display: flex; align-items: center; gap: 8px; }
 .oauth-mcp-chips { display: flex; flex-wrap: wrap; }
+.oauth-mcp-selector { min-width: 0; }
+.oauth-mcp-selector .ant-select { width: 100%; }
 .oauth-filters:has(.oauth-mcp-chips) { grid-template-columns: minmax(180px, 1fr) minmax(0, max-content) max-content; }
 .oauth-selector-feedback { padding: 8px; font-size: 12px; }
 .oauth-selector-more { width: 100%; }
@@ -135,12 +137,16 @@
 .oauth-config-form .ant-form-item { margin-bottom: 12px; }
 .oauth-config-form .ant-form-item-extra { font-size: 12px; line-height: 1.5; min-height: 0; padding-top: 4px; }
 .oauth-config-actions { justify-content: flex-end; gap: 8px; }
-.oauth-signing-controls { display: flex; align-items: center; flex-wrap: wrap; gap: 8px; border-top: 1px solid hsl(var(--border)); margin-top: 16px; padding-top: 12px; }
+.oauth-signing-controls { display: flex; align-items: center; justify-content: flex-end; flex-wrap: wrap; gap: 8px; border-top: 1px solid hsl(var(--border)); margin-top: 16px; padding-top: 12px; }
 .oauth-signing-controls > [role="status"] { flex: 1; font-size: 12px; }
 .oauth-infrastructure .oauth-setup-steps { font-size: 12px; gap: 8px; border-block: 1px solid hsl(var(--border)); padding-block: 8px; margin: 0; }
 .oauth-client-search { margin-bottom: 12px; }
 .oauth-client-table .ant-table-body { overscroll-behavior: contain; }
-.oauth-client-table .ant-table-tbody > tr > td { padding-block: 4px; height: 40px; }
+.oauth-client-table { --oauth-client-body-height: 200px; }
+/* Small buttons are 30px; 4px padding and a border fit a measured 40px row. */
+.oauth-client-table .ant-table.ant-table-small .ant-table-tbody > tr > .ant-table-cell { padding-block: 4px; height: 40px; line-height: 20px; white-space: nowrap; }
+@media (min-height: 1000px) { .oauth-client-table { --oauth-client-body-height: 360px; } }
+@media (min-height: 1280px) { .oauth-client-table { --oauth-client-body-height: 440px; } }
 .oauth-client-name { max-width: 100%; overflow: hidden; text-overflow: ellipsis; padding-inline: 0; }
 .oauth-client-id { display: flex; align-items: center; gap: 4px; white-space: nowrap; }
 .oauth-client-id > span { overflow: hidden; text-overflow: ellipsis; }
