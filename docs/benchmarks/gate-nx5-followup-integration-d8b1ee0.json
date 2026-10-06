@@ -412,5 +412,60 @@
       "old_ui_integrated": false,
       "waiting_for_refined_ui_sha": true
     }
+  },
+  "nx5_post_observation_status": {
+    "provenance": "Delegating root subsequent reports; not independently run here",
+    "candidate_sha": "7bc834e38f7b737bca1c660b92de2d3b6f60acd3",
+    "tmpfs_run": {
+      "limit_reported": "3GiB",
+      "outcome_reported": "OOM-killed after approximately 81 percent",
+      "suite_completed": false,
+      "active_test_reported": "tests/test_real_delivery_journey.py::test_d01_real_upload_build_deploy_and_configuration_reapply",
+      "shmem_temporary_files_reported": "1.53GB",
+      "python_anonymous_memory_reported": "1.55GB",
+      "full_backend_passed": false
+    },
+    "disk_run": {
+      "same_source_and_memory_limit": true,
+      "started": true,
+      "unit_reported": "gate-full-backend-7bc-disk",
+      "controls": [
+        "TMPDIR",
+        "pytest --basetemp"
+      ],
+      "storage": "run-owned disk directory on the host /srv mount",
+      "completed": false,
+      "final_result": null,
+      "test_assertions_and_system_safety_settings_unchanged": true,
+      "known_page_precondition_failures_reported": 9,
+      "active_run_source_not_modified": true
+    },
+    "page_failures": {
+      "test": "tests/test_builtin_oauth.py::test_authorization_ui_locales_reaches_consent_without_entering_the_security_envelope",
+      "actual_status_reported": 503,
+      "expected_status": 200,
+      "public_oauth_html_missing_reported": true,
+      "read_only_lookup_verified": "Path(__file__).resolve().parents[2] / static / oauth / oauth.html",
+      "fresh_codeload_excludes_ignored_build_outputs": true,
+      "fixture_does_not_build_or_replace_html": true,
+      "required_source_validation_build": [
+        "npm --prefix web ci",
+        "npm --prefix web run build"
+      ],
+      "separate_build_oauth_script_declared": false,
+      "route_fixture_build_contract_unchanged_from_7bc": true,
+      "assertions_or_skips_modified": false,
+      "root_post_build_retest_pending": true
+    }
+  },
+  "ui_final_integration": {
+    "source_sha": "be30faf1c293c64dc90a160150ad182f7a4177a9",
+    "ui_head": "95bfa7d97d936275781d11ec5c4939574390a27f",
+    "merge_method": "normal --no-ff merge retaining all three histories",
+    "prior_checkpoint_ui_exclusion_remains_historical": true,
+    "root_visual_review": "two 1600x900 Chinese final source screenshots accepted",
+    "root_independent_review": "prior keyboard P2 closed; three controllers request/state/confirmation logic unchanged; no code-level blockers",
+    "candidate_verification_in_progress_here": false,
+    "new_evidence": "gate-ui-final-integration-be30faf.json"
   }
 }

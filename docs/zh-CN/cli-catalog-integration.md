@@ -6,8 +6,10 @@
 `7d145c28a94a00a6c5d6f4f7d4fc38c0e6153436` 整合已审核的 CLI 程序名修复和目录分类窄投影。
 实测的统一源码提交为 `d8b1ee076ff39f60a9b633e414932adbd6478129`。
 
-本报告覆盖 CLI/目录性能检查点。OAuth UI 原作者正在处理主线程视觉审查的后续
-修改，已只读核对的 UI head `4fc96c8b45635f2ba886eb6cc8f14691c1810319` 未合入。
+本报告覆盖此前 CLI/目录性能检查点，当时 UI head
+`4fc96c8b45635f2ba886eb6cc8f14691c1810319` 暂缓合入。精修 UI 来源
+`95bfa7d97d936275781d11ec5c4939574390a27f` 后续已普通 merge 到
+`be30faf1c293c64dc90a160150ad182f7a4177a9`；合并后的验证与这 382 项另行记录。
 
 两次普通 `--no-ff` merge 保留完整来源历史：CLI `a4f9be911852a9d354fe29804e1eafb8f301f9ba`，目录性能
 `2b6a2c5173595787cb57fed394515c4fc0dd73bc`。无冲突，两个来源的改动文件没有交集，所有合并文件都与来源
@@ -63,9 +65,31 @@ cloud 实测分开，不构成新源码的 nx5 验收。
 总量按报告保留，不由取整后的分项重算。临时存储与 shmem 是重要环境证据；
 此前单进程 OOM 本身不能直接证明产品泄漏，原因仍未确定。
 
-本轮结束后，主线程计划另行验证：把 `TMPDIR` 与 pytest `--basetemp` 都指向
-主机 `/srv` 挂载上该轮专属的磁盘目录。这一验证尚未执行，测试断言与系统安全
-设置保持不变。本环境未启动重复全量或合入旧 UI，继续等待 UI 精修的新源码 SHA。
+在上述观测时，主线程计划把 `TMPDIR` 与 pytest `--basetemp` 都指向主机 `/srv`
+挂载上该轮专属磁盘目录。随后主线程报告 tmpfs 运行在约 81% 之后、执行
+`tests/test_real_delivery_journey.py::test_d01_real_upload_build_deploy_and_configuration_reapply`
+时被 OOM 终止，观测到临时文件 shmem 1.53GB 与 Python anonymous 1.55GB 叠加。
+该全量未完成，不能标为通过。
+
+主线程已用相同 `7bc834` 源码及 3GiB 上限，在 unit `gate-full-backend-7bc-disk`
+中启动磁盘 `TMPDIR` 与 `--basetemp` 复验，最终结果待定。该运行出现九项 consent
+页面断言失败，实际 503、应为 200；主线程已确认 fresh 源码归档缺少生成的公开
+OAuth HTML。只读核对表明静态查找不依赖临时目录：路由使用模块相对的
+`src/lingshu_gate/static/oauth/oauth.html`，fixture 不构建或替代它。缺失时会明确
+返回 `authorization_ui_unavailable` 503，与未构建前置吻合，不能放宽断言或跳过。
+
+fresh Git/codeload 源码应先安装前端依赖并执行现有正式双构建，再运行包含页面的
+后端用例：
+
+```bash
+npm --prefix web ci
+npm --prefix web run build
+```
+
+`build` 会类型检查并把 Console 与公开 OAuth 构建到包内两个 static 目录。
+仓库没有单独的 `build:oauth` package script，`web/dist` 也不是 consent 路由的
+查找目标。保持主线程运行中的源码不变，主线程构建后九项重测仍待执行。测试
+断言与系统安全设置保持不变，本 cloud 环境未启动重复全量。
 
 本次 cloud 工作未跑完整后端、前端/浏览器、其他平台、nx5/Podman 或正式发布矩阵，也不
 构成 Python 3.14 的完整支持。未重建 web、wheel、sdist 或 native 候选，旧包

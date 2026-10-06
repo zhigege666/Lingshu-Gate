@@ -6,9 +6,11 @@ The branch `test/gate-nx5-followup-integration-20261006` integrates the reviewed
 CLI identity fix and narrow catalog classification projection from exact base
 `7d145c28a94a00a6c5d6f4f7d4fc38c0e6153436`. The tested combined source is `d8b1ee076ff39f60a9b633e414932adbd6478129`.
 
-This report covers the CLI/catalog checkpoint. OAuth UI integration is deferred
-while its author addresses the root's visual-review follow-up; the inspected UI
-head `4fc96c8b45635f2ba886eb6cc8f14691c1810319` is not merged here.
+This report covers the earlier CLI/catalog checkpoint. UI head
+`4fc96c8b45635f2ba886eb6cc8f14691c1810319` was deferred at that point. The refined
+UI source `95bfa7d97d936275781d11ec5c4939574390a27f` was subsequently merged normally
+at `be30faf1c293c64dc90a160150ad182f7a4177a9`; its combined validation is recorded
+separately from these 382 tests.
 
 Two normal `--no-ff` merges preserve both complete source histories:
 CLI `a4f9be911852a9d354fe29804e1eafb8f301f9ba` and catalog `2b6a2c5173595787cb57fed394515c4fc0dd73bc`. There were no conflicts or overlapping
@@ -74,11 +76,39 @@ not reconstructed from the rounded categories. Temporary storage and shmem are
 material environment evidence; the earlier single-process OOM does not by itself
 establish a product leak, and its cause remains unresolved.
 
-After this run finishes, root plans a separate verification with both `TMPDIR`
+At that observation, root planned a separate verification with both `TMPDIR`
 and pytest `--basetemp` directed to an owned disk directory for that run on the
-host's `/srv` mount. That verification has not run. Test assertions and system
-safety settings will remain unchanged. No duplicate full suite or old UI
-integration was started here; UI remains pending its refined source SHA.
+host's `/srv` mount. Root subsequently reported that the tmpfs run was OOM-killed
+after approximately 81%, while executing
+`tests/test_real_delivery_journey.py::test_d01_real_upload_build_deploy_and_configuration_reapply`.
+Root reported 1.53GB of temporary-file shmem alongside 1.55GB of Python anonymous
+memory. The full suite did not complete and is not accepted as passed.
+
+Root has started the same `7bc834` source and 3GiB limit with disk-backed `TMPDIR`
+and `--basetemp` in unit `gate-full-backend-7bc-disk`; the result is pending. That
+run has nine consent-page assertion failures with 503 instead of 200. Root
+confirmed that the fresh source archive lacks the generated public OAuth HTML.
+Read-only inspection confirms that the route and fixture do not depend on the
+temporary directory for static lookup: the route reads module-relative
+`src/lingshu_gate/static/oauth/oauth.html`, and the fixture does not build or
+replace it. Missing HTML deliberately produces `authorization_ui_unavailable`
+503. This matches the missing-build precondition and does not justify relaxing
+the assertion or skipping the test.
+
+For fresh Git/codeload source, install frontend dependencies and run the existing
+dual build before backend tests containing pages:
+
+```bash
+npm --prefix web ci
+npm --prefix web run build
+```
+
+`build` typechecks and builds both Console and public OAuth into the package's
+two static directories. There is no separate `build:oauth` package script, and
+`web/dist` is not the consent route's lookup target. Keep the active root run's
+source unchanged; the root's post-build nine-case retest is pending. Test
+assertions and system safety settings remain unchanged. No duplicate full suite
+was started in this cloud environment.
 
 This cloud follow-up did not run the full backend suite, frontend/browser tests, other
 platforms, nx5/Podman acceptance, or the formal release matrix. It does not claim
