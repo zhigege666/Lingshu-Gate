@@ -301,5 +301,12 @@
       "memory_note": "tracemalloc probes are separate from latency samples; RSS is observed process residency. ru_maxrss is cumulative for the whole process including fixture and all profiles, not a request peak."
     }
   ],
-  "limitations": "Classification/policy projection only; no whole-group HTTP, sustained load, nx5 cgroup OOM reproduction or memory-leak proof. Process lifetime ru_maxrss includes fixture and all profiles and is not request RSS."
+  "limitations": "Classification/policy projection only; no whole-group HTTP, sustained load, nx5 cgroup OOM reproduction or memory-leak proof. Process lifetime ru_maxrss includes fixture and all profiles and is not request RSS.",
+  "digest_fields": [
+    "tool/service identity",
+    "fingerprint",
+    "status",
+    "effective_access"
+  ],
+  "reviewed_safety_equivalence": "Covered separately by the 25 policy/review regression scenarios; the digest is not a byte-for-byte comparison of complete analysis/evidence rows."
 }

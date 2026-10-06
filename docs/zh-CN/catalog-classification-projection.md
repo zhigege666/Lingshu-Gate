@@ -26,6 +26,18 @@ uv run --frozen python scripts/benchmark_catalog_classification_projection.py --
 uv run --frozen python scripts/benchmark_catalog_classification_projection.py --mode catalog --evidence-bytes 1024 --samples 5 --output catalog.json
 ```
 
-测量仅涵盖分类/权限投影，不含配置文件加载和完整分组快照。本次 Linux cgroup 为 16 GiB 内存、四个 CPU 等效额度，与 nx5 验收环境不同。按表格顺序，四个进程生命周期 `ru_maxrss` 为 467,260／330,924／817,048／332,052 KiB，包含 fixture、全部样本和分配探测，不是单请求 RSS。原三个完整 HTTP scale 用例保持不变，独立进程执行后另记结果。分类分配降低不等于全套 cgroup OOM 已解决，之前的累计 RSS 也不构成泄漏证据。本次不包含生产连接、真实凭据、SSH、merge、tag 或 release。
+测量仅涵盖分类/权限投影，不含配置文件加载和完整分组快照。本次 Linux cgroup 为 16 GiB 内存、四个 CPU 等效额度，与 nx5 验收环境不同。按表格顺序，四个进程生命周期 `ru_maxrss` 为 467,260／330,924／817,048／332,052 KiB，包含 fixture、全部样本和分配探测，不是单请求 RSS。
+
+[完整 HTTP scale 证据](../benchmarks/catalog-classification-projection-directory-scale.json) 记录原三个用例分别在独立 pytest 进程执行的结果。`test_mcp_group_catalog_scale.py` 与 exact `7d145c2` 逐字节一致。每个用例保留 5 次冷读、10 次暖读、10 次关键词目录页、10 次 variant 成员页，以及之后的既有配置并发写入/变化发布检查。超缓存用例另保留全部 4 次交替读取和原 64 MiB 缓存上限。三项均通过，未降低任何阈值或跳过测试。
+
+| 用例 | 总秒数 | 冷 p95 ms | 暖 p95 ms | 目录页 p95 ms | 成员页 p95 ms | 进程生命周期峰值 KiB |
+|---|---:|---:|---:|---:|---:|---:|
+| 五分组；每请求 10,000 工具 | 42.35 | 1535.286 | 823.255 | 840.527 | 811.377 | 820392 |
+| 最大单组；每请求 50,000 工具 | 122.44 | 7465.634 | 2669.541 | 2743.274 | 2546.592 | 820264 |
+| 超缓存；每请求 50,000 工具 | 171.43 | 11243.867 | 3250.854 | 2936.641 | 3296.626 | 820088 |
+
+完整 HTTP 表是改后实测；上方受控前后对比只测分类/权限投影。scale RSS 是包含 fixture 和全部请求的每进程累计 `ru_maxrss`，不是单请求峰值，也不是 cgroup `MemoryCurrent`。分类分配降低不等于全套 cgroup OOM 已解决，之前的累计 RSS 也不构成泄漏证据。本次不包含生产连接、真实凭据、SSH、merge、tag 或 release。
+
+[验收检查点](../benchmarks/catalog-classification-projection-checks.json)：另 15 个相关文件在 `64140292520667b12aa39bbb9f0119737fc89ca0` 上 259 项、349.00 秒通过，涵盖分组目录/路由/结构/授权、普通目录派发/审计及完整分类/OAuth 消费者。加上首批 95 项和三个独立 scale 用例，共 357 项相关测试通过，最终无失败、警告或跳过。冻结依赖同步、全仓 Ruff、mypy（158 个源码文件）、空白、双语本地链接和原始 JSON 检查通过。生产检查点 `93d7052` 后无产品/测试文件变化，后续仅含基准脚本与文档/数据。这不等于重跑完整后端、前端/原生产物验收或 nx5 OOM 复现，未编辑 OAuth UI 或 CLI 修复分支。
 
 新增多批次回归的初始 fixture 缺少分类必填字段；基准初始 fixture 缺少 grant 必填 `created_by`。已在通过回归/正式测量前修正两处设置错误，未改变产品行为。
