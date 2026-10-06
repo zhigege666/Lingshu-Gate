@@ -16,8 +16,9 @@ Vite 只清理源静态目录，native/PyInstaller 清理不处理 `build/lib`�
 恢复输入已隔离包复制。独立复现还确认默认 `build/bdist.<platform>/wheel` 中的旧文件会继续进入最终 wheel。
 完整修复保留 setuptools PEP 517 后端，为包复制、wheel 安装和归档生成分别使用私有暂存目录。
 复制、安装和最终归档阶段均校验两个静态目录的完整清单及 SHA-256，并校验最终 zip 路径和每条 RECORD
-的哈希、大小，通过后才原子替换输出。只删除本次创建的私有暂存或输出临时文件，保留已有缓存、原生制品、
-用户指定的构建路径和用户数据目标。editable 安装无需前端；非 editable wheel 拒绝 `--skip-build`。
+的哈希、大小，通过后才原子替换输出。原子替换仅覆盖 wheel hook 的发布步骤，
+不宣称 setuptools `build_meta` 最外层制品移动为全事务。只删除本次创建的私有暂存或输出临时文件，
+保留已有缓存、原生制品、用户指定的构建路径和用户数据目标。editable 安装无需前端；非 editable wheel 拒绝 `--skip-build`。
 sdist 携带构建钩子及已生成资源，可继续常规 wheel 链路。
 
 ## 实际执行证据
@@ -36,10 +37,34 @@ sdist 携带构建钩子及已生成资源，可继续常规 wheel 链路。
 | native 归档、标准提取/readiness 和 glibc | 通过，最高 glibc 需求 2.35 |
 | schema IPC/超时/取消/复用及直接入口 | 14 个真实验证子进程 + 4 次直接探测，全部回收 |
 | wheel/native CLI 及 loopback HTTP | 均通过，97 个 Console 文件 HTTP 字节完全一致，服务进程已回收 |
+| `35a2dd5` 固定 Playwright MCP peer 补验 | 3 通过，零失败/跳过，仅 loopback 握手和工具列表 |
 
 完整 backend 的 2126 通过、7 跳过沿用 `31b7cca`；frontend 的 439 单测和 98 browser 用例沿用
 `a3b57f7`，本次未重跑这些完整套件。新构建的 100 个静态文件精确匹配既有产品清单。
 打包测试和候选 smoke 为本次实际执行，loopback smoke 中 native executor 保持禁用。
+
+## 固定 peer 补验
+
+已在统一候选 `35a2dd508b173a62d0d8572e2fbd6592217f0c36`、
+`test/gate-feature-integration-20261005` 分支实际执行原始 `tests/test_mcp_playwright_interop.py`
+三个 opt-in，测试文件未修改：**1.07 秒内 3 通过，零失败/跳过**。
+本次自建临时安装使用精确 `@playwright/mcp@0.0.83`、`playwright-core@1.64.0-alpha-1790635538000`
+及 peer 声明的同版本 `playwright@1.64.0-alpha-1790635538000`。禁用安装脚本和浏览器下载，使用独立空浏览器
+缓存，peer 带 `--isolated`，未提供已有用户 profile。
+
+真实 peer 对现代 `2026-07-28` discovery 返回 HTTP 400、JSON-RPC null id 及 `-32000`
+（`Bad Request: Server not initialized`）；显式现代模式未 initialize。
+manifest 版本省略和 `auto` 两项均执行 `server/discover` → `initialize` → `notifications/initialized`
+→ `tools/list` → `DELETE`，协商为 `2025-11-25`、列出 25 个工具，每个会话仅 initialize 一次。
+没有 `tools/call`。一个 module-scoped peer 及观察到的后代全部回收，loopback 监听关闭；未观察到浏览器进程，
+独立浏览器缓存保持为空。保存脱敏证据后已清理本次安装、pytest 数据、浏览器缓存和观察脚本，
+未删除已有共享 Node/npm 缓存。
+
+- [固定版本、真实响应、请求顺序与清理](../benchmarks/gate-playwright-mcp-interop-35a2dd5.json)
+- [原始测试脱敏日志](../benchmarks/gate-playwright-mcp-interop-35a2dd5.log)
+
+历史完整 backend 结果仍为 2126 通过/7 跳过，本次未重跑全套。单独补验只关闭三个 peer opt-in；
+原有四项 Podman 主机用例仍未执行，未报通过。产品代码、测试、依赖、版本及上述私有包哈希保持不变。
 
 ## 私有候选哈希
 
@@ -62,6 +87,6 @@ sdist 携带构建钩子及已生成资源，可继续常规 wheel 链路。
 ## 剩余范围
 
 真实 nx5/rootless Podman 验收等待 root 连接恢复与安全主机配置批准。真实凭据/provider/client、四项 Podman
-主机用例、三项外部 Playwright opt-in、其他 OS/架构及正式发行矩阵均未执行。
+主机用例、其他 OS/架构及正式发行矩阵均未执行；三项固定 Playwright MCP peer opt-in 已由上述补验完成。
 基线 requirements 导出仍仅在 jsonschema 的 `via` 注释上存在文本差异，所有版本及哈希相同；未改锁文件或
 导出文件，此注释差异在本次打包修复范围之外。未 merge main、tag、release、SSH、变更权限或发布正式 0.4.4 资产。

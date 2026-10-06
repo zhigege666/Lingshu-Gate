@@ -19,6 +19,8 @@ default `build/bdist.<platform>/wheel` tree could still enter its final wheel. T
 the setuptools PEP 517 backend and isolates package copying, wheel installation and archive creation.
 It verifies both complete static SHA-256 inventories at the copy/install/final-archive stages, verifies
 the final zip paths and every RECORD hash/size, then atomically replaces the output with verified bytes.
+This atomic replacement covers the wheel hook's publication step. The outer setuptools `build_meta`
+artifact move is not claimed to be an end-to-end transaction.
 It deletes only newly created private staging or output temporary files. Existing cache directories,
 native artifacts, custom build paths and user-data targets are preserved. Editable installs work without
 the frontend; noneditable wheels reject `--skip-build`. The sdist carries the hooks and built assets.
@@ -39,11 +41,37 @@ the frontend; noneditable wheels reject `--skip-build`. The sdist carries the ho
 | Native archive, standard extraction/readiness and glibc | Passed; maximum required glibc 2.35 |
 | Schema IPC/deadline/cancel/reuse and direct worker entries | 14 real validation children + 4 direct probes; all reaped |
 | Wheel/native CLI and loopback HTTP | Both passed; all 97 Console files served byte-exact; service processes reaped |
+| Fixed Playwright MCP peer follow-up at `35a2dd5` | 3 passed, zero failed/skipped; loopback handshake/list only |
 
 The full backend result (2126 passed, 7 skipped) is inherited from `31b7cca`; frontend unit tests
 (439 passed) and 98 browser cases are inherited from `a3b57f7`. Those suites were not rerun here.
 The newly built 100 static files exactly match their recorded product manifest. Packaging tests and
 candidate smoke were executed for this fix. The native executor remains disabled during local smoke.
+
+## Fixed peer follow-up
+
+The three original `tests/test_mcp_playwright_interop.py` opt-ins were executed without modifying the
+test file at unified candidate `35a2dd508b173a62d0d8572e2fbd6592217f0c36` on
+`test/gate-feature-integration-20261005`: **3 passed in 1.07 seconds**, zero failures/skips.
+An owned temporary installation used exact `@playwright/mcp@0.0.83`, `playwright-core@1.64.0-alpha-1790635538000`
+and the peer's exact `playwright@1.64.0-alpha-1790635538000` dependency. Installation scripts were disabled;
+browser download was disabled, the browser cache was private and empty, and the peer used `--isolated`.
+
+The real peer rejected modern `2026-07-28` discovery with HTTP 400, a null JSON-RPC id and error `-32000`
+(`Bad Request: Server not initialized`). Explicit modern mode did not initialize. Both omitted and `auto`
+manifest versions performed `server/discover` → `initialize` → `notifications/initialized` → `tools/list`
+→ `DELETE`, negotiated `2025-11-25`, and listed 25 tools with exactly one initialize per session.
+No `tools/call` occurred. The one module-scoped peer and all observed descendants were reaped, its loopback
+listener closed, no browser process was observed, and its private browser cache stayed empty. No existing
+user profile was supplied. The owned installation, pytest data, browser cache and observation runner were
+removed after saving sanitized evidence. Preexisting shared Node/npm caches were preserved.
+
+- [Fixed peer versions, wire responses, request sequences and cleanup](benchmarks/gate-playwright-mcp-interop-35a2dd5.json)
+- [Sanitized original test log](benchmarks/gate-playwright-mcp-interop-35a2dd5.log)
+
+The historical full backend result remains 2126 passed/7 skipped; it was not rerun. This separate run
+closes the three peer opt-ins only. The original four Podman host cases remain unexecuted and are not
+reported as passed. Product code, tests, dependencies, version and the private package hashes above are unchanged.
 
 ## Private candidate hashes
 
@@ -66,8 +94,9 @@ These hashes identify private candidates, not official published assets.
 ## Remaining scope
 
 Real nx5/rootless Podman acceptance awaits the root connection and approved safe host configuration.
-Real credentials/providers/clients, the four Podman host cases, three external Playwright opt-ins,
-other operating systems/architectures and the formal release matrix were not executed. The inherited
+Real credentials/providers/clients, the four Podman host cases,
+other operating systems/architectures and the formal release matrix were not executed. The three fixed
+Playwright MCP peer opt-ins were completed by the follow-up above. The inherited
 requirements export still differs only in jsonschema `via` comments; all requirement versions and hashes
 match, and both lock/export files were preserved. That textual drift is outside this packaging fix.
 No main merge, tag, release, SSH, permission change or official 0.4.4 asset publication occurred.
