@@ -20,7 +20,9 @@ class NativeExecutorConfig:
     proxy_hosts: tuple[dict[str, Any], ...] = ()
 
     def __post_init__(self) -> None:
-        if type(self.enabled) is not bool or not Path(self.podman_bin).is_absolute() or any(ord(ch) < 32 for ch in self.podman_bin):
+        if type(self.enabled) is not bool:
+            raise ValueError("Native executor enabled must be a boolean")
+        if self.enabled and (not Path(self.podman_bin).is_absolute() or any(ord(ch) < 32 for ch in self.podman_bin)):
             raise ValueError("Native executor requires an administrator-reviewed absolute Podman binary")
         if self.enabled and (not self.root or not self.root.is_absolute() or not IMAGE.fullmatch(self.image)):
             raise ValueError("Enabled Native executor requires an absolute provisioned root and digest-pinned image")

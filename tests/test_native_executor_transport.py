@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import io
 import socket
+import ssl
 import time
 import threading
 from types import SimpleNamespace
@@ -15,6 +16,13 @@ from lingshu_gate.adapters.native_executor.git import HTTPSGitBackend, packet
 from lingshu_gate.adapters.native_executor.pending import PendingDNS
 from lingshu_gate.registry import ToolExecutionError
 from lingshu_gate.ports.safe_network_executor import SafeExecutionCancelled
+
+
+def test_trusted_https_requires_tls_12_and_verified_server_identity():
+    context = PinnedHTTPS().context
+    assert context.minimum_version >= ssl.TLSVersion.TLSv1_2
+    assert context.verify_mode == ssl.CERT_REQUIRED
+    assert context.check_hostname
 
 
 @pytest.mark.parametrize("version", [b"", packet(b"version 1\n")])
@@ -267,9 +275,12 @@ def test_connect_tls_and_send_share_the_original_deadline_budget():
         def settimeout(self, value):
             super().settimeout(value)
             budgets.append(value)
+            self.timeout = value
         def sendall(self, value):
-            time.sleep(0.03)
-            if self.closed:
+            # Model the socket's actual configured timeout, independently of
+            # when the supervisor thread next gets scheduled.
+            time.sleep(min(0.03, self.timeout))
+            if self.timeout < 0.03 or self.closed:
                 raise OSError("fixture deadline")
             super().sendall(value)
     client = PinnedHTTPS(resolver=resolver)

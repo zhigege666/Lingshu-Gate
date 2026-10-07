@@ -84,6 +84,10 @@ def iso_now() -> str:
 
 
 def hash_secret(value: str) -> str:
+    """Stable lookup/binding digest for random tokens and protocol metadata.
+
+    Human passwords must use hash_password's salted PBKDF2 path instead.
+    """
     return hashlib.sha256(value.encode("utf-8")).hexdigest()
 
 

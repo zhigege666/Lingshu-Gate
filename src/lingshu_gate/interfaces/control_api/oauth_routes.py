@@ -575,7 +575,9 @@ def register_oauth_routes(app: FastAPI, *, server: OAuthServer, observability: O
         params = parse_fields(request.url.query, {"client_id", "redirect_uri", "response_type", "scope",
                                                 "resource", "code_challenge", "code_challenge_method", "state", "ui_locales"})
         ui_locale = authorization_ui_locale(params.pop("ui_locales", ""))
-        browser = request.cookies.get(BROWSER_COOKIE) or secrets.token_urlsafe(32)
+        existing_browser = request.cookies.get(BROWSER_COOKIE)
+        new_browser = secrets.token_urlsafe(32) if not existing_browser else ""
+        browser = existing_browser or new_browser
         try:
             interaction = server.start_authorization(params, browser)
         except OAuthError as error:
@@ -586,8 +588,11 @@ def register_oauth_routes(app: FastAPI, *, server: OAuthServer, observability: O
             raise
         fragment = urlencode({"request": interaction, **({"ui_locales": ui_locale} if ui_locale else {})})
         response = RedirectResponse(config["issuer"] + "/oauth/consent#" + fragment, status_code=303, headers=SAFE_HEADERS)
-        response.set_cookie(BROWSER_COOKIE, browser, secure=True, httponly=True, samesite="lax",
-                            path="/oauth", max_age=INTERACTION_TTL)
+        # Reuse the browser binding for concurrent interactions without reflecting
+        # a supplied cookie into Set-Cookie or extending its original lifetime.
+        if new_browser:
+            response.set_cookie(BROWSER_COOKIE, new_browser, secure=True, httponly=True, samesite="lax",
+                                path="/oauth", max_age=INTERACTION_TTL)
         return response
 
     @app.get("/oauth/consent", include_in_schema=False)

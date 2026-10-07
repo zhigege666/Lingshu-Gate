@@ -23,8 +23,10 @@ Native Gate 应以专用非 root Linux 账户运行。该可信账户拥有本�
 | `enabled` | 布尔值，默认 false。明确启用后允许启动对账及合成 sandbox 自检。 |
 | `root` | 已准备的执行器绝对目录，与 Gate 数据/配置/工作区分离。 |
 | `image` | 已预加载的精确受审 manifest digest；不是项目输入。 |
-| `podman_bin` | 管理员二进制路径，默认 `/usr/bin/podman`。 |
+| `podman_bin` | 启用时须为管理员审定的绝对二进制路径，默认 `/usr/bin/podman`。 |
 | `proxy_hosts` | 最多 32 条精确受审代理 host/port 规则及可选明确 private CIDR，默认空。 |
+
+默认禁用时不要求 Linux Podman 路径，Windows 和 macOS 可正常启动 Gate。明确启用仍校验管理员的绝对二进制/根目录路径及固定 image 摘要。只有 local Linux 角色能创建执行器；派发前仍须通过全部就绪和隔离检查。
 
 以下仅展示配置结构，须把占位符换成受审 digest；示例不是可运行镜像引用。
 
@@ -45,6 +47,8 @@ Network 设置响应现在返回观测到的 `executor.available`、稳定 code�
 缺失 controller 分别列明：`delegated_cgroup_controller_cpu_required`、`delegated_cgroup_controller_memory_required`、`delegated_cgroup_controller_pids_required`。本地镜像缺失返回 `preloaded_exact_image_digest_required`；各项 sandbox 观测失败返回 `sandbox_selftest_<check>_required`。这些检查不会拉取镜像或转宿主执行。
 
 ## 获取与包支持
+
+受信 HTTPS 明确要求 TLS 1.2 或更高版本、证书校验和主机名校验，包括通过受审代理建立的连接。
 
 | 阶段 | 已实现支持 | 明确拒绝 |
 |---|---|---|

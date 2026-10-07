@@ -29,7 +29,7 @@ from lingshu_gate.mcp_gateway import (
     _gateway_tools,
     register_mcp_gateway_route,
 )
-from lingshu_gate.transports.http import build_protocol_request
+from lingshu_gate.transports.http import HttpProtocolValidationError, build_protocol_request
 
 
 class FakeRuntime:
@@ -383,6 +383,22 @@ class McpGatewayProtocolTest(unittest.TestCase):
 
         self.assertEqual(response.status_code, 200)
         self.assertEqual(response.json()["result"]["supportedVersions"], [MCP_PROTOCOL_VERSION])
+
+    def test_protocol_rejections_only_expose_explicit_public_fields(self) -> None:
+        for validator in ("validate_origin_header", "validate_gateway_http_request"):
+            with self.subTest(validator=validator):
+                error = HttpProtocolValidationError(-32020, "Protocol header rejected",
+                    data={"requiredCapabilities": {}})
+                error.args = ("Traceback: synthetic internal diagnostic must stay private",)
+                with patch(f"lingshu_gate.mcp_gateway.{validator}", side_effect=error):
+                    response = self._post(self._app(),
+                        {"jsonrpc": "2.0", "id": 1, "method": "server/discover", "params": {}})
+                payload = json.loads(response.body)
+                self.assertEqual(response.status_code, 400)
+                self.assertEqual(payload["error"]["code"], -32020)
+                self.assertEqual(payload["error"]["message"], "Protocol header rejected")
+                self.assertNotIn(b"Traceback", response.body)
+                self.assertNotIn(b"internal diagnostic", response.body)
 
     def test_tools_call_returns_structured_content(self) -> None:
         response = self._post(

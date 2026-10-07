@@ -33,6 +33,7 @@ class ObjectFixture:
         self.oversized_reads = False
 
     def add(self, kind, data):
+        # Canonical SHA-1 Git object identity for synthetic data, not password storage.
         oid = hashlib.sha1(f"{kind} {len(data)}\0".encode() + data).hexdigest()
         self.objects[oid] = (kind, data, len(data))
         return oid
@@ -266,6 +267,7 @@ def test_reflected_bare_basic_or_proxy_secret_never_reaches_snapshot(field, enco
     assert rejected.value.code == "git_snapshot_content_rejected"
     assert secret not in str(rejected.value) and reflected not in str(rejected.value)
     assert backend.materials == [{}]
+    assert objects.streams and all(stream.closed for stream in objects.streams)
 
 
 def test_basic_username_alone_is_allowed_but_short_token_remains_scanned():

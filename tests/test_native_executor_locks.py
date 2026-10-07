@@ -33,7 +33,7 @@ def test_yarn_official_origin_maps_to_selected_mirror_without_changing_lock():
     records = yarn_tarballs(lock, REGISTRY)
     assert records[0].source == REGISTRY + "/dep/-/dep-1.0.0.tgz"
     assert records[0].filename == "dep-1.0.0.tgz" and records[0].integrity == SRI
-    assert b"registry.yarnpkg.com" in lock
+    assert lock == yarn_lock()
 
 
 @pytest.mark.parametrize("major", [8, 9])
