@@ -1,0 +1,1209 @@
+{
+  "schema_version": 1,
+  "recorded_at_utc": "2026-10-07T04:20:30.205915+00:00",
+  "source_sha": "689b4f9eb9e1836431376dd4f84a67f9fd3edacd",
+  "source_parents": [
+    "84c4b8bcf364eef33d8e4fafafce22866c936a31",
+    "71f2a25db196f126a4f7e7e0a0b9e8ac952d7181"
+  ],
+  "reviewed_upstream_sha": "71f2a25db196f126a4f7e7e0a0b9e8ac952d7181",
+  "upstream_remote_head_at_review": "71f2a25db196f126a4f7e7e0a0b9e8ac952d7181",
+  "branch": "test/gate-root-entry-20261007",
+  "version": "0.4.4",
+  "merge": {
+    "strategy": "normal no-ff merge of exact reviewed SHA",
+    "conflicts": 0,
+    "auto_merged_guides": [
+      "docs/builtin-oauth.md",
+      "docs/zh-CN/builtin-oauth.md"
+    ],
+    "delta_from_root_parent": {
+      "files": 23,
+      "insertions": 378,
+      "deletions": 18
+    },
+    "root_feature_source": "77d0815756ab4b03ccc66155dfc2ce6c758c8b5a",
+    "bytewise_source_preservation": {
+      "root_feature": {
+        "src/lingshu_gate/interfaces/control_api/meta_routes.py": {
+          "sha256": "4141622ffe18e0a99a783a1b3a8af658648231fd13bf5d6aff568873766e7e0f",
+          "identical_to_source": true
+        },
+        "tests/test_console_root_entry.py": {
+          "sha256": "bfd2cc0c60ecf9e160058144e946bd5914033a59b618b177ebd1d94e843ec3e8",
+          "identical_to_source": true
+        },
+        "tests/test_startup_smoke.py": {
+          "sha256": "519b5aad625764906d6e1cc20f13c95d91549449513536feec3399f8541e3f0d",
+          "identical_to_source": true
+        },
+        "web/e2e/root-entry.spec.ts": {
+          "sha256": "6456f82dcdaefd03f45e577e384f6f8d33ec18f4e24b272d7c4ccabeeb2cf9ee",
+          "identical_to_source": true
+        },
+        "web/vite.config.ts": {
+          "sha256": "35b25471c6cd75fa1f09f5f677beed6f7ccfbfb6d6da8994ba5cbff1c3e3db09",
+          "identical_to_source": true
+        },
+        "web/index.html": {
+          "sha256": "8c1d6a86160f353b1db2bf14ae8fc44cf0f29288a332bcefbe30546a0fbad93f",
+          "identical_to_source": true
+        },
+        "web/src/components/auth-gate.tsx": {
+          "sha256": "36e67e8fffd812ddfee77dfacdb88c313070c509c50f83a890d6aae13aaefd5a",
+          "identical_to_source": true
+        },
+        "web/src/components/console-shell.tsx": {
+          "sha256": "bc32176de657e546f0b2ec632a3644c5ed1b0bbe1342a5480473cdd661642546",
+          "identical_to_source": true
+        }
+      },
+      "upstream_repairs": {
+        "src/lingshu_gate/auth.py": {
+          "sha256": "78b24b8c6304ea5a2e098e1da4651ee3ada440477dfbd211325175226469464b",
+          "identical_to_source": true
+        },
+        "src/lingshu_gate/interfaces/control_api/oauth_routes.py": {
+          "sha256": "775df4371885c4e3658356755003d6eaa265fc946d6a8dc80602958eacbc9b1e",
+          "identical_to_source": true
+        },
+        "src/lingshu_gate/adapters/native_executor/https.py": {
+          "sha256": "43a383bbe0fd027176398caeb2b008d7781e49ad7d027fd0e6d05168a40b0bf7",
+          "identical_to_source": true
+        },
+        "src/lingshu_gate/native_executor_config.py": {
+          "sha256": "7100c1c913c5d3bdf864c7264b44110e6ccc0261fda89f4e3c5ce8d0e7851eec",
+          "identical_to_source": true
+        },
+        "src/lingshu_gate/transports/http.py": {
+          "sha256": "e08e175eb4dcbbaa5c98766b7392e807f330b97a100b50d0d17b4dc4fb3c0f3d",
+          "identical_to_source": true
+        },
+        "src/lingshu_gate/mcp_gateway.py": {
+          "sha256": "d0df62be84a465ee1985cb381fc86df2e8af1a54824f82ebe2f59c7a40c04bba",
+          "identical_to_source": true
+        },
+        "scripts/benchmark_tool_catalog.py": {
+          "sha256": "a67cb2ca76d1250f91d47e759b08f112938a4bc3038a15a434071bd6525cee47",
+          "identical_to_source": true
+        },
+        "tests/test_builtin_oauth.py": {
+          "sha256": "a3cc2e97c7db9fad206fb7df938b8a2e507b03825a8f506b4740af087a954a67",
+          "identical_to_source": true
+        },
+        "tests/test_git_acquisition.py": {
+          "sha256": "428b95f76794c3b53b0686b38a35785addc7f2a2d94efbf9974337e6266fa54a",
+          "identical_to_source": true
+        },
+        "tests/test_catalog_benchmark_reporting.py": {
+          "sha256": "91e0a4553fe6d0da062496e247d5236fbcfe1209fa5041cf91845d1796adf680",
+          "identical_to_source": true
+        },
+        "requirements.lock": {
+          "sha256": "3c999c57a753fd04987902d28020a2ad0c2bc299337ce9c9653fc909367ddd03",
+          "identical_to_source": true
+        },
+        "uv.lock": {
+          "sha256": "7faa13c909f6ab71a179a2277d653a1e71c3f7aad3321d8849c722c22f308207",
+          "identical_to_source": true
+        }
+      }
+    }
+  },
+  "runtime": {
+    "python": "3.13.15",
+    "node": "24.19.0",
+    "npm": "11.9.0",
+    "chromium": "151.0.7922.173",
+    "platform": "Linux x86_64",
+    "uv_ci": "0.11.33"
+  },
+  "sync": [
+    {
+      "label": "uv-ci-version",
+      "command": [
+        "uv",
+        "tool",
+        "run",
+        "--from",
+        "uv==0.11.33",
+        "uv",
+        "--version"
+      ],
+      "source_sha": "689b4f9eb9e1836431376dd4f84a67f9fd3edacd",
+      "exit_code": 2,
+      "wall_seconds": 0.049373,
+      "log": "sync/uv-ci-version-first-attempt.log",
+      "log_sha256": "013c016e03125d12c95144f44758cf9a6dbe0a01df65d468c5cc5b65844ff7bd"
+    },
+    {
+      "label": "uv-ci-version",
+      "command": [
+        "uv",
+        "tool",
+        "run",
+        "--from",
+        "uv==0.11.33",
+        "uv",
+        "--version"
+      ],
+      "source_sha": "689b4f9eb9e1836431376dd4f84a67f9fd3edacd",
+      "exit_code": 0,
+      "wall_seconds": 0.597465,
+      "log": "sync/uv-ci-version.log",
+      "log_sha256": "5c3aee5d6904cbf1fbd16be4e75239125677369a72f525fc91967fd6a4e04204"
+    },
+    {
+      "label": "uv-sync-frozen",
+      "command": [
+        "uv",
+        "tool",
+        "run",
+        "--from",
+        "uv==0.11.33",
+        "uv",
+        "sync",
+        "--frozen"
+      ],
+      "source_sha": "689b4f9eb9e1836431376dd4f84a67f9fd3edacd",
+      "exit_code": 0,
+      "wall_seconds": 0.103406,
+      "log": "sync/uv-sync-frozen.log",
+      "log_sha256": "5d88899e95a6159a07a965b25aee83e5f78abd64b5ffd3ff38f4c65e2df22fd6"
+    },
+    {
+      "label": "uv-export-frozen",
+      "command": [
+        "uv",
+        "tool",
+        "run",
+        "--from",
+        "uv==0.11.33",
+        "uv",
+        "export",
+        "--frozen",
+        "--no-dev",
+        "--no-emit-project",
+        "--format",
+        "requirements-txt"
+      ],
+      "source_sha": "689b4f9eb9e1836431376dd4f84a67f9fd3edacd",
+      "exit_code": 0,
+      "wall_seconds": 0.045015,
+      "exact_match": true,
+      "export_sha256": "3c999c57a753fd04987902d28020a2ad0c2bc299337ce9c9653fc909367ddd03"
+    }
+  ],
+  "frontend": [
+    {
+      "label": "npm-ci",
+      "command": [
+        "npm",
+        "--prefix",
+        "web",
+        "ci"
+      ],
+      "source_sha": "689b4f9eb9e1836431376dd4f84a67f9fd3edacd",
+      "exit_code": 0,
+      "wall_seconds": 8.286937,
+      "log": "frontend/npm-ci.log",
+      "log_sha256": "4354572969570914c26a60f41608376b06a64b72de9e2b21af601530295ecaea"
+    },
+    {
+      "label": "frontend-check",
+      "command": [
+        "npm",
+        "--prefix",
+        "web",
+        "run",
+        "check"
+      ],
+      "source_sha": "689b4f9eb9e1836431376dd4f84a67f9fd3edacd",
+      "exit_code": 0,
+      "wall_seconds": 11.091948,
+      "log": "frontend/frontend-check.log",
+      "log_sha256": "2249a37e956892b747e90809cb9072ea2087a445b29e94fe696c79ed49cc5a46"
+    },
+    {
+      "label": "frontend-unit",
+      "command": [
+        "npm",
+        "--prefix",
+        "web",
+        "test"
+      ],
+      "source_sha": "689b4f9eb9e1836431376dd4f84a67f9fd3edacd",
+      "exit_code": 0,
+      "wall_seconds": 15.447641,
+      "log": "frontend/frontend-unit.log",
+      "log_sha256": "99d40f7af47523dd8ee47d4839df51e84d5be6688fa87043f8183cfbd98487e1"
+    },
+    {
+      "label": "frontend-build",
+      "command": [
+        "npm",
+        "--prefix",
+        "web",
+        "run",
+        "build"
+      ],
+      "source_sha": "689b4f9eb9e1836431376dd4f84a67f9fd3edacd",
+      "exit_code": 0,
+      "wall_seconds": 23.301566,
+      "log": "frontend/frontend-build.log",
+      "log_sha256": "a7ff7cfa58f3f5bbd98169118cfb1e06bfd2ef63d46a5e78f7df6620d8041647"
+    }
+  ],
+  "frontend_unit": {
+    "passed": 441,
+    "files": 74
+  },
+  "backend": {
+    "tests": 859,
+    "passed": 859,
+    "failed": 0,
+    "errors": 0,
+    "skipped": 0,
+    "junit_seconds": 328.189,
+    "counts_by_test_module": {
+      "test_auth_bootstrap_security": 10,
+      "test_builtin_oauth": 114,
+      "test_catalog_benchmark_reporting": 1,
+      "test_composition_root": 3,
+      "test_console_root_entry": 64,
+      "test_external_mcp_configuration": 114,
+      "test_external_oauth_http": 32,
+      "test_git_acquisition": 96,
+      "test_health_probes": 3,
+      "test_mcp_gateway": 18,
+      "test_mcp_http_negotiation": 68,
+      "test_mcp_protocol_current": 25,
+      "test_native_executor_boundary": 37,
+      "test_native_executor_integration": 41,
+      "test_native_executor_lifecycle": 40,
+      "test_native_executor_locks": 44,
+      "test_native_executor_shims": 13,
+      "test_native_executor_transport": 28,
+      "test_oauth_management_e2e": 19,
+      "test_oauth_management_resource": 12,
+      "test_release_packaging": 74,
+      "test_startup_smoke": 3
+    },
+    "runs": [
+      {
+        "label": "selected-backend",
+        "command": [
+          "<repo>/.venv/bin/python",
+          "-m",
+          "pytest",
+          "-q",
+          "tests/test_console_root_entry.py",
+          "tests/test_startup_smoke.py",
+          "tests/test_health_probes.py",
+          "tests/test_composition_root.py",
+          "tests/test_builtin_oauth.py",
+          "tests/test_release_packaging.py",
+          "tests/test_mcp_gateway.py",
+          "tests/test_mcp_protocol_current.py",
+          "tests/test_mcp_http_negotiation.py",
+          "tests/test_external_mcp_configuration.py",
+          "tests/test_auth_bootstrap_security.py",
+          "tests/test_oauth_management_resource.py",
+          "tests/test_oauth_management_e2e.py",
+          "tests/test_external_oauth_http.py",
+          "tests/test_git_acquisition.py",
+          "tests/test_catalog_benchmark_reporting.py",
+          "tests/test_native_executor_boundary.py",
+          "tests/test_native_executor_integration.py",
+          "tests/test_native_executor_locks.py",
+          "tests/test_native_executor_transport.py",
+          "tests/test_native_executor_lifecycle.py",
+          "tests/test_native_executor_shims.py",
+          "--basetemp",
+          "<validation-root>/backend/pytest-temp",
+          "-o",
+          "cache_dir=<validation-root>/backend/pytest-cache",
+          "--junitxml",
+          "<validation-root>/backend/results.xml"
+        ],
+        "source_sha": "689b4f9eb9e1836431376dd4f84a67f9fd3edacd",
+        "exit_code": 0,
+        "wall_seconds": 330.592948,
+        "log": "backend/selected-backend.log",
+        "log_sha256": "fccda12ac63d563d5c6b40eef0ec8ea16d1d6facc2911748018233171de596ff"
+      }
+    ],
+    "selection": "Root routing, content negotiation, legacy Console aliases, startup/probes/composition, built-in and management OAuth, packaging, MCP HTTP/protocol/configuration, bootstrap, Git and all six synthetic native-executor modules; no operator host acceptance"
+  },
+  "browser": {
+    "stats": {
+      "startTime": "2026-10-07T04:12:28.501Z",
+      "duration": 230301.391,
+      "expected": 112,
+      "skipped": 0,
+      "unexpected": 0,
+      "flaky": 0
+    },
+    "runs": [
+      {
+        "label": "selected-browser",
+        "command": [
+          "node",
+          "node_modules/@playwright/test/cli.js",
+          "test",
+          "e2e/root-entry.spec.ts",
+          "e2e/real-backend.spec.ts",
+          "e2e/login-version.spec.ts",
+          "e2e/navigation-interaction.spec.ts",
+          "e2e/external-config-csrf.spec.ts",
+          "e2e/mcp-client-mode.spec.ts",
+          "e2e/oauth-consent.spec.ts",
+          "e2e/oauth-management-resource.spec.ts",
+          "--reporter=list,json",
+          "--output=<validation-root>/browser/test-results"
+        ],
+        "source_sha": "689b4f9eb9e1836431376dd4f84a67f9fd3edacd",
+        "exit_code": 0,
+        "wall_seconds": 231.359984,
+        "log": "browser/selected-browser.log",
+        "log_sha256": "685cfc107c854422b8f52b7de497498f06bc7cada28f7c05f06becda554bb201"
+      }
+    ],
+    "workers": 1,
+    "retries": 0,
+    "root_specific_cases": 10,
+    "spec_files": 8,
+    "cleanup": {
+      "temporary_root_removed": true,
+      "listener_closed": true
+    },
+    "counts_by_spec": {
+      "external-config-csrf.spec.ts": 1,
+      "login-version.spec.ts": 37,
+      "mcp-client-mode.spec.ts": 2,
+      "navigation-interaction.spec.ts": 1,
+      "oauth-consent.spec.ts": 15,
+      "oauth-management-resource.spec.ts": 40,
+      "real-backend.spec.ts": 6,
+      "root-entry.spec.ts": 10
+    },
+    "scope": "Root spec uses real loopback API/assets without mocking. Other specs combine mocked presentation/OAuth states and real loopback login, permissions and one-use CSRF; no real ChatGPT client."
+  },
+  "quality": [
+    {
+      "label": "ruff",
+      "command": [
+        "<repo>/.venv/bin/python",
+        "-m",
+        "ruff",
+        "check",
+        "."
+      ],
+      "source_sha": "689b4f9eb9e1836431376dd4f84a67f9fd3edacd",
+      "exit_code": 0,
+      "wall_seconds": 0.037921,
+      "log": "quality/ruff.log",
+      "log_sha256": "82b3e6a6c090a57601d22943bd23fca9218d1031dbe5a7b754092f9a156b4f18"
+    },
+    {
+      "label": "mypy",
+      "command": [
+        "<repo>/.venv/bin/python",
+        "-m",
+        "mypy"
+      ],
+      "source_sha": "689b4f9eb9e1836431376dd4f84a67f9fd3edacd",
+      "exit_code": 0,
+      "wall_seconds": 0.20278,
+      "log": "quality/mypy.log",
+      "log_sha256": "a4be80670a49e40967d7663defa16bbef3d09cd6a5dbd3e7d61ae68cbaf7a2e4"
+    },
+    {
+      "label": "identity",
+      "command": [
+        "<repo>/.venv/bin/python",
+        "scripts/quality/check_repository_identity.py"
+      ],
+      "source_sha": "689b4f9eb9e1836431376dd4f84a67f9fd3edacd",
+      "exit_code": 0,
+      "wall_seconds": 5.034719,
+      "log": "quality/identity.log",
+      "log_sha256": "c2abe4b85441da546d672d41b520819e0f611660fce7d205b7529bffc9036ceb"
+    },
+    {
+      "label": "version",
+      "command": [
+        "<repo>/.venv/bin/python",
+        "-m",
+        "scripts.release.check_version"
+      ],
+      "source_sha": "689b4f9eb9e1836431376dd4f84a67f9fd3edacd",
+      "exit_code": 0,
+      "wall_seconds": 0.037073,
+      "log": "quality/version.log",
+      "log_sha256": "175307e07ac7f0bdc0f3dba371ba3a202aaf3c0117368a93d2331e1bea4af4f3"
+    },
+    {
+      "label": "compose",
+      "command": [
+        "docker",
+        "compose",
+        "config",
+        "--quiet"
+      ],
+      "source_sha": "689b4f9eb9e1836431376dd4f84a67f9fd3edacd",
+      "exit_code": 0,
+      "wall_seconds": 0.068433,
+      "log": "quality/compose.log",
+      "log_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "label": "diff",
+      "command": [
+        "git",
+        "diff",
+        "--check"
+      ],
+      "source_sha": "689b4f9eb9e1836431376dd4f84a67f9fd3edacd",
+      "exit_code": 0,
+      "wall_seconds": 0.003755,
+      "log": "quality/diff.log",
+      "log_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    }
+  ],
+  "quality_before_evidence": [
+    {
+      "label": "ruff",
+      "command": [
+        "<repo>/.venv/bin/python",
+        "-m",
+        "ruff",
+        "check",
+        "."
+      ],
+      "source_sha": "689b4f9eb9e1836431376dd4f84a67f9fd3edacd",
+      "exit_code": 0,
+      "wall_seconds": 0.041844,
+      "log": "quality/ruff.log",
+      "log_sha256": "82b3e6a6c090a57601d22943bd23fca9218d1031dbe5a7b754092f9a156b4f18"
+    },
+    {
+      "label": "mypy",
+      "command": [
+        "<repo>/.venv/bin/python",
+        "-m",
+        "mypy"
+      ],
+      "source_sha": "689b4f9eb9e1836431376dd4f84a67f9fd3edacd",
+      "exit_code": 0,
+      "wall_seconds": 1.144457,
+      "log": "quality/mypy.log",
+      "log_sha256": "a4be80670a49e40967d7663defa16bbef3d09cd6a5dbd3e7d61ae68cbaf7a2e4"
+    },
+    {
+      "label": "identity",
+      "command": [
+        "<repo>/.venv/bin/python",
+        "scripts/quality/check_repository_identity.py"
+      ],
+      "source_sha": "689b4f9eb9e1836431376dd4f84a67f9fd3edacd",
+      "exit_code": 0,
+      "wall_seconds": 5.761859,
+      "log": "quality/identity.log",
+      "log_sha256": "c2abe4b85441da546d672d41b520819e0f611660fce7d205b7529bffc9036ceb"
+    },
+    {
+      "label": "version",
+      "command": [
+        "<repo>/.venv/bin/python",
+        "-m",
+        "scripts.release.check_version"
+      ],
+      "source_sha": "689b4f9eb9e1836431376dd4f84a67f9fd3edacd",
+      "exit_code": 0,
+      "wall_seconds": 0.054088,
+      "log": "quality/version.log",
+      "log_sha256": "175307e07ac7f0bdc0f3dba371ba3a202aaf3c0117368a93d2331e1bea4af4f3"
+    },
+    {
+      "label": "compose",
+      "command": [
+        "docker",
+        "compose",
+        "config",
+        "--quiet"
+      ],
+      "source_sha": "689b4f9eb9e1836431376dd4f84a67f9fd3edacd",
+      "exit_code": 0,
+      "wall_seconds": 0.112617,
+      "log": "quality/compose.log",
+      "log_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "label": "diff",
+      "command": [
+        "git",
+        "diff",
+        "--check"
+      ],
+      "source_sha": "689b4f9eb9e1836431376dd4f84a67f9fd3edacd",
+      "exit_code": 0,
+      "wall_seconds": 0.003921,
+      "log": "quality/diff.log",
+      "log_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    }
+  ],
+  "frontend_build": {
+    "canonical_sha256": "28e5f475bfd27138fe80f238aec5f7fa6df77ff614f2f5401419405573b40a8b",
+    "manifest": [
+      {
+        "root": "console",
+        "path": "assets/CSSMotionList-DVPYVwsl.js",
+        "sha256": "47838dee5728114ad2fcdba4ffe7cba84032dbc1b8a5d2e31f5d67e3f3b17cc9",
+        "bytes": 4133
+      },
+      {
+        "root": "console",
+        "path": "assets/ExclamationCircleFilled-DW3a-G5A.js",
+        "sha256": "487bef44d7035975c96c7ecbd7b50bbbf383fcbd26f8026ad0ad9b7881eca1bc",
+        "bytes": 1891
+      },
+      {
+        "root": "console",
+        "path": "assets/InfoCircleOutlined-Cr4Lml58.js",
+        "sha256": "648463a6d78aae0695d74d2006473e4a7980a4ee3117b7749dbb9b442ead6880",
+        "bytes": 1043
+      },
+      {
+        "root": "console",
+        "path": "assets/Pagination-B6Rn5WbI.js",
+        "sha256": "8ed50cd7ac7eca19f234abe104fc8146d2e65fde0492f77da0d2ad644d57732c",
+        "bytes": 36307
+      },
+      {
+        "root": "console",
+        "path": "assets/PlusOutlined-CYJwpRj9.js",
+        "sha256": "70d1f15759803f221248422e71efab50e133968103b9d023a9b17c95a5a6a360",
+        "bytes": 825
+      },
+      {
+        "root": "console",
+        "path": "assets/Table-BGpqQKgr.js",
+        "sha256": "b7c50f580d13f3162b7d623f58ec38bf1ffc914632ab2f2c56e47708a391e7f1",
+        "bytes": 253269
+      },
+      {
+        "root": "console",
+        "path": "assets/access-grants-page-CbmMPBL3.js",
+        "sha256": "d7aab8db6f45fb9b0254331d2974e29b8c413635b58ff2005ec1ba7b72b984d2",
+        "bytes": 19770
+      },
+      {
+        "root": "console",
+        "path": "assets/access-roles-page-Bqk9Y4ag.js",
+        "sha256": "6a91644c5382ac4aa66d93701296cd58a3f9bc1800af8153e031ec51ddf11391",
+        "bytes": 44501
+      },
+      {
+        "root": "console",
+        "path": "assets/access-roles-page-CtEgu0jR.css",
+        "sha256": "388d9f514b90640a97e3135e643fdd9db3ab6c627c4b8f65841267132d144954",
+        "bytes": 6830
+      },
+      {
+        "root": "console",
+        "path": "assets/access-users-page-D99NXAqC.js",
+        "sha256": "376d6f498f53dd76dfe4c690021b8eb2c6cd3edab95b8a59498182860a215182",
+        "bytes": 21161
+      },
+      {
+        "root": "console",
+        "path": "assets/action-menu-BNjxvfpa.js",
+        "sha256": "1a41a245e7b076803f3f22ad6fe75db61def7f5be1b050021900349ae13ed250",
+        "bytes": 5282
+      },
+      {
+        "root": "console",
+        "path": "assets/badge-CvR36c2y.js",
+        "sha256": "07e23f05e5cd616e2c51040b059faab9047a7888e80b21d8fe03100bf6a20ec4",
+        "bytes": 892
+      },
+      {
+        "root": "console",
+        "path": "assets/builds-DtuVReBY.js",
+        "sha256": "0d911a24c92457cf88de158e5b6fbf68c94e532b0bba639eddd8cbf3c6b334d1",
+        "bytes": 3630
+      },
+      {
+        "root": "console",
+        "path": "assets/builds-page-C9Q46pPw.js",
+        "sha256": "81a2fe3a637dcc4c0ada09f5238ef1bbe62a2ff293391d504e0eaa07c1b2039e",
+        "bytes": 85533
+      },
+      {
+        "root": "console",
+        "path": "assets/builds-page-aX5Z9VWe.css",
+        "sha256": "6589cf44529083dd1c03bed5d9893fab9a06339cef666eb546dedf4809dc5e2b",
+        "bytes": 2708
+      },
+      {
+        "root": "console",
+        "path": "assets/chevron-down-Cd0pDUPs.js",
+        "sha256": "ebfd23ccfae20d00e36edd8cf3934aa213a4010e81ad7907f78aa0a31d2d1832",
+        "bytes": 347
+      },
+      {
+        "root": "console",
+        "path": "assets/chevron-left-Buyzdk3J.js",
+        "sha256": "de62d0d325fda258562d2d38794c1e611a52f96730b6d05e5ca1f3ffd31605f2",
+        "bytes": 349
+      },
+      {
+        "root": "console",
+        "path": "assets/chevron-right-CCHcDBnv.js",
+        "sha256": "95801749122b9a296a8f6b28e017048fc07c2f5170bfc43fb5ac160b6d85a946",
+        "bytes": 351
+      },
+      {
+        "root": "console",
+        "path": "assets/command-BHxll4YZ.js",
+        "sha256": "c867efab740e5d772879987876494abef0e115edbbf1230547e4ab28cb8c39ff",
+        "bytes": 16396
+      },
+      {
+        "root": "console",
+        "path": "assets/configs-page-CsJU1JxU.js",
+        "sha256": "7a78a88b62e53e62d536a6de060004fa4cc034bea44e30d9678b06a0d08cd6ea",
+        "bytes": 21756
+      },
+      {
+        "root": "console",
+        "path": "assets/context-D-BSPeCu.js",
+        "sha256": "f7d7902147e182dd7c3d9cf28b42d097c84ba13bebac4cfce9406f2c5e9f260f",
+        "bytes": 41941
+      },
+      {
+        "root": "console",
+        "path": "assets/copy-Br9SvLkq.js",
+        "sha256": "17eb053c7452149411fd52b82b0b00ffe5c3b39875a00f100c88282712cea65f",
+        "bytes": 442
+      },
+      {
+        "root": "console",
+        "path": "assets/credentials-page-sih6xvlc.js",
+        "sha256": "a9bb9bad3bc63c719bdf8f5c627110938ec5699f1c88cba0f3aeee0d9f506d6f",
+        "bytes": 13594
+      },
+      {
+        "root": "console",
+        "path": "assets/dashboard-page-CGZJOK3t.css",
+        "sha256": "4f7b427ff7a454e58dc0f97cfcf44d1d4b4bbc0561d4a95a6ebbae86462af93b",
+        "bytes": 7722
+      },
+      {
+        "root": "console",
+        "path": "assets/dashboard-page-CVnFNeNX.js",
+        "sha256": "a0ee486dca3b0928025d82b2095fe0eb259ea1ae26093c27650d35a95fce5acb",
+        "bytes": 25276
+      },
+      {
+        "root": "console",
+        "path": "assets/deployment-options-D2uVI1pP.js",
+        "sha256": "37064d65ce3ad4e54f911ad98fe08762972fbf6b70cb1f707ede3d6e2ac40f64",
+        "bytes": 19045
+      },
+      {
+        "root": "console",
+        "path": "assets/diagnostics-page-fDr0TMrs.js",
+        "sha256": "968de7d50a0f9539ba4ca4ea3021881fd2230da07b466ad5979baf1f11269d6e",
+        "bytes": 8004
+      },
+      {
+        "root": "console",
+        "path": "assets/downstream-credentials-page-Dg03pmyN.js",
+        "sha256": "216023e9ce5b1bbc7f68a8a945fbe0f0074ad67017ff33090d59c852ca0c214a",
+        "bytes": 15787
+      },
+      {
+        "root": "console",
+        "path": "assets/downstream-credentials-page-ETbsmqs_.css",
+        "sha256": "25db5275fce10e0163df3d6a0898e30c4926906e9e477c5b446cef947b220a07",
+        "bytes": 2304
+      },
+      {
+        "root": "console",
+        "path": "assets/external-connections-page-BgpMVlcb.js",
+        "sha256": "a68773b986dd417e7b62475432d00cb4b6560f0e698d9280807c2bec3e84461c",
+        "bytes": 234150
+      },
+      {
+        "root": "console",
+        "path": "assets/external-connections-page-OkTGTzWM.css",
+        "sha256": "7a9bb276a4a7f2f157ac3c64c373b13e8a292e00b0c88b972fe7e4969a9bc38d",
+        "bytes": 13549
+      },
+      {
+        "root": "console",
+        "path": "assets/filter-radio-Cvd3loxI.css",
+        "sha256": "f2323fb8de9781d920033c43661bee02a2e41e3c0f14b06280f9bea4025d8bd3",
+        "bytes": 992
+      },
+      {
+        "root": "console",
+        "path": "assets/filter-radio-Mi5SeBY6.js",
+        "sha256": "ece8a0f47ffa1f5ec8d29e8384d48c475a3add92096999e23543f38f83ec1d06",
+        "bytes": 701
+      },
+      {
+        "root": "console",
+        "path": "assets/form-dialog-C1S4lG9f.js",
+        "sha256": "86b2031e384a9b75c89a973fc22f6aa357bb1f060c83047be301462454851610",
+        "bytes": 2065
+      },
+      {
+        "root": "console",
+        "path": "assets/index-B0Pcojzi.js",
+        "sha256": "9001a5d32c477463db950d3b22ed1be52417b5eaebaf246a6a7f12b72a588e08",
+        "bytes": 15618
+      },
+      {
+        "root": "console",
+        "path": "assets/index-B45mUtFA.js",
+        "sha256": "d25317f75f185fb5b79c390b3f1e32d70203d15d6851315de48fd86da38f13e1",
+        "bytes": 26305
+      },
+      {
+        "root": "console",
+        "path": "assets/index-BKoEnKAt.js",
+        "sha256": "6da196b6e4c1ae20146ff833f66a34175d4cd9a55d7c6e0f85500725e309016b",
+        "bytes": 3223
+      },
+      {
+        "root": "console",
+        "path": "assets/index-BQuZ1_38.js",
+        "sha256": "9084b589dab8310fa0c4616c54c70bbe304344ce3640af3828a9f1f414a03d57",
+        "bytes": 55570
+      },
+      {
+        "root": "console",
+        "path": "assets/index-BkbQhTk4.js",
+        "sha256": "f03e06598450002dc7782d27b4150b731b2f610ef67fa8c325aac90928ca641f",
+        "bytes": 35503
+      },
+      {
+        "root": "console",
+        "path": "assets/index-BoydD9Sb.css",
+        "sha256": "e6ac24303e75ba98648ae2345e2af63ff602a8521b015a47950cd6ccbd71f383",
+        "bytes": 82584
+      },
+      {
+        "root": "console",
+        "path": "assets/index-D1Sfy9I0.js",
+        "sha256": "57134c5f20ff56ef1fcbce3f6bbbc7a1abf527301e54c2f8797c55e2f3276abe",
+        "bytes": 43215
+      },
+      {
+        "root": "console",
+        "path": "assets/index-D642Qfru.js",
+        "sha256": "f571b7b635a1cd57285da74c7ad7da797fa7fbc67bd2ca458742adb85771bd7e",
+        "bytes": 975
+      },
+      {
+        "root": "console",
+        "path": "assets/index-DZX2_8Ws.js",
+        "sha256": "b8f0e2561aa2ef446064b640bc462bdee75d472b07de266ce496bde80c7161b3",
+        "bytes": 910
+      },
+      {
+        "root": "console",
+        "path": "assets/index-DcAnjevD.js",
+        "sha256": "bf4bb3a9db4e537827e3914bb17dd10b701e2859435b4a3367bf044d6085bf17",
+        "bytes": 1093307
+      },
+      {
+        "root": "console",
+        "path": "assets/index-Di1z8nGz.js",
+        "sha256": "ac5dfeddb107e098164edda55bfe45f0d0d0a9388435aa9ee0c1fac90d2707dd",
+        "bytes": 11278
+      },
+      {
+        "root": "console",
+        "path": "assets/index-aoAnvGbj.js",
+        "sha256": "ffffb9f1f37d5e716989787475514b0bd426e1b6fd7f995e006498c68d5610ef",
+        "bytes": 24903
+      },
+      {
+        "root": "console",
+        "path": "assets/index-avVDPkjX.js",
+        "sha256": "d25e09aa4caa0e7e97819846ef0ce2c374e78c56b9a163cc879a070a5c0e019c",
+        "bytes": 11953
+      },
+      {
+        "root": "console",
+        "path": "assets/index-wSD6x79G.js",
+        "sha256": "ae06ceb4299110c658858eeab9c32deef9417e5e47dbf98dfed22a6de90e0c96",
+        "bytes": 41253
+      },
+      {
+        "root": "console",
+        "path": "assets/info-BcvPSEoQ.js",
+        "sha256": "d8812e156ff2618b6ab09713bfd89f671e05ea68c3d85f7e70b89d0a8d350983",
+        "bytes": 410
+      },
+      {
+        "root": "console",
+        "path": "assets/invocation-audit-page-2ZQOX3Y5.js",
+        "sha256": "645ba7ef0ecc6a36a18a5a6c426898f99e0cc0ac262beead01ab29c30c7ba36f",
+        "bytes": 21257
+      },
+      {
+        "root": "console",
+        "path": "assets/invocation-audit-page-gZTTbDC-.css",
+        "sha256": "8604e0e4a2c1726d8d3fa9affe19ebcdb692083f8e172963a997aff097c95bf4",
+        "bytes": 361
+      },
+      {
+        "root": "console",
+        "path": "assets/invocation-payload-panel-oHdYzcQl.js",
+        "sha256": "0d21fc5d7a470af06bfa292bd22e220872f7e901a6f861f95192e1a9830b494a",
+        "bytes": 3457
+      },
+      {
+        "root": "console",
+        "path": "assets/invoke-page-BuHvpxcL.js",
+        "sha256": "6f9ca73f16b9078d6d2171accdfff561a35b3d447726c81e436558a301ecff94",
+        "bytes": 291586
+      },
+      {
+        "root": "console",
+        "path": "assets/invoke-page-Cl_tmlbM.css",
+        "sha256": "6846ef1de2e49a09f6bfb0060016f6a6f21fb4fb885c25d71dd667694d12aca8",
+        "bytes": 10099
+      },
+      {
+        "root": "console",
+        "path": "assets/json-panel-DdXfZ-h7.js",
+        "sha256": "96ac0168e05da146fb2ec1b2e70b38828f541a19368d84725362791b40ba37f5",
+        "bytes": 25409
+      },
+      {
+        "root": "console",
+        "path": "assets/list-pagination-Bhk33GaC.css",
+        "sha256": "c51b1ddb4cfd1727af160f3d2acbb3546baed6df89e5b18ef83c45bfdd202dfa",
+        "bytes": 881
+      },
+      {
+        "root": "console",
+        "path": "assets/list-pagination-CISguBgq.js",
+        "sha256": "9ab4bc7852d3f42f2bd22e5b48e604bf33548ef5992c219d687559f866a8a36b",
+        "bytes": 5313
+      },
+      {
+        "root": "console",
+        "path": "assets/logs-events-page-C_tXKfZX.css",
+        "sha256": "1f51fb715b7494f82d88dd6bb7b673ac80440eda2f72cce5fbe0e5f86fbda5e6",
+        "bytes": 404
+      },
+      {
+        "root": "console",
+        "path": "assets/logs-events-page-De04kuyq.js",
+        "sha256": "b8ebb5f30491bf2524c1829b107bc56ee674b68a77282fffa425185b1248a9ff",
+        "bytes": 44788
+      },
+      {
+        "root": "console",
+        "path": "assets/maintenance-lists-LZ9NZWjb.css",
+        "sha256": "323fb543dee996d4088fb250bf4d7ac29d31d0c541b1100129be91a23b751101",
+        "bytes": 3843
+      },
+      {
+        "root": "console",
+        "path": "assets/mcp-config-editor-BfgY_Zvm.css",
+        "sha256": "cedd2150ad3aeb1598a663ade308e945fa62120f580e95a6fba4c5d62f540eff",
+        "bytes": 4336
+      },
+      {
+        "root": "console",
+        "path": "assets/mcp-config-editor-dP694YUJ.js",
+        "sha256": "295dc3cc146dd1cba1ce7422f1df6932111c4fae2af7a3b73a393478c006e7cd",
+        "bytes": 46105
+      },
+      {
+        "root": "console",
+        "path": "assets/network-ClIGszOE.js",
+        "sha256": "b0234308b59d864c42ae36317717a81aa0072348033bc8d09bd9082f5a36a817",
+        "bytes": 1785
+      },
+      {
+        "root": "console",
+        "path": "assets/network-settings-panel-2xmfsTTl.js",
+        "sha256": "058b24c0f6ae5e9d52564ca30c7b5f374d639f79603b7e59e3626431ef3257a3",
+        "bytes": 33081
+      },
+      {
+        "root": "console",
+        "path": "assets/network-settings-panel-DdqzOYSp.css",
+        "sha256": "57d570a293923903ea02065cdbcbc04b9ff33e88c73f9352016c6556d280640e",
+        "bytes": 1274
+      },
+      {
+        "root": "console",
+        "path": "assets/page-shell-OfO8QBDI.js",
+        "sha256": "dd8e66302b1247bd6c9dfb0a57e4088bf6daec71f8f4e9083db0087f89dc7b65",
+        "bytes": 122867
+      },
+      {
+        "root": "console",
+        "path": "assets/page-utils-BJQ1SsBJ.js",
+        "sha256": "4f7aa48339124e220e9171d8ea3d10400da8df589162df012e9306be74c9fc35",
+        "bytes": 4954
+      },
+      {
+        "root": "console",
+        "path": "assets/personal-tokens-page-CkWBF4Ey.css",
+        "sha256": "87b564863cb8e33526cdb208eedc2e46a08161ba3dd8564385e3e456a5b40eed",
+        "bytes": 597
+      },
+      {
+        "root": "console",
+        "path": "assets/personal-tokens-page-DMZq3FGc.js",
+        "sha256": "350099dfe2636e13b54c101ce99631c85731d2eefc9c6eb54ea2543c36f35732",
+        "bytes": 23539
+      },
+      {
+        "root": "console",
+        "path": "assets/personal-workspace-page-BXR7YmBI.css",
+        "sha256": "f196af89c4f65f0cc86543aa582ebf6886ab0b87ae2ca2b809acc34ab174a0a9",
+        "bytes": 1416
+      },
+      {
+        "root": "console",
+        "path": "assets/personal-workspace-page-DKvctrQe.js",
+        "sha256": "b76dcdfceb547786e02d51374ea87fc20f4209b62a54979874844c70b17f82d0",
+        "bytes": 12573
+      },
+      {
+        "root": "console",
+        "path": "assets/plus-LbQvuW4T.js",
+        "sha256": "f7edbf3620d7d3f6ea7b01f15da6a2319deb6f1226498e474c185ea5946ebac3",
+        "bytes": 359
+      },
+      {
+        "root": "console",
+        "path": "assets/query-status-CF5BvUt7.js",
+        "sha256": "2c711742665fa588eaa755612ac749dfdb1b17b14fe77ccd12103871186f1e83",
+        "bytes": 803
+      },
+      {
+        "root": "console",
+        "path": "assets/runtime-cache-page-BTsO0bd9.js",
+        "sha256": "4e9c51d18bec3524b10e89de9faddef386f6618796ab6ebcfc288a131e844f50",
+        "bytes": 12221
+      },
+      {
+        "root": "console",
+        "path": "assets/search-CbfAwHMm.js",
+        "sha256": "f4393396f14aeef9bc9e470f50b14637559948df06b7f7e42025d5c407858886",
+        "bytes": 382
+      },
+      {
+        "root": "console",
+        "path": "assets/select-CFJXUpV3.js",
+        "sha256": "714931e0ab38b54cd542ec0742fceb20e409fcfa26f8b0b91d81e92ad0e32d9e",
+        "bytes": 98392
+      },
+      {
+        "root": "console",
+        "path": "assets/servers-page-CCvbJEf9.js",
+        "sha256": "64dbc6274b74f9b6dc269ba6186c0b3555def83689ed60c7c0d5e1ad3656ca67",
+        "bytes": 125448
+      },
+      {
+        "root": "console",
+        "path": "assets/servers-page-D5FAfNti.css",
+        "sha256": "45ad1f2be1cfe7ece6de5c8f7c03d5adb4913cc66089047203effa1e2a80077f",
+        "bytes": 2712
+      },
+      {
+        "root": "console",
+        "path": "assets/shield-alert-BtpKXvtD.js",
+        "sha256": "8545d7f9b84f8c8bc8c96e9bcbf6d77f56334893c3e0ab1359cd9b1442ed6d28",
+        "bytes": 572
+      },
+      {
+        "root": "console",
+        "path": "assets/skeleton-CvrCDQx-.js",
+        "sha256": "12fc6032f8c6bb02143d8014df72ff74d3bc7e38f1bdff3fe1d1365adb19aba9",
+        "bytes": 603
+      },
+      {
+        "root": "console",
+        "path": "assets/switch-CYcnRvRj.js",
+        "sha256": "6ecc062e9abf057c0ce061323fd557a90f5ac318571870f7362de2255e628d27",
+        "bytes": 6819
+      },
+      {
+        "root": "console",
+        "path": "assets/system-settings-page-oYMCv8HX.js",
+        "sha256": "6d92b10a8bc00a854e3b792b9101f69e458e7d104e60774f4a19a68d882cb116",
+        "bytes": 1370
+      },
+      {
+        "root": "console",
+        "path": "assets/table-tools-GmtolFeX.js",
+        "sha256": "e43d54406f6ad644da462781ee0876694e0697dcbde4d0c401a8dde4dcac8606",
+        "bytes": 5685
+      },
+      {
+        "root": "console",
+        "path": "assets/textarea-CWNL9OPM.js",
+        "sha256": "a082e750c185b75313492e66dcfd5fc99606ee2188daacbdf6a3afce64259fdb",
+        "bytes": 549
+      },
+      {
+        "root": "console",
+        "path": "assets/tool-classifications-page-CvaUMHsJ.css",
+        "sha256": "8214b2f71bd9a7aeb0cb1058b287413e664ffe18f58036a39b6ccb7c8cc85f75",
+        "bytes": 950
+      },
+      {
+        "root": "console",
+        "path": "assets/tool-classifications-page-DoueZDq_.js",
+        "sha256": "91db16c5f931069479bc632060093854f442cdd57246390dacfde4b34cd0517b",
+        "bytes": 35898
+      },
+      {
+        "root": "console",
+        "path": "assets/tool-origin-DjhHdlu0.js",
+        "sha256": "bc3f0725b411cef39c4d839395076597cc22b35afe9ab1c621e25c7e9685f892",
+        "bytes": 1794
+      },
+      {
+        "root": "console",
+        "path": "assets/tools-page-BkMVscAt.js",
+        "sha256": "680405221dd85ded43dfd5c106bc9af319e125529c83dbd0443bddc0bf6f27fb",
+        "bytes": 13093
+      },
+      {
+        "root": "console",
+        "path": "assets/tools-page-DIO8IAOg.css",
+        "sha256": "6e47aa4fcb563ede970d30b1ed4619e1c4ed8daaea69832f055e933dc6e764da",
+        "bytes": 4862
+      },
+      {
+        "root": "console",
+        "path": "assets/uploads-page-BsVdfmOl.js",
+        "sha256": "e6cc1031e08b713167541d2fa8fd41316468ff5c9100b5a7823d8b94acf36559",
+        "bytes": 60329
+      },
+      {
+        "root": "console",
+        "path": "assets/use-draft-close-guard-DO3eNWhw.js",
+        "sha256": "3fb5c2354f1f378cdeef1cb177e04d3f168fb7ca3cb7d961fe8e4715676cbf88",
+        "bytes": 796
+      },
+      {
+        "root": "console",
+        "path": "assets/use-remaining-viewport-B3bY1837.js",
+        "sha256": "8d0338b048de468938218da5acbdca568c78be68a47415e7d554156ba5fa48e5",
+        "bytes": 1616
+      },
+      {
+        "root": "console",
+        "path": "assets/validation-errors-CvyCoj3c.js",
+        "sha256": "f53f9882b2f41154ac532b898ef65343794f41a4188bbf46a4ef3a60c9271527",
+        "bytes": 1398
+      },
+      {
+        "root": "console",
+        "path": "index.html",
+        "sha256": "e7e91a806dfc65b5c40ff07b9f32b0ea1299433520450e7a86d40d18ea32e655",
+        "bytes": 557
+      },
+      {
+        "root": "console",
+        "path": "lingshu-gate-app-icon.svg",
+        "sha256": "d71eaa8f740ee28d91c2e76f989b1974f1383d4dfe333779f1162054bbb6f276",
+        "bytes": 2326
+      },
+      {
+        "root": "console",
+        "path": "lingshu-gate-icon-512.png",
+        "sha256": "322c8f0cc9d4498946a5dd1309458a594c08cbb201bd87310d2b0c076ddd61a4",
+        "bytes": 32454
+      },
+      {
+        "root": "console",
+        "path": "lingshu-gate-icon.svg",
+        "sha256": "fa3b2ea6a4dc577f15678f9530eaab11cdcbe6a80b88f32a24eaf6501d4815c4",
+        "bytes": 2158
+      },
+      {
+        "root": "oauth",
+        "path": "assets/oauth-Ccl8Q35g.js",
+        "sha256": "8e11a5fe4ef8b3576649e02741234f2e3797d3a5ecb02d873478558b33ccb1ac",
+        "bytes": 1445523
+      },
+      {
+        "root": "oauth",
+        "path": "assets/oauth-DSpYj97H.css",
+        "sha256": "34b00f4faaee3b7049c0d0614966ba0fe1aa213c26e2e9add6e258746a0f3620",
+        "bytes": 73504
+      },
+      {
+        "root": "oauth",
+        "path": "oauth.html",
+        "sha256": "c0b76733f79b8cd10b026d13dbbd15a6a0853a8384bf7c882eece6e84b14f941",
+        "bytes": 381
+      }
+    ],
+    "counts": {
+      "console": 97,
+      "oauth": 3
+    },
+    "identical_to_77d0815_inventory": true,
+    "canonical_encoding": "JSON array with sorted object keys, compact separators and no trailing newline",
+    "console": "passed",
+    "public_oauth": "passed",
+    "large_chunk_warnings_retained": true
+  },
+  "setup_diagnostics": [
+    {
+      "phase": "uv tool bootstrap",
+      "exit_code": 2,
+      "cause": "Tool directory defaulted to read-only user home before application checks.",
+      "resolution": "Set UV_TOOL_DIR and UV_TOOL_BIN_DIR to owned validation directories; preserve HOME and repository policies. The pinned uv synchronization and exact export comparison then passed."
+    }
+  ],
+  "security_boundary": {
+    "workflows_and_security_policy_unchanged": true,
+    "alerts_dismissed": false,
+    "formal_token_hash_and_git_fixture_triage": "pending authorized independent review",
+    "codeql_on_merged_source": "not run here",
+    "all_github_ci_green_claimed": false,
+    "source_reference": "docs/pr51-ci-validation.md"
+  },
+  "not_run": [
+    "Complete backend regression on this merged SHA",
+    "Whole-site browser regression",
+    "Other Python/platform versions on this merged SHA",
+    "New wheel/sdist/native binary build",
+    "Real Podman/namespaces/cgroups and operator host acceptance",
+    "Real ChatGPT OAuth",
+    "nx5 deployment acceptance (delegating root owns it)",
+    "Formal release matrix",
+    "GitHub merged-SHA CodeQL/security conclusions and formal alert triage"
+  ],
+  "boundaries": {
+    "only_candidate_branch_written": true,
+    "pr51_branch_written": false,
+    "main_merged": false,
+    "ssh_used": false,
+    "version_changed": false,
+    "tags_or_release_assets_published": false,
+    "existing_binary_hashes_relabelled": false
+  },
+  "evidence_log": "docs/benchmarks/gate-root-entry-integration-689b4f9.log",
+  "evidence_log_sha256": "98c021011c3456d4329cc832b72a666bae2257a9a5c6ca67887c776a7bca3475",
+  "log_normalization": "Replace repo, validation and user-home absolute paths with labels; omit generated bootstrap credential lines. Original logs and JUnit/Playwright reports remain in the owned cloud validation directory."
+}

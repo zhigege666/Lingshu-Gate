@@ -1,0 +1,518 @@
+# Actual merged-source validation: 689b4f9eb9e1836431376dd4f84a67f9fd3edacd
+
+=== sync/uv-ci-version-first-attempt.log ===
+error: failed to create directory `<user-home>/.local/share/uv/tools`: Read-only file system (os error 30)
+
+=== sync/uv-ci-version.log ===
+Downloading uv (21.2MiB)
+ Downloaded uv
+Installed 1 package in 1ms
+uv 0.11.33 (x86_64-unknown-linux-gnu)
+
+=== sync/uv-sync-frozen.log ===
+Checked 51 packages in 0.67ms
+
+=== sync/uv-export.stderr.log ===
+
+=== frontend/npm-ci.log ===
+
+added 276 packages in 8s
+
+=== frontend/frontend-check.log ===
+
+> check
+> npm run typecheck && npm run check:ux
+
+
+> typecheck
+> tsc --noEmit -p tsconfig.app.json && tsc --noEmit -p tsconfig.node.json
+
+
+> check:ux
+> node scripts/check-ux-contract.mjs
+
+静态 UI 契约通过：19 个页面，11 个可搜索页面，2 个阶段式工作流。仅验证源码约定；未执行浏览器交互、视觉或可访问性验收。
+
+=== frontend/frontend-unit.log ===
+
+> test
+> vitest run
+
+
+ RUN  v3.2.7 <repo>/web
+
+ ✓ src/features/mcp-config/model.test.ts (19 tests) 10ms
+ ✓ src/features/invoke/schema.test.ts (16 tests) 78ms
+ ✓ src/features/access-roles/model.test.tsx (15 tests) 15ms
+ ✓ src/features/invoke/model.test.ts (9 tests) 45ms
+ ✓ src/features/external-connections/model.test.ts (9 tests) 6ms
+ ✓ src/features/external-connections/oauth-config-form.test.ts (29 tests) 8ms
+ ✓ src/api/mcp-groups.test.ts (5 tests) 15ms
+ ✓ src/pages/dashboard-page.test.tsx (26 tests) 80ms
+ ✓ scripts/i18n-contract.test.mjs (22 tests) 54ms
+ ✓ src/api/gate-version.test.ts (20 tests) 17ms
+ ✓ src/features/external-connections/oauth-api.test.ts (6 tests) 22ms
+ ✓ src/components/console-shell.test.tsx (6 tests) 114ms
+ ✓ src/features/servers/configuration-result.test.ts (7 tests) 4ms
+ ✓ src/features/observability/model.test.ts (7 tests) 5ms
+ ✓ src/features/tool-catalog.test.ts (5 tests) 11ms
+ ✓ src/components/builds/record-actions.test.tsx (10 tests) 142ms
+ ✓ src/features/personal-token-scopes.test.ts (9 tests) 4ms
+ ✓ src/api/api-construction.test.ts (5 tests) 10ms
+ ✓ src/features/external-connections/oauth-grants-model.test.ts (11 tests) 9ms
+ ✓ src/features/mcp-config/draft.test.ts (5 tests) 5ms
+ ✓ src/features/retention/model.test.ts (9 tests) 8ms
+ ✓ src/components/uploads/upload-state.test.ts (5 tests) 5ms
+ ✓ src/features/tool-origin.test.ts (4 tests) 3ms
+ ✓ src/features/invoke/argument-form.test.tsx (5 tests) 64ms
+ ✓ src/pages/tools-page.test.tsx (4 tests) 205ms
+stderr | src/pages/servers-page.test.tsx > 服务操作直接展示 > 截图中的已加载服务直接显示启动
+Warning: useLayoutEffect does nothing on the server, because its effect cannot be encoded into the server renderer's output format. This will lead to a mismatch between the initial, non-hydrated UI and the intended UI. To avoid this, useLayoutEffect should only be used in components that render exclusively on the client. See https://reactjs.org/link/uselayouteffect-ssr for common fixes.
+    at ServersPage (<repo>/web/src/pages/servers-page.tsx:32:11)
+
+stderr | src/pages/servers-page.test.tsx > 服务操作直接展示 > 运行中服务直接显示停止和重启
+Warning: useLayoutEffect does nothing on the server, because its effect cannot be encoded into the server renderer's output format. This will lead to a mismatch between the initial, non-hydrated UI and the intended UI. To avoid this, useLayoutEffect should only be used in components that render exclusively on the client. See https://reactjs.org/link/uselayouteffect-ssr for common fixes.
+    at ServersPage (<repo>/web/src/pages/servers-page.tsx:32:11)
+
+stderr | src/pages/servers-page.test.tsx > 服务操作直接展示 > 空 allowed_actions 不暴露写操作
+Warning: useLayoutEffect does nothing on the server, because its effect cannot be encoded into the server renderer's output format. This will lead to a mismatch between the initial, non-hydrated UI and the intended UI. To avoid this, useLayoutEffect should only be used in components that render exclusively on the client. See https://reactjs.org/link/uselayouteffect-ssr for common fixes.
+    at ServersPage (<repo>/web/src/pages/servers-page.tsx:32:11)
+
+stderr | src/pages/servers-page.test.tsx > 服务操作直接展示 > 忙碌时保留按钮但禁用服务操作
+Warning: useLayoutEffect does nothing on the server, because its effect cannot be encoded into the server renderer's output format. This will lead to a mismatch between the initial, non-hydrated UI and the intended UI. To avoid this, useLayoutEffect should only be used in components that render exclusively on the client. See https://reactjs.org/link/uselayouteffect-ssr for common fixes.
+    at ServersPage (<repo>/web/src/pages/servers-page.tsx:32:11)
+
+stderr | src/pages/servers-page.test.tsx > 服务操作直接展示 > 外部服务保留连接和断开语义
+Warning: useLayoutEffect does nothing on the server, because its effect cannot be encoded into the server renderer's output format. This will lead to a mismatch between the initial, non-hydrated UI and the intended UI. To avoid this, useLayoutEffect should only be used in components that render exclusively on the client. See https://reactjs.org/link/uselayouteffect-ssr for common fixes.
+    at ServersPage (<repo>/web/src/pages/servers-page.tsx:32:11)
+Warning: useLayoutEffect does nothing on the server, because its effect cannot be encoded into the server renderer's output format. This will lead to a mismatch between the initial, non-hydrated UI and the intended UI. To avoid this, useLayoutEffect should only be used in components that render exclusively on the client. See https://reactjs.org/link/uselayouteffect-ssr for common fixes.
+    at ServersPage (<repo>/web/src/pages/servers-page.tsx:32:11)
+
+stderr | src/pages/servers-page.test.tsx > 服务操作直接展示 > 英文按钮复用原有词条
+Warning: useLayoutEffect does nothing on the server, because its effect cannot be encoded into the server renderer's output format. This will lead to a mismatch between the initial, non-hydrated UI and the intended UI. To avoid this, useLayoutEffect should only be used in components that render exclusively on the client. See https://reactjs.org/link/uselayouteffect-ssr for common fixes.
+    at ServersPage (<repo>/web/src/pages/servers-page.tsx:32:11)
+
+ ✓ src/pages/servers-page.test.tsx (6 tests) 162ms
+ ✓ src/components/visible-actions.test.tsx (4 tests) 123ms
+ ✓ src/features/external-connections/oauth-tool-selection.test.ts (3 tests) 23ms
+ ✓ src/features/invoke/result-model.test.ts (9 tests) 7ms
+ ✓ src/features/servers/group-create-recovery.test.ts (3 tests) 5ms
+ ✓ src/components/editor-navigation-guard.test.ts (4 tests) 4ms
+ ✓ src/pages/runtime-cache-state.test.ts (4 tests) 3ms
+ ✓ src/api/observability.test.ts (3 tests) 5ms
+ ✓ src/api/network.test.ts (3 tests) 8ms
+ ✓ src/features/downstream-credential-filters.test.ts (3 tests) 4ms
+stderr | src/pages/personal-workspace-page.test.tsx > personal workspace presentation > defaults to built-in grants and requires Gate confirmation within existing OAuth scopes
+Warning: useLayoutEffect does nothing on the server, because its effect cannot be encoded into the server renderer's output format. This will lead to a mismatch between the initial, non-hydrated UI and the intended UI. To avoid this, useLayoutEffect should only be used in components that render exclusively on the client. See https://reactjs.org/link/uselayouteffect-ssr for common fixes.
+    at FormDialog (<repo>/web/src/components/form-dialog.tsx:8:23)
+    at div
+    at BuiltinOAuthGrants (<repo>/web/src/pages/oauth-grants.tsx:24:31)
+    at div
+    at <repo>/web/node_modules/@rc-component/tabs/lib/TabPanelList/TabPane.js:13:5
+    at <repo>/web/node_modules/@rc-component/motion/lib/CSSMotion.js:44:7
+    at div
+    at div
+    at TabPanelList (<repo>/web/node_modules/@rc-component/tabs/lib/TabPanelList/index.js:18:5)
+    at div
+    at <repo>/web/node_modules/@rc-component/tabs/lib/Tabs.js:33:5
+    at <repo>/web/node_modules/antd/lib/tabs/index.js:28:5
+    at AuthorizationModeTabs (<repo>/web/src/pages/external-connections-page.tsx:62:34)
+    at ExternalGrantsPage
+    at PersonalWorkspacePage (<repo>/web/src/pages/personal-workspace-page.tsx:27:16)
+Warning: useLayoutEffect does nothing on the server, because its effect cannot be encoded into the server renderer's output format. This will lead to a mismatch between the initial, non-hydrated UI and the intended UI. To avoid this, useLayoutEffect should only be used in components that render exclusively on the client. See https://reactjs.org/link/uselayouteffect-ssr for common fixes.
+    at FormDialog (<repo>/web/src/components/form-dialog.tsx:8:23)
+    at ManagementTargetsDialog (<repo>/web/src/features/external-connections/management-targets-dialog.tsx:11:36)
+    at div
+    at BuiltinOAuthGrants (<repo>/web/src/pages/oauth-grants.tsx:24:31)
+    at div
+    at <repo>/web/node_modules/@rc-component/tabs/lib/TabPanelList/TabPane.js:13:5
+    at <repo>/web/node_modules/@rc-component/motion/lib/CSSMotion.js:44:7
+    at div
+    at div
+    at TabPanelList (<repo>/web/node_modules/@rc-component/tabs/lib/TabPanelList/index.js:18:5)
+    at div
+    at <repo>/web/node_modules/@rc-component/tabs/lib/Tabs.js:33:5
+    at <repo>/web/node_modules/antd/lib/tabs/index.js:28:5
+    at AuthorizationModeTabs (<repo>/web/src/pages/external-connections-page.tsx:62:34)
+    at ExternalGrantsPage
+    at PersonalWorkspacePage (<repo>/web/src/pages/personal-workspace-page.tsx:27:16)
+Warning: useLayoutEffect does nothing on the server, because its effect cannot be encoded into the server renderer's output format. This will lead to a mismatch between the initial, non-hydrated UI and the intended UI. To avoid this, useLayoutEffect should only be used in components that render exclusively on the client. See https://reactjs.org/link/uselayouteffect-ssr for common fixes.
+    at FormDialog (<repo>/web/src/components/form-dialog.tsx:8:23)
+    at div
+    at BuiltinOAuthGrants (<repo>/web/src/pages/oauth-grants.tsx:24:31)
+    at div
+    at <repo>/web/node_modules/@rc-component/tabs/lib/TabPanelList/TabPane.js:13:5
+    at <repo>/web/node_modules/@rc-component/motion/lib/CSSMotion.js:44:7
+    at div
+    at div
+    at TabPanelList (<repo>/web/node_modules/@rc-component/tabs/lib/TabPanelList/index.js:18:5)
+    at div
+    at <repo>/web/node_modules/@rc-component/tabs/lib/Tabs.js:33:5
+    at <repo>/web/node_modules/antd/lib/tabs/index.js:28:5
+    at AuthorizationModeTabs (<repo>/web/src/pages/external-connections-page.tsx:62:34)
+    at ExternalGrantsPage
+    at PersonalWorkspacePage (<repo>/web/src/pages/personal-workspace-page.tsx:27:16)
+
+ ✓ src/pages/personal-workspace-page.test.tsx (5 tests) 132ms
+ ✓ src/components/page-shell.test.tsx (4 tests) 55ms
+ ✓ src/features/external-connections/management-targets-model.test.ts (3 tests) 21ms
+ ✓ src/features/network/model.test.ts (3 tests) 4ms
+ ✓ src/components/query-status.test.tsx (4 tests) 27ms
+ ✓ src/components/uploads/empty-workspace.test.tsx (2 tests) 136ms
+ ✓ src/design-quality.test.ts (5 tests) 3ms
+ ✓ src/components/list-pagination.test.tsx (3 tests) 16ms
+ ✓ src/routing/console-route.test.ts (5 tests) 5ms
+ ✓ src/pages/builds-page-state.test.ts (3 tests) 3ms
+ ✓ src/features/servers/delivery-draft.test.ts (2 tests) 4ms
+stderr | src/pages/configs-page.test.tsx > MCP 配置行操作 > 只显示一次编辑、应用和删除，删除无需打开重复菜单
+Warning: useLayoutEffect does nothing on the server, because its effect cannot be encoded into the server renderer's output format. This will lead to a mismatch between the initial, non-hydrated UI and the intended UI. To avoid this, useLayoutEffect should only be used in components that render exclusively on the client. See https://reactjs.org/link/uselayouteffect-ssr for common fixes.
+    at FormDialog (<repo>/web/src/components/form-dialog.tsx:8:23)
+    at div
+    at ConfigsPage (<repo>/web/src/pages/configs-page.tsx:21:11)
+
+stderr | src/pages/configs-page.test.tsx > MCP 配置行操作 > 操作繁忙时同时禁用三个行按钮
+Warning: useLayoutEffect does nothing on the server, because its effect cannot be encoded into the server renderer's output format. This will lead to a mismatch between the initial, non-hydrated UI and the intended UI. To avoid this, useLayoutEffect should only be used in components that render exclusively on the client. See https://reactjs.org/link/uselayouteffect-ssr for common fixes.
+    at FormDialog (<repo>/web/src/components/form-dialog.tsx:8:23)
+    at div
+    at ConfigsPage (<repo>/web/src/pages/configs-page.tsx:21:11)
+
+stderr | src/pages/configs-page.test.tsx > MCP 配置行操作 > 200 configurations render only 50 rows without duplicating actions
+Warning: useLayoutEffect does nothing on the server, because its effect cannot be encoded into the server renderer's output format. This will lead to a mismatch between the initial, non-hydrated UI and the intended UI. To avoid this, useLayoutEffect should only be used in components that render exclusively on the client. See https://reactjs.org/link/uselayouteffect-ssr for common fixes.
+    at FormDialog (<repo>/web/src/components/form-dialog.tsx:8:23)
+    at div
+    at ConfigsPage (<repo>/web/src/pages/configs-page.tsx:21:11)
+
+ ✓ src/pages/configs-page.test.tsx (3 tests) 77ms
+ ✓ src/api/retention.test.ts (3 tests) 6ms
+ ✓ src/features/build-log-window.test.ts (3 tests) 22ms
+ ✓ src/api/auth-request.test.ts (5 tests) 11ms
+ ✓ src/features/servers/status.test.ts (3 tests) 2ms
+ ✓ src/features/external-connections/connection-guide.test.tsx (4 tests) 70ms
+ ✓ src/features/external-connections/api.test.ts (2 tests) 8ms
+ ✓ src/features/dashboard-trend.test.ts (3 tests) 5ms
+ ✓ src/components/builds/build-logs-table.test.tsx (2 tests) 38ms
+ ✓ src/features/external-connections/oauth-scope-difference.test.ts (2 tests) 3ms
+ ✓ src/features/tool-access.test.ts (3 tests) 4ms
+stderr | src/pages/configs-language.test.tsx > configuration runtime labels > renders all modes in zh-CN
+Warning: useLayoutEffect does nothing on the server, because its effect cannot be encoded into the server renderer's output format. This will lead to a mismatch between the initial, non-hydrated UI and the intended UI. To avoid this, useLayoutEffect should only be used in components that render exclusively on the client. See https://reactjs.org/link/uselayouteffect-ssr for common fixes.
+    at FormDialog (<repo>/web/src/components/form-dialog.tsx:8:23)
+    at div
+    at ConfigsPage (<repo>/web/src/pages/configs-page.tsx:21:11)
+
+stderr | src/pages/configs-language.test.tsx > configuration runtime labels > renders all modes in en-US
+Warning: useLayoutEffect does nothing on the server, because its effect cannot be encoded into the server renderer's output format. This will lead to a mismatch between the initial, non-hydrated UI and the intended UI. To avoid this, useLayoutEffect should only be used in components that render exclusively on the client. See https://reactjs.org/link/uselayouteffect-ssr for common fixes.
+    at FormDialog (<repo>/web/src/components/form-dialog.tsx:8:23)
+    at div
+    at ConfigsPage (<repo>/web/src/pages/configs-page.tsx:21:11)
+
+ ✓ src/pages/configs-language.test.tsx (2 tests) 70ms
+ ✓ src/components/route-boundary.test.tsx (3 tests) 6ms
+ ✓ src/features/mcp-client-settings.test.ts (2 tests) 3ms
+ ✓ src/features/retention/copy.test.ts (2 tests) 7ms
+ ✓ src/components/invocation-payload-panel.test.tsx (8 tests) 50ms
+ ✓ src/features/mcp-config/http-trust.test.ts (16 tests) 4ms
+ ✓ src/features/network/build-attempt.test.ts (2 tests) 4ms
+ ✓ src/api/http.test.ts (3 tests) 2ms
+ ✓ src/features/deployment-options.test.ts (2 tests) 2ms
+ ✓ src/components/action-menu.test.tsx (1 test) 9ms
+ ✓ src/components/use-remaining-list-viewport.test.ts (3 tests) 2ms
+ ✓ src/features/observability/audit-safety.test.ts (1 test) 2ms
+ ✓ src/components/external-user-selector.test.tsx (2 tests) 42ms
+ ✓ src/components/filter-radio.test.tsx (1 test) 8ms
+ ✓ src/features/external-connections/oauth-ui-locale.test.ts (8 tests) 3ms
+ ✓ src/components/json-panel.test.tsx (2 tests) 13ms
+ ✓ src/pages/classification-order.test.ts (1 test) 2ms
+
+ Test Files  74 passed (74)
+      Tests  441 passed (441)
+   Start at  04:11:32
+   Duration  14.98s (transform 2.35s, setup 0ms, collect 27.42s, tests 2.16s, environment 11ms, prepare 3.88s)
+
+
+=== frontend/frontend-build.log ===
+
+> build
+> npm run typecheck && vite build && vite build --config vite.oauth.config.ts
+
+
+> typecheck
+> tsc --noEmit -p tsconfig.app.json && tsc --noEmit -p tsconfig.node.json
+
+vite v6.4.3 building for production...
+transforming...
+✓ 5202 modules transformed.
+rendering chunks...
+computing gzip size...
+../src/lingshu_gate/static/console/index.html                                           0.56 kB │ gzip:   0.34 kB
+../src/lingshu_gate/static/console/assets/invocation-audit-page-gZTTbDC-.css            0.36 kB │ gzip:   0.22 kB
+../src/lingshu_gate/static/console/assets/logs-events-page-C_tXKfZX.css                 0.40 kB │ gzip:   0.19 kB
+../src/lingshu_gate/static/console/assets/personal-tokens-page-CkWBF4Ey.css             0.60 kB │ gzip:   0.25 kB
+../src/lingshu_gate/static/console/assets/list-pagination-Bhk33GaC.css                  0.88 kB │ gzip:   0.39 kB
+../src/lingshu_gate/static/console/assets/tool-classifications-page-CvaUMHsJ.css        0.95 kB │ gzip:   0.30 kB
+../src/lingshu_gate/static/console/assets/filter-radio-Cvd3loxI.css                     0.99 kB │ gzip:   0.43 kB
+../src/lingshu_gate/static/console/assets/network-settings-panel-DdqzOYSp.css           1.27 kB │ gzip:   0.43 kB
+../src/lingshu_gate/static/console/assets/personal-workspace-page-BXR7YmBI.css          1.42 kB │ gzip:   0.36 kB
+../src/lingshu_gate/static/console/assets/downstream-credentials-page-ETbsmqs_.css      2.30 kB │ gzip:   0.60 kB
+../src/lingshu_gate/static/console/assets/builds-page-aX5Z9VWe.css                      2.71 kB │ gzip:   0.81 kB
+../src/lingshu_gate/static/console/assets/servers-page-D5FAfNti.css                     2.71 kB │ gzip:   0.88 kB
+../src/lingshu_gate/static/console/assets/maintenance-lists-LZ9NZWjb.css                3.84 kB │ gzip:   0.86 kB
+../src/lingshu_gate/static/console/assets/mcp-config-editor-BfgY_Zvm.css                4.34 kB │ gzip:   1.09 kB
+../src/lingshu_gate/static/console/assets/tools-page-DIO8IAOg.css                       4.86 kB │ gzip:   1.32 kB
+../src/lingshu_gate/static/console/assets/access-roles-page-CtEgu0jR.css                6.83 kB │ gzip:   1.62 kB
+../src/lingshu_gate/static/console/assets/dashboard-page-CGZJOK3t.css                   7.72 kB │ gzip:   1.87 kB
+../src/lingshu_gate/static/console/assets/invoke-page-Cl_tmlbM.css                     10.10 kB │ gzip:   2.22 kB
+../src/lingshu_gate/static/console/assets/external-connections-page-OkTGTzWM.css       13.55 kB │ gzip:   2.75 kB
+../src/lingshu_gate/static/console/assets/index-BoydD9Sb.css                           82.58 kB │ gzip:  15.40 kB
+../src/lingshu_gate/static/console/assets/chevron-down-Cd0pDUPs.js                      0.35 kB │ gzip:   0.26 kB
+../src/lingshu_gate/static/console/assets/chevron-left-Buyzdk3J.js                      0.35 kB │ gzip:   0.26 kB
+../src/lingshu_gate/static/console/assets/chevron-right-CCHcDBnv.js                     0.35 kB │ gzip:   0.26 kB
+../src/lingshu_gate/static/console/assets/plus-LbQvuW4T.js                              0.36 kB │ gzip:   0.27 kB
+../src/lingshu_gate/static/console/assets/search-CbfAwHMm.js                            0.38 kB │ gzip:   0.29 kB
+../src/lingshu_gate/static/console/assets/info-BcvPSEoQ.js                              0.41 kB │ gzip:   0.29 kB
+../src/lingshu_gate/static/console/assets/copy-Br9SvLkq.js                              0.44 kB │ gzip:   0.33 kB
+../src/lingshu_gate/static/console/assets/textarea-CWNL9OPM.js                          0.55 kB │ gzip:   0.34 kB
+../src/lingshu_gate/static/console/assets/shield-alert-BtpKXvtD.js                      0.57 kB │ gzip:   0.38 kB
+../src/lingshu_gate/static/console/assets/skeleton-CvrCDQx-.js                          0.60 kB │ gzip:   0.39 kB
+../src/lingshu_gate/static/console/assets/filter-radio-Mi5SeBY6.js                      0.70 kB │ gzip:   0.35 kB
+../src/lingshu_gate/static/console/assets/use-draft-close-guard-DO3eNWhw.js             0.80 kB │ gzip:   0.53 kB
+../src/lingshu_gate/static/console/assets/query-status-CF5BvUt7.js                      0.80 kB │ gzip:   0.44 kB
+../src/lingshu_gate/static/console/assets/PlusOutlined-CYJwpRj9.js                      0.83 kB │ gzip:   0.51 kB
+../src/lingshu_gate/static/console/assets/badge-CvR36c2y.js                             0.89 kB │ gzip:   0.47 kB
+../src/lingshu_gate/static/console/assets/index-DZX2_8Ws.js                             0.91 kB │ gzip:   0.49 kB
+../src/lingshu_gate/static/console/assets/index-D642Qfru.js                             0.98 kB │ gzip:   0.48 kB
+../src/lingshu_gate/static/console/assets/InfoCircleOutlined-Cr4Lml58.js                1.04 kB │ gzip:   0.61 kB
+../src/lingshu_gate/static/console/assets/system-settings-page-oYMCv8HX.js              1.37 kB │ gzip:   0.81 kB
+../src/lingshu_gate/static/console/assets/validation-errors-CvyCoj3c.js                 1.40 kB │ gzip:   0.76 kB
+../src/lingshu_gate/static/console/assets/use-remaining-viewport-B3bY1837.js            1.62 kB │ gzip:   0.70 kB
+../src/lingshu_gate/static/console/assets/network-ClIGszOE.js                           1.79 kB │ gzip:   0.61 kB
+../src/lingshu_gate/static/console/assets/tool-origin-DjhHdlu0.js                       1.79 kB │ gzip:   0.73 kB
+../src/lingshu_gate/static/console/assets/ExclamationCircleFilled-DW3a-G5A.js           1.89 kB │ gzip:   0.75 kB
+../src/lingshu_gate/static/console/assets/form-dialog-C1S4lG9f.js                       2.07 kB │ gzip:   0.85 kB
+../src/lingshu_gate/static/console/assets/index-BKoEnKAt.js                             3.22 kB │ gzip:   1.00 kB
+../src/lingshu_gate/static/console/assets/invocation-payload-panel-oHdYzcQl.js          3.46 kB │ gzip:   1.73 kB
+../src/lingshu_gate/static/console/assets/builds-DtuVReBY.js                            3.63 kB │ gzip:   1.13 kB
+../src/lingshu_gate/static/console/assets/CSSMotionList-DVPYVwsl.js                     4.13 kB │ gzip:   1.58 kB
+../src/lingshu_gate/static/console/assets/page-utils-BJQ1SsBJ.js                        4.95 kB │ gzip:   1.46 kB
+../src/lingshu_gate/static/console/assets/action-menu-BNjxvfpa.js                       5.28 kB │ gzip:   1.97 kB
+../src/lingshu_gate/static/console/assets/list-pagination-CISguBgq.js                   5.31 kB │ gzip:   1.85 kB
+../src/lingshu_gate/static/console/assets/table-tools-GmtolFeX.js                       5.69 kB │ gzip:   2.06 kB
+../src/lingshu_gate/static/console/assets/switch-CYcnRvRj.js                            6.82 kB │ gzip:   2.12 kB
+../src/lingshu_gate/static/console/assets/diagnostics-page-fDr0TMrs.js                  8.00 kB │ gzip:   2.28 kB
+../src/lingshu_gate/static/console/assets/index-Di1z8nGz.js                            11.28 kB │ gzip:   3.67 kB
+../src/lingshu_gate/static/console/assets/index-avVDPkjX.js                            11.95 kB │ gzip:   3.05 kB
+../src/lingshu_gate/static/console/assets/runtime-cache-page-BTsO0bd9.js               12.22 kB │ gzip:   4.04 kB
+../src/lingshu_gate/static/console/assets/personal-workspace-page-DKvctrQe.js          12.57 kB │ gzip:   4.18 kB
+../src/lingshu_gate/static/console/assets/tools-page-BkMVscAt.js                       13.09 kB │ gzip:   3.85 kB
+../src/lingshu_gate/static/console/assets/credentials-page-sih6xvlc.js                 13.59 kB │ gzip:   4.05 kB
+../src/lingshu_gate/static/console/assets/index-B0Pcojzi.js                            15.62 kB │ gzip:   4.52 kB
+../src/lingshu_gate/static/console/assets/downstream-credentials-page-Dg03pmyN.js      15.79 kB │ gzip:   5.19 kB
+../src/lingshu_gate/static/console/assets/command-BHxll4YZ.js                          16.40 kB │ gzip:   5.70 kB
+../src/lingshu_gate/static/console/assets/deployment-options-D2uVI1pP.js               19.05 kB │ gzip:   7.29 kB
+../src/lingshu_gate/static/console/assets/access-grants-page-CbmMPBL3.js               19.77 kB │ gzip:   5.80 kB
+../src/lingshu_gate/static/console/assets/access-users-page-D99NXAqC.js                21.16 kB │ gzip:   5.87 kB
+../src/lingshu_gate/static/console/assets/invocation-audit-page-2ZQOX3Y5.js            21.26 kB │ gzip:   6.80 kB
+../src/lingshu_gate/static/console/assets/configs-page-CsJU1JxU.js                     21.76 kB │ gzip:   8.06 kB
+../src/lingshu_gate/static/console/assets/personal-tokens-page-DMZq3FGc.js             23.54 kB │ gzip:   8.13 kB
+../src/lingshu_gate/static/console/assets/index-aoAnvGbj.js                            24.90 kB │ gzip:   7.26 kB
+../src/lingshu_gate/static/console/assets/dashboard-page-CVnFNeNX.js                   25.28 kB │ gzip:   6.29 kB
+../src/lingshu_gate/static/console/assets/json-panel-DdXfZ-h7.js                       25.41 kB │ gzip:   5.60 kB
+../src/lingshu_gate/static/console/assets/index-B45mUtFA.js                            26.31 kB │ gzip:   7.16 kB
+../src/lingshu_gate/static/console/assets/network-settings-panel-2xmfsTTl.js           33.08 kB │ gzip:   9.54 kB
+../src/lingshu_gate/static/console/assets/index-BkbQhTk4.js                            35.50 kB │ gzip:   9.51 kB
+../src/lingshu_gate/static/console/assets/tool-classifications-page-DoueZDq_.js        35.90 kB │ gzip:  10.04 kB
+../src/lingshu_gate/static/console/assets/Pagination-B6Rn5WbI.js                       36.31 kB │ gzip:   8.50 kB
+../src/lingshu_gate/static/console/assets/index-wSD6x79G.js                            41.25 kB │ gzip:  10.94 kB
+../src/lingshu_gate/static/console/assets/context-D-BSPeCu.js                          41.94 kB │ gzip:  10.88 kB
+../src/lingshu_gate/static/console/assets/index-D1Sfy9I0.js                            43.22 kB │ gzip:  10.97 kB
+../src/lingshu_gate/static/console/assets/access-roles-page-Bqk9Y4ag.js                44.50 kB │ gzip:  11.60 kB
+../src/lingshu_gate/static/console/assets/logs-events-page-De04kuyq.js                 44.79 kB │ gzip:  12.47 kB
+../src/lingshu_gate/static/console/assets/mcp-config-editor-dP694YUJ.js                46.11 kB │ gzip:  14.20 kB
+../src/lingshu_gate/static/console/assets/index-BQuZ1_38.js                            55.57 kB │ gzip:  13.15 kB
+../src/lingshu_gate/static/console/assets/uploads-page-BsVdfmOl.js                     60.33 kB │ gzip:  15.84 kB
+../src/lingshu_gate/static/console/assets/builds-page-C9Q46pPw.js                      85.53 kB │ gzip:  18.87 kB
+../src/lingshu_gate/static/console/assets/select-CFJXUpV3.js                           98.39 kB │ gzip:  23.65 kB
+../src/lingshu_gate/static/console/assets/page-shell-OfO8QBDI.js                      122.87 kB │ gzip:  26.78 kB
+../src/lingshu_gate/static/console/assets/servers-page-CCvbJEf9.js                    125.45 kB │ gzip:  33.36 kB
+../src/lingshu_gate/static/console/assets/external-connections-page-BgpMVlcb.js       234.15 kB │ gzip:  62.20 kB
+../src/lingshu_gate/static/console/assets/Table-BGpqQKgr.js                           253.27 kB │ gzip:  59.97 kB
+../src/lingshu_gate/static/console/assets/invoke-page-BuHvpxcL.js                     291.59 kB │ gzip:  71.44 kB
+../src/lingshu_gate/static/console/assets/index-DcAnjevD.js                         1,093.31 kB │ gzip: 291.07 kB
+
+(!) Some chunks are larger than 500 kB after minification. Consider:
+- Using dynamic import() to code-split the application
+- Use build.rollupOptions.output.manualChunks to improve chunking: https://rollupjs.org/configuration-options/#output-manualchunks
+- Adjust chunk size limit for this warning via build.chunkSizeWarningLimit.
+✓ built in 7.24s
+vite v6.4.3 building for production...
+transforming...
+✓ 4769 modules transformed.
+rendering chunks...
+computing gzip size...
+../src/lingshu_gate/static/oauth/oauth.html                     0.38 kB │ gzip:   0.28 kB
+../src/lingshu_gate/static/oauth/assets/oauth-DSpYj97H.css     73.50 kB │ gzip:  13.56 kB
+../src/lingshu_gate/static/oauth/assets/oauth-Ccl8Q35g.js   1,445.52 kB │ gzip: 367.02 kB
+
+(!) Some chunks are larger than 500 kB after minification. Consider:
+- Using dynamic import() to code-split the application
+- Use build.rollupOptions.output.manualChunks to improve chunking: https://rollupjs.org/configuration-options/#output-manualchunks
+- Adjust chunk size limit for this warning via build.chunkSizeWarningLimit.
+✓ built in 5.17s
+
+=== backend/selected-backend.log ===
+........................................................................ [  8%]
+........................................................................ [ 16%]
+........................................................................ [ 25%]
+........................................................................ [ 33%]
+........................................................................ [ 41%]
+........................................................................ [ 50%]
+........................................................................ [ 58%]
+........................................................................ [ 67%]
+........................................................................ [ 75%]
+........................................................................ [ 83%]
+........................................................................ [ 92%]
+...................................................................      [100%]
+- generated xml file: <validation-root>/backend/results.xml -
+859 passed in 328.20s (0:05:28)
+
+=== browser/selected-browser.log ===
+[2m[WebServer] [22mINFO:     Started server process [42608]
+[2m[WebServer] [22mINFO:     Waiting for application startup.
+[2m[WebServer] [22mINFO:     Application startup complete.
+[2m[WebServer] [22mINFO:     Uvicorn running on http://127.0.0.1:18763 (Press CTRL+C to quit)
+
+Running 112 tests using 1 worker
+
+(node:42741) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:42741) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+  ✓    1 e2e/external-config-csrf.spec.ts:4:1 › @full same-origin browser POST obtains a request-bound configuration ticket (1.1s)
+  ✓    2 e2e/login-version.spec.ts:47:3 › runtime login/register version en-US-light-1600x900 (1.3s)
+  ✓    3 e2e/login-version.spec.ts:72:3 › metadata failure keeps login/register usable en-US-light-1600x900 (750ms)
+  ✓    4 e2e/login-version.spec.ts:47:3 › runtime login/register version en-US-dark-1600x900 (1.3s)
+  ✓    5 e2e/login-version.spec.ts:72:3 › metadata failure keeps login/register usable en-US-dark-1600x900 (896ms)
+  ✓    6 e2e/login-version.spec.ts:47:3 › runtime login/register version zh-CN-light-1600x900 (1.2s)
+  ✓    7 e2e/login-version.spec.ts:72:3 › metadata failure keeps login/register usable zh-CN-light-1600x900 (788ms)
+  ✓    8 e2e/login-version.spec.ts:47:3 › runtime login/register version zh-CN-dark-1600x900 (1.1s)
+  ✓    9 e2e/login-version.spec.ts:72:3 › metadata failure keeps login/register usable zh-CN-dark-1600x900 (849ms)
+  ✓   10 e2e/login-version.spec.ts:47:3 › runtime login/register version en-US-light-1920x1080 (1.1s)
+  ✓   11 e2e/login-version.spec.ts:72:3 › metadata failure keeps login/register usable en-US-light-1920x1080 (861ms)
+  ✓   12 e2e/login-version.spec.ts:47:3 › runtime login/register version en-US-dark-1920x1080 (1.2s)
+  ✓   13 e2e/login-version.spec.ts:72:3 › metadata failure keeps login/register usable en-US-dark-1920x1080 (893ms)
+  ✓   14 e2e/login-version.spec.ts:47:3 › runtime login/register version zh-CN-light-1920x1080 (1.2s)
+  ✓   15 e2e/login-version.spec.ts:72:3 › metadata failure keeps login/register usable zh-CN-light-1920x1080 (934ms)
+  ✓   16 e2e/login-version.spec.ts:47:3 › runtime login/register version zh-CN-dark-1920x1080 (1.1s)
+  ✓   17 e2e/login-version.spec.ts:72:3 › metadata failure keeps login/register usable zh-CN-dark-1920x1080 (780ms)
+  ✓   18 e2e/login-version.spec.ts:47:3 › runtime login/register version en-US-light-2560x1080 (1.2s)
+  ✓   19 e2e/login-version.spec.ts:72:3 › metadata failure keeps login/register usable en-US-light-2560x1080 (874ms)
+  ✓   20 e2e/login-version.spec.ts:47:3 › runtime login/register version en-US-dark-2560x1080 (1.1s)
+  ✓   21 e2e/login-version.spec.ts:72:3 › metadata failure keeps login/register usable en-US-dark-2560x1080 (941ms)
+  ✓   22 e2e/login-version.spec.ts:47:3 › runtime login/register version zh-CN-light-2560x1080 (1.2s)
+  ✓   23 e2e/login-version.spec.ts:72:3 › metadata failure keeps login/register usable zh-CN-light-2560x1080 (784ms)
+  ✓   24 e2e/login-version.spec.ts:47:3 › runtime login/register version zh-CN-dark-2560x1080 (1.2s)
+  ✓   25 e2e/login-version.spec.ts:72:3 › metadata failure keeps login/register usable zh-CN-dark-2560x1080 (930ms)
+  ✓   26 e2e/login-version.spec.ts:47:3 › runtime login/register version en-US-light-2560x1440 (1.2s)
+  ✓   27 e2e/login-version.spec.ts:72:3 › metadata failure keeps login/register usable en-US-light-2560x1440 (896ms)
+  ✓   28 e2e/login-version.spec.ts:47:3 › runtime login/register version en-US-dark-2560x1440 (1.3s)
+  ✓   29 e2e/login-version.spec.ts:72:3 › metadata failure keeps login/register usable en-US-dark-2560x1440 (896ms)
+  ✓   30 e2e/login-version.spec.ts:47:3 › runtime login/register version zh-CN-light-2560x1440 (1.2s)
+  ✓   31 e2e/login-version.spec.ts:72:3 › metadata failure keeps login/register usable zh-CN-light-2560x1440 (804ms)
+  ✓   32 e2e/login-version.spec.ts:47:3 › runtime login/register version zh-CN-dark-2560x1440 (1.2s)
+  ✓   33 e2e/login-version.spec.ts:72:3 › metadata failure keeps login/register usable zh-CN-dark-2560x1440 (934ms)
+  ✓   34 e2e/login-version.spec.ts:99:3 › pending version does not block real login and times out en-US light (5.8s)
+  ✓   35 e2e/login-version.spec.ts:99:3 › pending version does not block real login and times out en-US dark (6.0s)
+  ✓   36 e2e/login-version.spec.ts:99:3 › pending version does not block real login and times out zh-CN light (5.8s)
+  ✓   37 e2e/login-version.spec.ts:99:3 › pending version does not block real login and times out zh-CN dark (5.8s)
+  ✓   38 e2e/login-version.spec.ts:126:1 › backend version wins over the Console build version and long prereleases remain visible (1.0s)
+  ✓   39 e2e/mcp-client-mode.spec.ts:5:3 › MCP client on-demand mode en-US @smoke (2.0s)
+  ✓   40 e2e/mcp-client-mode.spec.ts:5:3 › MCP client on-demand mode zh-CN @smoke (2.0s)
+  ✓   41 e2e/navigation-interaction.spec.ts:4:1 › E2E-203 @full late personal-service detail cannot replace current selection (1.8s)
+  ✓   42 e2e/oauth-consent.spec.ts:19:3 › OAuth ui_locales hint selects language without changing authorization en-US (620ms)
+  ✓   43 e2e/oauth-consent.spec.ts:19:3 › OAuth ui_locales hint selects language without changing authorization zh-CN (579ms)
+  ✓   44 e2e/oauth-consent.spec.ts:32:1 › OAuth unsupported locale preserves the existing language without an authorization error (612ms)
+  ✓   45 e2e/oauth-consent.spec.ts:41:3 › OAuth direct access filters and reset preserve selected scope en-US @large-data (2.8s)
+  ✓   46 e2e/oauth-consent.spec.ts:41:3 › OAuth direct access filters and reset preserve selected scope zh-CN @large-data (2.8s)
+  ✓   47 e2e/oauth-consent.spec.ts:89:5 › OAuth tool scope 1600x900 en-US @large-data (1.3s)
+  ✓   48 e2e/oauth-consent.spec.ts:89:5 › OAuth tool scope 1600x900 zh-CN @large-data (1.3s)
+  ✓   49 e2e/oauth-consent.spec.ts:89:5 › OAuth tool scope 1920x1080 en-US @large-data (1.4s)
+  ✓   50 e2e/oauth-consent.spec.ts:89:5 › OAuth tool scope 1920x1080 zh-CN @large-data (1.2s)
+  ✓   51 e2e/oauth-consent.spec.ts:89:5 › OAuth tool scope 2560x1080 en-US @large-data (1.4s)
+  ✓   52 e2e/oauth-consent.spec.ts:89:5 › OAuth tool scope 2560x1080 zh-CN @large-data (1.3s)
+  ✓   53 e2e/oauth-consent.spec.ts:89:5 › OAuth tool scope 2560x1440 en-US @large-data (1.2s)
+  ✓   54 e2e/oauth-consent.spec.ts:89:5 › OAuth tool scope 2560x1440 zh-CN @large-data (1.4s)
+  ✓   55 e2e/oauth-consent.spec.ts:109:1 › OAuth login expiry preserves selection and requires reauthentication @permissions (1.9s)
+  ✓   56 e2e/oauth-consent.spec.ts:129:1 › OAuth completed submission cannot be repeated @permissions (1.3s)
+  ✓   57 e2e/oauth-management-resource.spec.ts:98:3 › management resource confirmation and explicit client resource en-US-light-1600x900 (3.1s)
+  ✓   58 e2e/oauth-management-resource.spec.ts:129:3 › management targets retain the full 1000-target policy across pages en-US-light-1600x900 (2.8s)
+  ✓   59 e2e/oauth-management-resource.spec.ts:98:3 › management resource confirmation and explicit client resource en-US-dark-1600x900 (3.0s)
+  ✓   60 e2e/oauth-management-resource.spec.ts:129:3 › management targets retain the full 1000-target policy across pages en-US-dark-1600x900 (2.8s)
+  ✓   61 e2e/oauth-management-resource.spec.ts:98:3 › management resource confirmation and explicit client resource zh-CN-light-1600x900 (3.0s)
+  ✓   62 e2e/oauth-management-resource.spec.ts:129:3 › management targets retain the full 1000-target policy across pages zh-CN-light-1600x900 (2.7s)
+  ✓   63 e2e/oauth-management-resource.spec.ts:98:3 › management resource confirmation and explicit client resource zh-CN-dark-1600x900 (3.2s)
+  ✓   64 e2e/oauth-management-resource.spec.ts:129:3 › management targets retain the full 1000-target policy across pages zh-CN-dark-1600x900 (2.7s)
+  ✓   65 e2e/oauth-management-resource.spec.ts:98:3 › management resource confirmation and explicit client resource en-US-light-1920x1080 (3.1s)
+  ✓   66 e2e/oauth-management-resource.spec.ts:129:3 › management targets retain the full 1000-target policy across pages en-US-light-1920x1080 (3.0s)
+  ✓   67 e2e/oauth-management-resource.spec.ts:98:3 › management resource confirmation and explicit client resource en-US-dark-1920x1080 (3.1s)
+  ✓   68 e2e/oauth-management-resource.spec.ts:129:3 › management targets retain the full 1000-target policy across pages en-US-dark-1920x1080 (2.6s)
+  ✓   69 e2e/oauth-management-resource.spec.ts:98:3 › management resource confirmation and explicit client resource zh-CN-light-1920x1080 (3.4s)
+  ✓   70 e2e/oauth-management-resource.spec.ts:129:3 › management targets retain the full 1000-target policy across pages zh-CN-light-1920x1080 (3.0s)
+  ✓   71 e2e/oauth-management-resource.spec.ts:98:3 › management resource confirmation and explicit client resource zh-CN-dark-1920x1080 (3.3s)
+  ✓   72 e2e/oauth-management-resource.spec.ts:129:3 › management targets retain the full 1000-target policy across pages zh-CN-dark-1920x1080 (2.7s)
+  ✓   73 e2e/oauth-management-resource.spec.ts:98:3 › management resource confirmation and explicit client resource en-US-light-2560x1080 (3.4s)
+  ✓   74 e2e/oauth-management-resource.spec.ts:129:3 › management targets retain the full 1000-target policy across pages en-US-light-2560x1080 (2.8s)
+  ✓   75 e2e/oauth-management-resource.spec.ts:98:3 › management resource confirmation and explicit client resource en-US-dark-2560x1080 (3.8s)
+  ✓   76 e2e/oauth-management-resource.spec.ts:129:3 › management targets retain the full 1000-target policy across pages en-US-dark-2560x1080 (3.0s)
+  ✓   77 e2e/oauth-management-resource.spec.ts:98:3 › management resource confirmation and explicit client resource zh-CN-light-2560x1080 (3.2s)
+  ✓   78 e2e/oauth-management-resource.spec.ts:129:3 › management targets retain the full 1000-target policy across pages zh-CN-light-2560x1080 (2.7s)
+  ✓   79 e2e/oauth-management-resource.spec.ts:98:3 › management resource confirmation and explicit client resource zh-CN-dark-2560x1080 (3.4s)
+  ✓   80 e2e/oauth-management-resource.spec.ts:129:3 › management targets retain the full 1000-target policy across pages zh-CN-dark-2560x1080 (2.8s)
+  ✓   81 e2e/oauth-management-resource.spec.ts:98:3 › management resource confirmation and explicit client resource en-US-light-2560x1440 (3.3s)
+  ✓   82 e2e/oauth-management-resource.spec.ts:129:3 › management targets retain the full 1000-target policy across pages en-US-light-2560x1440 (2.9s)
+  ✓   83 e2e/oauth-management-resource.spec.ts:98:3 › management resource confirmation and explicit client resource en-US-dark-2560x1440 (3.7s)
+  ✓   84 e2e/oauth-management-resource.spec.ts:129:3 › management targets retain the full 1000-target policy across pages en-US-dark-2560x1440 (2.8s)
+  ✓   85 e2e/oauth-management-resource.spec.ts:98:3 › management resource confirmation and explicit client resource zh-CN-light-2560x1440 (3.8s)
+  ✓   86 e2e/oauth-management-resource.spec.ts:129:3 › management targets retain the full 1000-target policy across pages zh-CN-light-2560x1440 (3.0s)
+  ✓   87 e2e/oauth-management-resource.spec.ts:98:3 › management resource confirmation and explicit client resource zh-CN-dark-2560x1440 (3.5s)
+  ✓   88 e2e/oauth-management-resource.spec.ts:129:3 › management targets retain the full 1000-target policy across pages zh-CN-dark-2560x1440 (3.1s)
+  ✓   89 e2e/oauth-management-resource.spec.ts:166:3 › management unknown key state prevents enable but preserves explicit disable en-US (2.4s)
+  ✓   90 e2e/oauth-management-resource.spec.ts:182:3 › management target error and dirty keyboard close retain edits en-US (4.1s)
+  ✓   91 e2e/oauth-management-resource.spec.ts:209:3 › management pending read cannot be closed by keyboard en-US (1.7s)
+  ✓   92 e2e/oauth-management-resource.spec.ts:225:3 › management consent validates exact targets and keeps read-only scope en-US (1.1s)
+  ✓   93 e2e/oauth-management-resource.spec.ts:166:3 › management unknown key state prevents enable but preserves explicit disable zh-CN (2.2s)
+  ✓   94 e2e/oauth-management-resource.spec.ts:182:3 › management target error and dirty keyboard close retain edits zh-CN (4.1s)
+  ✓   95 e2e/oauth-management-resource.spec.ts:209:3 › management pending read cannot be closed by keyboard zh-CN (1.8s)
+  ✓   96 e2e/oauth-management-resource.spec.ts:225:3 › management consent validates exact targets and keeps read-only scope zh-CN (1.1s)
+  ✓   97 e2e/real-backend.spec.ts:4:1 › E2E-001 @smoke real login on short screen using keyboard (867ms)
+  ✓   98 e2e/real-backend.spec.ts:19:1 › E2E-002 @smoke @permissions viewer is denied real control-plane APIs (647ms)
+  ✓   99 e2e/real-backend.spec.ts:30:1 › E2E-003 @full failed login preserves recovery and a later valid submission works (970ms)
+  ✓  100 e2e/real-backend.spec.ts:42:1 › E2E-004 @permissions personal routes use authorized summaries and self records (1.7s)
+  ✓  101 e2e/real-backend.spec.ts:61:1 › E2E-005 @smoke narrow-screen login action is visible and keyboard usable (729ms)
+  ✓  102 e2e/real-backend.spec.ts:75:1 › E2E-006 @permissions real disabled scope draft save, ownership deny and revoke (3.5s)
+  ✓  103 e2e/root-entry.spec.ts:6:5 › @smoke root entry en-US / preserves bookmark through login and reload (1.3s)
+  ✓  104 e2e/root-entry.spec.ts:6:5 › @smoke root entry en-US /console preserves bookmark through login and reload (1.4s)
+  ✓  105 e2e/root-entry.spec.ts:6:5 › @smoke root entry en-US /console/ preserves bookmark through login and reload (1.3s)
+  ✓  106 e2e/root-entry.spec.ts:6:5 › @smoke root entry en-US /console/index.html preserves bookmark through login and reload (1.3s)
+  ✓  107 e2e/root-entry.spec.ts:6:5 › @smoke root entry zh-CN / preserves bookmark through login and reload (1.4s)
+  ✓  108 e2e/root-entry.spec.ts:6:5 › @smoke root entry zh-CN /console preserves bookmark through login and reload (1.5s)
+  ✓  109 e2e/root-entry.spec.ts:6:5 › @smoke root entry zh-CN /console/ preserves bookmark through login and reload (1.4s)
+  ✓  110 e2e/root-entry.spec.ts:6:5 › @smoke root entry zh-CN /console/index.html preserves bookmark through login and reload (1.3s)
+  ✓  111 e2e/root-entry.spec.ts:37:1 › @smoke root hash navigation preserves native back, forward and query (1.7s)
+  ✓  112 e2e/root-entry.spec.ts:60:1 › @smoke browser root uses new assets while programmatic discovery stays JSON (878ms)
+
+  112 passed (3.8m)
+
+=== quality/ruff.log ===
+All checks passed!
+
+=== quality/mypy.log ===
+Success: no issues found in 158 source files
+
+=== quality/identity.log ===
+repository identity check passed
+
+=== quality/version.log ===
+0.4.4
+
+=== quality/compose.log ===
+
+=== quality/diff.log ===
