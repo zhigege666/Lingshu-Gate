@@ -1040,19 +1040,19 @@ def test_privileged_qemu_and_buildkit_images_are_immutable() -> None:
 def test_all_github_actions_are_allowlisted_immutable_commit_pins() -> None:
     allowed_actions = {
         "actions/attest-build-provenance": ("4d101475d8b20a2381f78447822ac1eab6504dd8", "v4"),
-        "actions/checkout": ("fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09", "v5"),
+        "actions/checkout": ("3d3c42e5aac5ba805825da76410c181273ba90b1", "v7.0.1"),
         "actions/download-artifact": ("3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c", "v8.0.1"),
-        "actions/setup-node": ("a0853c24544627f65ddf259abe73b1d18a591444", "v5"),
-        "actions/setup-python": ("ece7cb06caefa5fff74198d8649806c4678c61a1", "v6"),
+        "actions/setup-node": ("820762786026740c76f36085b0efc47a31fe5020", "v7.0.0"),
+        "actions/setup-python": ("5fda3b95a4ea91299a34e894583c3862153e4b97", "v7.0.0"),
         "actions/upload-artifact": ("043fb46d1a93c77aae656e7c1c64a875d1fc6a0a", "v7.0.1"),
         "aquasecurity/trivy-action": ("ed142fd0673e97e23eac54620cfb913e5ce36c25", "v0.36.0"),
-        "astral-sh/setup-uv": ("37802adc94f370d6bfd71619e3f0bf239e1f3b78", "v7"),
+        "astral-sh/setup-uv": ("c18668ad3cf93ea998bef934396af7bb5c839dc7", "v10.2.0"),
         "docker/build-push-action": ("53b7df96c91f9c12dcc8a07bcb9ccacbed38856a", "v7"),
         "docker/login-action": ("dbcb813823bdd20940b903addbd779551569679f", "v4"),
         "docker/setup-buildx-action": ("37fe631027851001ddb9b187196cc803df7f5f0e", "v4"),
         "docker/setup-qemu-action": ("96fe6ef7f33517b61c61be40b68a1882f3264fb8", "v4"),
-        "github/codeql-action/analyze": ("cdf488f595d80d6e07e03d4674febd5ab45fa938", "v4.37.9"),
-        "github/codeql-action/init": ("cdf488f595d80d6e07e03d4674febd5ab45fa938", "v4.37.9"),
+        "github/codeql-action/analyze": ("b96794f015dfd88f77b49b1c93e0fa7110f94c63", "v4.38.0"),
+        "github/codeql-action/init": ("b96794f015dfd88f77b49b1c93e0fa7110f94c63", "v4.38.0"),
         "sigstore/cosign-installer": ("398d4b0eeef1380460a10c8013a76f728fb906ac", "v3"),
     }
     action_pattern = re.compile(
