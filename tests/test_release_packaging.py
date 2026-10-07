@@ -605,10 +605,10 @@ def test_release_windows_matrix_smokes_delivery_skill_packager() -> None:
 
 def test_release_build_backend_and_packager_are_exactly_pinned() -> None:
     project = (REPOSITORY_ROOT / "pyproject.toml").read_text(encoding="utf-8")
-    assert 'requires = ["setuptools==81.0.0"]' in project
-    assert 'build-constraint-dependencies = ["setuptools==81.0.0"]' in project
-    assert '"pyinstaller==6.22.2"' in project
-    assert '"setuptools==81.0.0"' in project
+    assert 'requires = ["setuptools==84.0.0"]' in project
+    assert 'build-constraint-dependencies = ["setuptools==84.0.0"]' in project
+    assert '"pyinstaller==6.22.3"' in project
+    assert '"setuptools==84.0.0"' in project
 
 
 def test_publishable_bundles_exclude_development_dependencies() -> None:
