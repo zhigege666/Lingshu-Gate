@@ -1,6 +1,6 @@
 import { test, expect } from '@playwright/test'
 import { readFileSync } from 'node:fs'
-import ts from 'typescript'
+import ts from 'typescript-ast'
 import { initialize } from './helpers'
 
 test('E2E-507 @preview-adapter synthetic adapter upload-to-start preserves draft and confirmation context', async ({ page }, testInfo) => {

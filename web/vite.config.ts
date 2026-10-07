@@ -4,7 +4,7 @@ import react from "@vitejs/plugin-react"
 import tailwindcss from "@tailwindcss/vite"
 import { defineConfig } from "vite"
 
-const versionSource = path.resolve(__dirname, "../src/lingshu_gate/_version.py")
+const versionSource = path.resolve(import.meta.dirname, "../src/lingshu_gate/_version.py")
 const versionMatch = fs.existsSync(versionSource)
   ? fs.readFileSync(versionSource, "utf8").match(/__version__\s*=\s*["']([^"']+)["']/)
   : null
@@ -33,13 +33,12 @@ export default defineConfig({
   },
   resolve: {
     alias: {
-      "@": path.resolve(__dirname, "./src"),
+      "@": path.resolve(import.meta.dirname, "./src"),
     },
   },
-  // Keep stable identifiers: compact identity scanning must not match random
-  // minified variable names concatenated across punctuation.
-  esbuild: { minifyIdentifiers: false },
   build: {
+    // Preserve identifiers for compact identity scanning with Vite 8's minifier.
+    rolldownOptions: { output: { minify: { mangle: false } } },
     outDir: "../src/lingshu_gate/static/console",
     emptyOutDir: true,
   },
