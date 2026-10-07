@@ -16,6 +16,7 @@ import threading
 from pathlib import Path
 from types import SimpleNamespace
 from unittest.mock import patch
+from urllib.parse import urlsplit
 from uuid import uuid4
 
 import pytest
@@ -671,7 +672,8 @@ def test_separate_pinned_git_and_install_proxy_material_never_enters_container(f
     result = build(flow, imported["upload_id"])
     assert result["status"] == "success", result
     git_calls = [kwargs for url, kwargs in flow.transport.calls if "/fixture/project/" in url]
-    installs = [kwargs for url, kwargs in flow.transport.calls if "registry.npmjs.org" in url]
+    installs = [kwargs for url, kwargs in flow.transport.calls if urlsplit(url).hostname == "registry.npmjs.org"]
+    assert git_calls and installs
     assert all(kwargs["material"]["proxy"] == "http://git-proxy.example.invalid:8080" for kwargs in git_calls)
     assert all(kwargs["material"]["proxy"] == "socks5://install-proxy.example.invalid:1080" for kwargs in installs)
     serialized = json.dumps([request for request, _ in flow.controller.calls])

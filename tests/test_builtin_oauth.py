@@ -865,6 +865,28 @@ def test_revoke_is_client_bound_and_unknown_token_is_success(gate):
         server.verify(result["access_token"])
 
 
+def test_authorize_only_issues_a_new_random_browser_cookie_and_preserves_parallel_tickets(gate):
+    client_info, _ = enable(gate)
+    with TestClient(gate["app"], base_url=ISSUER) as client:
+        response = client.get("/oauth/authorize", params=parameters(client_info), follow_redirects=False)
+        assert response.status_code == 303
+        browser = client.cookies.get(BROWSER_COOKIE)
+        assert browser and len(browser) == 43
+        first = parse_qs(urlsplit(response.headers["location"]).fragment)["request"][0]
+        response = client.get("/oauth/authorize", params=parameters(client_info), follow_redirects=False)
+        assert response.status_code == 303
+        assert "set-cookie" not in response.headers
+        assert client.cookies.get(BROWSER_COOKIE) == browser
+        second = parse_qs(urlsplit(response.headers["location"]).fragment)["request"][0]
+        for interaction in (first, second):
+            assert client.get("/oauth/context", params={"request_id": interaction}).status_code == 200
+        client.cookies.clear()
+        client.cookies.set(BROWSER_COOKIE, "synthetic-other-browser")
+        for interaction in (first, second):
+            rejected = client.get("/oauth/context", params={"request_id": interaction})
+            assert rejected.status_code == 403 and rejected.json()["error"] == "invalid_browser"
+
+
 @pytest.mark.parametrize("ui_locales", [None, "zh-CN", "en-US"])
 def test_public_login_consent_csrf_cancel_repeat_and_console_isolation(gate, ui_locales):
     client_info, secret = enable(gate)

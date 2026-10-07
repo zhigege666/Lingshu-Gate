@@ -83,7 +83,7 @@ def register_mcp_gateway_route(
             return _error_response(
                 None,
                 exc.code,
-                str(exc),
+                exc.message,
                 settings,
                 status_code=exc.status_code,
                 protocol_version=MCP_PROTOCOL_VERSION,
@@ -120,7 +120,7 @@ def register_mcp_gateway_route(
             return _error_response(
                 request_id,
                 exc.code,
-                str(exc),
+                exc.message,
                 settings,
                 data=exc.data,
                 status_code=exc.status_code,

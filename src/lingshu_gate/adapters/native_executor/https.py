@@ -91,7 +91,9 @@ class PinnedHTTPS:
     def __init__(self, *, proxy_hosts: tuple[dict[str, Any], ...] = (), resolver: Callable[..., Any] = socket.getaddrinfo) -> None:
         self.proxy_hosts = proxy_hosts
         self.resolver = resolver
-        self.context = ssl.create_default_context()
+        context = ssl.create_default_context()
+        context.minimum_version = ssl.TLSVersion.TLSv1_2
+        self.context = context
         self._dns_gate = threading.BoundedSemaphore(1)
         self.dns_busy = threading.Event()
         self._dns_worker: threading.Thread | None = None

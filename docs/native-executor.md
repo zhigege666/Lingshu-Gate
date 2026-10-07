@@ -23,8 +23,10 @@ Set `LINGSHU_GATE_RUNTIME_ROLE=local`. Configure `LINGSHU_GATE_NATIVE_EXECUTOR` 
 | `enabled` | Boolean, default false. Explicit enablement permits startup reconciliation and a synthetic sandbox self-test. |
 | `root` | Absolute provisioned executor directory, separate from Gate data/config/workspace. |
 | `image` | Exact already loaded reviewed manifest digest; never a project input. |
-| `podman_bin` | Administrator binary path, default `/usr/bin/podman`. |
+| `podman_bin` | Administrator-reviewed absolute binary path when enabled, default `/usr/bin/podman`. |
 | `proxy_hosts` | At most 32 exact reviewed proxy host/port rules with optional explicit private CIDRs. Default empty. |
+
+The disabled default requires no Linux Podman path and permits ordinary Gate startup on Windows and macOS. Explicit enablement still validates the administrator's absolute binary/root and pinned image. Only the local Linux role can construct the executor; every readiness and isolation check remains required before dispatch.
 
 An example configuration shape is below. Replace the placeholder with the reviewed digest; it is deliberately not a runnable image reference.
 
@@ -45,6 +47,8 @@ Gate's Network settings response now reports observed `executor.available`, a st
 Missing controllers are named separately (`delegated_cgroup_controller_cpu_required`, `delegated_cgroup_controller_memory_required`, `delegated_cgroup_controller_pids_required`). A missing local image reports `preloaded_exact_image_digest_required`; each failed sandbox observation reports `sandbox_selftest_<check>_required`. These checks never trigger a pull or host fallback.
 
 ## Acquisition and package support
+
+Trusted HTTPS explicitly requires TLS 1.2 or later, certificate verification and hostname verification, including connections through a reviewed proxy.
 
 | Phase | Implemented support | Explicit rejection |
 |---|---|---|

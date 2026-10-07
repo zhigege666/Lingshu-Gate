@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import json
 from dataclasses import replace
+from pathlib import PureWindowsPath
 from unittest.mock import patch
 
 import pytest
@@ -44,6 +45,38 @@ def test_disabled_factory_and_other_platform_require_no_engine(tmp_path):
         settings = Settings(native_executor=config(tmp_path))
         assert create_safe_network_executor(settings) is None
         assert unavailable_readiness(settings)["missing"] == ["unsupported_platform_linux_required"]
+
+
+def test_disabled_default_configuration_loads_with_windows_path_semantics(monkeypatch):
+    monkeypatch.delenv("LINGSHU_GATE_NATIVE_EXECUTOR", raising=False)
+    with patch("lingshu_gate.native_executor_config.Path", PureWindowsPath):
+        assert not Settings.from_env().native_executor.enabled
+        assert not NativeExecutorConfig.parse({"enabled": False}).enabled
+
+
+@pytest.mark.parametrize("enabled", [None, 0, 1, "false", "true"])
+def test_executor_enablement_requires_an_explicit_boolean(enabled):
+    with pytest.raises(ValueError, match="boolean"):
+        NativeExecutorConfig.parse({"enabled": enabled})
+
+
+@pytest.mark.parametrize("binary", ["podman", "./podman", "/usr/bin/podman\n"])
+def test_enabled_executor_keeps_absolute_reviewed_binary_requirement(tmp_path, binary):
+    with pytest.raises(ValueError, match="administrator-reviewed absolute Podman binary"):
+        replace(config(tmp_path), podman_bin=binary)
+
+
+def test_reviewed_windows_binary_cannot_enable_an_unsupported_executor():
+    with patch("lingshu_gate.native_executor_config.Path", PureWindowsPath):
+        config = NativeExecutorConfig.parse({"enabled": True, "root": r"C:\GateExecutor",
+            "image": IMAGE, "podman_bin": r"C:\Program Files\Podman\podman.exe"})
+        with patch("lingshu_gate.adapters.safe_network_factory.sys.platform", "win32"), patch(
+            "lingshu_gate.adapters.native_executor.executor.NativeNetworkExecutor",
+            side_effect=AssertionError("Windows must not touch the engine"),
+        ):
+            settings = Settings(native_executor=config)
+            assert create_safe_network_executor(settings) is None
+            assert unavailable_readiness(settings)["missing"] == ["unsupported_platform_linux_required"]
 
 
 def test_workspace_without_actual_tmpfs_quota_fails_closed(tmp_path):
