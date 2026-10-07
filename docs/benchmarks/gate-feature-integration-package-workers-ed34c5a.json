@@ -1,0 +1,190 @@
+{
+  "source_sha": "ed34c5a474747b2f0933b8fbee7fccf193ee7315",
+  "parent_module": "installed-wheel-env/lib/python3.13/site-packages/lingshu_gate/application/schema_validation.py",
+  "source_checkout_on_import_path": false,
+  "service_settings_bypassed": true,
+  "wheel_sha256": "023f39a0bbf3830d8e1a41280face4feb429e117679e07effe07603a2412c8d4",
+  "native_sha256": "c48d681835a8d4afb3a93aea7b91a3cfbbedf3551c4b40ba71fc4c57570f50f7",
+  "native_module_imports": {
+    "pending": "installed-wheel-env/lib/python3.13/site-packages/lingshu_gate/adapters/native_executor/pending.py",
+    "https": "installed-wheel-env/lib/python3.13/site-packages/lingshu_gate/adapters/native_executor/https.py",
+    "journal": "installed-wheel-env/lib/python3.13/site-packages/lingshu_gate/adapters/native_executor/journal.py",
+    "controller": "installed-wheel-env/lib/python3.13/site-packages/lingshu_gate/adapters/native_executor/controller.py",
+    "packages": "installed-wheel-env/lib/python3.13/site-packages/lingshu_gate/adapters/native_executor/packages.py",
+    "executor": "installed-wheel-env/lib/python3.13/site-packages/lingshu_gate/adapters/native_executor/executor.py"
+  },
+  "modes": {
+    "installed_wheel": {
+      "cases": [
+        {
+          "case": "valid",
+          "code": null,
+          "elapsed_ms": 251.557
+        },
+        {
+          "case": "invalid_type",
+          "code": "catalog_arguments_invalid",
+          "elapsed_ms": 201.123
+        },
+        {
+          "case": "regex_deadline",
+          "code": "catalog_validation_timeout",
+          "elapsed_ms": 902.325
+        },
+        {
+          "case": "reuse_after_timeout",
+          "code": null,
+          "elapsed_ms": 201.107
+        },
+        {
+          "case": "512k_chunk",
+          "code": null,
+          "elapsed_ms": 261.112
+        },
+        {
+          "case": "cancel_during_worker",
+          "code": "catalog_validation_cancelled",
+          "elapsed_ms": 305.388
+        },
+        {
+          "case": "reuse_after_cancel",
+          "code": null,
+          "elapsed_ms": 201.116
+        }
+      ],
+      "children": 7,
+      "all_children_reaped": true,
+      "commands": [
+        [
+          "installed-wheel-env/bin/python",
+          "-m",
+          "lingshu_gate.application.schema_validation",
+          "--worker"
+        ],
+        [
+          "installed-wheel-env/bin/python",
+          "-m",
+          "lingshu_gate.application.schema_validation",
+          "--worker"
+        ],
+        [
+          "installed-wheel-env/bin/python",
+          "-m",
+          "lingshu_gate.application.schema_validation",
+          "--worker"
+        ],
+        [
+          "installed-wheel-env/bin/python",
+          "-m",
+          "lingshu_gate.application.schema_validation",
+          "--worker"
+        ],
+        [
+          "installed-wheel-env/bin/python",
+          "-m",
+          "lingshu_gate.application.schema_validation",
+          "--worker"
+        ],
+        [
+          "installed-wheel-env/bin/python",
+          "-m",
+          "lingshu_gate.application.schema_validation",
+          "--worker"
+        ],
+        [
+          "installed-wheel-env/bin/python",
+          "-m",
+          "lingshu_gate.application.schema_validation",
+          "--worker"
+        ]
+      ]
+    },
+    "actual_native_worker": {
+      "cases": [
+        {
+          "case": "valid",
+          "code": null,
+          "elapsed_ms": 367.196
+        },
+        {
+          "case": "invalid_type",
+          "code": "catalog_arguments_invalid",
+          "elapsed_ms": 367.675
+        },
+        {
+          "case": "regex_deadline",
+          "code": "catalog_validation_timeout",
+          "elapsed_ms": 902.154
+        },
+        {
+          "case": "reuse_after_timeout",
+          "code": null,
+          "elapsed_ms": 351.555
+        },
+        {
+          "case": "512k_chunk",
+          "code": null,
+          "elapsed_ms": 412.889
+        },
+        {
+          "case": "cancel_during_worker",
+          "code": "catalog_validation_cancelled",
+          "elapsed_ms": 305.174
+        },
+        {
+          "case": "reuse_after_cancel",
+          "code": null,
+          "elapsed_ms": 366.875
+        }
+      ],
+      "children": 7,
+      "all_children_reaped": true,
+      "commands": [
+        [
+          "extracted-linux-native/lingshu-gate",
+          "--gate-schema-validation-worker"
+        ],
+        [
+          "extracted-linux-native/lingshu-gate",
+          "--gate-schema-validation-worker"
+        ],
+        [
+          "extracted-linux-native/lingshu-gate",
+          "--gate-schema-validation-worker"
+        ],
+        [
+          "extracted-linux-native/lingshu-gate",
+          "--gate-schema-validation-worker"
+        ],
+        [
+          "extracted-linux-native/lingshu-gate",
+          "--gate-schema-validation-worker"
+        ],
+        [
+          "extracted-linux-native/lingshu-gate",
+          "--gate-schema-validation-worker"
+        ],
+        [
+          "extracted-linux-native/lingshu-gate",
+          "--gate-schema-validation-worker"
+        ]
+      ]
+    }
+  },
+  "direct_native_entry_probes": [
+    {
+      "returncode": 0,
+      "stdout": "valid"
+    },
+    {
+      "returncode": 1,
+      "stdout": ""
+    }
+  ],
+  "total_children": 14,
+  "all_children_reaped": true,
+  "production_source_sha": "a3b57f708ae3d848382e46ee9c9b85ccae8e5722",
+  "raw_runner_record_sha256": "54614f3478ec9dc433d168b38cdadfcd5ae0d91edbfed71a6a470e3f3aa8da4e",
+  "path_normalization": "Runner-local absolute roots replaced by observed import/executable role aliases; no source checkout is present on the parent import path.",
+  "scope": "Fresh installed wheel with CPython3.13.15 plus workers from the freshly built and strictly extracted Linux archive. Real child IPC/deadline/cancellation/reaping and direct CLI worker flags; no live Podman job, engine/socket, provider or deployment."
+}

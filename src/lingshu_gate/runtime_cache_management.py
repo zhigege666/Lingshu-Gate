@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import os
 import shutil
+import stat
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
@@ -49,12 +50,7 @@ def clear_runtime_cache(settings: Settings, cache_name: str) -> dict[str, Any]:
 
 def _cache_info(name: str, path: Path) -> dict[str, Any]:
     info = _path_info(path)
-    info.update({
-        "name": name,
-        "size_bytes": _dir_size(path),
-        "file_count": _file_count(path),
-        "last_modified_at": _last_modified(path),
-    })
+    info.update({"name": name, **_tree_summary(path)})
     return info
 
 
@@ -71,48 +67,32 @@ def _path_info(path: Path) -> dict[str, Any]:
     }
 
 
-def _dir_size(path: Path) -> int:
-    if not path.exists() or not path.is_dir():
-        return 0
-    total = 0
-    for item in path.rglob("*"):
-        try:
-            if item.is_file():
-                total += item.stat().st_size
-        except OSError:
-            continue
-    return total
-
-
-def _file_count(path: Path) -> int:
-    if not path.exists() or not path.is_dir():
-        return 0
-    count = 0
-    for item in path.rglob("*"):
-        try:
-            if item.is_file():
-                count += 1
-        except OSError:
-            continue
-    return count
-
-
-def _last_modified(path: Path) -> str | None:
-    if not path.exists():
-        return None
+def _tree_summary(path: Path) -> dict[str, Any]:
+    """Compute all directory metrics in one walk and one stat per entry."""
+    size = count = 0
     latest = 0.0
-    items = path.rglob("*") if path.is_dir() else [path]
-    for item in items:
-        try:
-            latest = max(latest, item.stat().st_mtime)
-        except OSError:
-            continue
-    if latest <= 0:
-        try:
-            latest = path.stat().st_mtime
-        except OSError:
-            return None
-    return datetime.fromtimestamp(latest, tz=timezone.utc).isoformat()
+    if path.exists():
+        directory = path.is_dir()
+        items = path.rglob("*") if directory else [path]
+        for item in items:
+            try:
+                metadata = item.stat()
+            except OSError:
+                continue  # Package installers may remove a file during this read.
+            if directory and stat.S_ISREG(metadata.st_mode):
+                size += metadata.st_size
+                count += 1
+            latest = max(latest, metadata.st_mtime)
+        if latest <= 0:
+            try:
+                latest = path.stat().st_mtime
+            except OSError:
+                pass
+    return {
+        "size_bytes": size,
+        "file_count": count,
+        "last_modified_at": datetime.fromtimestamp(latest, tz=timezone.utc).isoformat() if latest > 0 else None,
+    }
 
 
 def _is_inside(path: Path, root: Path) -> bool:

@@ -4,6 +4,8 @@ from __future__ import annotations
 
 import sqlite3
 import time
+from collections.abc import Iterator
+from contextlib import closing, contextmanager
 from pathlib import Path
 from typing import Any
 
@@ -12,6 +14,34 @@ from lingshu_gate.persistence.migrations import (
     MigrationRunner,
     execute_sql_script,
 )
+
+from lingshu_gate.persistence.retention_migration import (
+    RETENTION_MIGRATION_ID, apply_retention_migration,
+)
+from lingshu_gate.persistence.audit_lookup_migration import (
+    AUDIT_LOOKUP_MIGRATION_ID, apply_audit_lookup_migration,
+)
+from lingshu_gate.persistence.git_network_migration import (
+    GIT_NETWORK_MIGRATION_ID, apply_git_network_migration,
+)
+from lingshu_gate.persistence.session_purpose_migration import (
+    SESSION_PURPOSE_MIGRATION_ID, apply_session_purpose_migration,
+)
+from lingshu_gate.persistence.external_mcp_config_migration import (
+    EXTERNAL_MCP_CONFIG_MIGRATION_ID, apply_external_mcp_config_migration,
+)
+from lingshu_gate.persistence.console_csrf_migration import (
+    CONSOLE_CSRF_MIGRATION_ID, apply_console_csrf_migration,
+)
+from lingshu_gate.persistence.tool_catalog_migration import (
+    TOOL_CATALOG_MIGRATION_ID, apply_tool_catalog_migration,
+)
+from lingshu_gate.persistence.catalog_group_epoch_migration import (
+    CATALOG_GROUP_EPOCH_MIGRATION_ID, apply_catalog_group_epoch_migration,
+)
+from lingshu_gate.persistence.mcp_groups_migration import MCP_GROUPS_MIGRATION_ID, apply_mcp_groups_migration
+from lingshu_gate.persistence.mcp_group_requests_migration import MCP_GROUP_REQUESTS_MIGRATION_ID, apply_mcp_group_requests_migration
+from lingshu_gate.persistence.mcp_group_routing_migration import MCP_GROUP_ROUTING_MIGRATION_ID, apply_mcp_group_routing_migration
 
 BASELINE_MIGRATION_ID = "0001_gate_baseline"
 SQLITE_BUSY_TIMEOUT_MS = 30_000
@@ -50,7 +80,18 @@ class SQLiteDatabase:
     def initialize(self) -> None:
         MigrationRunner(
             self.connect,
-            (Migration(BASELINE_MIGRATION_ID, self._apply_baseline_migration),),
+            (Migration(BASELINE_MIGRATION_ID, self._apply_baseline_migration),
+             Migration(RETENTION_MIGRATION_ID, apply_retention_migration),
+             Migration(AUDIT_LOOKUP_MIGRATION_ID, apply_audit_lookup_migration),
+             Migration(GIT_NETWORK_MIGRATION_ID, apply_git_network_migration),
+             Migration(SESSION_PURPOSE_MIGRATION_ID, apply_session_purpose_migration),
+             Migration(EXTERNAL_MCP_CONFIG_MIGRATION_ID, apply_external_mcp_config_migration),
+             Migration(CONSOLE_CSRF_MIGRATION_ID, apply_console_csrf_migration),
+             Migration(TOOL_CATALOG_MIGRATION_ID, apply_tool_catalog_migration),
+             Migration(MCP_GROUPS_MIGRATION_ID, apply_mcp_groups_migration),
+             Migration(MCP_GROUP_REQUESTS_MIGRATION_ID, apply_mcp_group_requests_migration),
+             Migration(MCP_GROUP_ROUTING_MIGRATION_ID, apply_mcp_group_routing_migration),
+             Migration(CATALOG_GROUP_EPOCH_MIGRATION_ID, apply_catalog_group_epoch_migration)),
         ).run()
 
     def _apply_baseline_migration(self, connection: sqlite3.Connection) -> None:
@@ -443,17 +484,24 @@ class SQLiteDatabase:
         connection.execute("CREATE INDEX IF NOT EXISTS idx_users_status ON users(status)")
         connection.execute("CREATE INDEX IF NOT EXISTS idx_api_tokens_user_id ON api_tokens(user_id)")
 
+    @contextmanager
+    def session(self) -> Iterator[sqlite3.Connection]:
+        """复用一次操作内的连接，并在提交或回滚后明确释放 SQLite 句柄。"""
+
+        with closing(self.connect()) as connection:
+            with connection:
+                yield connection
+
     def execute(self, sql: str, parameters: tuple[Any, ...] = ()) -> None:
-        with self.connect() as connection:
+        with self.session() as connection:
             connection.execute(sql, parameters)
-            connection.commit()
 
     def query_one(self, sql: str, parameters: tuple[Any, ...] = ()) -> sqlite3.Row | None:
-        with self.connect() as connection:
+        with self.session() as connection:
             return connection.execute(sql, parameters).fetchone()
 
     def query_all(self, sql: str, parameters: tuple[Any, ...] = ()) -> list[sqlite3.Row]:
-        with self.connect() as connection:
+        with self.session() as connection:
             return list(connection.execute(sql, parameters).fetchall())
 
 

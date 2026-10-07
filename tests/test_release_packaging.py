@@ -652,7 +652,7 @@ def test_release_is_the_only_container_publisher() -> None:
     assert "cosign sign" not in container_workflow
 
 
-def test_manual_release_publication_is_version_checked_and_fail_closed() -> None:
+def test_release_publication_is_version_checked_and_fail_closed() -> None:
     publish_workflow = (
         REPOSITORY_ROOT / ".github" / "workflows" / "publish-release.yml"
     ).read_text(encoding="utf-8")
@@ -661,7 +661,9 @@ def test_manual_release_publication_is_version_checked_and_fail_closed() -> None
     ).read_text(encoding="utf-8")
 
     assert "workflow_dispatch:" in publish_workflow
-    assert "\n  push:" not in publish_workflow
+    assert "\n  push:\n    branches:\n      - main" in publish_workflow
+    assert "needs: select" in publish_workflow
+    assert "if: needs.select.outputs.publish == 'true'" in publish_workflow
     assert "contents: write" in publish_workflow
     assert "actions: write" in publish_workflow
     assert "cancel-in-progress: false" in publish_workflow
@@ -1325,3 +1327,15 @@ def test_tag_only_release_jobs_set_up_python_before_scripts(job_name: str) -> No
     assert first_script is not None
     assert setup < first_script.start()
     assert "python-version: ${{ env.LINGSHU_GATE_RELEASE_PYTHON_VERSION }}" in job
+
+
+@pytest.mark.parametrize("workflow_name", ["release.yml", "docker.yml"])
+def test_trivy_cache_stays_outside_release_source(workflow_name: str) -> None:
+    workflow = (REPOSITORY_ROOT / ".github/workflows" / workflow_name).read_text()
+    scans = workflow.split("uses: aquasecurity/trivy-action@")[1:]
+    assert scans
+    for scan in scans:
+        step = scan.split("\n      - name:", 1)[0]
+        assert "cache-dir: ${{ runner.temp }}/trivy-cache" in step
+        assert 'exit-code: "1"' in step
+        assert "severity: CRITICAL" in step

@@ -6,6 +6,7 @@ from fastapi import Depends, FastAPI, Request, Response
 
 from lingshu_gate.auth import AuthPrincipal, AuthStore
 from lingshu_gate.config import Settings
+from lingshu_gate.external_connection import ExternalConnectionConfig
 from lingshu_gate.interfaces.control_api.dependencies import AuthDependency
 from lingshu_gate.models import (
     AuthLoginRequest,
@@ -73,3 +74,16 @@ def register_auth_routes(
         principal: AuthPrincipal = Depends(require_viewer),
     ) -> AuthUserResponse:
         return AuthUserResponse.model_validate(auth_store.me(principal))
+
+    @app.get("/v1/auth/external-connection", tags=["auth"])
+    def external_connection_status(
+        request: Request,
+        principal: AuthPrincipal = Depends(require_viewer),
+    ) -> dict[str, object]:
+        """Report readiness only, without connection references or secrets."""
+        store = getattr(request.app.state, "external_connection_store", None)
+        if store is None:
+            return settings.external_connection.status()
+        config = store.config()
+        return ExternalConnectionConfig(**{key: value for key, value in config.items()
+                                           if key not in {"revision", "updated_at"}}).status()

@@ -1,12 +1,21 @@
 import { createContext, useContext, useEffect, useId, useLayoutEffect, useRef, useState, type ButtonHTMLAttributes, type KeyboardEvent as ReactKeyboardEvent, type MouseEvent, type ReactNode } from "react"
 import { createPortal } from "react-dom"
 import { MoreHorizontal } from "lucide-react"
+import { Button } from "@/components/ui/button"
 import { cn } from "@/lib/utils"
 
 const CloseActionMenuContext = createContext<() => void>(() => undefined)
+const InlineActionsContext = createContext(false)
 const MENU_WIDTH = 176
 
-export function ActionMenu({ label, children }: { label: string; children: ReactNode }) {
+export function ActionMenu({ label, children, inline = false }: { label: string; children: ReactNode; inline?: boolean }) {
+  if (inline) return <InlineActionsContext.Provider value={true}>
+    <div role="group" aria-label={label} className="inline-actions" onClick={event => event.stopPropagation()} onKeyDown={event => event.stopPropagation()}>{children}</div>
+  </InlineActionsContext.Provider>
+  return <DropdownActionMenu label={label}>{children}</DropdownActionMenu>
+}
+
+function DropdownActionMenu({ label, children }: { label: string; children: ReactNode }) {
   const [open, setOpen] = useState(false)
   const [position, setPosition] = useState({ left: 0, top: 0 })
   const triggerRef = useRef<HTMLButtonElement>(null)
@@ -63,17 +72,17 @@ export function ActionMenu({ label, children }: { label: string; children: React
     items[nextIndex]?.focus()
   }
 
-  return <div className="inline-block text-left">
+  return <div className="inline-block shrink-0 text-left">
     <button
       ref={triggerRef}
       type="button"
       aria-haspopup="menu"
       aria-expanded={open}
       aria-controls={open ? menuId : undefined}
-      className="inline-flex h-8 items-center justify-center gap-2 rounded-md border border-input bg-background px-3 text-xs font-medium shadow-sm transition-colors hover:bg-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+      className="relative inline-flex h-8 shrink-0 items-center justify-center gap-2 whitespace-nowrap rounded-md border border-input bg-background px-3 text-xs font-medium shadow-sm transition-colors hover:bg-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
       onClick={(event) => { event.stopPropagation(); setOpen((value) => !value) }}
     >
-      <MoreHorizontal className="size-4" /><span className="sr-only sm:not-sr-only">{label}</span>
+      <MoreHorizontal className="size-4 shrink-0" /><span className="sr-only sm:not-sr-only">{label}</span>
     </button>
     {open ? createPortal(
       <CloseActionMenuContext.Provider value={() => setOpen(false)}>
@@ -88,12 +97,15 @@ export function ActionMenu({ label, children }: { label: string; children: React
 
 export function ActionMenuItem({ destructive = false, className, onClick, ...props }: ButtonHTMLAttributes<HTMLButtonElement> & { destructive?: boolean }) {
   const close = useContext(CloseActionMenuContext)
+  const inline = useContext(InlineActionsContext)
 
   function handleClick(event: MouseEvent<HTMLButtonElement>) {
     event.stopPropagation()
     close()
     onClick?.(event)
   }
+
+  if (inline) return <Button {...props} type="button" variant="ghost" size="sm" className={cn(destructive && "text-destructive hover:bg-destructive/10 hover:text-destructive", className)} onClick={handleClick} />
 
   return <button {...props} type="button" role="menuitem" className={cn("flex w-full items-center rounded-sm px-2 py-2 text-left text-xs transition-colors hover:bg-accent disabled:pointer-events-none disabled:opacity-50", destructive && "text-destructive hover:bg-destructive/10", className)} onClick={handleClick} />
 }

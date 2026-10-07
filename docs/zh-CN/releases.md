@@ -4,7 +4,19 @@
 
 Lingshu Gate 发行自动化会生成可直接运行的原生包、Docker Compose 部署包，以及只在 Tag 发行提供的 Core 离线镜像。每个已发布资产都由 `SHA256SUMS` 和仓库 Build Provenance Attestation 覆盖。
 
+当前源码版本为 `0.4.0`。控制台服务与记录操作改为直接显示按钮，OpenAPI、退出登录及凭据引用操作也保持可见。按钮组在窄屏下支持换行，原有权限检查、状态限制和确认流程保持不变。运行时版本信息、Python 包元数据、CLI 输出及发行产物名称统一读取 `src/lingshu_gate/_version.py` 中的唯一版本源。
+
+当前源码控制台还包含卡片式工具目录，支持按具体 MCP 部署筛选、展示实际读写要求，并将选中工具带入调用编辑器。工具发现新增当前请求的 `metadata.gate_access` 展示快照，详见[运维指南](operations.md#工具目录)。该变更不新增前端依赖或数据库迁移。
+
+## 0.3.1 安全与发行恢复
+
+此源码要求 PyJWT 最低为 2.14.0，并将其锁定到 2.15.1，包含 CVE-2026-102268 的修复。pip 依赖导出文件从同一份 uv 锁文件重新生成。既有仅 RS256 的验证规则以及默认关闭的外部认证保持不变。
+
+失败的 `v0.3.0` Tag 保留在原修订。修正后的源码使用新的 `v0.3.1` Tag；版本变更或创建 Tag 本身不代表发行资产已通过验证或完成发布。
+
 ## 产物矩阵
+
+待发布源码变更：外部 HTTP 工具调用遇到 MCP 会话过期时，重新握手并发现工具一次。仅已发布为只读且工具定义未变化的调用自动重试一次，其余调用返回可操作的结构化错误；恢复失败会反映在运行状态和健康状态中。本能力由请求触发，不定时探活或重启外部进程，需要部署更新后的源码才生效。
 
 | 目标 | 资产 | 构建架构 |
 |---|---|---|
@@ -21,7 +33,17 @@ Lingshu Gate 发行自动化会生成可直接运行的原生包、Docker Compos
 
 不要在不同操作系统或 CPU 架构上运行不匹配的归档。
 
+## MCP 协议兼容
+
+Gate 在同一 `/mcp` 入口支持 `initialize` 和 `2026-07-28` 发现流程。客户端与下游连接分别选择协议版本，既有 Bearer Token、授权和外部数据目录保持不变。详见[连接契约](mcp-gateway.md#连接契约)。
+
+下游 HTTP 和 stdio 在省略 `transport.protocol_version` 或设置为 `auto` 时自动协商：优先使用 `2026-07-28`，仅在明确的协议拒绝后尝试初始化。显式的 `2025-03-26`、`2025-06-18`、`2025-11-25` 或 `2026-07-28` 指定起始协议并关闭发现回退，初始化仍可协商其他受支持版本。下游 stdio 另支持 `2024-11-05`。这些规则统一应用于已配置的服务，无需改写 Manifest。
+
 ## 原生包内容
+
+切换可执行文件时，应保留服务环境、配置目录、数据目录及凭据密钥。自行构建升级时，应核对 `BUILD-INFO.json` 的源码版本、验证两条协议路径，并保留旧包用于回退。包含未提交修改的自行构建包，应在基准版本旁记录实际源码清单与摘要；仅用提交号不能识别该包。
+
+Console 包含由 `web/package-lock.json` 锁定的 Ant Design 及其图标库，仍作为静态客户端由 Gate 提供，发行包不需要额外的前端应用服务器。打包 Console 更新前，应核对服务目录、详情分区加载、深浅主题、中英文文案及既有权限控制，并在生成的发行清单中包含新增前端依赖的许可证。
 
 每个原生归档包含一个顶层目录，以及：
 
@@ -136,9 +158,21 @@ ARM64 使用 `arm64` 资产和 Tag。让 `LINGSHU_GATE_IMAGE` 指向加载后的
 
 仅在 Tag 上运行的容器、离线镜像和发布任务，均在执行发行脚本前显式安装固定版本的发行 Python 环境。失败的发行 Tag 保留；修复后的源码使用新版本发布，不移动旧 Tag。
 
+`v0.2.1` Tag 指向因历史身份检查而发行失败的修订。恢复源码使用 `0.2.2`，合并到
+`main` 后启动新的校验和发布。重跑旧 Tag 仍会检查其原始源码；不会移动或删除旧 Tag。
+精确限定的历史例外详见[开发指南](local-development.md#身份检查)。
+
 配置 Actions Secret `RELEASE_SETTINGS_TOKEN`，使用仅限本仓库、具备 **Administration: read-only** 权限的 GitHub fine-grained token。不可变发行设置接口要求此权限，默认 `GITHUB_TOKEN` 无法提供。此令牌仅用于读取该设置；创建 Tag 和触发工作流仍使用 `GITHUB_TOKEN`。凭据缺失、访问被拒绝或未启用不可变发行都会在创建 Tag 前终止发布。
 
-发行工作流在影响打包的 Pull Request、手动触发和 `v*` Tag 上运行。独立的 **Publish release** 工作流是正式发行的仓库批准入口：从 `main` 触发并输入精确的 `v<version>` Tag。它会校验源码版本，在创建 Tag 前强制确认仓库已启用 Release immutability，在该次 `main` 修订上创建或验证不可移动的 Tag，再以已验证的 Tag 触发 `release.yml`。
+发行工作流在影响版本、依赖、打包、启动入口/运行环境、身份策略或发行工作流的 Pull Request、手动触发和 `v*` Tag 上运行。普通 UI 和 README 修改使用统一 CI，不启动原生打包矩阵。打包 PR 在统一 CI 之外运行针对性的发行测试；正式发行保留独立完整源码校验，并在五个目标平台重新构建。独立的 **Publish release** 工作流是正式发行的仓库批准入口，会检查每次推送到 `main` 的提交，同时保留从 `main` 输入精确 `v<version>` Tag 的手动触发入口。
+
+对于 `main` 推送，工作流分别解析此次推送 `before` 和 `after` 修订中唯一版本来源 `src/lingshu_gate/_version.py` 的值，只有版本发生变化才开始发布；普通提交和仅修改注释都不会发布。例如，明确将版本从 `0.2.0` 改为 `0.2.1`，会在此次推送的精确 `after` 修订上创建 `v0.2.1`。工作流不会自动递增版本号。合并自动化改动时，如果源码版本不变，不会补发 `v0.2.0`。
+
+两个入口都会校验源码版本，确认发布凭据齐备且仓库已启用 Release immutability，在选定的精确 `main` 修订上创建或验证不可移动的 Tag，再明确以已验证的 Tag 触发 `release.yml`。版本不合法、推送基准缺失或无法验证、已有 Tag 指向其他修订、凭据缺失或未启用不可变发行，都会终止发布。Tag 发行仍执行既有的全部打包、测试、Attestation 和镜像仓库发布检查。
+
+失败后，优先重跑原来的 **Publish release** 运行，保留其 `before` 修订和源码 SHA；或重跑已有 **Release artifacts** 运行中失败的 Job。手动触发 **Publish release** 仍须匹配所选 `main` 修订及其源码版本：如果 Tag 已创建且 `main` 已前进，从最新 `main` 手动触发旧 Tag 会被正确拒绝。修复源码须使用新版本；后续版本不变的推送不会自动重试失败的发行。同一提交上的同一 Tag 可以再次执行，但仍受既有的不可变 Release 和资产校验约束。这不保证发布恰好执行一次，也不会为重试而移动已有 Tag。
+
+**Publish release** 入口工作流和 `release.yml` 中的镜像仓库发布 Job 均使用 `queue: max`。每个并发组最多允许 100 个待运行项；队列满时 GitHub 会取消新增项，对应发行需要人工恢复。详见 [GitHub 并发限制](https://docs.github.com/en/actions/how-tos/write-workflows/choose-when-workflows-run/control-workflow-concurrency)。
 
 独立的 **Container images** 工作流只负责验证。推送到 `main`、Pull Request 和手动运行可以构建并扫描 Core 镜像，但该工作流不会登录镜像仓库，也不会推送任何镜像。镜像发布只保留在 `release.yml` 的已验证 Tag 链路中。
 
@@ -155,14 +189,14 @@ Pull Request 构建成功不等于已经发布。只有匹配且通过验证的 
 
 ## 版本与发行检查清单
 
-创建 Tag 前：
+将版本变更合并到 `main` 或手动开始发布前：
 
 1. 更新单一版本来源和面向用户的发行说明；
 2. 运行后端、Console、身份、打包和容器检查；
 3. 确认 `LICENSE`、`NOTICE` 和 `THIRD_PARTY_NOTICES.md` 为最新状态；
 4. 确认英文与简体中文文档匹配产物行为；
 5. 在首次创建 Release 前，为仓库启用 GitHub Release immutability；
-6. 从 `main` 触发 **Publish release** 并输入精确的 `v<version>` Tag；工作流会在不移动已有 Ref 的前提下创建或验证 Tag，然后启动已验证的 Tag 发行；
+6. 将版本变更合并到 `main`，自动启动 **Publish release**；工作流会在不移动已有 Ref 的前提下创建或验证 Tag，然后启动已验证的 Tag 发行；失败时按上面的恢复规则处理；
 7. 等待全部矩阵 Job 和发布步骤完成；
 8. 独立下载并校验至少一个原生归档、Compose 包、`SHA256SUMS` 及其 Attestation；
 9. 校验已发布容器摘要和 Release 链接。
@@ -182,3 +216,17 @@ Docker Hub 版本镜像同步成功后才创建 GitHub Release。已有版本标
 Release 附件及 Attestation 验证完成后，只有被 GitHub 标记为最新稳定版的发行才更新 `docker.io/<DOCKERHUB_USERNAME>/lingshu-gate:latest`。预发布版和旧版本重跑不会移动 `latest`。发布 Job 串行执行。若更新 `latest` 失败，已发布的版本和 Release 保留，工作流失败；可重跑以重试验证和同步。GHCR、Docker Hub 和 GitHub Release 之间不是原子事务，失败时可能已有一个仓库的版本镜像发布成功。不要为重试而删除或替换已发布版本标签。
 
 Docker Hub 镜像包含 BuildKit SBOM/Provenance Manifest。GitHub 附件 Attestation 仍属于 GitHub Release 附件；可选 Cosign 签名仍针对 GHCR Digest，不额外创建 Docker Hub 签名。
+
+## 0.4.0 功能与边界
+
+本版将内置 OAuth 与 Git/网络控制面整合，保留既有 API token 和外部 IdP 验证。README 按网关、RBAC、工具治理、凭据、项目交付、个人工作区、审计/保留及发行能力提供完整导航；中英文截图来自相同候选代码的合成实例。
+
+内置 OAuth 默认关闭，复用 Gate 用户与 RBAC，提供机密静态客户端、S256 PKCE、每用户工具同意、单次授权码、刷新轮换、加密 RS256 私钥和实时撤销检查。独立公网资源不要求公开 Console。保留 `0006_builtin_oauth`、`0007_auth_session_purpose` 和 `0008_oauth_interaction_capacity` 的独立注册。外部 IdP 模式仍只负责资源验证，不托管 provider 的授权流程；两种模式均不创建隧道。详见[内置 OAuth](builtin-oauth.md)和[外部资源访问](external-connections.md)。
+
+系统设置新增网络与依赖页：命名代理的加密/脱敏版本、独立 Git/安装默认项、inherit/direct/profile 项目覆盖、独立依赖源、乐观锁、引用保护、审计和独立权限。Git 计划接入现有上传/预检/BuildPlan/构建/部署/启动链路，固定 commit 并限制源码快照。Node 计划识别 npm/pnpm/Yarn Classic 的明确版本与锁文件；未知或冲突返回可操作错误，不静默回退。`0004_gate_git_network` 与 OAuth 迁移同时保留。
+
+**生产安全网络执行器尚未实现，真实 Git 拉取、代理测试、工具准备和指定网络安装继续阻断。** 不放宽 Docker Core、不挂引擎 socket、不回退宿主全局设置。只读 Manifest 校验不执行版本探测；已授权原生启动仅使用管理员复核注册的准确工具。合成测试不认证实际工具下载/安装或运行时隔离。详见[设计与支持矩阵](git-import-network.md)、[整合记录](git-network-integration.md)和[执行器缺口](git-executor-decision.md)。
+
+审核修复还包括嵌套源码根目录一致性、Git 计划成功审计、过期未使用计划的有界清理和配额、保留已使用计划来源，以及 JSON-RPC 保留范围负整数错误码与 OAuth 秘密脱敏的兼容。浏览器修复保持外部接入引导可达、历史构建先加载项目再部署，以及角色搜索框可编辑；不会跳过确认、扩大权限或盲重放写操作。
+
+[验证记录](release-validation.md)区分静态检查、已执行自动化、合成浏览器、真实网络未验证及发行工作流结果。PR 的原生矩阵/Compose 校验不代表已发布；Tag、离线镜像、SBOM、校验和与 GitHub Release 必须在既有工作流实际完成后分别确认。没有生产部署、用户 Git/代理/SSH、外部账号或真实凭据联调。

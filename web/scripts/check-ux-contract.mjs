@@ -1,6 +1,9 @@
+// Static source-contract checks only. Matching source text does not validate
+// browser interactions, visual quality, or accessibility.
 import { readFile } from "node:fs/promises"
 import { fileURLToPath } from "node:url"
 import { dirname, join } from "node:path"
+import { validateI18nMessages } from "./i18n-contract.mjs"
 
 const webRoot = dirname(dirname(fileURLToPath(import.meta.url)))
 const pageRoot = join(webRoot, "src", "pages")
@@ -16,7 +19,14 @@ const pageNames = [
   "logs-events-page.tsx",
   "runtime-cache-page.tsx",
   "uploads-page.tsx",
+  "system-settings-page.tsx",
   "tool-classifications-page.tsx",
+  "access-users-page.tsx",
+  "access-roles-page.tsx",
+  "access-grants-page.tsx",
+  "personal-tokens-page.tsx",
+  "downstream-credentials-page.tsx",
+  "invocation-audit-page.tsx",
 ]
 const searchablePages = new Set([
   "configs-page.tsx",
@@ -27,20 +37,32 @@ const searchablePages = new Set([
   "runtime-cache-page.tsx",
   "uploads-page.tsx",
   "tool-classifications-page.tsx",
+  "access-users-page.tsx",
+  "access-grants-page.tsx",
+  "invocation-audit-page.tsx",
 ])
 const workflowPages = new Set([
   "builds-page.tsx",
-  "invoke-page.tsx",
   "uploads-page.tsx",
 ])
 
 function assertContract(condition, message) {
-  if (!condition) throw new Error(`UX 契约失败：${message}`)
+  if (!condition) throw new Error(`静态 UI 契约失败：${message}`)
 }
 
 for (const pageName of pageNames) {
   const source = await readFile(join(pageRoot, pageName), "utf8")
-  assertContract(source.includes("PageHeader"), `${pageName} 未接入 PageHeader`)
+  if (pageName === "dashboard-page.tsx") {
+    // The dashboard uses an inline overview instead of an otherwise empty
+    // toolbar. Keep its accessible page identity without a redundant help row.
+    assertContract(/<h1\b[^>]*>\{t\("dashboard"\)\}<\/h1>/.test(source), `${pageName} 缺少可访问的页面标题`)
+  } else {
+    assertContract(source.includes("PageHeader"), `${pageName} 缺少统一页面标题`)
+  }
+  if (!["servers-page.tsx", "dashboard-page.tsx"].includes(pageName)) {
+    assertContract(source.includes('helpLabel={t("pageHelp")}'), `${pageName} 缺少多语言页面帮助入口`)
+    assertContract(source.includes('closeLabel={t("close")}'), `${pageName} 缺少多语言关闭按钮`)
+  }
   assertContract(!/eyebrow="[^"]+"/.test(source), `${pageName} 的页面分类未经过多语言`)
   if (searchablePages.has(pageName)) {
     assertContract(source.includes("PageToolbar"), `${pageName} 缺少搜索或筛选工具栏`)
@@ -53,14 +75,11 @@ for (const pageName of pageNames) {
 }
 
 const i18nSource = await readFile(join(webRoot, "src", "i18n.ts"), "utf8")
-const zhStart = i18nSource.indexOf('"zh-CN": {')
-const enStart = i18nSource.indexOf('"en-US": {', zhStart)
-const objectEnd = i18nSource.indexOf("\n  }\n}", enStart)
-const readKeys = (source) => new Set(Array.from(source.matchAll(/^\s{4}([A-Za-z0-9_]+):/gm), (match) => match[1]))
-const zhKeys = readKeys(i18nSource.slice(zhStart, enStart))
-const enKeys = readKeys(i18nSource.slice(enStart, objectEnd))
-assertContract(zhKeys.size === enKeys.size, `中英文词条数量不一致：${zhKeys.size}/${enKeys.size}`)
-for (const key of zhKeys) assertContract(enKeys.has(key), `英文缺少词条 ${key}`)
+try {
+  validateI18nMessages(i18nSource)
+} catch (error) {
+  assertContract(false, error instanceof Error ? error.message : "无法解析语言词条")
+}
 
 const actionMenuSource = await readFile(join(webRoot, "src", "components", "action-menu.tsx"), "utf8")
 assertContract(actionMenuSource.includes("createPortal"), "操作菜单必须通过 Portal 渲染，避免被表格滚动容器裁剪")
@@ -79,4 +98,4 @@ assertContract(classificationSource.includes("c.step4"), "工具分类页缺少�
 assertContract(classificationSource.includes("labels.confirmedPending"), "工具分类页缺少已确认待发布状态")
 assertContract(classificationSource.includes("labels.needsConfirmation"), "工具分类页缺少待确认状态")
 
-console.log(`UX 契约通过：${pageNames.length} 个页面，${searchablePages.size} 个可搜索页面，${workflowPages.size} 个阶段式工作流。`)
+console.log(`静态 UI 契约通过：${pageNames.length} 个页面，${searchablePages.size} 个可搜索页面，${workflowPages.size} 个阶段式工作流。仅验证源码约定；未执行浏览器交互、视觉或可访问性验收。`)

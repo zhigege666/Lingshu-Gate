@@ -20,8 +20,11 @@ def _node_preflight_metadata(**overrides: object) -> dict[str, object]:
         "package_scripts": ["start"],
         "node_install_required": False,
         "node_install_reason": "No Node dependencies or install lifecycle scripts detected",
+        "node_package_manager": {"name": "npm", "version": "11.6.0", "supported": True, "errors": [], "lockfile": ""},
     }
     metadata.update(overrides)
+    if overrides.get("has_package_lock"):
+        metadata["node_package_manager"] = {"name": "npm", "version": "11.6.0", "supported": True, "errors": [], "lockfile": "package-lock.json"}
     return metadata
 
 
@@ -40,7 +43,7 @@ class BuildPlanTest(unittest.TestCase):
         self.assertFalse(plan["manifest"]["resolve_after_build"])
         self.assertIn("after artifact packaging", plan["notes"][0])
 
-    def test_node_project_with_dependencies_still_installs_without_lockfile(self) -> None:
+    def test_node_project_with_dependencies_without_lockfile_blocks_unlocked_install(self) -> None:
         plan = build_plan(
             {
                 "runtime": "node",
@@ -52,8 +55,8 @@ class BuildPlanTest(unittest.TestCase):
             }
         )
 
-        self.assertEqual(plan["steps"][0]["command"], ["npm", "install"])
-        self.assertEqual(plan["steps"][0]["reason"], "Node dependency groups present: dependencies")
+        self.assertFalse(plan["buildable"])
+        self.assertIn("lockfile", plan["warnings"][0])
 
     def test_node_project_with_lockfile_uses_ci_when_install_is_required(self) -> None:
         plan = build_plan(
@@ -82,7 +85,7 @@ class BuildPlanTest(unittest.TestCase):
             }
         )
 
-        self.assertEqual(plan["steps"][0]["command"], ["npm", "install"])
+        self.assertFalse(plan["buildable"])
 
     def test_plan_validation_rejects_commands_not_generated_for_the_step(self) -> None:
         plan = build_plan(
@@ -102,8 +105,8 @@ class BuildPlanTest(unittest.TestCase):
 
     def test_preflight_derives_install_requirement_from_package_json(self) -> None:
         tools_cache = {
-            name: {"available": True, "path": name, "version": "test", "error": ""}
-            for name in ("node", "npm", "npx", "python", "python3", "pip", "pip3")
+            name: {"available": True, "path": name, "version": "11.6.0", "error": ""}
+            for name in ("node", "npm", "npx", "pnpm", "yarn", "python", "python3", "pip", "pip3")
         }
         with tempfile.TemporaryDirectory() as temporary_dir:
             root = Path(temporary_dir)
@@ -122,6 +125,57 @@ class BuildPlanTest(unittest.TestCase):
         self.assertFalse(preflight["metadata"]["node_install_required"])
         self.assertEqual(preflight["metadata"]["node_dependency_groups"], [])
         self.assertEqual(build_plan(preflight)["steps"], [])
+
+    def test_node_preflight_explains_unrelated_python_tool_warnings(self) -> None:
+        tools_cache = {
+            name: {"available": name not in {"python", "pip", "pip3", "pnpm", "yarn"}, "path": name, "version": "11.6.0", "error": ""}
+            for name in ("node", "npm", "npx", "pnpm", "yarn", "python", "python3", "pip", "pip3")
+        }
+        with tempfile.TemporaryDirectory() as temporary_dir:
+            root = Path(temporary_dir)
+            (root / "package.json").write_text(
+                json.dumps({"name": "plain-mcp", "scripts": {"start": "node index.js"}}),
+                encoding="utf-8",
+            )
+            (root / "index.js").write_text("console.log('ok');\n", encoding="utf-8")
+            preflight = run_build_preflight({"root_dir": str(root)}, runtime_override="node", tools_cache=tools_cache)
+
+        self.assertEqual(preflight["status"], "warning")
+        self.assertEqual(len(preflight["recommendations"]), 1)
+        self.assertIn("不阻断 node 项目", preflight["recommendations"][0]["message"])
+        self.assertNotIn("安装 Python", preflight["recommendations"][0]["message"])
+
+    def test_node_preflight_still_reports_missing_required_tool(self) -> None:
+        tools_cache = {
+            name: {"available": name != "node", "path": name, "version": "test", "error": ""}
+            for name in ("node", "npm", "npx", "pnpm", "yarn", "python", "python3", "pip", "pip3")
+        }
+        with tempfile.TemporaryDirectory() as temporary_dir:
+            root = Path(temporary_dir)
+            (root / "package.json").write_text(
+                json.dumps({"name": "plain-mcp", "scripts": {"start": "node index.js"}}),
+                encoding="utf-8",
+            )
+            (root / "index.js").write_text("console.log('ok');\n", encoding="utf-8")
+            preflight = run_build_preflight({"root_dir": str(root)}, runtime_override="node", tools_cache=tools_cache)
+
+        self.assertEqual(preflight["status"], "error")
+        self.assertIn("缺少必需工具：node", preflight["recommendations"][0]["message"])
+
+    def test_python_preflight_explains_unrelated_node_tool_warnings(self) -> None:
+        tools_cache = {
+            name: {"available": name in {"python3", "pip3"}, "path": name, "version": "test", "error": ""}
+            for name in ("node", "npm", "npx", "pnpm", "yarn", "python", "python3", "pip", "pip3")
+        }
+        with tempfile.TemporaryDirectory() as temporary_dir:
+            root = Path(temporary_dir)
+            (root / "requirements.txt").write_text("", encoding="utf-8")
+            (root / "main.py").write_text("print('ok')\n", encoding="utf-8")
+            preflight = run_build_preflight({"root_dir": str(root)}, runtime_override="python", tools_cache=tools_cache)
+
+        self.assertEqual(preflight["status"], "warning")
+        self.assertIn("不阻断 python 项目", preflight["recommendations"][0]["message"])
+        self.assertNotIn("安装 Node", preflight["recommendations"][0]["message"])
 
 
 if __name__ == "__main__":

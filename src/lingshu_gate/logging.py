@@ -17,6 +17,21 @@ GATE_EVENT_NAME_PATTERN = re.compile(
 )
 
 
+class OAuthAccessLogFilter(logging.Filter):
+    """Uvicorn's normal access log includes query strings; OAuth never does."""
+    def filter(self, record: logging.LogRecord) -> bool:
+        if isinstance(record.args, tuple) and len(record.args) == 5:
+            args = list(record.args)
+            path = str(args[2]).split("?", 1)[0]
+            if path.startswith("/oauth/"):
+                known = {"/oauth/authorize", "/oauth/token", "/oauth/revoke", "/oauth/context",
+                         "/oauth/consent", "/oauth/login", "/oauth/logout", "/oauth/decision", "/oauth/jwks"}
+                path = path if path in known else "/oauth/[path]"
+            args[2] = path
+            record.args = tuple(args)
+        return True
+
+
 def validate_gate_event_name(event: str) -> str:
     """Return a valid first-party event name or fail at the write boundary."""
 
@@ -53,6 +68,9 @@ class JsonFormatter(logging.Formatter):
 
 def configure_logging(level: str) -> None:
     """Configure process-wide JSON logging."""
+    access_logger = logging.getLogger("uvicorn.access")
+    if not any(isinstance(item, OAuthAccessLogFilter) for item in access_logger.filters):
+        access_logger.addFilter(OAuthAccessLogFilter())
 
     root = logging.getLogger()
     root.handlers.clear()

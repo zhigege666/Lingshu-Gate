@@ -9,6 +9,7 @@ repository_root = Path(SPECPATH).parent
 source_root = repository_root / "src"
 
 datas = collect_data_files("lingshu_gate", include_py_files=False)
+datas.append((str(source_root / "lingshu_gate" / "adapters" / "native_executor" / "runner.py"), "lingshu_gate/adapters/native_executor"))
 hiddenimports = sorted(set(collect_submodules("lingshu_gate")))
 
 analysis = Analysis(

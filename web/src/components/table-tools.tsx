@@ -58,14 +58,18 @@ function ColResizeHandle({ onPointerDown }: { onPointerDown: (event: React.Point
  */
 export function usePagedSorted<T>(rows: T[], options: {
   pageSize?: number
+  filterKey?: string
   initialSortKey?: string
   initialSortDir?: SortDir
   getSortValue?: (row: T, key: string) => string | number | null | undefined
 }) {
-  const { pageSize = 10, initialSortKey = "", initialSortDir = "desc", getSortValue } = options
+  const { pageSize = 10, filterKey = "", initialSortKey = "", initialSortDir = "desc", getSortValue } = options
   const [sortKey, setSortKey] = useState(initialSortKey)
   const [sortDir, setSortDir] = useState<SortDir>(initialSortDir)
-  const [page, setPage] = useState(1)
+  const [position, setPosition] = useState({ page: 1, filterKey })
+  if (position.filterKey !== filterKey) setPosition({ page: 1, filterKey })
+  const page = position.filterKey === filterKey ? position.page : 1
+  const setPage = (page: number) => setPosition({ page, filterKey })
 
   const sorted = useMemo(() => {
     if (!sortKey || !getSortValue) return rows
@@ -106,7 +110,7 @@ export function SortHead({ label, sortKey, activeKey, dir, onSort, onResizeStart
   const sortable = Boolean(sortKey && onSort)
   const active = sortable && activeKey === sortKey
   return (
-    <TableHead className={cn("relative", className)}>
+    <TableHead className={cn("relative", className)} aria-sort={sortable ? active ? dir === "asc" ? "ascending" : "descending" : "none" : undefined}>
       {sortable ? (
         <button type="button" onClick={() => onSort?.(sortKey as string)} className={cn("inline-flex items-center gap-1 transition-colors hover:text-foreground", active ? "text-foreground" : "text-muted-foreground")}>
           {label}
@@ -127,9 +131,9 @@ export function Pager({ t, page, pageCount, total, onPage }: { t: TFunction; pag
     <div className="flex items-center justify-between gap-3 pt-3 text-xs text-muted-foreground">
       <span>{t("total")} {total}</span>
       <div className="flex items-center gap-2">
-        <Button size="sm" variant="outline" className="h-7 px-2" disabled={page <= 1} onClick={() => onPage(page - 1)} aria-label="Previous"><ChevronLeft /></Button>
+        <Button size="sm" variant="outline" className="h-7 px-2" disabled={page <= 1} onClick={() => onPage(page - 1)} aria-label={t("previousPage")}><ChevronLeft /></Button>
         <span>{page} / {pageCount}</span>
-        <Button size="sm" variant="outline" className="h-7 px-2" disabled={page >= pageCount} onClick={() => onPage(page + 1)} aria-label="Next"><ChevronRight /></Button>
+        <Button size="sm" variant="outline" className="h-7 px-2" disabled={page >= pageCount} onClick={() => onPage(page + 1)} aria-label={t("nextPage")}><ChevronRight /></Button>
       </div>
     </div>
   )

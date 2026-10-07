@@ -1,0 +1,9 @@
+.mcp-client-inline-form .ant-form-item-row { display: grid; grid-template-columns: 160px minmax(0, 1fr); gap: 12px; }
+.mcp-client-inline-form .ant-form-item-label { text-align: left; white-space: nowrap; padding: 0; }
+.mcp-client-inline-form .ant-form-item-label > label { white-space: nowrap; }
+.mcp-client-inline-form .ant-form-item-control { min-width: 0; max-width: none; }
+.mcp-client-inline-form .ant-radio-group { display: flex; flex-wrap: wrap; gap: 8px; }
+@media (max-width: 600px) {
+  .mcp-client-inline-form .ant-form-item-row { grid-template-columns: 126px minmax(0, 1fr); gap: 8px; }
+  .mcp-client-inline-form .ant-form-item-label { font-size: 12px; }
+}

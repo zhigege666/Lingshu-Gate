@@ -40,6 +40,14 @@ ENV PYTHONDONTWRITEBYTECODE=1 \
 
 WORKDIR /app
 
+# The pinned Bookworm image still carries perl-base deb12u3. Keep the base
+# digest fixed and install Debian's exact security revision for the three
+# inherited Perl CVEs; do not suppress the container scan.
+RUN sed -i 's|http://deb.debian.org|https://deb.debian.org|g' /etc/apt/sources.list.d/debian.sources \
+    && apt-get update -o APT::Update::Error-Mode=any \
+    && apt-get install --yes --no-install-recommends --only-upgrade perl-base=5.36.0-7+deb12u4 \
+    && rm -rf /var/lib/apt/lists/*
+
 RUN groupadd --gid "${APP_GID}" gate \
     && useradd --uid "${APP_UID}" --gid "${APP_GID}" --no-create-home \
       --home-dir /data/home --shell /usr/sbin/nologin gate \
@@ -57,6 +65,9 @@ COPY src ./src
 COPY --from=console-builder \
     /app/src/lingshu_gate/static/console \
     ./src/lingshu_gate/static/console
+COPY --from=console-builder \
+    /app/src/lingshu_gate/static/oauth \
+    ./src/lingshu_gate/static/oauth
 COPY --from=console-builder /app/licenses/npm ./licenses/third-party/npm
 COPY LICENSE NOTICE THIRD_PARTY_NOTICES.md ./licenses/
 

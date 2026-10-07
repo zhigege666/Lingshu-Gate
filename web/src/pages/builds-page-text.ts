@@ -1,6 +1,10 @@
 import type { TFunction } from "@/i18n"
 
 const zh: Record<string, string> = {
+  searchBuildRecords: "搜索构建 ID / 上传 ID",
+  searchDeploymentRecords: "搜索部署 ID / 构建 ID / 服务",
+  allStatuses: "全部状态",
+  matchingRecords: "匹配",
   workspaceNavigation: "构建部署导航",
   workspaceTab: "当前工作台",
   buildsTab: "构建记录",
@@ -93,6 +97,10 @@ const zh: Record<string, string> = {
 }
 
 const en: Record<string, string> = {
+  searchBuildRecords: "Search build / upload ID",
+  searchDeploymentRecords: "Search deployment / build ID / service",
+  allStatuses: "All statuses",
+  matchingRecords: "Matches",
   workspaceNavigation: "Build and deploy navigation",
   workspaceTab: "Workspace",
   buildsTab: "Build history",

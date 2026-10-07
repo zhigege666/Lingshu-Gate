@@ -73,7 +73,7 @@ The begin call establishes confirmation for its bounded upload session. Chunk an
 
 ### 2. Preflight and plan
 
-Call `gate_build_preflight`. Stop if its status is not `ok`. Then call `gate_build_plan` and show the operator:
+Call `gate_build_preflight`. Stop on `status=error`; review warnings for the selected runtime. A missing-tool warning may proceed only when an explicit exact-version preparation step resolves it, a safe executor is available and confirmation includes that step. Then call `gate_build_plan` and show the operator:
 
 - resolved runtime and project root;
 - exact steps and commands;
@@ -113,6 +113,10 @@ Delivery is complete only when deployment succeeds, the observed state is runnin
 
 | Tool | Kind | Confirmation and digest boundary |
 |---|---|---|
+| `gate_project_git_plan` | Read/network plan | HTTPS source, full commit, fixed network revisions; unavailable executor blocks |
+| `gate_project_git_import` | Execution write | Separate `confirmed=true`; plan ID, digest, idempotency key |
+| `gate_project_git_status` | Read | Actor-owned import ID |
+| `gate_project_git_cancel` | Destructive write | Separate `confirmed=true` and idempotency key |
 | `gate_project_upload_begin` | Write | `confirmed=true`; archive size and SHA-256 |
 | `gate_project_upload_chunk` | Write continuation | Transfer, offset, chunk SHA-256, idempotency key |
 | `gate_project_upload_commit` | Write continuation | Complete confirmed transfer and source SHA-256 |
@@ -146,3 +150,9 @@ Rollback, stop, delete, force termination, and retry after uncertain completion 
 ## Completion report
 
 Record source and file-list SHA-256 values, plan fingerprint, redacted credential-binding digest, tool-snapshot digest, transfer/upload/build/deployment/server identifiers, classification-change counts, each stage state, final log cursor, idempotent replays, and verified versus unverified acceptance checks. Never include secrets, base64 chunks, complete process output, or internal absolute paths.
+
+## Git sources and dependency networking
+
+Use `gate_project_git_plan` to validate an HTTPS source and inspect the resolved full commit and immutable network revisions. `gate_project_git_import` accepts its digest, idempotency key and separate acquisition confirmation; status/cancel use the returned import ID. The successful snapshot becomes an ordinary owned upload, with the selected runtime template saved into the actor's encrypted delivery draft. Build/install, deploy/overwrite, start and rollback retain the existing independent boundaries.
+
+`package_manager_override` is an optional `{name, version, lockfile}` selection in preflight/plan/create and the revisioned delivery draft. Ambiguous lockfiles return `recommended_choices`; a unique declared/explicit selection preserves unused locks with a warning. The confirmed BuildPlan may include `node-toolchain` before frozen installation/build. Its fixed official distribution, 120-second preparation bound, no-lifecycle extraction and version/integrity cache are visible in the plan; the selected install proxy/registry applies to preparation too. Production has no safe network adapter, so these paths fail closed. Read [Git/network design](git-import-network.md) before enabling an adapter.

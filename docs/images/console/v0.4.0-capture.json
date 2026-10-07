@@ -1,0 +1,231 @@
+{
+  "version": "0.4.0",
+  "sourceRevision": "4816673fcac237bce398c2e3a57124616492ebce",
+  "productSourceSha256": "d8ffa0db4e85405464179f64f50d7cc2cf7d4c9e9d079d3a335eca07251c1079",
+  "capturedAt": "2026-10-03T13:19:54.057Z",
+  "theme": "light",
+  "sourceKind": "actual-loopback-isolated-backend",
+  "syntheticOnly": true,
+  "apiResponsesMocked": false,
+  "externalAccounts": false,
+  "userProxyConnections": false,
+  "productionDeployments": false,
+  "captures": [
+    {
+      "locale": "en-US",
+      "name": "overview",
+      "path": "en-US/v0.4.0-overview.png",
+      "view": "dashboard",
+      "state": "Actual synthetic in-process read calls; loopback-only peer",
+      "viewport": {
+        "width": 1920,
+        "height": 1080
+      },
+      "sha256": "e2fac0e6a47f40324c36402e2584c068b4bfd3325c9f0d4f1ac2d3724207ad09"
+    },
+    {
+      "locale": "en-US",
+      "name": "tool-catalog",
+      "path": "en-US/v0.4.0-tool-catalog.png",
+      "view": "tools",
+      "state": "Actual registered Gate and synthetic loopback tool catalog",
+      "viewport": {
+        "width": 1920,
+        "height": 1080
+      },
+      "sha256": "205cacc286884b75d9fcd7c7e8fca8ee81a15a5834c59e00971310e091868a2f"
+    },
+    {
+      "locale": "en-US",
+      "name": "classification",
+      "path": "en-US/v0.4.0-classification.png",
+      "view": "toolClassifications",
+      "state": "Actual classification records; synthetic fixture definition and loopback peer",
+      "viewport": {
+        "width": 1920,
+        "height": 1080
+      },
+      "sha256": "6d6ce98a4c71f51afffc0b6915c5c1ce5ef955660729d3d7060238a81d7e87e6"
+    },
+    {
+      "locale": "en-US",
+      "name": "personal",
+      "path": "en-US/v0.4.0-personal.png",
+      "view": "myServers",
+      "state": "Actual administrator personal workspace and authorized summaries",
+      "viewport": {
+        "width": 1920,
+        "height": 1080
+      },
+      "sha256": "0c172aea229148d21cb013d9525b76af20ac52c84c0e2c48044c739f9658ffe5"
+    },
+    {
+      "locale": "en-US",
+      "name": "delivery",
+      "path": "en-US/v0.4.0-delivery.png",
+      "view": "uploads",
+      "state": "Actual reviewed dependency-free ZIP analysis; no build/install/deploy",
+      "viewport": {
+        "width": 1920,
+        "height": 1080
+      },
+      "sha256": "dc9d6dc807ba4bf39767d5a433ff4acf6342c10ddf602b78b59741dc82e4cc63"
+    },
+    {
+      "locale": "en-US",
+      "name": "git-import",
+      "path": "en-US/v0.4.0-git-import.png",
+      "view": "uploads",
+      "state": "Actual fail-closed plan response; reserved invalid Git host; no DNS/Git/SSH",
+      "viewport": {
+        "width": 1920,
+        "height": 1080
+      },
+      "sha256": "0b5b449e9014f63ba49a87d6fb626028631afa7882d48f514586dd89261b9795"
+    },
+    {
+      "locale": "en-US",
+      "name": "network-settings",
+      "path": "en-US/v0.4.0-network-settings.png",
+      "view": "systemSettings",
+      "state": "Actual disabled synthetic profile with encrypted endpoint; no probe or credentials",
+      "viewport": {
+        "width": 1920,
+        "height": 1080
+      },
+      "sha256": "be5ae81a3e820217371d97555131d0fa004ac67c4a3c7afbf25f12a4d944956a"
+    },
+    {
+      "locale": "en-US",
+      "name": "oauth",
+      "path": "en-US/v0.4.0-oauth.png",
+      "view": "connectionInfrastructure",
+      "state": "Actual built-in OAuth default-disabled state; no signing key or client credentials",
+      "viewport": {
+        "width": 1920,
+        "height": 1080
+      },
+      "sha256": "8e9ae0a52f18de536a43ec6448927595d3aec6fbab0a882e007e7e75c9f3ef0a"
+    },
+    {
+      "locale": "en-US",
+      "name": "tool-invoke",
+      "path": "en-US/v0.4.0-tool-invoke.png",
+      "view": "invoke",
+      "state": "Actual loopback synthetic echo call and result; no external remote command",
+      "viewport": {
+        "width": 1920,
+        "height": 1080
+      },
+      "sha256": "15a76099bfe5feb7d53eb5caf928975e805a7e3ef10ddada5e539049b892a958"
+    },
+    {
+      "locale": "zh-CN",
+      "name": "overview",
+      "path": "zh-CN/v0.4.0-overview.png",
+      "view": "dashboard",
+      "state": "Actual synthetic in-process read calls; loopback-only peer",
+      "viewport": {
+        "width": 1920,
+        "height": 1080
+      },
+      "sha256": "72898d96a9dfc34d80d8e386becef527b70c5a7a7bd92efcc9d21f9f9a641943"
+    },
+    {
+      "locale": "zh-CN",
+      "name": "tool-catalog",
+      "path": "zh-CN/v0.4.0-tool-catalog.png",
+      "view": "tools",
+      "state": "Actual registered Gate and synthetic loopback tool catalog",
+      "viewport": {
+        "width": 1920,
+        "height": 1080
+      },
+      "sha256": "ea1e02c14fc9adf79a1082e2e8da01f74bce2d9b8aac3f26ff85163469a6cfee"
+    },
+    {
+      "locale": "zh-CN",
+      "name": "classification",
+      "path": "zh-CN/v0.4.0-classification.png",
+      "view": "toolClassifications",
+      "state": "Actual classification records; synthetic fixture definition and loopback peer",
+      "viewport": {
+        "width": 1920,
+        "height": 1080
+      },
+      "sha256": "c15c1f89ad9e5067f75d75b81dba665c01a7e38a1ac76ed46762eb112940cb47"
+    },
+    {
+      "locale": "zh-CN",
+      "name": "personal",
+      "path": "zh-CN/v0.4.0-personal.png",
+      "view": "myServers",
+      "state": "Actual administrator personal workspace and authorized summaries",
+      "viewport": {
+        "width": 1920,
+        "height": 1080
+      },
+      "sha256": "c66e3496c73cb01df4eb5a7b07707838c7ed1eba61ecfeeadc0b8118df4a5849"
+    },
+    {
+      "locale": "zh-CN",
+      "name": "delivery",
+      "path": "zh-CN/v0.4.0-delivery.png",
+      "view": "uploads",
+      "state": "Actual reviewed dependency-free ZIP analysis; no build/install/deploy",
+      "viewport": {
+        "width": 1920,
+        "height": 1080
+      },
+      "sha256": "c4f60a63942d3da90626cce72093d4a114cf10cb7cd358635922923f7fd76685"
+    },
+    {
+      "locale": "zh-CN",
+      "name": "git-import",
+      "path": "zh-CN/v0.4.0-git-import.png",
+      "view": "uploads",
+      "state": "Actual fail-closed plan response; reserved invalid Git host; no DNS/Git/SSH",
+      "viewport": {
+        "width": 1920,
+        "height": 1080
+      },
+      "sha256": "c220dd4e6b9144437f2bf474fe742ad5786f62a8f8c514c8da537942b08e06c7"
+    },
+    {
+      "locale": "zh-CN",
+      "name": "network-settings",
+      "path": "zh-CN/v0.4.0-network-settings.png",
+      "view": "systemSettings",
+      "state": "Actual disabled synthetic profile with encrypted endpoint; no probe or credentials",
+      "viewport": {
+        "width": 1920,
+        "height": 1080
+      },
+      "sha256": "7ddabcf6259e8eaa554783cde6a9bb39d8fe542100930c774beba21e5d7521bd"
+    },
+    {
+      "locale": "zh-CN",
+      "name": "oauth",
+      "path": "zh-CN/v0.4.0-oauth.png",
+      "view": "connectionInfrastructure",
+      "state": "Actual built-in OAuth default-disabled state; no signing key or client credentials",
+      "viewport": {
+        "width": 1920,
+        "height": 1080
+      },
+      "sha256": "d2d83302d25ed93872fe84cad19ea9b466e6331d63ea9309a33af66081a5f281"
+    },
+    {
+      "locale": "zh-CN",
+      "name": "tool-invoke",
+      "path": "zh-CN/v0.4.0-tool-invoke.png",
+      "view": "invoke",
+      "state": "Actual loopback synthetic echo call and result; no external remote command",
+      "viewport": {
+        "width": 1920,
+        "height": 1080
+      },
+      "sha256": "0e0dda3badc63ce5a7956cc3345dc79f6198269eefd477a7b0c837e659e3b60a"
+    }
+  ]
+}
