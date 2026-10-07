@@ -123,7 +123,7 @@ Windows：
 
 ### 从源码运行
 
-要求 Python 3.11、3.12 或 3.13、Node.js 22、npm 和 `uv`。
+要求 Python 3.11、3.12 或 3.13、Node.js 22.12 或更高版本、npm 和 `uv`。
 
 ```bash
 uv sync --frozen

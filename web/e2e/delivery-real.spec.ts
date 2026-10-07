@@ -11,7 +11,7 @@ async function selectLocale(page: Page, locale: 'zh-CN' | 'en-US') {
 test('E2E-007 @delivery real upload, build, configure, deploy and start', async ({ page }, testInfo) => {
   test.setTimeout(60_000)
   const archive = join(process.env.GATE_E2E_TEMP_ROOT!, 'synthetic-browser-delivery.zip')
-  execFileSync('../.venv/bin/python', ['../scripts/e2e/make_bundle.py', archive], { timeout: 10_000 })
+  execFileSync(process.env.GATE_E2E_PYTHON || '../.venv/bin/python', ['../scripts/e2e/make_bundle.py', archive], { timeout: 10_000 })
   await login(page)
   await page.goto('/console/#/uploads')
   await page.locator('input[type=file]').setInputFiles(archive)
