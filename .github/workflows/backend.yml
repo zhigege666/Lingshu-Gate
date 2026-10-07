@@ -68,15 +68,65 @@ jobs:
           uv export --frozen --no-dev --no-emit-project --format requirements-txt > /tmp/requirements.lock
           diff --unified requirements.lock /tmp/requirements.lock
 
+      - name: Install browser for isolated smoke
+        working-directory: web
+        timeout-minutes: 10
+        run: |
+          set -euo pipefail
+          . /etc/os-release
+          test "$ID" = ubuntu
+          test "$VERSION_CODENAME" = noble
+          test "$(dpkg --print-architecture)" = amd64
+          test -r /usr/share/keyrings/ubuntu-archive-keyring.gpg
+
+          # Check the official sources before the costly backend suite. The
+          # runner's mirror list can stall even after an InRelease fallback.
+          for task_ubuntu_index in https://archive.ubuntu.com/ubuntu/dists/noble/InRelease https://security.ubuntu.com/ubuntu/dists/noble-security/InRelease; do
+            timeout --kill-after=5 50 curl --fail --silent --show-error --location --proto '=https' \
+              --connect-timeout 10 --max-time 20 --retry 1 --retry-max-time 40 \
+              --output /dev/null "$task_ubuntu_index"
+          done
+
+          task_apt_dir="$(mktemp -d "$RUNNER_TEMP/gate-browser-apt.XXXXXX")"
+          task_apt_config="$task_apt_dir/apt.conf"
+          task_apt_sources="$task_apt_dir/sources.list"
+          task_apt_parts="$task_apt_dir/sources.list.d"
+          mkdir "$task_apt_parts"
+          trap 'rm -f -- "$task_apt_config" "$task_apt_sources"; rmdir -- "$task_apt_parts" "$task_apt_dir"' EXIT
+          cat > "$task_apt_sources" <<'SOURCES'
+          deb [arch=amd64 signed-by=/usr/share/keyrings/ubuntu-archive-keyring.gpg] https://archive.ubuntu.com/ubuntu noble main restricted universe multiverse
+          deb [arch=amd64 signed-by=/usr/share/keyrings/ubuntu-archive-keyring.gpg] https://archive.ubuntu.com/ubuntu noble-updates main restricted universe multiverse
+          deb [arch=amd64 signed-by=/usr/share/keyrings/ubuntu-archive-keyring.gpg] https://security.ubuntu.com/ubuntu noble-security main restricted universe multiverse
+          SOURCES
+          cat > "$task_apt_config" <<CONFIG
+          Dir::Etc::sourcelist "$task_apt_sources";
+          Dir::Etc::sourceparts "$task_apt_parts";
+          Acquire::Retries "2";
+          Acquire::http::Timeout "20";
+          Acquire::https::Timeout "20";
+          Acquire::Languages "none";
+          Acquire::AllowInsecureRepositories "false";
+          Acquire::AllowDowngradeToInsecureRepositories "false";
+          APT::Get::AllowUnauthenticated "false";
+          Acquire::https::Verify-Peer "true";
+          Acquire::https::Verify-Host "true";
+          APT::Update::Error-Mode "any";
+          CONFIG
+
+          # The official CLI still installs its complete Chromium dependencies
+          # and fonts. Only that privileged invocation uses the owned APT config;
+          # the browser is downloaded as the normal runner user afterwards.
+          task_node_bin="$(command -v node)"
+          task_playwright_cli="$PWD/node_modules/playwright/cli.js"
+          timeout --kill-after=5 240 sudo env APT_CONFIG="$task_apt_config" \
+            "$task_node_bin" "$task_playwright_cli" install-deps chromium
+          timeout --kill-after=5 180 "$task_node_bin" "$task_playwright_cli" install chromium
+
       - name: Verify backend on Python 3.12
         run: |
           uv run --no-sync ruff check .
           uv run --no-sync mypy
           uv run --no-sync pytest -q
-
-      - name: Install browser for isolated smoke
-        working-directory: web
-        run: timeout 180 npx playwright install --with-deps chromium
 
       - name: Test Console against isolated real backend
         run: timeout --kill-after=5 180 npm --prefix web run e2e:smoke
