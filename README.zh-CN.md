@@ -6,17 +6,17 @@
 
 适用于集中管理多个 MCP 服务、向远程 MCP 客户端提供受控工具访问，以及在可信原生主机上交付项目。通过一个 MCP Gateway、Web Console 和控制 API 管理服务与用户。
 
-**0.4.4 发行状态：内置 OAuth 和独立管理资源须明确启用。本未发布开发分支已实现可选 Native/Linux rootless Podman 执行器，覆盖 Git/代理/固定工具准备及有界 npm、pnpm 8/9、Yarn Classic 离线安装/构建。默认关闭，须实际受审宿主 readiness，真实宿主验收未测。Core 仍仅为 gateway。**
+**0.4.5 源码：Console 从 `/` 打开，保留旧 `/console` 链接和 JSON 服务发现。本版整合显式 MCP 分组、连接绑定实例会话、每客户端按需工具、OAuth 目录/编辑体验及经验证的打包修复。内置 OAuth 和独立管理资源仍须明确启用。**
 
-0.4.4 通过 REST 和四个内置工具，增加外部 HTTP MCP 配置的确认计划、应用、状态和取消流程。自带 Delivery Skill 将现有 HTTP 服务、ZIP 交付和仍阻断的 Git 执行路径分别路由。离线计划不连接 peer；明确连接和工具发现保留凭据、网络信任与分类审核边界。见[发行摘要](packaging/release-notes.md)。 通用管理入口拒绝 Console cookie，专用 REST 保留 CSRF；凭据轮换在连接/探测解密前使计划失效，内存诊断不读取进程参数/环境，Core 纳入 Debian Perl 安全修复。
+分组引用已有实例，不复制凭据、不自动授权。[按需目录](docs/zh-CN/on-demand-tools.md) 在客户端明确选择 `/mcp?tool_mode=on_demand` 时提供六个有界发现/会话入口；调用复核实际工具和实例权限。私有 OAuth 选择使用有界分页、保留草稿，并在再次确认前核对写入结果未知的现场。见[发行摘要](packaging/release-notes.md)与[0.4.5 验证记录](docs/zh-CN/release-validation-0.4.5.md)。
 
-独立且默认关闭的 `/mcp/manage` OAuth 资源要求当前管理员、明确 scope、已同意配置工具及精确创建/更新目标。Console 确认修改目标保留令牌 scope 上限并使旧计划失效。真实客户端管理 scope 请求与真实 peer 验收仍未验证。分组路由与海量目录检索不纳入本版。参见[管理契约](docs/zh-CN/oauth-external-management-design.md)与[外部配置流程](docs/zh-CN/external-mcp-configuration.md)。登录页与 Console 继续从 `/healthz` 显示运行中的后端版本。
+独立且默认关闭的 `/mcp/manage` 继续要求明确客户端资源、scope、已同意工具及精确创建/更新目标。本人确认的 live 工具变更保留既有 token/令牌族 scope 上限；客户端工具缓存刷新是独立操作。登录页与 Console 从 `/healthz` 显示运行中的后端版本。
+
+可选 Native/Linux rootless Podman 执行器默认关闭，宿主准备/readiness 需要单独审核。Git/代理/固定工具准备及受支持离线安装/构建路径已有合成回归证据；真实 Podman 宿主、ChatGPT OAuth 客户端和多机器验收仍未完成。Core 仍仅为 gateway。源码/fixture 检查和本地候选包不代表正式发布或上述外部联调完成。
 
 ## 现有功能
 
-开发源码新增[按需工具发现](docs/zh-CN/on-demand-tools.md)：每客户端明确选择 `/mcp?tool_mode=on_demand`，只暴露六个有界入口，避免发送完整 schema 目录。“我的 API Token”提供客户端设置；授权与目标审计保留原边界。尚未发布新版本，明确的分组实例会话复用既有路由 port。
-
-[集成验收记录](docs/zh-CN/on-demand-integration-validation.md) 保留精确测试检查点、50,000 工具合成实测、Linux 原生 worker 证据及未测边界。
+[集成验证](docs/zh-CN/on-demand-integration-validation.md) 保留先前准确源码检查点、50,000 工具合成测量、native worker 证据及未测试边界。0.4.5 记录将新候选检查和包与历史结果分别记录。
 
 | 功能 | 能力与边界 | 指南 |
 |---|---|---|

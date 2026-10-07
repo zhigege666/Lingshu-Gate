@@ -38,6 +38,7 @@
 | [0.4.0 验证记录](release-validation.md) | 已执行检查、合成截图与剩余验收缺口 |
 | [0.4.1 验证记录](release-validation-0.4.1.md) | OAuth 兼容/配置、本人授权与运行版本证据 |
 | [0.4.4 验证记录](release-validation-0.4.4.md) | 外部 HTTP 管理、Skills、资源隔离及验收缺口 |
+| [0.4.5 验证与发行门禁](release-validation-0.4.5.md) | 准确整合基线候选、新包、CI 溯源、已知限制及发布门禁 |
 
 运行中的 Gate 会在 `/docs` 提供 API Schema。安全策略和报告方式见 [SECURITY.zh-CN.md](../../SECURITY.zh-CN.md)。
 

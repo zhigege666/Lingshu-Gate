@@ -4,7 +4,7 @@
 
 Lingshu Gate release automation produces directly runnable native packages, a Docker Compose deployment bundle, and tagged-release offline Core images. Every published asset is covered by `SHA256SUMS` and a repository build-provenance attestation.
 
-The current source version is `0.4.0`. Console service and record actions now appear directly as buttons, alongside visible OpenAPI, sign-out, and credential-reference actions. Button groups wrap on narrow screens while existing permission checks, state restrictions, and confirmations remain unchanged. Runtime reporting, Python package metadata, CLI output, and release artifact names derive from the single version source in `src/lingshu_gate/_version.py`.
+The current source version is `0.4.5`. This candidate integrates the root Console, grouped instances, bounded on-demand tools, OAuth catalog/editor improvements and clean packaging. Runtime reporting, Python metadata, CLI and archive names use `src/lingshu_gate/_version.py`; the Console reads the running backend version. See the [0.4.5 validation and release gates](release-validation-0.4.5.md). Historical records below keep their original versions.
 
 The source Console also includes the card-based tool catalog with deployment-specific MCP filtering, effective access badges, and direct selection in the invocation editor. Tool discovery adds the request-local `metadata.gate_access` display snapshot described in [operations](operations.md#tool-catalog). This change adds no frontend dependency or database migration.
 
@@ -120,7 +120,7 @@ Set-Location "$Destination\lingshu-gate-v<version>-windows-x86_64"
 .\start.cmd
 ```
 
-Open <http://127.0.0.1:8000/console>, retrieve the one-time credentials from the package-local `data` directory, and change the password immediately.
+Open <http://127.0.0.1:8000/>, retrieve the one-time credentials from the package-local `data` directory, and change the password immediately.
 
 The workflow does not apply platform code signing or macOS notarization. Operating-system reputation prompts may therefore appear. Verify the checksum and attestation, inspect the release record, and follow your organization's approved execution policy; do not disable system-wide protections.
 

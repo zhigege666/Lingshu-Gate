@@ -4,7 +4,7 @@
 
 Lingshu Gate 发行自动化会生成可直接运行的原生包、Docker Compose 部署包，以及只在 Tag 发行提供的 Core 离线镜像。每个已发布资产都由 `SHA256SUMS` 和仓库 Build Provenance Attestation 覆盖。
 
-当前源码版本为 `0.4.0`。控制台服务与记录操作改为直接显示按钮，OpenAPI、退出登录及凭据引用操作也保持可见。按钮组在窄屏下支持换行，原有权限检查、状态限制和确认流程保持不变。运行时版本信息、Python 包元数据、CLI 输出及发行产物名称统一读取 `src/lingshu_gate/_version.py` 中的唯一版本源。
+当前源码版本为 `0.4.5`。本候选整合根路径 Console、分组实例、有界按需工具、OAuth 目录/编辑改进及干净打包。运行时、Python 元数据、CLI 和归档名称使用 `src/lingshu_gate/_version.py`，Console 读取运行中的后端版本。见 [0.4.5 验证与发行门禁](release-validation-0.4.5.md)；下方历史记录保留原版本。
 
 当前源码控制台还包含卡片式工具目录，支持按具体 MCP 部署筛选、展示实际读写要求，并将选中工具带入调用编辑器。工具发现新增当前请求的 `metadata.gate_access` 展示快照，详见[运维指南](operations.md#工具目录)。该变更不新增前端依赖或数据库迁移。
 
@@ -120,7 +120,7 @@ Set-Location "$Destination\lingshu-gate-v<version>-windows-x86_64"
 .\start.cmd
 ```
 
-打开 <http://127.0.0.1:8000/console>，从包内 `data` 目录获取一次性凭据，并立即修改密码。
+打开 <http://127.0.0.1:8000/>，从包内 `data` 目录获取一次性凭据，并立即修改密码。
 
 工作流不执行平台 Code Signing 或 macOS Notarization，因此操作系统可能显示信誉提示。请校验 Checksum 和 Attestation，检查发行记录，并遵循组织批准的执行策略；不要关闭系统级保护。
 

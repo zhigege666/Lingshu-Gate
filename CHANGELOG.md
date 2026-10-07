@@ -1,14 +1,14 @@
 # Changelog
 
-## Unreleased
+## 0.4.5
 
-- Explicit MCP logical groups reference existing instance configurations without copying credentials or granting access. Administrator APIs and four group management tools retain current permissions, confirmation, revision checks and atomic audit.
-- Matching complete contracts share a logical directory entry; differing schemas, safety declarations and advertised contract versions remain separate. The internal routing port retains actual tool/server IDs and rechecks logical and physical authorization.
-- Explicit connection-bound sessions pin an instance and reject configuration/runtime drift, revocation and instance switches. Existing direct tools remain compatible; the on-demand directory owns public invocation.
-- MCP services adds a compact Groups view and centered bilingual editor with instance status, contract version and a suggested default. Real peer/deployment and independent root visual acceptance remain separate from synthetic regression evidence.
-- Implement the optional Native/Linux rootless Podman executor, trusted pinned HTTPS/Git acquisition, official exact tool cache, registry-only npm/pnpm 8–9/Yarn Classic offline frozen install/build, observed readiness and durable phase/container/cgroup reconciliation. Core remains gateway-only. pnpm 10/11, Yarn Berry, Python sandbox caches and unsupported origins are refused; physical host acceptance remains untested.
-- Block admission on unknown acquisition jobs after DNS timeout. Restore readiness only after the exact resolver and caller stop, resource reconciliation and retained workspace cleanup; keep unknown consumers' inputs and never replay interrupted keys. Cleanup failure retains a readiness barrier while releasing the operation gate.
-- Preserve live DNS worker evidence through HTTPS deadline/cancellation error classification. Real request-wrapper tests cover upstream/proxy DNS, unknown journals, retained staging/owner leases and safe readiness recovery.
+- Move the browser Console to the root with content-negotiated JSON discovery, stable /v1/meta, compatible old links, confined assets and verified native entry smoke.
+- Integrate explicit MCP groups/connection-bound instance sessions, the bounded on-demand directory and killable schema validation; actual tool/instance authority and credential checks remain in dispatch.
+- Integrate private OAuth catalog pagination, whole-selection resolution, compact bilingual editors, lossless drafts and explicit recovery after unknown write outcomes; scope/family and selection ceilings stay unchanged.
+- Stage repeated wheel builds privately and verify exact static inventories/RECORD, including sdist-to-wheel; preserve safe path boundaries and frozen worker entries.
+- Keep Vite 8/Rolldown with identifier mangling disabled and Console base /; include reviewed Windows startup, TLS, protocol/OAuth and frozen-export fixes.
+- Optional Native/Linux rootless Podman remains disabled until separately approved host provisioning/readiness. Real Podman, ChatGPT OAuth and multi-machine acceptance remain incomplete.
+- [Candidate validation](docs/release-validation-0.4.5.md) separates current source/package/CI checks from historical browser failures and formal publication.
 
 ## 0.4.4
 

@@ -1,14 +1,14 @@
 # 更新记录
 
-## 未发布
+## 0.4.5
 
-- 显式 MCP 逻辑组引用已有实例配置，不复制凭据、不自动授权。管理员 API 和四个分组管理工具保留当前权限、确认、修订校验和原子审计。
-- 完整合同相同的工具共用逻辑目录条目；schema、安全声明及声明的合同版本差异保持独立分区。内部路由 port 保留实际工具／服务 ID，重查逻辑与实际授权。
-- 显式会话绑定认证连接和实例，拒绝配置／runtime 漂移、撤权及切换实例。旧直接工具保持兼容，公开调用入口由按需目录持有。
-- MCP 服务增加紧凑组视图和居中中英编辑弹窗，显示实例状态、合同版本及建议默认实例。真实 peer／部署和根代理独立视觉验收与合成回归证据分开记录。
-- 实现可选 Native/Linux rootless Podman 执行器、可信固定 HTTPS/Git 获取、官方精确工具缓存、registry-only npm/pnpm 8–9/Yarn Classic 离线冻结安装/构建、真实 readiness 及持久阶段/container/cgroup 对账。Core 仍为 gateway；pnpm 10/11、Yarn Berry、Python sandbox 缓存安装及未支持 origin 明确拒绝，真实宿主验收未测。
-- DNS 超时后的未知获取 job 阻断准入；仅在精确 resolver 与调用者退出、资源对账及残留工作区清理完成后恢复 readiness。保留未知消费者输入，不重跑中断 key；清理失败释放操作锁但继续阻断 readiness。
-- HTTPS deadline/取消错误分类保留存活 DNS worker 证据；真实 request wrapper 测试覆盖上游/代理 DNS、unknown journal、暂存目录/owner lease 保留及安全 readiness 恢复。
+- 浏览器 Console 迁移至根路径，保留内容协商 JSON 发现、稳定 /v1/meta、旧链接兼容、资源路径边界和经核对的 native 入口 smoke。
+- 整合显式 MCP 分组/连接绑定实例会话、有界按需目录及可终止 schema 验证；派发保留实际工具/实例权限与凭据复核。
+- 整合私有 OAuth 目录分页、完整选择解析、紧凑双语编辑器、无损草稿及写结果未知后的明确核对；scope/令牌族与选择上限保持。
+- 连续 wheel 构建采用私有 staging，并准确校验静态清单/RECORD，覆盖 sdist-to-wheel，保留安全路径边界和冻结 worker 入口。
+- 保留 Vite 8/Rolldown、关闭标识符 mangle 及 Console base /；包含经审查的 Windows 启动、TLS、协议/OAuth 与冻结导出修复。
+- 可选 Native/Linux rootless Podman 在另行批准宿主准备/readiness 前保持关闭；真实 Podman、ChatGPT OAuth 及多机器验收仍未完成。
+- [候选验证](docs/zh-CN/release-validation-0.4.5.md) 区分当前源码/包/CI 检查、历史浏览器失败及正式发布。
 
 ## 0.4.4
 

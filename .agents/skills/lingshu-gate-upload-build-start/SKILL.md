@@ -5,9 +5,9 @@ description: 用户要求通过 Lingshu Gate 上传 ZIP、导入 Git、构建部
 
 # Lingshu Gate project delivery
 
-Version 0.4.4 adds external HTTP configuration via four confirmed management tools and the separately enabled `/mcp/manage` OAuth resource. It does not implement a safe Git/proxy executor, group routing or a large-catalog search system. Real-client management-scope requests and real-peer acceptance remain unverified.
+Version 0.4.5 integrates the bounded on-demand directory and explicit group-instance sessions. Follow the compatibility envelope below without changing existing confirmation, digest, target, credential or classification checks. The optional Native/Linux executor stays disabled until separately approved host provisioning/readiness; real Podman host and ChatGPT OAuth client acceptance remain incomplete.
 
-0.4.4 增加四个有确认边界的外部 HTTP 配置工具，以及需单独启用的 `/mcp/manage` OAuth 资源。安全 Git/代理执行器、分组路由和海量目录检索不在本版实现；真实客户端管理 scope 请求与真实 peer 验收仍未验证。
+0.4.5 整合有界按需目录及显式分组实例会话。按下方兼容封装保留原确认、摘要、目标、凭据及分类检查。可选 Native/Linux 执行器在另行批准宿主准备/readiness 前保持关闭；真实 Podman 宿主与 ChatGPT OAuth 客户端验收仍未完成。
 
 使用 Lingshu Gate 的原子 MCP 工具交付项目。一次授权可以覆盖已明确的多个写入步骤，但不会绕过摘要、幂等、凭据和工具分类边界。流程支持确定性打包、分块续传、幂等重试、轮询和有界故障处理。
 

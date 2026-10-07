@@ -38,6 +38,7 @@ This documentation describes the current Gate product boundary. English is autho
 | [0.4.0 validation record](release-validation.md) | Executed checks, synthetic screenshots and remaining acceptance gaps |
 | [0.4.1 validation record](release-validation-0.4.1.md) | OAuth compatibility/setup, personal grants and runtime version evidence |
 | [0.4.4 validation record](release-validation-0.4.4.md) | External HTTP management, Skills, resource isolation and acceptance gaps |
+| [0.4.5 validation and release gates](release-validation-0.4.5.md) | Exact merged-base candidate, fresh packages, CI provenance, known limits and publication gates |
 
 API schemas are served by a running Gate instance at `/docs`. Security policy and reporting instructions live in [SECURITY.md](../SECURITY.md).
 
