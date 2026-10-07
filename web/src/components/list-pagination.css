@@ -1,0 +1,16 @@
+/* Keep the toolbar and page actions outside the independently scrollable rows.
+   42dvh leaves room for the shell, filters and batch actions on short screens. */
+.bounded-list-scroll { max-height: 42dvh; overflow: auto; min-width: 0; overscroll-behavior: contain; }
+.bounded-list-scroll > div { overflow: visible; }
+.bounded-list-scroll thead { position: sticky; top: 0; z-index: 2; background: hsl(var(--card)); }
+.bounded-list-actions th:last-child, .bounded-list-actions td:last-child { position: sticky; right: 0; background: hsl(var(--card)); }
+.bounded-list-actions td:last-child { z-index: 1; }
+.list-pagination, .list-pagination > div { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
+.list-pagination { justify-content: space-between; padding: 12px; font-size: 12px; color: hsl(var(--muted-foreground)); }
+
+/* Controls retain natural height; only rows shrink. The ceiling follows the
+   section as it enters the viewport; short lists remain content-sized. */
+.remaining-list-group { display: flex; flex-direction: column; min-width: 0; max-height: var(--remaining-list-height, none); }
+.remaining-list-group > * { flex-shrink: 0; }
+.remaining-list-group > .bounded-list-scroll,
+.remaining-list-group > .delivery-records-table { flex: 0 1 auto; min-height: 0; max-height: none; }

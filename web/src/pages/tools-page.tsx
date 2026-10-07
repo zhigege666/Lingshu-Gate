@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from "react"
 import { Select } from "antd"
-import { ArrowUpRight, ChevronLeft, ChevronRight, Eye, PencilLine, Play, Plug, RotateCcw, Server, Wrench } from "lucide-react"
+import { useRemainingViewport } from "@/components/use-remaining-viewport"
+import { ArrowUpRight, ChevronLeft, ChevronRight, Eye, PencilLine, Play, Plug, Server, Wrench } from "lucide-react"
 import type { McpServer, ToolDefinition } from "@/api/client"
 import { JsonPanel } from "@/components/json-panel"
 import { InlineEmpty, PageHeader, PageToolbar } from "@/components/page-shell"
@@ -9,14 +10,16 @@ import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Dialog, DialogBody, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import { Skeleton } from "@/components/ui/skeleton"
-import { ALL_TOOL_SERVICES, BUILTIN_TOOL_SERVICE, filterTools, paginateTools, toolAccess, toolServerId, toolServiceOptions, type ToolAccess } from "@/features/tool-catalog"
-import type { TFunction } from "@/i18n"
+import { DEFAULT_TOOL_PAGE_SIZE, ALL_TOOL_SERVICES, BUILTIN_TOOL_SERVICE, filterTools, paginateTools, toolAccess, toolServerId, toolServiceOptions, type ToolAccess } from "@/features/tool-catalog"
+import { builtinOriginBadge, toolOriginName } from "@/features/tool-origin"
+import type { Locale, TFunction } from "@/i18n"
 import "./tools-page.css"
 
-export type ToolCatalogViewState = { query: string; service: string; access: "all" | ToolAccess; page: number; pageSize: number; scrollTop: number }
-export const initialToolCatalogView: ToolCatalogViewState = { query: "", service: ALL_TOOL_SERVICES, access: "all", page: 1, pageSize: 9, scrollTop: 0 }
+export type ToolCatalogViewState = { query: string; service: string; access: "all" | ToolAccess; page: number; pageSize: number; scrollTop: number; selectedId?: string | null }
+export const initialToolCatalogView: ToolCatalogViewState = { query: "", service: ALL_TOOL_SERVICES, access: "all", page: 1, pageSize: DEFAULT_TOOL_PAGE_SIZE, scrollTop: 0 }
 
 type Props = {
+  locale?: Locale
   viewState?: ToolCatalogViewState
   onViewStateChange?: (state: ToolCatalogViewState) => void
   tools: ToolDefinition[]
@@ -28,25 +31,33 @@ type Props = {
   onRefresh: () => void
 }
 
-export function ToolsPage({ tools, servers, loading, error, t, onInvoke, onRefresh, viewState = initialToolCatalogView, onViewStateChange }: Props) {
-  const [selectedId, setSelectedId] = useState<string | null>(null)
+export function ToolsPage({ tools, servers, loading, error, t, onInvoke, onRefresh, locale = "en-US", viewState = initialToolCatalogView, onViewStateChange }: Props) {
+  const [selectedId, setSelectedId] = useState<string | null>(viewState.selectedId ?? null)
   const [query, setQuery] = useState(viewState.query)
   const [service, setService] = useState(viewState.service)
   const [access, setAccess] = useState<"all" | ToolAccess>(viewState.access)
   const [page, setPage] = useState(viewState.page)
   const [pageSize, setPageSize] = useState(viewState.pageSize)
-  const container = useRef<HTMLDivElement>(null)
+  const container = useRemainingViewport()
+  const listViewport = useRef<HTMLDivElement>(null)
   const latestView = useRef(viewState)
-  latestView.current = { query, service, access, page, pageSize, scrollTop: viewState.scrollTop }
+  latestView.current = { query, service, access, page, pageSize, scrollTop: viewState.scrollTop, selectedId }
   const notifyView = useRef(onViewStateChange)
   notifyView.current = onViewStateChange
   useEffect(() => {
-    window.scrollTo(0, viewState.scrollTop)
-    const saveScroll = () => { if (window.location.hash === "#/tools") notifyView.current?.({ ...latestView.current, scrollTop: window.scrollY }) }
-    window.addEventListener("scroll", saveScroll, { passive: true })
-    return () => window.removeEventListener("scroll", saveScroll)
+    if (listViewport.current) listViewport.current.scrollTop = viewState.scrollTop
+    const saveScroll = () => { if (window.location.hash === "#/tools") notifyView.current?.({ ...latestView.current, scrollTop: listViewport.current?.scrollTop ?? 0 }) }
+    const node = listViewport.current
+    node?.addEventListener("scroll", saveScroll, { passive: true })
+    return () => node?.removeEventListener("scroll", saveScroll)
   }, [])
-  useEffect(() => { notifyView.current?.(latestView.current) }, [query, service, access, page, pageSize])
+  const firstView = useRef(true)
+  useEffect(() => {
+    if (firstView.current) { firstView.current = false; return }
+    if (listViewport.current) listViewport.current.scrollTop = 0
+    notifyView.current?.({ ...latestView.current, scrollTop: 0 })
+  }, [query, service, access, page, pageSize])
+  useEffect(() => { notifyView.current?.(latestView.current) }, [selectedId])
   const services = useMemo(() => toolServiceOptions(tools, servers), [tools, servers])
   const filteredTools = useMemo(() => filterTools(tools, servers, { query, service, access }), [tools, servers, query, service, access])
   const paged = paginateTools(filteredTools, page, pageSize)
@@ -54,7 +65,7 @@ export function ToolsPage({ tools, servers, loading, error, t, onInvoke, onRefre
   const filtered = Boolean(query || service !== ALL_TOOL_SERVICES || access !== "all")
   const accessLabel = (value: ToolAccess) => t(value === "read" ? "toolReadOnly" : value === "write" ? "toolWrite" : "toolAccessUnknown")
   const serviceLabel = (tool: ToolDefinition) => {
-    if (tool.source === "builtin") return t("builtinTools")
+    if (tool.source === "builtin") return toolOriginName(tool, locale) || t("builtinTools")
     const id = toolServerId(tool)
     const name = servers.find(server => server.id === id)?.name
     return id && name && name !== id ? `${name} · ${id}` : id || tool.source
@@ -64,14 +75,14 @@ export function ToolsPage({ tools, servers, loading, error, t, onInvoke, onRefre
   }
 
   return <div className="tool-catalog" ref={container}>
-    <PageHeader
+    <PageHeader closeLabel={t("close")}
       eyebrow={t("toolRegistry")}
       title={t("tools")}
       description={t("toolCatalogHint")}
       helpLabel={t("pageHelp")}
       toolbar={<PageToolbar
         query={query} onQueryChange={value => { setQuery(value); setPage(1) }}
-        placeholder={t("searchTools")} clearLabel={t("clearSearch")}
+        placeholder={t("searchTools")} clearLabel={t("clearSearch")} resetFilters={{ label: t("resetFilters"), disabled: !filtered, onReset: resetFilters }}
       >
         <Select
           className="tool-service-filter" aria-label={t("mcpServers")}
@@ -95,7 +106,6 @@ export function ToolsPage({ tools, servers, loading, error, t, onInvoke, onRefre
             { value: "unknown", label: t("toolAccessUnknown") },
           ]}
         />
-        {filtered && <Button variant="ghost" size="sm" onClick={resetFilters}><RotateCcw />{t("resetFilters")}</Button>}
       </PageToolbar>}
     />
 
@@ -104,6 +114,7 @@ export function ToolsPage({ tools, servers, loading, error, t, onInvoke, onRefre
       <span>{loading ? t("toolCatalogLoading") : `${t("total")} ${tools.length} ${t("tools")}`}</span>
     </div>
 
+    <div className="tool-catalog-scroll" ref={listViewport} tabIndex={0} role="region" aria-label={t("tools")}>
     {error ? <Alert variant="destructive"><AlertDescription className="flex flex-wrap items-center justify-between gap-3">
       <span>{t("toolCatalogLoadFailed")} · {error}</span><Button size="sm" variant="outline" onClick={onRefresh}>{t("retry")}</Button>
     </AlertDescription></Alert> : loading ? <div className="tool-catalog-grid" aria-busy="true" aria-label={t("toolCatalogLoading")}>
@@ -123,6 +134,7 @@ export function ToolsPage({ tools, servers, loading, error, t, onInvoke, onRefre
               <Badge variant="outline" className={`tool-access-badge tool-access-${level}`}>
                 {AccessIcon && <AccessIcon aria-hidden="true" />}{accessLabel(level)}
               </Badge>
+              {tool.source === "builtin" && <Badge variant="outline">{builtinOriginBadge(locale)}</Badge>}
             </div>
             {tool.description && <p className="tool-card-description">{tool.description}</p>}
             <div className="tool-card-permission"><span>{t("toolPermissionDeclaration")}</span><code>{tool.permission}</code></div>
@@ -136,23 +148,24 @@ export function ToolsPage({ tools, servers, loading, error, t, onInvoke, onRefre
           </article>
         })}
       </div>
-      <div className="tool-catalog-pagination">
+    </>}
+    </div>
+    {!error && !loading && filteredTools.length > 0 && <div className="tool-catalog-pagination">
         <span>{t("toolShowing")} {paged.start}–{paged.end} / {filteredTools.length}</span>
         <div className="tool-pagination-controls">
           <Select
             aria-label={t("toolsPerPage")} value={pageSize}
             onChange={value => { setPageSize(value); setPage(1) }}
-            options={[9, 12, 24].map(value => ({ value, label: `${value} / ${t("toolPage")}` }))}
+            options={[24, 48, 96].map(value => ({ value, label: `${value} / ${t("toolPage")}` }))}
           />
           <Button size="sm" variant="outline" disabled={paged.page <= 1} onClick={() => setPage(paged.page - 1)} aria-label={t("previousPage")}><ChevronLeft /></Button>
           <span className="tool-page-number">{paged.page} / {paged.pageCount}</span>
           <Button size="sm" variant="outline" disabled={paged.page >= paged.pageCount} onClick={() => setPage(paged.page + 1)} aria-label={t("nextPage")}><ChevronRight /></Button>
         </div>
-      </div>
-    </>}
+      </div>}
 
     <Dialog open={selected !== null && !loading && !error} onOpenChange={open => { if (!open) setSelectedId(null) }}>
-      <DialogContent className="max-w-3xl">
+      <DialogContent closeLabel={t("close")} className="max-w-3xl">
         <DialogHeader>
           <DialogTitle className="break-words">{selected?.name || selected?.id}</DialogTitle>
           <DialogDescription className="break-all">{selected?.id}</DialogDescription>
@@ -165,12 +178,12 @@ export function ToolsPage({ tools, servers, loading, error, t, onInvoke, onRefre
               <Badge variant="secondary">{accessLabel(toolAccess(selected))}</Badge>
             </div>
             <p className="whitespace-pre-wrap break-words text-sm leading-6 text-muted-foreground">{selected.description || t("toolNoDescription")}</p>
-            <div><h3 className="mb-2 text-sm font-medium">{t("inputSchema")}</h3><JsonPanel data={selected.input_schema} maxHeight="max-h-80" /></div>
+            <div><h3 className="mb-2 text-sm font-medium">{t("inputSchema")}</h3><JsonPanel copyLabel={t("copy")} data={selected.input_schema} maxHeight="max-h-80" /></div>
             {Object.keys(selected.metadata).length > 0 && <details>
               <summary className="cursor-pointer text-sm font-medium">{t("metadata")}</summary>
-              <div className="mt-2"><JsonPanel data={selected.metadata} maxHeight="max-h-60" /></div>
+              <div className="mt-2"><JsonPanel copyLabel={t("copy")} data={selected.metadata} maxHeight="max-h-60" /></div>
             </details>}
-            <Button onClick={() => { setSelectedId(null); onInvoke(selected.id) }}><Play />{t("invokeTool")}</Button>
+            <Button onClick={() => onInvoke(selected.id)}><Play />{t("invokeTool")}</Button>
           </>}
         </DialogBody>
       </DialogContent>

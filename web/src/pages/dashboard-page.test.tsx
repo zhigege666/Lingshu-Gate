@@ -2,7 +2,7 @@ import type { ComponentProps } from "react"
 import { renderToStaticMarkup } from "react-dom/server"
 import { describe, expect, it, vi } from "vitest"
 import type { McpServer, ToolDefinition } from "@/api/client"
-import { DashboardPage, DashboardResourceOverview } from "@/pages/dashboard-page"
+import { DashboardPage, DashboardResourceOverview, dashboardTrendTicks } from "@/pages/dashboard-page"
 import { translate, type Locale, type TFunction } from "@/i18n"
 
 // Locale context only: the actual page, resource components and their markup render unchanged.
@@ -13,6 +13,30 @@ vi.mock("@/components/console-design-provider", () => ({
 type OverviewProps = ComponentProps<typeof DashboardResourceOverview>
 type PageProps = ComponentProps<typeof DashboardPage>
 const t: TFunction = key => translate("en-US", key)
+
+describe("dashboard time axis density", () => {
+  const week = Array.from({ length: 28 }, (_, index) => ({ start: new Date(2026, 8, 23, index * 6).toISOString() }))
+  it.each(["en-US", "zh-CN"] as const)("groups repeated calendar dates without losing chart samples in %s", locale => {
+    const ticks = dashboardTrendTicks(week, 6, locale)
+    expect(ticks).toHaveLength(7)
+    expect(new Set(ticks.map(tick => tick.label)).size).toBe(7)
+    expect(ticks.map(tick => tick.index)).toEqual([0, 4, 8, 12, 16, 20, 24])
+    const mobile = dashboardTrendTicks(week, 6, locale, 4)
+    expect(mobile).toHaveLength(4)
+    expect(mobile[0]).toEqual(ticks[0])
+    expect(mobile.at(-1)).toEqual(ticks.at(-1))
+    expect(week).toHaveLength(28)
+  })
+  it("bounds hourly labels and retains the range endpoints", () => {
+    const day = Array.from({ length: 12 }, (_, index) => ({ start: new Date(Date.UTC(2026, 8, 23, index * 2)).toISOString() }))
+    const ticks = dashboardTrendTicks(day, 2, "en-US")
+    expect(ticks.length).toBeLessThanOrEqual(7)
+    expect(ticks[0].index).toBe(0)
+    expect(ticks.at(-1)?.index).toBe(11)
+    expect(ticks.every(tick => /^\d{2}:\d{2}$/.test(tick.label))).toBe(true)
+    expect(dashboardTrendTicks([], 2, "en-US")).toEqual([])
+  })
+})
 
 function server(id: string, changes: Partial<McpServer> = {}): McpServer {
   return {
@@ -94,7 +118,7 @@ describe("dashboard resource permissions and independent loading", () => {
     expect(parts.tools).toContain('aria-busy="false"')
     expect(primaryValue(parts.servers)).toBe("1 registered")
     expect(primaryValue(parts.tools)).toBe("1 visible to you")
-    expect(page({ health: null })).toContain("Service first")
+    expect(primaryValue(resources(page({ health: null })).servers)).toBe("1 registered")
   })
 
   it.each([false, true])("tool errors replace stale values even when toolsLoaded=%s", toolsLoaded => {
@@ -177,7 +201,7 @@ describe("dashboard data scope and server states", () => {
     expect(part).toContain('aria-busy="false"')
     expect(part).not.toContain(t("dashboardRegistered"))
     const fullPage = page(changes)
-    expect(fullPage.split(t("dashboardServersUnavailable"))).toHaveLength(3)
+    expect(fullPage.split(t("dashboardServersUnavailable"))).toHaveLength(2)
     expect(fullPage).not.toContain("Service stale-failure")
     expect(fullPage).not.toContain(t("warning"))
     expect(fullPage).not.toContain(t("noData"))
@@ -193,7 +217,7 @@ describe("dashboard data scope and server states", () => {
 
   it("a successfully loaded empty service list can display zero and its empty state", () => {
     expect(primaryValue(resources(overview({ servers: [] })).servers)).toBe("0 registered")
-    expect(page({ servers: [] })).toContain(t("noData"))
+    expect(primaryValue(resources(page({ servers: [] })).servers)).toBe("0 registered")
   })
 })
 
@@ -217,5 +241,25 @@ describe("dashboard navigation and audit controls", () => {
     const restricted = page({ canReadAudit: false })
     expect(restricted).not.toContain(t("dashboard24Hours"))
     expect(restricted).not.toContain(t("dashboard7Days"))
+  })
+})
+
+describe("dashboard bounded service summary", () => {
+  it("shows the resource count and link without duplicating service cards", () => {
+    const html = page({ servers: Array.from({ length: 100 }, (_, index) => server(`summary-${index}`)) })
+    expect(html).toContain("100")
+    expect(html).not.toContain("Service summary-7")
+    expect(html).not.toContain("Service summary-8")
+    expect(html).toContain('href="#/servers"')
+  })
+})
+
+
+describe("dashboard focus", () => {
+  it("does not repeat the service directory even for an administrator", () => {
+    const html=page({operationsAllowed:true})
+    expect(html).not.toContain(t("serverOverview"))
+    expect(html).not.toContain(t("serverOverviewDesc"))
+    expect(html).toContain('href="#/servers"')
   })
 })

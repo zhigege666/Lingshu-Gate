@@ -61,6 +61,15 @@ curl --fail --silent --show-error http://127.0.0.1:8000/readyz
 
 分享记录前，应检查嵌套字段，并移除接收者不需要的主机路径、用户数据和下游内容。
 
+MCP 筛选器使用 `/v1/observability/mcp-scopes` 加载可搜索的名称和 ID，无需记住服务 ID。选项包含 `current` 或 `historical` 状态，总数在授权过滤后计算。`q`、`offset`、`limit` 对可见选项搜索和分页，`server_id` 精确解析当前或历史服务。历史 ID 仅来自日志的服务 ID 或事件中明确的服务标识，不把任意事件主体当作服务。已删除服务只在历史记录和权限仍存在时提供 ID 标签。
+
+只有在日志页选中获准 MCP 后，工具选择器才可用。`/v1/observability/tool-scopes` 必须提供 `server_id`，在读取目录和历史前执行相同的整服务日志授权。仅返回 `{id, name, availability}` 选项和授权范围内总数，支持 `q`、`tool_id`、`offset`、`limit`。当前注册工具与该服务日志中的不同工具 ID 合并；该选择器不授予调用权限。切换或清除 MCP 时清除关联工具筛选。搜索无目录匹配时，可在下拉框内按已知历史 ID 精确筛选；不支持通配符。事件尚无工具筛选合同，因此只保留服务筛选。
+
+
+这些接口仍要求 `operations.manage`，但该能力不再单独授予全部服务记录的读取权限。没有 `observability.read.all` 时，只能读取当前具有整服务资源授权的 MCP 记录；单工具授权不会扩大为整个服务的运维日志权限。“全部”表示全部当前获准服务。默认仅管理员具备的 `observability.read.all` 还允许读取所有服务及未归属服务的系统记录。这是有意的兼容性收紧，同时适用于 JSON 查询和快照流。服务详情的 `section=logs`、`section=events`、`section=recovery` 以及完整详情响应执行相同的服务授权检查，无权时返回 404；其他详情分区保留原有权限。Gate API Token 的 scope 也限制全局读取能力，普通用户仍不能读取管理日志。`gate_system_debug` 工具对 `logs`、`events`、`server_detail` 以及 `overview` 内的近期错误日志使用同一策略。无权读取日志时，相应动作返回工具失败；总览则明确返回 `recent_error_logs_access=denied`，保留非日志诊断摘要。
+
+日志和事件统一接受 `server_id`。不可见或不存在的精确 ID 返回相同的 404；事件旧有的 `subject_id` 仅作为额外过滤条件，不能绕过授权。选择器的 `capabilities.can_read_all` 与 `capabilities.all_scope`（`global` 或 `authorized_services`）说明“全部”的范围。每次请求都会重新检查权限，历史服务也不例外。本地关闭身份认证时保留原有全局读取行为。
+
 ## 在控制台调用工具
 
 调用工作区先选择 MCP 服务实例，再选择当前身份可见目录中的工具。内置工具单独分组。服务名称旁保留稳定的实例 ID；调用仍使用原有注册工具 ID，通过 `/v1/invoke` 完成授权和审计，不增加轮询或额外的管理权限查询。

@@ -7,20 +7,20 @@ export function BuildOutputPanels({ build, log, t }: { build: BuildRecord | null
   if (!build || (!log?.stdout && !log?.stderr && !build.error)) return null
   const stderrText = String(log?.stderr || build?.error || t("noData"))
   return (
-    <div className="grid gap-4 xl:grid-cols-2">
+    <div className="build-output-panels grid gap-4 xl:grid-cols-2">
       <Card>
         <CardHeader>
           <CardTitle>{t("buildStdout")}</CardTitle>
           <CardDescription>{log?.command?.join(" ") || t("noData")}</CardDescription>
         </CardHeader>
-        <CardContent><JsonPanel text={String(log?.stdout || t("noData"))} maxHeight="max-h-[360px]" /></CardContent>
+        <CardContent><JsonPanel className="build-output-json" copyLabel={t("copy")} text={String(log?.stdout || t("noData"))} maxHeight="max-h-[360px]" /></CardContent>
       </Card>
       <Card>
         <CardHeader>
           <CardTitle>{t("buildStderr")}</CardTitle>
           <CardDescription>{log ? `${t("status")}: ${localizeStatus(t, log.level)}` : t("noData")}</CardDescription>
         </CardHeader>
-        <CardContent><JsonPanel text={stderrText} maxHeight="max-h-[360px]" /></CardContent>
+        <CardContent><JsonPanel className="build-output-json" copyLabel={t("copy")} text={stderrText} maxHeight="max-h-[360px]" /></CardContent>
       </Card>
     </div>
   )

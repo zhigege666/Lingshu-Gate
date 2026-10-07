@@ -42,6 +42,7 @@ class ViewerControlPlaneRoutesTest(unittest.TestCase):
             os.environ,
             {
                 "LINGSHU_GATE_DATA_DIR": str(self.data_dir),
+                "LINGSHU_GATE_DB_URL": f"sqlite:///{self.data_dir / 'gate.db'}",
                 "LINGSHU_GATE_CONFIG_DIR": str(self.data_dir / "mcp.d"),
                 "LINGSHU_GATE_ALLOWED_ROOT": str(self.data_dir),
                 "LINGSHU_GATE_AUTH_ENABLED": "true",
@@ -260,7 +261,7 @@ class ViewerControlPlaneRoutesTest(unittest.TestCase):
         )
         self.assertEqual(expired_update.status_code, 400, expired_update.text)
 
-    def test_ac033_operator_and_admin_keep_control_plane_read_access(self) -> None:
+    def test_ac033_shared_credentials_require_admin_capability(self) -> None:
         for username, password in (
             ("operator-test", "Operator123!"),
             ("admin", "Admin123!"),
@@ -269,7 +270,8 @@ class ViewerControlPlaneRoutesTest(unittest.TestCase):
             for path in SENSITIVE_CONTROL_PLANE_PATHS:
                 with self.subTest(username=username, path=path):
                     response = self.client.get(path)
-                    self.assertEqual(response.status_code, 200, response.text)
+                    expected = 403 if username == "operator-test" and path == "/v1/credentials" else 200
+                    self.assertEqual(response.status_code, expected, response.text)
 
 
 class ViewerSystemRoleMigrationTest(unittest.TestCase):

@@ -10,10 +10,10 @@ The goal is efficient task completion: find an object, perform the intended oper
 
 - Keep React/Vite and Ant Design as the primary UI foundation; do not introduce another component library for this contract. Reuse the existing Ajv and domain validation adapters. Dedicated editor or component-preview tooling requires a demonstrated gap; it is not a prerequisite for interaction fixes.
 - Extend the existing theme entry points: [`console-design-provider.tsx`](../web/src/components/console-design-provider.tsx), [`index.css`](../web/src/index.css), and the layout rules in [`console-workspace.css`](../web/src/console-workspace.css). Do not create a competing token entry point. Convergence of existing AntD tokens and CSS variables must preserve affected consumers and is a separate migration.
-- Use values from those files rather than trial dimensions from design research. For example, the current AntD provider defines `fontSize: 14`, `borderRadius: 6`, `controlHeight: 36`, and `controlHeightSM: 30`; these describe the provider, not a claim that every existing local control matches it. Token changes must be explicit and checked at their consumers.
+- Use values from those files rather than trial dimensions from design research. For example, the current AntD provider defines `fontSize: 14`, `borderRadius: 8`, `controlHeight: 36`, and `controlHeightSM: 30`; these describe the provider, not a claim that every existing local control matches it. Token changes must be explicit and checked at their consumers.
 - Shared components own presentation and interaction mechanics. Domain adapters own requests, authorization, business state, and secret handling. Reuse behavior where it matches; do not turn visually similar pages into a universal CRUD component.
 
-Use `--input` / AntD `colorBorder` for editable control boundaries, including Invoke's nullable/JSON-only value containers. Use the quieter `--border` / `colorBorderSecondary` / `colorSplit` for structural dividers, tables, cards, and read-only results. Keep these mappings aligned in both themes; focus and error indicators retain their own semantic colors. Verify actual rendered controls on their adjacent backgrounds after changing these tokens. The build-injected Console version stays visible in the fixed header on desktop and mobile. When a long prerelease is truncated, the full value remains available in the account menu without requiring hover and wraps within the viewport.
+Use `--input` / AntD `colorBorder` for editable control boundaries, including Invoke's nullable/JSON-only value containers. Use the quieter `--border` / `colorBorderSecondary` / `colorSplit` for structural dividers, tables, cards, and read-only results. Keep these mappings aligned in both themes; focus and error indicators retain their own semantic colors. Verify actual rendered controls on their adjacent backgrounds after changing these tokens. The running backend version stays visible on the login/register brand footer and the fixed Console header on desktop and mobile. Both reuse one independent, five-second-bounded read of the existing public `/healthz` metadata per authentication-gate mount, without credentials, cache, polling or automatic retries. Loading and failure labels are localized; unavailable metadata never substitutes a Console build version or blocks authentication. No management API or new public endpoint is needed. When a long prerelease is truncated, the full value remains available in the account menu without requiring hover and wraps within the viewport.
 
 ## Rules
 
@@ -68,7 +68,7 @@ Tool arguments use the tool's schema. Manifest editing uses the actual project m
 | Execution and navigation | Leaving Invoke must not be presented as cancellation. Define warnings for a running request or actual unsaved changes according to the session's real lifetime; do not silently retry or promote sensitive drafts/results into persistent history. |
 | Decisions and permissions | Preserve independent upload, build, deploy, overwrite, start, cancel, abandon, save/apply, classification confirm/publish, and token scope-expansion decisions where they exist. Discovery/display never grants access. |
 
-For local versus remote filtering, name the behavior. A remote query keeps draft filters distinct from applied filters and makes pending changes visible; the proposed **Reset conditions** action resets the draft only until **Apply filters** is used. Local filtering may update immediately over loaded records. This is a migration target, not a claim that every current page already follows it. Refresh must identify its scope and must not silently request every page's data.
+For local versus remote filtering, name the behavior. A remote query keeps draft filters distinct from applied filters and makes pending changes visible; **Reset conditions** clears the draft and immediately requests defaults; **Apply filters** submits other draft edits. Local filtering may update immediately over loaded records. This is a migration target, not a claim that every current page already follows it. Refresh must identify its scope and must not silently request every page's data.
 
 ## Migrated shared patterns and consumers
 
@@ -80,8 +80,9 @@ The following are implemented consumers in this tree, not a claim that every sta
 | [`EditorNavigationContext`](../web/src/components/editor-navigation-guard.tsx) and [`useDraftCloseGuard`](../web/src/components/use-draft-close-guard.ts) | The registry covers all 12 `FormDialog` instances; the close helper serves the editors that adopt it | Each open editor registers and cleans up its own exit flags. The local close helper prevents overlapping discard prompts where adopted; Roles, Configurations, and Uploads retain their own domain close handling. App owns navigation decisions; callers own clearing and secret handling. Invoke uses its own session exit state. The one-time token result is not classified as an unsaved form draft. |
 | [`ValidationErrors`](../web/src/components/validation-errors.tsx) | `McpConfigEditor` in Configurations/Uploads and the Invoke parameter editor | Persistent issue summaries with code/source/path/revision and a locate action. Adapters produce diagnostics, choose when to expose them, reject stale revisions, and reveal/focus the appropriate input or JSON location. Other typed forms retain field-level validation and persistent server errors. |
 | [`McpConfigEditor`](../web/src/components/mcp-config-editor.tsx) | Configurations and Uploads → save as configuration | Shared Manifest form/JSON views, supported argument rows and key/value maps, pending-entry protection, masked endpoint keep/replace, and cooperation with caller-owned one-time credential submission boundaries. Callers provide the original configuration identity, save request, and secret lifecycle. Configurations retain preflight; Uploads opts out of backend preflight and credential-list loading and retains its separate create request. Unsupported structures remain in JSON. |
+| [`useListPage`, `ListViewport`, `ListPagination`](../web/src/components/list-pagination.tsx) | Advanced configurations, credentials, downstream credentials, users, roles/types, grants, personal tokens, runtime cache, invocation audit, tool classification; Logs/events reuse only the viewport | Paginate authorized loaded collections with 50 rows per page, bounded row scrolling, page/filter scroll reset, exact loaded ranges, and sticky action columns where present. Classification selects the current page and retains cross-page selections. Callers own authorization, remote limits, filtering, object identity, confirmation and mutations. Logs/events retain their existing 15-row sorting/paging contract. This is not evidence of server-wide totals or browser acceptance. |
 | [`PageRefreshContext` / `usePageRefresh`](../web/src/components/page-refresh.tsx) | 13 page loaders: Builds, Credentials, Users, Roles, Grants, Tool classification, Personal tokens, Downstream credentials, Invocation audit, Logs/events, Runtime cache, Uploads, and Diagnostics. App supplies scoped reads for Dashboard, Configurations, Services, Tools, and Invoke. | The shell invokes the mounted page's read handler and respects its busy state. Callers define required dependencies and error recovery; refresh does not remount editors, poll, apply unsent filter drafts, or fetch all pages. Explicit local actions such as log refresh may remain. |
-| [`QueryStatus`](../web/src/components/query-status.tsx) | Logs/events and Invocation audit | Displays unapplied changes, the applied query summary, and the successful snapshot time. Pages own draft/applied filters, limits, requests, and errors; Reset conditions changes only the next query. Local search remains limited to loaded records. |
+| [`QueryStatus`](../web/src/components/query-status.tsx) | Logs/events and Invocation audit | Displays unapplied changes, the applied query summary, and the successful snapshot time. Pages own draft/applied filters, limits, requests, and errors; Reset conditions clears the draft and immediately requests the defaults. Local search remains limited to loaded records. |
 | [`getToolAccessDisplay`](../web/src/features/tool-access.ts) | Tools catalog via `tool-catalog`, and Invoke | Both derive displayed access from `metadata.gate_access.required_access`; pending is shown only for an explicit pending classification. Unknown stays distinct. This adapter neither infers access from a declaration nor authorizes execution. |
 
 ## Evidence and review
@@ -106,6 +107,108 @@ For a documentation-only change, verify links, language parity, and `git diff --
 3. The consumers above have migrated to shared editor, feedback, query, refresh, and exit patterns. Complete and record applicable browser checks and independent product/UI and test review, fix findings, and recheck affected consumers. Component adoption or passing source tests alone does not establish whole-site interaction acceptance.
 4. Map current AntD tokens and CSS variables at the existing entry points, then remove measured inconsistencies with consumer checks. Introduce lint, component stories, or browser tooling only when the pilot identifies a concrete recurring need; document exactly what is installed and enforced.
 
+## Centered dialogs and direct choices — 2026-10-04
+
+Design owner: dot. This supplement follows the user's selection of design 2 and
+long-term Gate UI requirements on 2026-10-04. Engineering implements it; dot owns
+independent visual and interaction acceptance. Existing non-conflicting rules
+and authorization/draft safeguards remain in force.
+
+### Scope and dialog frame
+
+- New, edit and detail context overlays in Gate use a centered Dialog. Ordinary
+  route pages remain pages. This applies to Gate, not automatically to Admin.NET
+  or browser extensions. Existing drawers require explicit per-page migration.
+- Configuration editors have a default maximum width of 1200 px, bounded by the
+  viewport minus 96 px, and maximum height of the viewport minus 64 px. Desktop
+  acceptance sizes are 1600×900, 1920×1080, 2560×1080 and 2560×1440.
+- Keep the title and close action at the top, actions at the bottom, and one
+  principal body scroll area. JSON mode scrolls inside its editor instead of
+  creating two competing vertical scroll areas.
+- The configuration editing frame keeps this bounded viewport height in both
+  modes so JSON retains a usable workspace when switching from the form.
+- Use two columns for short fields; endpoints, errors and key/value lists span
+  the available width. Large displays do not stretch inputs indefinitely. Allow
+  sufficient label width in English and Chinese.
+- Form / JSON tabs share one draft. Organize content with spacing and thin
+  dividers instead of stacked cards. Common fields remain visible; infrequent
+  advanced fields may be progressively disclosed.
+- Close, Cancel, Escape, outside click and navigation follow the same dirty
+  protection. Pending saves prevent duplicate submission and loss on close.
+  Focus enters the dialog, remains trapped, and returns to its trigger.
+
+### Choice controls
+
+- Use native or fully accessible radio / segmented radio for 2–5 fixed, mutually
+  exclusive short options. One click selects an option; do not use Select.
+- Filters that need an all-items choice explicitly include **All**, selected by
+  default. It is one radio value, not a select-all action. Editing fields follow
+  actual model defaults and do not acquire an All value automatically.
+- Collections with six or more options, dynamic loading, search needs or long
+  labels may use a searchable selector. Radios may wrap; lack of space alone
+  does not justify switching back to Select.
+- Use a switch or checkbox for one Boolean, and checkboxes for multiple choices.
+  Radios support arrow keys, visible focus, full label hit areas and an explained
+  disabled state. Selection is not conveyed by color alone.
+
+### Data semantics
+
+- Enabled state, runtime mode, endpoint and timeout are directly visible. The
+  current form modes are managed Stdio, external HTTP and managed HTTP. Advanced
+  is a read-only unsupported-combination state, not a selectable fourth mode.
+- Access declarations belong in the advanced section as a read-only summary
+  with JSON editing. `permissions` is a declaration object, not a read/write/admin
+  enum or an access grant. Actual access remains in authorization management.
+- Every form row keeps its label and control on the same line: a fixed-width
+  label on the left and the input, radio group, switch or textarea on the right.
+  Help and errors sit below the control. Labels stay on one line in English and
+  Chinese. Paired short fields retain this layout inside each cell; narrow
+  layouts collapse to individual rows instead of moving labels above inputs.
+- Enabling does not mean immediate execution. Saving, applying and connecting
+  explain their real effects; saving success does not imply a connected service.
+- Startup policy is separate from enabled state. Both modes use **Start
+  automatically when Gate starts**. The managed-mode helper says **Start the MCP
+  process automatically and connect**; the external-mode helper says **Connect
+  automatically without starting a remote process**. Missing `startup_policy`
+  retains `legacy_restore`; only an explicit startup switch edit selects
+  `gate_start_v1`. At the next Gate process start the new policy follows enabled
+  and auto_start once; manual actions then control the current process without
+  changing its next startup policy. Explain legacy behavior until migration.
+  Do not imply remote-process or OS
+  boot control. Unsupported restart/health options are explicitly reported rather
+  than silently changing the meaning of a saved draft.
+- Preserve untouched schema-supported fields. Unknown fields do not bypass the
+  backend schema. Explain removal or incompatibility before a mode switch.
+- Invalid JSON retains its raw text and diagnostic location; it does not revert
+  to an old form. Results belong to a draft revision and expire when it changes.
+
+### Precheck and actions
+
+- Present one overall state: **Check failed · N errors**, **Check completed · N
+  warnings**, or **Check passed**. Errors start expanded, with concise field
+  reasons and remedies. Empty normal/info groups are absent; hard failures are
+  not described as a recommendation. Technical paths and original reasons may
+  have expandable detail while important reasons remain visible.
+- Selecting an issue locates its field or JSON. A failed check disables Save and
+  explains why. **Validate configuration** is secondary; **Cancel** and **Save
+  configuration** are standard actions. Static validation must not claim to test
+  network connectivity.
+- Reuse existing icon components with localized text. Decorative icons are
+  `aria-hidden`; copied SVG markup alone is not evidence of a rendering fault.
+
+### Migration and acceptance
+
+The service configuration editor is the current migration target. Remaining
+drawers are service tool/call details (`servers-page.tsx`), upload history
+(`uploads-page.tsx`), personal tool/call details (`personal-workspace-page.tsx`),
+proxy-profile editing (`network-settings-panel.tsx`) and network settings
+(`git-import-form.tsx`). This inventory does not claim site-wide completion.
+
+Check all four desktop sizes, both languages, long errors/URLs, large header
+lists, Form/JSON round trips, error/warning/pass states, discard recovery,
+keyboard operation and focus. A design image sets direction; it does not replace
+real browser acceptance or permission/security tests.
+
 ## Open-source references
 
 These primary sources informed the contract; project-specific rules above remain explicit project decisions. Borrowing their review practices does not require adopting their component libraries or their full test matrices.
@@ -114,3 +217,37 @@ These primary sources informed the contract; project-specific rules above remain
 - [Carbon component checklist](https://carbondesignsystem.com/contributing/component-checklist/), [token Stylelint plugin](https://github.com/carbon-design-system/stylelint-plugin-carbon-tokens), and [data-table guidance](https://carbondesignsystem.com/components/data-table/usage/): token governance, behavior specifications, progressive checks, and density variants.
 - [GitLab Pajamas forms](https://design.gitlab.com/patterns/forms/), [modal guidance](https://design.gitlab.com/components/modal/), and [empty states](https://design.gitlab.com/patterns/empty-states/): associated help/errors, focus and closing behavior, and contextual next actions. Pajamas is an open-source project hosted on GitLab.
 - [Ant Design feedback](https://ant.design/docs/spec/research-message-and-feedback/), [theme customization](https://ant.design/docs/react/customize-theme/), and [visual regression practice](https://ant.design/docs/blog/visual-regression/): contextual feedback, existing token mechanisms, and visual-change evidence.
+
+## Delivery, personal discovery and result review scenarios
+
+- Delivery history: the selected tab owns the list title and collection total. Keep search, status filter and page position in one wrapping toolbar; retain row-level actions and reset pagination on filters.
+- Personal MCP: derive services from the current principal's visible tools. Test administrator multi-service pagination, read-only access, one-service read/write grants and guessed unauthorized IDs; preview fixtures are not authorization evidence.
+- Invocation result: decode JSON inside MCP text blocks for display only; preserve the raw response for copy. Search only the current displayed result, with match navigation and no new invocation. Test text, nested JSON, arrays, empty/failed responses, escaped markup, no matches and matches beyond a bounded display window. Never render untrusted HTML or fetch returned media URLs.
+- Classification review: default order is Needs confirmation, Pending publish, Published, Stale. Review-and-publish requires explicit confirmation of targets and access, validates fingerprints and is atomic within each batch of at most 500. Unknown classifications remain blocked. Later batch failures retain completed work and report unfinished targets.
+- Tool origin: classification REST responses project `registry_source` from the current Registry's exact service/tool pair. The stored `source` remains the classification suggestion's provenance. Lists, review details and service filters use the same four builtin group names and system badge only with trusted builtin evidence; IDs, `gate_*` prefixes and suggestion sources cannot establish origin. Missing or mixed origin evidence remains unconfirmed, including historical rows. This display never confirms, publishes or grants tool access.
+- Stale classification: unchanged tool definitions must survive refresh without losing publication. Definition changes invalidate prior access; catalog removal and reappearance require review. Show available reasons rather than implying a tool crashed. Historical records without reason evidence cannot establish why they became stale.
+- Logs/events filters: show the controls directly in a wrapping row on wide screens, preserving applied versus draft query state and readable labels on narrow screens.
+
+### Filter reset regression
+
+- Compound filters have a stable, compact reset action that does not move the list when enabled. Clear search changes only search; Reset filters restores every condition and page one.
+- Logs, events and audit reset immediately request default conditions. On failure, preserve the error and applied snapshot rather than relabeling old results. Same-query refresh preserves the current page; changed filters and reset start on page one and never resurrect an old page.
+
+## Visual craft review
+
+The project's quality target references Awwwards, Webby and FWA craft, without claiming an award or an objective maximum. Preserve Gate's operational clarity and one-click access. Review eight dimensions against real rendered task states:
+
+1. Typography: consistent native/AntD CJK sans fallback; legible secondary copy and tabular numbers
+2. Spacing: intentional grouping, no decorative empty columns; dense data must remain readable
+3. Hierarchy: visible primary actions, context and results; configuration explanations use the full available row
+4. Color: consistent semantic states in both themes; source token contrast checks supplement rendered checks
+5. Motion: short feedback, no automatic decorative loops; reduced-motion preference wins
+6. Micro-interaction: visible hover/focus/loading/disabled/error states without shifting rows
+7. Responsive layout: check actual CSS viewport sizes and long Chinese/English copy; iframe layout checks do not establish physical-device, touch or performance coverage
+8. Originality: coherent Gate identity and task-specific composition; never copy award marks or claim certification
+
+Record concrete remaining findings rather than declaring that nothing can be improved. Stop a review round only after its observed usability defects are fixed or explicitly blocked. Keep desktop/mobile evidence and unexecuted automation distinct.
+
+References: [Webby criteria](https://www.webbyawards.com/judging-criteria/), [Awwwards mobile guidelines](https://www.awwwards.com/mobile-excellence-guidelines.pdf), [FWA's stated focus](https://thefwa.com/FWA25/25.html).
+
+Formal desktop acceptance sizes: 1600×900, 1920×1080, 2560×1080 and 2560×1440. Narrow-screen fallback remains available, but phone/tablet-specific expansion is outside the current scope.

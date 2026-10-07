@@ -29,16 +29,24 @@ from lingshu_gate.mcp_gateway import (
     _gateway_tools,
     register_mcp_gateway_route,
 )
-from lingshu_gate.transports.http import build_protocol_request
+from lingshu_gate.transports.http import HttpProtocolValidationError, build_protocol_request
 
 
 class FakeRuntime:
+    def iter_manifests(self):
+        return {}
+
     def list_servers(self) -> McpServerListResponse:
         return McpServerListResponse(servers=[], load_errors=[])
 
 
 class FakeObservabilityStore:
+    def historical_server_ids(self):
+        return ["sample-service"]
+
     def list_logs(self, **kwargs: object) -> list[dict[str, object]]:
+        if kwargs.get("allowed_server_ids") == []:
+            return []
         return [
             {
                 "level": kwargs.get("level") or "error",
@@ -65,6 +73,11 @@ def deny_operator(_: Request) -> AuthPrincipal:
 
 
 class FakeAccessStore:
+    def observability_server_ids(self, principal, candidates):
+        if principal.role == "viewer":
+            raise AccessDeniedError("missing operations permission", required_access="operations.manage", granted_access="none")
+        return None
+
     def visible_tools(
         self,
         principal: AuthPrincipal,
@@ -87,7 +100,11 @@ class FakeAccessStore:
                 required_access="write",
                 granted_access="read",
             )
-        return registry.invoke(tool_id, arguments)
+        from lingshu_gate.registry import ToolInvocationContext
+        return registry.invoke(tool_id, arguments, context=ToolInvocationContext(
+            actor_id=principal.id, username=principal.username, auth_type=principal.auth_type,
+            token_id=None, correlation_id="synthetic", roles=(principal.role,),
+        ))
 
 
 class SystemDebugServiceTest(unittest.TestCase):
@@ -99,6 +116,7 @@ class SystemDebugServiceTest(unittest.TestCase):
             self.registry,
             FakeRuntime(),  # type: ignore[arg-type]
             FakeObservabilityStore(),  # type: ignore[arg-type]
+            FakeAccessStore(),  # type: ignore[arg-type]
         )
 
     def test_logs_are_redacted(self) -> None:
@@ -152,6 +170,7 @@ class McpGatewayProtocolTest(unittest.TestCase):
             registry,
             FakeRuntime(),  # type: ignore[arg-type]
             FakeObservabilityStore(),  # type: ignore[arg-type]
+            FakeAccessStore(),  # type: ignore[arg-type]
         )
         if debug_enabled:
             register_system_debug_tool(registry, service)
@@ -365,6 +384,22 @@ class McpGatewayProtocolTest(unittest.TestCase):
         self.assertEqual(response.status_code, 200)
         self.assertEqual(response.json()["result"]["supportedVersions"], [MCP_PROTOCOL_VERSION])
 
+    def test_protocol_rejections_only_expose_explicit_public_fields(self) -> None:
+        for validator in ("validate_origin_header", "validate_gateway_http_request"):
+            with self.subTest(validator=validator):
+                error = HttpProtocolValidationError(-32020, "Protocol header rejected",
+                    data={"requiredCapabilities": {}})
+                error.args = ("Traceback: synthetic internal diagnostic must stay private",)
+                with patch(f"lingshu_gate.mcp_gateway.{validator}", side_effect=error):
+                    response = self._post(self._app(),
+                        {"jsonrpc": "2.0", "id": 1, "method": "server/discover", "params": {}})
+                payload = json.loads(response.body)
+                self.assertEqual(response.status_code, 400)
+                self.assertEqual(payload["error"]["code"], -32020)
+                self.assertEqual(payload["error"]["message"], "Protocol header rejected")
+                self.assertNotIn(b"Traceback", response.body)
+                self.assertNotIn(b"internal diagnostic", response.body)
+
     def test_tools_call_returns_structured_content(self) -> None:
         response = self._post(
             self._app(),
@@ -489,6 +524,15 @@ class McpGatewayProtocolTest(unittest.TestCase):
 
         with self.assertRaises(ToolNamespaceCollisionError):
             _gateway_tools(registry)
+
+    def test_gateway_preserves_empty_output_contract_and_omits_missing_contract(self) -> None:
+        registry = ToolRegistry()
+        for tool_id, metadata in (("missing", {}), ("empty", {"outputSchema": {}})):
+            registry.register(ToolDefinition(id=tool_id, name=tool_id, description="Synthetic contract",
+                                            metadata=metadata), lambda _: {})
+        tools = {tool_id: payload for tool_id, payload, _ in _gateway_tools(registry)}
+        self.assertEqual(tools["empty"]["outputSchema"], {})
+        self.assertNotIn("outputSchema", tools["missing"])
 
     def test_invalid_jsonrpc_request(self) -> None:
         response = self._post(self._app(), {"jsonrpc": "2.0", "id": 4})

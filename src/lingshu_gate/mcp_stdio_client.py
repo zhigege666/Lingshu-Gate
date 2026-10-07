@@ -33,6 +33,7 @@ from lingshu_gate.protocol.version import (
     resolve_downstream_protocol_version,
 )
 from lingshu_gate.redaction import redact_command, redact_text, redact_value
+from lingshu_gate.runtime_toolchain import resolve_runtime_toolchain
 from lingshu_gate.subprocess_environment import (
     build_docker_subprocess_environment,
     build_subprocess_environment,
@@ -58,6 +59,10 @@ class McpProtocolError(RuntimeError):
 
 class StdioMcpClient:
     """Manage one stdio MCP server process and JSON-RPC session."""
+
+    def audit_redaction_values(self) -> tuple[str, ...]:
+        """Reuse already resolved credentials for bounded audit redaction."""
+        return self._redaction_values
 
     def __init__(self, manifest: McpServerManifest, settings: Settings, log_sink: LogSink | None = None) -> None:
         self.manifest = manifest
@@ -132,6 +137,8 @@ class StdioMcpClient:
                 self._store_log("info", "Credential refs resolved for MCP env", "gate.mcp.credentials_resolved", credential_metadata)
             cwd = Path(launch.cwd).resolve() if launch.cwd else None
             command = cache_plan.command or [launch.command, *launch.args]
+            if launch.toolchain:
+                command = resolve_runtime_toolchain(launch, env, settings=self.settings)
         safe_command = redact_command(command)
         log_event(logger, logging.INFO, "gate.mcp.stdio_process_started", "Starting MCP stdio process", server_id=self.manifest.id, command=safe_command, cwd=str(cwd) if cwd else None, runtime_cache=runtime_cache_payload)
         self._store_log("info", "Starting MCP stdio process", "gate.mcp.stdio_process_started", {"command": safe_command, "cwd": str(cwd) if cwd else None, "runtime_cache": runtime_cache_payload})

@@ -5,11 +5,11 @@ import { translate, type TFunction } from "@/i18n"
 
 const t: TFunction = key => translate("zh-CN", key)
 
-function actionButtons(busy: boolean) {
+function actionButtons(busy: boolean, count = 1) {
   const html = renderToStaticMarkup(<ConfigsPage
     locale="zh-CN"
     t={t}
-    configs={[{ id: "example", path: "/config/example.yaml", format: "yaml", manifest: { id: "example", name: "Example" } }]}
+    configs={Array.from({ length: count }, (_, index) => ({ id: `example-${index}`, path: `/config/example-${index}.yaml`, format: "yaml", manifest: { id: `example-${index}`, name: "Example" } }))}
     configErrors={[]}
     selectedConfigId=""
     configText=""
@@ -47,4 +47,8 @@ describe("MCP 配置行操作", () => {
       { label: "删除", disabled: true },
     ])
   })
+  it("200 configurations render only 50 rows without duplicating actions", () => {
+    expect(actionButtons(false, 200)).toHaveLength(50 * 3)
+  })
+
 })

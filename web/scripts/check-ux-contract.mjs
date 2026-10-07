@@ -19,6 +19,7 @@ const pageNames = [
   "logs-events-page.tsx",
   "runtime-cache-page.tsx",
   "uploads-page.tsx",
+  "system-settings-page.tsx",
   "tool-classifications-page.tsx",
   "access-users-page.tsx",
   "access-roles-page.tsx",
@@ -60,6 +61,7 @@ for (const pageName of pageNames) {
   }
   if (!["servers-page.tsx", "dashboard-page.tsx"].includes(pageName)) {
     assertContract(source.includes('helpLabel={t("pageHelp")}'), `${pageName} 缺少多语言页面帮助入口`)
+    assertContract(source.includes('closeLabel={t("close")}'), `${pageName} 缺少多语言关闭按钮`)
   }
   assertContract(!/eyebrow="[^"]+"/.test(source), `${pageName} 的页面分类未经过多语言`)
   if (searchablePages.has(pageName)) {

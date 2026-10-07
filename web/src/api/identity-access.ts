@@ -96,6 +96,7 @@ export type ResourceGrantSaveRequest = {
 }
 
 export type AccessResource = {
+  registry_source?: string
   server_id: string
   tool_id: string
   tool_name: string
@@ -108,6 +109,7 @@ export type ToolClassification = {
   server_id: string
   tool_id: string
   tool_name: string
+  registry_source?: string | null
   fingerprint: string
   suggested_access: "read" | "write" | "unknown"
   effective_access: "read" | "write" | "unknown"
@@ -221,7 +223,7 @@ export const identityAccessApi = {
   toolClassifications: (filters: { server_id?: string; status?: string } = {}, signal?: AbortSignal) => request<{ classifications: ToolClassification[] }>(`/v1/access/tool-classifications${queryString(filters)}`, { signal }),
   analyzeToolClassifications: (payload: { server_id?: string | null }) => request<{ classifications: ToolClassification[] }>("/v1/access/tool-classifications/analyze", { method: "POST", body: JSON.stringify(payload) }),
   updateToolClassification: (serverId: string, toolId: string, payload: { access: "read" | "write" | "unknown"; destructive: boolean; idempotent: boolean; note?: string }) => request<ToolClassification>(`/v1/access/tool-classifications/${encodeURIComponent(serverId)}/${encodeURIComponent(toolId)}`, { method: "PUT", body: JSON.stringify(payload) }),
-  confirmToolClassifications: (payload: { items: Array<{ server_id: string; tool_id: string; expected_fingerprint: string }>; note?: string }) => request<ToolClassificationConfirmResponse>("/v1/access/tool-classifications/confirm", { method: "POST", body: JSON.stringify(payload) }),
+  confirmToolClassifications: (payload: { items: Array<{ server_id: string; tool_id: string; expected_fingerprint: string }>; note?: string; publish?: boolean }) => request<ToolClassificationConfirmResponse>("/v1/access/tool-classifications/confirm", { method: "POST", body: JSON.stringify(payload) }),
   publishToolClassifications: (payload: { server_id?: string | null; tool_ids?: string[] }) => request<{ classifications: ToolClassification[] }>("/v1/access/tool-classifications/publish", { method: "POST", body: JSON.stringify(payload) }),
   invocationAudits: (filters: { user_id?: string; server_id?: string; tool_id?: string; decision?: string; outcome?: string; limit?: number } = {}) => request<{ audits: InvocationAudit[]; filter_options: InvocationAuditFilterOptions }>(`/v1/access/invocation-audits${queryString(filters)}`),
   invocationStatistics: (hours: 24 | 168 = 24) => request<InvocationStatistics>(`/v1/access/invocation-statistics${queryString({ hours })}`),

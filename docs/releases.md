@@ -4,9 +4,15 @@
 
 Lingshu Gate release automation produces directly runnable native packages, a Docker Compose deployment bundle, and tagged-release offline Core images. Every published asset is covered by `SHA256SUMS` and a repository build-provenance attestation.
 
-The current source version is `0.2.2`, resolving the historical test-fixture scan blocker and including the updated Console overview, clearer theme borders, and visible build version. Console pages use direct navigation links, compact toolbars, on-demand help, and responsive tables and dialogs. Runtime reporting, Python package metadata, CLI output, and release artifact names derive from the single version source in `src/lingshu_gate/_version.py`.
+The current source version is `0.4.0`. Console service and record actions now appear directly as buttons, alongside visible OpenAPI, sign-out, and credential-reference actions. Button groups wrap on narrow screens while existing permission checks, state restrictions, and confirmations remain unchanged. Runtime reporting, Python package metadata, CLI output, and release artifact names derive from the single version source in `src/lingshu_gate/_version.py`.
 
 The source Console also includes the card-based tool catalog with deployment-specific MCP filtering, effective access badges, and direct selection in the invocation editor. Tool discovery adds the request-local `metadata.gate_access` display snapshot described in [operations](operations.md#tool-catalog). This change adds no frontend dependency or database migration.
+
+## 0.3.1 security and release recovery
+
+This source requires PyJWT 2.14.0 or later and locks PyJWT to 2.15.1, including the fix for CVE-2026-102268. The pip requirements export is regenerated from the same uv lock file. Existing RS256-only verification and default-disabled external authentication remain unchanged.
+
+The failed `v0.3.0` tag is retained at its original revision. The corrected source uses a new `v0.3.1` tag; neither a version change nor tag creation alone means release assets have passed validation or been published.
 
 ## Artifact matrix
 
@@ -212,3 +218,17 @@ The version mirror must succeed before GitHub Release creation. Existing version
 After Release assets and their attestations have been verified, stable releases update `docker.io/<DOCKERHUB_USERNAME>/lingshu-gate:latest` only when GitHub identifies that release as its latest stable release. Prereleases and reruns of older releases do not move `latest`. Publication jobs are serialized. A failure updating `latest` leaves the already published version and Release intact and fails the workflow; rerun it to retry verification and synchronization. Registry publication is not an atomic transaction across GHCR, Docker Hub and GitHub Releases, so a failed run may leave a verified version image in one registry. Do not delete or replace published version tags to retry.
 
 The Docker Hub mirror includes BuildKit SBOM/provenance manifests. GitHub asset attestations remain attached to the GitHub Release assets; optional Cosign signing still targets the GHCR digest, not a separate Docker Hub signature.
+
+## 0.4.0 features and boundaries
+
+This version integrates built-in OAuth and the Git/network control plane while retaining API-token and external-IdP verification. The paired READMEs provide complete navigation across the gateway, RBAC, tool governance, credentials, delivery, personal workspace, audit/retention and releases; bilingual screenshots come from synthetic instances of the same candidate code.
+
+Built-in OAuth is off by default and reuses Gate users/RBAC. It provides confidential static clients, S256 PKCE, per-user tool consent, single-use codes, refresh rotation, encrypted RS256 private keys and live revocation checks. Independent public assets do not require exposing Console. The independent registrations for `0006_builtin_oauth`, `0007_auth_session_purpose` and `0008_oauth_interaction_capacity` remain intact. External IdP mode still performs resource verification rather than hosting the provider's authorization flow; neither mode creates tunnels. See [built-in OAuth](builtin-oauth.md) and [external resource access](external-connections.md).
+
+System settings adds Network and dependencies: named encrypted/redacted proxy revisions, separate Git/install defaults, inherit/direct/profile project overrides, separate dependency sources, optimistic locking, reference protection, audit and independent permissions. Git plans join the existing upload/preflight/BuildPlan/build/deploy/start chain with exact commits and bounded snapshots. Node plans recognize explicit npm/pnpm/Yarn Classic versions and locks; unknown or conflicting declarations return actionable errors without silent fallback. `0004_gate_git_network` is retained alongside the OAuth migrations.
+
+**The production safe network executor is not implemented. Real Git acquisition, proxy probes, tool preparation and configured network installs remain blocked.** Docker Core is not relaxed, no engine socket is mounted, and host global settings are not a fallback. Read-only manifest validation executes no version probes; authorized native startup uses only reviewed administrator registrations for pinned tools. Synthetic tests do not certify actual tool download/install or runtime isolation. See [design and support](git-import-network.md), [integration notes](git-network-integration.md) and [the executor gap](git-executor-decision.md).
+
+Review fixes also preserve nested project roots, audit successful Git plans, bound expired-unused-plan cleanup and quotas, retain used-plan provenance, and preserve JSON-RPC reserved negative integer error codes while redacting OAuth secrets. Browser repairs keep the external connection guide reachable, load the project before historical-build deployment and preserve an editable role search. They do not bypass confirmation, expand permissions or replay writes blindly.
+
+The [validation record](release-validation.md) distinguishes static checks, executed automation, synthetic browsers, unverified real networking and release-workflow results. PR native/Compose validation does not establish publication; tags, offline images, SBOM, checksums and GitHub Release must each be confirmed after the existing workflows complete. There is no production deployment, user Git/proxy/SSH, external account or real credential integration.

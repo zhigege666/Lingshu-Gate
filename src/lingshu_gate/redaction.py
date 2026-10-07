@@ -8,21 +8,26 @@ from typing import Any
 
 REDACTED = "[REDACTED]"
 SENSITIVE_KEY_PATTERN = re.compile(
-    r"(?:password|passwd|secret|token|api[_-]?key|authorization|cookie|credential|private[_-]?key|client[_-]?secret|refresh[_-]?token)",
+    r"(?:password|passwd|secret|token|api[_-]?key|authorization|cookie|credential|private[_-]?key|client[_-]?secret|refresh[_-]?token|^code$|auth[_-]?code|code[_-]?verifier|csrf)",
     re.IGNORECASE,
 )
 SENSITIVE_FLAG_PATTERN = re.compile(
-    r"^--?(?:api[-_]?key|token|secret|password|passwd|credential|client[-_]?secret|refresh[-_]?token)$",
+    r"^--?(?:api[-_]?key|token|secret|password|passwd|credential|client[-_]?secret|refresh[-_]?token|code|authorization[-_]?code|code[-_]?verifier|csrf)$",
     re.IGNORECASE,
 )
 SENSITIVE_FLAG_VALUE_PATTERN = re.compile(
-    r"^(--?(?:api[-_]?key|token|secret|password|passwd|credential|client[-_]?secret|refresh[-_]?token)(?:=|:)).+$",
+    r"^(--?(?:api[-_]?key|token|secret|password|passwd|credential|client[-_]?secret|refresh[-_]?token|code|authorization[-_]?code|code[-_]?verifier|csrf)(?:=|:)).+$",
     re.IGNORECASE,
 )
 BEARER_PATTERN = re.compile(r"(?i)\bbearer\s+[A-Za-z0-9._~+/=-]+")
 INLINE_SECRET_PATTERN = re.compile(
     r"(?i)(?<![A-Za-z0-9])"
     r"([A-Za-z0-9_.-]*(?:password|passwd|secret|token|api[_-]?key|authorization|cookie|credential|private[_-]?key|client[_-]?secret|refresh[_-]?token))"
+    r"(\s*[:=]\s*)(\"[^\"]*\"|'[^']*'|[^\s,;]+)"
+)
+OAUTH_INLINE_SECRET_PATTERN = re.compile(
+    r"(?i)(?<![A-Za-z0-9_])"
+    r"(authorization[_-]?code|auth[_-]?code|code|code[_-]?verifier|csrf)"
     r"(\s*[:=]\s*)(\"[^\"]*\"|'[^']*'|[^\s,;]+)"
 )
 HTTP_URL_PATTERN = re.compile(r"(?i)\bhttps?://[^\s\"'<>]+")
@@ -35,6 +40,7 @@ def redact_text(value: str, *, known_secrets: Iterable[str] = (), limit: int = 1
             redacted = redacted.replace(secret, REDACTED)
     redacted = BEARER_PATTERN.sub(f"Bearer {REDACTED}", redacted)
     redacted = INLINE_SECRET_PATTERN.sub(rf"\1\2{REDACTED}", redacted)
+    redacted = OAUTH_INLINE_SECRET_PATTERN.sub(rf"\1\2{REDACTED}", redacted)
     redacted = HTTP_URL_PATTERN.sub(REDACTED, redacted)
     if len(redacted) > limit:
         return f"{redacted[:limit]}…[TRUNCATED]"
@@ -57,6 +63,10 @@ def redact_validation_errors(errors: Iterable[Mapping[str, Any]]) -> list[dict[s
 
 
 def redact_value(value: Any, *, key: str | None = None, known_secrets: Iterable[str] = ()) -> Any:
+    # Reserved JSON-RPC error numbers drive protocol negotiation. OAuth
+    # authorization codes, positive codes and string values stay secret.
+    if key and key.lower() == "code" and type(value) is int and -32768 <= value <= -32000 and str(value) not in known_secrets:
+        return value
     if key and SENSITIVE_KEY_PATTERN.search(key):
         return REDACTED
     if isinstance(value, dict):

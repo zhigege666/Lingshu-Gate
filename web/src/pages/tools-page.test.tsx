@@ -1,6 +1,6 @@
 import { renderToStaticMarkup } from "react-dom/server"
 import { describe, expect, it } from "vitest"
-import { ToolsPage } from "@/pages/tools-page"
+import { initialToolCatalogView, ToolsPage } from "@/pages/tools-page"
 import { translate } from "@/i18n"
 import type { ToolDefinition } from "@/api/client"
 
@@ -34,4 +34,18 @@ describe("tools page states", () => {
     expect(html).toContain("Only tools visible to your account are shown")
     expect(html).not.toContain('<article')
   })
+  it("renders only the selected page of a 5000 tool catalog", () => {
+    const tools = Array.from({ length: 5000 }, (_, index) => ({ ...tool, id: `mcp.synthetic.tool_${index}`, name: `Synthetic ${index}` }))
+    const html = renderToStaticMarkup(<ToolsPage {...props} tools={tools} />)
+    expect(html.match(/<article/g)).toHaveLength(48)
+    expect(html).toContain('tool-catalog-scroll')
+    expect(html).toContain('5000')
+    expect(html).not.toContain('Synthetic 4999')
+    expect(html).toContain('1 / 105')
+    const restored = renderToStaticMarkup(<ToolsPage {...props} tools={tools} viewState={{ ...initialToolCatalogView, page: 2, pageSize: 96 }} />)
+    expect(restored.match(/<article/g)).toHaveLength(96)
+    expect(restored).toContain('Synthetic 96')
+    expect(restored).not.toContain('aria-label="Synthetic 0"')
+  })
+
 })

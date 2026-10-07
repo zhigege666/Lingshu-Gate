@@ -20,6 +20,12 @@ Lingshu Gate 位于认证用户与可执行下游服务之间。其配置、数�
 
 ## 支持范围
 
+源码按需目录在排序/分页前使用现有授权策略，发现不授予访问权。所选调用在实际派发与只读恢复前复核当前凭据、完整身份、实际实例、schema 版本和 ACL；只读 scope 不能通过封装获得写权限。签名游标绑定身份和当前目录/授权，每一页重验权限。禁止远程 schema 引用获取。独立管理 OAuth 资源不能使用普通目录入口。限制及合成/真实客户端验证边界见[按需工具指南](docs/zh-CN/on-demand-tools.md)。
+
+schema 求值具备有限结构/展开预算，位于原调用准入之后、派发租约之前，在有期限的子进程执行；超时或取消会终止并回收。已解析目标拒绝仅记录一条原物理 `not_invoked` 审计；未解析引用仅记录哈希/关联事件，不含名称或参数值。公共 describe 拒绝并发策略/目录变化。分组调用保留显式实例/会话选择，禁止读重放。内置 OAuth 验证及进程内证据刷新仅查询数据库 grant 的有限显式目标，保留当前 owner/client/family/发布检查，不授权新发现工具。源码检查不能认证真实提供方或生产部署行为。
+
+调用身份比较将授权集合视为集合，证据字段、权限收窄及数值上限仍严格比较。分组最终派发 guard 在私有客户端初始化后重新执行既有有界会话/实例/配置/代际检查；关闭或到期的会话产生零业务调用及一条 `not_invoked` 审计。
+
 安全修复面向最新公开发行版和 `main` 分支。旧版可能必须升级才能获得修复。发行归档和容器镜像应从仓库官方 Releases 与 Packages 页面获取，并按摘要完成校验。
 
 ## 部署边界
@@ -33,13 +39,18 @@ Lingshu Gate 位于认证用户与可执行下游服务之间。其配置、数�
 - 默认保持 workspace 只读；只有明确记录的操作才能获得更窄范围的可写路径。
 - 每个 SQLite 数据库只运行一个 Core 副本，不得让多个 Gate 实例并发共享 SQLite volume。
 - 保持 payload 日志关闭；分享日志和审计导出前先复核内容。
+- 内存快照只采集进程名和资源指标，不读取命令行参数或环境值；未知参数名也可能携带凭据。
 - 生产容器镜像固定到 digest，并校验发行 checksum、SBOM 和构建元数据。
 
 工具目录的 `metadata.gate_access` 仅是当前请求中现有访问判定的输出快照，供页面展示，不是授权凭证或鉴权输入。Gate 会覆盖可见工具中的下游同名值，不修改注册定义，并在每次调用时重新评估访问策略。
 
 ## 执行边界
 
+外部配置流程仅限管理员，重查当前 Console 会话/API token、角色权限及委托上限。Console REST 写入必须有严格 Origin 及绑定有效会话/动作/请求体的一次性 CSRF 票据；四个管理工具在所有通用注册表入口拒绝会话身份，API bearer 认证保持独立。普通 OAuth 不能配置地址，独立且默认关闭的[管理 OAuth 资源](docs/zh-CN/oauth-external-management-design.md)需要管理员另行同意。计划绑定目标/配置/凭据摘要、actor、管理连接、动作与期限；应用及取消要求明确确认与幂等键。锁等待后重验凭据版本，连接/探测解密前与同一加密记录中的版本核对；轮换后必须重新计划。拒绝未知执行字段与 Header 秘密值，不能通过本流程创建内网 HTTP 信任。连接/刷新复用一次严格发现和分类门禁后替换注册表，保留首次新增/变化计数，不自动发布或授权。没有 client 也先查清理操作归属，取消在写锁内重查终态，运行时应用中断保留未知状态。中断或未知完成要求人工对账，不自动重放写入，也不声称远端进程停止。[外部配置契约](docs/zh-CN/external-mcp-configuration.md)说明协作期限及单目标限制。
+
 项目构建和受管本机进程会以 Gate 进程的权限执行代码，不能作为不可信源码的沙箱。
+
+Manifest 校验只读，不执行其 command 或版本探测。固定 manager 启动仅使用服务管理员登记、位于项目/Data/Manifest 目录之外的 Node/JS CLI；项目执行路径或 PATH 不能改选探测程序。部署注册表与安装工具须防止未授权写入；元数据、超时和禁止下载不能证明工具完整性。准确版本探测仅发生在原有已授权启动生命周期内；未固定版本的旧 Manifest 保留既有显式执行边界。
 
 - 只构建和启动完整源码及依赖行为都可信的项目。
 - 上传前复核确定性压缩包中的完整文件列表。
@@ -51,7 +62,11 @@ Lingshu Gate 位于认证用户与可执行下游服务之间。其配置、数�
 
 Docker Core 镜像不会启动本机 stdio 进程或执行项目构建。这些操作应在单独受控的原生环境中完成。
 
+固定的 Bookworm Python 基础镜像包含 `perl-base` 5.36.0-7+deb12u3。Core 从 Debian 签名仓库安装准确安全版本 5.36.0-7+deb12u4，修复 CVE-2026-13221、CVE-2026-42496 和 CVE-2026-8376；Critical 扫描失败仍阻断发布，不排除漏洞或降低扫描门槛。
+
 ## 访问控制边界
+
+MCP 组引用已有实例配置，创建或归组不授予访问权限。逻辑目录和路由读取交集当前身份／token／OAuth 上限、逻辑服务／工具授权与原实际实例／工具策略。完整合同和声明版本将不兼容工具保持独立分区。路由会话绑定认证连接，必须显式选择实例；配置／runtime 漂移使其失效，不选择其他实例、不重放写调用。内部 guard 将实际派发和工具审计留在原调用路径。管理员组写入保留当前 `operations.manage`／`tools.invoke`、确认、Console CSRF、修订 CAS 与事务审计；独立管理 OAuth 资源仍仅允许原四个外部配置工具。生命周期和代际限制见[内部适配合同](docs/zh-CN/mcp-group-routing-contract.md)。
 
 最终工具访问权限是认证状态、控制权限、资源授权、已发布的读写分类和 API Token scope 的交集。Tool annotation 和发现到的 Schema 都是不可信提示，不能自行授予权限。
 
@@ -82,3 +97,43 @@ Manifest 应使用 `${credential:<id>}` 引用而不是明文。用户下游值�
 ## 不在范围内
 
 如果问题只存在于某个下游服务，应报告给该服务的维护者；除非它同时证明 Gate 违反了文档约定的隔离、授权、脱敏或生命周期边界。
+
+## 外部 OAuth 边界
+
+外部 JWT 验证默认关闭，可通过鉴权管理 API 配置。RS256 资源服务器只在 `/mcp` 接受外部令牌，Console `/v1/*` API 仍要求 Gate session 或 Gate API 令牌。无效 Authorization 不会回退到 cookie，不支持 opaque-token introspection。
+
+先验证精确 issuer/JWKS、audience/规范资源和客户端绑定，再查询当前身份绑定、有效用户和个人授权。普通角色/资源权限、已发布分类、JWT scopes 与本地委托共同限制工具访问，管理员也不例外。grant 限流/并发约束仅在单进程执行，重启后重置。完整配置、验证和撤权合同见[外部资源访问](docs/zh-CN/external-connections.md)。
+
+启用本地记录不会完成外部同意流程，也不证明 provider/ChatGPT 已连接。在外部 IdP 模式中，Gate 不签发 provider 令牌、不托管其 authorize/PKCE 流程，也不向该 provider 注册客户端。独立且需明确启用的内置模式托管 Gate 自身的授权服务和静态客户端注册表。两种模式均不启动隧道。合成 JWT/HTTP 测试不认证生产 TLS 信任链或真实 provider 接入。
+
+共享服务凭据 CRUD 要求 `credentials.manage.system`，默认仅内置管理员拥有；内置 operator 不再通过 `operations.manage` 继承该权限。个人令牌和下游凭据保留 `credentials.manage.self`。外部信任/身份绑定管理另要求 `external_connections.manage`，个人委托始终仅本人可管理。入站 JWT、个人下游凭据和隧道运行秘密保持分离。
+
+## Git 与交付网络设置
+
+命名网络配置要求 `system_settings.manage`；网络调用额外要求 `network.use` 与既有操作、工具和 token 权限。代理地址仅写入并加密，认证仅使用凭据引用。配置与默认项使用乐观版本检查；排队工作固定不可变版本，失败不静默直连。引用中的配置不能悄然删除。本开发分支提供可选 Native/Linux 隔离适配器，Git、代理测试及受支持网络安装须实际 readiness；未准备宿主时明确阻断。已实现 registry-only npm、pnpm 8/9、Yarn Classic 离线冻结缓存安装；pnpm 10/11 package-ID store、Berry、Python sandbox cache 明确拒绝，Python 仅保留既有 upload/direct legacy 路径。宿主子进程环境过滤不等于隔离，Core 执行仍被禁止。
+
+HTTPS 来源计划固定完整 commit、摘要、精确主机策略与有界快照。SSH、hooks、远程 helper、重定向转发凭据、自动 submodule/LFS、宿主全局配置和 Docker socket 均不支持。工具准备是显式确认阶段，在执行器专属缓存中准备通过官方完整性校验的固定版本，不做全局安装。受审查适配器必须约束依赖来源、DNS、出口、资源、取消和产物秘密扫描，代理出口也需遵循。参见 [Git/网络设计](docs/zh-CN/git-import-network.md)。
+
+本开发分支增加可选 Native/Linux rootless Podman adapter，默认关闭；缺宿主前提即 fail closed。使用预载 digest 镜像、可信固定 HTTPS 获取、无秘密离线项目执行；派发前记录阶段/container/cgroup，未知结果不重放/不删除，整组终止后才冻结校验输出。仅支持 registry-only npm cache 安装，pnpm/Yarn/Python 缓存安装明确拒绝。Core 不碰引擎/socket。见 [Native 准备与支持](docs/zh-CN/native-executor.md)。
+
+## 内置 OAuth 边界
+
+默认关闭的内置服务复用已有 Gate 密码/RBAC 身份，使用每用户明确工具同意、机密静态客户端、S256 PKCE 和本地 RS256 验证。授权服务令牌认证业务 `/mcp` 或单独启用且精确 audience 的 `/mcp/manage`，不能认证私有 Console `/v1` API。每请求重新读取用户、客户端、授权和刷新令牌族状态，保存的工具快照与当前权限/发布状态取交集；扩大分类或发现工具不能扩大既有授权。SQLite 事务串行处理单次授权码和刷新轮换；已用刷新令牌重放撤销整族，即使返回错误也提交撤销。访问令牌最长 10 分钟、授权码 60 秒、刷新令牌族绝对 30 天，均受授权到期约束。
+
+本人确认的 live 工具更新要求真实本人 Console 会话、严格 Origin/会话绑定 CSRF、当前权限，以及绑定版本/目录/目标的确认。预览不授予权限。写事务重验依赖，仅以 CAS 更新指定授权，同时消费最新确认摘要并原子记录脱敏审计，失败整体回滚。JWT 签名、issuer/resource/client/family 绑定、scope 交集、到期、撤销及配额检查保持。相同授权的令牌在各自 OAuth scope 上限内跟随明确更新的工具，其他授权不扩围。确认摘要最长十分钟，具有全局/用户容量上限，不保存工具或 secret；这些私有接口不得经公网代理公开。
+
+私有业务 OAuth 候选分页与选择解析共用增量目录索引。每次查询先按当前本人权限、发布和 grant/client 上限筛选，再分页/计数；已保存 grant IDs 不限制候选浏览。页面不含 schema，JSON/摘要有界且明确不完整；只有明确、有界 IDs 可进入确认/保存。全局选择超过 5,000 工具或 100 MCP 即失败，不返回部分选择。刷新保留草稿，不自动加入未来服务。游标/票据绑定会话和当前 registry/policy generation；同步后 registry 变化和当前权限变化均安全拒绝。本人可见排除原因不暴露隐藏服务；管理员 API Token 调用不绕过 OAuth 发布门禁。见[候选合同与证据](docs/zh-CN/oauth-catalog-scaling.md)。
+
+管理资源默认关闭，只接受内置 issuer、当前管理员及控制权限、四个已同意配置工具指纹和精确创建/更新目标。路由从可信配置选择 audience，拒绝跨资源令牌、授权码和刷新，不回退其他验证器。派发/worker/缓存结果检查绑定 issuer/resource/client/grant/family/到期及当前目标。目标编辑要求真实本人 Console 会话、严格 Origin/CSRF、复核后的单次确认、版本 CAS 和原子脱敏审计，使旧计划失效但不扩大 JWT/令牌族 scope 或业务授权。关闭管理只撤销其令牌族；凭据、HTTP 信任、分类发布和执行保持独立。参见[管理契约](docs/zh-CN/oauth-external-management-design.md)。
+
+只存秘密摘要和加密私钥，保护并与数据库一起备份 `data_dir/oauth-signing.key`。专用浏览器 Cookie 使用 Secure/HttpOnly/SameSite=Lax，路径为 `/oauth`；浏览器 POST 检查精确 Origin 和请求 CSRF。公网界面独立打包，不要求公开 Console 或 `/v1`。[内置 OAuth](docs/zh-CN/builtin-oauth.md)说明请求边界、准入限制、TTL 和安全错误。Gate 过滤 OAuth 访问日志查询，边缘代理/追踪系统须另行排除请求秘密。已执行的合成安全/浏览器证据见[发行验证](docs/zh-CN/release-validation.md)，不认证真实 TLS、provider 或 ChatGPT 接入。CIMD、匿名 DCR、多租户和隧道管理不在范围内。
+
+SQLite 会话用途强制区分 Console/公网同意登录，即使双向复制 Cookie 值也不能越过边界。已发布版本的会话迁移为 Console 会话，公网登录只签发同意用途会话。未知用户名执行与错误密码相同的 PBKDF2 校验工作。匿名浏览器请求使用有界、加密、短期票据，不占已登录待处理池。已登录准入有用户/客户端/全局上限，完成立即释放槽位，匿名/已登录/协议限流预算分离。公网登录和协议端点的分布式滥用仍需边缘控制；这些边界不保证可用性。
+
+无状态 MCP 网关对当前和旧协议的每个 HTTP 请求认证。工具在请求解析和排队后、派发线程内再次认证，再取当前 RBAC、已发布范围、委托和配额的交集，以不可变用户 ID 调用下游运行时。握手及下游 HTTP/stdio 会话不缓存入站 OAuth 主体或 bearer。撤权阻止后续调用，不取消已派发的下游工作。
+
+Token/revoke 有独立的低成本来源入站和凭据失败限制；只有只读校验通过的客户端凭据才消耗已认证交换/刷新/撤销预算，变更事务再次验证客户端。操作共享上限每分钟分别保留 180/300/120（总计 600），每客户端 30/60/30。来源跟踪在有界容量内淘汰；换来源和共享资源滥用仍需边缘限流。会话用途迁移假设已发布来源只有 Console 会话；早期未发布 OAuth 候选升级不受支持，除非先离线使全部旧会话失效，或使用新数据库/匹配的已发布版本数据库。旧同意会话不能迁移为 Console。
+
+## 内网 HTTP MCP 信任
+
+HTTP 传输不加密。非回环 HTTP 仅允许三个 RFC1918 范围内的规范 IPv4 字面地址，且须实时有效的管理员具备 `operations.manage` 并明确确认精确服务/IP/端口。服务自有 SQLite 策略默认空；Manifest 不能自行授权，OAuth/普通操作员不能批准。策略更新使用版本 CAS 并记录审计；预检查、保存、应用、连接、重连及请求读取当前策略，撤销或读取失败即拒绝。公网、链路本地、metadata、DNS 与非规范 HTTP 目标仍拒绝；禁止重定向，HTTPS 保持正常 TLS 验证。数据库须防止未授权直接写入。见[配置说明](docs/zh-CN/configuration.md#内网-http-信任)。

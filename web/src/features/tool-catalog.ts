@@ -2,6 +2,7 @@ import type { McpServer, ToolDefinition } from "@/api/client"
 import { getToolAccessDisplay, type ToolAccess } from "@/features/tool-access"
 
 export type { ToolAccess } from "@/features/tool-access"
+export const DEFAULT_TOOL_PAGE_SIZE = 48
 export const ALL_TOOL_SERVICES = "all"
 export const BUILTIN_TOOL_SERVICE = "builtin"
 

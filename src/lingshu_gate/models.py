@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from typing import Any
+from typing import Any, Literal
 
 from pydantic import BaseModel, ConfigDict, Field, StrictBool, model_validator
 
@@ -127,6 +127,7 @@ class McpServerStatusResponse(BaseModel):
     enabled: bool
     launch_type: str
     transport_type: str
+    negotiated_protocol_version: str | None = None
     endpoint: str | None = None
     status: str
     pid: int | None = None
@@ -168,6 +169,7 @@ class McpConfigResponse(BaseModel):
     path: str
     format: str = "yaml"
     manifest: dict[str, Any] = Field(default_factory=dict)
+    digest: str | None = None
 
 
 class McpConfigListResponse(BaseModel):
@@ -183,6 +185,7 @@ class McpConfigSaveRequest(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
     manifest: dict[str, Any]
+    expected_config_digest: str | None = Field(default=None, pattern=r"^[0-9a-f]{64}$")
     apply: StrictBool = Field(default=False, description="Apply the saved manifest to runtime")
     start: StrictBool = Field(default=False, description="Start this server after applying it")
     user_credential_values: dict[str, str] = Field(
@@ -206,6 +209,11 @@ class DeployBuildRequest(BaseModel):
     server_id: str | None = None
     start: StrictBool = False
     overwrite: StrictBool = False
+    manifest_patch: dict[str, Any] = Field(default_factory=dict)
+    expected_config_digest: str | None = Field(default=None, pattern=r"^[0-9a-f]{64}$")
+    credential_policy: Literal["preserve_existing", "require_none"] = "preserve_existing"
+    expected_previous_config_digest: str | None = Field(default=None, pattern=r"^[0-9a-f]{64}$")
+    expected_credential_binding_digest: str | None = Field(default=None, pattern=r"^[0-9a-f]{64}$")
 
 
 class RollbackDeploymentRequest(BaseModel):

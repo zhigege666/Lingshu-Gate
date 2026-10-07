@@ -637,3 +637,38 @@ def test_policy_source_does_not_embed_restricted_samples() -> None:
     assert _restricted_token() not in source
     assert _external_token().casefold() not in source
     assert _short_external_token() not in source
+
+
+def test_official_external_reference_exception_is_exact_and_document_scoped():
+    vendor = _value((111, 112, 101, 110, 97, 105))
+    url = f"https://developers.{vendor}.com/api/docs/guides/secure-mcp-tunnels"
+    reference = f"[Secure MCP Tunnel]({url})"
+    for location in ("docs/external-connections.md", "docs/zh-CN/external-connections.md"):
+        assert identity._scan_text(reference, location) == []
+        assert any(item.rule_id == "TXT-040" for item in identity._scan_text(reference + " " + vendor, location))
+        assert any(item.rule_id == "TXT-040" for item in identity._scan_text(reference.replace(url, url + "?other=1"), location))
+    assert any(item.rule_id == "TXT-040" for item in identity._scan_text(reference, "README.md"))
+
+
+def test_official_reference_history_preserves_document_scope():
+    vendor = _value((111, 112, 101, 110, 97, 105))
+    reference = f"[guide](https://developers.{vendor}.com/api/docs/guides/secure-mcp-tunnels)"
+    assert identity._scan_text(reference, "git:123456789abc:docs/external-connections.md") == []
+    assert identity._scan_text(reference, "git:123456789abc:README.md")
+    assert identity._scan_text(reference + " " + vendor, "git:123456789abc:docs/external-connections.md")
+
+
+def test_history_message_exception_requires_commit_digest_and_exact_finding(monkeypatch):
+    token = _restricted_token()
+    body = token + "\n"
+    commit = "a" * 40
+    monkeypatch.setattr(identity, "_HISTORY_MESSAGE_EXCEPTIONS", {
+        (commit, identity._sha256(body)): frozenset({("TXT-001", 1)}),
+    })
+    assert identity._scan_history_message(body, commit) == []
+    assert identity._scan_history_message(body, "b" * 40)
+    assert identity._scan_history_message(body + "changed", commit)
+    monkeypatch.setattr(identity, "_HISTORY_MESSAGE_EXCEPTIONS", {
+        (commit, identity._sha256(body)): frozenset({("TXT-001", 2)}),
+    })
+    assert identity._scan_history_message(body, commit)

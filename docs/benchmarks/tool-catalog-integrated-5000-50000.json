@@ -1,0 +1,123 @@
+{
+  "synthetic": true,
+  "source_sha": "d99be556ff48e018792268abeb7c5a22c5517476",
+  "python": "3.12.14",
+  "platform": "Linux-6.18.44-x86_64-with-glibc2.41",
+  "benchmark_script_sha256": "1e54d6c0e0533609ce38b0ca376f3b8bf2e710537d95b369b49ce8bbf3891b62",
+  "services": 5000,
+  "tools": 50000,
+  "input_fields_per_tool": 20,
+  "baseline_rss_kib": 66820,
+  "registry_rss_kib": 738792,
+  "index_build_seconds": 13.832,
+  "database_bytes": 131833856,
+  "profiles": {
+    "mcp_on_demand_list": {
+      "requests": 30,
+      "median_ms": 6.932,
+      "p95_ms": 10.784,
+      "max_response_bytes": 4893,
+      "rss_kib": 871204
+    },
+    "indexed_narrow_search": {
+      "requests": 30,
+      "median_ms": 22.622,
+      "p95_ms": 32.229,
+      "max_response_bytes": 2797,
+      "rss_kib": 838932
+    },
+    "broad_keyword_search": {
+      "requests": 30,
+      "median_ms": 404.697,
+      "p95_ms": 615.974,
+      "max_response_bytes": 5735,
+      "rss_kib": 838932
+    },
+    "empty_query_search": {
+      "requests": 30,
+      "median_ms": 417.79,
+      "p95_ms": 656.046,
+      "max_response_bytes": 5735,
+      "rss_kib": 838932
+    },
+    "subset_broad_search": {
+      "requests": 30,
+      "median_ms": 329.717,
+      "p95_ms": 381.574,
+      "max_response_bytes": 5735,
+      "rss_kib": 838932
+    },
+    "admin_broad_search": {
+      "requests": 30,
+      "median_ms": 384.441,
+      "p95_ms": 428.015,
+      "max_response_bytes": 5735,
+      "rss_kib": 838932
+    },
+    "unauthorized_instance_search": {
+      "requests": 30,
+      "median_ms": 15.611,
+      "p95_ms": 19.381,
+      "max_response_bytes": 48,
+      "rss_kib": 838932
+    },
+    "one_schema_describe": {
+      "requests": 30,
+      "median_ms": 3.236,
+      "p95_ms": 4.233,
+      "max_response_bytes": 1681,
+      "rss_kib": 838932
+    },
+    "mcp_on_demand_search": {
+      "requests": 30,
+      "median_ms": 22.012,
+      "p95_ms": 30.669,
+      "max_response_bytes": 2995,
+      "rss_kib": 841756
+    },
+    "mcp_on_demand_echo_invoke": {
+      "requests": 30,
+      "median_ms": 363.44,
+      "p95_ms": 444.405,
+      "max_response_bytes": 273,
+      "rss_kib": 842232
+    },
+    "legacy_mcp_full_list": {
+      "requests": 3,
+      "median_ms": 14167.368,
+      "p95_ms": 16884.124,
+      "max_response_bytes": 83433501,
+      "rss_kib": 1013216
+    }
+  },
+  "soak": [
+    {
+      "request": 1,
+      "rss_kib": 901016
+    },
+    {
+      "request": 16,
+      "rss_kib": 901016
+    },
+    {
+      "request": 30,
+      "rss_kib": 901016
+    }
+  ],
+  "scope_cases": {
+    "primary_explicit_grants": 5000,
+    "primary_visible_services": 4999,
+    "subset_explicit_services": 5,
+    "subset_visible_tools": 50,
+    "admin_hidden_instance_visible": true,
+    "revoked_instance_hidden": true,
+    "revoked_cursor_rejected": true,
+    "subset_pagination_distinct": true,
+    "oauth_catalog_ceiling": {
+      "code": "tool_catalog_limit",
+      "elapsed_ms": 9175.405
+    }
+  },
+  "duration_seconds": 172.063,
+  "limits": "Synthetic single-process, warm-cache SQLite/function and loopback ASGI timings. Echo handlers only; no real MCP connections, production SLA, downstream latency, sustained throughput or long-duration leak certification."
+}

@@ -9,9 +9,10 @@ from urllib.parse import unquote, urlsplit
 REDACTED_ENDPOINT = "[REDACTED]"
 _HOST_LABEL_PATTERN = re.compile(r"^[A-Za-z0-9](?:[A-Za-z0-9-]{0,61}[A-Za-z0-9])?$")
 _INVALID_PERCENT_ESCAPE = re.compile(r"%(?![0-9A-Fa-f]{2})")
+_RFC1918_NETWORKS = tuple(ipaddress.IPv4Network(value) for value in ("10.0.0.0/8", "172.16.0.0/12", "192.168.0.0/16"))
 
 
-def validate_streamable_http_endpoint(endpoint: str) -> str:
+def validate_streamable_http_endpoint(endpoint: str, *, allow_rfc1918_declaration: bool = False) -> str:
     """Return a safe outbound endpoint or raise a value-only validation error.
 
     Remote clear-text HTTP is rejected. Plain HTTP remains available for
@@ -50,9 +51,27 @@ def validate_streamable_http_endpoint(endpoint: str) -> str:
 
     host = parsed.hostname
     is_loopback = _validate_host_and_check_loopback(host)
-    if scheme == "http" and not is_loopback:
+    if scheme == "http" and not is_loopback and not (allow_rfc1918_declaration and is_canonical_rfc1918_ipv4(host)):
         raise ValueError("streamable_http endpoint must use HTTPS unless its host is loopback")
     return endpoint
+
+
+def is_canonical_rfc1918_ipv4(host: str) -> bool:
+    """Accept canonical IPv4 literals in the three explicit RFC1918 ranges."""
+    try:
+        address = ipaddress.IPv4Address(host)
+    except ipaddress.AddressValueError:
+        return False
+    return str(address) == host and any(address in network for network in _RFC1918_NETWORKS)
+
+
+def private_http_origin(endpoint: str) -> tuple[str, int] | None:
+    """Extract a syntactically valid private origin; this does not approve trust."""
+    validate_streamable_http_endpoint(endpoint, allow_rfc1918_declaration=True)
+    parsed = urlsplit(endpoint)
+    if parsed.scheme.lower() == "http" and parsed.hostname and is_canonical_rfc1918_ipv4(parsed.hostname):
+        return parsed.hostname, parsed.port or 80
+    return None
 
 
 def redact_endpoint(endpoint: str | None) -> str | None:

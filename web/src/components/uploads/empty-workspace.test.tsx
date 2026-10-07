@@ -1,8 +1,23 @@
 import { renderToStaticMarkup } from "react-dom/server"
-import { describe, expect, it } from "vitest"
+import { describe, expect, it, vi } from "vitest"
+import type { AuthUser } from "@/components/auth-gate"
 import { UploadsPage } from "@/pages/uploads-page"
 import { BuildsPage } from "@/pages/builds-page"
 import { translate, type TFunction } from "@/i18n"
+
+// These page snapshots run outside the application shell. Supply the authenticated
+// delivery operator that AuthGate provides there; keep the real auth guard intact.
+vi.mock("@/components/auth-gate", () => ({
+  useAuth: () => ({
+    user: {
+      id: "delivery-operator", username: "delivery-operator", display_name: "Delivery operator",
+      role: "operator", roles: ["operator"],
+      permissions: ["operations.manage", "tools.invoke", "network.use"],
+      status: "active", must_change_password: false, auth_type: "session", scopes: [],
+    } satisfies AuthUser,
+    logout: vi.fn(),
+  }),
+}))
 
 const t: TFunction = key => translate("zh-CN", key)
 
