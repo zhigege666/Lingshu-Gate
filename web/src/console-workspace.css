@@ -351,6 +351,8 @@
 
 .page-toolbar-search > .ant-input-affix-wrapper {
   max-width: 480px;
+  /* Reserve the 24px clear target plus padding/borders before it appears. */
+  min-height: 34px;
 }
 
 .page-toolbar-search .ant-input-suffix .ant-btn {
