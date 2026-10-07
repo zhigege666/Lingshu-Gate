@@ -20,7 +20,7 @@ export function OAuthMcpFilter({ choices, remote, value, onChange, disabled, zh 
   const [opened, setOpened] = useState(false)
   const selector = useRef<HTMLDivElement>(null)
   const actions = useRef<HTMLDivElement>(null)
-  const retryCursor = useRef<string>()
+  const retryCursor = useRef<string | undefined>(undefined)
   const keyboardHelp = useId()
   const generation = useRef(0)
   useEffect(() => { generation.current++; setGroups([]); setCursor(null); setQuery(""); setError(""); setLoading(false); setOpened(false) }, [remote?.grantId, remote?.revision])
