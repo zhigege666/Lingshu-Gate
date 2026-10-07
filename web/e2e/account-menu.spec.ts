@@ -15,7 +15,7 @@ for (const locale of ['zh-CN', 'en-US'] as const) {
       }, { locale, theme })
       await page.route('**/v1/auth/me', route => route.fulfill({ json: {
         id: 'synthetic-header-user', username: 'synthetic-account', display_name: 'Synthetic account',
-        role: 'admin', roles: ['admin', 'synthetic-auditor'], permissions: ['*'],
+        role: 'admin', roles: ['admin', 'operator', 'viewer', 'admin', '', 'synthetic-auditor', 'synthetic-auditor'], permissions: ['*'],
         status: 'active', must_change_password: false, auth_type: 'session', scopes: [],
       } }))
       await page.goto('/#/servers')
@@ -29,7 +29,8 @@ for (const locale of ['zh-CN', 'en-US'] as const) {
         await page.keyboard.press('Enter')
         await expectInViewportAndUnobscured(menu)
         await expect(account).toHaveAttribute('aria-expanded', 'true')
-        await expect(menu).toContainText('synthetic-auditor')
+        const roles = locale === 'zh-CN' ? '管理员, 运维人员, 只读观察者, synthetic-auditor' : 'Administrator, Operator, Viewer, synthetic-auditor'
+        await expect(menu.getByRole('menuitem', { name: `Synthetic account · ${roles}`, exact: true })).toHaveCount(1)
         await page.screenshot({ path: testInfo.outputPath(`account-${locale}-${theme}-${width}x${height}.png`) })
         await page.keyboard.press('Escape')
         await expect(menu).toHaveCount(0)
@@ -82,7 +83,26 @@ test('@smoke @full @account-menu disabled authentication does not offer sign out
   await page.goto('/#/servers')
   await page.getByRole('button', { name: 'Account menu', exact: true }).click()
   await expect(page.locator('.console-account-menu')).toBeVisible()
+  await expect(page.locator('.console-account-menu').getByRole('menuitem', { name: 'Synthetic disabled · Viewer', exact: true })).toHaveCount(1)
   await expect(page.getByText('Sign out', { exact: true })).toHaveCount(0)
   await page.keyboard.press('Escape')
   await expect(page.getByRole('button', { name: 'Account menu', exact: true })).toBeFocused()
 })
+
+for (const locale of ['en-US', 'zh-CN'] as const) {
+  test(`@smoke @full @account-menu blank role lists use the localized primary role: ${locale}`, async ({ page }) => {
+    await login(page)
+    await page.addInitScript(value => localStorage.setItem('lingshu-gate-console-locale', value), locale)
+    await page.route('**/v1/auth/me', route => route.fulfill({ json: {
+      id: 'synthetic-empty-roles', username: 'synthetic-empty-roles', display_name: 'Synthetic roles',
+      role: 'operator', roles: ['', '', ''], permissions: ['*'], status: 'active',
+      must_change_password: false, auth_type: 'session', scopes: [],
+    } }))
+    await page.goto('/#/servers')
+    const account = page.getByRole('button', { name: locale === 'zh-CN' ? '账号菜单' : 'Account menu', exact: true })
+    await account.click()
+    await expect(page.locator('.console-account-menu').getByRole('menuitem', { name: `Synthetic roles · ${locale === 'zh-CN' ? '运维人员' : 'Operator'}`, exact: true })).toHaveCount(1)
+    await page.keyboard.press('Escape')
+    await expect(account).toBeFocused()
+  })
+}

@@ -49,6 +49,12 @@ export function ConsoleShell({ view, title, user, version, groups, items, busy, 
     return () => document.removeEventListener("keydown", closeOnEscape, true)
   }, [accountOpen])
   const zh = locale === "zh-CN"
+  const roleNames: Record<string, string> = zh
+    ? { admin: "管理员", operator: "运维人员", viewer: "只读观察者" }
+    : { admin: "Administrator", operator: "Operator", viewer: "Viewer" }
+  const roles = [...new Set(user.roles.filter(Boolean))]
+  if (!roles.length && user.role) roles.push(user.role)
+  const roleLabels = roles.map(role => Object.hasOwn(roleNames, role) ? roleNames[role] : role).join(", ")
   const languageOptions = [{ value: "zh-CN", label: "中文" }, { value: "en-US", label: "English" }]
   const allowedIds = groups.flatMap(group => group.items)
   function navigate(key: string) {
@@ -90,7 +96,7 @@ export function ConsoleShell({ view, title, user, version, groups, items, busy, 
           setAccountOpen(false)
           accountTrigger.current?.focus()
         }, items: [
-          { key: "identity", label: `${user.display_name || user.username} · ${user.roles.join(", ") || user.role}`, disabled: true },
+          { key: "identity", label: `${user.display_name || user.username} · ${roleLabels}`, disabled: true },
           { type: "group", key: "version", label: <div className="console-account-version"><span>{zh ? "版本" : "Version"}</span><code>{version}</code></div>, children: [] },
           { key: "api", className: "console-account-mobile-action", icon: <ApiOutlined />, label: "OpenAPI", onClick: () => window.open("/docs", "_blank", "noreferrer") },
           ...(user.auth_type !== "disabled" ? [{ key: "logout", className: "console-account-mobile-action", icon: <LogoutOutlined />, label: zh ? "退出登录" : "Sign out", onClick: onLogout }] : []),
