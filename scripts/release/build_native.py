@@ -216,7 +216,7 @@ def build(target: str, output_dir: Path) -> Path:
     actual_python = platform.python_version()
     if actual_python != expected_python:
         raise RuntimeError(f"CPython {expected_python} is required, but {actual_python} is running")
-    expected_pyinstaller = os.environ.get("LINGSHU_GATE_RELEASE_PYINSTALLER_VERSION", "6.22.2")
+    expected_pyinstaller = os.environ.get("LINGSHU_GATE_RELEASE_PYINSTALLER_VERSION", "6.22.3")
     actual_pyinstaller = importlib.metadata.version("pyinstaller")
     if actual_pyinstaller != expected_pyinstaller:
         raise RuntimeError(

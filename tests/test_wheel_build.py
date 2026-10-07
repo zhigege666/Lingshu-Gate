@@ -11,6 +11,7 @@ import sys
 import sysconfig
 import tarfile
 import textwrap
+import tomllib
 import zipfile
 from pathlib import Path
 from concurrent.futures import ThreadPoolExecutor
@@ -23,9 +24,10 @@ REPOSITORY_ROOT = Path(__file__).resolve().parents[1]
 def _project(root: Path) -> Path:
     project = root / "project"
     project.mkdir()
+    build_requirements = tomllib.loads((REPOSITORY_ROOT / "pyproject.toml").read_text())["build-system"]["requires"]
     (project / "pyproject.toml").write_text(textwrap.dedent('''\
         [build-system]
-        requires = ["setuptools==81.0.0"]
+        requires = BUILD_REQUIREMENTS
         build-backend = "setuptools.build_meta"
         [project]
         name = "lingshu-gate"
@@ -40,7 +42,7 @@ def _project(root: Path) -> Path:
         bdist_wheel = "scripts.release.wheel_build.FreshBdistWheel"
         [tool.setuptools.package-data]
         lingshu_gate = ["static/console/**/*", "static/oauth/**/*"]
-    '''))
+    ''').replace("BUILD_REQUIREMENTS", repr(build_requirements)))
     scripts = project / "scripts" / "release"
     scripts.mkdir(parents=True)
     for name in ("__init__.py", "wheel_build.py"):
