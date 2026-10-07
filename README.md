@@ -123,7 +123,7 @@ The launcher creates package-local `data`, `config`, and `workspace` directories
 
 ### From source
 
-Requirements: Python 3.11, 3.12, or 3.13; Node.js 22.12 or later; npm; and `uv`.
+Requirements: Python 3.11, 3.12, or 3.13; Node.js 22.12+ (22.x), 24.x, or 26+; npm; and `uv`.
 
 ```bash
 uv sync --frozen
