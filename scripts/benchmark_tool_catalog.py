@@ -54,6 +54,11 @@ def measure(action, repetitions: int) -> dict:
             "max_response_bytes": max(sizes), "rss_kib": rss_kib()}
 
 
+def catalog_limit_statistics(started: float) -> dict[str, str | float]:
+    """Report only the fixed catalog-limit outcome and a numeric duration."""
+    return {"code": "tool_catalog_limit", "elapsed_ms": round((time.perf_counter() - started) * 1000, 3)}
+
+
 def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--services", type=int, default=5000)
@@ -121,7 +126,7 @@ def main() -> None:
             assert error.code == "catalog_cursor_invalid"
         assert catalog.search(principal, CatalogSearch(instance_id="service00000"))["tools"] == []
         access.save_grant(subject_type="user", subject_id="bench", server_id="service00000", permission_type_code="read", created_by="bench")
-        oauth_started = time.perf_counter()
+        catalog_started = time.perf_counter()
         try:
             # Real consent-catalog code, without issuing credentials/keys.
             OAuthServer.catalog(SimpleNamespace(access=access, registry=registry,
@@ -129,11 +134,11 @@ def main() -> None:
             raise AssertionError("Existing OAuth catalog ceiling was unexpectedly widened")
         except OAuthError as error:
             assert error.code == "tool_catalog_limit"
-            oauth_ceiling = {"code": error.code, "elapsed_ms": round((time.perf_counter() - oauth_started) * 1000, 3)}
+            catalog_limit_stats = catalog_limit_statistics(catalog_started)
         scope_cases = {"primary_explicit_grants": args.services, "primary_visible_services": args.services - 1,
             "subset_explicit_services": 5, "subset_visible_tools": 5 * args.tools_per_service,
             "admin_hidden_instance_visible": True, "revoked_instance_hidden": True,
-            "revoked_cursor_rejected": True, "subset_pagination_distinct": True, "oauth_catalog_ceiling": oauth_ceiling}
+            "revoked_cursor_rejected": True, "subset_pagination_distinct": True, "oauth_catalog_ceiling": catalog_limit_stats}
         app = FastAPI()
         def require(request: Request) -> AuthPrincipal:
             return principal

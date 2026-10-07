@@ -10,6 +10,7 @@ import hashlib
 import json
 import logging
 import os
+import secrets
 import sqlite3
 import threading
 import time
@@ -234,6 +235,108 @@ def test_missing_username_runs_same_pbkdf2_work_and_uniform_error(gate, monkeypa
         errors.append((failed.value.status_code, failed.value.detail))
     assert calls == [("sha256", 32, 200_000)] * 2
     assert errors == [(401, "invalid username or password")] * 2
+
+
+def test_lookup_digest_preserves_existing_sha256_encoding():
+    assert hash_secret("public lookup regression metadata") == "289326bc4c5f3d6ef66ff2d8f6829e85267369b519c064c488ff21f8354e4f4d"
+
+
+@pytest.mark.parametrize("purpose", ["console", "oauth_consent"])
+def test_session_lookup_preserves_generated_token_sha256_identity(gate, monkeypatch, purpose):
+    generated_sizes = []
+    original = secrets.token_urlsafe
+
+    def observed(size):
+        generated_sizes.append(size)
+        return original(size)
+
+    monkeypatch.setattr("lingshu_gate.auth.secrets.token_urlsafe", observed)
+    principal, token, _ = gate["auth"].login(username="alice", password=PASSWORD, purpose=purpose)
+    assert generated_sizes == [32]
+    row = gate["db"].query_one("SELECT token_hash, purpose FROM auth_sessions WHERE id=?", (principal.session_id,))
+    assert row["token_hash"] == hash_secret(token)
+    assert row["token_hash"] != token and row["purpose"] == purpose
+
+    reopened = AuthStore(gate["settings"], gate["db"])
+    assert reopened._principal_from_session(token, purpose=purpose).id == principal.id
+    assert reopened._principal_from_session(token + "invalid", purpose=purpose) is None
+    reopened.logout(token, purpose=purpose)
+    assert reopened._principal_from_session(token, purpose=purpose) is None
+
+
+def test_api_token_lookup_preserves_generated_token_sha256_identity(gate, monkeypatch):
+    generated_sizes = []
+    original = secrets.token_urlsafe
+
+    def observed(size):
+        generated_sizes.append(size)
+        return original(size)
+
+    monkeypatch.setattr("lingshu_gate.auth.secrets.token_urlsafe", observed)
+    created = gate["auth"].create_api_token(principal=gate["principals"]["alice"], name="Synthetic hash regression", scopes=["tools.read"])
+    token = created["token"]
+    assert generated_sizes == [32] and token.startswith("lgt_")
+    row = gate["db"].query_one("SELECT token_hash FROM api_tokens WHERE id=?", (created["id"],))
+    assert row["token_hash"] == hash_secret(token)
+    assert row["token_hash"] != token
+
+    reopened = AuthStore(gate["settings"], gate["db"])
+    assert reopened._principal_from_api_token(token).token_id == created["id"]
+    assert reopened._principal_from_api_token(token + "invalid") is None
+    reopened.revoke_api_token(created["id"], user_id=gate["users"]["alice"]["id"])
+    assert reopened._principal_from_api_token(token) is None
+
+
+def test_client_secret_is_generated_from_48_bytes_and_keeps_lookup_identity(gate, monkeypatch):
+    generated_sizes = []
+    original = secrets.token_urlsafe
+
+    def observed(size):
+        generated_sizes.append(size)
+        return original(size)
+
+    monkeypatch.setattr("lingshu_gate.oauth_server.secrets.token_urlsafe", observed)
+    created = gate["server"].create_client("Synthetic hash regression", [REDIRECT], ["tools.read"])
+    assert generated_sizes == [24, 48]
+    secret = created["client_secret"]
+    with gate["db"].session() as connection:
+        row = connection.execute("SELECT secret_hash FROM gate_oauth_clients WHERE id=?", (created["client"]["id"],)).fetchone()
+        assert row["secret_hash"] == hash_secret(secret)
+        assert row["secret_hash"] != secret
+        assert gate["server"].authenticate_client(connection, created["client"]["id"], secret)["id"] == created["client"]["id"]
+        with pytest.raises(OAuthError) as rejected:
+            gate["server"].authenticate_client(connection, created["client"]["id"], secret + "invalid")
+        assert rejected.value.code == "invalid_client"
+
+
+def test_create_change_and_login_password_paths_keep_salted_pbkdf2(gate, monkeypatch):
+    calls = []
+    original = hashlib.pbkdf2_hmac
+
+    def observed(algorithm, password, salt, iterations):
+        calls.append((algorithm, len(salt), iterations))
+        return original(algorithm, password, salt, iterations)
+
+    monkeypatch.setattr("lingshu_gate.auth.hashlib.pbkdf2_hmac", observed)
+    fast_digest = hash_secret
+
+    def tokens_only(value):
+        assert value not in {PASSWORD, "Synthetic-Replacement-456!"}
+        return fast_digest(value)
+
+    monkeypatch.setattr("lingshu_gate.auth.hash_secret", tokens_only)
+    user = gate["auth"].create_user(username="synthetic-hash-owner", password=PASSWORD, role="viewer")
+    initial = gate["db"].query_one("SELECT password_hash FROM users WHERE id=?", (user["id"],))["password_hash"]
+    gate["auth"].login(username="synthetic-hash-owner", password=PASSWORD)
+    gate["auth"].change_password(user["id"], "Synthetic-Replacement-456!")
+    changed = gate["db"].query_one("SELECT password_hash FROM users WHERE id=?", (user["id"],))["password_hash"]
+    with pytest.raises(HTTPException) as rejected:
+        gate["auth"].login(username="synthetic-hash-owner", password=PASSWORD)
+    assert rejected.value.status_code == 401
+    gate["auth"].login(username="synthetic-hash-owner", password="Synthetic-Replacement-456!")
+    assert calls == [("sha256", 32, 200_000)] * 5
+    assert initial.split("$")[0] == changed.split("$")[0] == "pbkdf2_sha256"
+    assert initial.split("$")[1] != changed.split("$")[1]
 
 
 def test_new_public_login_cleans_expired_public_sessions_without_changing_console_sessions(gate):
