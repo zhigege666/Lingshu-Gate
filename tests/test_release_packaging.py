@@ -1050,10 +1050,10 @@ def test_all_github_actions_are_allowlisted_immutable_commit_pins() -> None:
         "docker/build-push-action": ("53b7df96c91f9c12dcc8a07bcb9ccacbed38856a", "v7"),
         "docker/login-action": ("dbcb813823bdd20940b903addbd779551569679f", "v4"),
         "docker/setup-buildx-action": ("37fe631027851001ddb9b187196cc803df7f5f0e", "v4"),
-        "docker/setup-qemu-action": ("96fe6ef7f33517b61c61be40b68a1882f3264fb8", "v4"),
+        "docker/setup-qemu-action": ("1f40c72289eff860ee54a304f1438e3cff362e0a", "v4.3.0"),
         "github/codeql-action/analyze": ("b96794f015dfd88f77b49b1c93e0fa7110f94c63", "v4.38.0"),
         "github/codeql-action/init": ("b96794f015dfd88f77b49b1c93e0fa7110f94c63", "v4.38.0"),
-        "sigstore/cosign-installer": ("398d4b0eeef1380460a10c8013a76f728fb906ac", "v3"),
+        "sigstore/cosign-installer": ("6f9f17788090df1f26f669e9d70d6ae9567deba6", "v4.1.2"),
     }
     action_pattern = re.compile(
         r"^\s*uses:\s*([^\s@]+)@([0-9a-f]{40})\s+#\s+(\S+)\s*$"

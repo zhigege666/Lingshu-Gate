@@ -54,6 +54,28 @@ concurrency:
   cancel-in-progress: ${{ !startsWith(github.ref, 'refs/tags/v') }}
 
 jobs:
+  signing-smoke:
+    name: Cosign OCI env-key signing smoke
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    env:
+      LINGSHU_GATE_COSIGN_SMOKE_REGISTRY_IMAGE: registry:3@sha256:ddf754342cfc8acc51a56d5d0ab6af06826461864460636d8bd5c546dab2a7b8
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Install pinned Cosign for the isolated fixture
+        uses: sigstore/cosign-installer@6f9f17788090df1f26f669e9d70d6ae9567deba6 # v4.1.2
+        with:
+          cosign-release: v3.0.6
+
+      - name: Verify synthetic OCI signing and wrong-key rejection
+        shell: bash
+        run: bash scripts/quality/smoke_cosign_oci.sh
+
   version:
     name: Validate release version
     runs-on: ubuntu-22.04
@@ -400,7 +422,7 @@ jobs:
           python-version: ${{ env.LINGSHU_GATE_RELEASE_PYTHON_VERSION }}
 
       - name: Set up QEMU
-        uses: docker/setup-qemu-action@96fe6ef7f33517b61c61be40b68a1882f3264fb8 # v4
+        uses: docker/setup-qemu-action@1f40c72289eff860ee54a304f1438e3cff362e0a # v4.3.0
         with:
           image: ${{ env.LINGSHU_GATE_RELEASE_BINFMT_IMAGE }}
           platforms: arm64
@@ -531,7 +553,7 @@ jobs:
           python-version: ${{ env.LINGSHU_GATE_RELEASE_PYTHON_VERSION }}
 
       - name: Set up QEMU
-        uses: docker/setup-qemu-action@96fe6ef7f33517b61c61be40b68a1882f3264fb8 # v4
+        uses: docker/setup-qemu-action@1f40c72289eff860ee54a304f1438e3cff362e0a # v4.3.0
         with:
           image: ${{ env.LINGSHU_GATE_RELEASE_BINFMT_IMAGE }}
           platforms: arm64
@@ -904,7 +926,9 @@ jobs:
 
       - name: Install Cosign
         if: steps.signing.outputs.enabled == 'true'
-        uses: sigstore/cosign-installer@398d4b0eeef1380460a10c8013a76f728fb906ac # v3
+        uses: sigstore/cosign-installer@6f9f17788090df1f26f669e9d70d6ae9567deba6 # v4.1.2
+        with:
+          cosign-release: v3.0.6
 
       - name: Sign promoted container digest
         if: steps.signing.outputs.enabled == 'true'
