@@ -204,6 +204,47 @@ class DatabaseMigrationTest(unittest.TestCase):
             with self.assertRaises(sqlite3.ProgrammingError):
                 raw_connection.execute("SELECT 1")
 
+    def test_query_helpers_release_connections_on_success_and_failure(self) -> None:
+        database = object.__new__(SQLiteDatabase)
+        operations = (
+            lambda: database.query_one("SELECT 1"),
+            lambda: database.query_all("SELECT 1"),
+            lambda: database.execute("CREATE TABLE probe (id INTEGER)"),
+            lambda: database.query_one("SELECT * FROM missing_table"),
+        )
+        for operation in operations:
+            with self.subTest(operation=operation):
+                connection = sqlite3.connect(":memory:")
+                with patch.object(database, "connect", return_value=connection):
+                    try:
+                        operation()
+                    except sqlite3.OperationalError:
+                        pass
+                with self.assertRaises(sqlite3.ProgrammingError):
+                    connection.execute("SELECT 1")
+
+    def test_session_commits_success_and_rolls_back_failed_batch(self) -> None:
+        with tempfile.TemporaryDirectory(ignore_cleanup_errors=True) as temp_dir:
+            database = SQLiteDatabase("", Path(temp_dir))
+            database.execute("CREATE TABLE session_probe (id INTEGER PRIMARY KEY)")
+
+            with database.session() as connection:
+                connection.execute("INSERT INTO session_probe VALUES (1)")
+                connection.execute("INSERT INTO session_probe VALUES (2)")
+            with self.assertRaises(sqlite3.ProgrammingError):
+                connection.execute("SELECT 1")
+
+            with self.assertRaisesRegex(RuntimeError, "abort batch"):
+                with database.session() as failed_connection:
+                    failed_connection.execute("INSERT INTO session_probe VALUES (3)")
+                    raise RuntimeError("abort batch")
+            with self.assertRaises(sqlite3.ProgrammingError):
+                failed_connection.execute("SELECT 1")
+            self.assertEqual(
+                [row["id"] for row in database.query_all("SELECT id FROM session_probe ORDER BY id")],
+                [1, 2],
+            )
+
 
 if __name__ == "__main__":
     unittest.main()

@@ -374,6 +374,29 @@ class McpRuntimeTargetApplyTest(unittest.TestCase):
             self.assertEqual(conflict.exception.actual_digest, expected_digest)
             start.assert_not_called()
 
+    def test_output_contract_is_registered_and_changes_discovery_snapshot(self) -> None:
+        with tempfile.TemporaryDirectory(ignore_cleanup_errors=True) as temp_dir:
+            manager = self._manager(Path(temp_dir))
+            client = self._install_running(manager, "a", "runtime-a")
+            digests = []
+            for schema in (None, {}, {"type": "object", "properties": {"result": {"type": "string"}}}):
+                tool = {"name": "read_file", "inputSchema": {"type": "object"}}
+                if schema is not None:
+                    tool["outputSchema"] = schema
+                client.listed_tools = [tool]
+                result = manager.refresh_server_tools("a")
+                digests.append(result["tool_snapshot_digest"])
+                metadata = manager.registry.get_definition("mcp.a.read_file").metadata
+                if schema is None:
+                    self.assertNotIn("outputSchema", metadata)
+                else:
+                    self.assertEqual(metadata["outputSchema"], schema)
+            self.assertEqual(len(set(digests)), 3)
+            client.listed_tools = [{"name": "read_file", "outputSchema": []}]
+            with self.assertRaisesRegex(ValueError, "outputSchema must be an object"):
+                manager.refresh_server_tools("a")
+            self.assertEqual(manager.registry.get_definition("mcp.a.read_file").metadata["outputSchema"], schema)
+
     def test_refresh_tools_atomically_keeps_previous_snapshot_when_discovery_is_invalid(self) -> None:
         with tempfile.TemporaryDirectory(ignore_cleanup_errors=True) as temp_dir:
             manager = self._manager(Path(temp_dir))

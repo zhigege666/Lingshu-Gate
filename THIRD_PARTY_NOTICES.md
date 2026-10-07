@@ -21,6 +21,7 @@ Direct runtime dependencies include:
 | python-multipart | Apache-2.0 |
 | MCP Python SDK | MIT |
 | React and React DOM | MIT |
+| Ant Design and Ant Design Icons | MIT |
 | Radix UI | MIT |
 | Lucide | ISC |
 | Tailwind CSS | MIT |

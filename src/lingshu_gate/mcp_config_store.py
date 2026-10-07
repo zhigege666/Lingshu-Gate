@@ -3,39 +3,126 @@
 from __future__ import annotations
 
 import json
+import hashlib
 import logging
 import os
 import tempfile
+import threading
+import time
+from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
 import yaml
 from pydantic import ValidationError
 
+from lingshu_gate.application.manifest_edit import restore_masked_mounts
+from lingshu_gate.domain.dispatch_lock import DispatchLock
 from lingshu_gate.logging import log_event
 from lingshu_gate.endpoint_security import REDACTED_ENDPOINT
-from lingshu_gate.mcp_manifest import McpServerManifest
+from lingshu_gate.mcp_manifest import McpServerManifest, validate_manifest_for_write
+from lingshu_gate.mcp_http_trust import McpHttpTrustStore, require_mcp_http_endpoint
 from lingshu_gate.models import McpConfigListResponse, McpConfigResponse
 from lingshu_gate.redaction import redact_text, redact_validation_errors
 
 logger = logging.getLogger(__name__)
 SUPPORTED_SUFFIXES = {".yaml", ".yml", ".json"}
 SECRET_MASK = "***"
+METADATA_SNAPSHOT_TTL_SECONDS = 30.0
+
+
+@dataclass(frozen=True)
+class McpInstanceMetadata:
+    instance_id: str
+    name: str
+
+
+class McpConfigConflict(ValueError):
+    """The saved draft changed after the edit session was opened."""
 
 
 class McpConfigStore:
     """Read and write MCP Server Manifest files in config_dir."""
 
-    def __init__(self, config_dir: Path) -> None:
+    def __init__(self, config_dir: Path, *, http_trust_store: McpHttpTrustStore | None = None) -> None:
         self.config_dir = config_dir
+        self.http_trust_store = http_trust_store
+        self.mutation_lock = DispatchLock()
+        self._metadata_lock = threading.RLock()
+        self._instance_metadata: tuple[McpInstanceMetadata, ...] | None = None
+        self._metadata_index: dict[str, McpInstanceMetadata] = {}
+        self._metadata_revision = 0
+        self._metadata_built_at = 0.0
+
+    def invalidate_instance_metadata(self) -> None:
+        with self.mutation_lock, self._metadata_lock:
+            self._instance_metadata = None
+            self._metadata_index = {}
+            self._metadata_revision += 1
+
+    def _read_instance_metadata(self) -> tuple[McpInstanceMetadata, ...]:
+        records = []
+        for path in self._iter_files():
+            try:
+                manifest = self._load_manifest(path)
+                records.append(McpInstanceMetadata(manifest.id, manifest.name or manifest.id))
+            except Exception:  # noqa: BLE001 - invalid files cannot become available members
+                log_event(logger, logging.ERROR, "gate.mcp.config_metadata_error", "Invalid MCP instance metadata", path=str(path))
+        return tuple(records)
+
+    def _publish_instance_metadata(self, records: tuple[McpInstanceMetadata, ...]) -> None:
+        changed = records != self._instance_metadata
+        self._instance_metadata = records
+        self._metadata_index = {item.instance_id: item for item in records}
+        self._metadata_built_at = time.monotonic()
+        # A TTL reread is not a directory change. Explicit writes still advance
+        # the revision in invalidate_instance_metadata, even for identical IDs
+        # and names; changed external metadata advances it here.
+        if changed:
+            self._metadata_revision += 1
+
+    def instance_metadata(self, *, refresh: bool = False) -> tuple[McpInstanceMetadata, ...]:
+        """Cache only immutable IDs/names; never credentials, manifests or authority."""
+        with self.mutation_lock.read_lock(), self._metadata_lock:
+            if (refresh or self._instance_metadata is None
+                    or time.monotonic() - self._metadata_built_at >= METADATA_SNAPSHOT_TTL_SECONDS):
+                self._publish_instance_metadata(self._read_instance_metadata())
+            assert self._instance_metadata is not None
+            return self._instance_metadata
+
+    def selected_instance_metadata(self, instance_ids: set[str]) -> tuple[int, dict[str, str]]:
+        """Build cold metadata outside the mutation lock, then publish by revision CAS."""
+        for _ in range(3):
+            with self.mutation_lock.read_lock(), self._metadata_lock:
+                revision = self._metadata_revision
+                if (self._instance_metadata is not None
+                        and time.monotonic() - self._metadata_built_at < METADATA_SNAPSHOT_TTL_SECONDS):
+                    return revision, {instance: self._metadata_index[instance].name for instance in instance_ids
+                                      if instance in self._metadata_index}
+            records = self._read_instance_metadata()
+            with self.mutation_lock.read_lock(), self._metadata_lock:
+                if revision != self._metadata_revision:
+                    continue
+                self._publish_instance_metadata(records)
+                return self._metadata_revision, {instance: self._metadata_index[instance].name for instance in instance_ids
+                                                 if instance in self._metadata_index}
+        raise McpConfigConflict("Instance metadata changed repeatedly; retry the read.")
+
+    def metadata_snapshot_current(self, revision: int) -> bool:
+        with self.mutation_lock.read_lock(), self._metadata_lock:
+            return revision == self._metadata_revision
+
+    def metadata_revision(self) -> int:
+        """Structural invalidation marker; contains no credentials or authority."""
+        with self.mutation_lock.read_lock(), self._metadata_lock:
+            return self._metadata_revision
 
     def list_configs(self) -> McpConfigListResponse:
         configs: list[McpConfigResponse] = []
         errors: list[str] = []
         for path in self._iter_files():
             try:
-                manifest = self._load_manifest(path)
-                configs.append(self._to_response(manifest, path))
+                configs.append(self._to_response(path))
             except Exception as exc:  # noqa: BLE001 - list should continue after one bad file
                 safe_error = redact_text(str(exc))
                 error = f"{path.name}: {safe_error}"
@@ -48,8 +135,7 @@ class McpConfigStore:
         path = self._find_path(server_id)
         if not path:
             raise KeyError(f"MCP config not found: {server_id}")
-        manifest = self._load_manifest(path)
-        return self._to_response(manifest, path)
+        return self._to_response(path)
 
     def load_manifest(self, server_id: str) -> McpServerManifest:
         """读取供内部运行时使用的未脱敏 Manifest；不得直接返回给 API 调用方。"""
@@ -60,34 +146,56 @@ class McpConfigStore:
             raise KeyError(f"MCP config not found: {server_id}")
         return self._load_manifest(path)
 
-    def save_config(self, manifest_data: dict[str, Any], *, expected_id: str | None = None, overwrite: bool = False) -> McpConfigResponse:
+    def save_config(self, manifest_data: dict[str, Any], *, expected_id: str | None = None, overwrite: bool = False, expected_digest: str | None = None) -> McpConfigResponse:
+        with self.mutation_lock:
+            try:
+                return self._save_config(manifest_data, expected_id=expected_id, overwrite=overwrite, expected_digest=expected_digest)
+            finally:
+                self.invalidate_instance_metadata()
+
+    def _save_config(self, manifest_data: dict[str, Any], *, expected_id: str | None = None, overwrite: bool = False, expected_digest: str | None = None) -> McpConfigResponse:
         manifest_id = str(manifest_data.get("id", ""))
         self._validate_server_id(manifest_id)
         if expected_id and manifest_id != expected_id:
             raise ValueError(f"Manifest id mismatch: expected {expected_id}, got {manifest_id}")
 
         existing_path = self._find_path(manifest_id)
+        if existing_path is not None:
+            existing_path = self._checked_path(existing_path)
+        if expected_digest is not None and (existing_path is None or hashlib.sha256(existing_path.read_bytes()).hexdigest() != expected_digest):
+            raise McpConfigConflict("MCP configuration changed; reopen the saved configuration before updating")
         if existing_path and not overwrite:
             raise FileExistsError(f"MCP config already exists: {manifest_id}")
         if existing_path:
             existing_raw = self._load_raw(existing_path)
             manifest_data = self._preserve_masked_env(manifest_data, existing_raw)
 
-        manifest = _validate_manifest(manifest_data)
+        manifest = _validate_manifest(manifest_data, for_write=True, http_trust_store=self.http_trust_store)
         self.config_dir.mkdir(parents=True, exist_ok=True)
-        path = existing_path or self.config_dir / f"{manifest.id}.yaml"
+        path = self._checked_path(existing_path or self.config_dir / f"{manifest.id}.yaml")
         self._write_manifest(path, manifest.model_dump(mode="json", exclude={"manifest_path"}))
         saved = self._load_manifest(path)
         log_event(logger, logging.INFO, "gate.mcp.config_saved", "MCP config saved", server_id=saved.id, path=str(path), overwrite=bool(existing_path))
-        return self._to_response(saved, path)
+        return self._to_response(path)
+
+    def check_http_trust(self, manifest: McpServerManifest) -> None:
+        if manifest.transport.endpoint:
+            require_mcp_http_endpoint(manifest.id, manifest.transport.endpoint, self.http_trust_store)
 
     def delete_config(self, server_id: str) -> McpConfigResponse:
+        with self.mutation_lock:
+            try:
+                return self._delete_config(server_id)
+            finally:
+                self.invalidate_instance_metadata()
+
+    def _delete_config(self, server_id: str) -> McpConfigResponse:
         self._validate_server_id(server_id)
         path = self._find_path(server_id)
         if not path:
             raise KeyError(f"MCP config not found: {server_id}")
-        manifest = self._load_manifest(path)
-        response = self._to_response(manifest, path)
+        path = self._checked_path(path)
+        response = self._to_response(path)
         path.unlink()
         log_event(logger, logging.INFO, "gate.mcp.config_deleted", "MCP config deleted", server_id=server_id, path=str(path))
         return response
@@ -106,7 +214,7 @@ class McpConfigStore:
             if str(raw.get("id", "")) == server_id:
                 return path
         for suffix in (".yaml", ".yml", ".json"):
-            candidate = self.config_dir / f"{server_id}{suffix}"
+            candidate = self._checked_path(self.config_dir / f"{server_id}{suffix}")
             if candidate.exists():
                 return candidate
         return None
@@ -117,8 +225,18 @@ class McpConfigStore:
         manifest.manifest_path = path
         return manifest
 
-    def _load_raw(self, path: Path) -> dict[str, Any]:
-        text = path.read_text(encoding="utf-8")
+    def _checked_path(self, path: Path) -> Path:
+        # Resolve before checking the directory boundary: lexical prefixes and
+        # server-ID validation alone cannot contain a symlinked configuration.
+        root = os.path.realpath(self.config_dir)
+        normalized = os.path.realpath(path)
+        if not normalized.startswith(os.path.join(root, "")) or os.path.dirname(normalized) != root:
+            raise ValueError("MCP configuration must be a direct file in config_dir")
+        return Path(normalized)
+
+    def _load_raw(self, path: Path, *, content: bytes | None = None) -> dict[str, Any]:
+        path = self._checked_path(path)
+        text = (path.read_bytes() if content is None else content).decode("utf-8")
         if path.suffix.lower() == ".json":
             data = json.loads(text)
         else:
@@ -128,6 +246,7 @@ class McpConfigStore:
         return data
 
     def _write_manifest(self, path: Path, data: dict[str, Any]) -> None:
+        path = self._checked_path(path)
         if path.suffix.lower() == ".json":
             content = json.dumps(data, ensure_ascii=False, indent=2) + "\n"
         else:
@@ -164,12 +283,18 @@ class McpConfigStore:
                     )
             raise
 
-    def _to_response(self, manifest: McpServerManifest, path: Path) -> McpConfigResponse:
+    def _to_response(self, path: Path) -> McpConfigResponse:
+        # The manifest and CAS digest come from the same opened file snapshot,
+        # even if a writer atomically replaces the path while it is read.
+        path = self._checked_path(path)
+        content = path.read_bytes()
+        manifest = _validate_manifest(self._load_raw(path, content=content))
+        manifest.manifest_path = path
         suffix = path.suffix.lower().lstrip(".") or "yaml"
-        return McpConfigResponse(id=manifest.id, path=str(path), format=suffix, manifest=manifest.safe_dict())
+        return McpConfigResponse(id=manifest.id, path=str(path), format=suffix, manifest=manifest.safe_dict(), digest=hashlib.sha256(content).hexdigest())
 
     def _preserve_masked_env(self, new_data: dict[str, Any], existing_data: dict[str, Any]) -> dict[str, Any]:
-        new_copy = dict(new_data)
+        new_copy = restore_masked_mounts(new_data, existing_data)
         new_launch = dict(new_copy.get("launch") or {})
         existing_launch = existing_data.get("launch") if isinstance(existing_data.get("launch"), dict) else {}
         for field_name in ("env", "environment"):
@@ -221,9 +346,9 @@ class McpConfigStore:
             raise ValueError("server_id must match ^[a-zA-Z0-9_.-]+$") from exc
 
 
-def _validate_manifest(data: dict[str, Any]) -> McpServerManifest:
+def _validate_manifest(data: dict[str, Any], *, for_write: bool = False, http_trust_store: McpHttpTrustStore | None = None) -> McpServerManifest:
     try:
-        return McpServerManifest.model_validate(data)
+        return validate_manifest_for_write(data, http_trust_store=http_trust_store) if for_write else McpServerManifest.model_validate(data)
     except ValidationError as exc:
         errors = redact_validation_errors(exc.errors())
         raise ValueError(redact_text(f"Manifest validation failed: {errors}")) from None

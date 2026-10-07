@@ -19,6 +19,10 @@ logger = logging.getLogger(__name__)
 _ID_RE = re.compile(r"^[a-zA-Z0-9_.-]+$")
 
 
+class CredentialRevisionConflict(RuntimeError):
+    """The approved binding no longer matches the encrypted value's revision."""
+
+
 def _now() -> str:
     return datetime.now(timezone.utc).isoformat()
 
@@ -80,7 +84,7 @@ class CredentialStore:
             log_event(logger, logging.INFO, "gate.credential.deleted", "Credential deleted", credential_id=credential_id)
             return self._safe_response(item)
 
-    def resolve_value(self, credential_id: str | None) -> str | None:
+    def resolve_value(self, credential_id: str | None, *, expected_revision: str | None = None) -> str | None:
         if not credential_id:
             return None
         with self._lock:
@@ -88,6 +92,8 @@ class CredentialStore:
             item = data.get(credential_id)
             if not item:
                 raise KeyError(f"Credential not found: {credential_id}")
+            if expected_revision is not None and item.get("updated_at") != expected_revision:
+                raise CredentialRevisionConflict("Managed credential binding changed after planning.")
             token = item.get("encrypted_value", "")
             try:
                 return self._fernet().decrypt(token.encode("utf-8")).decode("utf-8")

@@ -53,6 +53,12 @@ def _allow(_: Request) -> AuthPrincipal:
 
 class OfficialSdkInteropEndToEndTest(unittest.TestCase):
     def test_official_client_discovers_lists_and_calls_gateway_over_asgi(self) -> None:
+        self._assert_official_client(legacy=False)
+
+    def test_official_legacy_client_initializes_lists_and_calls_gateway_over_asgi(self) -> None:
+        self._assert_official_client(legacy=True)
+
+    def _assert_official_client(self, *, legacy: bool) -> None:
         app = FastAPI()
         registry = ToolRegistry()
         registry.register(
@@ -89,17 +95,19 @@ class OfficialSdkInteropEndToEndTest(unittest.TestCase):
                     terminate_on_close=False,
                 ) as streams:
                     async with ClientSession(*streams) as session:
-                        discovery = await session.discover()
+                        if legacy:
+                            initialization = await session.initialize()
+                            self.assertEqual(initialization.protocol_version, "2025-11-25")
+                            self.assertEqual(initialization.server_info.name, "lingshu_gate")
+                        else:
+                            discovery = await session.discover()
+                            self.assertEqual(discovery.supported_versions, [MCP_PROTOCOL_VERSION])
                         tools = await session.list_tools()
                         result = await session.call_tool(
                             "test__echo",
                             {"message": "official-client"},
                         )
 
-            self.assertEqual(
-                discovery.supported_versions,
-                [MCP_PROTOCOL_VERSION],
-            )
             self.assertEqual([tool.name for tool in tools.tools], ["test__echo"])
             self.assertFalse(result.is_error)
             self.assertEqual(
@@ -110,6 +118,12 @@ class OfficialSdkInteropEndToEndTest(unittest.TestCase):
         asyncio.run(scenario())
 
     def test_gateway_client_discovers_lists_and_calls_official_server(self) -> None:
+        self._check_downstream_server(MCP_PROTOCOL_VERSION, stateless=True)
+
+    def test_gateway_client_initializes_lists_and_calls_official_stateful_server(self) -> None:
+        self._check_downstream_server("2025-11-25", stateless=False)
+
+    def _check_downstream_server(self, version: str, *, stateless: bool) -> None:
         sdk_server = MCPServer("official-test", version="1.0")
 
         @sdk_server.tool()
@@ -119,7 +133,7 @@ class OfficialSdkInteropEndToEndTest(unittest.TestCase):
         app = sdk_server.streamable_http_app(
             streamable_http_path="/mcp",
             json_response=True,
-            stateless_http=True,
+            stateless_http=stateless,
         )
         listener = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         listener.bind(("127.0.0.1", 0))
@@ -154,7 +168,7 @@ class OfficialSdkInteropEndToEndTest(unittest.TestCase):
                         "transport": {
                             "type": "streamable_http",
                             "endpoint": f"http://127.0.0.1:{port}/mcp",
-                            "protocol_version": MCP_PROTOCOL_VERSION,
+                            "protocol_version": version,
                         },
                     }
                 )
@@ -162,12 +176,15 @@ class OfficialSdkInteropEndToEndTest(unittest.TestCase):
                     manifest,
                     Settings(data_dir=Path(directory)),
                 )
-                client.start()
-                tools = client.list_tools()
-                result = client.call_tool("echo", {"message": "official-server"})
-                client.stop()
+                try:
+                    client.start()
+                    self.assertEqual(bool(client.session_id), not stateless)
+                    tools = client.list_tools()
+                    result = client.call_tool("echo", {"message": "official-server"})
+                finally:
+                    client.stop()
 
-            self.assertEqual(client.protocol_version, MCP_PROTOCOL_VERSION)
+            self.assertEqual(client.protocol_version, version)
             self.assertEqual(client.server_info["name"], "official-test")
             self.assertEqual([tool["name"] for tool in tools], ["echo"])
             self.assertFalse(result["isError"])

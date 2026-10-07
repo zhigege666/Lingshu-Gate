@@ -1,0 +1,288 @@
+{
+  "source_sha": "35a2dd508b173a62d0d8572e2fbd6592217f0c36",
+  "branch": "test/gate-feature-integration-20261005",
+  "version": "0.4.4",
+  "test_file": "tests/test_mcp_playwright_interop.py",
+  "test_file_sha256": "8c17f55b44394e187bb6b4413c1922708f7ceb2d9838add696f281922bb853bc",
+  "runtime": {
+    "python": "Python 3.13.15",
+    "node": "v22.23.2",
+    "npm": "10.9.8"
+  },
+  "installation": {
+    "scope": "Owned temporary installation; exact versions, npm --ignore-scripts --no-audit --no-fund",
+    "packages": [
+      {
+        "name": "@playwright/mcp",
+        "version": "0.0.83",
+        "integrity": "sha512-oNcl+Ae2/IAjhfPeP46BfIkSakfmprY+aOtkv5MjrQ4lPav4/yNtPhL0iq8SlIM90oApWgBDUxaNKvktazUKOg==",
+        "resolved": "https://registry.npmjs.org/@playwright/mcp/-/mcp-0.0.83.tgz"
+      },
+      {
+        "name": "playwright",
+        "version": "1.64.0-alpha-1790635538000",
+        "integrity": "sha512-/5XDUMxpOd/9AojJtWDFIRV3EJZNQ0AwvK69wgt3CPzy8wTgiBG9pX45VfxtqtvIRGwfWzMhrvawNKreG69Snw==",
+        "resolved": "https://registry.npmjs.org/playwright/-/playwright-1.64.0-alpha-1790635538000.tgz"
+      },
+      {
+        "name": "playwright-core",
+        "version": "1.64.0-alpha-1790635538000",
+        "integrity": "sha512-pNwaXirhXMRLaRQs4NQ18EpTdtDoFwyPH9FOaaDC7YXG4hpwE2xmwCic/1srbuExVQC7zT9LJSJpDBAru+Vo9A==",
+        "resolved": "https://registry.npmjs.org/playwright-core/-/playwright-core-1.64.0-alpha-1790635538000.tgz"
+      }
+    ],
+    "lock_sha256": "aedafaa9c0783f4b742f732799c293353bdc80109e06cb3095d7a67ad2ad1674",
+    "browser_install_scripts_executed": false,
+    "fixed_versions_available": true
+  },
+  "test_command": "GATE_PLAYWRIGHT_MCP_ROOT=<isolated node_modules/@playwright/mcp> PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD=1 PLAYWRIGHT_BROWSERS_PATH=<empty private cache> python -m pytest -vv tests/test_mcp_playwright_interop.py",
+  "test_observer": "Unmodified test file; temporary pytest observer records real opener methods/statuses and subprocess teardown. The explicit discovery-error payload is retained; session IDs, header values, credentials and ephemeral ports are omitted.",
+  "passed": 3,
+  "failed": 0,
+  "skipped": 0,
+  "exit_code": 0,
+  "elapsed_seconds": 1.367592,
+  "cases": [
+    {
+      "nodeid": "tests/test_mcp_playwright_interop.py::test_fixed_peer_rejects_modern_discovery_with_real_http_400_null_id",
+      "phase": "call",
+      "outcome": "passed",
+      "duration_seconds": 0.019431,
+      "http_requests": [
+        {
+          "case": "tests/test_mcp_playwright_interop.py::test_fixed_peer_rejects_modern_discovery_with_real_http_400_null_id",
+          "method": "GET",
+          "host": "localhost",
+          "path": "/mcp",
+          "http_status": "not_ready"
+        },
+        {
+          "case": "tests/test_mcp_playwright_interop.py::test_fixed_peer_rejects_modern_discovery_with_real_http_400_null_id",
+          "method": "GET",
+          "host": "localhost",
+          "path": "/mcp",
+          "http_status": "not_ready"
+        },
+        {
+          "case": "tests/test_mcp_playwright_interop.py::test_fixed_peer_rejects_modern_discovery_with_real_http_400_null_id",
+          "method": "GET",
+          "host": "localhost",
+          "path": "/mcp",
+          "http_status": "not_ready"
+        },
+        {
+          "case": "tests/test_mcp_playwright_interop.py::test_fixed_peer_rejects_modern_discovery_with_real_http_400_null_id",
+          "method": "GET",
+          "host": "localhost",
+          "path": "/mcp",
+          "http_status": 400
+        },
+        {
+          "case": "tests/test_mcp_playwright_interop.py::test_fixed_peer_rejects_modern_discovery_with_real_http_400_null_id",
+          "method": "server/discover",
+          "host": "localhost",
+          "path": "/mcp",
+          "http_status": 400
+        },
+        {
+          "case": "tests/test_mcp_playwright_interop.py::test_fixed_peer_rejects_modern_discovery_with_real_http_400_null_id",
+          "method": "server/discover",
+          "host": "localhost",
+          "path": "/mcp",
+          "http_status": 400
+        }
+      ]
+    },
+    {
+      "nodeid": "tests/test_mcp_playwright_interop.py::test_fixed_peer_auto_initializes_and_lists_without_any_browser_call[None]",
+      "phase": "call",
+      "outcome": "passed",
+      "duration_seconds": 0.033434,
+      "http_requests": [
+        {
+          "case": "tests/test_mcp_playwright_interop.py::test_fixed_peer_auto_initializes_and_lists_without_any_browser_call[None]",
+          "method": "server/discover",
+          "host": "localhost",
+          "path": "/mcp",
+          "http_status": 400
+        },
+        {
+          "case": "tests/test_mcp_playwright_interop.py::test_fixed_peer_auto_initializes_and_lists_without_any_browser_call[None]",
+          "method": "initialize",
+          "host": "localhost",
+          "path": "/mcp",
+          "http_status": 200
+        },
+        {
+          "case": "tests/test_mcp_playwright_interop.py::test_fixed_peer_auto_initializes_and_lists_without_any_browser_call[None]",
+          "method": "notifications/initialized",
+          "host": "localhost",
+          "path": "/mcp",
+          "http_status": 202
+        },
+        {
+          "case": "tests/test_mcp_playwright_interop.py::test_fixed_peer_auto_initializes_and_lists_without_any_browser_call[None]",
+          "method": "tools/list",
+          "host": "localhost",
+          "path": "/mcp",
+          "http_status": 200
+        },
+        {
+          "case": "tests/test_mcp_playwright_interop.py::test_fixed_peer_auto_initializes_and_lists_without_any_browser_call[None]",
+          "method": "DELETE",
+          "host": "localhost",
+          "path": "/mcp",
+          "http_status": 200
+        }
+      ]
+    },
+    {
+      "nodeid": "tests/test_mcp_playwright_interop.py::test_fixed_peer_auto_initializes_and_lists_without_any_browser_call[auto]",
+      "phase": "call",
+      "outcome": "passed",
+      "duration_seconds": 0.018789,
+      "http_requests": [
+        {
+          "case": "tests/test_mcp_playwright_interop.py::test_fixed_peer_auto_initializes_and_lists_without_any_browser_call[auto]",
+          "method": "server/discover",
+          "host": "localhost",
+          "path": "/mcp",
+          "http_status": 400
+        },
+        {
+          "case": "tests/test_mcp_playwright_interop.py::test_fixed_peer_auto_initializes_and_lists_without_any_browser_call[auto]",
+          "method": "initialize",
+          "host": "localhost",
+          "path": "/mcp",
+          "http_status": 200
+        },
+        {
+          "case": "tests/test_mcp_playwright_interop.py::test_fixed_peer_auto_initializes_and_lists_without_any_browser_call[auto]",
+          "method": "notifications/initialized",
+          "host": "localhost",
+          "path": "/mcp",
+          "http_status": 202
+        },
+        {
+          "case": "tests/test_mcp_playwright_interop.py::test_fixed_peer_auto_initializes_and_lists_without_any_browser_call[auto]",
+          "method": "tools/list",
+          "host": "localhost",
+          "path": "/mcp",
+          "http_status": 200
+        },
+        {
+          "case": "tests/test_mcp_playwright_interop.py::test_fixed_peer_auto_initializes_and_lists_without_any_browser_call[auto]",
+          "method": "DELETE",
+          "host": "localhost",
+          "path": "/mcp",
+          "http_status": 200
+        }
+      ]
+    }
+  ],
+  "modern_discovery_rejection": {
+    "http_status": 400,
+    "body": {
+      "jsonrpc": "2.0",
+      "error": {
+        "code": -32000,
+        "message": "Bad Request: Server not initialized"
+      },
+      "id": null
+    },
+    "requested_protocol_version": "2026-07-28"
+  },
+  "auto_initialization_results": [
+    {
+      "manifest_protocol_version": null,
+      "negotiated_protocol_version": "2025-11-25",
+      "tool_count": 25,
+      "methods": [
+        "server/discover",
+        "initialize",
+        "notifications/initialized",
+        "tools/list"
+      ],
+      "mcp_package_version": "0.0.83",
+      "playwright_core_version": "1.64.0-alpha-1790635538000"
+    },
+    {
+      "manifest_protocol_version": "auto",
+      "negotiated_protocol_version": "2025-11-25",
+      "tool_count": 25,
+      "methods": [
+        "server/discover",
+        "initialize",
+        "notifications/initialized",
+        "tools/list"
+      ],
+      "mcp_package_version": "0.0.83",
+      "playwright_core_version": "1.64.0-alpha-1790635538000"
+    }
+  ],
+  "lifecycle": {
+    "peer_processes": 1,
+    "all_peer_processes_reaped": true,
+    "peer_returncodes": [
+      0
+    ],
+    "listener_closed_after_teardown": true,
+    "observed_descendant_count": 1,
+    "observed_executable_names": [
+      "node"
+    ],
+    "all_observed_descendants_reaped": true,
+    "browser_processes_observed": 0,
+    "browser_cache_empty": true,
+    "tools_call_count": 0,
+    "session_delete_requests": 2,
+    "peer_profile_mode": "--isolated; no existing user profile supplied"
+  },
+  "boundaries": "Loopback MCP handshake and tools/list only; no browser call/download/launch, user profile, nx connection, Podman, Gate connector authentication, credentials/provider/client acceptance, main or release.",
+  "unchanged_product_and_test_file": true,
+  "historical_backend_result": {
+    "passed": 2126,
+    "skipped": 7,
+    "checkpoint": "31b7cca",
+    "full_suite_rerun": false
+  },
+  "remaining_host_cases": {
+    "original_podman_skips": 4,
+    "executed_here": false
+  },
+  "runner_sha256": "e69df350142d24c916060b1611443fbf04f6c6a71c2835c6184ffbe9d1489a8d",
+  "pytest_reported_seconds": 1.07,
+  "preparation_observations": [
+    {
+      "stage": "temporary subprocess observer during first collection attempt",
+      "result": "collector rejected a function-shaped Popen observer because an installed dependency uses Popen[bytes]",
+      "resolution": "Preserved the Popen class API with an observational subclass. No peer was launched in that collection attempt; the unchanged original three tests then passed."
+    }
+  ],
+  "remaining_acceptance": [
+    "four original operator-provisioned rootless Podman host cases remain unexecuted",
+    "real nx5/rootless Podman host approval and restored root connection",
+    "real credentials/providers/clients",
+    "other operating systems/architectures and formal release matrix"
+  ],
+  "test_log": "gate-playwright-mcp-interop-35a2dd5.log",
+  "test_log_sha256": "e450961ff418d61f65406688e2beab12fe59bc8f25d49119044c7542f5546861",
+  "cleanup": {
+    "owned_installation_and_pytest_environment_removed": true,
+    "temporary_runner_and_pointer_removed": true,
+    "browser_cache_removed": true,
+    "preexisting_shared_node_toolchain_and_npm_cache_preserved": true
+  },
+  "execution_entrypoint": {
+    "api": "pytest.main",
+    "args": [
+      "-vv",
+      "--basetemp",
+      "<owned temporary pytest root>",
+      "tests/test_mcp_playwright_interop.py"
+    ],
+    "plugins": [
+      "temporary observation-only peer/HTTP lifecycle recorder"
+    ]
+  }
+}

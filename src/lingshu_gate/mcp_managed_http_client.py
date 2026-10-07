@@ -20,6 +20,7 @@ from lingshu_gate.mcp_http_client import StreamableHttpMcpClient
 from lingshu_gate.mcp_manifest import McpServerManifest
 from lingshu_gate.mcp_runtime_cache import McpRuntimeCacheResolver
 from lingshu_gate.redaction import redact_command, redact_text, redact_value
+from lingshu_gate.runtime_toolchain import resolve_runtime_toolchain
 from lingshu_gate.subprocess_environment import build_subprocess_environment
 
 logger = logging.getLogger(__name__)
@@ -50,6 +51,11 @@ class ManagedHttpMcpClient:
             value for value in (manifest.transport.endpoint,) if value
         )
 
+    def audit_redaction_values(self) -> tuple[str, ...]:
+        """Reuse process and HTTP credentials without another secret-store read."""
+        http_values = self._http_client.audit_redaction_values() if self._http_client else ()
+        return (*self._redaction_values, *http_values)
+
     @property
     def pid(self) -> int | None:
         return self.process.pid if self.process else None
@@ -57,6 +63,10 @@ class ManagedHttpMcpClient:
     @property
     def initialized(self) -> bool:
         return bool(self._http_client and self._http_client.initialized)
+
+    @property
+    def protocol_version(self) -> str | None:
+        return getattr(self._http_client, "protocol_version", None) if self.initialized else None
 
     @property
     def session_id(self) -> str | None:
@@ -265,6 +275,8 @@ class ManagedHttpMcpClient:
             )
         )
         command = cache_plan.command or [launch.command, *launch.args]
+        if launch.toolchain:
+            command = resolve_runtime_toolchain(launch, env, settings=self.settings)
         safe_command = redact_command(command)
         cwd = Path(launch.cwd).resolve() if launch.cwd else None
         log_event(

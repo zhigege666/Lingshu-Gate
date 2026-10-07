@@ -2,6 +2,7 @@ export type ManifestLike = Record<string, unknown> & {
   id?: unknown
   name?: unknown
   auto_start?: unknown
+  startup_policy?: unknown
   timeout_seconds?: unknown
   launch?: Record<string, unknown>
   transport?: Record<string, unknown>
@@ -11,6 +12,75 @@ export type ManifestLike = Record<string, unknown> & {
 export type RuntimeMode = "managed_stdio" | "external_http" | "managed_http" | "advanced"
 
 export type PrecheckResult = { errors: string[]; warnings: string[] }
+
+export const REDACTED_ENDPOINT = "[REDACTED]"
+
+/** A new draft is enabled, but neither saving nor reloading starts it. */
+export function createMcpConfigTemplate(): ManifestLike {
+  return {
+    id: "mcp-server", name: "MCP Server", enabled: true,
+    launch: { type: "external" },
+    transport: { type: "streamable_http", endpoint: "" },
+    timeout_seconds: 120, permissions: { default: "read" },
+    startup_policy: "gate_start_v1", auto_start: false,
+  }
+}
+
+/** A masked endpoint is a keep instruction for this existing resource only. */
+export type ManifestEditContext = { existingConfigId: string; originalEndpointMasked: boolean; originalMaskedMountTargets?: string[] }
+
+export function canKeepMaskedEndpoint(manifest: ManifestLike, context?: ManifestEditContext): boolean {
+  return Boolean(context?.existingConfigId && context.originalEndpointMasked
+    && manifest.id === context.existingConfigId
+    && getRecord(manifest.transport).endpoint === REDACTED_ENDPOINT)
+}
+
+export type ManifestPatch = { kind: "set"; value: unknown } | { kind: "remove" }
+
+/** Only the explicitly edited path changes; absent and falsy siblings remain intact. */
+export function patchManifestField(manifest: ManifestLike, path: string[], patch: ManifestPatch): ManifestLike {
+  if (!path.length || path.some((part) => ["__proto__", "prototype", "constructor"].includes(part))) {
+    throw new Error("Invalid Manifest field path")
+  }
+  const next = { ...manifest }
+  let target: Record<string, unknown> = next
+  let source: Record<string, unknown> = manifest
+  for (const part of path.slice(0, -1)) {
+    const child = getRecord(source[part])
+    const copy = { ...child }
+    target[part] = copy
+    target = copy
+    source = child
+  }
+  const last = path[path.length - 1]
+  if (patch.kind === "remove") delete target[last]
+  else target[last] = patch.value
+  return next
+}
+
+export function isStringMap(value: unknown): value is Record<string, string> {
+  return Boolean(value && typeof value === "object" && !Array.isArray(value)
+    && Object.values(value).every((item) => typeof item === "string"))
+}
+
+export function manifestValidationIssues(checks: ManifestValidationCheck[], revision: number): ValidationIssue[] {
+  return checks.flatMap((check): ValidationIssue[] => {
+    if (check.severity !== "error" && check.severity !== "warning") return []
+    const base = { code: check.name, messageKey: check.name, severity: check.severity, source: "server" as const, revision }
+    const errors = check.metadata?.errors
+    if (Array.isArray(errors) && errors.length) {
+      return errors.map((error) => {
+        const item = getRecord(error)
+        const path = Array.isArray(item.loc) ? pointerFor(item.loc.map(String)) : ""
+        return { ...base, code: typeof item.type === "string" ? item.type : check.name, message: typeof item.msg === "string" ? item.msg : check.message, path }
+      })
+    }
+    const path = check.name.startsWith("manifest.")
+      ? ["manifest.id", "manifest.id_mismatch", "manifest.duplicate"].includes(check.name) ? "/id" : ""
+      : pointerFor(check.name.split("."))
+    return [{ ...base, message: check.message, path }]
+  })
+}
 
 export type ManifestPrecheckMessageKey =
   | "idRequired"
@@ -31,6 +101,10 @@ export type ManifestPrecheckMessageKey =
   | "endpointRequired"
   | "endpointInvalid"
   | "timeoutWarning"
+  | "restartUnsupported"
+  | "healthRestartUnsupported"
+  | "toolchainModeUnsupported"
+  | "legacyExternalAutoStart"
 
 const SENSITIVE_ENV_PATTERN = /(KEY|TOKEN|SECRET|PASSWORD|PASS|CREDENTIAL|AUTH|COOKIE)/i
 const CONTAINER_IMAGE_DIGEST_PATTERN = /^[a-z0-9][a-z0-9._:/-]*@sha256:[a-f0-9]{64}$/
@@ -44,7 +118,7 @@ const DOCKER_PROCESS_CONTROL_NAMES = new Set([
 ])
 
 export function parseManifest(value: string): ManifestLike {
-  const parsed = JSON.parse(value || "{}")
+  const parsed = JSON.parse(value)
   if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) {
     throw new Error("Manifest root must be a JSON object")
   }
@@ -99,6 +173,19 @@ export function runtimeModeFromManifest(manifest: ManifestLike): RuntimeMode {
   return "advanced"
 }
 
+/** Advanced JSON is an editing capability, not a different launch protocol. */
+export function changeRuntimeMode(manifest: ManifestLike, mode: RuntimeMode): ManifestLike {
+  if (mode === "advanced") return manifest
+  let next = patchManifestField(manifest, ["launch", "type"], { kind: "set", value: mode === "external_http" ? "external" : "managed_process" })
+  next = patchManifestField(next, ["transport", "type"], { kind: "set", value: mode === "managed_stdio" ? "stdio" : "streamable_http" })
+  return next
+}
+
+/** An explicit switch edit opts into startup policy; ordinary edits do not. */
+export function changeStartupPolicy(manifest: ManifestLike, autoStart: boolean): ManifestLike {
+  return { ...manifest, auto_start: autoStart, startup_policy: "gate_start_v1" }
+}
+
 export function parseHttpUrl(value: string): URL | null {
   try {
     const parsed = new URL(value)
@@ -134,6 +221,7 @@ export function envKeyFromCredential(id: string): string {
 export function precheckManifest(
   manifest: ManifestLike,
   copy: (key: ManifestPrecheckMessageKey) => string,
+  context?: ManifestEditContext,
 ): PrecheckResult {
   const errors: string[] = []
   const warnings: string[] = []
@@ -151,6 +239,7 @@ export function precheckManifest(
     const command = String(launch.command || "").trim()
     if (!launchType) errors.push(copy("launchTypeRequired"))
     if (launchType === "managed_process" && !command) errors.push(copy("commandRequired"))
+    if (launch.toolchain && launchType !== "managed_process") errors.push(copy("toolchainModeUnsupported"))
     if (launchType === "managed_container") {
       const image = String(launch.image || "")
       if (!CONTAINER_IMAGE_DIGEST_PATTERN.test(image)) errors.push(copy("containerImageDigestError"))
@@ -163,7 +252,9 @@ export function precheckManifest(
           const source = String(mount.source || "")
           const target = String(mount.target || "")
           const absoluteSource = source.startsWith("/") || /^[A-Za-z]:[\\/]/.test(source)
-          return absoluteSource
+          const keepSource = source === "***" && Boolean(context?.existingConfigId)
+            && manifest.id === context?.existingConfigId && Boolean(context?.originalMaskedMountTargets?.includes(target))
+          return (absoluteSource || keepSource)
             && !source.includes(",")
             && target.startsWith("/")
             && !target.startsWith("//")
@@ -189,7 +280,7 @@ export function precheckManifest(
       })
       if (protectedEnvironment) errors.push(copy("containerEnvironmentProtected"))
     }
-    if (launchType !== "managed_process") warnings.push(copy("launchTypeWarning"))
+    if (!["managed_process", "external"].includes(launchType)) warnings.push(copy("launchTypeWarning"))
     if (Array.isArray(launch.args) && launch.args.some((item) => typeof item !== "string")) warnings.push(copy("argsWarning"))
   }
 
@@ -200,14 +291,33 @@ export function precheckManifest(
     if (transportType === "streamable_http" && !transport.endpoint) errors.push(copy("streamableEndpointError"))
   }
 
+  const launchType = String(launch?.type || "")
+  const transportType = String(transport?.type || "")
+  const restartSupported = launchType === "managed_process" && ["stdio", "streamable_http"].includes(transportType)
+    || launchType === "managed_container" && transportType === "stdio"
+  const policy = getRecord(manifest.restart_policy)
+  if (!restartSupported && policy.enabled === true) errors.push(copy("restartUnsupported"))
+  if (!restartSupported && getRecord(policy.health_check).enabled === true) errors.push(copy("healthRestartUnsupported"))
+  if (launchType === "external" && manifest.auto_start === true && manifest.startup_policy !== "gate_start_v1") errors.push(copy("legacyExternalAutoStart"))
   const runtimeMode = runtimeModeFromManifest(manifest)
   const endpoint = String(transport?.endpoint || "").trim()
+  if (transport?.endpoint === REDACTED_ENDPOINT && !canKeepMaskedEndpoint(manifest, context)
+    && runtimeMode !== "external_http" && runtimeMode !== "managed_http") errors.push(copy("endpointInvalid"))
   if (runtimeMode === "external_http" || runtimeMode === "managed_http") {
     if (!endpoint) errors.push(copy("endpointRequired"))
-    else if (!parseHttpUrl(endpoint)) errors.push(copy("endpointInvalid"))
+    else if (!parseHttpUrl(endpoint) && !canKeepMaskedEndpoint(manifest, context)) errors.push(copy("endpointInvalid"))
   }
 
   const timeout = Number(manifest.timeout_seconds || 0)
   if (!Number.isFinite(timeout) || timeout <= 0) warnings.push(copy("timeoutWarning"))
   return { errors, warnings }
 }
+import type { ManifestValidationCheck, ManifestValidationResponse } from "@/api/client"
+
+/** A failure flag or error check always dominates success-looking counters. */
+export function manifestValidationStatus(result: ManifestValidationResponse): "error" | "warning" | "success" {
+  if (!result.ok || !result.can_apply || result.summary.errors > 0 || result.checks.some(check => check.severity === "error")) return "error"
+  if (result.summary.warnings > 0 || result.checks.some(check => check.severity === "warning")) return "warning"
+  return "success"
+}
+import { pointerFor, type ValidationIssue } from "@/lib/validation"

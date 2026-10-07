@@ -652,7 +652,7 @@ def test_release_is_the_only_container_publisher() -> None:
     assert "cosign sign" not in container_workflow
 
 
-def test_manual_release_publication_is_version_checked_and_fail_closed() -> None:
+def test_release_publication_is_version_checked_and_fail_closed() -> None:
     publish_workflow = (
         REPOSITORY_ROOT / ".github" / "workflows" / "publish-release.yml"
     ).read_text(encoding="utf-8")
@@ -661,7 +661,9 @@ def test_manual_release_publication_is_version_checked_and_fail_closed() -> None
     ).read_text(encoding="utf-8")
 
     assert "workflow_dispatch:" in publish_workflow
-    assert "\n  push:" not in publish_workflow
+    assert "\n  push:\n    branches:\n      - main" in publish_workflow
+    assert "needs: select" in publish_workflow
+    assert "if: needs.select.outputs.publish == 'true'" in publish_workflow
     assert "contents: write" in publish_workflow
     assert "actions: write" in publish_workflow
     assert "cancel-in-progress: false" in publish_workflow
@@ -671,7 +673,9 @@ def test_manual_release_publication_is_version_checked_and_fail_closed() -> None
     assert 'check_version --tag "$RELEASE_TAG"' in publish_workflow
     assert "Require immutable releases before creating a tag" in publish_workflow
     assert '"repos/${GITHUB_REPOSITORY}/immutable-releases"' in publish_workflow
-    assert "Enable release immutability before creating the first release tag" in publish_workflow
+    assert "Cannot read release immutability settings" in publish_workflow
+    assert "GH_TOKEN: ${{ secrets.RELEASE_SETTINGS_TOKEN }}" in publish_workflow
+    assert 'test -n "$GH_TOKEN"' in publish_workflow
     assert "Release immutability is not enabled for this repository" in publish_workflow
     assert publish_workflow.index("Require immutable releases before creating a tag") < publish_workflow.index(
         "Create or verify immutable release tag"
@@ -1227,3 +1231,111 @@ def test_build_host_mismatch_fails_closed(monkeypatch: pytest.MonkeyPatch) -> No
 
     with pytest.raises(RuntimeError, match="requires Darwin"):
         verify_build_host("macos-arm64")
+
+
+def _dockerhub_index() -> dict[str, object]:
+    amd64, arm64 = 'sha256:' + 'a' * 64, 'sha256:' + 'b' * 64
+    return _oci_index([
+        _platform_manifest(amd64, 'amd64', size=100),
+        _platform_manifest(arm64, 'arm64', size=101),
+        _attestation('c', amd64, size=102),
+        _attestation('d', arm64, size=103),
+    ])
+
+
+@pytest.mark.parametrize('state', ['missing', 'matching', 'conflicting', 'copy-failed', 'corrupted'])
+def test_dockerhub_mirror_preserves_verified_payloads(monkeypatch, state: str) -> None:
+    module = importlib.import_module('scripts.release.mirror_dockerhub')
+    monkeypatch.setenv('DOCKERHUB_USERNAME', 'exampleuser')
+    candidate = _dockerhub_index()
+    changed = json.loads(json.dumps(candidate))
+    changed['manifests'][2]['size'] = 999
+    existing = None if state in ('missing', 'copy-failed', 'corrupted') else candidate
+    if state == 'conflicting':
+        existing = changed
+    responses = iter([candidate, existing, changed if state == 'corrupted' else candidate])
+    copies = []
+    monkeypatch.setattr(module, 'inspect', lambda *args, **kwargs: next(responses))
+
+    def fake_copy(source, target):
+        copies.append((source, target))
+        if state == 'copy-failed':
+            raise RuntimeError('copy failed')
+
+    monkeypatch.setattr(module, 'copy', fake_copy)
+    source = 'ghcr.io/zhigege666/lingshu-gate@sha256:' + 'e' * 64
+    if state in ('conflicting', 'copy-failed', 'corrupted'):
+        with pytest.raises(RuntimeError):
+            module.mirror(source, '0.1.0')
+    else:
+        module.mirror(source, '0.1.0')
+    assert len(copies) == (0 if state in ('matching', 'conflicting') else 1)
+    assert all(target == 'docker.io/exampleuser/lingshu-gate:0.1.0' for _, target in copies)
+
+
+@pytest.mark.parametrize('error,missing', [
+    ('manifest unknown', True), ('unauthorized: manifest unknown', False),
+    ('denied', False), ('429 too many requests', False), ('connection timed out', False),
+])
+def test_dockerhub_inspect_fails_closed(monkeypatch, error: str, missing: bool) -> None:
+    module = importlib.import_module('scripts.release.mirror_dockerhub')
+    monkeypatch.setenv('DOCKERHUB_USERNAME', 'exampleuser')
+    monkeypatch.setattr(module.subprocess, 'run', lambda *a, **kw: subprocess.CompletedProcess(
+        a[0], 1, stdout='', stderr=error,
+    ))
+    if missing:
+        assert module.inspect('docker.io/exampleuser/lingshu-gate:0.1.0', allow_missing=True) is None
+    else:
+        with pytest.raises(RuntimeError, match='Cannot inspect'):
+            module.inspect('docker.io/exampleuser/lingshu-gate:0.1.0', allow_missing=True)
+
+
+def test_dockerhub_latest_requires_verified_stable_version(monkeypatch) -> None:
+    module = importlib.import_module('scripts.release.mirror_dockerhub')
+    monkeypatch.setenv('DOCKERHUB_USERNAME', 'exampleuser')
+    copies = []
+    source = 'ghcr.io/zhigege666/lingshu-gate@sha256:' + 'e' * 64
+    monkeypatch.setattr(module, 'copy', lambda *args: copies.append(args))
+    monkeypatch.setattr(module, 'inspect', lambda *args, **kwargs: _dockerhub_index())
+    with pytest.raises(RuntimeError, match='Prereleases'):
+        module.mirror(source, '0.2.0-rc.1', latest=True)
+    with pytest.raises(RuntimeError, match='digest-pinned'):
+        module.mirror('ghcr.io/zhigege666/lingshu-gate:latest', '0.1.0')
+    assert copies == []
+    module.mirror(source, '0.1.0', latest=True)
+    assert copies == [(source, 'docker.io/exampleuser/lingshu-gate:latest')]
+
+
+def test_dockerhub_workflow_publication_order() -> None:
+    workflow = (REPOSITORY_ROOT / '.github/workflows/release.yml').read_text()
+    assert workflow.index('Mirror verified version to Docker Hub') < workflow.index('      - name: Create release\n')
+    assert workflow.index('Verify every release asset attestation') < workflow.index('Update Docker Hub latest')
+    assert "if: needs.version.outputs.prerelease == 'false'" in workflow
+    assert 'releases/latest' in workflow
+    assert 'group: release-registry-publication' in workflow
+    entry = (REPOSITORY_ROOT / '.github/workflows/publish-release.yml').read_text()
+    assert entry.index('Require Docker Hub credentials') < entry.index('Create or verify immutable release tag')
+
+
+@pytest.mark.parametrize("job_name", ["docker-offline", "docker-publish", "publish"])
+def test_tag_only_release_jobs_set_up_python_before_scripts(job_name: str) -> None:
+    workflow = (REPOSITORY_ROOT / ".github/workflows/release.yml").read_text()
+    job = workflow.split(f"  {job_name}:\n", 1)[1]
+    job = re.split(r"^  [a-z][a-z-]*:\n", job, maxsplit=1, flags=re.MULTILINE)[0]
+    setup = job.index("uses: actions/setup-python@")
+    first_script = re.search(r"(?:run: |^ +)python (?:-m |scripts/)", job, re.MULTILINE)
+    assert first_script is not None
+    assert setup < first_script.start()
+    assert "python-version: ${{ env.LINGSHU_GATE_RELEASE_PYTHON_VERSION }}" in job
+
+
+@pytest.mark.parametrize("workflow_name", ["release.yml", "docker.yml"])
+def test_trivy_cache_stays_outside_release_source(workflow_name: str) -> None:
+    workflow = (REPOSITORY_ROOT / ".github/workflows" / workflow_name).read_text()
+    scans = workflow.split("uses: aquasecurity/trivy-action@")[1:]
+    assert scans
+    for scan in scans:
+        step = scan.split("\n      - name:", 1)[0]
+        assert "cache-dir: ${{ runner.temp }}/trivy-cache" in step
+        assert 'exit-code: "1"' in step
+        assert "severity: CRITICAL" in step

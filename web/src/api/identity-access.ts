@@ -96,6 +96,7 @@ export type ResourceGrantSaveRequest = {
 }
 
 export type AccessResource = {
+  registry_source?: string
   server_id: string
   tool_id: string
   tool_name: string
@@ -108,6 +109,7 @@ export type ToolClassification = {
   server_id: string
   tool_id: string
   tool_name: string
+  registry_source?: string | null
   fingerprint: string
   suggested_access: "read" | "write" | "unknown"
   effective_access: "read" | "write" | "unknown"
@@ -156,6 +158,15 @@ export type InvocationAuditFilterOptions = {
   users: Array<{ id: string; username: string }>
   servers: string[]
   tools: Array<{ server_id: string; tool_id: string }>
+}
+
+export type InvocationStatistics = {
+  period_start: string
+  period_end: string
+  bucket_hours: number
+  totals: { requests: number; calls: number; mcp_calls: number; success: number; errors: number; not_invoked: number }
+  series: Array<{ start: string; requests: number; calls: number; mcp_calls: number }>
+  top_tools: Array<{ tool_id: string; server_id: string; calls: number; errors: number }>
 }
 
 export type PersonalToken = {
@@ -209,12 +220,13 @@ export const identityAccessApi = {
   accessResources: () => request<{ resources: AccessResource[] }>("/v1/access/resources"),
   saveResourceGrant: (payload: ResourceGrantSaveRequest) => request<ResourceGrant>("/v1/access/grants", { method: "PUT", body: JSON.stringify(payload) }),
   deleteResourceGrant: (grantId: string) => request<{ message: string }>(`/v1/access/grants/${encodeURIComponent(grantId)}`, { method: "DELETE" }),
-  toolClassifications: (filters: { server_id?: string; status?: string } = {}) => request<{ classifications: ToolClassification[] }>(`/v1/access/tool-classifications${queryString(filters)}`),
+  toolClassifications: (filters: { server_id?: string; status?: string } = {}, signal?: AbortSignal) => request<{ classifications: ToolClassification[] }>(`/v1/access/tool-classifications${queryString(filters)}`, { signal }),
   analyzeToolClassifications: (payload: { server_id?: string | null }) => request<{ classifications: ToolClassification[] }>("/v1/access/tool-classifications/analyze", { method: "POST", body: JSON.stringify(payload) }),
   updateToolClassification: (serverId: string, toolId: string, payload: { access: "read" | "write" | "unknown"; destructive: boolean; idempotent: boolean; note?: string }) => request<ToolClassification>(`/v1/access/tool-classifications/${encodeURIComponent(serverId)}/${encodeURIComponent(toolId)}`, { method: "PUT", body: JSON.stringify(payload) }),
-  confirmToolClassifications: (payload: { items: Array<{ server_id: string; tool_id: string; expected_fingerprint: string }>; note?: string }) => request<ToolClassificationConfirmResponse>("/v1/access/tool-classifications/confirm", { method: "POST", body: JSON.stringify(payload) }),
+  confirmToolClassifications: (payload: { items: Array<{ server_id: string; tool_id: string; expected_fingerprint: string }>; note?: string; publish?: boolean }) => request<ToolClassificationConfirmResponse>("/v1/access/tool-classifications/confirm", { method: "POST", body: JSON.stringify(payload) }),
   publishToolClassifications: (payload: { server_id?: string | null; tool_ids?: string[] }) => request<{ classifications: ToolClassification[] }>("/v1/access/tool-classifications/publish", { method: "POST", body: JSON.stringify(payload) }),
   invocationAudits: (filters: { user_id?: string; server_id?: string; tool_id?: string; decision?: string; outcome?: string; limit?: number } = {}) => request<{ audits: InvocationAudit[]; filter_options: InvocationAuditFilterOptions }>(`/v1/access/invocation-audits${queryString(filters)}`),
+  invocationStatistics: (hours: 24 | 168 = 24) => request<InvocationStatistics>(`/v1/access/invocation-statistics${queryString({ hours })}`),
   personalTokens: () => request<{ tokens: PersonalToken[] }>("/v1/auth/tokens"),
   createPersonalToken: (payload: { name: string; scopes: string[]; expires_at?: string | null }) => request<PersonalTokenCreateResponse>("/v1/auth/tokens", { method: "POST", body: JSON.stringify(payload) }),
   updatePersonalTokenScopes: (tokenId: string, scopes: string[]) => request<PersonalToken>(`/v1/auth/tokens/${encodeURIComponent(tokenId)}`, { method: "PATCH", body: JSON.stringify({ scopes }) }),

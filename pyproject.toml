@@ -27,8 +27,10 @@ dependencies = [
   "pydantic>=2.6,<3.0",
   "PyYAML>=6.0,<7.0",
   "cryptography>=42.0,<45.0",
+  "PyJWT[crypto]>=2.14.0,<3.0",
   "python-multipart>=0.0.9,<1.0",
   "mcp>=2.0,<3.0",
+  "jsonschema>=4.23,<5",
 ]
 
 [project.urls]
@@ -41,6 +43,7 @@ lingshu-gate = "lingshu_gate.cli:main"
 
 [dependency-groups]
 dev = [
+  "httpx>=0.28,<1.0",
   "mypy>=1.15,<2",
   "pytest>=8.3,<9",
   "ruff>=0.11,<1",
@@ -61,8 +64,16 @@ version = { attr = "lingshu_gate._version.__version__" }
 [tool.setuptools.packages.find]
 where = ["src"]
 
+[tool.setuptools.package-dir]
+"" = "src"
+scripts = "scripts"
+
+[tool.setuptools.cmdclass]
+build_py = "scripts.release.wheel_build.FreshBuildPy"
+bdist_wheel = "scripts.release.wheel_build.FreshBdistWheel"
+
 [tool.setuptools.package-data]
-lingshu_gate = ["static/console/**/*"]
+lingshu_gate = ["static/console/**/*", "static/oauth/**/*"]
 
 [tool.pytest.ini_options]
 addopts = "--strict-config --strict-markers"

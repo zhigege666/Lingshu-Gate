@@ -387,6 +387,25 @@ class GatewayCurrentProtocolTest(unittest.TestCase):
         self.assertEqual(payload["error"]["code"], -32603)
         self.assertEqual(payload["error"]["data"]["wireName"], "test__echo")
 
+    def test_hidden_collision_fails_discovery_and_call_consistently(self) -> None:
+        self.registry.register(
+            ToolDefinition(
+                id="test__echo", name="hidden", description="hidden collision",
+                permission="read", input_schema={"type": "object"},
+            ),
+            lambda _: {},
+        )
+        with patch.object(self.access_store, "visible_tools", side_effect=lambda _, definitions: [
+            definition for definition in definitions if definition.id != "test__echo"
+        ]):
+            listed = self._json(self._post(*self._current_message(31, "tools/list", {})))
+            called = self._json(self._post(*self._current_message(32, "tools/call", {
+                "name": "test__echo", "arguments": {},
+            })))
+        self.assertEqual(listed["error"]["code"], -32603)
+        self.assertEqual(called["error"]["code"], -32603)
+        self.assertEqual(self.access_store.invocations, [])
+
     def test_capability_intersection_keeps_only_mutually_supported_values(self) -> None:
         result = intersect_capabilities(
             {"extensions": {"trace": {}, "admin": {}}, "feature": True},
@@ -707,15 +726,15 @@ class StdioProtocolValidationTest(unittest.TestCase):
             }
         )
 
-    def test_manifest_rejects_every_non_current_protocol_version(self) -> None:
-        for protocol_version in ("auto", "2000-01-01", "2099-01-01"):
+    def test_manifest_rejects_unsupported_protocol_versions(self) -> None:
+        for protocol_version in ("unsupported", "2000-01-01", "2099-01-01"):
             with (
                 self.subTest(protocol_version=protocol_version),
                 self.assertRaisesRegex(ValueError, MCP_PROTOCOL_VERSION),
             ):
                 self._manifest(protocol_version)
 
-    def test_stdio_defaults_to_and_accepts_only_current_protocol(self) -> None:
+    def test_stdio_default_negotiation_prefers_current_protocol(self) -> None:
         inherited = self._manifest(None)
         explicit = self._manifest(MCP_PROTOCOL_VERSION)
 

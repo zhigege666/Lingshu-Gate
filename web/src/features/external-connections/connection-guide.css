@@ -1,0 +1,13 @@
+.connection-guide { display: flex; flex-direction: column; gap: 24px; }
+.connection-guide-layout { display: grid; grid-template-columns: minmax(0, 1.5fr) minmax(280px, 1fr); gap: 24px; align-items: start; }
+.connection-guide-main, .connection-guide-help { min-width: 0; }
+.connection-guide-help { border-left: 1px solid hsl(var(--border)); padding-left: 20px; font-size: 13px; line-height: 1.7; overflow-wrap: anywhere; }
+.connection-guide-help h2 { font-weight: 600; font-size: 16px; margin-bottom: 12px; }
+.connection-guide-help h3, .connection-guide-help dt { font-weight: 600; margin-top: 14px; }
+.connection-guide-help p, .connection-guide-help dd, .connection-guide-help li { margin-bottom: 12px; }
+.connection-guide-help ol { list-style: decimal; padding-left: 18px; }
+.connection-guide-main #connection-draft { grid-template-columns: minmax(0, 1fr); }
+.connection-guide-footer { position: sticky; bottom: 0; display: flex; flex-wrap: wrap; gap: 8px; justify-content: space-between; border-top: 1px solid hsl(var(--border)); background: hsl(var(--background)); padding: 12px 0; z-index: 2; }
+@media(max-width: 900px) { .connection-guide-layout { grid-template-columns: minmax(0, 1fr); }.connection-guide-help { border-left: 0; border-top: 1px solid hsl(var(--border)); padding: 16px 0 0; } }
+
+.connection-guide-main #connection-draft > fieldset { grid-column: 1 / -1; }

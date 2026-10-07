@@ -23,6 +23,7 @@ class AccessGrantsRoutesTest(unittest.TestCase):
             os.environ,
             {
                 "LINGSHU_GATE_DATA_DIR": str(self.data_dir),
+                "LINGSHU_GATE_DB_URL": f"sqlite:///{self.data_dir / 'gate.db'}",
                 "LINGSHU_GATE_CONFIG_DIR": str(self.data_dir / "mcp.d"),
                 "LINGSHU_GATE_ALLOWED_ROOT": str(self.data_dir),
                 "LINGSHU_GATE_AUTH_ENABLED": "true",

@@ -1,20 +1,15 @@
-import { useEffect, useMemo, useState } from "react"
-import { KeySquare, Plus, RefreshCcw, Shield, SlidersHorizontal } from "lucide-react"
-import {
-  api,
-  type AccessRole,
-  type AccessRoleSaveRequest,
-  type ControlPermission,
-  type PermissionType,
-  type PermissionTypeSaveRequest,
-} from "@/api/client"
-import { ActionMenu, ActionMenuItem } from "@/components/action-menu"
+import { FilterRadio } from "@/components/filter-radio"
+import { RemainingList, ListPagination, ListViewport, useListPage } from "@/components/list-pagination"
+import { useEffect, useMemo, useRef, useState } from "react"
+import { ArrowRight, CheckCircle2, Info, KeySquare, Plus, Shield, SlidersHorizontal, X } from "lucide-react"
+import { api, type AccessRole, type AccessRoleSaveRequest, type ControlPermission, type PermissionType, type PermissionTypeSaveRequest } from "@/api/client"
 import { useConfirm } from "@/components/confirm-dialog"
-import { PageHeader } from "@/components/page-shell"
+import { FormDialog } from "@/components/form-dialog"
+import { usePageRefresh } from "@/components/page-refresh"
+import { PageHeader, PageToolbar } from "@/components/page-shell"
 import { Alert, AlertDescription } from "@/components/ui/alert"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Dialog, DialogBody, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
@@ -22,132 +17,46 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Switch } from "@/components/ui/switch"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { Textarea } from "@/components/ui/textarea"
-import { Toaster, type ToastState } from "@/components/ui/toast"
+import { Toaster } from "@/components/ui/toast"
+import { AccessInlineActions } from "@/features/access-roles/inline-actions"
+import { accessDraftChanged, accessIdentityErrors, canDeleteAccessItem, copyPermissionTypePayload, copyRolePayload, emptyAccessFilters, filterAccessItems, normalizeAccessCode, permissionTypePayload, rolePayload, roleSaveSnapshot, type AccessFilters, type AccessItem } from "@/features/access-roles/model"
+import { accessRolesCopy, presentControlPermission } from "@/features/access-roles/presentation"
 import type { Locale, TFunction } from "@/i18n"
 import { TableEmptyRow } from "@/pages/page-utils"
-
-const copy = {
-  "zh-CN": {
-    eyebrow: "安全与访问 · 策略模型",
-    title: "角色与权限类型",
-    description: "角色定义控制台能做什么；权限类型定义 MCP 资源授权的语义级别。两者分离，避免把页面管理权限和工具读写权限混在一起。",
-    roles: "角色",
-    roleDesc: "按菜单和操作能力组合权限，可分配给多个用户。",
-    permissionTypes: "权限类型",
-    permissionTypeDesc: "映射到无权限 / 只读 / 读写基础级别，供 MCP 服务或工具授权使用。",
-    newRole: "新建角色",
-    editRole: "编辑角色",
-    newType: "新建权限类型",
-    editType: "编辑权限类型",
-    code: "代码",
-    name: "名称",
-    descriptionLabel: "说明",
-    members: "成员",
-    controlPermissions: "菜单与操作权限",
-    baseLevel: "基础级别",
-    references: "授权引用",
-    enabled: "启用",
-    system: "系统内置",
-    custom: "自定义",
-    noRoles: "暂无角色",
-    noTypes: "暂无权限类型",
-    save: "保存",
-    deleteRole: "删除角色",
-    deleteType: "删除权限类型",
-    noneLevel: "无权限",
-    readLevel: "只读",
-    writeLevel: "读写",
-  },
-  "en-US": {
-    eyebrow: "SECURITY & ACCESS · POLICY MODEL",
-    title: "Roles & Permission Types",
-    description: "Roles define console capabilities; permission types define MCP resource access semantics. Keeping them separate avoids mixing administration and tool access.",
-    roles: "Roles",
-    roleDesc: "Bundle control-plane permissions and assign them to users.",
-    permissionTypes: "Permission types",
-    permissionTypeDesc: "Map to none / read / write and apply to MCP server or tool grants.",
-    newRole: "New role",
-    editRole: "Edit role",
-    newType: "New permission type",
-    editType: "Edit permission type",
-    code: "Code",
-    name: "Name",
-    descriptionLabel: "Description",
-    members: "Members",
-    controlPermissions: "Control permissions",
-    baseLevel: "Base level",
-    references: "Grant references",
-    enabled: "Enabled",
-    system: "System",
-    custom: "Custom",
-    noRoles: "No roles",
-    noTypes: "No permission types",
-    save: "Save",
-    deleteRole: "Delete role",
-    deleteType: "Delete permission type",
-    noneLevel: "None",
-    readLevel: "Read",
-    writeLevel: "Read & write",
-  },
-} satisfies Record<Locale, Record<string, string>>
+import "./access-roles-page.css"
 
 const emptyRole: AccessRoleSaveRequest = { code: "", name: "", description: "", permissions: [], enabled: true }
 const emptyType: PermissionTypeSaveRequest = { code: "", name: "", base_level: "read", description: "", enabled: true }
-
-type ControlPermissionPresentation = {
-  name: string
-  description: string
-  group: string
-}
-
-const controlPermissionPresentations: Record<Locale, Record<string, ControlPermissionPresentation>> = {
-  "zh-CN": {
-    "console.view": { name: "仪表盘与基础控制台", description: "登录并查看仪表盘及基础控制台信息。", group: "控制台基础" },
-    "users.manage": { name: "用户管理", description: "查看用户，并审核、启用、停用或维护账号。", group: "身份与授权" },
-    "roles.manage": { name: "角色与权限类型", description: "维护角色、菜单与操作权限，以及 MCP 权限类型。", group: "身份与授权" },
-    "grants.manage": { name: "资源授权", description: "维护用户和角色的 MCP 服务或工具授权。", group: "身份与授权" },
-    "classifications.manage": { name: "工具读写分类", description: "分析、确认并发布工具的只读或读写分类。", group: "身份与授权" },
-    "credentials.manage.self": { name: "我的 API Token 与下游凭据", description: "维护自己的 Lingshu Gate API Token 和下游 MCP 凭据。", group: "凭据与审计" },
-    "credentials.manage.all": { name: "全部用户 API Token", description: "查看并吊销全部用户的 API Token，不读取用户下游秘密。", group: "凭据与审计" },
-    "audit.read": { name: "调用审计", description: "查看 MCP 调用的授权判定和执行结果。", group: "凭据与审计" },
-    "tools.read": { name: "工具", description: "发现获准使用的 MCP 工具。", group: "工具调用与运行态" },
-    "tools.invoke": { name: "调用", description: "调用获准使用的只读或写入 MCP 工具。", group: "工具调用与运行态" },
-    "operations.manage": { name: "配置与运维管理", description: "管理 MCP 配置、服务、构建部署、运行缓存、上传和诊断等页面。", group: "工具调用与运行态" },
-  },
-  "en-US": {
-    "console.view": { name: "Dashboard & console", description: "Sign in and view the dashboard and basic console information.", group: "Console basics" },
-    "users.manage": { name: "User management", description: "Review, activate, disable, and maintain user accounts.", group: "Identity & access" },
-    "roles.manage": { name: "Roles & permission types", description: "Manage roles, menu and action permissions, and MCP permission types.", group: "Identity & access" },
-    "grants.manage": { name: "Resource grants", description: "Manage MCP server or tool grants for users and roles.", group: "Identity & access" },
-    "classifications.manage": { name: "Tool classification", description: "Analyze, confirm, and publish read or write classifications for tools.", group: "Identity & access" },
-    "credentials.manage.self": { name: "My API tokens & downstream credentials", description: "Manage personal Lingshu Gate API tokens and downstream MCP credentials.", group: "Credentials & audit" },
-    "credentials.manage.all": { name: "All user API tokens", description: "View and revoke user API tokens without reading downstream secrets.", group: "Credentials & audit" },
-    "audit.read": { name: "Invocation audit", description: "Review MCP authorization decisions and invocation results.", group: "Credentials & audit" },
-    "tools.read": { name: "Tools", description: "Discover MCP tools the user is allowed to access.", group: "Tools & runtime" },
-    "tools.invoke": { name: "Invoke", description: "Invoke allowed read-only or write MCP tools.", group: "Tools & runtime" },
-    "operations.manage": { name: "Configuration & operations", description: "Manage MCP configuration, services, builds, runtime cache, uploads, and diagnostics.", group: "Tools & runtime" },
-  },
-}
+type AccessTab = "roles" | "types"
 
 export function AccessRolesPage({ locale, t }: { locale: Locale; t: TFunction }) {
-  const c = copy[locale]
+  const c = accessRolesCopy[locale]
   const [roles, setRoles] = useState<AccessRole[]>([])
   const [permissions, setPermissions] = useState<ControlPermission[]>([])
   const [permissionTypes, setPermissionTypes] = useState<PermissionType[]>([])
+  const [tab, setTab] = useState<AccessTab>("roles")
+  const [filters, setFilters] = useState<AccessFilters>(emptyAccessFilters)
+  const [selectedId, setSelectedId] = useState<string | null>(null)
   const [editingRole, setEditingRole] = useState<AccessRole | "new" | null>(null)
   const [roleForm, setRoleForm] = useState<AccessRoleSaveRequest>({ ...emptyRole })
   const [editingType, setEditingType] = useState<PermissionType | "new" | null>(null)
   const [typeForm, setTypeForm] = useState<PermissionTypeSaveRequest>({ ...emptyType })
-  const [busy, setBusy] = useState(false)
+  const [busy, setBusy] = useState(true)
   const [error, setError] = useState<string | null>(null)
+  const [formError, setFormError] = useState<string | null>(null)
+  const [showFieldErrors, setShowFieldErrors] = useState(false)
   const [message, setMessage] = useState<string | null>(null)
+  const roleBaseline = useRef<AccessRoleSaveRequest>({ ...emptyRole })
+  const typeBaseline = useRef<PermissionTypeSaveRequest>({ ...emptyType })
+  const saving = useRef(false)
+  const closing = useRef(false)
   const { confirm, confirmDialog } = useConfirm(t)
+  const wideDetails = useWideDetails()
+  const detailTrigger = useRef<HTMLElement | null>(null)
+  const roleTabRef = useRef<HTMLButtonElement>(null)
+  const typeTabRef = useRef<HTMLButtonElement>(null)
 
-  const permissionPresentationByCode = useMemo(() => new Map(permissions.map((permission) => [
-    permission.code,
-    presentControlPermission(permission, locale),
-  ])), [locale, permissions])
-
+  const permissionPresentationByCode = useMemo(() => new Map(permissions.map(permission => [permission.code, presentControlPermission(permission, locale)])), [locale, permissions])
   const permissionGroups = useMemo(() => {
     const groups = new Map<string, ControlPermission[]>()
     for (const permission of permissions) {
@@ -156,206 +65,300 @@ export function AccessRolesPage({ locale, t }: { locale: Locale; t: TFunction })
     }
     return [...groups.entries()]
   }, [locale, permissions])
+  const filteredRoles = useMemo(() => filterAccessItems(roles, filters), [roles, filters])
+  const filteredTypes = useMemo(() => filterAccessItems(permissionTypes, filters), [permissionTypes, filters])
+  const roleMode = tab === "roles"
+  const visibleItems: AccessItem[] = roleMode ? filteredRoles : filteredTypes
+  const paging = useListPage(visibleItems, JSON.stringify([tab, filters]))
+  const selected = (roleMode ? roles : permissionTypes).find(item => item.id === selectedId)
+  const roleErrors = accessIdentityErrors(roleForm, roles, editingRole && editingRole !== "new" ? editingRole.id : undefined)
+  const typeErrors = accessIdentityErrors(typeForm, permissionTypes, editingType && editingType !== "new" ? editingType.id : undefined)
+  const identityMessage = (error?: "required" | "duplicate", field?: "code" | "name") => !showFieldErrors || !error ? undefined : error === "duplicate" ? c.duplicateCode : field === "code" ? c.requiredCode : c.requiredName
 
   useEffect(() => { void load() }, [])
+  usePageRefresh(load, busy)
+  useEffect(() => {
+    if (selectedId && !selected && !busy) setSelectedId(null)
+  }, [selectedId, selected, busy])
 
   async function load() {
     setBusy(true)
     setError(null)
     try {
-      const [roleResult, permissionResult, typeResult] = await Promise.all([
-        api.accessRoles(),
-        api.controlPermissions(),
-        api.permissionTypes(),
-      ])
+      const [roleResult, permissionResult, typeResult] = await Promise.all([api.accessRoles(), api.controlPermissions(), api.permissionTypes()])
       setRoles(roleResult.roles)
       setPermissions(permissionResult.permissions)
       setPermissionTypes(typeResult.permission_types)
-    } catch (err) {
-      setError(err instanceof Error ? err.message : String(err))
-    } finally {
-      setBusy(false)
-    }
+    } catch (err) { setError(err instanceof Error ? err.message : String(err)) }
+    finally { setBusy(false) }
   }
 
-  function openRole(role?: AccessRole) {
-    setEditingRole(role || "new")
-    setRoleForm(role
-      ? { code: role.code, name: role.name, description: role.description, permissions: [...role.permissions], enabled: role.enabled }
-      : { ...emptyRole, permissions: ["console.view"] })
+  function switchTab(next: AccessTab) {
+    setTab(next)
+    setSelectedId(null)
+    setFilters(emptyAccessFilters)
   }
 
-  function openType(item?: PermissionType) {
-    setEditingType(item || "new")
-    setTypeForm(item
-      ? { code: item.code, name: item.name, base_level: item.base_level, description: item.description, enabled: item.enabled }
-      : { ...emptyType })
+  function viewItem(item: AccessItem) {
+    detailTrigger.current = document.activeElement instanceof HTMLElement ? document.activeElement : null
+    setSelectedId(item.id)
+  }
+
+  function closeDetails() {
+    setSelectedId(null)
+    detailTrigger.current?.focus()
+  }
+
+  function openRole(role?: AccessRole, duplicate = false) {
+    if (busy) return
+    setFormError(null)
+    setShowFieldErrors(false)
+    setEditingRole(duplicate ? "new" : role || "new")
+    const draft = role ? duplicate ? copyRolePayload(role, c.copySuffix) : rolePayload(role) : { ...emptyRole, permissions: ["console.view"] }
+    roleBaseline.current = draft
+    setRoleForm(draft)
+  }
+
+  function openType(item?: PermissionType, duplicate = false) {
+    if (busy) return
+    setFormError(null)
+    setShowFieldErrors(false)
+    setEditingType(duplicate ? "new" : item || "new")
+    const draft = item ? duplicate ? copyPermissionTypePayload(item, c.copySuffix) : permissionTypePayload(item) : { ...emptyType }
+    typeBaseline.current = draft
+    setTypeForm(draft)
+  }
+
+  async function closeEditor(kind: AccessTab) {
+    if (busy || saving.current || closing.current) return
+    const dirty = kind === "roles" ? accessDraftChanged(roleForm, roleBaseline.current) : accessDraftChanged(typeForm, typeBaseline.current)
+    closing.current = true
+    try {
+      if (dirty && !(await confirm({ title: c.discardTitle, description: c.discardDescription, confirmText: c.discardChanges, cancelText: c.continueEditing, destructive: true }))) return
+      if (kind === "roles") setEditingRole(null)
+      else setEditingType(null)
+      setFormError(null)
+    } finally { closing.current = false }
   }
 
   async function saveRole() {
-    setBusy(true)
-    setError(null)
-    try {
-      if (editingRole && editingRole !== "new") await api.updateAccessRole(editingRole.id, roleForm)
-      else await api.createAccessRole(roleForm)
-      setMessage(`${t("saved")}: ${roleForm.name}`)
-      setEditingRole(null)
-      await load()
-    } catch (err) {
-      setError(err instanceof Error ? err.message : String(err))
-    } finally {
-      setBusy(false)
+    if (busy || saving.current) return
+    const payload = roleSaveSnapshot(roleForm)
+    const target = editingRole
+    setShowFieldErrors(true)
+    if (roleErrors.code || roleErrors.name) {
+      document.getElementById(roleErrors.code ? "access-role-code" : "access-role-name")?.focus()
+      return
     }
+    saving.current = true
+    setBusy(true)
+    setFormError(null)
+    try {
+      const saved = target && target !== "new" ? await api.updateAccessRole(target.id, payload) : await api.createAccessRole(payload)
+      setRoles(current => current.some(item => item.id === saved.id) ? current.map(item => item.id === saved.id ? saved : item) : [...current, saved])
+      setFilters(emptyAccessFilters)
+      setSelectedId(current => current === saved.id ? saved.id : null)
+      setMessage(`${t("saved")}: ${saved.name}`)
+      setEditingRole(null)
+    } catch (err) { setFormError(err instanceof Error ? err.message : String(err)) }
+    finally { saving.current = false; setBusy(false) }
   }
 
   async function saveType() {
+    if (busy || saving.current) return
+    const payload = { ...typeForm, code: normalizeAccessCode(typeForm.code), name: typeForm.name.trim() }
+    const target = editingType
+    setShowFieldErrors(true)
+    if (typeErrors.code || typeErrors.name) {
+      document.getElementById(typeErrors.code ? "access-type-code" : "access-type-name")?.focus()
+      return
+    }
+    saving.current = true
+    setBusy(true)
+    setFormError(null)
+    try {
+      const saved = target && target !== "new" ? await api.updatePermissionType(target.id, payload) : await api.createPermissionType(payload)
+      setPermissionTypes(current => current.some(item => item.id === saved.id) ? current.map(item => item.id === saved.id ? saved : item) : [...current, saved])
+      setFilters(emptyAccessFilters)
+      setSelectedId(current => current === saved.id ? saved.id : null)
+      setMessage(`${t("saved")}: ${saved.name}`)
+      setEditingType(null)
+    } catch (err) { setFormError(err instanceof Error ? err.message : String(err)) }
+    finally { saving.current = false; setBusy(false) }
+  }
+
+  async function toggleItem(item: AccessItem) {
+    if (busy || item.is_system) return
+    if (item.enabled && !(await confirm({ title: `${c.disable} ${item.name}`, description: "permissions" in item ? c.disableRoleHint : c.disableTypeHint, confirmText: c.disable, destructive: true }))) return
     setBusy(true)
     setError(null)
     try {
-      if (editingType && editingType !== "new") await api.updatePermissionType(editingType.id, typeForm)
-      else await api.createPermissionType(typeForm)
-      setMessage(`${t("saved")}: ${typeForm.name}`)
-      setEditingType(null)
-      await load()
-    } catch (err) {
-      setError(err instanceof Error ? err.message : String(err))
-    } finally {
-      setBusy(false)
-    }
-  }
-
-  async function removeRole(role: AccessRole) {
-    if (!(await confirm({ title: c.deleteRole, description: `${role.name} (${role.code})`, destructive: true }))) return
-    try {
-      await api.deleteAccessRole(role.id)
-      setMessage(`${t("deleted")}: ${role.name}`)
-      await load()
+      if ("permissions" in item) {
+        const saved = await api.updateAccessRole(item.id, { ...rolePayload(item), enabled: !item.enabled })
+        setRoles(current => current.map(role => role.id === saved.id ? saved : role))
+      } else {
+        const saved = await api.updatePermissionType(item.id, { ...permissionTypePayload(item), enabled: !item.enabled })
+        setPermissionTypes(current => current.map(type => type.id === saved.id ? saved : type))
+      }
+      setMessage(`${item.name}: ${item.enabled ? c.disabledStatus : c.enabledStatus}`)
     } catch (err) { setError(err instanceof Error ? err.message : String(err)) }
+    finally { setBusy(false) }
   }
 
-  async function removeType(item: PermissionType) {
-    if (!(await confirm({ title: c.deleteType, description: `${item.name} (${item.code})`, destructive: true }))) return
+  async function removeItem(item: AccessItem) {
+    if (busy || !canDeleteAccessItem(item)) return
+    if (!(await confirm({ title: "permissions" in item ? c.deleteRole : c.deleteType, description: `${item.name} (${item.code})`, destructive: true }))) return
+    setBusy(true)
+    setError(null)
     try {
-      await api.deletePermissionType(item.id)
+      if ("permissions" in item) {
+        await api.deleteAccessRole(item.id)
+        setRoles(current => current.filter(role => role.id !== item.id))
+      } else {
+        await api.deletePermissionType(item.id)
+        setPermissionTypes(current => current.filter(type => type.id !== item.id))
+      }
+      if (selectedId === item.id) setSelectedId(null)
       setMessage(`${t("deleted")}: ${item.name}`)
-      await load()
     } catch (err) { setError(err instanceof Error ? err.message : String(err)) }
+    finally { setBusy(false) }
   }
 
-  const toast: ToastState = error ? { message: error, tone: "error" } : message ? { message, tone: "success" } : null
+  function editItem(item: AccessItem, duplicate = false) {
+    if ("permissions" in item) openRole(item, duplicate)
+    else openType(item, duplicate)
+  }
 
-  return (
-    <div className="flex flex-col gap-4">
-      <PageHeader
-        eyebrow={c.eyebrow}
-        title={c.title}
-        description={c.description}
-        stats={[{ label: c.roles, value: roles.length }, { label: c.permissionTypes, value: permissionTypes.length }, { label: c.controlPermissions, value: permissions.length }]}
-        actions={<Button variant="outline" onClick={load} disabled={busy}><RefreshCcw />{t("refresh")}</Button>}
-      />
-      {error && <Alert variant="destructive"><AlertDescription>{error}</AlertDescription></Alert>}
-      <div className="grid gap-4">
-        <Card>
-          <CardHeader className="flex-row items-start justify-between gap-3">
-            <div><CardTitle className="flex items-center gap-2"><Shield className="size-5 text-primary" />{c.roles}</CardTitle><CardDescription>{c.roleDesc}</CardDescription></div>
-            <Button onClick={() => openRole()}><Plus />{c.newRole}</Button>
-          </CardHeader>
-          <CardContent>
-            <Table>
-              <TableHeader><TableRow><TableHead>{c.name}</TableHead><TableHead>{c.members}</TableHead><TableHead>{c.controlPermissions}</TableHead><TableHead>{t("status")}</TableHead><TableHead>{t("actions")}</TableHead></TableRow></TableHeader>
-              <TableBody>
-                {roles.length === 0 ? <TableEmptyRow colSpan={5} title={c.noRoles} /> : roles.map((role) => <TableRow key={role.id}>
-                  <TableCell><div className="font-medium">{role.name}</div><div className="text-xs text-muted-foreground">{role.code}</div></TableCell>
-                  <TableCell>{role.member_count}</TableCell>
-                  <TableCell><div className="flex max-w-sm flex-wrap gap-1">{role.permissions.slice(0, 4).map((permission) => <Badge key={permission} variant="outline" title={permission}>{permissionPresentationByCode.get(permission)?.name || permission}</Badge>)}{role.permissions.length > 4 && <Badge variant="secondary">+{role.permissions.length - 4}</Badge>}</div></TableCell>
-                  <TableCell><Badge variant={role.enabled ? "success" : "secondary"}>{role.is_system ? c.system : c.custom} · {role.enabled ? c.enabled : t("disabled")}</Badge></TableCell>
-                  <TableCell><ActionMenu label={t("actions")}><ActionMenuItem onClick={() => openRole(role)}>{t("edit")}</ActionMenuItem>{!role.is_system && <ActionMenuItem destructive onClick={() => void removeRole(role)}>{t("delete")}</ActionMenuItem>}</ActionMenu></TableCell>
-                </TableRow>)}
-              </TableBody>
-            </Table>
-          </CardContent>
-        </Card>
+  const detailContent = selected && <div className="access-role-detail-content">
+    <div className="access-role-detail-identity">{"permissions" in selected ? <Shield /> : <KeySquare />}<div><h3>{selected.name}</h3><p>{selected.code}</p></div></div>
+    <div className="access-role-detail-badges"><Badge variant="secondary">{selected.is_system ? c.system : c.custom}</Badge><AccessStatus enabled={selected.enabled} locale={locale} /></div>
+    <dl className="access-role-detail-stat"><dt>{"permissions" in selected ? c.members : c.references}</dt><dd>{"permissions" in selected ? selected.member_count : selected.reference_count}</dd></dl>
+    {"permissions" in selected ? <section className="access-role-detail-section">
+      <div className="flex items-center justify-between gap-2"><h4>{c.controlPermissions}</h4><span className="text-xs text-muted-foreground">{selected.permissions.length} {c.permissionCount}</span></div>
+      <p>{c.permissionsHint}</p>
+      {selected.permissions.length ? <ul>{selected.permissions.map(code => <li key={code}><CheckCircle2 /><span>{permissionPresentationByCode.get(code)?.name || code}<small>{permissionPresentationByCode.get(code)?.description || code}</small></span></li>)}</ul> : <p>{c.noPermissions}</p>}
+    </section> : <section className="access-role-detail-section"><div className="flex items-center justify-between gap-2"><h4>{c.baseLevel}</h4><AccessLevelBadge level={selected.base_level} labels={c} /></div><p>{c.permissionTypeDesc}</p></section>}
+    <section className="access-role-detail-section"><h4>{c.descriptionLabel}</h4><p>{selected.description || c.emptyDescription}</p></section>
+    <Button variant="outline" disabled={busy} onClick={() => editItem(selected)}>{"permissions" in selected ? c.editRole : c.editType}</Button>
+  </div>
 
-        <Card>
-          <CardHeader className="flex-row items-start justify-between gap-3">
-            <div><CardTitle className="flex items-center gap-2"><KeySquare className="size-5 text-primary" />{c.permissionTypes}</CardTitle><CardDescription>{c.permissionTypeDesc}</CardDescription></div>
-            <Button onClick={() => openType()}><Plus />{c.newType}</Button>
-          </CardHeader>
-          <CardContent>
-            <Table>
-              <TableHeader><TableRow><TableHead>{c.name}</TableHead><TableHead>{c.baseLevel}</TableHead><TableHead>{c.references}</TableHead><TableHead>{t("actions")}</TableHead></TableRow></TableHeader>
-              <TableBody>
-                {permissionTypes.length === 0 ? <TableEmptyRow colSpan={4} title={c.noTypes} /> : permissionTypes.map((item) => <TableRow key={item.id}>
-                  <TableCell><div className="font-medium">{item.name}</div><div className="text-xs text-muted-foreground">{item.code} · {item.is_system ? c.system : c.custom}</div></TableCell>
-                  <TableCell><AccessLevelBadge level={item.base_level} labels={c} /></TableCell>
-                  <TableCell>{item.reference_count}</TableCell>
-                  <TableCell><ActionMenu label={t("actions")}><ActionMenuItem onClick={() => openType(item)}>{t("edit")}</ActionMenuItem>{!item.is_system && <ActionMenuItem destructive onClick={() => void removeType(item)}>{t("delete")}</ActionMenuItem>}</ActionMenu></TableCell>
-                </TableRow>)}
-              </TableBody>
-            </Table>
-          </CardContent>
-        </Card>
+  return <div className="access-roles-page">
+    <div className={`access-roles-layout${selected && wideDetails ? " with-details" : ""}`}>
+      <div className="access-roles-directory">
+        <PageHeader closeLabel={t("close")} title={c.title} description={c.description} helpLabel={t("pageHelp")}
+          toolbar={<div className="access-role-tabs" role="tablist" aria-label={c.managementTabs} onKeyDown={event => {
+            if (!["ArrowLeft", "ArrowRight", "Home", "End"].includes(event.key)) return
+            event.preventDefault()
+            const next = event.key === "Home" ? "roles" : event.key === "End" ? "types" : roleMode ? "types" : "roles"
+            switchTab(next)
+            ;(next === "roles" ? roleTabRef : typeTabRef).current?.focus()
+          }}>
+            <button ref={roleTabRef} id="access-roles-tab" type="button" role="tab" aria-selected={roleMode} tabIndex={roleMode ? 0 : -1} aria-controls="access-roles-panel" onClick={() => switchTab("roles")}>{c.roles}<span>{roles.length}</span></button>
+            <button ref={typeTabRef} id="access-types-tab" type="button" role="tab" aria-selected={!roleMode} tabIndex={roleMode ? -1 : 0} aria-controls="access-roles-panel" onClick={() => switchTab("types")}>{c.permissionTypes}<span>{permissionTypes.length}</span></button>
+          </div>} />
+        {error && <Alert variant="destructive" role="alert"><AlertDescription>{error}</AlertDescription><Button variant="outline" size="sm" className="mt-2" disabled={busy} onClick={() => void load()}>{t("refresh")}</Button></Alert>}
+        <section id="access-roles-panel" role="tabpanel" aria-labelledby={roleMode ? "access-roles-tab" : "access-types-tab"} aria-busy={busy}>
+          <PageToolbar className="access-role-filters" query={filters.query} onQueryChange={query => setFilters(current => ({ ...current, query }))} placeholder={roleMode ? c.searchRoles : c.searchTypes} clearLabel={t("clearSearch")} resetFilters={{ label: c.resetFilters, disabled: !filters.query && filters.source === "all" && filters.status === "all" && filters.level === "all", onReset: () => setFilters(emptyAccessFilters) }}>
+            <FilterRadio label={c.source} value={filters.source} onChange={value => setFilters(current => ({...current, source: value as AccessFilters["source"]}))} options={[{value:"all",label:t("all")}, {value:"system",label:c.system}, {value:"custom",label:c.custom}]} />
+            <FilterRadio label={t("status")} value={filters.status} onChange={value => setFilters(current => ({...current, status: value as AccessFilters["status"]}))} options={[{value:"all",label:t("all")}, {value:"enabled",label:c.enabledStatus}, {value:"disabled",label:c.disabledStatus}]} />
+            {!roleMode && <FilterRadio label={c.baseLevel} value={filters.level} onChange={value => setFilters(current => ({...current, level: value as AccessFilters["level"]}))} options={[{value:"all",label:t("all")}, {value:"none",label:c.noneLevel}, {value:"read",label:c.readLevel}, {value:"write",label:c.writeLevel}]} />}
+            <Button className="access-create" disabled={busy} onClick={() => roleMode ? openRole() : openType()}><Plus />{roleMode ? c.newRole : c.newType}</Button>
+          </PageToolbar>
+          <RemainingList>
+          <ListViewport viewport={paging.viewport} label={t("toolShowing")}>
+            <Table className="access-role-table">
+            <colgroup><col style={{ width: "20%" }} /><col style={{ width: roleMode ? "7%" : "12%" }} /><col style={{ width: roleMode ? "22%" : "17%" }} /><col style={{ width: "12%" }} /><col style={{ width: "11%" }} /><col style={{ width: "28%" }} /></colgroup>
+            <TableHeader><TableRow>{(roleMode ? [c.roles, c.members, c.controlPermissions, c.source, t("status"), t("actions")] : [c.permissionTypes, c.baseLevel, c.references, c.source, t("status"), t("actions")]).map(label => <TableHead key={label} scope="col">{label}</TableHead>)}</TableRow></TableHeader>
+            <TableBody>{visibleItems.length === 0 ? <TableEmptyRow colSpan={6} title={busy ? c.loading : error ? t("error") : (roleMode ? roles : permissionTypes).length ? c.noMatches : roleMode ? c.noRoles : c.noTypes} /> : paging.items.map(item => <TableRow key={item.id} data-state={selectedId === item.id ? "selected" : undefined}>
+              <TableCell><button type="button" className="access-name" aria-label={`${c.view} ${item.name}`} onClick={() => viewItem(item)}>{"permissions" in item ? <Shield /> : <KeySquare />}<span><strong>{item.name}</strong><small title={item.code}>{item.code}</small></span></button></TableCell>
+              {"permissions" in item ? <><TableCell>{item.member_count}</TableCell><TableCell><button type="button" className="access-permission-summary" onClick={() => viewItem(item)} aria-label={`${item.name} ${c.controlPermissions}`}><strong>{item.permissions.length} {c.permissionCount}</strong><small>{item.permissions.map(code => permissionPresentationByCode.get(code)?.name || code).join("、") || c.noPermissions}</small></button></TableCell></> : <><TableCell><AccessLevelBadge level={item.base_level} labels={c} /></TableCell><TableCell>{item.reference_count}</TableCell></>}
+              <TableCell><Badge variant="secondary" className="whitespace-nowrap text-[11px]">{item.is_system ? c.system : c.custom}</Badge></TableCell>
+              <TableCell><AccessStatus enabled={item.enabled} locale={locale} /></TableCell>
+              <TableCell><AccessInlineActions item={item} locale={locale} t={t} busy={busy} onView={() => viewItem(item)} onEdit={() => editItem(item)} onCopy={() => editItem(item, true)} onToggle={() => void toggleItem(item)} onDelete={() => void removeItem(item)} /></TableCell>
+            </TableRow>)}</TableBody>
+          </Table>
+            </ListViewport>
+            <ListPagination paging={paging} t={t} />
+          <div className="access-role-count flex items-center gap-3"><span aria-live="polite">{c.total} {visibleItems.length} / {roleMode ? roles.length : permissionTypes.length} {c.items}</span></div>
+        <div className="access-role-tip"><Info /><span>{roleMode ? c.rolesHint : c.typesHint}</span><Button variant="ghost" size="sm" onClick={() => switchTab(roleMode ? "types" : "roles")}>{roleMode ? c.manageTypes : c.manageRoles}<ArrowRight /></Button></div>
+          </RemainingList>
+        </section>
       </div>
-
-      <Dialog open={editingRole !== null} onOpenChange={(open) => { if (!open) setEditingRole(null) }}>
-        <DialogContent className="max-w-3xl">
-          <DialogHeader><DialogTitle>{editingRole === "new" ? c.newRole : c.editRole}</DialogTitle><DialogDescription>{c.roleDesc}</DialogDescription></DialogHeader>
-          <DialogBody className="flex max-h-[72vh] flex-col gap-4 overflow-y-auto">
-            <div className="grid gap-4 sm:grid-cols-2">
-              <Field label={c.code}><Input value={roleForm.code} disabled={editingRole !== "new" && Boolean(editingRole && editingRole.is_system)} onChange={(event) => setRoleForm((current) => ({ ...current, code: event.target.value }))} /></Field>
-              <Field label={c.name}><Input value={roleForm.name} onChange={(event) => setRoleForm((current) => ({ ...current, name: event.target.value }))} /></Field>
-            </div>
-            <Field label={c.descriptionLabel}><Textarea value={roleForm.description} onChange={(event) => setRoleForm((current) => ({ ...current, description: event.target.value }))} /></Field>
-            <label className="flex items-center justify-between rounded-lg border p-3"><span className="text-sm font-medium">{c.enabled}</span><Switch checked={roleForm.enabled} disabled={editingRole !== "new" && Boolean(editingRole && editingRole.is_system)} onCheckedChange={(enabled) => setRoleForm((current) => ({ ...current, enabled }))} /></label>
-            <div>
-              <Label>{c.controlPermissions}</Label>
-              <div className="mt-2 grid gap-3 md:grid-cols-2">
-                {permissionGroups.map(([group, items]) => <div key={group} className="rounded-lg border p-3"><div className="mb-2 text-xs font-semibold tracking-wide text-muted-foreground">{group}</div><div className="flex flex-col gap-2">{items.map((permission) => {
-                  const presentation = presentControlPermission(permission, locale)
-                  return <label key={permission.code} title={permission.code} className="flex items-start justify-between gap-3 rounded-md bg-muted/30 p-2"><span><span className="block text-sm font-medium">{presentation.name}</span><span className="block text-xs text-muted-foreground">{presentation.description}</span></span><Switch checked={roleForm.permissions.includes(permission.code)} onCheckedChange={(checked) => setRoleForm((current) => ({ ...current, permissions: checked ? [...new Set([...current.permissions, permission.code])] : current.permissions.filter((item) => item !== permission.code) }))} /></label>
-                })}</div></div>)}
-              </div>
-            </div>
-            <div className="flex justify-end gap-2 border-t pt-4"><Button variant="outline" onClick={() => setEditingRole(null)}>{t("cancel")}</Button><Button onClick={() => void saveRole()} disabled={busy || !roleForm.code.trim() || !roleForm.name.trim()}><SlidersHorizontal />{c.save}</Button></div>
-          </DialogBody>
-        </DialogContent>
-      </Dialog>
-
-      <Dialog open={editingType !== null} onOpenChange={(open) => { if (!open) setEditingType(null) }}>
-        <DialogContent className="max-w-xl">
-          <DialogHeader><DialogTitle>{editingType === "new" ? c.newType : c.editType}</DialogTitle><DialogDescription>{c.permissionTypeDesc}</DialogDescription></DialogHeader>
-          <DialogBody className="flex flex-col gap-4">
-            <div className="grid gap-4 sm:grid-cols-2">
-              <Field label={c.code}><Input value={typeForm.code} disabled={editingType !== "new" && Boolean(editingType && editingType.is_system)} onChange={(event) => setTypeForm((current) => ({ ...current, code: event.target.value }))} /></Field>
-              <Field label={c.name}><Input value={typeForm.name} onChange={(event) => setTypeForm((current) => ({ ...current, name: event.target.value }))} /></Field>
-            </div>
-            <Field label={c.baseLevel}><Select value={typeForm.base_level} disabled={editingType !== "new" && Boolean(editingType && editingType.is_system)} onValueChange={(value) => setTypeForm((current) => ({ ...current, base_level: value as PermissionTypeSaveRequest["base_level"] }))}><SelectTrigger><SelectValue /></SelectTrigger><SelectContent><SelectItem value="none">{c.noneLevel}</SelectItem><SelectItem value="read">{c.readLevel}</SelectItem><SelectItem value="write">{c.writeLevel}</SelectItem></SelectContent></Select></Field>
-            <Field label={c.descriptionLabel}><Textarea value={typeForm.description} onChange={(event) => setTypeForm((current) => ({ ...current, description: event.target.value }))} /></Field>
-            <label className="flex items-center justify-between rounded-lg border p-3"><span className="text-sm font-medium">{c.enabled}</span><Switch checked={typeForm.enabled} disabled={editingType !== "new" && Boolean(editingType && editingType.is_system)} onCheckedChange={(enabled) => setTypeForm((current) => ({ ...current, enabled }))} /></label>
-            <div className="flex justify-end gap-2 border-t pt-4"><Button variant="outline" onClick={() => setEditingType(null)}>{t("cancel")}</Button><Button onClick={() => void saveType()} disabled={busy || !typeForm.code.trim() || !typeForm.name.trim()}>{c.save}</Button></div>
-          </DialogBody>
-        </DialogContent>
-      </Dialog>
-      {confirmDialog}
-      <Toaster toast={toast} onClose={() => { setError(null); setMessage(null) }} />
+      {selected && wideDetails && <aside className="access-role-detail" aria-label={roleMode ? c.roleDetails : c.typeDetails}><div className="access-role-detail-header"><h2>{roleMode ? c.roleDetails : c.typeDetails}</h2><Button variant="ghost" size="sm" aria-label={c.closeDetails} onClick={closeDetails}><X /></Button></div>{detailContent}</aside>}
     </div>
-  )
+    <Dialog open={Boolean(selected && !wideDetails && !editingRole && !editingType)} onOpenChange={open => { if (!open) closeDetails() }}>
+      <DialogContent closeLabel={t("close")} className="left-auto right-0 top-0 h-dvh max-h-dvh w-full max-w-md translate-x-0 translate-y-0 rounded-none">
+        <DialogHeader><DialogTitle>{roleMode ? c.roleDetails : c.typeDetails}</DialogTitle><DialogDescription className="sr-only">{selected?.name}</DialogDescription></DialogHeader><DialogBody>{detailContent}</DialogBody>
+      </DialogContent>
+    </Dialog>
+    <FormDialog dirty={accessDraftChanged(roleForm, roleBaseline.current)} open={editingRole !== null} onClose={() => void closeEditor("roles")} title={editingRole === "new" ? c.newRole : c.editRole} description={c.roleDesc} closeLabel={t("cancel")} pending={busy} className="max-w-6xl access-role-editor-dialog" error={formError}
+      footer={<><Button variant="outline" disabled={busy} onClick={() => void closeEditor("roles")}>{t("cancel")}</Button><Button type="submit" form="access-role-editor" disabled={busy}><SlidersHorizontal />{busy ? c.saving : c.save}</Button></>}>
+      <form id="access-role-editor" onSubmit={event => { event.preventDefault(); void saveRole() }}>
+        <fieldset disabled={busy} className="access-editor-fields role-editor-layout">
+          <div className="role-editor-basics">
+          <div className="grid gap-4 sm:grid-cols-2">
+            <Field label={c.code} id="access-role-code" error={identityMessage(roleErrors.code, "code")}><Input id="access-role-code" aria-label={c.code} aria-required="true" aria-invalid={Boolean(identityMessage(roleErrors.code, "code"))} aria-describedby={identityMessage(roleErrors.code, "code") ? "access-role-code-error" + " access-role-code-hint" : "access-role-code-hint"} value={roleForm.code} disabled={busy || (editingRole !== "new" && Boolean(editingRole && editingRole.is_system))} onChange={event => setRoleForm(current => ({ ...current, code: event.target.value }))} /><p id="access-role-code-hint" className="text-xs text-muted-foreground">{c.codeHint}</p></Field>
+            <Field label={c.name} id="access-role-name" error={identityMessage(roleErrors.name, "name")}><Input id="access-role-name" aria-label={c.name} aria-required="true" aria-invalid={Boolean(identityMessage(roleErrors.name, "name"))} aria-describedby={identityMessage(roleErrors.name, "name") ? "access-role-name-error" : undefined} value={roleForm.name} disabled={busy} onChange={event => setRoleForm(current => ({ ...current, name: event.target.value }))} /></Field>
+          </div>
+          <Field label={c.descriptionLabel} id="access-role-description"><Textarea rows={3} className="min-h-20" id="access-role-description" aria-label={c.descriptionLabel} value={roleForm.description} disabled={busy} onChange={event => setRoleForm(current => ({ ...current, description: event.target.value }))} /></Field>
+          <label className="flex items-center justify-between gap-3"><span className="text-sm font-medium">{c.enabled}</span><Switch aria-label={c.enabled} checked={roleForm.enabled} disabled={busy || (editingRole !== "new" && Boolean(editingRole && editingRole.is_system))} onCheckedChange={enabled => setRoleForm(current => ({ ...current, enabled }))} /></label>
+          {editingRole && editingRole !== "new" && editingRole.is_system && <p className="text-xs text-muted-foreground">{c.systemRoleRestricted}</p>}
+          </div>
+          <fieldset className="access-permission-groups">
+            <legend className="mb-2 flex w-full items-center justify-between gap-2 text-sm font-medium"><span>{c.controlPermissions}</span><span className="text-xs font-normal text-muted-foreground">{c.selectedPermissions}: {roleForm.permissions.length}</span></legend>
+            <div className="role-permission-columns grid items-start gap-3 md:grid-cols-2">
+              {permissionGroups.map(([group, items]) => <fieldset key={group} className="access-permission-group"><legend>{group}</legend><div className="flex flex-col gap-2">{items.map(permission => {
+                const presentation = presentControlPermission(permission, locale)
+                return <label key={permission.code} title={permission.code} className="access-permission-choice"><span><span className="block text-sm font-medium">{presentation.name}</span><span className="block text-xs text-muted-foreground">{presentation.description}</span></span><Switch aria-label={presentation.name} checked={roleForm.permissions.includes(permission.code)} disabled={busy} onCheckedChange={checked => setRoleForm(current => ({ ...current, permissions: checked ? [...new Set([...current.permissions, permission.code])] : current.permissions.filter(item => item !== permission.code) }))} /></label>
+              })}</div></fieldset>)}
+            </div>
+          </fieldset>
+        </fieldset>
+      </form>
+    </FormDialog>
+    <FormDialog dirty={accessDraftChanged(typeForm, typeBaseline.current)} open={editingType !== null} onClose={() => void closeEditor("types")} title={editingType === "new" ? c.newType : c.editType} description={c.permissionTypeDesc} closeLabel={t("cancel")} pending={busy} className="max-w-xl" error={formError}
+      footer={<><Button variant="outline" disabled={busy} onClick={() => void closeEditor("types")}>{t("cancel")}</Button><Button type="submit" form="access-type-editor" disabled={busy}>{busy ? c.saving : c.save}</Button></>}>
+      <form id="access-type-editor" onSubmit={event => { event.preventDefault(); void saveType() }}>
+        <fieldset disabled={busy} className="access-editor-fields">
+          <div className="grid gap-4 sm:grid-cols-2">
+            <Field label={c.code} id="access-type-code" error={identityMessage(typeErrors.code, "code")}><Input id="access-type-code" aria-label={c.code} aria-required="true" aria-invalid={Boolean(identityMessage(typeErrors.code, "code"))} aria-describedby={identityMessage(typeErrors.code, "code") ? "access-type-code-error" + " access-type-code-hint" : "access-type-code-hint"} value={typeForm.code} disabled={busy || (editingType !== "new" && Boolean(editingType && editingType.is_system))} onChange={event => setTypeForm(current => ({ ...current, code: event.target.value }))} /><p id="access-type-code-hint" className="text-xs text-muted-foreground">{c.codeHint}</p></Field>
+            <Field label={c.name} id="access-type-name" error={identityMessage(typeErrors.name, "name")}><Input id="access-type-name" aria-label={c.name} aria-required="true" aria-invalid={Boolean(identityMessage(typeErrors.name, "name"))} aria-describedby={identityMessage(typeErrors.name, "name") ? "access-type-name-error" : undefined} value={typeForm.name} disabled={busy} onChange={event => setTypeForm(current => ({ ...current, name: event.target.value }))} /></Field>
+          </div>
+          <Field label={c.baseLevel} id="access-type-level"><Select value={typeForm.base_level} disabled={busy || (editingType !== "new" && Boolean(editingType && editingType.is_system))} onValueChange={value => setTypeForm(current => ({ ...current, base_level: value as PermissionTypeSaveRequest["base_level"] }))}><SelectTrigger id="access-type-level" aria-label={c.baseLevel}><SelectValue /></SelectTrigger><SelectContent><SelectItem value="none">{c.noneLevel}</SelectItem><SelectItem value="read">{c.readLevel}</SelectItem><SelectItem value="write">{c.writeLevel}</SelectItem></SelectContent></Select></Field>
+          <Field label={c.descriptionLabel} id="access-type-description"><Textarea id="access-type-description" aria-label={c.descriptionLabel} value={typeForm.description} disabled={busy} onChange={event => setTypeForm(current => ({ ...current, description: event.target.value }))} /></Field>
+          <label className="flex items-center justify-between gap-3"><span className="text-sm font-medium">{c.enabled}</span><Switch aria-label={c.enabled} checked={typeForm.enabled} disabled={busy || (editingType !== "new" && Boolean(editingType && editingType.is_system))} onCheckedChange={enabled => setTypeForm(current => ({ ...current, enabled }))} /></label>
+          {editingType && editingType !== "new" && editingType.is_system && <p className="text-xs text-muted-foreground">{c.systemTypeRestricted}</p>}
+        </fieldset>
+      </form>
+    </FormDialog>
+    {confirmDialog}
+    <Toaster toast={message ? { message, tone: "success" } : null} onClose={() => setMessage(null)} />
+  </div>
 }
 
-function Field({ label, children }: { label: string; children: React.ReactNode }) {
-  return <div className="flex flex-col gap-2"><Label>{label}</Label>{children}</div>
+function Field({ label, id, error, children }: { label: string; id: string; error?: string; children: React.ReactNode }) {
+  return <div className="flex flex-col gap-2"><Label htmlFor={id}>{label}</Label>{children}{error && <p id={`${id}-error`} className="text-sm text-destructive" role="alert">{error}</p>}</div>
 }
 
-function presentControlPermission(permission: ControlPermission, locale: Locale): ControlPermissionPresentation {
-  return controlPermissionPresentations[locale][permission.code] || {
-    name: permission.name || permission.code,
-    description: permission.description,
-    group: locale === "zh-CN" ? "其他权限" : "Other permissions",
-  }
+function AccessStatus({ enabled, locale }: { enabled: boolean; locale: Locale }) {
+  const c = accessRolesCopy[locale]
+  return <span className="access-role-status" data-enabled={enabled}>{enabled ? c.enabledStatus : c.disabledStatus}</span>
 }
 
 function AccessLevelBadge({ level, labels }: { level: PermissionType["base_level"]; labels: Record<string, string> }) {
   if (level === "write") return <Badge variant="warning">{labels.writeLevel}</Badge>
   if (level === "read") return <Badge variant="success">{labels.readLevel}</Badge>
   return <Badge variant="secondary">{labels.noneLevel}</Badge>
+}
+
+function useWideDetails() {
+  const [wide, setWide] = useState(() => typeof window !== "undefined" && window.matchMedia("(min-width: 1440px)").matches)
+  useEffect(() => {
+    const media = window.matchMedia("(min-width: 1440px)")
+    const change = () => setWide(media.matches)
+    change()
+    media.addEventListener("change", change)
+    return () => media.removeEventListener("change", change)
+  }, [])
+  return wide
 }

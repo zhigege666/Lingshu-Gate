@@ -5,16 +5,26 @@ from __future__ import annotations
 import hashlib
 import json
 import re
-from datetime import datetime, timezone
-from time import perf_counter
+import sqlite3
+import threading
+from collections import deque
+from collections.abc import Callable, Mapping
+from contextlib import AbstractContextManager, nullcontext
+from datetime import datetime, timedelta, timezone
+from functools import partial
+from time import monotonic, perf_counter
 from typing import Any, Iterable
 from uuid import uuid4
 
 from lingshu_gate.auth import AuthPrincipal
 from lingshu_gate.database import SQLiteDatabase
+from lingshu_gate.domain.tool_structure import FrozenToolDefinition
+from lingshu_gate.domain.oauth_management import MANAGEMENT_READ_TOOLS, MANAGEMENT_TOOL_IDS, management_resource, management_tool_snapshot
+from lingshu_gate.invocation_payloads import snapshot
+from lingshu_gate.retention_store import RetentionStore
 from lingshu_gate.mcp_runtime import McpRuntimeManager
 from lingshu_gate.models import ToolDefinition, ToolInvokeResponse
-from lingshu_gate.registry import ToolInvocationContext, ToolRegistry
+from lingshu_gate.registry import ToolDispatchRejectedError, ToolExecutionError, ToolInvocationContext, ToolRegistry
 from lingshu_gate.user_credential_store import UserCredentialBindingError
 
 ACCESS_RANK = {"none": 0, "read": 1, "write": 2, "unknown": -1}
@@ -66,11 +76,18 @@ CONTROL_PERMISSIONS = (
     ("grants.manage", "管理资源授权", "维护用户和角色的 MCP 授权"),
     ("classifications.manage", "管理工具分类", "分析、确认并发布 Tool 读写分类"),
     ("credentials.manage.self", "管理个人凭据", "维护自己的 Gate API Token 与下游 MCP 凭据"),
+    ("credentials.manage.system", "管理共享服务凭据", "维护共享 MCP 服务秘密，仅默认管理员拥有"),
     ("credentials.manage.all", "管理全部凭据", "查看并吊销全部用户 API Token，不读取用户下游秘密"),
+    ("retention.manage", "管理保留策略", "管理日志、事件与调用记录保留和内容记录策略"),
+    ("audit.payload.read", "查看调用内容", "读取经过脱敏和限长的其他用户调用内容"),
     ("audit.read", "查看调用审计", "查询 MCP 调用授权和结果审计"),
     ("tools.read", "读取工具", "发现并调用获准的只读 MCP Tool"),
     ("tools.invoke", "调用写工具", "调用获准的写入 MCP Tool"),
+    ("observability.read.all", "查看全部运维日志", "读取所有服务与系统级日志和事件"),
     ("operations.manage", "管理运行态", "管理 MCP 配置、服务和运行态"),
+    ("system_settings.manage", "管理系统设置", "管理交付网络配置；不授予网络调用权限"),
+    ("network.use", "调用交付网络", "使用已审查的 Git/依赖网络；不授予配置权限"),
+    ("external_connections.manage", "管理外部接入", "管理默认关闭的共享接入、受信身份和授权验证配置"),
 )
 
 SYSTEM_ROLES = (
@@ -122,6 +139,9 @@ class AccessControlStore:
 
     def __init__(self, database: SQLiteDatabase) -> None:
         self.database = database
+        self._external_limit_lock = threading.Lock()
+        self._external_windows: dict[str, deque[float]] = {}
+        self._external_active: dict[str, int] = {}
         self.mcp_runtime: McpRuntimeManager | None = None
         self._seed_system_data()
 
@@ -225,10 +245,14 @@ class AccessControlStore:
         role_allows = role_allows or permission_code in set(getattr(principal, "permissions", ()))
         if not role_allows:
             return False
-        if principal.auth_type != "token":
-            return True
-        scopes = set(getattr(principal, "scopes", ()))
-        return "*" in scopes or permission_code in scopes
+        scope_limits = []
+        if principal.auth_type in {"token", "oauth"}:
+            scope_limits.append(set(getattr(principal, "scopes", ())))
+        delegated = getattr(principal, "delegated_scopes", None)
+        if delegated is not None:
+            scope_limits.append(set(delegated))
+        return all("*" in scopes or permission_code in scopes for scopes in scope_limits)
+
 
     def require_control_permission(self, principal: AuthPrincipal, permission_code: str) -> None:
         if not self.has_control_permission(principal, permission_code):
@@ -585,20 +609,88 @@ class AccessControlStore:
         self,
         definitions: Iterable[ToolDefinition],
     ) -> list[dict[str, Any]]:
+        with self.database.session() as connection:
+            self._synchronize_tools(connection, list(definitions))
+        return self.list_classifications()
+
+    @staticmethod
+    def _load_classifications(
+        connection: sqlite3.Connection,
+        tool_keys: Iterable[tuple[str, str]],
+    ) -> dict[tuple[str, str], dict[str, Any]]:
+        """按本次目录批量取数；分块避免超过 SQLite 的绑定参数上限。"""
+
+        keys = sorted(set(tool_keys))
+        result: dict[tuple[str, str], dict[str, Any]] = {}
+        for offset in range(0, len(keys), 250):
+            batch = keys[offset:offset + 250]
+            placeholders = ",".join("(?, ?)" for _ in batch)
+            rows = connection.execute(
+                "SELECT * FROM mcp_tool_classifications "
+                f"WHERE (server_id, tool_id) IN (VALUES {placeholders})",
+                tuple(value for key in batch for value in key),
+            ).fetchall()
+            result.update({(row["server_id"], row["tool_id"]): dict(row) for row in rows})
+        return result
+
+    @staticmethod
+    def _load_catalog_classifications(
+        connection: sqlite3.Connection,
+        tool_keys: Iterable[tuple[str, str]],
+    ) -> dict[tuple[str, str], dict[str, Any]]:
+        """Read only current policy and reviewed-safety columns for a directory.
+
+        Evidence and analysis fields remain available to the complete loader.
+        This projection is request-local; publication, fingerprint and grants
+        are still rechecked before any catalog ordering or pagination.
+        """
+        keys = sorted(set(tool_keys))
+        result: dict[tuple[str, str], dict[str, Any]] = {}
+        for offset in range(0, len(keys), 250):
+            batch = keys[offset:offset + 250]
+            placeholders = ",".join("(?, ?)" for _ in batch)
+            rows = connection.execute(
+                "SELECT server_id,tool_id,fingerprint,status,effective_access,"
+                "reviewed_by,reviewed_at,destructive,idempotent,open_world "
+                "FROM mcp_tool_classifications "
+                f"WHERE (server_id, tool_id) IN (VALUES {placeholders})",
+                tuple(value for key in batch for value in key),
+            ).fetchall()
+            result.update({(row["server_id"], row["tool_id"]): dict(row) for row in rows})
+        return result
+
+    def _synchronize_tools(
+        self,
+        connection: sqlite3.Connection,
+        definitions: list[ToolDefinition],
+    ) -> None:
+        existing_rows = self._load_classifications(
+            connection, ((_server_id(item), item.id) for item in definitions),
+        )
         now = iso_now()
         for definition in definitions:
             server_id = _server_id(definition)
             fingerprint = _tool_fingerprint(definition)
+            key = (server_id, definition.id)
+            existing = existing_rows.get(key)
+            if (
+                existing
+                and existing["fingerprint"] == fingerprint
+                and (existing["status"] == "published" or existing["source"] == "manual")
+            ):
+                # 已发布或人工维护的同一版本不重复计算规则，也不产生更新时间写入。
+                continue
             suggestion = _suggest_tool(definition)
-            existing = self.database.query_one(
-                "SELECT * FROM mcp_tool_classifications WHERE server_id = ? AND tool_id = ?",
-                (server_id, definition.id),
-            )
+            if existing and existing["fingerprint"] == fingerprint:
+                previous_evidence = _loads(existing["evidence_json"])
+                for evidence_key in ("invalidation", "lifecycle"):
+                    if evidence_key in previous_evidence:
+                        suggestion["evidence"][evidence_key] = previous_evidence[evidence_key]
             evidence_json = json.dumps(suggestion["evidence"], ensure_ascii=False)
             if not existing:
                 # Console 首次加载可能并发触发同步；由数据库原子忽略重复插入，
                 # 避免两个请求同时完成查询后争抢同一个工具唯一键。
-                self.database.execute(
+                connection.execute(
                     """
                     INSERT INTO mcp_tool_classifications
                         (id, server_id, tool_id, tool_name, fingerprint, suggested_access,
@@ -628,9 +720,32 @@ class AccessControlStore:
                         now,
                     ),
                 )
+                current = connection.execute(
+                    "SELECT * FROM mcp_tool_classifications WHERE server_id = ? AND tool_id = ?",
+                    key,
+                ).fetchone()
+                if current is not None:
+                    existing_rows[key] = dict(current)
                 continue
             if existing["fingerprint"] != fingerprint:
-                self.database.execute(
+                invalidation_evidence = dict(suggestion["evidence"])
+                previous_snapshot = _loads(existing["evidence_json"]).get("definition_snapshot")
+                current_snapshot = invalidation_evidence["definition_snapshot"]
+                invalidation_evidence["invalidation"] = {
+                    "reason": "tool_definition_changed", "at": now,
+                    "previous_fingerprint": existing["fingerprint"],
+                    "current_fingerprint": fingerprint,
+                    "changed_fields": sorted(
+                        field for field, digest in current_snapshot.items()
+                        if isinstance(previous_snapshot, dict) and previous_snapshot.get(field) != digest
+                    ),
+                    "previous_definition_unrecorded": not isinstance(previous_snapshot, dict),
+                    "output_schema_recorded": isinstance(definition.metadata.get("outputSchema"), dict),
+                    "previous_definition_snapshot": previous_snapshot if isinstance(previous_snapshot, dict) else None,
+                    "current_definition_snapshot": current_snapshot,
+                }
+                evidence_json = json.dumps(invalidation_evidence, ensure_ascii=False)
+                connection.execute(
                     """
                     UPDATE mcp_tool_classifications
                     SET tool_name = ?, fingerprint = ?, suggested_access = ?,
@@ -657,7 +772,7 @@ class AccessControlStore:
                 existing["status"] != "published"
                 and existing["source"] != "manual"
             ):
-                self.database.execute(
+                connection.execute(
                     """
                     UPDATE mcp_tool_classifications
                     SET tool_name = ?, suggested_access = ?, confidence = ?, source = ?,
@@ -677,7 +792,12 @@ class AccessControlStore:
                         existing["id"],
                     ),
                 )
-        return self.list_classifications()
+            current = connection.execute(
+                "SELECT * FROM mcp_tool_classifications WHERE server_id = ? AND tool_id = ?",
+                key,
+            ).fetchone()
+            if current is not None:
+                existing_rows[key] = dict(current)
 
     def analyze_tools(
         self,
@@ -892,8 +1012,11 @@ class AccessControlStore:
         reviewer_id: str,
         items: Iterable[dict[str, Any]],
         note: str = "",
+        publish: bool = False,
     ) -> dict[str, Any]:
         """按每条工具的人工结论或机器建议原子完成批量确认。
+
+        publish=True 时在同一事务内完成审核和发布，保留整批指纹校验。
 
         确认只生成待发布的人工结论，不直接改变运行时授权。先在同一写事务中
         校验全部目标及 fingerprint，避免部分成功或基于旧元数据误确认。
@@ -978,6 +1101,7 @@ class AccessControlStore:
 
                 evidence = _loads(row["evidence_json"])
                 evidence["confirmation"] = {
+                    "published_together": publish,
                     "note": note_text,
                     "reviewer_id": reviewer_id,
                     "confirmed_from": confirmed_from,
@@ -985,14 +1109,16 @@ class AccessControlStore:
                 connection.execute(
                     """
                     UPDATE mcp_tool_classifications
-                    SET effective_access = ?, status = 'pending', source = 'manual',
-                        evidence_json = ?, reviewed_by = ?, reviewed_at = NULL, updated_at = ?
+                    SET effective_access = ?, status = ?, source = 'manual',
+                        evidence_json = ?, reviewed_by = ?, reviewed_at = ?, updated_at = ?
                     WHERE id = ?
                     """,
                     (
                         effective_access,
+                        "published" if publish else "pending",
                         json.dumps(evidence, ensure_ascii=False),
                         reviewer_id,
+                        now if publish else None,
                         now,
                         row["id"],
                     ),
@@ -1052,34 +1178,218 @@ class AccessControlStore:
         self,
         principal: AuthPrincipal,
         definitions: Iterable[ToolDefinition],
+        *,
+        connection: sqlite3.Connection | None = None,
     ) -> list[ToolDefinition]:
         definitions_list = list(definitions)
-        self.synchronize_tools(definitions_list)
-        return [
-            definition
-            for definition in definitions_list
-            if self.evaluate(principal, definition)["allowed"]
-        ]
+        if not definitions_list:
+            return []
+        keys = [(_server_id(item), item.id) for item in definitions_list]
+        # 快照只在当前请求内使用；下一次发现或调用会重新读取分类和授权，避免跨用户或撤权后复用。
+        # OAuth decisions already own the writer transaction. Reuse it for
+        # classification synchronization and policy reads, without nested commits.
+        with (nullcontext(connection) if connection is not None else self.database.session()) as connection:
+            self._synchronize_tools(connection, definitions_list)
+            classifications = self._load_classifications(connection, keys)
+            grants = self._effective_access_map(connection, principal, keys)
+            visible: list[ToolDefinition] = []
+            for definition in definitions_list:
+                decision = self._evaluate(
+                    principal,
+                    definition,
+                    classifications.get((_server_id(definition), definition.id)),
+                    partial(grants.__getitem__, (_server_id(definition), definition.id)),
+                )
+                if decision["allowed"]:
+                    # Return a request-local display snapshot. Never mutate the
+                    # registry definition or trust downstream access annotations.
+                    visible.append(definition.model_copy(update={
+                        "metadata": {
+                            **definition.metadata,
+                            "gate_access": {
+                                "required_access": decision["required_access"],
+                                "classification_status": decision["classification_status"],
+                            },
+                        },
+                    }))
+            return visible
+
+    def visible_tool_contracts(
+        self, principal: AuthPrincipal, definitions: Iterable[ToolDefinition | FrozenToolDefinition], *,
+        connection: sqlite3.Connection, fingerprints: Mapping[str, str] | None = None,
+    ) -> list[tuple[ToolDefinition | FrozenToolDefinition, dict[str, Any] | None]]:
+        """Read-only current policy projection; do not analyze or persist on a catalog GET."""
+        items = list(definitions)
+        keys = [(_server_id(item), item.id) for item in items]
+        classifications = self._load_catalog_classifications(connection, keys)
+        grants = self._effective_access_map(connection, principal, keys)
+        result: list[tuple[ToolDefinition | FrozenToolDefinition, dict[str, Any] | None]] = []
+        for definition, key in zip(items, keys, strict=True):
+            classification = classifications.get(key)
+            # An old published row cannot authorize a changed registry contract.
+            # Unlike discovery synchronization, this query leaves the row intact.
+            if classification:
+                try:
+                    fingerprint: str | None
+                    if fingerprints is None:
+                        mutable = definition.copy_definition() if isinstance(definition, FrozenToolDefinition) else definition
+                        fingerprint = _tool_fingerprint(mutable)
+                    else:
+                        fingerprint = fingerprints.get(definition.id)
+                    if classification["fingerprint"] != fingerprint:
+                        classification = None
+                except (ValueError, TypeError, RecursionError):
+                    classification = None
+            decision = self._evaluate(principal, definition, classification, partial(grants.__getitem__, key))
+            permission = "tools.read" if decision["required_access"] == "read" else "tools.invoke"
+            # Legacy admin discovery bypass does not widen this read-only
+            # directory's freshly loaded explicit control-permission ceiling.
+            if decision["allowed"] and ("*" in principal.permissions or permission in principal.permissions):
+                result.append((definition, classification))
+        return result
 
     def evaluate(self, principal: AuthPrincipal, definition: ToolDefinition) -> dict[str, Any]:
+        key = (_server_id(definition), definition.id)
+        with self.database.session() as connection:
+            classification = self._load_classifications(connection, [key]).get(key)
+            return self._evaluate(
+                principal,
+                definition,
+                classification,
+                lambda: self._effective_access_map(connection, principal, [key])[key],
+            )
+
+    def catalog_authorizer(self, connection: sqlite3.Connection, principal: AuthPrincipal) -> Callable[..., int]:
+        """Request-local scalar policy for schema-free SQL search.
+
+        Read grants once. Preserve tool-over-server overrides, including explicit
+        none, and role precedence. Every candidate uses the original evaluator;
+        no shared authorization/result cache or separate allow-all policy exists.
+        """
+        rows = connection.execute("""
+            SELECT g.subject_type,g.subject_id,g.server_id,g.tool_id,g.expires_at,p.base_level
+            FROM mcp_resource_grants g JOIN permission_types p ON p.id=g.permission_type_id
+            WHERE p.enabled=1 AND ((g.subject_type='user' AND g.subject_id=?) OR
+                (g.subject_type='role' AND g.subject_id IN (
+                    SELECT ur.role_id FROM user_roles ur JOIN roles r ON r.id=ur.role_id
+                    WHERE ur.user_id=? AND r.enabled=1)))
+        """, (principal.id, principal.id)).fetchall()
+        grants = {(r["subject_type"], r["subject_id"], r["server_id"], r["tool_id"]): r["base_level"]
+                  for r in rows if not _is_expired(r["expires_at"])}
+        role_ids = {key[1] for key in grants if key[0] == "role"}
+        # Most large directories have many tools with one service-level grant.
+        # Memoize only within this read transaction, after resolving exact tool
+        # overrides. OAuth uses exact per-tool allowlists and stays uncached.
+        decisions: dict[tuple[Any, ...], int] = {}
+        oauth_tools = set(principal.external_tool_ids)
+        oauth_servers = set(principal.external_server_ids)
+
+        def authorize(tool_id: str, server_id: str, source: str, permission: str, policy: str,
+                      effective_access: str | None, status: str | None) -> int:
+            def granted() -> str:
+                direct = grants.get(("user", principal.id, server_id, tool_id))
+                if direct is None:
+                    direct = grants.get(("user", principal.id, server_id, ""))
+                if direct is not None:
+                    return direct
+                levels = [grants.get(("role", role, server_id, tool_id),
+                          grants.get(("role", role, server_id, ""), "none")) for role in role_ids]
+                return max(levels, key=lambda level: ACCESS_RANK[level]) if levels else "none"
+
+            # Management OAuth has a different resource and complete-schema
+            # snapshots. It cannot use the normal catalog or invoke adapter.
+            if principal.oauth_resource and principal.oauth_resource.endswith("/mcp/manage"):
+                return 0
+            if principal.auth_type == "oauth" and (source != "mcp" or tool_id not in oauth_tools or server_id not in oauth_servers):
+                return 0
+            granted_access = granted()
+            cache_key = (server_id, source, permission, policy, effective_access, status, granted_access,
+                         tool_id if source == "builtin" else None)
+            if principal.auth_type != "oauth" and cache_key in decisions:
+                return decisions[cache_key]
+            definition = ToolDefinition.model_construct(
+                id=tool_id, name="", description="", source=source, permission=permission,
+                metadata={**json.loads(policy), "server_id": server_id},
+            )
+            classification = {"effective_access": effective_access, "status": status} if status else None
+            allowed = int(self._evaluate(principal, definition, classification, lambda: granted_access)["allowed"])
+            if principal.auth_type != "oauth":
+                decisions[cache_key] = allowed
+            return allowed
+
+        return authorize
+
+    def _evaluate(
+        self,
+        principal: AuthPrincipal,
+        definition: ToolDefinition | FrozenToolDefinition,
+        classification: dict[str, Any] | None,
+        grant_lookup: Callable[[], str],
+    ) -> dict[str, Any]:
+        """发现与调用复用同一策略；调用方只负责准备本次请求的分类及授权数据。"""
+
         server_id = _server_id(definition)
+        if principal.auth_type == "oauth":
+            if principal.oauth_builtin and principal.oauth_resource and principal.oauth_resource.endswith("/mcp/manage"):
+                config_row = self.database.query_one("SELECT payload_json FROM gate_oauth_config WHERE id=1")
+                config = json.loads(config_row["payload_json"]) if config_row else {}
+                management = self.database.query_one("SELECT enabled FROM gate_oauth_management_config WHERE id=1")
+                required = "read" if definition.id in MANAGEMENT_READ_TOOLS else "write"
+                allowed = bool(config.get("enabled") and management and management["enabled"]
+                    and principal.oauth_resource == management_resource(config.get("resource", ""))
+                    and principal.oauth_issuer == config.get("issuer")
+                    and "admin" in principal.roles and "operations.manage" in principal.permissions
+                    and principal.external_grant_id and principal.oauth_family_id and principal.oauth_client_id
+                    and principal.external_expires_at and not _is_expired(principal.external_expires_at)
+                    and definition.source == "builtin" and server_id == "gate_mcp_configuration"
+                    and definition.id in MANAGEMENT_TOOL_IDS and definition.id in principal.external_tool_ids
+                    and dict(principal.oauth_tool_snapshots).get(definition.id) == management_tool_snapshot(
+                        definition.copy_definition() if isinstance(definition, FrozenToolDefinition) else definition)
+                    and "operations.manage" in principal.scopes
+                    and principal.delegated_scopes is not None and "operations.manage" in principal.delegated_scopes
+                    and (required == "read" or ("tools.invoke" in principal.scopes
+                         and "tools.invoke" in principal.delegated_scopes and "tools.invoke" in principal.permissions)))
+                return {"allowed": allowed, "reason": "management grant matched" if allowed else "management grant does not allow this tool",
+                        "server_id": server_id, "required_access": required, "granted_access": required if allowed else "none",
+                        "classification_status": "management_resource"}
+            required = str(classification["effective_access"]) if classification else "unknown"
+            if (not principal.external_grant_id or definition.source != "mcp"
+                    or server_id not in principal.external_server_ids
+                    or definition.id not in principal.external_tool_ids
+                    or required not in principal.external_access
+                    or not principal.external_expires_at or _is_expired(principal.external_expires_at)):
+                return {"allowed": False, "reason": "external authorization does not allow this tool",
+                        "server_id": server_id, "required_access": required, "granted_access": "none",
+                        "classification_status": classification["status"] if classification else "missing"}
         required_control_permission = definition.metadata.get("required_control_permission")
         if not isinstance(required_control_permission, str) or not required_control_permission.strip():
             required_control_permission = None
         else:
             required_control_permission = required_control_permission.strip()
-        classification = self.database.query_one(
-            "SELECT * FROM mcp_tool_classifications WHERE server_id = ? AND tool_id = ?",
-            (server_id, definition.id),
-        )
         roles = set(getattr(principal, "roles", ()) or (principal.role,))
+        if (
+            definition.source == "builtin" and server_id == "gate_mcp_groups"
+            and definition.metadata.get("group_management_control_plane") is True
+        ):
+            from lingshu_gate.mcp_group_mcp import GROUP_MANAGEMENT_TOOL_IDS
+
+            required = "read" if definition.permission == "read" else "write"
+            allowed = (definition.id in GROUP_MANAGEMENT_TOOL_IDS and principal.auth_type in {"session", "token"}
+                and "admin" in roles and self.has_control_permission(principal, "operations.manage")
+                and _token_scope_allows(principal, required)
+                and (required == "read" or self.has_control_permission(principal, "tools.invoke")))
+            return {"allowed": allowed, "reason": "group administration matched" if allowed else "group administration denied",
+                "server_id": server_id, "required_access": required, "granted_access": required if allowed else "none",
+                "classification_status": "control_plane"}
         if (
             definition.metadata.get("classification_control_plane") is True
             and required_control_permission == "classifications.manage"
         ):
             # 分类治理工具必须在下游工具尚未发布时仍可被审核员发现；
             # 这里跳过的是 Tool 分类状态，不是控制面权限校验。
-            allowed = self.has_control_permission(principal, required_control_permission)
+            required = "read" if definition.permission.startswith("read") else "write"
+            allowed = (self.has_control_permission(principal, required_control_permission)
+                       and _token_scope_allows(principal, required))
             return {
                 "allowed": allowed,
                 "reason": (
@@ -1091,6 +1401,19 @@ class AccessControlStore:
                 "required_access": "read" if definition.permission.startswith("read") else "write",
                 "granted_access": "write" if allowed else "none",
                 "classification_status": "control_plane",
+            }
+        delegated = principal.auth_type == "oauth" or getattr(principal, "delegated_scopes", None) is not None
+        if delegated and (
+            not classification or classification["status"] != "published"
+            or classification["effective_access"] not in {"read", "write"}
+        ):
+            return {
+                "allowed": False,
+                "reason": "tool classification is not published",
+                "server_id": server_id,
+                "required_access": "unknown",
+                "granted_access": grant_lookup(),
+                "classification_status": classification["status"] if classification else "missing",
             }
         if principal.role == "admin" or "admin" in roles:
             required = (
@@ -1132,12 +1455,12 @@ class AccessControlStore:
                 "reason": "tool classification is not published",
                 "server_id": server_id,
                 "required_access": "unknown",
-                "granted_access": self.effective_access(principal, server_id, definition.id),
+                "granted_access": grant_lookup(),
                 "classification_status": classification["status"] if classification else "missing",
             }
         required = str(classification["effective_access"])
         required_permission = "tools.read" if required == "read" else "tools.invoke"
-        granted = self.effective_access(principal, server_id, definition.id)
+        granted = grant_lookup()
         if not _principal_control_allows(principal, required_permission):
             return {
                 "allowed": False,
@@ -1175,33 +1498,86 @@ class AccessControlStore:
             "classification_status": classification["status"],
         }
 
+    def observability_server_ids(self, principal: AuthPrincipal, server_ids: Iterable[str]) -> list[str] | None:
+        """Shared policy for every log/event reader; None is explicit global access."""
+        self.require_control_permission(principal, "operations.manage")
+        if self.has_control_permission(principal, "observability.read.all"):
+            return None
+        return self.authorized_server_ids(principal, server_ids)
+
+    def authorized_server_ids(self, principal: AuthPrincipal, server_ids: Iterable[str]) -> list[str]:
+        """Resolve whole-service grants; a single-tool grant never exposes all service logs."""
+        keys = [(server_id, "") for server_id in sorted(set(server_ids))]
+        with self.database.session() as connection:
+            access = self._effective_access_map(connection, principal, keys)
+        return [server_id for (server_id, _), level in access.items() if level in {"read", "write"}]
+
     def effective_access(self, principal: AuthPrincipal, server_id: str, tool_id: str) -> str:
+        key = (server_id, tool_id)
+        with self.database.session() as connection:
+            return self._effective_access_map(connection, principal, [key])[key]
+
+    @staticmethod
+    def _effective_access_map(
+        connection: sqlite3.Connection,
+        principal: AuthPrincipal,
+        tool_keys: Iterable[tuple[str, str]],
+    ) -> dict[tuple[str, str], str]:
+        keys = list(dict.fromkeys(tool_keys))
         roles = set(getattr(principal, "roles", ()) or (principal.role,))
         if principal.role == "admin" or "admin" in roles:
-            return "write"
-        direct_tool = self._grant_level("user", principal.id, server_id, tool_id)
-        if direct_tool is not None:
-            return direct_tool
-        direct_server = self._grant_level("user", principal.id, server_id, "")
-        if direct_server is not None:
-            return direct_server
-        role_ids = self.database.query_all(
-            """
-            SELECT roles.id
-            FROM user_roles
-            JOIN roles ON roles.id = user_roles.role_id
-            WHERE user_roles.user_id = ? AND roles.enabled = 1
-            """,
-            (principal.id,),
-        )
-        levels: list[str] = []
-        for role in role_ids:
-            level = self._grant_level("role", role["id"], server_id, tool_id)
-            if level is None:
-                level = self._grant_level("role", role["id"], server_id, "")
-            if level is not None:
-                levels.append(level)
-        return max(levels, key=lambda item: ACCESS_RANK[item]) if levels else "none"
+            return dict.fromkeys(keys, "write")
+
+        server_ids = sorted({key[0] for key in keys})
+        grants: dict[tuple[str, str, str, str], str] = {}
+        role_ids: set[str] = set()
+        for offset in range(0, len(server_ids), 250):
+            batch = server_ids[offset:offset + 250]
+            placeholders = ",".join("?" for _ in batch)
+            rows = connection.execute(
+                """
+                SELECT grants.subject_type, grants.subject_id, grants.server_id,
+                       grants.tool_id, grants.expires_at, permission_types.base_level
+                FROM mcp_resource_grants AS grants
+                JOIN permission_types ON permission_types.id = grants.permission_type_id
+                WHERE permission_types.enabled = 1
+                  AND (
+                    (grants.subject_type = 'user' AND grants.subject_id = ?)
+                    OR (grants.subject_type = 'role' AND grants.subject_id IN (
+                        SELECT user_roles.role_id FROM user_roles
+                        JOIN roles ON roles.id = user_roles.role_id
+                        WHERE user_roles.user_id = ? AND roles.enabled = 1
+                    ))
+                  )
+                """ + f"AND grants.server_id IN ({placeholders})",
+                (principal.id, principal.id, *batch),
+            ).fetchall()
+            for row in rows:
+                if _is_expired(row["expires_at"]):
+                    continue
+                grant_key = (row["subject_type"], row["subject_id"], row["server_id"], row["tool_id"])
+                grants[grant_key] = str(row["base_level"])
+                if row["subject_type"] == "role":
+                    role_ids.add(row["subject_id"])
+
+        result: dict[tuple[str, str], str] = {}
+        for server_id, tool_id in keys:
+            # 保持既有优先级：用户工具授权 > 用户服务授权 > 各角色内工具覆盖服务后取最高权限。
+            direct = grants.get(("user", principal.id, server_id, tool_id))
+            if direct is None:
+                direct = grants.get(("user", principal.id, server_id, ""))
+            if direct is not None:
+                result[(server_id, tool_id)] = direct
+                continue
+            levels: list[str] = []
+            for role_id in role_ids:
+                level = grants.get(("role", role_id, server_id, tool_id))
+                if level is None:
+                    level = grants.get(("role", role_id, server_id, ""))
+                if level is not None:
+                    levels.append(level)
+            result[(server_id, tool_id)] = max(levels, key=lambda item: ACCESS_RANK[item]) if levels else "none"
+        return result
 
     def delivery_target_access(
         self,
@@ -1213,9 +1589,10 @@ class AccessControlStore:
 
         if required_access not in {"read", "write"}:
             raise ValueError(f"invalid target access: {required_access}")
+        # External delegation only exposes selected downstream tools, never delivery.
+        if context.auth_type == "oauth":
+            return False
         roles = tuple(context.roles)
-        if "admin" in roles or "*" in context.permissions:
-            return True
         role = roles[0] if roles else "viewer"
         principal = AuthPrincipal(
             id=context.actor_id,
@@ -1226,35 +1603,46 @@ class AccessControlStore:
             permissions=tuple(context.permissions),
             token_id=context.token_id,
             scopes=tuple(context.scopes),
+            delegated_scopes=context.delegated_scopes,
         )
+        if not _token_scope_allows(principal, required_access):
+            return False
         if not self.has_control_permission(principal, "operations.manage"):
             return False
+        if "admin" in roles or "*" in context.permissions:
+            return True
         granted = self.effective_access(principal, server_id, "")
         return ACCESS_RANK.get(granted, 0) >= ACCESS_RANK[required_access]
 
-    def _grant_level(
-        self,
-        subject_type: str,
-        subject_id: str,
-        server_id: str,
-        tool_id: str,
-    ) -> str | None:
-        row = self.database.query_one(
-            """
-            SELECT permission_types.base_level, mcp_resource_grants.expires_at
-            FROM mcp_resource_grants
-            JOIN permission_types ON permission_types.id = mcp_resource_grants.permission_type_id
-            WHERE mcp_resource_grants.subject_type = ?
-              AND mcp_resource_grants.subject_id = ?
-              AND mcp_resource_grants.server_id = ?
-              AND mcp_resource_grants.tool_id = ?
-              AND permission_types.enabled = 1
-            """,
-            (subject_type, subject_id, server_id, tool_id),
-        )
-        if not row or _is_expired(row["expires_at"]):
+    def _acquire_external_invocation(self, principal: AuthPrincipal) -> str | None:
+        if principal.auth_type != "oauth":
             return None
-        return str(row["base_level"])
+        grant_id = principal.external_grant_id
+        if not grant_id or principal.external_rate_per_minute < 1 or principal.external_concurrency < 1:
+            raise AccessDeniedError("external invocation limits are unavailable", required_access="invoke", granted_access="none")
+        now = monotonic()
+        with self._external_limit_lock:
+            # Single-Core bounded retention; idle grants disappear after one minute.
+            for key in list(self._external_windows):
+                window = self._external_windows[key]
+                while window and window[0] <= now - 60:
+                    window.popleft()
+                if not window and not self._external_active.get(key, 0):
+                    del self._external_windows[key]
+                    self._external_active.pop(key, None)
+            window = self._external_windows.setdefault(grant_id, deque())
+            if len(window) >= principal.external_rate_per_minute:
+                raise AccessDeniedError("external invocation rate limit exceeded", required_access="invoke", granted_access="none")
+            if self._external_active.get(grant_id, 0) >= principal.external_concurrency:
+                raise AccessDeniedError("external invocation concurrency limit exceeded", required_access="invoke", granted_access="none")
+            window.append(now)
+            self._external_active[grant_id] = self._external_active.get(grant_id, 0) + 1
+        return grant_id
+
+    def _release_external_invocation(self, grant_id: str | None) -> None:
+        if grant_id is not None:
+            with self._external_limit_lock:
+                self._external_active[grant_id] -= 1
 
     def invoke_tool(
         self,
@@ -1264,12 +1652,27 @@ class AccessControlStore:
         arguments: dict[str, Any],
         *,
         correlation_id: str | None = None,
+        dispatch_guard: Callable[[], None] | None = None,
+        expected_definition_revision: str | None = None,
+        allow_read_retry: bool = True,
+        arguments_validator: Callable[[], None] | None = None,
+        dispatch_context: AbstractContextManager[None] | None = None,
     ) -> ToolInvokeResponse:
         definition = registry.get_definition(tool_id)
-        self.synchronize_tools([definition])
+        from lingshu_gate.registry import tool_definition_revision
+
+        if expected_definition_revision is not None and tool_definition_revision(definition) != expected_definition_revision:
+            raise ToolExecutionError("group_tool_contract_changed", "The selected tool contract changed; describe it again.")
+        # Synchronize the requested definition without projecting every
+        # classification row merely to discard synchronize_tools()'s return.
+        with self.database.session() as connection:
+            self._synchronize_tools(connection, [definition])
         decision = self.evaluate(principal, definition)
         correlation_id = correlation_id or str(uuid4())
-        summary = _payload_summary(arguments)
+        # On-demand inputs have not crossed their bounded validator yet. Do not
+        # serialize or retain attacker-controlled deep/large values for audits
+        # before permission and external rate/concurrency admission.
+        summary = _payload_summary(arguments) if arguments_validator is None else {"values_recorded": False}
         if not decision["allowed"]:
             self._record_invocation_audit(
                 principal,
@@ -1285,35 +1688,91 @@ class AccessControlStore:
                 required_access=decision["required_access"],
                 granted_access=decision["granted_access"],
             )
+        recorded_input = (snapshot(arguments) if arguments_validator is None
+            and RetentionStore(self.database).policy()["payload_mode"] == "redacted" else None)
+        try:
+            external_lease = self._acquire_external_invocation(principal)
+        except AccessDeniedError as exc:
+            denied = {**decision, "allowed": False, "reason": exc.reason}
+            self._record_invocation_audit(principal, definition, correlation_id=correlation_id,
+                                          decision=denied, outcome="not_invoked", duration_ms=None, payload=summary)
+            raise
+        recorded_outputs: list[dict[str, Any]] = []
+        guard_passed = dispatch_guard is None and arguments_validator is None and dispatch_context is None
+
+        def checked_guard() -> None:
+            nonlocal guard_passed
+            assert dispatch_guard is not None
+            dispatch_guard()
+            guard_passed = True
+
+        registry_dispatch: dict[str, Any] = (
+            {"dispatch_guard": checked_guard, "expected_definition": definition} if dispatch_guard is not None else {}
+        )
+
         started = perf_counter()
         try:
-            if definition.source == "mcp" and self.mcp_runtime:
-                server_id = str(definition.metadata.get("server_id") or "")
-                tool_name = str(definition.metadata.get("original_tool_name") or "")
-                if not server_id or not tool_name:
-                    raise RuntimeError(f"MCP tool metadata is incomplete: {tool_id}")
-                output = self.mcp_runtime.invoke_mcp_tool_for_user(
-                    server_id,
-                    tool_name,
-                    arguments,
-                    user_id=principal.id,
-                )
-                response = ToolInvokeResponse(ok=True, tool_id=tool_id, output=output)
-            else:
-                response = registry.invoke(
-                    tool_id,
-                    arguments,
-                    context=ToolInvocationContext(
-                        actor_id=principal.id,
-                        username=principal.username,
-                        auth_type=principal.auth_type,
-                        token_id=getattr(principal, "token_id", None),
-                        correlation_id=correlation_id,
-                        roles=tuple(getattr(principal, "roles", ()) or (principal.role,)),
-                        permissions=tuple(getattr(principal, "permissions", ())),
-                        scopes=tuple(getattr(principal, "scopes", ())),
-                    ),
-                )
+            if arguments_validator is not None:
+                arguments_validator()
+                summary = _payload_summary(arguments)
+                if RetentionStore(self.database).policy()["payload_mode"] == "redacted":
+                    recorded_input = snapshot(arguments)
+            with dispatch_context or nullcontext():
+                if definition.source == "mcp" and self.mcp_runtime:
+                    server_id = str(definition.metadata.get("server_id") or "")
+                    tool_name = str(definition.metadata.get("original_tool_name") or "")
+                    if not server_id or not tool_name:
+                        raise RuntimeError(f"MCP tool metadata is incomplete: {tool_id}")
+                    output = self.mcp_runtime.invoke_mcp_tool_for_user(
+                        server_id,
+                        tool_name,
+                        arguments,
+                        user_id=principal.id,
+                        **({"dispatch_guard": checked_guard} if dispatch_guard is not None else {}),
+                        audit_snapshot=recorded_outputs.append if recorded_input is not None else None,
+                        retry_read_only=(
+                            allow_read_retry and decision["classification_status"] == "published"
+                            and decision["required_access"] == "read"
+                        ),
+                    )
+                    response = ToolInvokeResponse(ok=True, tool_id=tool_id, output=output)
+                else:
+                    response = registry.invoke(
+                        tool_id,
+                        arguments,
+                        **registry_dispatch,
+                        context=ToolInvocationContext(
+                            actor_id=principal.id,
+                            username=principal.username,
+                            auth_type=principal.auth_type,
+                            token_id=getattr(principal, "token_id", None),
+                            correlation_id=correlation_id,
+                            roles=tuple(getattr(principal, "roles", ()) or (principal.role,)),
+                            permissions=tuple(getattr(principal, "permissions", ())),
+                            scopes=tuple(getattr(principal, "scopes", ())),
+                            delegated_scopes=getattr(principal, "delegated_scopes", None),
+                            session_id=getattr(principal, "session_id", None),
+                            oauth_builtin=principal.oauth_builtin,
+                            oauth_issuer=principal.oauth_issuer,
+                            oauth_resource=principal.oauth_resource,
+                            oauth_client_id=principal.oauth_client_id,
+                            oauth_grant_id=principal.external_grant_id if principal.oauth_builtin else None,
+                            oauth_family_id=principal.oauth_family_id,
+                            oauth_token_expires_at=principal.oauth_token_expires_at,
+                            oauth_target_revision=principal.oauth_target_revision,
+                            oauth_tool_snapshots=principal.oauth_tool_snapshots,
+                            oauth_subject=principal.oauth_subject,
+                            oauth_audiences=principal.oauth_audiences,
+                            oauth_jwks_uri=principal.oauth_jwks_uri,
+                            external_grant_id=principal.external_grant_id,
+                            external_server_ids=principal.external_server_ids,
+                            external_tool_ids=principal.external_tool_ids,
+                            external_access=principal.external_access,
+                            external_expires_at=principal.external_expires_at,
+                            external_rate_per_minute=principal.external_rate_per_minute,
+                            external_concurrency=principal.external_concurrency,
+                        ),
+                    )
         except UserCredentialBindingError as exc:
             credential_decision = {
                 **decision,
@@ -1335,17 +1794,27 @@ class AccessControlStore:
                 required_access=decision["required_access"],
                 granted_access=decision["granted_access"],
             ) from exc
+        except ToolExecutionError as exc:
+            if isinstance(exc, ToolDispatchRejectedError):
+                guard_passed = False
+            response = ToolInvokeResponse(ok=False, tool_id=tool_id, error=str(exc), output=exc.to_payload())
         except Exception as exc:  # noqa: BLE001 - 工具边界统一返回失败响应
             response = ToolInvokeResponse(ok=False, tool_id=tool_id, error=str(exc))
+        finally:
+            self._release_external_invocation(external_lease)
         duration_ms = max(0, round((perf_counter() - started) * 1000))
+        if not guard_passed:
+            decision = {**decision, "allowed": False, "reason": "catalog dispatch rejected"}
         self._record_invocation_audit(
             principal,
             definition,
             correlation_id=correlation_id,
             decision=decision,
-            outcome="success" if response.ok else "error",
+            outcome="not_invoked" if not guard_passed else "success" if response.ok else "error",
             duration_ms=duration_ms,
             payload=summary,
+            recorded_input=recorded_input,
+            recorded_output=(recorded_outputs[0] if recorded_outputs else snapshot({"ok": response.ok, "output": response.output, "error": response.error})) if recorded_input is not None else None,
         )
         return response
 
@@ -1359,35 +1828,44 @@ class AccessControlStore:
         outcome: str,
         duration_ms: int | None,
         payload: dict[str, Any],
+        recorded_input: dict[str, Any] | None = None,
+        recorded_output: dict[str, Any] | None = None,
     ) -> None:
-        self.database.execute(
-            """
-            INSERT INTO invocation_audits
-                (id, correlation_id, user_id, username, auth_type, api_token_id,
-                 server_id, tool_id, tool_access, required_access, granted_access,
-                 decision, reason, outcome, duration_ms, payload_json, created_at)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-            """,
-            (
-                str(uuid4()),
-                correlation_id,
-                principal.id,
-                principal.username,
-                principal.auth_type,
-                getattr(principal, "token_id", None),
-                decision["server_id"],
-                definition.id,
-                decision["required_access"],
-                decision["required_access"],
-                decision["granted_access"],
-                "allow" if decision["allowed"] else "deny",
-                decision["reason"],
-                outcome,
-                duration_ms,
-                json.dumps(payload, ensure_ascii=False),
-                iso_now(),
-            ),
-        )
+        audit_id = str(uuid4())
+        with self.database.session() as connection:
+            connection.execute(
+                """
+                INSERT INTO invocation_audits
+                    (id, correlation_id, user_id, username, auth_type, api_token_id,
+                     server_id, tool_id, tool_access, required_access, granted_access,
+                     decision, reason, outcome, duration_ms, payload_json, created_at)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                """,
+                (
+                    audit_id,
+                    correlation_id,
+                    principal.id,
+                    principal.username,
+                    principal.auth_type,
+                    getattr(principal, "token_id", None),
+                    decision["server_id"],
+                    definition.id,
+                    decision["required_access"],
+                    decision["required_access"],
+                    decision["granted_access"],
+                    "allow" if decision["allowed"] else "deny",
+                    decision["reason"],
+                    outcome,
+                    duration_ms,
+                    json.dumps(payload, ensure_ascii=False),
+                    iso_now(),
+                ),
+            )
+            if recorded_input is not None and recorded_output is not None:
+                connection.execute(
+                    "INSERT INTO invocation_payloads (audit_id, user_id, input_json, output_json) VALUES (?, ?, ?, ?)",
+                    (audit_id, principal.id, json.dumps(recorded_input), json.dumps(recorded_output)),
+                )
 
     def list_invocation_audits(
         self,
@@ -1439,21 +1917,98 @@ class AccessControlStore:
             for row in rows
         ]
 
+    def invocation_statistics(
+        self,
+        *,
+        hours: int = 24,
+        now: datetime | None = None,
+    ) -> dict[str, Any]:
+        """按审计记录聚合工具请求、实际执行和下游 MCP 工具调用。"""
+
+        if hours not in {24, 168}:
+            raise ValueError("hours must be 24 or 168")
+        end = now or datetime.now(timezone.utc)
+        start = end - timedelta(hours=hours)
+        start_text, end_text = start.isoformat(), end.isoformat()
+        bucket_hours = 2 if hours == 24 else 24
+        bucket_seconds = bucket_hours * 3600
+        bucket_count = hours // bucket_hours
+        executed = "decision = 'allow' AND outcome IN ('success', 'error')"
+        mcp_executed = f"{executed} AND substr(tool_id, 1, 4) = 'mcp.'"
+        with self.database.session() as connection:
+            totals = connection.execute(
+                f"""
+                SELECT COUNT(*) AS requests,
+                       COALESCE(SUM(CASE WHEN {executed} THEN 1 ELSE 0 END), 0) AS calls,
+                       COALESCE(SUM(CASE WHEN {mcp_executed} THEN 1 ELSE 0 END), 0) AS mcp_calls,
+                       COALESCE(SUM(CASE WHEN outcome = 'success' THEN 1 ELSE 0 END), 0) AS success,
+                       COALESCE(SUM(CASE WHEN outcome = 'error' THEN 1 ELSE 0 END), 0) AS errors,
+                       COALESCE(SUM(CASE WHEN outcome = 'not_invoked' THEN 1 ELSE 0 END), 0) AS not_invoked
+                FROM invocation_audits
+                WHERE created_at >= ? AND created_at < ?
+                """,
+                (start_text, end_text),
+            ).fetchone()
+            rows = connection.execute(
+                f"""
+                SELECT CAST((strftime('%s', created_at) - ?) / ? AS INTEGER) AS bucket,
+                       COUNT(*) AS requests,
+                       COALESCE(SUM(CASE WHEN {executed} THEN 1 ELSE 0 END), 0) AS calls,
+                       COALESCE(SUM(CASE WHEN {mcp_executed} THEN 1 ELSE 0 END), 0) AS mcp_calls
+                FROM invocation_audits
+                WHERE created_at >= ? AND created_at < ?
+                GROUP BY bucket
+                """,
+                (int(start.timestamp()), bucket_seconds, start_text, end_text),
+            ).fetchall()
+            top_rows = connection.execute(
+                f"""
+                SELECT tool_id, server_id, COUNT(*) AS calls,
+                       SUM(CASE WHEN outcome = 'error' THEN 1 ELSE 0 END) AS errors
+                FROM invocation_audits
+                WHERE created_at >= ? AND created_at < ? AND {executed}
+                GROUP BY tool_id, server_id
+                ORDER BY calls DESC, tool_id ASC
+                LIMIT 5
+                """,
+                (start_text, end_text),
+            ).fetchall()
+
+        by_bucket = {int(row["bucket"]): row for row in rows}
+        return {
+            "period_start": start_text,
+            "period_end": end_text,
+            "bucket_hours": bucket_hours,
+            "totals": {key: int(totals[key]) for key in ("requests", "calls", "mcp_calls", "success", "errors", "not_invoked")},
+            "series": [
+                {
+                    "start": (start + timedelta(hours=index * bucket_hours)).isoformat(),
+                    "requests": int(by_bucket[index]["requests"]) if index in by_bucket else 0,
+                    "calls": int(by_bucket[index]["calls"]) if index in by_bucket else 0,
+                    "mcp_calls": int(by_bucket[index]["mcp_calls"]) if index in by_bucket else 0,
+                }
+                for index in range(bucket_count)
+            ],
+            "top_tools": [
+                {"tool_id": row["tool_id"], "server_id": row["server_id"], "calls": int(row["calls"]), "errors": int(row["errors"])}
+                for row in top_rows
+            ],
+        }
+
     def list_invocation_audit_filter_options(self) -> dict[str, Any]:
         """从历史审计快照生成筛选候选，保留已删除用户和已下线资源。"""
 
         user_rows = self.database.query_all(
             """
-            SELECT audit.user_id, audit.username
-            FROM invocation_audits AS audit
-            WHERE audit.id = (
-                SELECT latest.id
+            SELECT users.user_id, (
+                SELECT latest.username
                 FROM invocation_audits AS latest
-                WHERE latest.user_id = audit.user_id
+                WHERE latest.user_id = users.user_id
                 ORDER BY latest.created_at DESC, latest.id DESC
                 LIMIT 1
-            )
-            ORDER BY audit.username COLLATE NOCASE, audit.user_id
+            ) AS username
+            FROM (SELECT DISTINCT user_id FROM invocation_audits) AS users
+            ORDER BY username COLLATE NOCASE, users.user_id
             """
         )
         resource_rows = self.database.query_all(
@@ -1479,15 +2034,15 @@ class AccessControlStore:
         }
 
 
-def _server_id(definition: ToolDefinition) -> str:
+def _server_id(definition: ToolDefinition | FrozenToolDefinition) -> str:
     value = definition.metadata.get("server_id")
     if isinstance(value, str) and value.strip():
         return value.strip()
     return definition.source or "builtin"
 
 
-def _tool_fingerprint(definition: ToolDefinition) -> str:
-    payload = {
+def _tool_fingerprint_payload(definition: ToolDefinition) -> dict[str, Any]:
+    return {
         "id": definition.id,
         "name": definition.name,
         "description": definition.description,
@@ -1500,8 +2055,20 @@ def _tool_fingerprint(definition: ToolDefinition) -> str:
         "sensitive_input_fields": definition.metadata.get("sensitive_input_fields"),
         "sensitive_output_fields": definition.metadata.get("sensitive_output_fields"),
     }
-    raw = json.dumps(payload, ensure_ascii=False, sort_keys=True, separators=(",", ":"))
+
+
+def _tool_fingerprint(definition: ToolDefinition) -> str:
+    raw = json.dumps(_tool_fingerprint_payload(definition), ensure_ascii=False, sort_keys=True, separators=(",", ":"))
     return hashlib.sha256(raw.encode("utf-8")).hexdigest()
+
+
+def _tool_definition_snapshot(definition: ToolDefinition) -> dict[str, str]:
+    # Field digests explain contract drift without returning full schemas in every row.
+    return {
+        field: hashlib.sha256(json.dumps(value, ensure_ascii=False, sort_keys=True,
+                                        separators=(",", ":")).encode("utf-8")).hexdigest()
+        for field, value in _tool_fingerprint_payload(definition).items()
+    }
 
 
 def _suggest_tool(definition: ToolDefinition) -> dict[str, Any]:
@@ -1539,6 +2106,7 @@ def _suggest_tool(definition: ToolDefinition) -> dict[str, Any]:
         "open_world": open_world,
         "evidence": {
             "annotations": annotations,
+            "definition_snapshot": _tool_definition_snapshot(definition),
             "rule": {
                 "read_hits": read_hits,
                 "write_hits": write_hits,
@@ -1595,14 +2163,15 @@ def _payload_summary(arguments: dict[str, Any]) -> dict[str, Any]:
 
 
 def _token_scope_allows(principal: AuthPrincipal, required_access: str) -> bool:
-    if principal.auth_type != "token":
-        return True
-    scopes = set(getattr(principal, "scopes", ()))
-    if "*" in scopes:
-        return True
-    if required_access == "read":
-        return bool(scopes & {"tools.read", "mcp.read", "mcp.write"})
-    return bool(scopes & {"tools.invoke", "mcp.write"})
+    scope_limits = []
+    if principal.auth_type in {"token", "oauth"}:
+        scope_limits.append(set(getattr(principal, "scopes", ())))
+    delegated = getattr(principal, "delegated_scopes", None)
+    if delegated is not None:
+        scope_limits.append(set(delegated))
+    accepted = ({"tools.read", "mcp.read", "mcp.write"} if required_access == "read"
+                else {"tools.invoke", "mcp.write"})
+    return all("*" in scopes or bool(scopes & accepted) for scopes in scope_limits)
 
 
 def _principal_control_allows(principal: AuthPrincipal, permission_code: str) -> bool:
