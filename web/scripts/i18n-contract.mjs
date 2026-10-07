@@ -1,4 +1,6 @@
-import ts from "typescript"
+// TypeScript 7's native compiler has a different API. Retain the stable JS AST
+// parser for this non-executing catalog check; typecheck uses TypeScript 7.
+import ts from "typescript-ast"
 
 const requiredLocales = ["zh-CN", "en-US"]
 
