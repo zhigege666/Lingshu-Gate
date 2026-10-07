@@ -71,11 +71,15 @@ formal release matrix were not run on this source. New-source nx5 deployment
 acceptance belongs to the delegating root. No SSH, production, main or tag action
 occurred here; authorization and CSRF logic were not changed.
 
-PR #51's CI repair belongs to another task. Its remote branch was still
-`227db541871ef8753390760d323414efbbe94d7c` at this checkpoint. The final repair
-head has not been merged or checked for conflicts here. This branch leaves
-PR #51's head alone and is not final combined acceptance; it needs the completed
-repair source merged and the relevant differences revalidated.
+PR #51's CI repair belongs to another task. Its interim source
+`63cab1c5b9f2a8eb6503fcee9193055c55262a2d` was trial-merged locally without
+conflicts, including both `builtin-oauth` guides, before root's latest steering
+arrived. Root then reported three remaining high CodeQL findings and requested
+waiting for the final repair head. The unpublished trial is retained in a local
+side branch and withdrawn from this candidate; its runtime remains the tested
+77d0815 source. PR #51's head was not modified here. Final combined acceptance
+still requires the completed repair source and relevant revalidation, especially
+the paired OAuth documentation. No final-head conflict claim is made.
 
 [Structured evidence and complete inventory](benchmarks/gate-root-entry-77d0815.json)
 record source hashes, commands and scope.

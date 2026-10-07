@@ -8,10 +8,20 @@
   "ci_repair_integration": {
     "required_before_final_combined_acceptance": true,
     "upstream_branch": "test/gate-nx5-followup-integration-20261006",
-    "last_remote_observed_sha": "227db541871ef8753390760d323414efbbe94d7c",
-    "merged": false,
-    "conflicts_checked": false,
-    "blocker": "The final PR #51 CI-repair head has not yet been pushed to its upstream branch; this is the separately tested root-entry checkpoint, not final combined acceptance."
+    "last_remote_observed_sha": "63cab1c5b9f2a8eb6503fcee9193055c55262a2d",
+    "merged_into_current_candidate": false,
+    "final_repair_head_received": false,
+    "parent_report": "The delegating root reports three remaining high CodeQL findings and requests that this interim repair not be integrated before its final head.",
+    "unpublished_trial": {
+      "source_sha": "63cab1c5b9f2a8eb6503fcee9193055c55262a2d",
+      "merge_sha": "cccb409e8d59c1ab5b16870329ff11a62f613457",
+      "conflicts": false,
+      "builtin_oauth_documentation_auto_merged": true,
+      "published": false,
+      "retained_in_local_side_branch": true,
+      "removed_from_candidate_on_parent_steering": true
+    },
+    "blocker": "Final PR #51 CI-repair head pending. Root-entry runtime remains the tested 77d0815 source; final alignment must revisit the paired builtin-oauth documentation."
   },
   "root_contract": {
     "browser_navigation": "Console HTML at /",
@@ -914,7 +924,7 @@
     "Podman host acceptance",
     "real ChatGPT OAuth authorization",
     "formal release matrix",
-    "PR #51 CI-repair integration; final remote repair head pending"
+    "Final PR #51 CI-repair integration; interim 63cab1 trial is unpublished and withdrawn from candidate"
   ],
   "boundaries": {
     "pr51_branch_modified_here": false,
