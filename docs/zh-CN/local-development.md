@@ -7,7 +7,7 @@ Lingshu Gate 使用 Python 实现服务，使用 React/TypeScript 实现 Console
 ## 环境要求
 
 - Python 3.11、3.12 或 3.13
-- Node.js 22 和 npm
+- Node.js 22.12 或更高版本及 npm（所选前端工具支持的最低版本）
 - `uv` 0.11.33，或 CI 固定的版本
 - 用于容器验证的 Docker 与 Compose
 - 仅在测试自带 Delivery 打包脚本时需要 PowerShell 7
