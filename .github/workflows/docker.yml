@@ -56,6 +56,38 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
+  qemu-smoke:
+    name: QEMU multi-architecture execution smoke
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - name: Checkout
+        uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
+        with:
+          persist-credentials: false
+
+      - name: Install pinned QEMU binfmt handlers
+        uses: docker/setup-qemu-action@1f40c72289eff860ee54a304f1438e3cff362e0a # v4.3.0
+        with:
+          image: ${{ env.LINGSHU_GATE_CI_BINFMT_IMAGE }}
+          platforms: arm64
+
+      - name: Set up pinned Buildx and BuildKit
+        uses: docker/setup-buildx-action@37fe631027851001ddb9b187196cc803df7f5f0e # v4
+        with:
+          version: ${{ env.LINGSHU_GATE_CI_BUILDX_VERSION }}
+          driver-opts: image=${{ env.LINGSHU_GATE_CI_BUILDKIT_IMAGE }}
+
+      - name: Execute native and emulated Python without publishing
+        shell: bash
+        run: |
+          set -euo pipefail
+          docker buildx build --progress plain --no-cache \
+            --platform linux/amd64,linux/arm64 \
+            --build-arg "LINGSHU_GATE_PYTHON_IMAGE=$LINGSHU_GATE_CI_PYTHON_BASE_IMAGE" \
+            --file tests/fixtures/qemu-smoke/Dockerfile \
+            --output "type=oci,dest=$RUNNER_TEMP/gate-qemu-smoke.tar" .
+
   validate:
     name: Validate container contracts
     runs-on: ubuntu-24.04
@@ -138,7 +170,7 @@ jobs:
           persist-credentials: false
 
       - name: Set up QEMU
-        uses: docker/setup-qemu-action@1f40c72289eff860ee54a304f1438e3cff362e0a # v4
+        uses: docker/setup-qemu-action@1f40c72289eff860ee54a304f1438e3cff362e0a # v4.3.0
         with:
           image: ${{ env.LINGSHU_GATE_CI_BINFMT_IMAGE }}
           platforms: arm64
