@@ -1,9 +1,13 @@
+import "./build-records-table.css"
+import { RemainingList } from "@/components/list-pagination"
+import { useMemo, useState } from "react"
+import { RecordListToolbar } from "./record-list-toolbar"
 import type { BuildRecord } from "@/api/builds"
 import { ActionMenu, ActionMenuItem } from "@/components/action-menu"
 import { formatDateTime, shortId } from "@/components/builds/build-utils"
 import { StatusBadge } from "@/components/builds/status-badge"
-import { ColGroup, Pager, SortHead, useColumnWidths, usePagedSorted } from "@/components/table-tools"
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
+import { ColGroup, SortHead, useColumnWidths, usePagedSorted } from "@/components/table-tools"
+import { Card, CardContent } from "@/components/ui/card"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import type { TFunction } from "@/i18n"
 import { buildPageText } from "@/pages/builds-page-text"
@@ -36,15 +40,23 @@ type BuildRecordsTableProps = {
 }
 
 export function BuildRecordsTable({ builds, busy, selectedBuildId, canRequestStop, onShowBuild, onLoadLogs, onRequestStop, onDeploy, onRetry, onDelete, t }: BuildRecordsTableProps) {
-  const { pageRows, page, setPage, pageCount, total, sortKey, sortDir, toggleSort } = usePagedSorted(builds, { pageSize: 10, initialSortKey: "created_at", getSortValue: sortValue })
+  const [query, setQuery] = useState("")
+  const [status, setStatus] = useState("")
+  const filtered = useMemo(() => builds.filter(row => (!status || row.status === status) && JSON.stringify(row).toLowerCase().includes(query.trim().toLowerCase())), [builds, query, status])
+  const { pageRows, page, setPage, total, sortKey, sortDir, toggleSort } = usePagedSorted(filtered, { filterKey: JSON.stringify([query, status]), pageSize: 10, initialSortKey: "created_at", getSortValue: sortValue })
   const { widths, startResize } = useColumnWidths("lingshu-gate-cols-builds", { id: 200, runtime: 110, status: 120, created_at: 170, updated_at: 170 })
   const tx = (key: string) => buildPageText(t, key)
 
-  return <Card>
-    <CardHeader><CardTitle>{t("buildRecords")}</CardTitle><CardDescription>{t("buildRecordsDesc")}</CardDescription></CardHeader>
-    <CardContent>
-      <Table className="table-fixed">
-        <ColGroup order={["id", "runtime", "status", "created_at", "updated_at", "actions"]} widths={widths} />
+  return <Card role="region" aria-label={t("buildRecords")}>
+    <CardContent className="delivery-records-content">
+      <RemainingList bottomGap={40}>
+      <RecordListToolbar kind="build" query={query} onQueryChange={value => { setQuery(value); setPage(1) }}
+        status={status} onStatusChange={value => { setStatus(value); setPage(1) }}
+        statuses={Array.from(new Set(builds.map(row => row.status)))} page={page} total={total}
+        filtered={Boolean(query.trim() || status)} onPage={setPage} t={t} />
+      <div className="delivery-records-table build-records-table">
+      <Table className="table-fixed" style={{ minWidth: `calc(${["id", "runtime", "status", "created_at", "updated_at"].reduce((total, key) => total + widths[key], 0)}px + var(--build-actions-width))` }}>
+        <ColGroup order={["id", "runtime", "status", "created_at", "updated_at", "actions"]} widths={{ ...widths, actions: 0 }} />
         <TableHeader><TableRow>
           <SortHead label={t("id")} sortKey="id" activeKey={sortKey} dir={sortDir} onSort={toggleSort} onResizeStart={startResize("id")} />
           <SortHead label={t("runtimeType")} sortKey="runtime" activeKey={sortKey} dir={sortDir} onSort={toggleSort} onResizeStart={startResize("runtime")} />
@@ -53,7 +65,7 @@ export function BuildRecordsTable({ builds, busy, selectedBuildId, canRequestSto
           <SortHead label={t("updatedAt")} sortKey="updated_at" activeKey={sortKey} dir={sortDir} onSort={toggleSort} onResizeStart={startResize("updated_at")} />
           <TableHead className="text-right">{t("actions")}</TableHead>
         </TableRow></TableHeader>
-        <TableBody>{total === 0 ? <TableEmptyRow colSpan={6} title={t("noData")} /> : pageRows.map((build) => {
+        <TableBody>{total === 0 ? <TableEmptyRow colSpan={6} title={t(query.trim() || status ? "noMatchingRecords" : "noData")} /> : pageRows.map((build) => {
           const selected = build.id === selectedBuildId
           return <TableRow
             key={build.id}
@@ -64,12 +76,12 @@ export function BuildRecordsTable({ builds, busy, selectedBuildId, canRequestSto
             onKeyDown={(event) => { if (event.key === "Enter" || event.key === " ") { event.preventDefault(); onShowBuild(build) } }}
           >
             <TableCell><code className="text-xs" title={build.id}>{shortId(build.id)}</code><div className="text-xs text-muted-foreground" title={build.upload_id}>{t("uploadId")}: {shortId(build.upload_id)}</div></TableCell>
-            <TableCell>{build.runtime}</TableCell>
+            <TableCell>{build.runtime}{build.steps?.find(step => step.package_manager)?.package_manager && <div className="break-all text-xs text-muted-foreground">{build.steps.find(step => step.package_manager)!.package_manager!.name}@{build.steps.find(step => step.package_manager)!.package_manager!.version}</div>}</TableCell>
             <TableCell><StatusBadge value={build.status} t={t} /></TableCell>
             <TableCell className="whitespace-nowrap text-xs text-muted-foreground">{formatDateTime(build.created_at)}</TableCell>
             <TableCell className="whitespace-nowrap text-xs text-muted-foreground">{formatDateTime(build.updated_at)}</TableCell>
             <TableCell className="text-right" onClick={(event) => event.stopPropagation()} onKeyDown={(event) => event.stopPropagation()}>
-              <ActionMenu label={tx("moreActions")}>
+              <ActionMenu inline label={t("actions")}>
                 <ActionMenuItem onClick={() => onShowBuild(build)}>{tx("view")}</ActionMenuItem>
                 <ActionMenuItem onClick={() => onLoadLogs(build)}>{tx("viewLogs")}</ActionMenuItem>
                 {canRequestStop(build) ? <ActionMenuItem disabled={busy} onClick={() => onRequestStop(build.id)}>{t("requestStop")}</ActionMenuItem> : null}
@@ -81,7 +93,8 @@ export function BuildRecordsTable({ builds, busy, selectedBuildId, canRequestSto
           </TableRow>
         })}</TableBody>
       </Table>
-      <Pager t={t} page={page} pageCount={pageCount} total={total} onPage={setPage} />
+      </div>
+      </RemainingList>
     </CardContent>
   </Card>
 }

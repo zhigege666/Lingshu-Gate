@@ -1,0 +1,31 @@
+/* AntD uses overflow-y: scroll with scroll.y; reserve a scrollbar only when
+   these personal resource rows actually exceed their available viewport. */
+.personal-workspace-page { min-width: 0; display: flex; flex-direction: column; gap: 12px; max-height: var(--remaining-viewport-height); }
+.personal-workspace-page > :not(.ant-table-wrapper) { flex-shrink: 0; }
+.personal-services-table .ant-table-body { overflow-y: auto !important; }
+
+/* The drawer header remains outside its body. Shrink long tables through the
+   flex chain into the remaining space, without stretching short collections. */
+.personal-tools-drawer .ant-drawer-body { display: flex; flex-direction: column; overflow: hidden; }
+.personal-tools-drawer .ant-drawer-body > .ant-alert,
+.personal-tools-drawer .ant-drawer-body > p { flex-shrink: 0; }
+.personal-workspace-page .ant-table-wrapper,
+.personal-workspace-page .ant-table-wrapper > .ant-spin,
+.personal-workspace-page .ant-spin-nested-loading,
+.personal-workspace-page .ant-spin-container,
+.personal-workspace-page .ant-table,
+.personal-workspace-page .ant-table-container,
+.personal-tools-drawer .ant-table-wrapper,
+.personal-tools-drawer .ant-table-wrapper > .ant-spin,
+.personal-tools-drawer .ant-spin-nested-loading,
+.personal-tools-drawer .ant-spin-container,
+.personal-tools-drawer .ant-table,
+.personal-tools-drawer .ant-table-container {
+  display: flex; flex-direction: column; min-height: 0; min-width: 0; flex: 0 1 auto;
+}
+.personal-workspace-page .ant-table-header,
+.personal-workspace-page .ant-table-pagination,
+.personal-tools-drawer .ant-table-header,
+.personal-tools-drawer .ant-table-pagination { flex-shrink: 0; }
+.personal-workspace-page .ant-table-body,
+.personal-tools-drawer .ant-table-body { flex: 0 1 auto; min-height: 0; max-height: none !important; overflow-y: auto !important; }

@@ -1,0 +1,19 @@
+{
+  "source_sha": "7d145c28a94a00a6c5d6f4f7d4fc38c0e6153436",
+  "bundle_sha256": "0fb52e93d5b2cf0f27ee1466c767b22e880bfeb78faa70b6c68c2ad731cb89c9",
+  "allOAuthApisMocked": true,
+  "fixture_tools": 137,
+  "fixture_mcps": 6,
+  "viewport": {
+    "width": 1600,
+    "height": 900
+  },
+  "labels": [
+    true,
+    true,
+    true
+  ],
+  "pageOverflow": 0,
+  "setupSteps": 4,
+  "fixture_clients": 61
+}

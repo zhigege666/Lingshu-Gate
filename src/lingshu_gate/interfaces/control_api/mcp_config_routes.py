@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from typing import Any
+from urllib.parse import urlsplit
 
 from fastapi import Depends, FastAPI, HTTPException, Request
 
@@ -13,7 +14,8 @@ from lingshu_gate.application.mcp_configuration import (
 from lingshu_gate.auth import AuthPrincipal, AuthStore
 from lingshu_gate.config import Settings
 from lingshu_gate.interfaces.control_api.dependencies import AuthDependency
-from lingshu_gate.mcp_config_store import McpConfigStore
+from lingshu_gate.mcp_config_store import McpConfigConflict, McpConfigStore
+from lingshu_gate.mcp_http_trust import McpHttpTrustConflict, McpHttpTrustDenied, McpHttpTrustUpdate
 from lingshu_gate.mcp_manifest_validation import validate_mcp_manifest
 from lingshu_gate.models import (
     McpConfigApplyResponse,
@@ -55,6 +57,57 @@ def register_mcp_config_routes(
     require_operations_manager: AuthDependency,
 ) -> None:
     """Register manifest validation and transactional configuration routes."""
+
+    def require_trust_admin(request: Request) -> AuthPrincipal:
+        principal = require_operations_manager(request)
+        if principal.auth_type == "oauth":
+            raise HTTPException(status_code=403, detail="OAuth connections cannot manage HTTP trust")
+        try:
+            user = auth_store.get_user(principal.id)
+        except KeyError as exc:
+            raise HTTPException(status_code=403, detail="An active Gate administrator is required") from exc
+        roles = user.get("roles")
+        if user["status"] != "active" or not isinstance(roles, (list, tuple)) or "admin" not in roles:
+            raise HTTPException(status_code=403, detail="An active Gate administrator is required")
+        if request.method == "PUT" and principal.auth_type == "session":
+            if request.headers.get("sec-fetch-site") == "cross-site":
+                raise HTTPException(status_code=403, detail="Cross-site HTTP trust mutations are denied")
+            if "origin" in request.headers:
+                try:
+                    origin = urlsplit(request.headers["origin"])
+                    target = urlsplit(str(request.base_url))
+                    same_origin = (origin.scheme, origin.hostname, origin.port or (443 if origin.scheme == "https" else 80)) == (target.scheme, target.hostname, target.port or (443 if target.scheme == "https" else 80))
+                except ValueError:
+                    same_origin = False
+                if not same_origin or origin.username is not None or origin.password is not None or origin.path or origin.query or origin.fragment:
+                    raise HTTPException(status_code=403, detail="Cross-site HTTP trust mutations are denied")
+        return principal
+
+    @app.get("/v1/mcp/http-trust/{server_id}", tags=["mcp-configs"])
+    def get_http_trust(server_id: str, principal: AuthPrincipal = Depends(require_trust_admin)) -> dict[str, Any]:
+        del principal
+        if mcp_config_store.http_trust_store is None:
+            raise HTTPException(status_code=503, detail="HTTP trust policy is unavailable")
+        try:
+            return mcp_config_store.http_trust_store.get(server_id)
+        except ValueError as exc:
+            raise HTTPException(status_code=400, detail=_safe_error_detail(exc)) from exc
+
+    @app.put("/v1/mcp/http-trust/{server_id}", tags=["mcp-configs"])
+    def update_http_trust(server_id: str, payload: McpHttpTrustUpdate, principal: AuthPrincipal = Depends(require_trust_admin)) -> dict[str, Any]:
+        if mcp_config_store.http_trust_store is None:
+            raise HTTPException(status_code=503, detail="HTTP trust policy is unavailable")
+        try:
+            result = mcp_config_store.http_trust_store.update(server_id, payload, actor_id=principal.id)
+        except McpHttpTrustDenied as exc:
+            raise HTTPException(status_code=403, detail=_safe_error_detail(exc)) from exc
+        except McpHttpTrustConflict as exc:
+            raise HTTPException(status_code=409, detail=_safe_error_detail(exc)) from exc
+        except ValueError as exc:
+            raise HTTPException(status_code=400, detail=_safe_error_detail(exc)) from exc
+        observability_store.emit_event("gate.mcp.http_trust.updated", source="configs", subject_type="config", subject_id=server_id,
+                                      payload={"actor_id": principal.id, "revision": result["revision"], "origin_count": len(result["origins"])})
+        return result
 
     @app.get(
         "/v1/mcp/configs",
@@ -192,6 +245,8 @@ def register_mcp_config_routes(
                 user_id=principal.id,
                 prepared=prepared,
             )
+        except McpConfigConflict as exc:
+            raise HTTPException(status_code=409, detail=_safe_error_detail(exc)) from exc
         except KeyError as exc:
             raise HTTPException(status_code=404, detail=_safe_error_detail(exc)) from exc
         except ValueError as exc:

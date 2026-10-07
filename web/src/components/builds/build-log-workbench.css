@@ -1,0 +1,18 @@
+.build-log-workbench { display: grid; gap: 16px; min-width: 0; }
+.build-log-workbench > * { min-width: 0; }
+@media (min-width: 1280px) {
+  .build-log-workbench { grid-template-columns: minmax(0, 1.8fr) minmax(320px, 1fr); height: max(380px, var(--remaining-viewport-height, calc(100dvh - 250px))); }
+  .build-log-workbench:not(:has(.build-output-panels)) { grid-template-columns: minmax(0, 1fr); }
+  .build-log-workbench .build-log-table { display: flex; flex-direction: column; min-height: 0; }
+  .build-log-workbench .build-log-table > div:first-child { flex-shrink: 0; padding: 14px 16px; }
+  .build-log-workbench .build-log-table > div:last-child { flex: 1; min-height: 0; padding: 0 16px 14px; }
+  .build-log-workbench .remaining-list-group { height: 100%; max-height: 100%; }
+  .build-log-workbench .build-output-panels { grid-template-columns: minmax(0, 1fr); grid-template-rows: repeat(2, minmax(0, 1fr)); min-height: 0; }
+  .build-log-workbench .build-output-panels > div { display: flex; flex-direction: column; min-height: 0; }
+  .build-log-workbench .build-output-panels > div > div:first-child { padding: 14px 16px 10px; flex-shrink: 0; overflow-wrap: anywhere; }
+  .build-log-workbench .build-output-panels > div > div:last-child { flex: 1; min-height: 0; padding: 0 16px 14px; }
+  .build-log-workbench .build-output-panels .build-output-json,
+  .build-log-workbench .build-output-panels [data-slot="scroll-area"] { height: 100%; max-height: 100%; }
+  .build-log-workbench h3 { font-size: 16px; }
+  .build-log-workbench .build-log-table > div:first-child > div { flex-wrap: wrap; }
+}

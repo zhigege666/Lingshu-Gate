@@ -23,8 +23,9 @@ Lingshu Gate 从 `LINGSHU_GATE_*` 环境变量读取运行配置。原生包启�
 | `LINGSHU_GATE_REQUEST_TIMEOUT_SECONDS` | `30` | `30` | 下游请求时间上限 |
 | `LINGSHU_GATE_STARTUP_TIMEOUT_SECONDS` | `30` | `30` | 下游启动和发现时间上限 |
 | `LINGSHU_GATE_MCP_GATEWAY_ENABLED` | `true` | `true` | 控制 `/mcp` 路由 |
+| `LINGSHU_GATE_RUNTIME_TOOLCHAIN_PATHS` | `{}` | 未设置 | 服务端管理员维护的 JSON 注册表，登记复核过的绝对 Node 与 npm/pnpm/Yarn JS CLI 路径，仅用于固定版本本地启动，不由项目提供 |
 
-协议版本 `2026-07-28` 由发行版固定，不是运行时调优项。
+Gate 当前 MCP 协议版本为 `2026-07-28`。下游 Manifest 可使用自动协商或明确支持的版本，详见下文；没有全局运行时版本开关。
 
 布尔值使用应用已经实现的格式，建议写 `true`/`false`。无效数值或不支持的部署角色会阻止启动，不会被静默忽略。
 
@@ -60,7 +61,56 @@ lingshu-gate/
 
 ## 下游 Manifest
 
+管理员可通过共用 REST/MCP [外部配置流程](external-mcp-configuration.md)核对并登记现有外部 HTTP MCP。它保留已有托管凭据引用，更新使用原始文件摘要 CAS，分开保存、当前连接/发现和未来启动策略。此开发候选未安装 Git 执行器或远程进程 runtime。
+
 Manifest 是存放在 `mcp.d` 中的 YAML 或 JSON 对象。文件名不是身份，`id` 才是。ID 必须匹配 `^[A-Za-z0-9_.-]+$`，并保持稳定，因为授权、凭据、运行状态和审计都会引用它。
+
+### Gate 启动策略
+
+Console 正常新建 MCP 模板默认 `enabled=true`、
+`startup_policy=gate_start_v1`、`auto_start=false`。启用允许之后启动，
+不代表应用草稿或立即连接。用户仍可明确停用草稿；已有配置和导入 JSON
+中明确的 `enabled=false` 会保留，切换运行方式也不会覆盖。停用提示会打开
+现有编辑器，不自动启用、保存或更改 HTTP 信任。应用但不启动可以返回
+`loaded`、`external` 或 `stopped`；成功要求配置身份匹配，并确认运行实例
+没有启动。
+
+`enabled=false` 阻止所有启动和连接。`startup_policy` 缺省为
+`legacy_restore`，保留历史的“恢复上次保存运行意图”行为；修改名称、地址或其他
+普通字段不迁移策略。明确修改“Gate 启动时自动启动”开关才写入
+`startup_policy=gate_start_v1`。下次 Gate 进程启动时，`auto_start=true` 启动受管
+MCP 进程或连接已有外部服务，`false` 保持停止。此后的手动启停只控制本轮 Gate
+运行，不改变下次启动策略。仅保存不应用、不启动、不停止当前实例。Console
+会解释旧策略，直到用户明确修改开关。新写入拒绝不受支持的进程重启/探活配置，
+不静默关闭；既有文件仍可读取。
+
+同一 Gate 进程内重载 Manifest 保留当前运行意图。新保存的 `gate_start_v1`
+服务保持停止，直到用户显式启动或下次 Gate 进程启动；普通重载不初始化启动
+开关，也不恢复更早进程保存的运行意图。旧策略的重载行为不变。
+
+配置编辑读取已保存 Manifest，与运行中 Manifest 分开。编辑会话通过
+`expected_config_digest` 提交摘要；旧会话更新返回 HTTP 409，保留用户草稿。
+既有 API 调用者仍可省略这个可选并发字段。SQLite 仍要求单 Core。
+
+### 内网 HTTP 信任
+
+HTTPS 和规范回环 HTTP 保留原行为。其他 HTTP 地址必须是 `10.0.0.0/8`、
+`172.16.0.0/12` 或 `192.168.0.0/16` 中的字面 IPv4，并由管理员独立批准精确
+MCP 服务 ID、IP 和实际端口。Manifest 只是声明，不能自行批准信任。默认没有
+受信内网地址。DNS 名称、非规范 IP、公网、链路本地、metadata 和其他保留地址
+不能进入白名单。用户信息、查询串、fragment 和不安全 URL 语法仍被拒绝。
+重定向仍禁止，HTTPS 保留正常 TLS 证书验证。
+
+管理员可在配置 Dialog 的地址控件下选择“授权此地址”，明确确认服务 ID、IP
+和端口。HTTP 不加密，仅用于受信任内网。授权使用独立
+`/v1/mcp/http-trust/{server_id}` API，不随普通 Manifest 保存写入；PUT 要求
+`origins`、`expected_revision` 和 `confirmed=true`。实时 admin 角色与
+`operations.manage`、会话写入的同源保护、revision CAS 和审计共同生效。
+只有 `operations.manage` 的 operator 或 OAuth 连接不能修改此策略。草稿变化
+使内联确认失效；授权成功后保留草稿并重新预检查，不建立连接。预检查、保存、
+应用、连接、重连和请求均读取当前策略，移除信任或读取失败后拒绝后续使用。
+普通用户仅得到拟用地址的判断和联系管理员说明，不返回其他受信目标记录。
+本次不增加全局信任设置页面。
 
 ### 外部 Streamable HTTP
 
@@ -80,9 +130,17 @@ timeout_seconds: 30
 auto_start: false
 ```
 
-该 Manifest 字段用于显式自说明，只接受 `2026-07-28`，不能选择其他协议模式。
+省略 `protocol_version` 或设为 `auto` 时，先尝试当前 `server/discover`。明确指定 `2026-07-28` 时要求该协议，不回退。HTTP 支持明确指定旧版 `2025-03-26`、`2025-06-18`、`2025-11-25`，从 `initialize` 开始；只在下游确实需要时明确选版。
+
+HTTP 自动协商保留已有精确“不支持发现”JSON-RPC 错误识别，并识别一种初始 HTTP 400 响应：类型为 `application/json`、有效 JSON-RPC 2.0 错误封包、ID 为 null 或匹配请求、整数错误码 `-32000`、消息为 `Bad Request: Server not initialized`（忽略大小写和首尾空白）。只有尚无会话的首次自动发现探测可使用该信号，最多尝试一次旧版初始化，从 `2025-11-25` 开始并接受支持的协商版本。各握手阶段共用启动超时；认证、TLS/信任、网络、限流、服务端和畸形响应失败保留原错误。初始协商不执行或重放工具调用。
+
+服务详情仅在握手成功后展示实际协商版本，未知时不显示版本值。配置变更仍需正常保存、应用和连接；展示元数据不授予访问权。
 
 静态 Header 可以包含 `${credential:<id>}` 引用。Gate 只在下游请求中解析它，并在 API 响应和日志中掩码显示。
+
+外部 HTTP 连接在工具调用中发现 MCP 会话过期时，会自动重新握手并发现工具一次，无需新增 Manifest 开关。共享会话的恢复由服务锁串行处理。只有访问分类已发布为 `read`，且重新发现后的工具定义未变化，Gate 才自动重试中断的调用一次；下游只读提示不能单独授权重放。写调用或未发布分类的调用会在重连后返回结构化错误 `mcp_session_reconnected_not_replayed`，再次调用前应检查原操作结果。工具定义变化返回 `mcp_tool_changed_after_reconnect`，需要按实际变化重新审核分类。
+
+重连失败，或一次只读重试中再次发生会话过期时，共享运行时标记为 `failed`/`unhealthy`，并返回 `mcp_session_reconnect_failed`；检查下游服务后手动重连。本能力由请求触发，不进行后台循环重试或定时探活，也不重启外部进程。用户独立会话始终使用各自的凭据绑定，不替换共享会话或修改共享健康状态。外部服务仍不支持现有的 `restart_policy`。
 
 ### 受管本机 stdio
 
@@ -107,7 +165,7 @@ timeout_seconds: 30
 auto_start: false
 ```
 
-Stdio Manifest 同样只接受 `2026-07-28`。
+Stdio 同样接受省略/`auto`、明确指定 `2026-07-28` 及上述三个旧版；另外仅 Stdio 支持明确指定 `2024-11-05`。自动协商要求已识别的不支持发现信号；现代协议错误 `-32022` 不代表旧版协商。
 
 使用经过复核且位于 Allowed Root 内的绝对 `cwd`。避免 Shell Wrapper，直接配置可执行文件和参数列表。在命令、凭据和工具定义完成复核前，应保持 Auto Start 关闭。
 
@@ -181,8 +239,40 @@ ${credential:credential-id}
 5. 让代理覆盖而不是追加客户端传入的 `Forwarded` 和 `X-Forwarded-*` Header。
 6. 为上传和流式端点设置合适的请求大小及超时限制。
 
+信任策略的会话 PUT 会比较浏览器 Origin 与服务实际看到的 scheme/Host/端口。
+HTTPS 反代到 HTTP 后端时，代理必须保留外部 `Host`（含非默认端口），覆盖
+`X-Forwarded-Proto: https`，且代理的实际后端连接 IP 必须包含在
+`LINGSHU_GATE_TRUSTED_PROXY_IPS`。默认仅信任 `127.0.0.1`；容器桥接地址或远端
+代理通常需要明确配置。只发送 `Forwarded` 或 `X-Forwarded-Host` 不能替代这些
+条件，应用不会用任意转发头绕过 Origin 校验。代理改写 Host 为后端地址、来源未
+受信或跨站 Origin 会被拒绝；应修正代理配置，不应关闭同源检查。
+
 不要在不受控网络把可信来源设为 `*`，也不要在代理之外同时暴露 Gate 私有端口。
+
+## 外部 OAuth 资源配置
+
+外部 JWT 鉴权默认关闭，且仅用于 `/mcp`。通过受 `external_connections.manage` 保护的 `GET/PUT /v1/auth/external-connection/config` 配置持久化信任；`LINGSHU_GATE_EXTERNAL_CONNECTION_ENABLED=true` 会被拒绝，不能绕过管理 API。必需项包括精确 issuer/JWKS 配对、客户端允许列表及 audience 到规范资源的映射，启用还要求 Gate 鉴权有效。身份绑定和仅本人可管理的委托是独立记录。
+
+关闭状态 JSON 示例、版本前提、JWT claim 要求、API 路径及未支持的 provider/Tunnel 操作见[外部资源访问](external-connections.md)。验证器启用不等于外部连接成功，外部 JWT 也不能登录 Console API。
 
 ## 校验
 
-保存 Manifest 前，使用 Console 或 `POST /v1/mcp/configs/validate` 校验。校验只覆盖 Schema 和本地策略；通过校验不能证明远程 Endpoint 可信或健康。保存后应检查服务状态、发现的工具、分类和授权，再允许调用。
+保存 Manifest 前，使用 Console 或 `POST /v1/mcp/configs/validate` 校验。新建/已有配置的两条校验路由只检查 Schema、本地策略和文件元数据，不执行 Manifest command 或任何版本探测。准确工具版本明确保持未验证，直到已授权启动；校验不授予启动权限，也不证明远程 Endpoint 可信或健康。保存后应检查服务状态、发现的工具、分类和授权，再允许调用。
+
+## 交付网络配置
+
+Native 隔离交付以管理员专用 `LINGSHU_GATE_NATIVE_EXECUTOR` JSON 对象配置，默认关闭，要求 Linux/local、独立 owned root/有界 tmpfs、精确预载镜像 digest、受审 Podman/代理 host 和实际 namespace/cgroup 终止证据。Core 不创建引擎适配器。见 [Native 配置与支持边界](native-executor.md)。
+
+新生成的 manager 本地启动配置带 `launch.toolchain: {manager, version}`，command 仅为工具名 `npm`、`pnpm` 或 `yarn`。带 pin 的绝对/相对执行路径和别名均拒绝。服务管理员通过 `LINGSHU_GATE_RUNTIME_TOOLCHAIN_PATHS` 登记 `node` 与所选 manager：Node 为受审查的绝对原生 `node`/`node.exe`；manager 为受审查的绝对官方 JS CLI 入口（`.js`、`.cjs`、`.mjs`），不使用 shell/Corepack launcher。工具链接解析后须在项目根、Data 和 Manifest 目录之外，注册表和安装文件须防止项目或未授权写入。登记是管理员信任决策，文件名/超时不能证明信任。项目 API 不更新注册表；部署配置修改后需重启 Gate。
+
+只读校验仅检查注册和文件元数据：有效注册给出 `version_verified=false` 警告，缺失/不安全注册给明确错误。仅现有两种 local 客户端在原有已授权启动生命周期内进行有界版本探测，并启动同一注册 Node/CLI 组合。项目 PATH 和宿主环境 PATH 均不能改选这些工具，子进程 PATH 仅包含登记工具目录。版本漂移不回退；pnpm 11 校验实际执行所用的登记 Node >=22.13。构建缓存不供应运行时，不下载/安装工具、不继承交付代理；Core 不探测或启动本地代码。
+
+不带 `launch.toolchain` 的旧 Manifest 保留现有 command/env 和授权启动行为；校验从不执行它们，也不保证准确版本。此前带 pin 的绝对 command 须改为工具名加管理员注册，或另行复核直接 Node 入口。注册表默认空，新固定版本启动在配置前 fail closed。合成测试使用受控夹具验证边界；未配置生产注册表、用户代理或真实依赖源。
+
+系统设置 → 网络与依赖管理命名代理的不可变版本及独立 Git/安装默认项。配置要求 `system_settings.manage`；调用额外要求独立 `network.use` 与既有操作、工具和 token 权限。元数据/引用在 SQLite（`0004_gate_git_network`）；仅写代理地址使用私有加密 CredentialStore 命名空间，认证使用既有凭据 ID。默认项和配置更新需提供预期版本，不改变宿主全局 Git/npm 配置或运行时 MCP 代理变量。
+
+控制 API 包含 `/v1/system-settings/network`、其 `/profiles` 集合、配置引用/删除动作、`/v1/network/options` 与固定目标 `/v1/network/test`。HTTPS 来源计划、拉取、状态、取消以及既有摘要绑定构建服务通过 `/v1/projects/git/*` 提供；参见 [设计与支持矩阵](git-import-network.md)。默认公网 Git 为 `github.com:443`，内网主机/私有 CIDR 必须由管理员显式添加。生产组合尚无受审查安全网络适配器，真实操作仍阻断；不提供放宽 Core 或启用这些宿主联网执行路径的环境开关。
+
+## 内置 OAuth 配置
+
+内置 OAuth 默认关闭，通过受权限控制的 `/v1/auth/oauth/*` API 或**连接基础设施 → Gate 内置 OAuth**配置，不提供环境变量快捷启用。保存固定 HTTPS issuer/resource，明确生成加密签名密钥并登记静态客户端，再启用。客户端密钥仅返回一次，签名私钥不离开加密存储。API token 与外部 IdP 验证继续可用。Scopes、限制及独立公网放行路径见[内置 OAuth 指南](builtin-oauth.md)。

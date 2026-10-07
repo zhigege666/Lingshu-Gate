@@ -1,0 +1,102 @@
+{
+  "source_sha": "a186c9ad5de44e98f39552c0bca09a8c0dabd97c",
+  "base_sha": "98d945a37839e6cbd4619245dcee3e66c7ae7ffe",
+  "scope": "Full tracked repository replica, current web build plus synthetic A/B static chunks in both roots; unchanged runtime and UI source. Two real isolated PEP 517 wheels without clearing either cache.",
+  "results": [
+    {
+      "filename": "lingshu_gate-0.4.4-py3-none-any.whl",
+      "sha256": "0838ba2a408983fd9881fa1ea7488b88145bd841d46211f8edd16e61629dc5ee",
+      "bytes": 1786160,
+      "record_entries_verified": 267,
+      "static_files": 102,
+      "static_exact": true,
+      "old_A_count": 2,
+      "new_B_count": 0,
+      "generation": "A",
+      "static_manifest_sha256": "9879241d66abf73a4ab6d78e5bdce61d84358e3840015e7d133442b93cc52e1a",
+      "all_staging_removed_after_build": true
+    },
+    {
+      "filename": "lingshu_gate-0.4.4-py3-none-any.whl",
+      "sha256": "eead033c1bb442e14538cc4249bb44820fb4e5e042b9b3c6cd93c2eb009bc9a2",
+      "bytes": 1786160,
+      "record_entries_verified": 267,
+      "static_files": 102,
+      "static_exact": true,
+      "old_A_count": 0,
+      "new_B_count": 2,
+      "generation": "B",
+      "static_manifest_sha256": "74f70cfba4a81ea7654e410ba099d359af9466b200bd1e8813250c6e04e15e4f",
+      "all_staging_removed_after_build": true
+    }
+  ],
+  "old_cache_and_user_data_preserved": [
+    "build/lib/lingshu_gate",
+    "build/bdist.linux-x86_64/wheel/lingshu_gate"
+  ],
+  "concurrent_full_repository_wheels": [
+    {
+      "filename": "lingshu_gate-0.4.4-py3-none-any.whl",
+      "sha256": "eead033c1bb442e14538cc4249bb44820fb4e5e042b9b3c6cd93c2eb009bc9a2",
+      "bytes": 1786160,
+      "record_entries_verified": 267,
+      "static_files": 102,
+      "static_exact": true,
+      "old_A_count": 0,
+      "new_B_count": 2
+    },
+    {
+      "filename": "lingshu_gate-0.4.4-py3-none-any.whl",
+      "sha256": "eead033c1bb442e14538cc4249bb44820fb4e5e042b9b3c6cd93c2eb009bc9a2",
+      "bytes": 1786160,
+      "record_entries_verified": 267,
+      "static_files": 102,
+      "static_exact": true,
+      "old_A_count": 0,
+      "new_B_count": 2
+    }
+  ],
+  "concurrent_staging_cleaned": true,
+  "baseline_reproduction": {
+    "base_sha": "98d945a37839e6cbd4619245dcee3e66c7ae7ffe",
+    "backend": "setuptools.build_meta",
+    "setuptools": "81.0.0",
+    "fixture": "same source tree, consecutive PEP 517 build_wheel hooks, no build-cache clearing",
+    "results": [
+      {
+        "generation": "A",
+        "static_resources": [
+          "lingshu_gate/static/console/assets/chunk-A.js",
+          "lingshu_gate/static/console/index.html",
+          "lingshu_gate/static/oauth/assets/chunk-A.js",
+          "lingshu_gate/static/oauth/oauth.html"
+        ],
+        "old_A_count": 2,
+        "new_B_count": 0
+      },
+      {
+        "generation": "B",
+        "static_resources": [
+          "lingshu_gate/static/console/assets/chunk-A.js",
+          "lingshu_gate/static/console/assets/chunk-B.js",
+          "lingshu_gate/static/console/index.html",
+          "lingshu_gate/static/oauth/assets/chunk-A.js",
+          "lingshu_gate/static/oauth/assets/chunk-B.js",
+          "lingshu_gate/static/oauth/oauth.html"
+        ],
+        "old_A_count": 2,
+        "new_B_count": 2
+      }
+    ],
+    "reproduced": true
+  },
+  "input_bdist_gap": {
+    "input_sha": "3e774c9c6ed5444b67506af84a022520ac5cb687",
+    "poisoned_default_bdist_static_resources": [
+      "lingshu_gate/static/console/assets/poisoned-A.js",
+      "lingshu_gate/static/oauth/assets/poisoned-A.js"
+    ],
+    "result": "leaked"
+  },
+  "runner_sha256": "094b11dcc17bde5e7a5cb4215d2328481a48b6aba23a836910af4ba50aa04789"
+}

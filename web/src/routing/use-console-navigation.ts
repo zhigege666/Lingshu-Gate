@@ -30,7 +30,7 @@ export function useConsoleNavigation(options: {
     )
     const navGroups = CONSOLE_SECTION_ORDER.map((section) => ({
       title: copy.sections[section],
-      items: nav.filter((item) => item.section === section && canAccessView(item)).map((item) => item.id),
+      items: nav.filter((item) => item.section === section && !item.hidden && canAccessView(item)).map((item) => item.id),
     })).filter((group) => group.items.length > 0)
 
     return { nav, navById, navGroups, canAccessView }

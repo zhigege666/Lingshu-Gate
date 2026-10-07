@@ -92,6 +92,18 @@ npm --prefix web run build
 
 不要手工编辑 `src/lingshu_gate/static/console` 下的生成文件。修改 `web/` 后重新构建。
 
+## Pull Request 检查
+
+**Continuous integration** 集中运行仓库身份、版本与依赖检查、Ruff、Mypy、Console
+UX 测试、TypeScript 和生产构建。Python 3.12 运行完整测试后，将本次工作流的
+Console 产物共享给 Python 3.11、3.13 兼容性任务。**CI result** 始终报告结果，
+源码或兼容性任务失败、取消、被跳过都会使汇总失败。CodeQL 和容器检查独立报告。
+
+普通 UI 和 README 修改不再启动五平台原生打包矩阵；版本、依赖、打包、启动入口、
+运行环境、身份策略和发行工作流变更仍会触发。打包 PR 在固定工具链中运行针对性的
+发行测试；正式发行独立重跑完整源码与产物检查，并重新构建资产，不复用 PR 产物发布。
+容器 CI 校验镜像与 Compose，不重复前后端测试套件。
+
 ## 容器检查
 
 ```bash
@@ -123,7 +135,37 @@ uv run python scripts/quality/check_repository_identity.py --history
 
 不要为了消除失败而削弱、打印或复制基于摘要的策略规则。修复报告的文件或产物，再重新运行检查。
 
+历史模式包含一条精确限定的旧快照例外，针对
+`web/test-fixtures/mcp-config-editor.tsx`；当前源码已在
+`4556352c4671efa7a810d129adf0d561b820363f` 中修正。
+`scripts/quality/check_repository_identity.py` 中的记录绑定七个完整旧提交 ID、
+文件路径、Git Blob ID、内容 SHA-256，以及第 12、14、20 行的三条 `TXT-001`
+发现，所有字段都必须匹配。启用历史模式时，CLI 会明确提示这项策略；历史内容并未被删除。
+
+例外只适用于这些旧快照。即使字节完全相同，只要在其他提交或路径中重新引入，仍会失败，
+后续再次删除也不能绕过。提交消息、其他发现、当前文件和最终产物仍严格检查。
+不得自动扩充记录，也不得改成按分支、日期、整个路径或整条规则跳过检查。
+普通修正提交无法清除既有 Git 对象，这条限定记录用于避免重写共享历史。
+
 ## 发行检查
+
+构建非 editable Python 包前先构建前端，再使用常规 PEP 517 入口：
+
+```bash
+npm --prefix web ci
+npm --prefix web run build
+uv build
+```
+
+setuptools 构建钩子为包复制和 wheel 安装分别创建独立临时目录，在归档前核对 Console/OAuth 的
+完整文件名清单及 SHA-256，拒绝缺失的前端入口、符号链接、特殊文件及构建期间的源文件变化。
+它们不会删除已有的 `build/lib`、旧 wheel 暂存目录、原生制品或用户指定的构建路径。
+sdist 包含构建钩子和已生成的静态资源，因此可在没有 Node.js 的情况下继续构建 wheel。
+editable 安装仍支持尚未构建前端的源码树；非 editable wheel 会拒绝绕过校验的 `--skip-build`。
+最终 wheel zip 及每条 RECORD 的哈希和大小也在独立暂存目录中校验，通过后才原子替换输出文件；
+无效归档不会成为报告的构建结果。回归测试包含失败后重试及同一源码树的并发 wheel 构建。
+打包回归检查使用 `uv run pytest -q tests/test_wheel_build.py tests/test_release_packaging.py`。
+连续/并发构建及候选证据见[干净 wheel 暂存验证](wheel-build-validation.md)。
 
 发行工作流会在匹配的操作系统和架构上构建每个原生归档。在匹配的本机上，维护者可以构建一个 Target：
 

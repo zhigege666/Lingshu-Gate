@@ -60,6 +60,37 @@ class MatchBudget:
     single_words: set[str] = field(default_factory=set)
 
 
+@dataclass(frozen=True)
+class HistorySnapshotException:
+    commits: frozenset[str]
+    path: str
+    blob: str
+    sha256: str
+    findings: frozenset[tuple[str, int]]
+
+
+# One fixed test fixture remains in these immutable historical snapshots. Its
+# current source was corrected by 4556352c4671efa7a810d129adf0d561b820363f.
+# Keep every dimension pinned: no branch, date, path-wide, or rule-wide waiver.
+_HISTORY_SNAPSHOT_EXCEPTIONS = (
+    HistorySnapshotException(
+        commits=frozenset({
+            "21449a6a3164c37b1b911a8f51607e921757cdbe",
+            "2c2a0715ba71becf1bf0026a93e30980567b17f0",
+            "4c28ee565bad970c2fc6654cee39848b3b260aaf",
+            "5d0f016f02be5a963209c764f97228fdd7df084e",
+            "97a16b004dad0c84f53723651d26a553a8405121",
+            "98f3869983bf7ddfa6a2a0cf83ad24d788a863ec",
+            "f7e491dfa147304ec9f4b127c63819072dfa45bc",
+        }),
+        path="web/test-fixtures/mcp-config-editor.tsx",
+        blob="6a01a9ed9f9f45e98612de708d3697ce53ec5e65",
+        sha256="33a6376f5c30fb4f248437c736627df3ac1636a59f5d2529356d1734ec147faf",
+        findings=frozenset({("TXT-001", 12), ("TXT-001", 14), ("TXT-001", 20)}),
+    ),
+)
+
+
 # Policy values are stored only as normalized length and SHA-256. This keeps the
 # checker from reintroducing material that it is intended to reject.
 _TEXT_RULES: tuple[DigestRule, ...] = (
@@ -174,6 +205,8 @@ _EXCLUDED_DIRS = frozenset(
         ".venv",
         "__pycache__",
         "node_modules",
+        "playwright-report",
+        "test-results",
         "site-packages",
         "venv",
     }
@@ -503,11 +536,48 @@ def _decode_text(data: bytes) -> str | None:
         return None
 
 
+# Narrow source attribution exception: exact reviewed Markdown URL targets in
+# this one bilingual guide. Product prose, arbitrary URLs and other paths remain
+# subject to the full identity policy. Digests avoid seeding prohibited identities
+# into first-party source while retaining exact, auditable URL matching.
+_EXTERNAL_REFERENCE_DOCUMENTS = frozenset({
+    "docs/external-connections.md", "docs/zh-CN/external-connections.md",
+})
+_EXTERNAL_REFERENCE_URL_DIGESTS = frozenset({
+    '3fece50ed13bf72715a68a347c3aeed8eb822cbc1b846201ffa16311d6206498',
+    '86c7f909ed4a1f9e5e6bdb5a21b00c7a9b9d16a074811f7b2617efad985fe3ff',
+    '3841baee1a48ded6230162c6ee7e2a32a0a74e6d199e3b0fa278802ec384cb91',
+    'ff37d43177fe3fe51aa50ea27802cbf94ff88d15a5ad2c17a1b32853296a761f',
+    'ec7f7eb397fa94e4198233a7b2ada09f6c98415a500bbc8290052373344b857c',
+})
+
+
+def _external_reference_scan_line(line: str, location: str) -> str:
+    document = re.sub(r"^git:[0-9a-f]{12}:", "", location)
+    if document not in _EXTERNAL_REFERENCE_DOCUMENTS:
+        return line
+    return re.sub(r"(?<=\]\()https://[^)\s]+(?=\))",
+                  lambda match: "external-reference" if _sha256(match.group()) in _EXTERNAL_REFERENCE_URL_DIGESTS
+                  else match.group(), line)
+
+
+# Exact upstream merge metadata only; copied messages and changed bodies remain strict.
+_HISTORY_MESSAGE_EXCEPTIONS = {
+    ("65b70146264d9fe96a63ce779906bc06e3b98363", "ec6819fe36fb48a68bb9130434778282fe8b5852fa542b0e5a0e558e185322da"): frozenset({("TXT-045", 1)}),
+}
+
+
+def _scan_history_message(body: str, commit: str) -> list[Violation]:
+    findings = _scan_text(body, f"git:{commit[:12]}")
+    approved = _HISTORY_MESSAGE_EXCEPTIONS.get((commit, _sha256(body)), frozenset())
+    return [item for item in findings if (item.rule_id, item.line) not in approved]
+
+
 def _scan_text(text: str, location: str, *, budget: MatchBudget | None = None) -> list[Violation]:
     violations: list[Violation] = []
     active_budget = budget if budget is not None else MatchBudget()
     for line_number, line in enumerate(text.splitlines() or [""], start=1):
-        violations.extend(Violation(rule_id, location, line_number) for rule_id in _matching_rules(line, active_budget))
+        violations.extend(Violation(rule_id, location, line_number) for rule_id in _matching_rules(_external_reference_scan_line(line, location), active_budget))
         violations.extend(
             Violation(rule_id, location, line_number)
             for rule_id in _matching_gate_identity_rules(line)
@@ -809,13 +879,20 @@ def _scan_history(root: Path) -> list[Violation]:
     for offset in range(0, len(log_fields) - 1, 2):
         commit = log_fields[offset].decode("ascii", errors="replace").strip()
         body = _decode_text(log_fields[offset + 1]) or ""
-        violations.extend(_scan_text(body, f"git:{commit[:12]}"))
+        violations.extend(_scan_history_message(body, commit))
 
     commit_result = _run_git(root, ["rev-list", "--all"], text=True)
     if commit_result.returncode != 0:
         return [*violations, Violation("HISTORY-001", ".git", 1)]
 
-    seen_items: set[tuple[str, str]] = set()
+    exceptions = {
+        (commit, exception.blob, exception.path): exception
+        for exception in _HISTORY_SNAPSHOT_EXCEPTIONS
+        for commit in exception.commits
+    }
+    # An approved old occurrence must never hide reuse in another commit,
+    # regardless of the order in which Git returns commits.
+    seen_items: set[tuple[str, str, HistorySnapshotException | None]] = set()
     blob_cache: dict[str, bytes | None] = {}
     for commit in (line.strip() for line in commit_result.stdout.splitlines() if line.strip()):
         tree_result = _run_git(root, ["ls-tree", "-r", "-z", "--full-tree", commit])
@@ -831,7 +908,8 @@ def _scan_history(root: Path) -> list[Violation]:
                 continue
             blob = fields[2].decode("ascii", errors="replace")
             path = raw_path.decode("utf-8", errors="replace")
-            item = (blob, path)
+            exception = exceptions.get((commit, blob, path))
+            item = (blob, path, exception)
             if item in seen_items:
                 continue
             seen_items.add(item)
@@ -852,13 +930,17 @@ def _scan_history(root: Path) -> list[Violation]:
             elif _is_archive(relative):
                 violations.extend(_scan_archive_bytes(data, relative, location))
             else:
-                violations.extend(
-                    _scan_bytes(
-                        data,
-                        location,
-                        strict_text=_is_known_text_candidate(relative),
-                    )
+                findings = _scan_bytes(
+                    data,
+                    location,
+                    strict_text=_is_known_text_candidate(relative),
                 )
+                if exception is not None and hashlib.sha256(data).hexdigest() == exception.sha256:
+                    findings = [
+                        finding for finding in findings
+                        if (finding.rule_id, finding.line) not in exception.findings
+                    ]
+                violations.extend(findings)
     return violations
 
 
@@ -1065,6 +1147,11 @@ def _parse_args(argv: Sequence[str] | None) -> argparse.Namespace:
 
 def main(argv: Sequence[str] | None = None) -> int:
     arguments = _parse_args(argv)
+    if arguments.history and _HISTORY_SNAPSHOT_EXCEPTIONS:
+        print(
+            f"history policy: {len(_HISTORY_SNAPSHOT_EXCEPTIONS)} pinned legacy snapshot exception(s); "
+            "other commits, commit messages, current files, and artifacts remain strict"
+        )
     violations = audit_repository(
         arguments.root,
         include_history=arguments.history,

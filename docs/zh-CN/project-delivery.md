@@ -73,7 +73,7 @@ Begin 调用为其受限上传 Session 建立确认。Chunk 和 Commit 不接受
 
 ### 2. 预检和计划
 
-调用 `gate_build_preflight`。如果 Status 不是 `ok`，立即停止。然后调用 `gate_build_plan`，向管理员展示：
+调用 `gate_build_preflight`。`status=error` 时停止；根据所选运行时复核警告。只有准确版本的工具准备步骤能解决缺失工具警告、安全执行器可用且确认包含该步骤时，才可继续。然后调用 `gate_build_plan`，向管理员展示：
 
 - 解析后的运行时和项目根目录；
 - 准确步骤和命令；
@@ -113,6 +113,10 @@ Begin 调用为其受限上传 Session 建立确认。Chunk 和 Commit 不接受
 
 | 工具 | 类型 | 确认和摘要边界 |
 |---|---|---|
+| `gate_project_git_plan` | 读/联网计划 | HTTPS 来源、完整 commit、固定配置版本；缺执行器则阻断 |
+| `gate_project_git_import` | 执行写 | 独立 `confirmed=true`；计划 ID、摘要、幂等键 |
+| `gate_project_git_status` | 读 | 操作者归属的 import ID |
+| `gate_project_git_cancel` | 破坏性写 | 独立 `confirmed=true` 与幂等键 |
 | `gate_project_upload_begin` | 写 | `confirmed=true`；归档大小与 SHA-256 |
 | `gate_project_upload_chunk` | 写操作续接 | Transfer、Offset、Chunk SHA-256、幂等键 |
 | `gate_project_upload_commit` | 写操作续接 | 完整确认会话和源码 SHA-256 |
@@ -146,3 +150,9 @@ Begin 调用为其受限上传 Session 建立确认。Chunk 和 Commit 不接受
 ## 完成报告
 
 记录源码与文件列表 SHA-256、计划指纹、脱敏凭据绑定摘要、工具快照摘要、Transfer/Upload/Build/Deployment/Server ID、分类变化计数、各阶段状态、最终日志游标、幂等重放情况，以及已验证和未验证的验收项。禁止包含 Secret、Base64 Chunk、完整进程输出或内部绝对路径。
+
+## Git 来源与依赖网络
+
+使用 `gate_project_git_plan` 验证 HTTPS 来源，查看解析后的完整 commit 和固定网络版本。`gate_project_git_import` 接收摘要、幂等键与独立拉取确认；状态/取消使用返回的 import ID。成功快照成为普通的归属上传，所选运行模板保存至操作者的加密交付草稿。构建/安装、部署/覆盖、启动及回滚仍保持既有独立边界。
+
+预检、计划、创建及版本化交付草稿可携带 `package_manager_override`，结构为 `{name, version, lockfile}`。锁文件歧义返回 `recommended_choices`；声明或显式选择能唯一确定时，保留其他锁文件并提示。待确认 BuildPlan 可在冻结安装和构建之前包含 `node-toolchain`：计划展示固定官方分发、120 秒准备上限、无生命周期解包及版本/完整性缓存；准备同样使用所选安装代理与 registry。生产尚无安全网络适配器，相关路径明确阻断。启用适配器前先阅读 [Git/网络设计](git-import-network.md)。

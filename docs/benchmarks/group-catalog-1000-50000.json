@@ -1,0 +1,99 @@
+{
+  "synthetic": true,
+  "source_sha": "d99be556ff48e018792268abeb7c5a22c5517476",
+  "benchmark_script_sha256": "b65225f31ff0d9562cb15933b6e551ca0dd4b88c0939d285b59f1850e03f8d66",
+  "python": "3.12.14",
+  "platform": "Linux-6.18.44-x86_64-with-glibc2.41",
+  "group_instances": 1000,
+  "tools": 50000,
+  "tools_per_instance": 50,
+  "input_fields_per_tool": 1,
+  "primary_visible_instances": 999,
+  "primary_visible_tools": 49950,
+  "logical_variants": 50,
+  "subset_instances": 2,
+  "subset_tools": 100,
+  "structural_bytes": 16500000,
+  "group_contract_capacity_bytes": 33554432,
+  "baseline_parent_rss_kib": 67352,
+  "registry_parent_rss_kib": 266756,
+  "index_seconds": 9.324,
+  "memory_sampled_peaks": {
+    "parent_rss_kib": 682676,
+    "validation_child_rss_kib": 27764
+  },
+  "structure_cache_usage": [
+    49950,
+    61388550
+  ],
+  "database_bytes": 124825600,
+  "profiles": {
+    "cold_group_search": {
+      "requests": 1,
+      "median_ms": 6398.798,
+      "p95_ms": 6398.798,
+      "max_response_bytes": 6855,
+      "parent_rss_kib": 527584
+    },
+    "warm_group_search": {
+      "requests": 30,
+      "median_ms": 2006.823,
+      "p95_ms": 2517.21,
+      "max_response_bytes": 6855,
+      "parent_rss_kib": 552488
+    },
+    "narrow_group_search": {
+      "requests": 30,
+      "median_ms": 1948.947,
+      "p95_ms": 2213.005,
+      "max_response_bytes": 378,
+      "parent_rss_kib": 552524
+    },
+    "subset_group_search": {
+      "requests": 30,
+      "median_ms": 166.627,
+      "p95_ms": 228.036,
+      "max_response_bytes": 6855,
+      "parent_rss_kib": 551516
+    },
+    "selected_instance_describe": {
+      "requests": 30,
+      "median_ms": 15.443,
+      "p95_ms": 33.5,
+      "max_response_bytes": 393,
+      "parent_rss_kib": 551516
+    },
+    "public_api_search": {
+      "requests": 30,
+      "median_ms": 2235.131,
+      "p95_ms": 2757.009,
+      "max_response_bytes": 378,
+      "parent_rss_kib": 677628
+    },
+    "public_mcp_describe": {
+      "requests": 30,
+      "median_ms": 33.237,
+      "p95_ms": 38.536,
+      "max_response_bytes": 591,
+      "parent_rss_kib": 674644
+    },
+    "public_mcp_invoke": {
+      "requests": 30,
+      "median_ms": 470.667,
+      "p95_ms": 624.746,
+      "max_response_bytes": 385,
+      "parent_rss_kib": 645452
+    }
+  },
+  "scope_cases": {
+    "hidden_member_query_empty": true,
+    "logical_revocation_hides_directory": true,
+    "old_cursor_rejected": true,
+    "subset_instance_isolation": true,
+    "distinct_pages": true,
+    "original_physical_audit": true,
+    "unselected_peer_calls": 0
+  },
+  "duration_seconds": 238.456,
+  "limits": "Synthetic token/session identities and reviewed contracts; local ASGI and echo peers only. Selected resolution scans 50 tools in one instance; search re-authorizes the bounded full group. RSS is Linux sampled residency, not address space; worker peaks are separate. No real OAuth verification, downstream network, production SLA, sustained load or deployment claim."
+}

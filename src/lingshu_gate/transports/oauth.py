@@ -11,10 +11,12 @@ from __future__ import annotations
 
 from collections.abc import Callable
 from dataclasses import dataclass
-from typing import Protocol
+from typing import Protocol, TypeVar
 from urllib.parse import urlsplit, urlunsplit
 
 from fastapi import FastAPI, HTTPException, Request
+
+_Principal = TypeVar("_Principal")
 
 
 class OAuthAccessTokenVerifier(Protocol):
@@ -83,22 +85,29 @@ class McpOAuthDiscoveryBoundary:
 
 def register_oauth_protected_resource_routes(
     app: FastAPI,
-    boundary: McpOAuthDiscoveryBoundary,
+    boundary: McpOAuthDiscoveryBoundary | Callable[[], McpOAuthDiscoveryBoundary | None],
+    *,
+    include_root: bool = True,
+    metadata_path: str | None = None,
 ) -> None:
     """Register RFC 9728 metadata at root and MCP path-specific locations."""
 
     async def metadata_document() -> dict[str, object]:
-        return boundary.metadata.document()
+        current = boundary() if callable(boundary) else boundary
+        if current is None:
+            raise HTTPException(404, detail="OAuth resource metadata is disabled")
+        return current.metadata.document()
 
+    if include_root:
+        app.add_api_route(
+            "/.well-known/oauth-protected-resource",
+            metadata_document,
+            methods=["GET"],
+            tags=["mcp-authorization"],
+            include_in_schema=False,
+        )
     app.add_api_route(
-        "/.well-known/oauth-protected-resource",
-        metadata_document,
-        methods=["GET"],
-        tags=["mcp-authorization"],
-        include_in_schema=False,
-    )
-    app.add_api_route(
-        boundary.metadata_path,
+        metadata_path or (boundary.metadata_path if isinstance(boundary, McpOAuthDiscoveryBoundary) else "/.well-known/oauth-protected-resource/mcp"),
         metadata_document,
         methods=["GET"],
         tags=["mcp-authorization"],
@@ -107,22 +116,20 @@ def register_oauth_protected_resource_routes(
 
 
 def with_mcp_auth_challenge(
-    require_principal: Callable[[Request], object],
-    boundary: McpOAuthDiscoveryBoundary | None,
-) -> Callable[[Request], object]:
+    require_principal: Callable[[Request], _Principal],
+    boundary: McpOAuthDiscoveryBoundary | Callable[[], McpOAuthDiscoveryBoundary | None] | None,
+) -> Callable[[Request], _Principal]:
     """Wrap an existing auth dependency without changing 403 semantics."""
 
-    def dependency(request: Request):
+    def dependency(request: Request) -> _Principal:
         try:
             return require_principal(request)
         except HTTPException as exc:
             if exc.status_code != 401:
                 raise
             headers = dict(exc.headers or {})
-            headers.setdefault(
-                "WWW-Authenticate",
-                boundary.challenge(request) if boundary is not None else "Bearer",
-            )
+            current = boundary() if callable(boundary) else boundary
+            headers["WWW-Authenticate"] = current.challenge(request) if current is not None else "Bearer"
             raise HTTPException(
                 status_code=exc.status_code,
                 detail=exc.detail,

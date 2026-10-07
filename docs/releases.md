@@ -4,7 +4,19 @@
 
 Lingshu Gate release automation produces directly runnable native packages, a Docker Compose deployment bundle, and tagged-release offline Core images. Every published asset is covered by `SHA256SUMS` and a repository build-provenance attestation.
 
+The current source version is `0.4.0`. Console service and record actions now appear directly as buttons, alongside visible OpenAPI, sign-out, and credential-reference actions. Button groups wrap on narrow screens while existing permission checks, state restrictions, and confirmations remain unchanged. Runtime reporting, Python package metadata, CLI output, and release artifact names derive from the single version source in `src/lingshu_gate/_version.py`.
+
+The source Console also includes the card-based tool catalog with deployment-specific MCP filtering, effective access badges, and direct selection in the invocation editor. Tool discovery adds the request-local `metadata.gate_access` display snapshot described in [operations](operations.md#tool-catalog). This change adds no frontend dependency or database migration.
+
+## 0.3.1 security and release recovery
+
+This source requires PyJWT 2.14.0 or later and locks PyJWT to 2.15.1, including the fix for CVE-2026-102268. The pip requirements export is regenerated from the same uv lock file. Existing RS256-only verification and default-disabled external authentication remain unchanged.
+
+The failed `v0.3.0` tag is retained at its original revision. The corrected source uses a new `v0.3.1` tag; neither a version change nor tag creation alone means release assets have passed validation or been published.
+
 ## Artifact matrix
+
+Source change pending release: external HTTP tool calls recover an expired MCP session with one handshake and discovery attempt. Only published read-only calls with unchanged tool metadata are retried once; other calls receive actionable structured errors. Failed recovery is reflected in runtime health. This is request-driven recovery, not periodic monitoring or an external process restart; deploying the updated source is required.
 
 | Target | Asset | Build architecture |
 |---|---|---|
@@ -21,7 +33,17 @@ Lingshu Gate release automation produces directly runnable native packages, a Do
 
 Do not run an archive built for a different operating system or CPU architecture.
 
+## MCP protocol compatibility
+
+Gate supports `initialize` alongside `2026-07-28` discovery on the same `/mcp` endpoint. Client and downstream connections select their protocol versions independently. Existing bearer tokens, grants, and external data directories are retained. See the [connection contract](mcp-gateway.md#connection-contract).
+
+Downstream HTTP and stdio negotiate automatically when `transport.protocol_version` is omitted or `auto`: prefer `2026-07-28`, then attempt initialization only after a recognized protocol rejection. Explicit `2025-03-26`, `2025-06-18`, `2025-11-25`, and `2026-07-28` values select the initial protocol without discovery fallback; initialization may negotiate another supported version. Downstream stdio also supports `2024-11-05`. These rules apply to every configured service without rewriting its manifest.
+
 ## Native package contents
+
+Preserve the service environment, configuration directory, data directory, and credential keys when switching the executable. For an operator-built upgrade, verify the `BUILD-INFO.json` source revision, test both protocol paths, and retain the previous package for rollback. For uncommitted operator builds, record the dirty source inventory and its digest alongside the base revision; the revision alone does not identify the package.
+
+The Console includes Ant Design and its icon library, resolved by `web/package-lock.json`. It remains a static client served by Gate; no additional frontend application server is required in a release package. Before packaging a Console update, verify the service directory, detail-section loading, dark/light themes, Chinese/English labels, and the existing authorization controls. Include the new frontend dependency licenses in the generated release inventory.
 
 Each native archive contains one top-level directory and:
 
@@ -136,9 +158,23 @@ Use the `arm64` asset and tag on ARM64. Point `LINGSHU_GATE_IMAGE` at the loaded
 
 All tag-only container, offline-image, and publication jobs explicitly install the pinned release Python runtime before executing release scripts. A failed release tag is retained; publish a corrected source revision under a new version instead of moving the old tag.
 
+The `v0.2.1` tag points to the revision whose release failed the historical
+identity check. The recovery source uses `0.2.2` so merging it to `main` starts
+a new verified release. Retrying the old tag still checks its original source;
+the tag is not moved or deleted. See the bounded historical exception in the
+[development guide](local-development.md#identity-check).
+
 Configure the Actions secret `RELEASE_SETTINGS_TOKEN` with a fine-grained GitHub token restricted to this repository and **Administration: read-only** permission. The immutability settings endpoint requires this permission, which the default `GITHUB_TOKEN` cannot provide. This token is used only to read that setting; tag creation and workflow dispatch continue to use `GITHUB_TOKEN`. Missing credentials, denied access, or disabled immutability stop publication before tag creation.
 
-The release workflow runs on pull requests that affect packaging, on manual dispatch, and on `v*` tags. The separate **Publish release** workflow is the repository-approved entry point for a formal release: dispatch it from `main` with the exact `v<version>` tag. It validates the source version, requires repository release immutability before creating a tag, creates or verifies a non-moving tag at that exact `main` revision, and dispatches `release.yml` at the verified tag.
+The release workflow runs on pull requests that affect versioning, dependencies, packaging, startup/runtime environment, identity policy, or the release workflow, on manual dispatch, and on `v*` tags. Ordinary UI and README edits use the shared CI checks without starting the native matrix. Packaging PRs run focused release tests alongside that CI; formal releases retain independent, complete source validation and fresh native builds on all five targets. The separate **Publish release** workflow is the repository-approved entry point for a formal release. It checks every push to `main` and also retains manual dispatch from `main` with an exact `v<version>` tag.
+
+For a `main` push, it parses the sole version source, `src/lingshu_gate/_version.py`, at the push's `before` and `after` revisions. Only a changed version starts publication; ordinary commits and comment-only edits do not. For example, explicitly changing `0.2.0` to `0.2.1` creates `v0.2.1` at that push's exact `after` revision. The workflow does not increment versions. Merging the automation change without changing the source version does not backfill a `v0.2.0` release.
+
+Both entry paths validate the source version, require the publication credentials and repository release immutability, create or verify a non-moving tag at the exact selected `main` revision, and explicitly dispatch `release.yml` at the verified tag. Invalid versions, an unavailable or unverifiable push baseline, a tag pointing to another revision, missing credentials, or disabled immutability stop publication. The tagged workflow still runs all existing packaging, testing, attestation, and registry publication checks.
+
+After a failure, first rerun the original **Publish release** run to preserve its `before` revision and source SHA, or rerun the failed jobs of an existing **Release artifacts** run. Manual **Publish release** dispatch must still match the selected `main` revision and its source version: if the tag already exists and `main` has advanced, dispatching the old tag from the latest `main` is correctly rejected. Source fixes require a new version; later pushes with an unchanged version do not automatically retry a failed release. The same tag at the same commit may be processed again, subject to the existing immutable release and asset checks. This is not an exactly-once publication guarantee, and an existing tag is never moved for a retry.
+
+The **Publish release** entry workflow and the registry publication job in `release.yml` each use `queue: max`. Each concurrency group permits up to 100 pending runs or jobs; GitHub cancels additional entries when the queue is full, so those releases need manual recovery. See [GitHub's concurrency limits](https://docs.github.com/en/actions/how-tos/write-workflows/choose-when-workflows-run/control-workflow-concurrency).
 
 The separate **Container images** workflow is validation-only. Pushes to `main`, pull requests, and manual runs may build and scan Core images, but this workflow does not authenticate to a registry or push any image. Registry publication is reserved for the verified tag path in `release.yml`.
 
@@ -155,14 +191,14 @@ A successful build on a pull request is not a published release. Only a matching
 
 ## Versioning and release checklist
 
-Before creating a tag:
+Before merging a version change to `main` or manually starting publication:
 
 1. update the single source version and user-facing release notes;
 2. run backend, Console, identity, packaging, and container checks;
 3. confirm `LICENSE`, `NOTICE`, and `THIRD_PARTY_NOTICES.md` are current;
 4. confirm English and Simplified Chinese documentation match the artifact behavior;
 5. enable GitHub release immutability for the repository before creating its first release;
-6. dispatch **Publish release** from `main` with the exact `v<version>` tag; the workflow creates or verifies the tag without moving an existing ref, then starts the verified tagged release;
+6. merge the version change to `main` to start **Publish release** automatically; the workflow creates or verifies the tag without moving an existing ref, then starts the verified tagged release; if it fails, follow the recovery rules above;
 7. wait for every matrix job and publication step;
 8. independently download and verify at least one native archive, the Compose bundle, `SHA256SUMS`, and their attestations;
 9. verify the published container digest and release links.
@@ -182,3 +218,17 @@ The version mirror must succeed before GitHub Release creation. Existing version
 After Release assets and their attestations have been verified, stable releases update `docker.io/<DOCKERHUB_USERNAME>/lingshu-gate:latest` only when GitHub identifies that release as its latest stable release. Prereleases and reruns of older releases do not move `latest`. Publication jobs are serialized. A failure updating `latest` leaves the already published version and Release intact and fails the workflow; rerun it to retry verification and synchronization. Registry publication is not an atomic transaction across GHCR, Docker Hub and GitHub Releases, so a failed run may leave a verified version image in one registry. Do not delete or replace published version tags to retry.
 
 The Docker Hub mirror includes BuildKit SBOM/provenance manifests. GitHub asset attestations remain attached to the GitHub Release assets; optional Cosign signing still targets the GHCR digest, not a separate Docker Hub signature.
+
+## 0.4.0 features and boundaries
+
+This version integrates built-in OAuth and the Git/network control plane while retaining API-token and external-IdP verification. The paired READMEs provide complete navigation across the gateway, RBAC, tool governance, credentials, delivery, personal workspace, audit/retention and releases; bilingual screenshots come from synthetic instances of the same candidate code.
+
+Built-in OAuth is off by default and reuses Gate users/RBAC. It provides confidential static clients, S256 PKCE, per-user tool consent, single-use codes, refresh rotation, encrypted RS256 private keys and live revocation checks. Independent public assets do not require exposing Console. The independent registrations for `0006_builtin_oauth`, `0007_auth_session_purpose` and `0008_oauth_interaction_capacity` remain intact. External IdP mode still performs resource verification rather than hosting the provider's authorization flow; neither mode creates tunnels. See [built-in OAuth](builtin-oauth.md) and [external resource access](external-connections.md).
+
+System settings adds Network and dependencies: named encrypted/redacted proxy revisions, separate Git/install defaults, inherit/direct/profile project overrides, separate dependency sources, optimistic locking, reference protection, audit and independent permissions. Git plans join the existing upload/preflight/BuildPlan/build/deploy/start chain with exact commits and bounded snapshots. Node plans recognize explicit npm/pnpm/Yarn Classic versions and locks; unknown or conflicting declarations return actionable errors without silent fallback. `0004_gate_git_network` is retained alongside the OAuth migrations.
+
+**The production safe network executor is not implemented. Real Git acquisition, proxy probes, tool preparation and configured network installs remain blocked.** Docker Core is not relaxed, no engine socket is mounted, and host global settings are not a fallback. Read-only manifest validation executes no version probes; authorized native startup uses only reviewed administrator registrations for pinned tools. Synthetic tests do not certify actual tool download/install or runtime isolation. See [design and support](git-import-network.md), [integration notes](git-network-integration.md) and [the executor gap](git-executor-decision.md).
+
+Review fixes also preserve nested project roots, audit successful Git plans, bound expired-unused-plan cleanup and quotas, retain used-plan provenance, and preserve JSON-RPC reserved negative integer error codes while redacting OAuth secrets. Browser repairs keep the external connection guide reachable, load the project before historical-build deployment and preserve an editable role search. They do not bypass confirmation, expand permissions or replay writes blindly.
+
+The [validation record](release-validation.md) distinguishes static checks, executed automation, synthetic browsers, unverified real networking and release-workflow results. PR native/Compose validation does not establish publication; tags, offline images, SBOM, checksums and GitHub Release must each be confirmed after the existing workflows complete. There is no production deployment, user Git/proxy/SSH, external account or real credential integration.

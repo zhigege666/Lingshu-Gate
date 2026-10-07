@@ -1,4 +1,4 @@
-"""Transport-neutral request metadata for MCP 2026-07-28."""
+"""按协议版本生成传输无关的请求参数。"""
 
 from __future__ import annotations
 
@@ -6,7 +6,7 @@ from typing import Any
 
 from lingshu_gate.protocol.version import (
     MCP_PROTOCOL_VERSION,
-    require_current_protocol_version,
+    resolve_downstream_protocol_version,
 )
 
 PROTOCOL_META_KEY = "io.modelcontextprotocol/protocolVersion"
@@ -24,8 +24,10 @@ def build_request_params(
 ) -> dict[str, Any]:
     """Stamp the required protocol, client identity, and capability metadata."""
 
-    require_current_protocol_version(protocol_version)
+    protocol_version = resolve_downstream_protocol_version(protocol_version, allow_legacy_stdio=True)
     request_params = dict(params or {})
+    if protocol_version != MCP_PROTOCOL_VERSION:
+        return request_params
     current_meta = request_params.get("_meta")
     meta = dict(current_meta) if isinstance(current_meta, dict) else {}
     meta.update(

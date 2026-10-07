@@ -9,24 +9,27 @@ from typing import Any
 from fastapi import Depends, FastAPI, HTTPException, Request
 from fastapi.responses import JSONResponse, Response
 from starlette.concurrency import run_in_threadpool
+from starlette.datastructures import QueryParams
+from pydantic import ValidationError
 
 from lingshu_gate.access_control import AccessControlStore, AccessDeniedError
 from lingshu_gate.auth import AuthPrincipal
 from lingshu_gate.config import Settings
-from lingshu_gate.models import ToolDefinition
+from lingshu_gate.models import ToolDefinition, ToolInvokeResponse
 from lingshu_gate.protocol.capabilities import GatewayCapabilityPolicy
-from lingshu_gate.protocol.version import MCP_PROTOCOL_VERSION
+from lingshu_gate.protocol.version import GATEWAY_HANDSHAKE_VERSIONS, MCP_PROTOCOL_VERSION
 from lingshu_gate.protocol.sdk_adapter import OfficialSdkTypesAdapter
 from lingshu_gate.protocol.tool_namespace import (
     ToolNamespace,
     ToolNamespaceCollisionError,
 )
-from lingshu_gate.registry import ToolNotFoundError, ToolRegistry
+from lingshu_gate.registry import ToolExecutionError, ToolNotFoundError, ToolRegistry
+from lingshu_gate.tool_catalog import CATALOG_TOOL_NAMES, ToolCatalog, catalog_tools
 from lingshu_gate.transports.http import (
     HttpProtocolContext,
     HttpProtocolValidationError,
     resolve_allowed_origins,
-    validate_inbound_http_request,
+    validate_gateway_http_request,
     validate_origin_header,
 )
 from lingshu_gate.transports.oauth import (
@@ -49,7 +52,11 @@ def register_mcp_gateway_route(
     registry: ToolRegistry,
     access_store: AccessControlStore,
     require_viewer: Callable[[Request], AuthPrincipal],
-    oauth_boundary: McpOAuthDiscoveryBoundary | None = None,
+    oauth_boundary: McpOAuthDiscoveryBoundary | Callable[[], McpOAuthDiscoveryBoundary | None] | None = None,
+    *,
+    path: str = "/mcp",
+    metadata_path: str | None = None,
+    catalog: ToolCatalog | None = None,
 ) -> None:
     """注册聚合 MCP 网关；发现与调用都复用统一访问策略。"""
 
@@ -60,9 +67,9 @@ def register_mcp_gateway_route(
     )
     require_mcp_viewer = with_mcp_auth_challenge(require_viewer, oauth_boundary)
     if oauth_boundary is not None:
-        register_oauth_protected_resource_routes(app, oauth_boundary)
+        register_oauth_protected_resource_routes(app, oauth_boundary, include_root=path == "/mcp", metadata_path=metadata_path)
 
-    @app.post("/mcp", tags=["mcp-gateway"])
+    @app.post(path, tags=["mcp-gateway"])
     async def mcp_gateway(
         request: Request,
         principal: AuthPrincipal = Depends(require_mcp_viewer),
@@ -76,7 +83,7 @@ def register_mcp_gateway_route(
             return _error_response(
                 None,
                 exc.code,
-                str(exc),
+                exc.message,
                 settings,
                 status_code=exc.status_code,
                 protocol_version=MCP_PROTOCOL_VERSION,
@@ -108,12 +115,12 @@ def register_mcp_gateway_route(
             return _error_response(None, -32600, "Invalid Request")
 
         try:
-            protocol_context = validate_inbound_http_request(request.headers, message)
+            protocol_context = validate_gateway_http_request(request.headers, message)
         except HttpProtocolValidationError as exc:
             return _error_response(
                 request_id,
                 exc.code,
-                str(exc),
+                exc.message,
                 settings,
                 data=exc.data,
                 status_code=exc.status_code,
@@ -122,6 +129,66 @@ def register_mcp_gateway_route(
 
         if not has_request_id:
             return Response(status_code=202)
+        query_params = QueryParams(request.scope.get("query_string", b""))
+        mode = query_params.get("tool_mode", request.headers.get("x-gate-tool-mode", "direct"))
+        header_mode = request.headers.get("x-gate-tool-mode")
+        if (len(query_params.getlist("tool_mode")) > 1 or len(request.headers.getlist("x-gate-tool-mode")) > 1
+                or mode not in {"direct", "on_demand"} or header_mode is not None and header_mode != mode
+                or mode == "on_demand" and (path != "/mcp" or catalog is None)):
+            return _error_response(request_id, -32602, "Unsupported or conflicting tool_mode", settings,
+                status_code=400, protocol_version=protocol_context.protocol_version)
+        if mode == "on_demand" and method in {"tools/list", "tools/call"}:
+            assert catalog is not None
+            try:
+                catalog.check_namespace()
+                if method == "tools/list":
+                    result = OfficialSdkTypesAdapter.list_tools(catalog_tools(), server_name=SERVER_NAME,
+                        server_version=settings.version, protocol_version=protocol_context.protocol_version)
+                    return _result_response(request_id, result, settings, protocol_version=protocol_context.protocol_version)
+                params = message.get("params")
+                if (not isinstance(params, dict) or params.get("name") not in CATALOG_TOOL_NAMES
+                        or not isinstance(params.get("arguments", {}), dict)):
+                    return _error_response(request_id, -32602, "Select a catalog entry with object arguments", settings,
+                        status_code=400, protocol_version=protocol_context.protocol_version)
+                invocation = await run_in_threadpool(_call_catalog_authenticated, catalog, request,
+                    require_mcp_viewer, params["name"], params.get("arguments", {}))
+            except ValidationError:
+                return _tool_error(request_id, "Invalid catalog parameters", settings,
+                    structured_content={"error": {"code": "catalog_parameters_invalid"}}, protocol_context=protocol_context)
+            except ToolExecutionError as exc:
+                return _tool_error(request_id, exc.message, settings, structured_content=exc.to_payload(),
+                    protocol_context=protocol_context)
+            except AccessDeniedError:
+                return _tool_error(request_id, "The selected tool is unavailable", settings,
+                    structured_content={"error": {"code": "catalog_tool_unavailable"}}, protocol_context=protocol_context)
+            if not invocation.ok:
+                return _tool_error(request_id, invocation.error or "Tool invocation failed", settings,
+                    structured_content=invocation.output or None, protocol_context=protocol_context)
+            result = (_normalize_tool_result(invocation.output) if params["name"] == "gate_tool_invoke" else
+                      {"content": [], "structuredContent": invocation.output, "isError": False})
+            result = OfficialSdkTypesAdapter.call_tool(result, server_name=SERVER_NAME,
+                server_version=settings.version, protocol_version=protocol_context.protocol_version)
+            return _result_response(request_id, result, settings, protocol_version=protocol_context.protocol_version)
+        if protocol_context.protocol_version in GATEWAY_HANDSHAKE_VERSIONS:
+            if method == "initialize":
+                return _result_response(
+                    request_id,
+                    OfficialSdkTypesAdapter.initialize(
+                        capability_policy,
+                        protocol_version=protocol_context.protocol_version,
+                        server_name=SERVER_NAME,
+                        server_version=settings.version,
+                        instructions=GATEWAY_INSTRUCTIONS,
+                        client_capabilities=protocol_context.client_capabilities,
+                    ),
+                    settings,
+                    protocol_version=protocol_context.protocol_version,
+                )
+            if method == "ping":
+                return _result_response(
+                    request_id, {}, settings,
+                    protocol_version=protocol_context.protocol_version,
+                )
         if method == "server/discover":
             return _result_response(
                 request_id,
@@ -136,15 +203,23 @@ def register_mcp_gateway_route(
                 protocol_version=protocol_context.protocol_version,
             )
         if method == "tools/list":
-            definitions = access_store.visible_tools(principal, registry.list_definitions())
+            # 工具发现也包含同步 SQLite 对账和权限读取，复用调用路径的线程池以免阻塞协议事件循环。
             try:
-                tools = [item[1] for item in _gateway_tools(registry, definitions)]
+                # 发现与调用必须使用同一全局命名规则，隐藏的冲突也不能产生可列出却不可调用的工具。
+                namespace = ToolNamespace(registry.list_definitions())
+                definitions = await run_in_threadpool(
+                    access_store.visible_tools, principal,
+                    [entry.definition for entry in namespace.entries],
+                )
+                tools = [item[1] for item in _gateway_tools(registry, definitions, namespace=namespace)]
             except ToolNamespaceCollisionError as exc:
-                return _namespace_collision_response(request_id, exc, settings, protocol_context)
+                return _namespace_collision_response(request_id, exc, settings, protocol_context,
+                    disclose_name=await run_in_threadpool(_can_disclose_collision, exc, registry, access_store, principal))
             result = OfficialSdkTypesAdapter.list_tools(
                 tools,
                 server_name=SERVER_NAME,
                 server_version=settings.version,
+                protocol_version=protocol_context.protocol_version,
             )
             return _result_response(
                 request_id,
@@ -161,6 +236,8 @@ def register_mcp_gateway_route(
                 access_store,
                 principal,
                 protocol_context,
+                request,
+                require_mcp_viewer,
             )
         return _error_response(
             request_id,
@@ -180,6 +257,8 @@ async def _call_tool(
     access_store: AccessControlStore,
     principal: AuthPrincipal,
     protocol_context: HttpProtocolContext,
+    request: Request,
+    require_principal: Callable[[Request], AuthPrincipal],
 ) -> JSONResponse:
     if not isinstance(params, dict):
         return _error_response(
@@ -213,7 +292,8 @@ async def _call_tool(
     try:
         namespace = ToolNamespace(registry.list_definitions())
     except ToolNamespaceCollisionError as exc:
-        return _namespace_collision_response(request_id, exc, settings, protocol_context)
+        return _namespace_collision_response(request_id, exc, settings, protocol_context,
+                    disclose_name=await run_in_threadpool(_can_disclose_collision, exc, registry, access_store, principal))
     definition = namespace.resolve(tool_name)
     if definition is None:
         return _error_response(
@@ -226,9 +306,11 @@ async def _call_tool(
 
     try:
         invocation = await run_in_threadpool(
-            access_store.invoke_tool,
+            _invoke_authenticated_tool,
+            request,
+            require_principal,
+            access_store,
             registry,
-            principal,
             definition.id,
             arguments,
         )
@@ -259,6 +341,7 @@ async def _call_tool(
         result,
         server_name=SERVER_NAME,
         server_version=settings.version,
+        protocol_version=protocol_context.protocol_version,
     )
     return _result_response(
         request_id,
@@ -268,18 +351,38 @@ async def _call_tool(
     )
 
 
+def _invoke_authenticated_tool(request: Request, require_principal: Callable[[Request], AuthPrincipal],
+                               access_store: AccessControlStore, registry: ToolRegistry,
+                               tool_id: str, arguments: dict[str, Any]) -> ToolInvokeResponse:
+    # Re-read the inbound credential in the dispatch thread after body parsing
+    # and thread-pool admission. Never use a handshake/session-cached principal.
+    principal = require_principal(request)
+    return access_store.invoke_tool(registry, principal, tool_id, arguments)
+
+
+def _call_catalog_authenticated(catalog: ToolCatalog, request: Request,
+                                require_principal: Callable[[Request], AuthPrincipal],
+                                name: str, arguments: dict[str, Any]) -> ToolInvokeResponse:
+    return catalog.call(name, arguments, require_principal(request),
+        refresh_principal=lambda: require_principal(request),
+        correlation_id=request.headers.get("x-correlation-id"))
+
+
 def _gateway_tools(
     registry: ToolRegistry,
     definitions: list[ToolDefinition] | None = None,
+    *,
+    namespace: ToolNamespace | None = None,
 ) -> list[tuple[str, dict[str, Any], ToolDefinition]]:
     """把当前 Registry 快照转换为稳定、唯一且符合 MCP 命名约束的工具列表。"""
 
-    namespace = ToolNamespace(
-        definitions if definitions is not None else registry.list_definitions()
-    )
+    namespace = namespace or ToolNamespace(registry.list_definitions())
+    visible_ids = {definition.id for definition in definitions} if definitions is not None else None
     tools: list[tuple[str, dict[str, Any], ToolDefinition]] = []
     for entry in namespace.entries:
         definition = entry.definition
+        if visible_ids is not None and definition.id not in visible_ids:
+            continue
         payload: dict[str, Any] = {
             "name": entry.wire_name,
             "title": definition.name,
@@ -287,7 +390,7 @@ def _gateway_tools(
             "inputSchema": definition.input_schema or {"type": "object", "properties": {}},
             "annotations": _tool_annotations(definition),
         }
-        output_schema = definition.metadata.get("outputSchema") or definition.metadata.get("output_schema")
+        output_schema = definition.metadata.get("outputSchema", definition.metadata.get("output_schema"))
         if isinstance(output_schema, dict):
             payload["outputSchema"] = output_schema
         payload = OfficialSdkTypesAdapter.tool(payload)
@@ -343,6 +446,7 @@ def _tool_error(
             result,
             server_name=SERVER_NAME,
             server_version=settings.version,
+            protocol_version=protocol_context.protocol_version,
         )
     return _result_response(
         request_id,
@@ -390,11 +494,25 @@ def _error_response(
     )
 
 
+def _can_disclose_collision(
+    exc: ToolNamespaceCollisionError, registry: ToolRegistry,
+    access_store: AccessControlStore, principal: AuthPrincipal,
+) -> bool:
+    try:
+        definitions = [registry.get_definition(tool_id) for tool_id in exc.tool_ids]
+        visible = access_store.visible_tools(principal, definitions)
+        return {definition.id for definition in visible} == set(exc.tool_ids)
+    except ToolNotFoundError:
+        return False
+
+
 def _namespace_collision_response(
     request_id: Any,
     exc: ToolNamespaceCollisionError,
     settings: Settings,
     protocol_context: HttpProtocolContext,
+    *,
+    disclose_name: bool = True,
 ) -> JSONResponse:
     return _error_response(
         request_id,
@@ -403,7 +521,7 @@ def _namespace_collision_response(
         settings,
         # Do not disclose the colliding Registry ids: one of them may be hidden
         # from the current principal by access policy.
-        data={"wireName": exc.wire_name},
+        data={"wireName": exc.wire_name} if disclose_name else None,
         status_code=500,
         protocol_version=protocol_context.protocol_version,
     )

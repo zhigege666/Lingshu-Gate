@@ -1,0 +1,5 @@
+.audit-detail-grid { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 12px 24px; }
+.audit-technical { border-top: 1px solid hsl(var(--border)); padding-top: 12px; }
+.audit-technical > summary { cursor: pointer; font-size: 13px; }
+.audit-technical > .audit-detail-grid { padding-block: 12px; }
+@media (max-width: 640px) { .audit-detail-grid { grid-template-columns: minmax(0, 1fr); } }

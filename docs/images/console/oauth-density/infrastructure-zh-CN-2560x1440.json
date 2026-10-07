@@ -1,0 +1,48 @@
+{
+  "source_sha": "fdcb3545aa88d1ccb3a961fca3e2c47055bfb105",
+  "bundle_sha256": "4269bf4f7d36a432a9cce3ce92bbadbbe04cea3a77b886213ea09709e7e2d0e0",
+  "allOAuthApisMocked": true,
+  "fixture_tools": 137,
+  "fixture_mcps": 6,
+  "viewport": {
+    "width": 2560,
+    "height": 1440
+  },
+  "labels": [
+    true,
+    true,
+    true
+  ],
+  "clientBodyHeight": 440,
+  "clientRowHeights": [
+    40,
+    40,
+    40,
+    40,
+    40,
+    40,
+    40,
+    40,
+    40,
+    40,
+    40,
+    40,
+    40,
+    40,
+    40,
+    40,
+    40,
+    40,
+    40,
+    40,
+    40,
+    40,
+    40,
+    40,
+    40
+  ],
+  "completeClientRows": 11,
+  "pageOverflow": 0,
+  "setupSteps": 0,
+  "fixture_clients": 61
+}
