@@ -84,3 +84,13 @@
 .invoke-pending-list li>div{display:flex;flex-wrap:wrap;gap:4px}
 
 .invoke-pending-notice{margin-bottom:14px}
+
+.invoke-workbench { display: grid; grid-template-columns: minmax(0, 1fr); gap: 20px; align-items: start; }
+.invoke-input-pane { min-width: 0; display: flex; flex-direction: column; gap: 16px; }
+.invoke-workbench > .invoke-result { min-width: 0; padding: 16px; border: 1px solid hsl(var(--border)); border-radius: var(--radius); background: hsl(var(--card)); }
+.invoke-workbench .invoke-result-heading { padding-bottom: 12px; border-bottom: 1px solid hsl(var(--border)); }
+@media(min-width:1120px) {
+ .invoke-workbench { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); }
+ .invoke-workbench .invoke-with-reference { grid-template-columns: minmax(0, 1fr); }
+ .invoke-workbench .invoke-reference { padding: 12px 0 0; border-left: 0; border-top: 1px solid hsl(var(--border)); }
+}

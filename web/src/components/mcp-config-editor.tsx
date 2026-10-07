@@ -1,8 +1,10 @@
 import { useEffect, useId, useMemo, useRef, useState, type ReactNode } from "react"
 import { Braces, Plus, Save, ShieldCheck, Trash2 } from "lucide-react"
 import { createPortal } from "react-dom"
+import { Radio } from "antd"
 import { api, type Credential, type ManifestValidationResponse } from "@/api/client"
 import { ValidationErrors } from "@/components/validation-errors"
+import { McpHttpTrustControl } from "@/components/mcp-http-trust-control"
 import { Alert, AlertDescription } from "@/components/ui/alert"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
@@ -11,10 +13,10 @@ import { Label } from "@/components/ui/label"
 import { Switch } from "@/components/ui/switch"
 import { Textarea } from "@/components/ui/textarea"
 import {
-  REDACTED_ENDPOINT, canKeepMaskedEndpoint, changeRuntimeMode, credentialRef, envKeyFromCredential,
+  REDACTED_ENDPOINT, canKeepMaskedEndpoint, changeRuntimeMode, changeStartupPolicy, credentialRef, envKeyFromCredential,
   formatManifestJson, getRecord, isStringMap, parseManifest, patchManifestField,
   precheckManifest, runtimeModeFromManifest, withoutUserCredentialValues,
-  manifestValidationIssues,
+  manifestValidationIssues, manifestValidationStatus,
   type ManifestEditContext, type ManifestLike, type ManifestPrecheckMessageKey, type RuntimeMode,
 } from "@/features/mcp-config/model"
 import type { Locale } from "@/i18n"
@@ -28,6 +30,7 @@ type McpConfigEditorProps = {
   value: string
   onChange: (value: string) => void
   onSave: (nextValue?: string) => void | Promise<void>
+  saveLabel?: string
   onClose?: () => void
   onPendingChange?: (pending: boolean) => void
   onDraftDirtyChange?: (dirty: boolean) => void
@@ -35,14 +38,23 @@ type McpConfigEditorProps = {
   loadCredentials?: boolean
   footerContainer?: HTMLElement | null
   busy: boolean
+  canManageHttpTrust?: boolean
 }
 
 const FORM_COPY = {
   "zh-CN": {
-    localErrors: "保存前本地预检查错误",
     serverId: "服务 ID",
     serverIdDesc: "MCP Server 的唯一标识，只能包含字母、数字、点、下划线和短横线。",
     name: "名称",
+    enabled: "启用服务",
+    enabledDesc: "关闭时不能连接或启动；仅保存不会改变当前运行实例。",
+    permissions: "权限声明",
+    permissionsDesc: "声明供审查使用，不授予用户权限，也不替代工具分类和连接授权。",
+    runtimeSwitchHint: "切换只改运行/传输类型，地址和其它字段保留；不兼容项需明确修正。",
+    restartUnsupported: "此运行方式不支持进程自动重启，请将 restart_policy.enabled 设为 false。",
+    healthRestartUnsupported: "此运行方式不支持重启探活，请将 restart_policy.health_check.enabled 设为 false。",
+    toolchainModeUnsupported: "固定工具链仅支持 managed_process。当前值已保留，请在 JSON 中明确移除或恢复受管方式。",
+    legacyExternalAutoStart: "旧策略不支持自动连接；明确修改自启开关以选择 gate_start_v1。",
     runtimeMode: "运行方式",
     managedStdio: "受管 Stdio",
     externalHttp: "外部 HTTP",
@@ -58,8 +70,10 @@ const FORM_COPY = {
     args: "启动参数",
     env: "环境变量",
     timeoutSeconds: "超时秒数",
-    autoStart: "开机自启",
-    autoStartDesc: "仅记录运行意图；保存与应用配置均不会直接启动服务。",
+    autoStart: "Gate 启动时自动启动",
+    autoStartDesc: "自动启动 MCP 进程并连接。",
+    externalAutoStartDesc: "自动建立连接，不启动远端进程。",
+    legacyStartup: "旧策略：恢复上次状态；修改开关后切换为自动启动策略。",
     restartPolicy: "崩溃重启策略",
     maxAttempts: "最大尝试次数",
     delaySeconds: "初始延迟",
@@ -78,14 +92,17 @@ const FORM_COPY = {
     endpointRequired: "HTTP 运行方式需要填写 transport.endpoint",
     endpointInvalid: "MCP 地址必须是有效的 HTTP/HTTPS URL",
     formatJson: "格式化 JSON",
-    backendPrecheck: "后端预检查",
+    backendPrecheck: "校验配置",
     saveAndApply: "保存配置",
     rawJson: "Manifest JSON",
     rawJsonDesc: "表单修改自动同步到 JSON；未修改的字段和原有值会保留。",
     backendCheck: "后端预检查",
-    notRecommended: "不建议应用",
-    saveWithWarning: "可以保存，但建议确认警告",
-    saveOk: "可以保存",
+    notRecommended: "检查未通过",
+    saveWithWarning: "检查完成",
+    saveOk: "检查通过",
+    diagnostics: "补充检查项",
+    issues: "错误与警告",
+    saveBlocked: "请修正当前草稿的错误后保存。",
     errors: "错误",
     warnings: "警告",
     info: "信息",
@@ -108,10 +125,18 @@ const FORM_COPY = {
     timeoutWarning: "timeout_seconds 建议设置为大于 0 的数字",
   },
   "en-US": {
-    localErrors: "Local precheck errors before saving",
     serverId: "Server ID",
     serverIdDesc: "Unique MCP Server identifier. Use letters, numbers, dots, underscores, and hyphens only.",
     name: "Name",
+    enabled: "Enable service",
+    enabledDesc: "Disabled services cannot connect or start. Saving alone does not change the current runtime.",
+    permissions: "Access declarations",
+    permissionsDesc: "Declarations are for review; they do not grant user access or replace tool classification and connection grants.",
+    runtimeSwitchHint: "Switching changes only runtime/transport types. The endpoint and other fields are retained; resolve incompatible values explicitly.",
+    restartUnsupported: "This runtime does not support process restart; set restart_policy.enabled=false.",
+    healthRestartUnsupported: "This runtime does not support restart health checks; set restart_policy.health_check.enabled=false.",
+    toolchainModeUnsupported: "Pinned toolchains require managed_process. The value is retained; remove it explicitly in JSON or return to a managed runtime.",
+    legacyExternalAutoStart: "The legacy policy does not support automatic connection. Explicitly change the startup switch to select gate_start_v1.",
     runtimeMode: "Runtime Mode",
     managedStdio: "Managed Stdio",
     externalHttp: "External HTTP",
@@ -127,8 +152,10 @@ const FORM_COPY = {
     args: "Arguments",
     env: "Environment Variables",
     timeoutSeconds: "Timeout Seconds",
-    autoStart: "Auto Start",
-    autoStartDesc: "Records runtime intent only; saving or applying does not directly start the server.",
+    autoStart: "Start automatically when Gate starts",
+    autoStartDesc: "Start the MCP process automatically and connect.",
+    externalAutoStartDesc: "Connect automatically without starting a remote process.",
+    legacyStartup: "Legacy policy: restore the last state. Edit the switch to adopt the startup policy.",
     restartPolicy: "Restart Policy",
     maxAttempts: "Max Attempts",
     delaySeconds: "Initial Delay",
@@ -147,14 +174,17 @@ const FORM_COPY = {
     endpointRequired: "HTTP runtime modes require transport.endpoint",
     endpointInvalid: "MCP endpoint must be a valid HTTP/HTTPS URL",
     formatJson: "Format JSON",
-    backendPrecheck: "Backend Precheck",
+    backendPrecheck: "Validate configuration",
     saveAndApply: "Save Config",
     rawJson: "Manifest JSON",
     rawJsonDesc: "Form edits sync to JSON automatically; untouched fields and values are preserved.",
     backendCheck: "Backend Precheck",
-    notRecommended: "Not recommended to apply",
-    saveWithWarning: "Can save, but review warnings first",
-    saveOk: "Can save",
+    notRecommended: "Check failed",
+    saveWithWarning: "Check completed",
+    saveOk: "Check passed",
+    diagnostics: "Additional checks",
+    issues: "Errors and warnings",
+    saveBlocked: "Correct the current draft errors before saving.",
     errors: "Errors",
     warnings: "Warnings",
     info: "Info",
@@ -189,6 +219,9 @@ const PRECHECK_PATHS: Record<ManifestPrecheckMessageKey, string> = {
   launchTypeWarning: "/launch/type", argsWarning: "/launch/args", transportTypeRequired: "/transport/type",
   stdioLaunchError: "/transport/type", streamableEndpointError: "/transport/endpoint",
   endpointRequired: "/transport/endpoint", endpointInvalid: "/transport/endpoint", timeoutWarning: "/timeout_seconds",
+  restartUnsupported: "/restart_policy/enabled",
+  healthRestartUnsupported: "/restart_policy/health_check/enabled", toolchainModeUnsupported: "/launch/toolchain",
+  legacyExternalAutoStart: "/auto_start",
 }
 
 function Field({ id, label, desc, error, children }: {
@@ -196,9 +229,11 @@ function Field({ id, label, desc, error, children }: {
 }) {
   return <div className="manifest-field">
     <Label htmlFor={id}>{label}</Label>
-    {children}
-    {desc && <p id={`${id}-help`} className="text-xs text-muted-foreground">{desc}</p>}
-    {error && <p id={`${id}-error`} className="text-xs text-destructive">{error}</p>}
+    <div className="manifest-field-control">
+      {children}
+      {desc && <p id={`${id}-help`} className="text-xs text-muted-foreground">{desc}</p>}
+      {error && <p id={`${id}-error`} className="text-xs text-destructive">{error}</p>}
+    </div>
   </div>
 }
 
@@ -235,14 +270,14 @@ function StringMapEditor({ value, label, disabled, onChange, zh, id, credentials
     </div>
     {(key || entryValue) && <div className="flex items-center justify-between gap-2"><p className="text-xs text-muted-foreground">{zh ? "点击添加后写入配置；键名的空格和空值会原样保留。" : "Select Add to include this entry; spaces in keys and empty values are preserved."}</p><Button type="button" size="sm" variant="ghost" onClick={() => { setKey(""); setEntryValue(""); setError("") }}>{zh ? "清除待添加项" : "Clear pending entry"}</Button></div>}
     {error && <p role="alert" className="text-xs text-destructive">{error}</p>}
-    {credentials.length > 0 && <details>
-      <summary className="text-xs cursor-pointer">{zh ? "插入凭据引用" : "Insert credential reference"}</summary>
+    {credentials.length > 0 && <section>
+      <h4 className="text-xs font-medium">{zh ? "插入凭据引用" : "Insert credential reference"}</h4>
       <div className="mt-2 flex flex-wrap gap-2">{credentials.map((item) => <Button key={item.id} type="button" variant="outline" size="sm" onClick={() => add(envKeyFromCredential(item.id), credentialRef(item.id))}>{item.id}</Button>)}</div>
-    </details>}
+    </section>}
   </fieldset>
 }
 
-export function McpConfigEditor({ locale, selectedConfigId, value, onChange, onSave, onClose, onPendingChange, onDraftDirtyChange, backendPrecheck = true, loadCredentials = true, footerContainer, busy }: McpConfigEditorProps) {
+export function McpConfigEditor({ locale, selectedConfigId, value, onChange, onSave, onClose, onPendingChange, onDraftDirtyChange, backendPrecheck = true, loadCredentials = true, footerContainer, busy, saveLabel, canManageHttpTrust = false }: McpConfigEditorProps) {
   const c: CopyFn = (key) => FORM_COPY[locale][key]
   const zh = locale === "zh-CN"
   const editorId = useId()
@@ -250,31 +285,40 @@ export function McpConfigEditor({ locale, selectedConfigId, value, onChange, onS
   const [activeTab, setActiveTab] = useState<"form" | "json">("form")
   const [attempted, setAttempted] = useState(false)
   const [touched, setTouched] = useState<Set<string>>(new Set())
-  const [validation, setValidation] = useState<ManifestValidationResponse | null>(null)
+  const [checked, setChecked] = useState<{ response: ManifestValidationResponse; revision: number } | null>(null)
   const [requestError, setRequestError] = useState<string | null>(null)
   const [validating, setValidating] = useState(false)
   const [submitting, setSubmitting] = useState(false)
+  const [trustBusy, setTrustBusy] = useState(false)
   const [credentials, setCredentials] = useState<Credential[]>([])
   const [pendingEntries, setPendingEntries] = useState<Set<string>>(new Set())
   const requestPending = useRef(false)
+  const precheckSequence = useRef(0)
   const latest = useRef({ value, revision: 0 })
   if (latest.current.value !== value) latest.current = { value, revision: latest.current.revision + 1 }
   const revision = latest.current.revision
+  const validation = checked?.revision === revision ? checked.response : null
   const initialContext = useRef<ManifestEditContext>({ existingConfigId: selectedConfigId, originalEndpointMasked: (() => {
     try { return getRecord(parseManifest(value).transport).endpoint === REDACTED_ENDPOINT } catch { return false }
+  })(), originalMaskedMountTargets: (() => {
+    try {
+      const mounts = getRecord(parseManifest(value).launch).mounts
+      return Array.isArray(mounts) ? mounts.filter(mount => getRecord(mount).source === "***").map(mount => String(getRecord(mount).target || "")) : []
+    } catch { return [] }
   })() })
   const parsed = useMemo(() => {
     try { return { manifest: parseManifest(value), error: null, syntax: false } }
     catch (err) { return { manifest: null, syntax: err instanceof SyntaxError, error: err instanceof SyntaxError ? JSON_SYNTAX_MESSAGE[zh ? "zh-CN" : "en"] : (zh ? "配置必须是 JSON 对象。当前输入已保留。" : "The configuration must be a JSON object. Your input has been retained.") } }
   }, [value, zh])
   const manifest = parsed.manifest
-  const locked = busy || validating || submitting
+  const locked = busy || validating || submitting || trustBusy
   const rawChecks = manifest ? precheckManifest(manifest, (key) => key, initialContext.current) : { errors: [], warnings: [] }
   const issues: ValidationIssue[] = [
     ...rawChecks.errors.map((key) => ({ code: key, messageKey: key, message: c(key as CopyKey), severity: "error" as const, source: "domain" as const, path: PRECHECK_PATHS[key as ManifestPrecheckMessageKey], revision })),
     ...rawChecks.warnings.map((key) => ({ code: key, messageKey: key, message: c(key as CopyKey), severity: "warning" as const, source: "domain" as const, path: PRECHECK_PATHS[key as ManifestPrecheckMessageKey], revision })),
   ].filter((issue, index, all) => all.findIndex((other) => other.path === issue.path && other.message === issue.message) === index)
-  const visibleIssues = issues.filter((issue) => attempted || touched.has(issue.path))
+  const visibleIssues = issues.filter((issue) => attempted || touched.has(issue.path)
+    || ["restartUnsupported", "healthRestartUnsupported", "toolchainModeUnsupported", "legacyExternalAutoStart"].includes(issue.code))
   const backendIssues = validation ? manifestValidationIssues(validation.checks, revision) : []
   const mode = manifest ? runtimeModeFromManifest(manifest) : "advanced"
   const launch = getRecord(manifest?.launch)
@@ -290,7 +334,7 @@ export function McpConfigEditor({ locale, selectedConfigId, value, onChange, onS
     if (loadCredentials) void api.credentials().then((items) => { if (active) setCredentials(items) }).catch(() => { /* References can always be entered manually. */ })
     return () => { active = false }
   }, [loadCredentials])
-  useEffect(() => { setValidation(null); setRequestError(null) }, [value])
+  useEffect(() => { setChecked(null); setRequestError(null) }, [value])
   useEffect(() => { onPendingChange?.(locked); return () => onPendingChange?.(false) }, [locked, onPendingChange])
   useEffect(() => { onDraftDirtyChange?.(pendingEntries.size > 0) }, [pendingEntries, onDraftDirtyChange])
 
@@ -349,7 +393,7 @@ export function McpConfigEditor({ locale, selectedConfigId, value, onChange, onS
     const pointer = `/${path.join("/")}`
     const id = fieldId(pointer)
     if (current !== undefined && typeof current !== "boolean") return <Field id={id} label={label}>{unsupported(label)}</Field>
-    return <div className="manifest-toggle"><div><Label htmlFor={id}>{label}</Label>{desc && <p className="text-xs text-muted-foreground">{desc}</p>}</div><Switch id={id} data-manifest-path={pointer} checked={typeof current === "boolean" ? current : fallback} disabled={locked} onCheckedChange={(checked) => set(path, checked)} /></div>
+    return <Field id={id} label={label} desc={desc} error={fieldError(pointer)}><Switch className="manifest-switch" id={id} data-manifest-path={pointer} checked={typeof current === "boolean" ? current : fallback} disabled={locked} aria-invalid={Boolean(fieldError(pointer))} onCheckedChange={(checked) => { touch(pointer); if (pointer === "/auto_start" && manifest) write(changeStartupPolicy(manifest, checked)); else set(path, checked) }} /></Field>
   }
   function mapField(path: string[], label: string, current: unknown, withCredentials = false) {
     const id = fieldId(`/${path.join("/")}`)
@@ -379,7 +423,8 @@ export function McpConfigEditor({ locale, selectedConfigId, value, onChange, onS
   async function check(snapshot: ManifestLike, snapshotRevision: number) {
     const result = await api.validateConfig(withoutUserCredentialValues(snapshot), selectedConfigId || null)
     if (latest.current.revision !== snapshotRevision) return null
-    setValidation(result)
+    precheckSequence.current += 1
+    setChecked({ response: result, revision: snapshotRevision })
     return result
   }
   async function validate(save: boolean) {
@@ -397,50 +442,54 @@ export function McpConfigEditor({ locale, selectedConfigId, value, onChange, onS
     try {
       if (!backendPrecheck) { await onSave(value); return }
       const result = await check(snapshot, snapshotRevision)
-      if (!result || result.summary.errors > 0 || !save) return
+      if (!result || manifestValidationStatus(result) === "error" || !save) return
       await onSave(prettyJson(snapshot))
-    } catch (err) { setRequestError(err instanceof Error ? err.message : String(err)) }
+    } catch (err) { if (latest.current.revision === snapshotRevision) setRequestError(err instanceof Error ? err.message : String(err)) }
     finally { requestPending.current = false; setValidating(false); setSubmitting(false) }
   }
 
+  const saveBlocked = !manifest || visibleIssues.some(issue => issue.severity === "error")
+    || Boolean(validation && manifestValidationStatus(validation) === "error")
   const footer = <div className="manifest-editor-footer">
     {requestError && <Alert variant="destructive"><AlertDescription>{requestError}</AlertDescription></Alert>}
     <div className="manifest-editor-actions">
-      {backendPrecheck && <Button type="button" variant="outline" disabled={locked || !manifest} onClick={() => void validate(false)}><ShieldCheck className="size-4" />{validating ? (zh ? "检查中…" : "Checking…") : c("backendPrecheck")}</Button>}
+      {backendPrecheck && <Button type="button" variant="outline" disabled={locked || !manifest} onClick={() => void validate(false)}><ShieldCheck aria-hidden="true" className="size-4" />{validating ? (zh ? "检查中…" : "Checking…") : c("backendPrecheck")}</Button>}
       <div className="ml-auto flex gap-2">
         {onClose && <Button type="button" variant="ghost" disabled={locked} onClick={onClose}>{zh ? "取消" : "Cancel"}</Button>}
-        <Button type="button" disabled={locked || !manifest} onClick={() => void validate(true)}><Save className="size-4" />{submitting || busy ? (zh ? "保存中…" : "Saving…") : c("saveAndApply")}</Button>
+        <Button type="button" disabled={locked || saveBlocked} aria-describedby={saveBlocked ? fieldId("save-block-reason") : undefined} onClick={() => void validate(true)}><Save aria-hidden="true" className="size-4" />{submitting || busy ? (zh ? "保存中…" : "Saving…") : saveLabel || c("saveAndApply")}</Button>
       </div>
     </div>
+    {saveBlocked && <p id={fieldId("save-block-reason")} className="text-xs text-destructive">{c("saveBlocked")}</p>}
   </div>
 
-  return <div ref={root} className="manifest-editor">
+  return <div ref={root} className={`manifest-editor manifest-editor-${activeTab}`}>
     <div className="manifest-editor-toolbar">
       <div role="group" aria-label={zh ? "编辑模式" : "Editor mode"} className="flex gap-1">
         <Button type="button" size="sm" variant={activeTab === "form" ? "secondary" : "ghost"} aria-pressed={activeTab === "form"} disabled={locked || !manifest} onClick={() => setActiveTab("form")}>{zh ? "表单" : "Form"}</Button>
         <Button type="button" size="sm" variant={activeTab === "json" ? "secondary" : "ghost"} aria-pressed={activeTab === "json"} disabled={locked} onClick={switchToJson}>JSON</Button>
       </div>
-      {activeTab === "json" && <Button type="button" size="sm" variant="ghost" disabled={locked || !manifest} onClick={() => onChange(formatManifestJson(value))}><Braces className="size-4" />{c("formatJson")}</Button>}
+      {activeTab === "json" && <Button type="button" size="sm" variant="ghost" disabled={locked || !manifest} onClick={() => onChange(formatManifestJson(value))}><Braces aria-hidden="true" className="size-4" />{c("formatJson")}</Button>}
     </div>
     <div className="manifest-editor-body">
       {parsed.error && <ValidationErrors title={parsed.syntax ? (zh ? "JSON 语法错误" : "JSON syntax error") : (zh ? "配置格式错误" : "Invalid configuration structure")} issues={[{ code: parsed.syntax ? "invalid_json" : "object_required", messageKey: parsed.syntax ? "invalid_json" : "object_required", message: parsed.error, severity: "error", source: parsed.syntax ? "syntax" : "schema", path: "", revision }]} onSelect={focusIssue} />}
-      {visibleIssues.length > 0 && <ValidationErrors title={c("localErrors")} issues={visibleIssues} onSelect={focusIssue} />}
-      {backendIssues.length > 0 && <ValidationErrors title={c("backendCheck")} issues={backendIssues} onSelect={focusIssue} />}
-      {validation && <ValidationPanel validation={validation} c={c} />}
+      {(visibleIssues.length > 0 || validation) && <ValidationPanel validation={validation} issues={[...backendIssues, ...visibleIssues].filter((issue, index, all) => all.findIndex(other => other.path === issue.path && other.message === issue.message) === index)} onSelect={focusIssue} c={c} />}
       {activeTab === "form" && manifest ? <div className="manifest-form">
         <div className="manifest-form-pair">
           {textField(["id"], c("serverId"), manifest.id, c("serverIdDesc"), Boolean(selectedConfigId))}
           {textField(["name"], c("name"), manifest.name)}
         </div>
         <Field id={fieldId("/launch/type")} label={c("runtimeMode")} desc={mode === "external_http" ? c("externalManagedHint") : undefined}>
-          <select id={fieldId("/launch/type")} data-manifest-path="/launch/type" className="manifest-select" value={mode} disabled={locked || mode === "advanced" || pendingEntries.size > 0} onChange={(event) => {
+          {mode === "advanced" ? <p>{c("advancedMode")}</p> : <Radio.Group id={fieldId("/launch/type")} data-manifest-path="/launch/type" aria-label={c("runtimeMode")} value={mode} disabled={locked || pendingEntries.size > 0} onChange={(event) => {
             const nextMode = event.target.value as RuntimeMode
             write(changeRuntimeMode(manifest, nextMode))
-          }}>
-            <option value="managed_stdio">{c("managedStdio")}</option><option value="external_http">{c("externalHttp")}</option><option value="managed_http">{c("managedHttp")}</option>{mode === "advanced" && <option value="advanced" disabled>{c("advancedMode")}</option>}
-          </select>
+          }} options={[{ value: "managed_stdio", label: c("managedStdio") }, { value: "external_http", label: c("externalHttp") }, { value: "managed_http", label: c("managedHttp") }]} />}
           {mode === "advanced" && unsupported(c("runtimeMode"))}
+          <p className="text-xs text-muted-foreground">{c("runtimeSwitchHint")}</p>
         </Field>
+        <div className="manifest-form-pair manifest-startup-pair">
+          {toggle(["enabled"], c("enabled"), manifest.enabled, true, c("enabledDesc"))}
+          {(managed || mode === "external_http") && toggle(["auto_start"], c("autoStart"), manifest.auto_start, false, `${mode === "external_http" ? c("externalAutoStartDesc") : c("autoStartDesc")} ${manifest.startup_policy !== "gate_start_v1" ? c("legacyStartup") : ""}`.trim())}
+        </div>
         {managed && <>
           <div className="manifest-form-pair">{textField(["launch", "command"], c("command"), launch.command, c("commandDesc"))}{textField(["launch", "cwd"], c("cwd"), launch.cwd, c("cwdDesc"))}</div>
           {arrayField(["launch", "args"], c("args"), launch.args)}
@@ -452,12 +501,22 @@ export function McpConfigEditor({ locale, selectedConfigId, value, onChange, onS
               <Input id={fieldId("/transport/endpoint")} data-manifest-path="/transport/endpoint" aria-invalid={Boolean(fieldError("/transport/endpoint"))} value={typeof transport.endpoint === "string" ? transport.endpoint : ""} disabled={locked} onBlur={() => touch("/transport/endpoint")} onChange={(event) => set(["transport", "endpoint"], event.target.value)} />
               {initialContext.current.originalEndpointMasked && <Button type="button" size="sm" variant="ghost" disabled={locked} onClick={() => set(["transport", "endpoint"], REDACTED_ENDPOINT)}>{zh ? "保留原地址" : "Keep original endpoint"}</Button>}
             </>}
+            <McpHttpTrustControl serverId={typeof manifest.id === "string" ? manifest.id : ""} endpoint={transport.endpoint}
+              draftRevision={revision} precheckSequence={precheckSequence.current} canManage={canManageHttpTrust} locked={locked} zh={zh}
+              approved={Boolean(validation?.checks.some(item => item.name === "transport.http_trust" && item.metadata?.authorized === true))}
+              denied={Boolean(validation?.checks.some(item => item.metadata?.code === "private_http_untrusted"))}
+              onBusyChange={setTrustBusy} onApproved={async () => { await check(manifest, revision) }} />
           </Field>
-          {mapField(["transport", "headers"], zh ? "HTTP 请求头" : "HTTP headers", transport.headers)}
         </>}
         {numberField(["timeout_seconds"], c("timeoutSeconds"), manifest.timeout_seconds, 1, 30)}
+        {http && mapField(["transport", "headers"], zh ? "HTTP 请求头" : "HTTP headers", transport.headers)}
+        {mode === "external_http" && [
+          { path: ["restart_policy", "enabled"], value: policy.enabled, label: c("restartPolicy"), reason: c("restartUnsupported") },
+          { path: ["restart_policy", "health_check", "enabled"], value: health.enabled, label: c("healthCheck"), reason: c("healthRestartUnsupported") },
+        ].filter(item => item.value === true).map(item => <Field key={item.path.join(".")} id={fieldId(`/${item.path.join("/")}`)} label={item.label} error={item.reason}>
+          <Button type="button" data-manifest-path={`/${item.path.join("/")}`} disabled={locked} variant="outline" onClick={() => set(item.path, false)}>{zh ? "明确关闭不支持的配置" : "Turn off the unsupported setting"}</Button>
+        </Field>)}
         {managed && <>
-          {toggle(["auto_start"], c("autoStart"), manifest.auto_start, false, c("autoStartDesc"))}
           <details className="manifest-section" open={Boolean(policy.enabled) || undefined}>
             <summary>{c("restartPolicy")}</summary>
             <div className="manifest-section-content">
@@ -480,7 +539,16 @@ export function McpConfigEditor({ locale, selectedConfigId, value, onChange, onS
             </div>
           </details>
         </>}
-        <p className="text-xs text-muted-foreground">{zh ? "未展示字段原样保留；需要维护时切换 JSON。清空可选数字会移除该字段，使用服务默认值。" : "Unshown fields are preserved; edit them in JSON. Clearing an optional number removes the field and uses the server default."}</p>
+        <details className="manifest-section">
+          <summary>{zh ? "高级配置" : "Advanced configuration"}</summary>
+          <div className="manifest-section-content">
+            <Field id={fieldId("/permissions")} label={c("permissions")} desc={c("permissionsDesc")} error={fieldError("/permissions")}>
+              <pre tabIndex={0} data-manifest-path="/permissions" className="overflow-x-auto whitespace-pre-wrap text-xs">{manifest.permissions === undefined ? (zh ? "未声明" : "Not declared") : prettyJson(manifest.permissions)}</pre>
+              <Button type="button" size="sm" variant="ghost" disabled={locked} onClick={switchToJson}>{zh ? "在 JSON 中编辑权限声明" : "Edit access declarations in JSON"}</Button>
+            </Field>
+            <p className="text-xs text-muted-foreground">{zh ? "未编辑字段保留在草稿中，保存仍须符合后端 schema；清空可选数字会移除该字段，使用服务默认值。" : "Untouched fields remain in the draft; saving still requires the backend schema. Clearing an optional number removes the field and uses the server default."}</p>
+          </div>
+        </details>
       </div> : <Field id={fieldId("json")} label={c("rawJson")} desc={c("rawJsonDesc")}>
         <Textarea id={fieldId("json")} data-manifest-json className="manifest-json" spellCheck={false} value={value} disabled={locked} onChange={(event) => onChange(event.target.value)} />
       </Field>}
@@ -489,10 +557,16 @@ export function McpConfigEditor({ locale, selectedConfigId, value, onChange, onS
   </div>
 }
 
-function ValidationPanel({ validation, c }: { validation: ManifestValidationResponse; c: CopyFn }) {
-  const status = validation.summary.errors > 0 ? c("notRecommended") : validation.summary.warnings > 0 ? c("saveWithWarning") : c("saveOk")
+function ValidationPanel({ validation, issues, onSelect, c }: { validation: ManifestValidationResponse | null; issues: ValidationIssue[]; onSelect: (issue: ValidationIssue) => void; c: CopyFn }) {
+  const backendState = validation ? manifestValidationStatus(validation) : "success"
+  const errors = Math.max(backendState === "error" ? 1 : 0, validation?.summary.errors || 0, issues.filter(issue => issue.severity === "error").length)
+  const warnings = Math.max(validation?.summary.warnings || 0, issues.filter(issue => issue.severity === "warning").length)
+  const state = errors > 0 ? "error" : warnings > 0 || backendState === "warning" ? "warning" : "success"
+  const status = state === "error" ? `${c("notRecommended")} · ${errors} ${c("errors")}` : state === "warning" ? `${c("saveWithWarning")} · ${warnings} ${c("warnings")}` : c("saveOk")
+  const additional = validation?.checks.filter(check => check.severity === "ok" || check.severity === "info") || []
   return <div className="manifest-validation" role="status">
-    <div className="flex flex-wrap items-center justify-between gap-2"><span className="text-sm">{c("backendCheck")}: {status}</span><Badge variant={validation.summary.errors > 0 ? "danger" : validation.summary.warnings > 0 ? "warning" : "success"}>{c("errors")} {validation.summary.errors} · {c("warnings")} {validation.summary.warnings}</Badge></div>
-    <details className="mt-2 text-xs"><summary className="cursor-pointer">{c("info")} / {c("ok")}</summary><ul className="mt-2 space-y-1">{validation.checks.filter((check) => check.severity === "ok" || check.severity === "info").map((check, i) => <li key={i}>{check.name} · {check.message}</li>)}</ul></details>
+    <Badge variant={state === "error" ? "danger" : state === "warning" ? "warning" : "success"}>{status}</Badge>
+    {issues.length > 0 && <ValidationErrors title={c("issues")} issues={issues} onSelect={onSelect} />}
+    {state !== "error" && additional.length > 0 && <details className="mt-2 text-xs"><summary className="cursor-pointer">{c("diagnostics")}</summary><ul className="mt-2 space-y-1">{additional.map((check, i) => <li key={i}>{check.name} · {check.message}</li>)}</ul></details>}
   </div>
 }

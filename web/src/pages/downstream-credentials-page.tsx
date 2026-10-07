@@ -1,3 +1,8 @@
+import { Select as SearchSelect } from "antd"
+import { FilterRadio } from "@/components/filter-radio"
+import { downstreamEmptyState, filterDownstreamCredentials } from "@/features/downstream-credential-filters"
+import { RemainingList, ListPagination, ListViewport, useListPage } from "@/components/list-pagination"
+import "./downstream-credentials-page.css"
 import { usePageRefresh } from "@/components/page-refresh"
 import { useEffect, useMemo, useRef, useState } from "react"
 import { KeyRound, ShieldAlert } from "lucide-react"
@@ -5,7 +10,7 @@ import { api, type UserDownstreamCredential } from "@/api/client"
 import { FormDialog } from "@/components/form-dialog"
 import { useDraftCloseGuard } from "@/components/use-draft-close-guard"
 import { useConfirm } from "@/components/confirm-dialog"
-import { PageHeader } from "@/components/page-shell"
+import { PageHeader, PageToolbar } from "@/components/page-shell"
 import { Alert, AlertDescription } from "@/components/ui/alert"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
@@ -21,14 +26,14 @@ import { TableEmptyRow } from "@/pages/page-utils"
 const copy = {
   "zh-CN": {
     eyebrow: "安全与访问 · 下游身份",
-    title: "我的下游凭据",
+    title: "我的服务凭据",
     description: "管理访问下游 MCP 服务所需的个人 PAT、API Key 或令牌；它们与登录 Lingshu Gate 的 API Token 完全分离。",
     configured: "已配置",
     missing: "缺失必填",
-    httpMcp: "可用 HTTP MCP",
+    httpMcp: "涉及 MCP 服务",
     insecure: "当前通过 HTTP 访问，个人秘密提交已禁用；请启用 HTTPS 后再绑定凭据。",
     service: "MCP 服务",
-    slot: "凭据槽位",
+    slot: "凭据用途",
     injection: "注入方式",
     readonly: "只读",
     accessMode: "访问方式",
@@ -61,10 +66,10 @@ const copy = {
     description: "Manage personal PATs, API keys, and tokens used by downstream MCP services. They are separate from Lingshu Gate API tokens.",
     configured: "Configured",
     missing: "Required missing",
-    httpMcp: "HTTP MCP available",
+    httpMcp: "MCP services",
     insecure: "This console is using HTTP. Secret submission is disabled until HTTPS is enabled.",
     service: "MCP service",
-    slot: "Credential slot",
+    slot: "Credential purpose",
     injection: "Injection",
     readonly: "Read only",
     accessMode: "Access mode",
@@ -109,6 +114,15 @@ export function DownstreamCredentialsPage({ locale, t }: { locale: Locale; t: TF
     if (typeof window === "undefined") return false
     return window.location.protocol === "https:" || ["localhost", "127.0.0.1", "::1"].includes(window.location.hostname)
   }, [])
+
+  const [query, setQuery] = useState("")
+  const [serverFilter, setServerFilter] = useState("")
+  const [statusFilter, setStatusFilter] = useState("all")
+  const [requiredFilter, setRequiredFilter] = useState("all")
+  const serviceOptions = useMemo(() => [...new Map(credentials.map(item => [item.server_id, {value:item.server_id,label:`${item.server_name} · ${item.server_id}`}])).values()], [credentials])
+  const filteredRecords = useMemo(() => filterDownstreamCredentials(credentials, {query,server:serverFilter,status:statusFilter,required:requiredFilter}), [credentials, query, serverFilter, statusFilter, requiredFilter])
+  const paging = useListPage(filteredRecords, JSON.stringify([query,serverFilter,statusFilter,requiredFilter]))
+  const emptyState = downstreamEmptyState(credentials.length, busy, Boolean(error))
 
   usePageRefresh(load, busy)
   useEffect(() => { void load() }, [])
@@ -174,15 +188,19 @@ export function DownstreamCredentialsPage({ locale, t }: { locale: Locale; t: TF
 
   const configuredCount = credentials.filter((item) => item.configured).length
   const missingCount = credentials.filter((item) => item.required && !item.configured).length
-  const serverCount = new Set(credentials.map((item) => item.server_id)).size
 
   return (
-    <div className="flex flex-col gap-4">
-      <PageHeader title={c.title} description={c.description} helpLabel={t("pageHelp")}
+    <div className="downstream-credentials-page flex flex-col gap-4">
+      <PageHeader closeLabel={t("close")} title={c.title} description={c.description} helpLabel={t("pageHelp")}
+        toolbar={<PageToolbar query={query} onQueryChange={setQuery} placeholder={locale === "zh-CN" ? "搜索服务、凭据用途或认证头" : "Search service, purpose or header"} resultCount={filteredRecords.length} resultLabel={locale === "zh-CN" ? "项凭据" : "credential slots"} clearLabel={t("clearSearch")} resetFilters={{ label: t("resetFilters"), disabled: !query && !serverFilter && statusFilter === "all" && requiredFilter === "all", onReset: () => { setQuery(""); setServerFilter(""); setStatusFilter("all"); setRequiredFilter("all") } }}>
+          <SearchSelect className="min-w-[200px] max-w-full" showSearch optionFilterProp="label" aria-label={c.service} value={serverFilter} onChange={setServerFilter} options={[{value:"",label:locale === "zh-CN" ? "全部 MCP 服务" : "All MCP services"},...serviceOptions]} />
+          <FilterRadio label={c.status} value={statusFilter} onChange={setStatusFilter} options={[{value:"all",label:t("all")},{value:"configured",label:`${c.configured} (${configuredCount})`},{value:"missing",label:`${c.missing} (${missingCount})`},{value:"unconfigured",label:c.unconfigured}]} />
+          <FilterRadio label={locale === "zh-CN" ? "是否必填" : "Requirement"} value={requiredFilter} onChange={setRequiredFilter} options={[{value:"all",label:t("all")},{value:"required",label:c.required},{value:"optional",label:c.optional}]} />
+        </PageToolbar>}
         helpContent={<><p className="font-medium">{c.technicalTitle}</p><p>{c.httpHint}</p><p>{c.stdioHint}</p></>}
-        stats={[{ label: c.configured, value: configuredCount, tone: "success" }, { label: c.missing, value: missingCount, tone: missingCount ? "warning" : "default" }, { label: c.httpMcp, value: serverCount }]}
       />
 
+      <p className="text-sm text-muted-foreground">{locale === "zh-CN" ? "用于以你的身份访问下游 MCP，不能用于登录 Gate。已配置仅表示秘密已保存，不代表下游验证成功。" : "Used for your identity at downstream MCP services, not for signing in to Gate. Configured means a secret is stored, not that downstream authentication succeeded."}</p>
       {error && <Alert variant="destructive" role="alert"><AlertDescription>{error}</AlertDescription><Button variant="outline" size="sm" className="mt-2" disabled={busy} onClick={() => void load()}>{t("refresh")}</Button></Alert>}
       {!secureTransport && (
         <Alert className="border-warning/50 bg-warning/10 text-warning">
@@ -193,32 +211,29 @@ export function DownstreamCredentialsPage({ locale, t }: { locale: Locale; t: TF
 
       <Card>
         <CardContent className="p-0">
-          <div className="overflow-x-auto">
-            <Table>
+          <RemainingList className="">
+            <ListViewport viewport={paging.viewport} label={t("toolShowing")}>
+            <Table className="downstream-credentials-table">
               <TableHeader>
                 <TableRow>
                   <TableHead>{c.service}</TableHead>
                   <TableHead>{c.slot}</TableHead>
-                  <TableHead>{c.injection}</TableHead>
-                  <TableHead>{c.required}</TableHead>
                   <TableHead>{c.status}</TableHead>
                   <TableHead>{c.lastUsed}</TableHead>
                   <TableHead>{t("actions")}</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {credentials.length === 0 ? <TableEmptyRow colSpan={7} title={busy ? t("loadingData") : error ? t("error") : c.empty} /> : credentials.map((credential) => (
+                {filteredRecords.length === 0 ? <TableEmptyRow colSpan={5} title={emptyState === "empty" ? c.empty : t(emptyState)} /> : paging.items.map((credential) => (
                   <TableRow key={`${credential.server_id}:${credential.id}`}>
                     <TableCell><div className="font-medium">{credential.server_name}</div><code className="text-xs text-muted-foreground">{credential.server_id}</code></TableCell>
-                    <TableCell><div className="font-medium">{credential.name}</div><div className="max-w-xs text-xs text-muted-foreground">{credential.description || credential.id}</div></TableCell>
-                    <TableCell><Badge variant="outline">{credential.injection.name} Header</Badge></TableCell>
-                    <TableCell><Badge variant={credential.required ? "outline" : "secondary"}>{credential.required ? c.required : c.optional}</Badge></TableCell>
+                    <TableCell><div className="font-medium">{credential.name}</div><div className="max-w-xs text-xs text-muted-foreground">{credential.description || credential.id}</div><div className="mt-1 text-xs text-muted-foreground">{c.injection}: {credential.injection.name} · HTTP Header</div></TableCell>
                     <TableCell>
                       <Badge variant={credential.configured ? "success" : credential.required ? "warning" : "secondary"}>
                         {credential.configured ? c.configured : credential.required ? c.missing : c.unconfigured}
-                      </Badge>
+                      </Badge><div className="mt-1 text-xs text-muted-foreground">{credential.required ? c.required : c.optional}</div>
                     </TableCell>
-                    <TableCell className="whitespace-nowrap text-xs text-muted-foreground">{credential.last_used_at ? formatDateTime(credential.last_used_at) : "-"}</TableCell>
+                    <TableCell className="whitespace-nowrap text-xs text-muted-foreground"><span className="downstream-mobile-label">{c.lastUsed}: </span>{credential.last_used_at ? formatDateTime(credential.last_used_at) : "-"}</TableCell>
                     <TableCell>
                       <div className="flex gap-2">
                         <Button disabled={busy} size="sm" variant="ghost" onClick={() => openBinding(credential)}>{credential.configured ? c.replace : c.bind}</Button>
@@ -229,7 +244,9 @@ export function DownstreamCredentialsPage({ locale, t }: { locale: Locale; t: TF
                 ))}
               </TableBody>
             </Table>
-          </div>
+            </ListViewport>
+            <ListPagination paging={paging} t={t} />
+          </RemainingList>
         </CardContent>
       </Card>
 

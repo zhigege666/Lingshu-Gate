@@ -1,3 +1,6 @@
+import { useRemainingViewport } from "@/components/use-remaining-viewport"
+import "./maintenance-lists.css"
+import { ListPagination, ListViewport, useListPage } from "@/components/list-pagination"
 import { usePageRefresh } from "@/components/page-refresh"
 import { useEffect, useMemo, useRef, useState } from "react"
 import { KeyRound, Plus } from "lucide-react"
@@ -29,6 +32,7 @@ const emptyForm: CredentialSaveRequest = {
 
 export function CredentialsPage({ locale, t }: { locale: Locale; t: TFunction }) {
   const c = locale === "zh-CN" ? { secretMode: "凭据值处理", keep: "保持现有凭据值", replace: "替换凭据值", keepHint: "保存名称或说明时将保留现有秘密。旧秘密不会显示。", replaceHint: "输入新的凭据值；保存失败时保留本次输入以便重试。" } : { secretMode: "Credential value", keep: "Keep current secret", replace: "Replace secret", keepHint: "Saving the name or description keeps the existing secret. Its value is never shown.", replaceHint: "Enter a new secret. A failed save keeps this attempt's input for retry." }
+  const remainingViewport = useRemainingViewport()
   const [credentials, setCredentials] = useState<Credential[]>([])
   const [selectedId, setSelectedId] = useState("")
   const [editorOpen, setEditorOpen] = useState(false)
@@ -53,6 +57,8 @@ export function CredentialsPage({ locale, t }: { locale: Locale; t: TFunction })
     return credentials.filter((credential) => `${credential.id} ${credential.name} ${credential.description || ""}`.toLowerCase().includes(needle))
   }, [credentials, query])
 
+  const paging = useListPage(filteredCredentials, query)
+
   usePageRefresh(load, busy)
   useEffect(() => { void load() }, [])
 
@@ -68,11 +74,9 @@ export function CredentialsPage({ locale, t }: { locale: Locale; t: TFunction })
     }
   }
 
-  function edit(credential: Credential, menuItem: HTMLButtonElement) {
-    // 菜单项打开弹窗后会卸载，关闭时应回到仍在表格中的菜单按钮。
-    const menuId = menuItem.closest('[role="menu"]')?.id
-    editorReturnFocus.current = Array.from(document.querySelectorAll<HTMLButtonElement>('button[aria-controls]'))
-      .find(button => button.getAttribute("aria-controls") === menuId) || createTrigger.current
+  function edit(credential: Credential, trigger: HTMLButtonElement) {
+    // 编辑操作常驻行内，关闭弹窗后回到本次编辑按钮。
+    editorReturnFocus.current = trigger
     if (busy) return
     setFormError(null)
     setShowValidation(false)
@@ -160,8 +164,8 @@ export function CredentialsPage({ locale, t }: { locale: Locale; t: TFunction })
   const valueInvalid = (!selectedId || secretMode === "replace") && (form.value || "").trim() === ""
 
   return (
-    <div className="flex flex-col gap-4">
-      <PageHeader
+    <div ref={remainingViewport} className="maintenance-list-page flex flex-col gap-4">
+      <PageHeader closeLabel={t("close")}
         eyebrow={t("secretsCenter")}
         title={t("credentials")}
         description={t("credentialsDesc")}
@@ -182,27 +186,30 @@ export function CredentialsPage({ locale, t }: { locale: Locale; t: TFunction })
         </form>
       </FormDialog>
 
-        <Card>
-          <CardContent className="overflow-x-auto p-3 md:p-4">
-            <Table>
+        <Card className="maintenance-list-card">
+          <CardContent className="maintenance-list-content p-3 md:p-4">
+            <ListViewport viewport={paging.viewport} label={t("toolShowing")}>
+            <Table className="maintenance-table maintenance-credential-table">
               <TableHeader><TableRow><TableHead>{t("id")}</TableHead><TableHead>{t("name")}</TableHead><TableHead>{t("description")}</TableHead><TableHead>{t("updatedAt")}</TableHead><TableHead>{t("actions")}</TableHead></TableRow></TableHeader>
               <TableBody>
-                {filteredCredentials.length === 0 ? <TableEmptyRow colSpan={5} title={busy ? t("loadingData") : error ? t("error") : t("noData")} /> : filteredCredentials.map((credential) => <TableRow key={credential.id} className={selectedId === credential.id ? "cursor-pointer bg-accent/50" : "cursor-pointer"} onClick={() => showDetail(credential)}>
-                  <TableCell><button type="button" className="text-left text-primary underline-offset-4 hover:underline focus-visible:underline" onClick={() => showDetail(credential)}><code>{credential.id}</code></button><div className="text-xs text-muted-foreground">{credential.value_masked}</div></TableCell>
+                {filteredCredentials.length === 0 ? <TableEmptyRow colSpan={5} title={busy ? t("loadingData") : error ? t("error") : query.trim() ? t("noMatchingRecords") : t("noData")} /> : paging.items.map((credential) => <TableRow key={credential.id} className={selectedId === credential.id ? "cursor-pointer bg-accent/50" : "cursor-pointer"} onClick={() => showDetail(credential)}>
+                  <TableCell><button type="button" className="text-left text-primary underline-offset-4 hover:underline focus-visible:underline" onClick={() => showDetail(credential)}><code>{credential.id}</code></button><div className="text-xs text-muted-foreground">{credential.value_masked}</div><div className="maintenance-row-summary">{credential.name}</div></TableCell>
                   <TableCell>{credential.name}</TableCell>
                   <TableCell>{credential.description || "-"}</TableCell>
                   <TableCell className="whitespace-nowrap text-xs">{formatDateTime(credential.updated_at)}</TableCell>
-                  <TableCell onClick={(event) => event.stopPropagation()}><ActionMenu label={t("actions")}><ActionMenuItem disabled={busy} onClick={(event) => edit(credential, event.currentTarget)}>{t("edit")}</ActionMenuItem><ActionMenuItem onClick={() => void copyReference(credential.id)}>{t("copyRef")}</ActionMenuItem><ActionMenuItem onClick={() => showDetail(credential)}>{t("detail")}</ActionMenuItem><ActionMenuItem destructive disabled={busy} onClick={() => void remove(credential.id)}>{t("delete")}</ActionMenuItem></ActionMenu></TableCell>
+                  <TableCell onClick={(event) => event.stopPropagation()}><ActionMenu inline label={t("actions")}><ActionMenuItem disabled={busy} onClick={(event) => edit(credential, event.currentTarget)}>{t("edit")}</ActionMenuItem><ActionMenuItem onClick={() => void copyReference(credential.id)}>{t("copyRef")}</ActionMenuItem><ActionMenuItem onClick={() => showDetail(credential)}>{t("detail")}</ActionMenuItem><ActionMenuItem destructive disabled={busy} onClick={() => void remove(credential.id)}>{t("delete")}</ActionMenuItem></ActionMenu></TableCell>
                 </TableRow>)}
               </TableBody>
             </Table>
+            </ListViewport>
+            <ListPagination paging={paging} t={t} />
           </CardContent>
         </Card>
 
       <Dialog open={detail !== null} onOpenChange={(open) => { if (!open) setDetail(null) }}>
-        <DialogContent className="max-w-2xl">
+        <DialogContent closeLabel={t("close")} className="max-w-2xl">
           <DialogHeader><DialogTitle>{detail?.title || ""}</DialogTitle><DialogDescription>{t("credentialResultDesc")}</DialogDescription></DialogHeader>
-          <DialogBody><JsonPanel data={detail?.body} maxHeight="max-h-[60vh]" /></DialogBody>
+          <DialogBody><JsonPanel copyLabel={t("copy")} data={detail?.body} maxHeight="max-h-[60vh]" /></DialogBody>
         </DialogContent>
       </Dialog>
       {confirmDialog}

@@ -72,11 +72,37 @@ jobs:
           uv run --no-sync mypy
           uv run --no-sync pytest -q
 
+      - name: Install browser for isolated smoke
+        working-directory: web
+        run: timeout 180 npx playwright install --with-deps chromium
+
+      - name: Test Console against isolated real backend
+        run: timeout --kill-after=5 180 npm --prefix web run e2e:smoke
+
+      - name: Retain synthetic browser failure evidence
+        if: failure()
+        uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6
+        with:
+          name: browser-failure-${{ github.sha }}
+          path: |
+            web/test-results
+            web/playwright-report
+          if-no-files-found: ignore
+          retention-days: 3
+
       - name: Share tested Console with compatibility jobs
         uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6
         with:
           name: ci-console-${{ github.sha }}
           path: src/lingshu_gate/static/console
+          if-no-files-found: error
+          retention-days: 1
+
+      - name: Share built OAuth assets with compatibility jobs
+        uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6
+        with:
+          name: ci-oauth-${{ github.sha }}
+          path: src/lingshu_gate/static/oauth
           if-no-files-found: error
           retention-days: 1
 
@@ -100,6 +126,12 @@ jobs:
         with:
           name: ci-console-${{ github.sha }}
           path: src/lingshu_gate/static/console
+
+      - name: Download OAuth assets from this workflow run
+        uses: actions/download-artifact@37930b1c2abaa49bbe596cd826c3c89aef350131 # v7
+        with:
+          name: ci-oauth-${{ github.sha }}
+          path: src/lingshu_gate/static/oauth
 
       - name: Set up Node.js for packaging script tests
         uses: actions/setup-node@a0853c24544627f65ddf259abe73b1d18a591444 # v5

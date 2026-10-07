@@ -9,18 +9,20 @@ from typing import Any, Literal
 
 from pydantic import ValidationError
 
+from lingshu_gate.application.manifest_edit import restore_masked_mounts
 from lingshu_gate.config import Settings
 from lingshu_gate.credential_refs import extract_credential_refs, scan_env_credential_refs
 from lingshu_gate.credential_store import CredentialStore
-from lingshu_gate.endpoint_security import REDACTED_ENDPOINT, redact_endpoint
+from lingshu_gate.endpoint_security import REDACTED_ENDPOINT, redact_endpoint, private_http_origin
 from lingshu_gate.mcp_container import (
     resolve_container_mount_source,
     resolve_docker_binary,
 )
 from lingshu_gate.mcp_config_store import McpConfigStore
-from lingshu_gate.mcp_manifest import McpServerManifest
+from lingshu_gate.mcp_manifest import McpServerManifest, manifest_runtime_conflicts
 from lingshu_gate.mcp_runtime_cache import McpRuntimeCacheResolver
 from lingshu_gate.redaction import redact_validation_errors
+from lingshu_gate.runtime_toolchain import RuntimeToolchainError, inspect_runtime_toolchain
 
 CheckSeverity = Literal["error", "warning", "info", "ok"]
 SENSITIVE_ENV_PATTERN = ("KEY", "TOKEN", "SECRET", "PASSWORD", "PASS", "CREDENTIAL", "AUTH", "COOKIE")
@@ -62,6 +64,12 @@ def validate_mcp_manifest(settings: Settings, config_store: McpConfigStore, mani
         return _response(manifest_id or None, checks)
 
     credential_store = CredentialStore(settings.data_dir)
+    try:
+        config_store.check_http_trust(manifest)
+        if manifest.transport.endpoint and private_http_origin(manifest.transport.endpoint):
+            checks.append(_check("transport.http_trust", "ok", "This exact private HTTP origin is administrator-authorized for this MCP service", {"authorized": True}))
+    except ValueError as exc:
+        checks.append(_check("transport.endpoint", "error", str(exc), {"code": "private_http_untrusted"}))
     _check_duplicate(config_store, manifest, expected_id, checks)
     _check_launch(settings, manifest, checks)
     _check_transport(manifest, checks)
@@ -70,8 +78,11 @@ def validate_mcp_manifest(settings: Settings, config_store: McpConfigStore, mani
     _check_timeout(manifest, checks)
     _check_permissions(manifest, checks)
     _check_env(manifest, credential_store, checks)
+    conflicts = manifest_runtime_conflicts(validation_data)
+    checks.extend(_check(path, "error", message) for path, message in conflicts.items())
     _check_auto_start(manifest, checks)
-    _check_restart_policy(manifest, checks)
+    if not any(path.startswith("restart_policy.") for path in conflicts):
+        _check_restart_policy(manifest, checks)
 
     return _response(manifest.id, checks)
 
@@ -102,11 +113,17 @@ def _check_launch(
         command = launch.command or ""
         if not command:
             checks.append(_check("launch.command", "error", "managed_process requires launch.command"))
-        else:
+        elif not launch.toolchain:
             resolved = shutil.which(command)
             severity: CheckSeverity = "ok" if resolved else "warning"
             checks.append(_check("launch.command", severity, f"command={command}" + (f" -> {resolved}" if resolved else " not found in current PATH"), {"command": command, "resolved": resolved}))
-        if launch.command in {"npx", "npm"}:
+        if launch.toolchain:
+            try:
+                inspect_runtime_toolchain(launch, settings)
+                checks.append(_check("launch.toolchain", "warning", "Administrator tool registrations are available; exact versions are unverified until authorized startup. Validation executes no program.", {"manager": launch.toolchain.manager, "version": launch.toolchain.version, "version_verified": False}))
+            except RuntimeToolchainError as exc:
+                checks.append(_check("launch.toolchain", "error", str(exc), {"code": exc.code}))
+        if launch.command in {"npx", "npm"} and not launch.toolchain:
             package_name = _first_npx_package(launch.args)
             if launch.package and launch.package.name:
                 package_name = launch.package.name
@@ -288,8 +305,10 @@ def _check_env(manifest: McpServerManifest, credential_store: CredentialStore, c
 
 
 def _check_auto_start(manifest: McpServerManifest, checks: list[dict[str, Any]]) -> None:
-    if manifest.launch.type == "external" and manifest.auto_start:
-        checks.append(_check("auto_start", "warning", "external servers cannot be auto-started by Gate"))
+    if manifest.startup_policy == "legacy_restore":
+        checks.append(_check("startup_policy", "info", "Legacy policy restores the last saved runtime intent. Explicitly change the startup switch to select gate_start_v1."))
+    elif manifest.launch.type == "external" and manifest.auto_start:
+        checks.append(_check("auto_start", "info", "Gate startup connects to the existing external service; it does not start a remote process."))
     elif manifest.auto_start and manifest.launch.command in {"npx", "npm"}:
         checks.append(_check("auto_start", "info", "auto_start is enabled for dynamic npm/npx server; first startup may be slower"))
     else:
@@ -383,15 +402,20 @@ def _restore_existing_endpoint_mask(
 ) -> dict[str, Any]:
     restored = dict(manifest_data)
     transport = dict(restored.get("transport") or {})
-    if transport.get("endpoint") != REDACTED_ENDPOINT or not expected_id:
+    if not expected_id:
         return restored
     try:
         existing = config_store.load_manifest(expected_id)
     except (KeyError, ValueError):
         return restored
-    transport["endpoint"] = existing.transport.endpoint
+    if transport.get("endpoint") == REDACTED_ENDPOINT:
+        transport["endpoint"] = existing.transport.endpoint
     restored["transport"] = transport
-    return restored
+    try:
+        return restore_masked_mounts(restored, existing.model_dump(mode="json", exclude={"manifest_path"}))
+    except ValueError:
+        # Let schema validation report the invalid masked source safely.
+        return restored
 
 
 def _check(name: str, severity: CheckSeverity, message: str, metadata: dict[str, Any] | None = None) -> dict[str, Any]:

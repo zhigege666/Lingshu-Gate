@@ -6,7 +6,12 @@
 .manifest-editor-body > * + * { margin-top: 1rem; }
 .manifest-form { display: flex; flex-direction: column; gap: 1rem; }
 .manifest-form-pair { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 1rem; }
-.manifest-field { display: flex; flex-direction: column; gap: .375rem; min-width: 0; }
+.manifest-field { display: grid; grid-template-columns: 17rem minmax(0, 1fr); align-items: start; gap: .75rem; min-width: 0; }
+.manifest-field > label { white-space: nowrap; min-height: 2.25rem; display: flex; align-items: center; }
+.manifest-field-control { min-width: 0; display: flex; flex-direction: column; align-items: stretch; gap: .375rem; }
+.manifest-form-pair .manifest-field { grid-template-columns: 8.5rem minmax(0, 1fr); }
+.manifest-startup-pair .manifest-field { grid-template-columns: 17rem minmax(0, 1fr); }
+.manifest-field-control > .manifest-switch { margin-block-start: .5rem; align-self: flex-start; }
 .manifest-toggle { display: flex; align-items: center; justify-content: space-between; gap: 1rem; }
 .manifest-map, .manifest-array { min-width: 0; display: flex; flex-direction: column; gap: .5rem; }
 .manifest-map-row { display: grid; grid-template-columns: minmax(100px, .65fr) minmax(0, 1fr) auto; align-items: center; gap: .5rem; }
@@ -22,8 +27,25 @@
 .manifest-editor-footer { flex-shrink: 0; width: 100%; }
 .manifest-editor-footer > * + * { margin-top: .75rem; }
 .manifest-editor > .manifest-editor-footer { padding-top: .75rem; border-top: 1px solid hsl(var(--border)); }
-@media (max-width: 600px) {
+.service-config-dialog { width: min(1200px, calc(100vw - 96px)); max-width: min(1200px, calc(100vw - 96px)); height: calc(100dvh - 64px); max-height: calc(100dvh - 64px); }
+.service-config-dialog-body { display: flex; flex-direction: column; min-height: 0; overflow: hidden; gap: 1rem; }
+.service-config-save-intent { flex-shrink: 0; display: flex; flex-direction: column; gap: .5rem; }
+.service-config-dialog .manifest-editor { flex: 1; max-height: none; min-height: 0; }
+.service-config-dialog .manifest-editor-body { flex: 1; }
+.service-config-dialog .manifest-validation { border: 0; border-block-end: 1px solid hsl(var(--border)); border-radius: 0; padding: 0 0 1rem; }
+.service-config-dialog .manifest-section { border: 0; border-block-start: 1px solid hsl(var(--border)); border-radius: 0; padding: 1rem 0 0; }
+.service-config-dialog .manifest-editor-json .manifest-editor-body { display: flex; flex-direction: column; overflow: hidden; }
+.service-config-dialog .manifest-editor-json .manifest-editor-body > :not(.manifest-field) { flex-shrink: 0; }
+.service-config-dialog .manifest-editor-json .manifest-field { flex: 1; min-height: 0; }
+.service-config-dialog .manifest-editor-json .manifest-field-control { min-height: 0; align-self: stretch; }
+.service-config-dialog .manifest-editor-json .manifest-field-control > :not(textarea) { flex-shrink: 0; }
+.service-config-dialog .manifest-editor-json .manifest-json { flex: 1; min-height: 0; resize: none; overflow-y: auto; }
+@media (max-width: 1000px) {
   .manifest-form-pair { grid-template-columns: minmax(0, 1fr); }
+  .manifest-form-pair .manifest-field { grid-template-columns: 17rem minmax(0, 1fr); }
+}
+@media (max-width: 600px) {
+  .service-config-dialog { width: calc(100vw - 32px); max-width: calc(100vw - 32px); max-height: calc(100dvh - 32px); }
   .manifest-map-row { grid-template-columns: minmax(0, 1fr) auto; }
   .manifest-map-row > :first-child { grid-column: 1 / -1; }
   .manifest-editor { max-height: calc(100dvh - 16rem); }

@@ -68,7 +68,7 @@ class McpServerDetailSectionsTest(unittest.TestCase):
             "logs", "events", "tools", "failure_hints", "restart_history", "recovery_chart", "recovery_summary",
         })
         self.store.list_logs.assert_called_once_with(server_id="demo", limit=80)
-        self.store.list_events.assert_called_once_with(subject_id="demo", limit=80)
+        self.store.list_events.assert_called_once_with(server_id="demo", limit=80)
         cache.assert_called_once()
 
     def _app(self, allowed: bool = True) -> FastAPI:
@@ -81,7 +81,7 @@ class McpServerDetailSectionsTest(unittest.TestCase):
 
         register_mcp_runtime_routes(
             app, settings=self.settings, mcp_runtime=self.runtime,
-            observability_store=self.store, require_operations_manager=require_operator,
+            observability_store=self.store, access_store=Mock(), require_operations_manager=require_operator,
         )
         return app
 

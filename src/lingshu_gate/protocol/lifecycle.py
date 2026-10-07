@@ -15,7 +15,8 @@ def discovery_requires_initialize(code: int | None, message: str | None) -> bool
 
     if type(code) is not int:
         return False
-    if code in {-32601, -32602, -32022}:
+    # UnsupportedProtocolVersion is positive evidence of a modern server.
+    if code in {-32601, -32602}:
         return True
     # 部分实现把未知方法归入通用服务端错误，必须同时匹配被拒绝的发现方法。
     return code == -32000 and isinstance(message, str) and message.strip().lower() in {

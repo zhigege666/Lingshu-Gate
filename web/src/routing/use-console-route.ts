@@ -1,15 +1,24 @@
 import { useCallback, useEffect, useRef, useState } from "react"
 import { isConsoleView, type ConsoleView } from "@/routing/console-routes"
 
-export type ConsoleRouteState = { view: ConsoleView; buildId?: string }
+export type ConsoleRouteState = { view: ConsoleView; buildId?: string; serverId?: string }
 
 const RECENT_VIEWS_KEY = "lingshu-gate-console-recent"
+export const CONSOLE_ROUTE_REPLACED = "gate:console-route-replaced"
+
+/** An already-approved in-page selection replaces this entry without destroying
+ * the native back/forward index or leaving the router's accepted target stale. */
+export function replaceConsoleRouteHash(hash: string) {
+  window.history.replaceState(window.history.state, "", hash)
+  window.dispatchEvent(new Event(CONSOLE_ROUTE_REPLACED))
+}
 
 export function parseConsoleHash(hash: string): ConsoleRouteState {
   let parts: string[]
   try { parts = hash.replace(/^#\/?/, "").split("/").filter(Boolean).map((part) => decodeURIComponent(part)) }
   catch { return { view: "dashboard" } }
   const route = parts[0]
+  if (route === "servers") return { view: "servers", serverId: parts[1] || "" }
   if (route === "builds") return { view: "builds", buildId: parts[1] || "" }
   if (route && isConsoleView(route)) return { view: route }
   return { view: "dashboard" }
@@ -35,6 +44,7 @@ export function useConsoleRoute(beforeLeave?: () => Promise<boolean>) {
   const initialRoute = parseConsoleHash(window.location.hash)
   const [view, setView] = useState<ConsoleView>(initialRoute.view)
   const [routeBuildId, setRouteBuildId] = useState(initialRoute.buildId || "")
+  const [routeServerId, setRouteServerId] = useState(initialRoute.serverId || "")
   const [recentViews, setRecentViews] = useState<ConsoleView[]>(readRecentViews)
 
   const accepted = useRef(initialRoute)
@@ -59,7 +69,7 @@ export function useConsoleRoute(beforeLeave?: () => Promise<boolean>) {
         return false
       }
       if (destination.position === null) {
-        const hash = consoleViewHash(destination.route.view) + (destination.route.buildId ? `/${encodeURIComponent(destination.route.buildId)}` : "")
+        const hash = consoleViewHash(destination.route.view) + (destination.route.buildId ? `/${encodeURIComponent(destination.route.buildId)}` : destination.route.serverId ? `/${encodeURIComponent(destination.route.serverId)}` : "")
         position.current += 1
         window.history.pushState({ ...window.history.state, gateConsoleIndex: position.current }, "", hash)
       }
@@ -67,6 +77,7 @@ export function useConsoleRoute(beforeLeave?: () => Promise<boolean>) {
       accepted.current = destination.route
       setView(destination.route.view)
       setRouteBuildId(destination.route.buildId || "")
+      setRouteServerId(destination.route.serverId || "")
       return true
     } finally { target.current = null; deciding.current = false }
   }, [])
@@ -80,7 +91,7 @@ export function useConsoleRoute(beforeLeave?: () => Promise<boolean>) {
       const storedIndex: unknown = window.history.state?.gateConsoleIndex
       position.current = typeof storedIndex === "number" ? storedIndex : position.current + 1
       if (typeof storedIndex !== "number") window.history.replaceState({ ...window.history.state, gateConsoleIndex: position.current }, "")
-      if (next.view === accepted.current.view && (next.buildId || "") === (accepted.current.buildId || "")) {
+      if (next.view === accepted.current.view && (next.buildId || "") === (accepted.current.buildId || "") && (next.serverId || "") === (accepted.current.serverId || "")) {
         if (deciding.current) target.current = { route: next, position: position.current }
         else acceptedPosition.current = position.current
         return
@@ -90,8 +101,20 @@ export function useConsoleRoute(beforeLeave?: () => Promise<boolean>) {
       target.current = { route: next, position: position.current }
       void decide()
     }
+    const handleRouteReplacement = () => {
+      const next = parseConsoleHash(window.location.hash)
+      // Cross-view navigation still belongs to the guarded navigation path.
+      if (deciding.current || next.view !== accepted.current.view) return
+      accepted.current = next
+      setRouteBuildId(next.buildId || "")
+      setRouteServerId(next.serverId || "")
+    }
     window.addEventListener("hashchange", handleHashChange)
-    return () => window.removeEventListener("hashchange", handleHashChange)
+    window.addEventListener(CONSOLE_ROUTE_REPLACED, handleRouteReplacement)
+    return () => {
+      window.removeEventListener("hashchange", handleHashChange)
+      window.removeEventListener(CONSOLE_ROUTE_REPLACED, handleRouteReplacement)
+    }
   }, [decide])
 
   useEffect(() => {
@@ -104,10 +127,10 @@ export function useConsoleRoute(beforeLeave?: () => Promise<boolean>) {
 
   const navigate = useCallback(async (next: ConsoleView) => {
     if (deciding.current) return false
-    if (next === accepted.current.view && !accepted.current.buildId) return true
+    if (next === accepted.current.view && !accepted.current.buildId && !accepted.current.serverId) return true
     target.current = { route: { view: next }, position: null }
     return decide()
   }, [decide])
 
-  return { view, routeBuildId, recentViews, navigate }
+  return { view, routeBuildId, routeServerId, recentViews, navigate }
 }

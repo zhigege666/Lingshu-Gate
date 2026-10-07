@@ -1,0 +1,27 @@
+.build-records-table { --build-actions-width: 300px; }
+.build-records-table col:last-child { width: var(--build-actions-width); }
+
+/* Keep row identity visible alongside every action on narrow screens. The
+   other record columns remain horizontally scrollable; no actions are hidden. */
+@media (max-width: 767px) {
+  .build-records-table { --build-actions-width: 112px; }
+  .build-records-table th:last-child,
+  .build-records-table td:last-child { width: 112px; max-width: 112px; padding-inline: 6px; }
+  .build-records-table .inline-actions { display: flex; flex-direction: column; align-items: stretch; gap: 2px; width: 100%; min-width: 0; }
+  .build-records-table .inline-actions button { width: 100%; min-width: 0; height: auto; min-height: 32px; padding: 6px 4px; white-space: normal; overflow-wrap: anywhere; }
+}
+
+/* The selected tab already identifies this list and its total. Keep search,
+   status and position together rather than repeating the heading/count. */
+.delivery-records-content { padding-top: 16px; }
+.record-list-toolbar { display: flex; flex-wrap: wrap; align-items: center; gap: 12px 20px; padding-bottom: 12px; }
+.record-list-toolbar > .page-toolbar { flex: 1 1 420px; min-width: 0; }
+.record-list-toolbar .page-toolbar-search { flex: 1 1 220px; }
+.record-list-toolbar .ant-select { min-width: 140px; }
+.record-list-pagination { display: flex; flex-wrap: wrap; align-items: center; gap: 12px; margin-left: auto; color: hsl(var(--muted-foreground)); font-size: 12px; }
+.record-list-pagination > [role="status"] { white-space: nowrap; }
+@media (max-width: 767px) {
+  .record-list-toolbar > .page-toolbar { flex-wrap: wrap; }
+  .record-list-toolbar .page-toolbar-search { width: 100%; }
+  .record-list-pagination { width: 100%; justify-content: space-between; }
+}

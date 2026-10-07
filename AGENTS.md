@@ -54,3 +54,12 @@ Run repository identity checks and release-package verification when those scrip
 - Commands, paths, environment variables, tool IDs, archive names, and support claims must match the same tree.
 - Use neutral example hosts and IDs. Never include real secrets, personal data, local absolute paths, or unreviewed copied content.
 - Update release and security documentation when configuration, public APIs, artifacts, or trust boundaries change.
+- Every version change must also update `packaging/release-notes.md`: its version heading,
+  both English and Simplified Chinese release text, and the version overview/release summary.
+  Describe the actual changes, support boundaries, validation and known issues for that version;
+  never reuse an earlier release's heading or summary. Before publishing, compare the source
+  version, tag, notes, overview and GitHub release page, and read back the published title/body.
+
+- Keep the single source version, paired README overview, paired CHANGELOG and release notes synchronized for every release. Sign-in and Console show the running backend health version; never substitute a separately hardcoded frontend version.
+
+- Before release, manually review source version, paired overviews/changelogs, bilingual release notes and the published title/body together. Verify every formal release job and native/Compose/offline asset, checksum, SBOM and provenance before reporting publication complete; a tag alone is not completion. Keep authorization claims precise: owner-confirmed live tool changes stay within each token's existing OAuth scopes, and client cache refresh is separate from OAuth authorization.

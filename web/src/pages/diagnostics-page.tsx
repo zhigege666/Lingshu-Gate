@@ -24,7 +24,7 @@ export function DiagnosticsPage({ diagnostics, t, busy, onRefreshDiagnostics, on
     .filter((check) => !query.trim() || `${check.name} ${check.detail} ${check.severity}`.toLowerCase().includes(query.trim().toLowerCase()))
   return (
     <div className="flex flex-col gap-4">
-      <PageHeader
+      <PageHeader closeLabel={t("close")}
         eyebrow={t("healthCheck")}
         title={t("diagnostics")}
         description={t("runtimeEnvironmentDesc")}
@@ -37,18 +37,18 @@ export function DiagnosticsPage({ diagnostics, t, busy, onRefreshDiagnostics, on
       />
       <Card>
         <CardContent className="overflow-x-auto p-3 md:p-4">
-          <Table><TableHeader><TableRow><TableHead>{t("check")}</TableHead><TableHead>{t("status")}</TableHead><TableHead>{t("detail")}</TableHead></TableRow></TableHeader><TableBody>{filteredChecks.length === 0 ? <TableEmptyRow colSpan={3} title={diagnostics ? t("noData") : t("waiting")} /> : filteredChecks.map((check) => <TableRow key={check.name} className="cursor-pointer" onClick={() => setSelectedCheck(check)}><TableCell className="font-medium"><button type="button" className="text-left underline underline-offset-4" onClick={e => { e.stopPropagation(); setSelectedCheck(check) }}>{check.name}</button></TableCell><TableCell>{statusBadge(check.ok ? "ok" : check.severity, t)}</TableCell><TableCell className="max-w-md truncate text-muted-foreground" title={check.detail}>{check.detail}</TableCell></TableRow>)}</TableBody></Table>
+          <Table><TableHeader><TableRow><TableHead>{t("check")}</TableHead><TableHead>{t("status")}</TableHead><TableHead>{t("detail")}</TableHead></TableRow></TableHeader><TableBody>{filteredChecks.length === 0 ? <TableEmptyRow colSpan={3} title={diagnostics ? query.trim() ? t("noMatchingRecords") : t("noData") : t("waiting")} /> : filteredChecks.map((check) => <TableRow key={check.name} className="cursor-pointer" onClick={() => setSelectedCheck(check)}><TableCell className="font-medium"><button type="button" className="text-left underline underline-offset-4" onClick={e => { e.stopPropagation(); setSelectedCheck(check) }}>{check.name}</button></TableCell><TableCell>{statusBadge(check.ok ? "ok" : check.severity, t)}</TableCell><TableCell className="max-w-md truncate text-muted-foreground" title={check.detail}>{check.detail}</TableCell></TableRow>)}</TableBody></Table>
         </CardContent>
       </Card>
       <RuntimeEnvironmentCard t={t} onRefreshDiagnostics={onRefreshDiagnostics} />
 
       <Dialog open={selectedCheck !== null} onOpenChange={(open) => { if (!open) setSelectedCheck(null) }}>
-        <DialogContent className="max-w-2xl">
+        <DialogContent closeLabel={t("close")} className="max-w-2xl">
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">{selectedCheck ? statusBadge(selectedCheck.ok ? "ok" : selectedCheck.severity, t) : null}{selectedCheck?.name}</DialogTitle>
             <DialogDescription>{t("detail")}</DialogDescription>
           </DialogHeader>
-          <DialogBody><JsonPanel data={selectedCheck} maxHeight="max-h-[60vh]" /></DialogBody>
+          <DialogBody><JsonPanel copyLabel={t("copy")} data={selectedCheck} maxHeight="max-h-[60vh]" /></DialogBody>
         </DialogContent>
       </Dialog>
     </div>

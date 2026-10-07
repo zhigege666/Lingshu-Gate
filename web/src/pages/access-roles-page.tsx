@@ -1,3 +1,5 @@
+import { FilterRadio } from "@/components/filter-radio"
+import { RemainingList, ListPagination, ListViewport, useListPage } from "@/components/list-pagination"
 import { useEffect, useMemo, useRef, useState } from "react"
 import { ArrowRight, CheckCircle2, Info, KeySquare, Plus, Shield, SlidersHorizontal, X } from "lucide-react"
 import { api, type AccessRole, type AccessRoleSaveRequest, type ControlPermission, type PermissionType, type PermissionTypeSaveRequest } from "@/api/client"
@@ -67,7 +69,8 @@ export function AccessRolesPage({ locale, t }: { locale: Locale; t: TFunction })
   const filteredTypes = useMemo(() => filterAccessItems(permissionTypes, filters), [permissionTypes, filters])
   const roleMode = tab === "roles"
   const visibleItems: AccessItem[] = roleMode ? filteredRoles : filteredTypes
-  const selected = visibleItems.find(item => item.id === selectedId)
+  const paging = useListPage(visibleItems, JSON.stringify([tab, filters]))
+  const selected = (roleMode ? roles : permissionTypes).find(item => item.id === selectedId)
   const roleErrors = accessIdentityErrors(roleForm, roles, editingRole && editingRole !== "new" ? editingRole.id : undefined)
   const typeErrors = accessIdentityErrors(typeForm, permissionTypes, editingType && editingType !== "new" ? editingType.id : undefined)
   const identityMessage = (error?: "required" | "duplicate", field?: "code" | "name") => !showFieldErrors || !error ? undefined : error === "duplicate" ? c.duplicateCode : field === "code" ? c.requiredCode : c.requiredName
@@ -242,7 +245,7 @@ export function AccessRolesPage({ locale, t }: { locale: Locale; t: TFunction })
   return <div className="access-roles-page">
     <div className={`access-roles-layout${selected && wideDetails ? " with-details" : ""}`}>
       <div className="access-roles-directory">
-        <PageHeader title={c.title} description={c.description} helpLabel={t("pageHelp")}
+        <PageHeader closeLabel={t("close")} title={c.title} description={c.description} helpLabel={t("pageHelp")}
           toolbar={<div className="access-role-tabs" role="tablist" aria-label={c.managementTabs} onKeyDown={event => {
             if (!["ArrowLeft", "ArrowRight", "Home", "End"].includes(event.key)) return
             event.preventDefault()
@@ -255,16 +258,18 @@ export function AccessRolesPage({ locale, t }: { locale: Locale; t: TFunction })
           </div>} />
         {error && <Alert variant="destructive" role="alert"><AlertDescription>{error}</AlertDescription><Button variant="outline" size="sm" className="mt-2" disabled={busy} onClick={() => void load()}>{t("refresh")}</Button></Alert>}
         <section id="access-roles-panel" role="tabpanel" aria-labelledby={roleMode ? "access-roles-tab" : "access-types-tab"} aria-busy={busy}>
-          <PageToolbar className="access-role-filters" query={filters.query} onQueryChange={query => setFilters(current => ({ ...current, query }))} placeholder={roleMode ? c.searchRoles : c.searchTypes} clearLabel={t("clearSearch")}>
-            <Select value={filters.source} onValueChange={source => setFilters(current => ({ ...current, source: source as AccessFilters["source"] }))}><SelectTrigger className="access-filter-select" aria-label={c.source}><SelectValue /></SelectTrigger><SelectContent><SelectItem value="all">{c.allSources}</SelectItem><SelectItem value="system">{c.system}</SelectItem><SelectItem value="custom">{c.custom}</SelectItem></SelectContent></Select>
-            <Select value={filters.status} onValueChange={status => setFilters(current => ({ ...current, status: status as AccessFilters["status"] }))}><SelectTrigger className="access-filter-select" aria-label={t("status")}><SelectValue /></SelectTrigger><SelectContent><SelectItem value="all">{c.allStatuses}</SelectItem><SelectItem value="enabled">{c.enabledStatus}</SelectItem><SelectItem value="disabled">{c.disabledStatus}</SelectItem></SelectContent></Select>
-            {!roleMode && <Select value={filters.level} onValueChange={level => setFilters(current => ({ ...current, level: level as AccessFilters["level"] }))}><SelectTrigger className="access-filter-select" aria-label={c.baseLevel}><SelectValue /></SelectTrigger><SelectContent><SelectItem value="all">{c.allLevels}</SelectItem><SelectItem value="none">{c.noneLevel}</SelectItem><SelectItem value="read">{c.readLevel}</SelectItem><SelectItem value="write">{c.writeLevel}</SelectItem></SelectContent></Select>}
+          <PageToolbar className="access-role-filters" query={filters.query} onQueryChange={query => setFilters(current => ({ ...current, query }))} placeholder={roleMode ? c.searchRoles : c.searchTypes} clearLabel={t("clearSearch")} resetFilters={{ label: c.resetFilters, disabled: !filters.query && filters.source === "all" && filters.status === "all" && filters.level === "all", onReset: () => setFilters(emptyAccessFilters) }}>
+            <FilterRadio label={c.source} value={filters.source} onChange={value => setFilters(current => ({...current, source: value as AccessFilters["source"]}))} options={[{value:"all",label:t("all")}, {value:"system",label:c.system}, {value:"custom",label:c.custom}]} />
+            <FilterRadio label={t("status")} value={filters.status} onChange={value => setFilters(current => ({...current, status: value as AccessFilters["status"]}))} options={[{value:"all",label:t("all")}, {value:"enabled",label:c.enabledStatus}, {value:"disabled",label:c.disabledStatus}]} />
+            {!roleMode && <FilterRadio label={c.baseLevel} value={filters.level} onChange={value => setFilters(current => ({...current, level: value as AccessFilters["level"]}))} options={[{value:"all",label:t("all")}, {value:"none",label:c.noneLevel}, {value:"read",label:c.readLevel}, {value:"write",label:c.writeLevel}]} />}
             <Button className="access-create" disabled={busy} onClick={() => roleMode ? openRole() : openType()}><Plus />{roleMode ? c.newRole : c.newType}</Button>
           </PageToolbar>
-          <Table className="access-role-table">
+          <RemainingList>
+          <ListViewport viewport={paging.viewport} label={t("toolShowing")}>
+            <Table className="access-role-table">
             <colgroup><col style={{ width: "20%" }} /><col style={{ width: roleMode ? "7%" : "12%" }} /><col style={{ width: roleMode ? "22%" : "17%" }} /><col style={{ width: "12%" }} /><col style={{ width: "11%" }} /><col style={{ width: "28%" }} /></colgroup>
             <TableHeader><TableRow>{(roleMode ? [c.roles, c.members, c.controlPermissions, c.source, t("status"), t("actions")] : [c.permissionTypes, c.baseLevel, c.references, c.source, t("status"), t("actions")]).map(label => <TableHead key={label} scope="col">{label}</TableHead>)}</TableRow></TableHeader>
-            <TableBody>{visibleItems.length === 0 ? <TableEmptyRow colSpan={6} title={busy ? c.loading : error ? t("error") : (roleMode ? roles : permissionTypes).length ? c.noMatches : roleMode ? c.noRoles : c.noTypes} /> : visibleItems.map(item => <TableRow key={item.id} data-state={selectedId === item.id ? "selected" : undefined}>
+            <TableBody>{visibleItems.length === 0 ? <TableEmptyRow colSpan={6} title={busy ? c.loading : error ? t("error") : (roleMode ? roles : permissionTypes).length ? c.noMatches : roleMode ? c.noRoles : c.noTypes} /> : paging.items.map(item => <TableRow key={item.id} data-state={selectedId === item.id ? "selected" : undefined}>
               <TableCell><button type="button" className="access-name" aria-label={`${c.view} ${item.name}`} onClick={() => viewItem(item)}>{"permissions" in item ? <Shield /> : <KeySquare />}<span><strong>{item.name}</strong><small title={item.code}>{item.code}</small></span></button></TableCell>
               {"permissions" in item ? <><TableCell>{item.member_count}</TableCell><TableCell><button type="button" className="access-permission-summary" onClick={() => viewItem(item)} aria-label={`${item.name} ${c.controlPermissions}`}><strong>{item.permissions.length} {c.permissionCount}</strong><small>{item.permissions.map(code => permissionPresentationByCode.get(code)?.name || code).join("、") || c.noPermissions}</small></button></TableCell></> : <><TableCell><AccessLevelBadge level={item.base_level} labels={c} /></TableCell><TableCell>{item.reference_count}</TableCell></>}
               <TableCell><Badge variant="secondary" className="whitespace-nowrap text-[11px]">{item.is_system ? c.system : c.custom}</Badge></TableCell>
@@ -272,31 +277,36 @@ export function AccessRolesPage({ locale, t }: { locale: Locale; t: TFunction })
               <TableCell><AccessInlineActions item={item} locale={locale} t={t} busy={busy} onView={() => viewItem(item)} onEdit={() => editItem(item)} onCopy={() => editItem(item, true)} onToggle={() => void toggleItem(item)} onDelete={() => void removeItem(item)} /></TableCell>
             </TableRow>)}</TableBody>
           </Table>
-          <div className="access-role-count flex items-center gap-3"><span aria-live="polite">{c.total} {visibleItems.length} / {roleMode ? roles.length : permissionTypes.length} {c.items}</span>{!busy && !error && !visibleItems.length && <Button variant="ghost" size="sm" onClick={() => setFilters(emptyAccessFilters)}>{c.resetFilters}</Button>}</div>
-        </section>
+            </ListViewport>
+            <ListPagination paging={paging} t={t} />
+          <div className="access-role-count flex items-center gap-3"><span aria-live="polite">{c.total} {visibleItems.length} / {roleMode ? roles.length : permissionTypes.length} {c.items}</span></div>
         <div className="access-role-tip"><Info /><span>{roleMode ? c.rolesHint : c.typesHint}</span><Button variant="ghost" size="sm" onClick={() => switchTab(roleMode ? "types" : "roles")}>{roleMode ? c.manageTypes : c.manageRoles}<ArrowRight /></Button></div>
+          </RemainingList>
+        </section>
       </div>
       {selected && wideDetails && <aside className="access-role-detail" aria-label={roleMode ? c.roleDetails : c.typeDetails}><div className="access-role-detail-header"><h2>{roleMode ? c.roleDetails : c.typeDetails}</h2><Button variant="ghost" size="sm" aria-label={c.closeDetails} onClick={closeDetails}><X /></Button></div>{detailContent}</aside>}
     </div>
     <Dialog open={Boolean(selected && !wideDetails && !editingRole && !editingType)} onOpenChange={open => { if (!open) closeDetails() }}>
-      <DialogContent className="left-auto right-0 top-0 h-dvh max-h-dvh w-full max-w-md translate-x-0 translate-y-0 rounded-none">
+      <DialogContent closeLabel={t("close")} className="left-auto right-0 top-0 h-dvh max-h-dvh w-full max-w-md translate-x-0 translate-y-0 rounded-none">
         <DialogHeader><DialogTitle>{roleMode ? c.roleDetails : c.typeDetails}</DialogTitle><DialogDescription className="sr-only">{selected?.name}</DialogDescription></DialogHeader><DialogBody>{detailContent}</DialogBody>
       </DialogContent>
     </Dialog>
-    <FormDialog dirty={accessDraftChanged(roleForm, roleBaseline.current)} open={editingRole !== null} onClose={() => void closeEditor("roles")} title={editingRole === "new" ? c.newRole : c.editRole} description={c.roleDesc} closeLabel={t("cancel")} pending={busy} className="max-w-3xl" error={formError}
+    <FormDialog dirty={accessDraftChanged(roleForm, roleBaseline.current)} open={editingRole !== null} onClose={() => void closeEditor("roles")} title={editingRole === "new" ? c.newRole : c.editRole} description={c.roleDesc} closeLabel={t("cancel")} pending={busy} className="max-w-6xl access-role-editor-dialog" error={formError}
       footer={<><Button variant="outline" disabled={busy} onClick={() => void closeEditor("roles")}>{t("cancel")}</Button><Button type="submit" form="access-role-editor" disabled={busy}><SlidersHorizontal />{busy ? c.saving : c.save}</Button></>}>
       <form id="access-role-editor" onSubmit={event => { event.preventDefault(); void saveRole() }}>
-        <fieldset disabled={busy} className="access-editor-fields">
+        <fieldset disabled={busy} className="access-editor-fields role-editor-layout">
+          <div className="role-editor-basics">
           <div className="grid gap-4 sm:grid-cols-2">
             <Field label={c.code} id="access-role-code" error={identityMessage(roleErrors.code, "code")}><Input id="access-role-code" aria-label={c.code} aria-required="true" aria-invalid={Boolean(identityMessage(roleErrors.code, "code"))} aria-describedby={identityMessage(roleErrors.code, "code") ? "access-role-code-error" + " access-role-code-hint" : "access-role-code-hint"} value={roleForm.code} disabled={busy || (editingRole !== "new" && Boolean(editingRole && editingRole.is_system))} onChange={event => setRoleForm(current => ({ ...current, code: event.target.value }))} /><p id="access-role-code-hint" className="text-xs text-muted-foreground">{c.codeHint}</p></Field>
             <Field label={c.name} id="access-role-name" error={identityMessage(roleErrors.name, "name")}><Input id="access-role-name" aria-label={c.name} aria-required="true" aria-invalid={Boolean(identityMessage(roleErrors.name, "name"))} aria-describedby={identityMessage(roleErrors.name, "name") ? "access-role-name-error" : undefined} value={roleForm.name} disabled={busy} onChange={event => setRoleForm(current => ({ ...current, name: event.target.value }))} /></Field>
           </div>
-          <Field label={c.descriptionLabel} id="access-role-description"><Textarea id="access-role-description" aria-label={c.descriptionLabel} value={roleForm.description} disabled={busy} onChange={event => setRoleForm(current => ({ ...current, description: event.target.value }))} /></Field>
+          <Field label={c.descriptionLabel} id="access-role-description"><Textarea rows={3} className="min-h-20" id="access-role-description" aria-label={c.descriptionLabel} value={roleForm.description} disabled={busy} onChange={event => setRoleForm(current => ({ ...current, description: event.target.value }))} /></Field>
           <label className="flex items-center justify-between gap-3"><span className="text-sm font-medium">{c.enabled}</span><Switch aria-label={c.enabled} checked={roleForm.enabled} disabled={busy || (editingRole !== "new" && Boolean(editingRole && editingRole.is_system))} onCheckedChange={enabled => setRoleForm(current => ({ ...current, enabled }))} /></label>
           {editingRole && editingRole !== "new" && editingRole.is_system && <p className="text-xs text-muted-foreground">{c.systemRoleRestricted}</p>}
+          </div>
           <fieldset className="access-permission-groups">
             <legend className="mb-2 flex w-full items-center justify-between gap-2 text-sm font-medium"><span>{c.controlPermissions}</span><span className="text-xs font-normal text-muted-foreground">{c.selectedPermissions}: {roleForm.permissions.length}</span></legend>
-            <div className="grid gap-3 md:grid-cols-2">
+            <div className="role-permission-columns grid items-start gap-3 md:grid-cols-2">
               {permissionGroups.map(([group, items]) => <fieldset key={group} className="access-permission-group"><legend>{group}</legend><div className="flex flex-col gap-2">{items.map(permission => {
                 const presentation = presentControlPermission(permission, locale)
                 return <label key={permission.code} title={permission.code} className="access-permission-choice"><span><span className="block text-sm font-medium">{presentation.name}</span><span className="block text-xs text-muted-foreground">{presentation.description}</span></span><Switch aria-label={presentation.name} checked={roleForm.permissions.includes(permission.code)} disabled={busy} onCheckedChange={checked => setRoleForm(current => ({ ...current, permissions: checked ? [...new Set([...current.permissions, permission.code])] : current.permissions.filter(item => item !== permission.code) }))} /></label>

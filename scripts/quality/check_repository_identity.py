@@ -205,6 +205,8 @@ _EXCLUDED_DIRS = frozenset(
         ".venv",
         "__pycache__",
         "node_modules",
+        "playwright-report",
+        "test-results",
         "site-packages",
         "venv",
     }
@@ -534,11 +536,48 @@ def _decode_text(data: bytes) -> str | None:
         return None
 
 
+# Narrow source attribution exception: exact reviewed Markdown URL targets in
+# this one bilingual guide. Product prose, arbitrary URLs and other paths remain
+# subject to the full identity policy. Digests avoid seeding prohibited identities
+# into first-party source while retaining exact, auditable URL matching.
+_EXTERNAL_REFERENCE_DOCUMENTS = frozenset({
+    "docs/external-connections.md", "docs/zh-CN/external-connections.md",
+})
+_EXTERNAL_REFERENCE_URL_DIGESTS = frozenset({
+    '3fece50ed13bf72715a68a347c3aeed8eb822cbc1b846201ffa16311d6206498',
+    '86c7f909ed4a1f9e5e6bdb5a21b00c7a9b9d16a074811f7b2617efad985fe3ff',
+    '3841baee1a48ded6230162c6ee7e2a32a0a74e6d199e3b0fa278802ec384cb91',
+    'ff37d43177fe3fe51aa50ea27802cbf94ff88d15a5ad2c17a1b32853296a761f',
+    'ec7f7eb397fa94e4198233a7b2ada09f6c98415a500bbc8290052373344b857c',
+})
+
+
+def _external_reference_scan_line(line: str, location: str) -> str:
+    document = re.sub(r"^git:[0-9a-f]{12}:", "", location)
+    if document not in _EXTERNAL_REFERENCE_DOCUMENTS:
+        return line
+    return re.sub(r"(?<=\]\()https://[^)\s]+(?=\))",
+                  lambda match: "external-reference" if _sha256(match.group()) in _EXTERNAL_REFERENCE_URL_DIGESTS
+                  else match.group(), line)
+
+
+# Exact upstream merge metadata only; copied messages and changed bodies remain strict.
+_HISTORY_MESSAGE_EXCEPTIONS = {
+    ("65b70146264d9fe96a63ce779906bc06e3b98363", "ec6819fe36fb48a68bb9130434778282fe8b5852fa542b0e5a0e558e185322da"): frozenset({("TXT-045", 1)}),
+}
+
+
+def _scan_history_message(body: str, commit: str) -> list[Violation]:
+    findings = _scan_text(body, f"git:{commit[:12]}")
+    approved = _HISTORY_MESSAGE_EXCEPTIONS.get((commit, _sha256(body)), frozenset())
+    return [item for item in findings if (item.rule_id, item.line) not in approved]
+
+
 def _scan_text(text: str, location: str, *, budget: MatchBudget | None = None) -> list[Violation]:
     violations: list[Violation] = []
     active_budget = budget if budget is not None else MatchBudget()
     for line_number, line in enumerate(text.splitlines() or [""], start=1):
-        violations.extend(Violation(rule_id, location, line_number) for rule_id in _matching_rules(line, active_budget))
+        violations.extend(Violation(rule_id, location, line_number) for rule_id in _matching_rules(_external_reference_scan_line(line, location), active_budget))
         violations.extend(
             Violation(rule_id, location, line_number)
             for rule_id in _matching_gate_identity_rules(line)
@@ -840,7 +879,7 @@ def _scan_history(root: Path) -> list[Violation]:
     for offset in range(0, len(log_fields) - 1, 2):
         commit = log_fields[offset].decode("ascii", errors="replace").strip()
         body = _decode_text(log_fields[offset + 1]) or ""
-        violations.extend(_scan_text(body, f"git:{commit[:12]}"))
+        violations.extend(_scan_history_message(body, commit))
 
     commit_result = _run_git(root, ["rev-list", "--all"], text=True)
     if commit_result.returncode != 0:

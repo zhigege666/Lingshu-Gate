@@ -1,0 +1,7 @@
+# Administrator-supplied, reviewed and digest-pinned base with Git/Python/Node.
+# This recipe downloads/installs nothing. Gate only uses a preloaded RepoDigest.
+ARG LINGSHU_GATE_EXECUTOR_BASE
+FROM ${LINGSHU_GATE_EXECUTOR_BASE}
+LABEL io.lingshu-gate.executor-contract="native-offline-v1"
+RUN test -x /usr/bin/python3 && test -x /usr/bin/git && test -x /usr/local/bin/node
+ENTRYPOINT ["/usr/bin/python3"]

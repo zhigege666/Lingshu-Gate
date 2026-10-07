@@ -8,12 +8,15 @@ control API adapter.
 
 from __future__ import annotations
 
+from contextlib import nullcontext
 from dataclasses import dataclass
 from typing import Any
 
+from lingshu_gate.application.manifest_edit import restore_masked_mounts
 from lingshu_gate.endpoint_security import REDACTED_ENDPOINT
-from lingshu_gate.mcp_manifest import McpServerManifest
+from lingshu_gate.mcp_manifest import McpServerManifest, validate_manifest_for_write
 from lingshu_gate.models import McpConfigApplyResponse, McpConfigSaveRequest
+from lingshu_gate.persistence.mcp_groups import McpGroupStore
 from lingshu_gate.ports.control_plane import (
     McpConfigurationRepository,
     McpRuntimeControl,
@@ -35,7 +38,10 @@ def _restore_redacted_endpoint(
 ) -> dict[str, Any]:
     """Restore a masked endpoint only while editing its existing manifest."""
 
-    restored = dict(manifest_data)
+    restored = (
+        restore_masked_mounts(manifest_data, existing_manifest.model_dump(mode="json", exclude={"manifest_path"}))
+        if existing_manifest is not None else dict(manifest_data)
+    )
     transport = dict(restored.get("transport") or {})
     if transport.get("endpoint") == REDACTED_ENDPOINT and existing_manifest is not None:
         transport["endpoint"] = existing_manifest.transport.endpoint
@@ -51,10 +57,12 @@ class McpConfigurationService:
         config_store: McpConfigurationRepository,
         runtime: McpRuntimeControl,
         user_credential_store: UserCredentialRepository,
+        group_store: McpGroupStore | None = None,
     ) -> None:
         self._config_store = config_store
         self._runtime = runtime
         self._user_credential_store = user_credential_store
+        self._group_store = group_store
 
     def prepare_user_credentials(
         self,
@@ -70,7 +78,7 @@ class McpConfigurationService:
             if existing_server_id
             else None,
         )
-        manifest = McpServerManifest.model_validate(manifest_data)
+        manifest = validate_manifest_for_write(manifest_data, http_trust_store=getattr(self._config_store, "http_trust_store", None))
         values = dict(request.user_credential_values)
         declared_slots = {slot.id for slot in manifest.user_credentials}
         unknown = sorted(set(values) - declared_slots)
@@ -92,28 +100,29 @@ class McpConfigurationService:
     ) -> McpConfigApplyResponse:
         """Persist a new config and compensate if applying it fails."""
 
-        config = self._config_store.save_config(request.manifest, overwrite=False)
-        try:
-            server = (
-                self._runtime.apply_manifest(
-                    self._config_store.load_manifest(config.id),
-                    start=request.start,
-                    source="config_create",
-                )
-                if request.apply
-                else None
-            )
-        except Exception as apply_error:
+        with getattr(self._config_store, "mutation_lock", nullcontext()):
+            config = self._config_store.save_config(request.manifest, overwrite=False)
             try:
-                self._config_store.delete_config(config.id)
-            except Exception as rollback_error:
-                raise RuntimeError(
-                    f"MCP config create failed and disk rollback failed: {rollback_error}"
-                ) from apply_error
-            raise
+                server = (
+                    self._runtime.apply_manifest(
+                        self._config_store.load_manifest(config.id),
+                        start=request.start,
+                        source="config_create",
+                    )
+                    if request.apply
+                    else None
+                )
+            except Exception as apply_error:
+                try:
+                    self._config_store.delete_config(config.id)
+                except Exception as rollback_error:
+                    raise RuntimeError(
+                        f"MCP config create failed and disk rollback failed: {rollback_error}"
+                    ) from apply_error
+                raise
 
-        self._save_user_credentials(user_id, prepared)
-        return McpConfigApplyResponse(config=config, server=server, message="created")
+            self._save_user_credentials(user_id, prepared)
+            return McpConfigApplyResponse(config=config, server=server, message="created")
 
     def update(
         self,
@@ -125,104 +134,114 @@ class McpConfigurationService:
     ) -> McpConfigApplyResponse:
         """Persist a replacement and restore the exact prior manifest on failure."""
 
-        previous_manifest = self._config_store.load_manifest(server_id)
-        config = self._config_store.save_config(
-            request.manifest,
-            expected_id=server_id,
-            overwrite=True,
-        )
-        try:
-            server = (
-                self._runtime.apply_manifest(
-                    self._config_store.load_manifest(config.id),
-                    start=request.start,
-                    source="config_update",
-                )
-                if request.apply
-                else None
+        with getattr(self._config_store, "mutation_lock", nullcontext()):
+            previous_manifest = self._config_store.load_manifest(server_id)
+            config = self._config_store.save_config(
+                request.manifest,
+                expected_id=server_id,
+                overwrite=True,
+                **({"expected_digest": request.expected_config_digest} if request.expected_config_digest is not None else {}),
             )
-        except Exception as apply_error:
             try:
-                self._config_store.save_config(
-                    previous_manifest.model_dump(
-                        mode="json",
-                        exclude={"manifest_path"},
-                    ),
-                    expected_id=server_id,
-                    overwrite=True,
+                server = (
+                    self._runtime.apply_manifest(
+                        self._config_store.load_manifest(config.id),
+                        start=request.start,
+                        source="config_update",
+                    )
+                    if request.apply
+                    else None
                 )
-            except Exception as rollback_error:
-                raise RuntimeError(
-                    f"MCP config update failed and disk rollback failed: {rollback_error}"
-                ) from apply_error
-            raise
+            except Exception as apply_error:
+                try:
+                    self._config_store.save_config(
+                        previous_manifest.model_dump(
+                            mode="json",
+                            exclude={"manifest_path"},
+                        ),
+                        expected_id=server_id,
+                        overwrite=True,
+                    )
+                except Exception as rollback_error:
+                    raise RuntimeError(
+                        f"MCP config update failed and disk rollback failed: {rollback_error}"
+                    ) from apply_error
+                raise
 
-        self._save_user_credentials(user_id, prepared)
-        return McpConfigApplyResponse(config=config, server=server, message="updated")
+            self._save_user_credentials(user_id, prepared)
+            return McpConfigApplyResponse(config=config, server=server, message="updated")
 
     def delete(self, server_id: str) -> tuple[McpConfigApplyResponse, int]:
         """Remove runtime then disk state, restoring the target runtime if needed."""
 
-        previous_manifest = self._config_store.load_manifest(server_id)
-        previous_server = (
-            self._runtime.get_server(server_id)
-            if self._runtime.has_server(server_id)
-            else None
-        )
-        restore_start = bool(
-            previous_server
-            and (
-                previous_server.desired_state == "running"
-                or previous_server.status == "running"
+        with getattr(self._config_store, "mutation_lock", nullcontext()):
+            previous_manifest = self._config_store.load_manifest(server_id)
+            if self._group_store is not None:
+                # Fail closed before destructive file/runtime steps. A compensated
+                # failure still needs an explicit group re-confirmation.
+                self._group_store.invalidate_instances({server_id}, reason="instance_delete_requested")
+            previous_server = (
+                self._runtime.get_server(server_id)
+                if self._runtime.has_server(server_id)
+                else None
             )
-        )
-        self._runtime.remove_manifest(server_id)
-        try:
-            config = self._config_store.delete_config(server_id)
-        except Exception as delete_error:
-            if previous_server is not None:
-                try:
-                    self._runtime.apply_manifest(
-                        previous_manifest,
-                        start=restore_start,
-                        source="config_delete_rollback",
-                    )
-                except Exception as rollback_error:
-                    raise RuntimeError(
-                        "MCP config delete failed and runtime rollback failed: "
-                        f"{rollback_error}"
-                    ) from delete_error
-            raise
+            restore_start = bool(
+                previous_server
+                and (
+                    previous_server.desired_state == "running"
+                    or previous_server.status == "running"
+                )
+            )
+            self._runtime.remove_manifest(server_id)
+            try:
+                config = self._config_store.delete_config(server_id)
+            except Exception as delete_error:
+                if previous_server is not None:
+                    try:
+                        self._runtime.apply_manifest(
+                            previous_manifest,
+                            start=restore_start,
+                            source="config_delete_rollback",
+                        )
+                    except Exception as rollback_error:
+                        raise RuntimeError(
+                            "MCP config delete failed and runtime rollback failed: "
+                            f"{rollback_error}"
+                        ) from delete_error
+                raise
 
-        removed_user_credentials = (
-            self._user_credential_store.delete_server_bindings(server_id)
-        )
-        response = McpConfigApplyResponse(
-            config=config,
-            servers=self._runtime.list_servers(),
-            message="deleted",
-        )
-        return response, removed_user_credentials
+            removed_user_credentials = (
+                self._user_credential_store.delete_server_bindings(server_id)
+            )
+            response = McpConfigApplyResponse(
+                config=config,
+                servers=self._runtime.list_servers(),
+                message="deleted",
+            )
+            return response, removed_user_credentials
 
     def reload(self) -> McpConfigApplyResponse:
-        self._runtime.reload_manifests()
-        return McpConfigApplyResponse(
-            servers=self._runtime.list_servers(),
-            message="reloaded",
-        )
+        with getattr(self._config_store, "mutation_lock", nullcontext()):
+            self._config_store.invalidate_instance_metadata()
+            if self._group_store is not None:
+                present = {config.id for config in self._config_store.list_configs().configs}
+                self._group_store.reconcile_instances(present)
+            self._runtime.reload_manifests()
+            return McpConfigApplyResponse(servers=self._runtime.list_servers(), message="reloaded")
 
     def apply(self, server_id: str) -> McpConfigApplyResponse:
-        config = self._config_store.get_config(server_id)
-        server = self._runtime.apply_manifest(
-            self._config_store.load_manifest(server_id),
-            start=False,
-            source="config_apply",
-        )
-        return McpConfigApplyResponse(
-            config=config,
-            server=server,
-            message="applied",
-        )
+        with getattr(self._config_store, "mutation_lock", nullcontext()):
+            config = self._config_store.get_config(server_id)
+            server = self._runtime.apply_manifest(
+                self._config_store.load_manifest(server_id),
+                start=False,
+                source="config_apply",
+            )
+            return McpConfigApplyResponse(
+                config=config,
+                server=server,
+                message="applied",
+            )
 
     def _save_user_credentials(
         self,

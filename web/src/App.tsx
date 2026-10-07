@@ -10,12 +10,15 @@ import {
   type ToolDefinition,
 } from "@/api/client"
 import { useAuth } from "@/components/auth-gate"
+import { gateVersionText } from "@/features/gate-version"
+import { createMcpConfigTemplate } from "@/features/mcp-config/model"
+import { configurationApplyResultError } from "@/features/servers/configuration-result"
 import { RouteErrorBoundary, RouteLoadingFallback } from "@/components/route-boundary"
 import { useConfirm } from "@/components/confirm-dialog"
 import { HighlightText } from "@/components/highlight-text"
 import { Alert, AlertDescription } from "@/components/ui/alert"
 import { Button } from "@/components/ui/button"
-import { CommandDialog, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from "@/components/ui/command"
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import { Toaster, type ToastState } from "@/components/ui/toast"
 import { translate, type MessageKey, type TFunction } from "@/i18n"
 import { prettyJson } from "@/lib/utils"
@@ -23,10 +26,23 @@ import { ConsoleShell } from "@/components/console-shell"
 import { useConsoleDesign } from "@/components/console-design-provider"
 import { useConsoleNavigation } from "@/routing/use-console-navigation"
 import { PageRefreshContext, type PageRefreshHandler, type RegisterPageRefresh } from "@/components/page-refresh"
+import type { PersonalWorkspaceViewState } from "@/pages/personal-workspace-page"
+import { DEFAULT_TOOL_PAGE_SIZE } from "@/features/tool-catalog"
 import type { ToolCatalogViewState } from "@/pages/tools-page"
 import { useConsoleRoute } from "@/routing/use-console-route"
 
-const CONSOLE_VERSION = `v${__LINGSHU_GATE_VERSION__}`
+// Load search-only dependencies on the first explicit search action.
+const CommandDialog = lazy(() => import("@/components/ui/command").then(module => ({ default: module.CommandDialog })))
+const CommandEmpty = lazy(() => import("@/components/ui/command").then(module => ({ default: module.CommandEmpty })))
+const CommandGroup = lazy(() => import("@/components/ui/command").then(module => ({ default: module.CommandGroup })))
+const CommandInput = lazy(() => import("@/components/ui/command").then(module => ({ default: module.CommandInput })))
+const CommandItem = lazy(() => import("@/components/ui/command").then(module => ({ default: module.CommandItem })))
+const CommandList = lazy(() => import("@/components/ui/command").then(module => ({ default: module.CommandList })))
+
+const ConnectionInfrastructurePage = lazy(() => import("@/pages/external-connections-page").then(module => ({ default: module.ConnectionInfrastructurePage })))
+const PersonalWorkspacePage = lazy(() => import("@/pages/personal-workspace-page").then(module => ({ default: module.PersonalWorkspacePage })))
+
+const initialPersonalWorkspaceView: PersonalWorkspaceViewState = { query: "", page: 1, selectedId: "", detailPage: 1, scrollTop: 0 }
 
 const AccessGrantsPage = lazy(() => import("@/pages/access-grants-page").then((module) => ({ default: module.AccessGrantsPage })))
 const AccessRolesPage = lazy(() => import("@/pages/access-roles-page").then((module) => ({ default: module.AccessRolesPage })))
@@ -46,20 +62,10 @@ const ServersPage = lazy(() => import("@/pages/servers-page").then((module) => (
 const ToolsPage = lazy(() => import("@/pages/tools-page").then((module) => ({ default: module.ToolsPage })))
 const ToolClassificationsPage = lazy(() => import("@/pages/tool-classifications-page").then((module) => ({ default: module.ToolClassificationsPage })))
 const UploadsPage = lazy(() => import("@/pages/uploads-page").then((module) => ({ default: module.UploadsPage })))
-
-const genericTemplate = {
-  id: "mcp-server",
-  name: "MCP Server",
-  enabled: false,
-  launch: { type: "external" },
-  transport: { type: "streamable_http", endpoint: "" },
-  timeout_seconds: 120,
-  permissions: { default: "read" },
-  auto_start: false,
-}
+const SystemSettingsPage = lazy(() => import("@/pages/system-settings-page").then((module) => ({ default: module.SystemSettingsPage })))
 
 export default function App() {
-  const { user, logout } = useAuth()
+  const { user, logout, runtimeVersion } = useAuth()
   const { locale } = useConsoleDesign()
   const t: TFunction = (key: MessageKey) => translate(locale, key)
   const { confirm, confirmDialog } = useConfirm(t)
@@ -76,14 +82,16 @@ export default function App() {
       title: zh ? "离开工具调用？" : "Leave tool invocation?",
       description: leaveState.pending
         ? (zh ? "请求可能继续执行。离开后，本次参数和结果不会保留；请勿因离开而重复提交。" : "The request may continue. Parameters and results will not be retained after leaving; do not resubmit because you left.")
-        : (zh ? "离开后，修改过的调用参数和结果不会保留。" : "Edited parameters and results will not be retained after leaving."),
+        : (zh ? "离开将清除本页临时参数和结果；已按记录策略保存的调用记录不受影响。" : "Leaving clears this page’s temporary parameters and results. Invocation records already saved under the recording policy are unaffected."),
       confirmText: zh ? "离开" : "Leave", cancelText: zh ? "继续编辑" : "Stay",
     }))) return false
-    if (configEditorOpen) { setConfigEditorOpen(false); setConfigText(prettyJson(genericTemplate)) }
+    if (configEditorOpen) { setConfigEditorOpen(false); setConfigText(prettyJson(createMcpConfigTemplate())) }
     return true
   }
-  const { view, routeBuildId, recentViews, navigate } = useConsoleRoute(requestLeave)
-  const [toolCatalogView, setToolCatalogView] = useState<ToolCatalogViewState>({ query: "", service: "all", access: "all", page: 1, pageSize: 9, scrollTop: 0 })
+  const { view, routeBuildId, routeServerId, recentViews, navigate } = useConsoleRoute(requestLeave)
+  const [toolCatalogView, setToolCatalogView] = useState<ToolCatalogViewState>({ query: "", service: "all", access: "all", page: 1, pageSize: DEFAULT_TOOL_PAGE_SIZE, scrollTop: 0 })
+  const [personalViews, setPersonalViews] = useState<Record<string, PersonalWorkspaceViewState>>({})
+  useEffect(() => { setPersonalViews({}); setToolCatalogView({ query: "", service: "all", access: "all", page: 1, pageSize: DEFAULT_TOOL_PAGE_SIZE, scrollTop: 0 }) }, [user.id])
   const pageRefresh = useRef<PageRefreshHandler | null>(null)
   const [pageBusy, setPageBusy] = useState(false)
   const registerPageRefresh = useCallback<RegisterPageRefresh>((handler, pending) => {
@@ -111,7 +119,8 @@ export default function App() {
   const [configs, setConfigs] = useState<McpConfig[]>([])
   const [configErrors, setConfigErrors] = useState<string[]>([])
   const [selectedConfigId, setSelectedConfigId] = useState("")
-  const [configText, setConfigText] = useState(prettyJson(genericTemplate))
+  const [selectedConfigDigest, setSelectedConfigDigest] = useState<string | undefined>()
+  const [configText, setConfigText] = useState(() => prettyJson(createMcpConfigTemplate()))
   const [configEditorOpen, setConfigEditorOpen] = useState(false)
   const [selectedToolId, setSelectedToolId] = useState("")
   const [message, setMessage] = useState<string | null>(null)
@@ -123,7 +132,60 @@ export default function App() {
   const toast: ToastState = message ? { message, tone: "success" } : null
   function dismissToast() { setMessage(null) }
 
-  useEffect(() => { void refreshAll() }, [])
+  useEffect(() => { void refreshAll(false) }, [])
+  const can = (permission: string) => (user.auth_type === "disabled" || user.permissions.includes(permission) || user.permissions.includes("*")) && (user.auth_type !== "token" && user.auth_type !== "oauth" || user.scopes.includes(permission) || user.scopes.includes("*"))
+  // Delivery pages own their tasks; entering the service route reads a new
+  // runtime snapshot so a newly deployed service needs no document reload.
+  const canManageOperations = can("operations.manage")
+  const canManageHttpTrust = user.auth_type !== "disabled" && user.auth_type !== "oauth" && (user.roles || [user.role]).includes("admin") && canManageOperations
+  const canReadTools = can("tools.read")
+  // OAuth pages own their bounded candidate reads. Read the legacy full tool
+  // list only when a route actually consumes it, including after navigation.
+  useEffect(() => {
+    if (!["dashboard", "tools", "invoke"].includes(view) || !canReadTools) return
+    let active = true
+    setToolsLoaded(false); setToolsError(null)
+    void api.tools().then(data => {
+      if (!active) return
+      setTools(data); setToolsLoaded(true)
+      setSelectedToolId(previous => previous || data[0]?.id || "")
+    }).catch(reason => {
+      if (active) setToolsError(reason instanceof Error ? reason.message : String(reason))
+    })
+    return () => { active = false }
+  }, [view, canReadTools, user.id])
+  useEffect(() => {
+    if (view !== "diagnostics" || !canManageOperations) return
+    let active = true
+    api.diagnostics().then(result => { if (active) setDiagnostics(result) })
+      .catch(reason => { if (active) setError(reason instanceof Error ? reason.message : String(reason)) })
+    return () => { active = false }
+  }, [view, canManageOperations, user.id])
+  useEffect(() => {
+    if (view !== "servers" || !canManageOperations) return
+    let active = true
+    setServersLoaded(false)
+    void api.servers().then(data => {
+      if (!active) return
+      setServers(data.servers); setLoadErrors(data.load_errors)
+      setServersLoaded(true); setServersError(null)
+    }).catch(reason => {
+      if (!active) return
+      const message = reason instanceof Error ? reason.message : String(reason)
+      setServersError(message); setLoadErrors([message])
+    })
+    if (canReadTools) {
+      setToolsLoaded(false)
+      void api.tools().then(data => {
+        if (!active) return
+        setTools(data); setToolsLoaded(true); setToolsError(null)
+      }).catch(reason => {
+        if (active) setToolsError(reason instanceof Error ? reason.message : String(reason))
+      })
+    }
+    return () => { active = false }
+  }, [view, routeServerId, user.id, canManageOperations, canReadTools])
+
   useEffect(() => {
     const onKey = (event: KeyboardEvent) => {
       if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === "k") {
@@ -137,7 +199,7 @@ export default function App() {
     return () => window.removeEventListener("keydown", onKey)
   }, [])
   useEffect(() => { if (!commandOpen) setCommandQuery("") }, [commandOpen])
-  async function refreshAll() {
+  async function refreshAll(readTools = true) {
     setBusy(true); setError(null); setToolsLoaded(false); setToolsError(null)
     setServersLoaded(false)
     try {
@@ -157,13 +219,9 @@ export default function App() {
 
       if (can("operations.manage")) {
         requests.push(Promise.allSettled([
-          api.diagnostics(),
           api.servers(),
           api.configs(),
-        ]).then(([diagnosticsResult, serverResult, configResult]) => {
-          if (diagnosticsResult.status === "fulfilled") setDiagnostics(diagnosticsResult.value)
-          else recordRefreshError("diagnostics", diagnosticsResult.reason)
-
+        ]).then(([serverResult, configResult]) => {
           if (serverResult.status === "fulfilled") {
             setServers(serverResult.value.servers)
             setLoadErrors(serverResult.value.load_errors)
@@ -185,7 +243,7 @@ export default function App() {
         setDiagnostics(null); setServers([]); setServersLoaded(false); setServersError(null); setLoadErrors([]); setConfigs([]); setConfigErrors([])
       }
 
-      if (can("tools.read")) {
+      if (can("tools.read") && readTools) {
         requests.push(api.tools()
           .then((toolData) => {
             setTools(toolData)
@@ -196,7 +254,7 @@ export default function App() {
             setToolsError(reason instanceof Error ? reason.message : String(reason))
             recordRefreshError("tools", reason)
           }))
-      } else {
+      } else if (!can("tools.read")) {
         setTools([])
         setSelectedToolId("")
       }
@@ -239,11 +297,11 @@ export default function App() {
 
   async function editConfig(config: McpConfig) {
     if (!(await (view === "configs" ? requestLeave() : navigate("configs")))) return
-    setSelectedConfigId(config.id); setConfigText(prettyJson(config.manifest)); setConfigEditorOpen(true)
+    setSelectedConfigId(config.id); setSelectedConfigDigest(config.digest); setConfigText(prettyJson(config.manifest)); setConfigEditorOpen(true)
   }
   async function newConfig() {
     if (!(await (view === "configs" ? requestLeave() : navigate("configs")))) return
-    setSelectedConfigId(""); setConfigText(prettyJson(genericTemplate)); setConfigEditorOpen(true)
+    setSelectedConfigId(""); setSelectedConfigDigest(undefined); setConfigText(prettyJson(createMcpConfigTemplate())); setConfigEditorOpen(true)
   }
 
   async function saveConfig(nextValue?: string) {
@@ -268,9 +326,10 @@ export default function App() {
       // 一次性秘密不得继续留在编辑器状态或后续 Manifest 查询中。
       setConfigText(prettyJson(manifest))
       const response = selectedConfigId
-        ? await api.updateConfig(selectedConfigId, manifest, false, false, userCredentialValues)
+        ? await api.updateConfig(selectedConfigId, manifest, false, false, userCredentialValues, selectedConfigDigest)
         : await api.createConfig(manifest, false, false, userCredentialValues)
-      setMessage(`${response.message}: ${response.config?.id || manifest.id}`)
+      if (response.config?.id !== String(manifest.id || selectedConfigId)) throw new Error(locale === "zh-CN" ? "保存结果未知，请刷新配置后核对。" : "Save result unknown. Refresh the configuration to reconcile.")
+      setMessage(`${locale === "zh-CN" ? "已保存，尚未应用到服务" : "Saved; not applied to the service"}: ${response.config.id}`)
       setSelectedConfigId(String(response.config?.id || manifest.id || ""))
       setConfigEditorOpen(false)
       await refreshAll()
@@ -283,11 +342,33 @@ export default function App() {
 
   async function deleteConfig(id: string) { if (!(await confirm({ title: t("confirmDeleteConfig"), description: id, destructive: true }))) return; setBusy(true); try { await api.deleteConfig(id); if (selectedConfigId === id) setSelectedConfigId(""); setMessage(`${t("deleted")}: ${id}`); await refreshAll() } catch (err) { setError(err instanceof Error ? err.message : String(err)) } finally { setBusy(false) } }
   async function reloadConfigs() { setBusy(true); try { await api.reloadConfigs(); setMessage("configs reloaded"); await refreshAll() } catch (err) { setError(err instanceof Error ? err.message : String(err)) } finally { setBusy(false) } }
-  async function applyConfig(id: string) { setBusy(true); try { await api.applyConfig(id); setMessage(`applied: ${id}`); await refreshAll() } catch (err) { setError(err instanceof Error ? err.message : String(err)) } finally { setBusy(false) } }
-  async function serverAction(id: string, action: "start" | "stop" | "restart") { setBusy(true); try { await api.serverAction(id, action); setMessage(`${action}: ${id}`); await refreshAll() } catch (err) { setError(err instanceof Error ? err.message : String(err)) } finally { setBusy(false) } }
+  async function applyConfig(id: string) {
+    if (busy || !(await confirm({ title: locale === "zh-CN" ? "应用配置并保持停止？" : "Apply configuration and leave stopped?", description: locale === "zh-CN" ? `${id}：此操作会停止并替换当前运行实例，不是热更新。应用后需另行启动。` : `${id}: This stops and replaces the current instance. It is not a hot update; start the service separately afterwards.`, destructive: true }))) return
+    setBusy(true); setError(null)
+    try {
+      const result = await api.applyConfig(id)
+      const outcomeError = configurationApplyResultError(result, id, locale === "zh-CN")
+      if (outcomeError) throw new Error(outcomeError)
+      const disabled = result.server?.enabled === false
+      setMessage(`${disabled ? (locale === "zh-CN" ? "已应用，服务仍为停用" : "Applied; service remains disabled") : (locale === "zh-CN" ? "已应用，尚未启动" : "Applied; not started")}: ${id}`)
+      await refreshAll()
+    } catch (err) { setError(err instanceof Error ? err.message : String(err)) }
+    finally { setBusy(false) }
+  }
+  async function serverAction(id: string, action: "start" | "stop" | "restart") {
+    if (busy) return
+    setBusy(true); setError(null)
+    try {
+      const result = await api.serverAction(id, action)
+      const expected = action === "stop" ? "stopped" : "running"
+      if (result.id !== id || result.status !== expected) throw new Error(result.last_error || `${action}: ${id} — ${result.status || "unknown"}`)
+      setMessage(`${action}: ${id}`)
+      await refreshAll()
+    } catch (err) { setError(err instanceof Error ? err.message : String(err)) }
+    finally { setBusy(false) }
+  }
   async function runDiagnostics() { setBusy(true); try { setDiagnostics(await api.runDiagnostics()); setMessage("diagnostics completed") } catch (err) { setError(err instanceof Error ? err.message : String(err)) } finally { setBusy(false) } }
 
-  const can = (permission: string) => user.auth_type === "disabled" || user.role === "admin" || user.roles.includes("admin") || user.permissions.includes(permission) || user.permissions.includes("*")
   const { nav, navById, navGroups, canAccessView } = useConsoleNavigation({
     locale,
     t,
@@ -303,7 +384,7 @@ export default function App() {
     <EditorNavigationContext.Provider value={editorNavigation}>
     <PageRefreshContext.Provider value={registerPageRefresh}>
     <ConsoleShell
-      view={view} title={currentTitle} user={user} version={CONSOLE_VERSION}
+      view={view} title={currentTitle} user={user} version={gateVersionText(runtimeVersion, locale)}
       groups={navGroups} items={navById} busy={busy || pageBusy}
       onNavigate={navigate} onSearch={() => setCommandOpen(true)}
       onRefresh={() => void refreshCurrentPage()} onLogout={async () => { if (await requestLeave()) void logout() }}
@@ -320,9 +401,11 @@ export default function App() {
       {viewAllowed && (
         <RouteErrorBoundary key={view} locale={locale}>
           <Suspense fallback={<RouteLoadingFallback locale={locale} />}>
+            {(["myServers", "myConnections", "myInvocations"] as string[]).includes(view) && <PersonalWorkspacePage key={`${user.id}:${view}`} view={view as "myServers" | "myConnections" | "myInvocations"} viewState={personalViews[`${user.id}:${view}`] || initialPersonalWorkspaceView} onViewStateChange={state => setPersonalViews(previous => ({ ...previous, [`${user.id}:${view}`]: state }))} locale={locale} t={t} onNavigate={navigate} onInvoke={async toolId => { if (await navigate("invoke")) setSelectedToolId(toolId) }} />}
+            {view === "connectionInfrastructure" && <ConnectionInfrastructurePage locale={locale} t={t} />}
             {view === "dashboard" && <DashboardPage health={health} healthError={healthError} servers={servers} serversLoaded={serversLoaded} serversError={serversError} tools={tools} principalId={user.id} globalRefreshId={dashboardRefreshId} operationsAllowed={can("operations.manage")} canReadAudit={can("audit.read")} canReadTools={can("tools.read")} toolsLoaded={toolsLoaded} toolsError={toolsError} t={t} />}
-            {view === "configs" && <ConfigsPage locale={locale} t={t} configs={configs} configErrors={configErrors} selectedConfigId={selectedConfigId} configText={configText} busy={busy} editorOpen={configEditorOpen} onCloseEditor={() => { if (!busy) { setConfigEditorOpen(false); setConfigText(prettyJson(genericTemplate)) } }} onNewConfig={newConfig} onReloadConfigs={reloadConfigs} onEditConfig={editConfig} onApplyConfig={applyConfig} onDeleteConfig={deleteConfig} onConfigTextChange={setConfigText} onSaveConfig={saveConfig} />}
-            {view === "servers" && <ServersPage locale={locale} t={t} servers={servers} loadErrors={loadErrors} busy={busy} visibleTools={toolsLoaded ? tools : null} toolsError={toolsError} canReadTools={can("tools.read")} canManageClassifications={can("classifications.manage")} onServerAction={serverAction} onRefresh={refreshCurrentPage} onNewConfig={newConfig} onNavigate={navigate} />}
+            {view === "configs" && <ConfigsPage canManageHttpTrust={canManageHttpTrust} locale={locale} t={t} configs={configs} configErrors={configErrors} selectedConfigId={selectedConfigId} configText={configText} busy={busy} editorOpen={configEditorOpen} onCloseEditor={() => { if (!busy) { setConfigEditorOpen(false); setConfigText(prettyJson(createMcpConfigTemplate())) } }} onNewConfig={newConfig} onReloadConfigs={reloadConfigs} onEditConfig={editConfig} onApplyConfig={applyConfig} onDeleteConfig={deleteConfig} onConfigTextChange={setConfigText} onSaveConfig={saveConfig} />}
+            {view === "servers" && <ServersPage canManageGroups={canManageHttpTrust} canWriteGroups={canManageHttpTrust && can("tools.invoke")} canManageHttpTrust={canManageHttpTrust} initialServerId={routeServerId} locale={locale} t={t} servers={servers} loadErrors={loadErrors} busy={busy} visibleTools={toolsLoaded ? tools : null} toolsError={toolsError} canReadTools={can("tools.read")} canManageClassifications={can("classifications.manage")} onServerAction={serverAction} onRefresh={refreshCurrentPage} onNewConfig={newConfig} onNavigate={navigate} onInvoke={async toolId => { if (await navigate("invoke")) setSelectedToolId(toolId) }} />}
             {view === "builds" && <BuildsPage t={t} initialBuildId={routeBuildId} />}
             {view === "credentials" && <CredentialsPage locale={locale} t={t} />}
             {view === "accessUsers" && <AccessUsersPage locale={locale} t={t} />}
@@ -331,17 +414,19 @@ export default function App() {
             {view === "toolClassifications" && <ToolClassificationsPage locale={locale} t={t} />}
             {view === "personalTokens" && <PersonalTokensPage locale={locale} t={t} />}
             {view === "downstreamCredentials" && <DownstreamCredentialsPage locale={locale} t={t} />}
-            {view === "invocationAudit" && <InvocationAuditPage locale={locale} t={t} />}
-            {view === "logs" && <LogsEventsPage t={t} />}
-            {view === "runtimeCache" && <RuntimeCachePage t={t} />}
+            {view === "invocationAudit" && <InvocationAuditPage locale={locale} t={t} canReadPayload={can("audit.payload.read")} />}
+            {view === "logs" && <LogsEventsPage t={t} canManageRetention={can("retention.manage")} />}
+            {view === "runtimeCache" && <RuntimeCachePage locale={locale} t={t} />}
             {view === "uploads" && <UploadsPage t={t} />}
+            {view === "systemSettings" && <SystemSettingsPage t={t} />}
             {view === "diagnostics" && <DiagnosticsPage diagnostics={diagnostics} t={t} busy={busy} onRefreshDiagnostics={async () => { setDiagnostics(await api.diagnostics()) }} onRunDiagnostics={runDiagnostics} />}
-            {view === "tools" && <ToolsPage tools={tools} servers={servers} loading={!toolsLoaded && !toolsError} error={toolsError} t={t} viewState={toolCatalogView} onViewStateChange={setToolCatalogView} onRefresh={() => void refreshCurrentPage()} onInvoke={(toolId) => { setSelectedToolId(toolId); navigate("invoke") }} />}
+            {view === "tools" && <ToolsPage locale={locale} tools={tools} servers={servers} loading={!toolsLoaded && !toolsError} error={toolsError} t={t} viewState={toolCatalogView} onViewStateChange={setToolCatalogView} onRefresh={() => void refreshCurrentPage()} onInvoke={async toolId => { if (await navigate("invoke")) setSelectedToolId(toolId) }} />}
             {view === "invoke" && <InvokePage locale={locale} t={t} tools={tools} servers={servers} toolsLoaded={toolsLoaded} toolsError={toolsError} selectedToolId={selectedToolId} onToolChange={setSelectedToolId} onLeaveStateChange={setLeaveState} onRefresh={refreshCurrentPage} />}
           </Suspense>
         </RouteErrorBoundary>
       )}
-      <CommandDialog open={commandOpen} onOpenChange={setCommandOpen} title={t("search")} description={t("subtitle")}>
+      {commandOpen && <RouteErrorBoundary locale={locale} fallback={<Dialog open onOpenChange={setCommandOpen}><DialogContent closeLabel={t("close")} aria-describedby={undefined}><DialogHeader><DialogTitle>{t("search")}</DialogTitle></DialogHeader><p role="alert">{locale === "zh-CN" ? "搜索资源加载失败。请先关闭此窗口，保存正在编辑的内容，再刷新页面重试。" : "Search could not load. Close this window, save any edits, then refresh the page to retry."}</p></DialogContent></Dialog>}><Suspense fallback={<Dialog open onOpenChange={setCommandOpen}><DialogContent closeLabel={t("close")} aria-describedby={undefined}><DialogHeader><DialogTitle>{t("search")}</DialogTitle></DialogHeader><p role="status">{t("loadingData")}</p></DialogContent></Dialog>}>
+      <CommandDialog closeLabel={t("close")} open={commandOpen} onOpenChange={setCommandOpen} title={t("search")} description={t("subtitle")}>
         <CommandInput placeholder={t("search")} value={commandQuery} onValueChange={setCommandQuery} />
         <CommandList>
           <CommandEmpty>{t("noData")}</CommandEmpty>
@@ -360,7 +445,7 @@ export default function App() {
           <CommandGroup heading={t("actions")}>
             <CommandItem value="refresh 刷新" onSelect={() => { setCommandOpen(false); void refreshCurrentPage() }}><RefreshCcw /><HighlightText text={t("refreshCurrentPage")} query={commandQuery} /></CommandItem>
             {can("operations.manage") && <CommandItem value="new config 新建配置" onSelect={() => { setCommandOpen(false); newConfig() }}><Braces /><HighlightText text={t("genericTemplate")} query={commandQuery} /></CommandItem>}
-            {can("operations.manage") && <CommandItem value="run diagnostics 运行诊断" onSelect={() => { setCommandOpen(false); void (async () => { if (await navigate("diagnostics")) await runDiagnostics() })() }}><Activity /><HighlightText text={t("runDiagnostics")} query={commandQuery} /></CommandItem>}
+            {can("operations.manage") && <CommandItem value="run diagnostics 运行诊断" onSelect={() => { setCommandOpen(false); void (async () => { if (view === "diagnostics") await runDiagnostics(); else await navigate("diagnostics") })() }}><Activity /><HighlightText text={t("runDiagnostics")} query={commandQuery} /></CommandItem>}
             <CommandItem value="openapi docs" onSelect={() => { setCommandOpen(false); window.open("/docs", "_blank", "noreferrer") }}><Braces /><HighlightText text={t("openApi")} query={commandQuery} /></CommandItem>
           </CommandGroup>
           {navGroups.map((group) => (
@@ -377,6 +462,7 @@ export default function App() {
           ))}
         </CommandList>
       </CommandDialog>
+      </Suspense></RouteErrorBoundary>}
 
       <Toaster toast={toast} onClose={dismissToast} />
       {confirmDialog}

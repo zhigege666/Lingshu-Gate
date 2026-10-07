@@ -1,3 +1,8 @@
+import { FilterRadio } from "@/components/filter-radio"
+import { auditSafety } from "@/features/observability/audit-safety"
+import "./invocation-audit-page.css"
+import { InvocationContent } from "@/components/invocation-content"
+import { RemainingList, ListPagination, ListViewport, useListPage } from "@/components/list-pagination"
 import { usePageRefresh } from "@/components/page-refresh"
 import { QueryStatus, querySignature } from "@/components/query-status"
 import { useEffect, useMemo, useState } from "react"
@@ -21,7 +26,11 @@ const copy = {
   "zh-CN": {
     eyebrow: "安全与访问 · 调用审计",
     title: "调用审计",
-    description: "记录谁通过什么凭据调用了哪个 Tool、分类要求、实际授权、策略决策和执行结果。敏感参数值不落库，只记录键名与载荷大小。",
+    description: "记录谁通过什么凭据调用了哪个 Tool、分类要求、实际授权、策略决策和执行结果。默认仅记录参数摘要；可选内容记录会脱敏并限长，需独立权限读取。",
+    blocked: "已拦截，工具未执行",
+    inconsistent: "安全警示：授权与执行记录矛盾，请按关联 ID 排查",
+    blockedHint: "可能来自旧目录缓存、撤权后的客户端或直接请求工具 ID；该条记录不代表工具已执行。",
+    technical: "技术信息",
     time: "时间",
     actor: "调用者",
     resource: "资源",
@@ -40,7 +49,7 @@ const copy = {
     allServers: "全部 MCP 服务",
     allTools: "全部工具",
     search: "在当前结果中搜索用户、MCP 服务、工具或关联 ID",
-    filterHint: "筛选条件需点击「应用筛选」后生效；搜索框只匹配当前查询结果，最多 300 条。",
+    filterHint: "决策和结果单选即时筛选；用户、服务和工具条件需点击「应用筛选」。搜索只匹配当前结果，最多 300 条。",
     noData: "暂无调用审计",
     detail: "审计详情",
     payload: "参数摘要",
@@ -52,13 +61,18 @@ const copy = {
     error: "错误",
     not_invoked: "未执行",
     noneLevel: "无权限",
+    unknownLevel: "待判定",
     readLevel: "只读",
     writeLevel: "读写",
   },
   "en-US": {
     eyebrow: "SECURITY & ACCESS · INVOCATION AUDIT",
     title: "Invocation Audit",
-    description: "Track who invoked which tool, through which credential, what classification and grant applied, and how execution ended. Sensitive values are never stored.",
+    description: "Track who invoked which tool, through which credential, what classification and grant applied, and how execution ended. Metadata is recorded by default; optional content recording is redacted, bounded, and requires separate access.",
+    blocked: "Blocked — tool was not executed",
+    inconsistent: "Security warning: authorization and execution records conflict. Investigate using the correlation ID.",
+    blockedHint: "This may come from a stale catalog, a client after revocation or a direct tool-ID request. This record does not mean the tool executed.",
+    technical: "Technical details",
     time: "Time",
     actor: "Actor",
     resource: "Resource",
@@ -77,7 +91,7 @@ const copy = {
     allServers: "All MCP servers",
     allTools: "All tools",
     search: "Search current results by actor, server, tool, or correlation ID",
-    filterHint: "Select Apply Filters to query records. The search box only searches the current query results, up to 300 records.",
+    filterHint: "Decision and outcome apply immediately. Apply user, service and tool conditions separately; search covers up to 300 loaded records.",
     noData: "No invocation audits",
     detail: "Audit detail",
     payload: "Payload summary",
@@ -89,12 +103,13 @@ const copy = {
     error: "Error",
     not_invoked: "Not invoked",
     noneLevel: "None",
+    unknownLevel: "Unclassified",
     readLevel: "Read",
     writeLevel: "Read & write",
   },
 } satisfies Record<Locale, Record<string, string>>
 
-export function InvocationAuditPage({ locale, t }: { locale: Locale; t: TFunction }) {
+export function InvocationAuditPage({ locale, t, canReadPayload = false }: { locale: Locale; t: TFunction; canReadPayload?: boolean }) {
   const c = copy[locale]
   const [audits, setAudits] = useState<InvocationAudit[]>([])
   const [query, setQuery] = useState("")
@@ -119,6 +134,8 @@ export function InvocationAuditPage({ locale, t }: { locale: Locale; t: TFunctio
     () => filterOptions.tools.filter((item) => serverId === "__all" || item.server_id === serverId),
     [filterOptions.tools, serverId],
   )
+
+  const paging = useListPage(visibleAudits, JSON.stringify([query, applied]))
 
   usePageRefresh(() => load(applied), busy)
   useEffect(() => { void load(applied) }, [])
@@ -171,22 +188,22 @@ export function InvocationAuditPage({ locale, t }: { locale: Locale; t: TFunctio
 
   return (
     <div className="flex flex-col gap-4">
-      <PageHeader
+      <PageHeader closeLabel={t("close")}
         eyebrow={c.eyebrow}
         title={c.title}
         description={c.description}
         helpLabel={t("pageHelp")}
         helpContent={<p>{c.filterHint}</p>}
         toolbar={<PageToolbar query={query} onQueryChange={setQuery} placeholder={c.search} resultCount={visibleAudits.length} resultLabel={c.title} clearLabel={t("clearSearch")}>
-          <Select value={decision} onValueChange={setDecision}><SelectTrigger className="w-[150px]" aria-label={c.decision}><SelectValue /></SelectTrigger><SelectContent><SelectItem value="__all">{c.allDecisions}</SelectItem><SelectItem value="allow">{c.allow}</SelectItem><SelectItem value="deny">{c.deny}</SelectItem></SelectContent></Select>
-          <Select value={outcome} onValueChange={setOutcome}><SelectTrigger className="w-[150px]" aria-label={c.outcome}><SelectValue /></SelectTrigger><SelectContent><SelectItem value="__all">{c.allOutcomes}</SelectItem><SelectItem value="success">{c.success}</SelectItem><SelectItem value="error">{c.error}</SelectItem><SelectItem value="not_invoked">{c.not_invoked}</SelectItem></SelectContent></Select>
+          <FilterRadio label={c.decision} value={decision} disabled={busy} onChange={value => { setDecision(value); void load({ ...applied, decision: value }) }} options={[{ value: "__all", label: t("all") }, { value: "allow", label: c.allow }, { value: "deny", label: c.deny }]} />
+          <FilterRadio label={c.outcome} value={outcome} disabled={busy} onChange={value => { setOutcome(value); void load({ ...applied, outcome: value }) }} options={[{ value: "__all", label: t("all") }, { value: "success", label: c.success }, { value: "error", label: c.error }, { value: "not_invoked", label: c.not_invoked }]} />
         </PageToolbar>}
         stats={[
           { label: c.allow, value: allowCount, tone: "success" },
           { label: c.deny, value: denyCount, tone: denyCount ? "danger" : "default" },
           { label: c.error, value: errorCount, tone: errorCount ? "warning" : "default" },
         ]}
-        actions={<><Button variant="outline" disabled={busy} onClick={() => { setUserId("__all"); setServerId("__all"); setToolId("__all"); setDecision("__all"); setOutcome("__all") }}>{t("resetConditions")}</Button><Button onClick={() => void load()} disabled={busy}>{t("applyFilters")}</Button></>}
+        actions={<><Button variant="outline" disabled={busy} onClick={() => { const defaults = { userId: "__all", serverId: "__all", toolId: "__all", decision: "__all", outcome: "__all" }; setQuery(""); setUserId(defaults.userId); setServerId(defaults.serverId); setToolId(defaults.toolId); setDecision(defaults.decision); setOutcome(defaults.outcome); void load(defaults) }}>{t("resetConditions")}</Button><Button onClick={() => void load()} disabled={busy}>{t("applyFilters")}</Button></>}
       />
       <QueryStatus t={t} pendingChanges={querySignature({ userId, serverId, toolId, decision, outcome }) !== querySignature(applied)} lastLoadedAt={lastLoadedAt} summary={Object.entries(applied).filter(([, value]) => value !== "__all").map(([key, value]) => `${c[key as keyof typeof c] || key}: ${value}`).join(" · ") || `${t("all")} · ${t("limit")}: 300`} />
       {error && <Alert variant="destructive"><AlertDescription>{error}</AlertDescription></Alert>}
@@ -200,40 +217,52 @@ export function InvocationAuditPage({ locale, t }: { locale: Locale; t: TFunctio
               <FilterField label={c.toolId}><Select value={toolId} onValueChange={changeTool}><SelectTrigger aria-label={c.toolId}><SelectValue /></SelectTrigger><SelectContent><SelectItem value="__all">{c.allTools}</SelectItem>{toolOptions.map((tool) => <SelectItem key={`${tool.server_id}:${tool.tool_id}`} value={tool.tool_id}>{tool.tool_id}{serverId === "__all" ? ` · ${tool.server_id}` : ""}</SelectItem>)}</SelectContent></Select></FilterField>
             </div>
           </details>
-          <div className="max-h-[620px] overflow-auto rounded-lg border">
+          <RemainingList className="rounded-lg border">
+            <ListViewport actions={false} viewport={paging.viewport} label={t("toolShowing")}>
             <Table>
-              <TableHeader><TableRow><TableHead>{c.time}</TableHead><TableHead>{c.actor}</TableHead><TableHead>{c.resource}</TableHead><TableHead>{c.access}</TableHead><TableHead>{c.decision}</TableHead><TableHead>{c.outcome}</TableHead><TableHead>{c.duration}</TableHead></TableRow></TableHeader>
+              <TableHeader><TableRow><TableHead>{c.time}</TableHead><TableHead>{c.actor}</TableHead><TableHead>{c.resource}</TableHead><TableHead>{c.access}</TableHead><TableHead>{c.decision}</TableHead><TableHead>{c.outcome}</TableHead><TableHead className="whitespace-nowrap">{c.duration}</TableHead></TableRow></TableHeader>
               <TableBody>
-                {visibleAudits.length === 0 ? <TableEmptyRow colSpan={7} title={busy ? t("loadingData") : error ? t("notLoaded") : query.trim() ? t("noCurrentMatches") : Object.values(applied).some(value => value !== "__all") ? t("noAppliedMatches") : c.noData} /> : visibleAudits.map((item) => <TableRow key={item.id} className="cursor-pointer" onClick={() => setSelected(item)}>
+                {visibleAudits.length === 0 ? <TableEmptyRow colSpan={7} title={busy ? t("loadingData") : error ? t("notLoaded") : query.trim() ? t("noCurrentMatches") : Object.values(applied).some(value => value !== "__all") ? t("noAppliedMatches") : c.noData} /> : paging.items.map((item) => <TableRow key={item.id} className="cursor-pointer" onClick={() => setSelected(item)}>
                   <TableCell className="whitespace-nowrap text-xs">{formatDateTime(item.created_at)}</TableCell>
                   <TableCell><div className="font-medium">{item.username}</div><div className="text-xs text-muted-foreground">{item.auth_type}{item.api_token_id ? ` · ${item.api_token_id.slice(0, 8)}` : ""}</div></TableCell>
                   <TableCell><button type="button" className="text-left font-medium underline underline-offset-4 focus-visible:outline focus-visible:outline-2" onClick={e => { e.stopPropagation(); setSelected(item) }}>{item.tool_id}</button><div className="text-xs text-muted-foreground">{item.server_id}</div></TableCell>
-                  <TableCell><div className="flex items-center gap-2"><AccessBadge access={item.required_access} labels={c} /><span className="text-muted-foreground">≤</span><AccessBadge access={item.granted_access} labels={c} /></div></TableCell>
+                  <TableCell><div className="flex flex-col gap-1 text-xs"><span>{c.required}: <AccessBadge access={item.required_access} labels={c} /></span><span>{c.granted}: <AccessBadge access={item.granted_access} labels={c} /></span></div></TableCell>
                   <TableCell><Badge variant={item.decision === "allow" ? "success" : "danger"}>{item.decision === "allow" ? <ShieldCheck /> : <ShieldX />}{c[item.decision]}</Badge></TableCell>
-                  <TableCell><OutcomeBadge outcome={item.outcome} labels={c} /></TableCell>
+                  <TableCell>{auditSafety(item) === "inconsistent" ? <Badge variant="danger">{c.inconsistent}</Badge> : <OutcomeBadge outcome={item.outcome} labels={c} />}</TableCell>
                   <TableCell>{item.duration_ms === null || item.duration_ms === undefined ? "-" : `${item.duration_ms} ms`}</TableCell>
                 </TableRow>)}
               </TableBody>
             </Table>
-          </div>
+            </ListViewport>
+            <ListPagination paging={paging} t={t} />
+          </RemainingList>
         </CardContent>
       </Card>
 
       <Dialog open={selected !== null} onOpenChange={(open) => { if (!open) setSelected(null) }}>
-        <DialogContent className="max-w-3xl">
+        <DialogContent closeLabel={t("close")} className="max-w-3xl">
           <DialogHeader><DialogTitle>{c.detail}</DialogTitle><DialogDescription>{selected?.correlation_id || ""}</DialogDescription></DialogHeader>
-          <DialogBody className="grid max-h-[72vh] gap-4 overflow-y-auto lg:grid-cols-[0.85fr_1.15fr]">
-            <div className="flex flex-col gap-3">
-              <Detail label={c.correlation} value={selected?.correlation_id} />
-              <Detail label={c.actor} value={selected ? `${selected.username} (${selected.user_id})` : ""} />
-              <Detail label={c.authType} value={selected?.auth_type} />
+          <DialogBody className="space-y-4">
+            {selected && <Alert variant={auditSafety(selected) === "inconsistent" ? "destructive" : "default"}>
+              <AlertDescription><strong>{auditSafety(selected) === "inconsistent" ? c.inconsistent : auditSafety(selected) === "blocked" ? c.blocked : `${c[selected.decision]} · ${c[selected.outcome]}`}</strong>
+                {auditSafety(selected) === "blocked" && <p>{c.blockedHint}</p>}
+                <p className="break-words">{selected.reason}</p>
+              </AlertDescription>
+            </Alert>}
+            <div className="audit-detail-grid">
+              <Detail label={c.actor} value={selected?.username} />
+              <Detail label={c.time} value={selected ? formatDateTime(selected.created_at) : ""} />
               <Detail label={c.resource} value={selected ? `${selected.server_id} / ${selected.tool_id}` : ""} />
+              <Detail label={c.duration} value={selected?.duration_ms == null ? "—" : `${selected.duration_ms} ms`} />
               <Detail label={c.required} value={selected ? accessLabel(selected.required_access, c) : ""} />
               <Detail label={c.granted} value={selected ? accessLabel(selected.granted_access, c) : ""} />
-              <Detail label={c.decision} value={selected ? `${selected.decision} · ${selected.reason}` : ""} />
-              <Detail label={c.outcome} value={selected?.outcome} />
             </div>
-            <div><Label>{c.payload}</Label><div className="mt-2"><JsonPanel data={selected?.payload || {}} maxHeight="max-h-[500px]" /></div></div>
+            {canReadPayload && selected && <InvocationContent key={selected.id} auditId={selected.id} locale={locale} />}
+            <details className="audit-technical"><summary>{c.technical}</summary><div className="audit-detail-grid">
+              <Detail label={c.correlation} value={selected?.correlation_id} />
+              <Detail label={c.authType} value={selected?.auth_type} />
+              <Detail label={`${c.userId} ID`} value={selected?.user_id} />
+            </div><Label>{c.payload}</Label><JsonPanel copyLabel={t("copy")} data={selected?.payload || {}} maxHeight="max-h-64" /></details>
           </DialogBody>
         </DialogContent>
       </Dialog>
@@ -246,16 +275,18 @@ function FilterField({ label, children }: { label: string; children: React.React
 }
 
 function Detail({ label, value }: { label: string; value?: string | null }) {
-  return <div className="rounded-lg border bg-muted/20 p-3"><div className="text-xs text-muted-foreground">{label}</div><div className="mt-1 break-all text-sm">{value || "-"}</div></div>
+  return <div className="min-w-0"><div className="text-xs text-muted-foreground">{label}</div><div className="mt-1 break-all text-sm">{value || "-"}</div></div>
 }
 
 function AccessBadge({ access, labels }: { access: string; labels: Record<string, string> }) {
+  if (access === "unknown") return <Badge variant="warning">{labels.unknownLevel}</Badge>
   if (access === "write") return <Badge variant="warning">{labels.writeLevel}</Badge>
   if (access === "read") return <Badge variant="success">{labels.readLevel}</Badge>
   return <Badge variant="secondary">{labels.noneLevel}</Badge>
 }
 
 function accessLabel(access: string, labels: Record<string, string>) {
+  if (access === "unknown") return labels.unknownLevel
   if (access === "write") return labels.writeLevel
   if (access === "read") return labels.readLevel
   return labels.noneLevel

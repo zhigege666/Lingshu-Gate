@@ -6,6 +6,8 @@ from typing import Any
 
 from fastapi import Depends, FastAPI, HTTPException, Query
 
+from lingshu_gate.access_control import AccessControlStore
+from lingshu_gate.auth import AuthPrincipal
 from lingshu_gate.config import Settings
 from lingshu_gate.interfaces.control_api.dependencies import AuthDependency
 from lingshu_gate.mcp_runtime import McpRuntimeManager
@@ -20,6 +22,7 @@ def register_mcp_runtime_routes(
     settings: Settings,
     mcp_runtime: McpRuntimeManager,
     observability_store: ObservabilityStore,
+    access_store: AccessControlStore,
     require_operations_manager: AuthDependency,
 ) -> None:
     """Register server inventory and lifecycle routes."""
@@ -54,7 +57,11 @@ def register_mcp_runtime_routes(
         server_id: str,
         section: McpServerDetailSection | None = None,
         limit: int = Query(default=80, ge=1, le=200),
+        principal: AuthPrincipal = Depends(require_operations_manager),
     ) -> dict[str, Any]:
+        if section in {None, "logs", "events", "recovery"}:
+            if access_store.observability_server_ids(principal, [server_id]) == []:
+                raise HTTPException(404, detail="MCP log scope not found")
         try:
             return build_mcp_server_detail(
                 settings,
