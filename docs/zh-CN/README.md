@@ -44,7 +44,9 @@
 
 | 入口 | 用途 | 认证 |
 |---|---|---|
-| `/console` | Web Console | 认证 Cookie |
+| `/` | 浏览器 Console；程序请求得到 JSON 服务信息 | 登录页公开，Console 操作需要认证 Cookie |
+| `/v1/meta` | 不受 Accept 影响的 JSON 服务信息 | 公开元信息 |
+| `/console`、`/console/` | 保留 query 与 hash 的 `/` 兼容跳转 | 保留 Console 认证边界 |
 | `/docs` | OpenAPI UI | 由部署策略决定 |
 | `/mcp` | 无状态 Streamable HTTP MCP 网关 | Console Cookie 或 Bearer Token |
 | `/v1/*` | 控制与操作 API | 按权限检查 |

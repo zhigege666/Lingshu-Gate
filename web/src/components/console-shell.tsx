@@ -53,7 +53,7 @@ export function ConsoleShell({ view, title, user, version, groups, items, busy, 
     <header className="console-header">
       <Button className="console-mobile-menu" type="text" icon={<MenuOutlined />} onClick={() => setMobileOpen(true)} aria-label={zh ? "打开导航" : "Open navigation"} />
       <a href="#/dashboard" className="console-brand" aria-label={`Lingshu Gate ${version}`}>
-        <img src="/console/lingshu-gate-icon.svg" alt="" />
+        <img src="/lingshu-gate-icon.svg" alt="" />
         <span className="console-brand-label">
           <strong>Lingshu Gate</strong>
           <span className="console-version" title={version}>{version}</span>

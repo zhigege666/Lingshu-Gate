@@ -44,7 +44,9 @@ API schemas are served by a running Gate instance at `/docs`. Security policy an
 
 | Entry point | Purpose | Authentication |
 |---|---|---|
-| `/console` | Web Console | Authenticated cookie |
+| `/` | Browser Console; JSON service information for programmatic requests | Sign-in page is public; Console operations require an authenticated cookie |
+| `/v1/meta` | JSON service information, independent of Accept | Public metadata |
+| `/console`, `/console/` | Compatibility redirect to `/`, preserving query and hash | Same Console boundary |
 | `/docs` | OpenAPI UI | Deployment policy applies |
 | `/mcp` | Stateless Streamable HTTP MCP gateway | Console cookie or bearer token |
 | `/v1/*` | Control and operation APIs | Permission-specific |

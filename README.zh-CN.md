@@ -95,7 +95,7 @@ docker compose up -d --build core
 docker compose ps
 ```
 
-打开 <http://127.0.0.1:8000/console>。空数据卷首次启动时，Gate 会把一次性管理员密码写入 `/data/initial-admin-credentials.json`：
+打开 <http://127.0.0.1:8000/>。空数据卷首次启动时，Gate 会把一次性管理员密码写入 `/data/initial-admin-credentials.json`：
 
 ```bash
 docker compose exec core sh -c 'cat /data/initial-admin-credentials.json'
@@ -132,7 +132,7 @@ npm --prefix web run build
 uv run lingshu-gate
 ```
 
-Gate 默认监听 `127.0.0.1:8000`。Web Console 位于 `/console`，OpenAPI 文档位于 `/docs`，就绪探针位于 `/readyz`。
+Gate 默认监听 `127.0.0.1:8000`。浏览器在 `/` 打开 Web Console，OpenAPI 文档位于 `/docs`，就绪探针位于 `/readyz`。`/v1/meta` 始终提供 JSON 服务信息；默认 curl/程序请求及显式可接受 `application/json` 的 `/` 请求仍得到 JSON。旧 `/console` 书签跳转到 `/`，保留 query 与 hash 导航。独立 OAuth 入口仍为 `/oauth/consent`。
 
 Console 的 **角色与权限类型** 页面通过页签区分角色和资源权限类型，支持名称/代码搜索、来源/状态/基础级别筛选、平铺行内操作和完整权限详情。复制会创建需要新代码的自定义项；系统项限制、已有成员角色及被授权引用类型的删除校验仍由 API 执行。
 

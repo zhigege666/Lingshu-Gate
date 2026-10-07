@@ -109,7 +109,7 @@ Gate 不跨请求缓存入站授权，下一次 `tools/list` 和 `tools/call` �
 
 ## 公网代理放行清单
 
-只按下方方法公开这些路径。公网入口阻止其他路径，包括 `/console`、`/v1`、`/docs`、`/openapi.json` 和服务管理接口。内部 Console 使用独立私有监听或来源。不要配置所有路径直通 Gate 的 catch-all 代理。
+只按下方方法公开这些路径。公网入口阻止其他路径，包括私有 Console 根入口 `/`、其 `/assets/` 与 `/lingshu-gate-*` 图标、旧 `/console`、`/v1`、`/docs`、`/openapi.json` 和服务管理接口。内部 Console 使用独立私有监听或来源。根入口迁移不会把 `/oauth/consent` 或 `/oauth/assets/` 迁入 Console bundle。不要配置所有路径直通 Gate 的 catch-all 代理。
 
 | 路径 | 公网方法 | 用途 |
 |---|---|---|

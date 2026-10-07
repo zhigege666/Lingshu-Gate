@@ -2,7 +2,7 @@
 
 [English](../local-development.md) · [文档索引](README.md)
 
-Lingshu Gate 使用 Python 实现服务，使用 React/TypeScript 实现 Console。构建后的 Console 嵌入 Python 包，并在 `/console` 提供。
+Lingshu Gate 使用 Python 实现服务，使用 React/TypeScript 实现 Console。构建后的 Console 嵌入 Python 包，在 `/` 向浏览器提供，保留 hash 导航。旧 `/console` 入口跳转到根路径；生成资源使用 `/assets/`，旧 `/console/assets/` 路径继续兼容。`/v1/meta` 始终提供 JSON 服务信息，显式可接受 `Accept: application/json` 的 `/` 请求也提供 JSON。
 
 ## 环境要求
 
@@ -80,7 +80,7 @@ uv run pytest -q tests/test_access_control.py
 npm --prefix web run dev
 ```
 
-打开 `http://127.0.0.1:4173/console/`。开发服务器默认把 Gate API 请求代理到 `http://127.0.0.1:8000`；只有本地 Gate 使用其他 Origin 时，才需要在启动 Vite 前设置 `LINGSHU_GATE_DEV_PROXY_TARGET`。
+打开 `http://127.0.0.1:4173/`。开发服务器默认把 Gate API 请求代理到 `http://127.0.0.1:8000`；只有本地 Gate 使用其他 Origin 时，才需要在启动 Vite 前设置 `LINGSHU_GATE_DEV_PROXY_TARGET`。根路径内容协商和旧入口跳转应使用端口 8000 上的已构建 Gate 服务验证，Vite 直接提供开发 HTML。
 
 ```bash
 npm --prefix web run check

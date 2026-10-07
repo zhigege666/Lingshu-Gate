@@ -165,7 +165,7 @@ SQLite 部署应：
 
 ## 内置 OAuth 公网路径
 
-可选的[内置授权服务](builtin-oauth.md#公网代理放行清单)增加专用 `/oauth/consent` 页面和独立 `/oauth/assets/` bundle。按精确路径/方法清单放行，`/console`、`/v1`、OpenAPI 和管理面继续私有。Issuer 为固定 HTTPS 来源，资源以 `/mcp` 结尾，授权浏览器页面/API 使用同一 issuer 来源，不从 Host 推导回调或发现 URL。内部 Console 也使用 TLS 时启用 Secure Console Cookie，只信任明确代理 IP 的 forwarded headers。一起备份 SQLite 和受保护的 `data_dir/oauth-signing.key`。边缘日志移除 OAuth 查询/请求体值，并限制大小/频率。静态编译未验证部署兼容性或真实 TLS/浏览器/OAuth 验收。
+可选的[内置授权服务](builtin-oauth.md#公网代理放行清单)增加专用 `/oauth/consent` 页面和独立 `/oauth/assets/` bundle。按精确路径/方法清单放行，Console 根入口 `/`、`/assets/`、图标、旧 `/console`、`/v1`、OpenAPI 和管理面继续私有。Issuer 为固定 HTTPS 来源，资源以 `/mcp` 结尾，授权浏览器页面/API 使用同一 issuer 来源，不从 Host 推导回调或发现 URL。内部 Console 也使用 TLS 时启用 Secure Console Cookie，只信任明确代理 IP 的 forwarded headers。一起备份 SQLite 和受保护的 `data_dir/oauth-signing.key`。边缘日志移除 OAuth 查询/请求体值，并限制大小/频率。静态编译未验证部署兼容性或真实 TLS/浏览器/OAuth 验收。
 
 结构升级保留已发布版本的 Console 会话，并标为明确的 Console 用途；公网同意会话有独立持久化用途。匿名授权票据不占已登录交互池，指南列明全局/用户/客户端上限和独立完成预算。公开与已登录准入分开，但分布式登录/协议滥用仍需代理连接/频率/请求体限制和可信 IP 处理。保持单 Core 进程；这些控制与每授权调用计数不构成分布式可用性保证。
 
