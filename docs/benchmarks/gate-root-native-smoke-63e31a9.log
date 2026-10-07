@@ -1,0 +1,338 @@
+# Actual PR54 native-smoke repair validation: 63e31a9ec1eaebd3cceb7a65c8d50f3fab5a9acd
+
+=== Original GitHub failure excerpt: linux-initial-job.log ===
+2026-10-07T05:07:16.5799103Z HEAD is now at 4bc7ed2 Merge 8f3f9469376445b5ba9136bdac5f3539c1cdb156 into fcfabc44896b3ef65a105b00b4017c5de35e7de0
+2026-10-07T05:08:32.3603833Z ##[group]Run uv run --no-sync python -m scripts.release.smoke_native --target "linux-x86_64" --bundle-dir "build/release/native-archive-linux-x86_64/lingshu-gate-v0.4.4-linux-x86_64"
+2026-10-07T05:08:34.1724588Z Traceback (most recent call last):
+2026-10-07T05:08:34.1728873Z   File "<ci-checkout>/scripts/release/smoke_native.py", line 154, in <module>
+2026-10-07T05:08:34.1729999Z   File "<ci-checkout>/scripts/release/smoke_native.py", line 149, in main
+2026-10-07T05:08:34.1731416Z   File "<ci-checkout>/scripts/release/smoke_native.py", line 132, in smoke
+2026-10-07T05:08:34.1732621Z   File "<ci-checkout>/scripts/release/smoke_native.py", line 40, in _verify_http_surface
+2026-10-07T05:08:34.1733268Z     raise RuntimeError("Frozen Console does not reference a JavaScript asset")
+2026-10-07T05:08:34.1733774Z RuntimeError: Frozen Console does not reference a JavaScript asset
+2026-10-07T05:08:34.1840429Z ##[error]Process completed with exit code 1.
+
+=== Original GitHub failure excerpt: windows-initial-job.log ===
+2026-10-07T05:06:20.8624704Z HEAD is now at 4bc7ed2 Merge 8f3f9469376445b5ba9136bdac5f3539c1cdb156 into fcfabc44896b3ef65a105b00b4017c5de35e7de0
+2026-10-07T05:08:37.5607738Z ##[group]Run uv run --no-sync python -m scripts.release.smoke_native --target "windows-x86_64" --bundle-dir "build/release/native-archive-windows-x86_64/lingshu-gate-v0.4.4-windows-x86_64"
+2026-10-07T05:08:41.7987465Z Traceback (most recent call last):
+2026-10-07T05:08:41.7995462Z   File "<ci-checkout>\scripts\release\smoke_native.py", line 154, in <module>
+2026-10-07T05:08:41.7996509Z   File "<ci-checkout>\scripts\release\smoke_native.py", line 149, in main
+2026-10-07T05:08:41.7998344Z   File "<ci-checkout>\scripts\release\smoke_native.py", line 132, in smoke
+2026-10-07T05:08:41.7999607Z   File "<ci-checkout>\scripts\release\smoke_native.py", line 40, in _verify_http_surface
+2026-10-07T05:08:41.8000313Z     raise RuntimeError("Frozen Console does not reference a JavaScript asset")
+2026-10-07T05:08:41.8000888Z RuntimeError: Frozen Console does not reference a JavaScript asset
+2026-10-07T05:08:41.9281330Z ##[error]Process completed with exit code 1.
+
+=== uv-ci-version.log ===
+Downloading uv (21.2MiB)
+ Downloaded uv
+Installed 1 package in 1ms
+uv 0.11.33 (x86_64-unknown-linux-gnu)
+
+=== sync-release-frozen.log ===
+Downloading setuptools (1.0MiB)
+ Downloaded setuptools
+Prepared 4 packages in 254ms
+Installed 4 packages in 7ms
+ + altgraph==0.17.5
+ + pyinstaller==6.22.2
+ + pyinstaller-hooks-contrib==2026.7
+ + setuptools==81.0.0
+
+=== build-native-linux.log ===
+
+added 276 packages in 9s
+
+> build
+> npm run typecheck && vite build && vite build --config vite.oauth.config.ts
+
+
+> typecheck
+> tsc --noEmit -p tsconfig.app.json && tsc --noEmit -p tsconfig.node.json
+
+vite v6.4.3 building for production...
+transforming...
+✓ 5202 modules transformed.
+rendering chunks...
+computing gzip size...
+../src/lingshu_gate/static/console/index.html                                           0.56 kB │ gzip:   0.34 kB
+../src/lingshu_gate/static/console/assets/invocation-audit-page-gZTTbDC-.css            0.36 kB │ gzip:   0.22 kB
+../src/lingshu_gate/static/console/assets/logs-events-page-C_tXKfZX.css                 0.40 kB │ gzip:   0.19 kB
+../src/lingshu_gate/static/console/assets/personal-tokens-page-CkWBF4Ey.css             0.60 kB │ gzip:   0.25 kB
+../src/lingshu_gate/static/console/assets/list-pagination-Bhk33GaC.css                  0.88 kB │ gzip:   0.39 kB
+../src/lingshu_gate/static/console/assets/tool-classifications-page-CvaUMHsJ.css        0.95 kB │ gzip:   0.30 kB
+../src/lingshu_gate/static/console/assets/filter-radio-Cvd3loxI.css                     0.99 kB │ gzip:   0.43 kB
+../src/lingshu_gate/static/console/assets/network-settings-panel-DdqzOYSp.css           1.27 kB │ gzip:   0.43 kB
+../src/lingshu_gate/static/console/assets/personal-workspace-page-BXR7YmBI.css          1.42 kB │ gzip:   0.36 kB
+../src/lingshu_gate/static/console/assets/downstream-credentials-page-ETbsmqs_.css      2.30 kB │ gzip:   0.60 kB
+../src/lingshu_gate/static/console/assets/builds-page-aX5Z9VWe.css                      2.71 kB │ gzip:   0.81 kB
+../src/lingshu_gate/static/console/assets/servers-page-D5FAfNti.css                     2.71 kB │ gzip:   0.88 kB
+../src/lingshu_gate/static/console/assets/maintenance-lists-LZ9NZWjb.css                3.84 kB │ gzip:   0.86 kB
+../src/lingshu_gate/static/console/assets/mcp-config-editor-BfgY_Zvm.css                4.34 kB │ gzip:   1.09 kB
+../src/lingshu_gate/static/console/assets/tools-page-DIO8IAOg.css                       4.86 kB │ gzip:   1.32 kB
+../src/lingshu_gate/static/console/assets/access-roles-page-CtEgu0jR.css                6.83 kB │ gzip:   1.62 kB
+../src/lingshu_gate/static/console/assets/dashboard-page-CGZJOK3t.css                   7.72 kB │ gzip:   1.87 kB
+../src/lingshu_gate/static/console/assets/invoke-page-Cl_tmlbM.css                     10.10 kB │ gzip:   2.22 kB
+../src/lingshu_gate/static/console/assets/external-connections-page-OkTGTzWM.css       13.55 kB │ gzip:   2.75 kB
+../src/lingshu_gate/static/console/assets/index-BoydD9Sb.css                           82.58 kB │ gzip:  15.40 kB
+../src/lingshu_gate/static/console/assets/chevron-down-Cd0pDUPs.js                      0.35 kB │ gzip:   0.26 kB
+../src/lingshu_gate/static/console/assets/chevron-left-Buyzdk3J.js                      0.35 kB │ gzip:   0.26 kB
+../src/lingshu_gate/static/console/assets/chevron-right-CCHcDBnv.js                     0.35 kB │ gzip:   0.26 kB
+../src/lingshu_gate/static/console/assets/plus-LbQvuW4T.js                              0.36 kB │ gzip:   0.27 kB
+../src/lingshu_gate/static/console/assets/search-CbfAwHMm.js                            0.38 kB │ gzip:   0.29 kB
+../src/lingshu_gate/static/console/assets/info-BcvPSEoQ.js                              0.41 kB │ gzip:   0.29 kB
+../src/lingshu_gate/static/console/assets/copy-Br9SvLkq.js                              0.44 kB │ gzip:   0.33 kB
+../src/lingshu_gate/static/console/assets/textarea-CWNL9OPM.js                          0.55 kB │ gzip:   0.34 kB
+../src/lingshu_gate/static/console/assets/shield-alert-BtpKXvtD.js                      0.57 kB │ gzip:   0.38 kB
+../src/lingshu_gate/static/console/assets/skeleton-CvrCDQx-.js                          0.60 kB │ gzip:   0.39 kB
+../src/lingshu_gate/static/console/assets/filter-radio-Mi5SeBY6.js                      0.70 kB │ gzip:   0.35 kB
+../src/lingshu_gate/static/console/assets/use-draft-close-guard-DO3eNWhw.js             0.80 kB │ gzip:   0.53 kB
+../src/lingshu_gate/static/console/assets/query-status-CF5BvUt7.js                      0.80 kB │ gzip:   0.44 kB
+../src/lingshu_gate/static/console/assets/PlusOutlined-CYJwpRj9.js                      0.83 kB │ gzip:   0.51 kB
+../src/lingshu_gate/static/console/assets/badge-CvR36c2y.js                             0.89 kB │ gzip:   0.47 kB
+../src/lingshu_gate/static/console/assets/index-DZX2_8Ws.js                             0.91 kB │ gzip:   0.49 kB
+../src/lingshu_gate/static/console/assets/index-D642Qfru.js                             0.98 kB │ gzip:   0.48 kB
+../src/lingshu_gate/static/console/assets/InfoCircleOutlined-Cr4Lml58.js                1.04 kB │ gzip:   0.61 kB
+../src/lingshu_gate/static/console/assets/system-settings-page-oYMCv8HX.js              1.37 kB │ gzip:   0.81 kB
+../src/lingshu_gate/static/console/assets/validation-errors-CvyCoj3c.js                 1.40 kB │ gzip:   0.76 kB
+../src/lingshu_gate/static/console/assets/use-remaining-viewport-B3bY1837.js            1.62 kB │ gzip:   0.70 kB
+../src/lingshu_gate/static/console/assets/network-ClIGszOE.js                           1.79 kB │ gzip:   0.61 kB
+../src/lingshu_gate/static/console/assets/tool-origin-DjhHdlu0.js                       1.79 kB │ gzip:   0.73 kB
+../src/lingshu_gate/static/console/assets/ExclamationCircleFilled-DW3a-G5A.js           1.89 kB │ gzip:   0.75 kB
+../src/lingshu_gate/static/console/assets/form-dialog-C1S4lG9f.js                       2.07 kB │ gzip:   0.85 kB
+../src/lingshu_gate/static/console/assets/index-BKoEnKAt.js                             3.22 kB │ gzip:   1.00 kB
+../src/lingshu_gate/static/console/assets/invocation-payload-panel-oHdYzcQl.js          3.46 kB │ gzip:   1.73 kB
+../src/lingshu_gate/static/console/assets/builds-DtuVReBY.js                            3.63 kB │ gzip:   1.13 kB
+../src/lingshu_gate/static/console/assets/CSSMotionList-DVPYVwsl.js                     4.13 kB │ gzip:   1.58 kB
+../src/lingshu_gate/static/console/assets/page-utils-BJQ1SsBJ.js                        4.95 kB │ gzip:   1.46 kB
+../src/lingshu_gate/static/console/assets/action-menu-BNjxvfpa.js                       5.28 kB │ gzip:   1.97 kB
+../src/lingshu_gate/static/console/assets/list-pagination-CISguBgq.js                   5.31 kB │ gzip:   1.85 kB
+../src/lingshu_gate/static/console/assets/table-tools-GmtolFeX.js                       5.69 kB │ gzip:   2.06 kB
+../src/lingshu_gate/static/console/assets/switch-CYcnRvRj.js                            6.82 kB │ gzip:   2.12 kB
+../src/lingshu_gate/static/console/assets/diagnostics-page-fDr0TMrs.js                  8.00 kB │ gzip:   2.28 kB
+../src/lingshu_gate/static/console/assets/index-Di1z8nGz.js                            11.28 kB │ gzip:   3.67 kB
+../src/lingshu_gate/static/console/assets/index-avVDPkjX.js                            11.95 kB │ gzip:   3.05 kB
+../src/lingshu_gate/static/console/assets/runtime-cache-page-BTsO0bd9.js               12.22 kB │ gzip:   4.04 kB
+../src/lingshu_gate/static/console/assets/personal-workspace-page-DKvctrQe.js          12.57 kB │ gzip:   4.18 kB
+../src/lingshu_gate/static/console/assets/tools-page-BkMVscAt.js                       13.09 kB │ gzip:   3.85 kB
+../src/lingshu_gate/static/console/assets/credentials-page-sih6xvlc.js                 13.59 kB │ gzip:   4.05 kB
+../src/lingshu_gate/static/console/assets/index-B0Pcojzi.js                            15.62 kB │ gzip:   4.52 kB
+../src/lingshu_gate/static/console/assets/downstream-credentials-page-Dg03pmyN.js      15.79 kB │ gzip:   5.19 kB
+../src/lingshu_gate/static/console/assets/command-BHxll4YZ.js                          16.40 kB │ gzip:   5.70 kB
+../src/lingshu_gate/static/console/assets/deployment-options-D2uVI1pP.js               19.05 kB │ gzip:   7.29 kB
+../src/lingshu_gate/static/console/assets/access-grants-page-CbmMPBL3.js               19.77 kB │ gzip:   5.80 kB
+../src/lingshu_gate/static/console/assets/access-users-page-D99NXAqC.js                21.16 kB │ gzip:   5.87 kB
+../src/lingshu_gate/static/console/assets/invocation-audit-page-2ZQOX3Y5.js            21.26 kB │ gzip:   6.80 kB
+../src/lingshu_gate/static/console/assets/configs-page-CsJU1JxU.js                     21.76 kB │ gzip:   8.06 kB
+../src/lingshu_gate/static/console/assets/personal-tokens-page-DMZq3FGc.js             23.54 kB │ gzip:   8.13 kB
+../src/lingshu_gate/static/console/assets/index-aoAnvGbj.js                            24.90 kB │ gzip:   7.26 kB
+../src/lingshu_gate/static/console/assets/dashboard-page-CVnFNeNX.js                   25.28 kB │ gzip:   6.29 kB
+../src/lingshu_gate/static/console/assets/json-panel-DdXfZ-h7.js                       25.41 kB │ gzip:   5.60 kB
+../src/lingshu_gate/static/console/assets/index-B45mUtFA.js                            26.31 kB │ gzip:   7.16 kB
+../src/lingshu_gate/static/console/assets/network-settings-panel-2xmfsTTl.js           33.08 kB │ gzip:   9.54 kB
+../src/lingshu_gate/static/console/assets/index-BkbQhTk4.js                            35.50 kB │ gzip:   9.51 kB
+../src/lingshu_gate/static/console/assets/tool-classifications-page-DoueZDq_.js        35.90 kB │ gzip:  10.04 kB
+../src/lingshu_gate/static/console/assets/Pagination-B6Rn5WbI.js                       36.31 kB │ gzip:   8.50 kB
+../src/lingshu_gate/static/console/assets/index-wSD6x79G.js                            41.25 kB │ gzip:  10.94 kB
+../src/lingshu_gate/static/console/assets/context-D-BSPeCu.js                          41.94 kB │ gzip:  10.88 kB
+../src/lingshu_gate/static/console/assets/index-D1Sfy9I0.js                            43.22 kB │ gzip:  10.97 kB
+../src/lingshu_gate/static/console/assets/access-roles-page-Bqk9Y4ag.js                44.50 kB │ gzip:  11.60 kB
+../src/lingshu_gate/static/console/assets/logs-events-page-De04kuyq.js                 44.79 kB │ gzip:  12.47 kB
+../src/lingshu_gate/static/console/assets/mcp-config-editor-dP694YUJ.js                46.11 kB │ gzip:  14.20 kB
+../src/lingshu_gate/static/console/assets/index-BQuZ1_38.js                            55.57 kB │ gzip:  13.15 kB
+../src/lingshu_gate/static/console/assets/uploads-page-BsVdfmOl.js                     60.33 kB │ gzip:  15.84 kB
+../src/lingshu_gate/static/console/assets/builds-page-C9Q46pPw.js                      85.53 kB │ gzip:  18.87 kB
+../src/lingshu_gate/static/console/assets/select-CFJXUpV3.js                           98.39 kB │ gzip:  23.65 kB
+../src/lingshu_gate/static/console/assets/page-shell-OfO8QBDI.js                      122.87 kB │ gzip:  26.78 kB
+../src/lingshu_gate/static/console/assets/servers-page-CCvbJEf9.js                    125.45 kB │ gzip:  33.36 kB
+../src/lingshu_gate/static/console/assets/external-connections-page-BgpMVlcb.js       234.15 kB │ gzip:  62.20 kB
+../src/lingshu_gate/static/console/assets/Table-BGpqQKgr.js                           253.27 kB │ gzip:  59.97 kB
+../src/lingshu_gate/static/console/assets/invoke-page-BuHvpxcL.js                     291.59 kB │ gzip:  71.44 kB
+../src/lingshu_gate/static/console/assets/index-DcAnjevD.js                         1,093.31 kB │ gzip: 291.07 kB
+
+(!) Some chunks are larger than 500 kB after minification. Consider:
+- Using dynamic import() to code-split the application
+- Use build.rollupOptions.output.manualChunks to improve chunking: https://rollupjs.org/configuration-options/#output-manualchunks
+- Adjust chunk size limit for this warning via build.chunkSizeWarningLimit.
+✓ built in 7.53s
+vite v6.4.3 building for production...
+transforming...
+✓ 4769 modules transformed.
+rendering chunks...
+computing gzip size...
+../src/lingshu_gate/static/oauth/oauth.html                     0.38 kB │ gzip:   0.28 kB
+../src/lingshu_gate/static/oauth/assets/oauth-DSpYj97H.css     73.50 kB │ gzip:  13.56 kB
+../src/lingshu_gate/static/oauth/assets/oauth-Ccl8Q35g.js   1,445.52 kB │ gzip: 367.02 kB
+
+(!) Some chunks are larger than 500 kB after minification. Consider:
+- Using dynamic import() to code-split the application
+- Use build.rollupOptions.output.manualChunks to improve chunking: https://rollupjs.org/configuration-options/#output-manualchunks
+- Adjust chunk size limit for this warning via build.chunkSizeWarningLimit.
+✓ built in 5.23s
+100 INFO: PyInstaller: 6.22.2, contrib hooks: 2026.7
+100 INFO: Python: 3.13.15
+101 INFO: Platform: Linux-6.18.44-x86_64-with-glibc2.41
+101 INFO: Python environment: <repo>/.venv
+103 INFO: Removing temporary files and cleaning cache in <validation-root>/xdg-cache/pyinstaller
+1148 INFO: Module search paths (PYTHONPATH):
+['<repo>',
+ '<python-runtime>/cpython-3.13.15-linux-x86_64-gnu/lib/python313.zip',
+ '<python-runtime>/cpython-3.13.15-linux-x86_64-gnu/lib/python3.13',
+ '<python-runtime>/cpython-3.13.15-linux-x86_64-gnu/lib/python3.13/lib-dynload',
+ '<repo>/.venv/lib/python3.13/site-packages',
+ '__editable__.lingshu_gate-0.4.4.finder.__path_hook__',
+ '<repo>/packaging',
+ '<repo>/src']
+1252 INFO: Appending 'datas' from .spec
+1253 INFO: checking Analysis
+1253 INFO: Building Analysis because Analysis-00.toc is non existent
+1253 INFO: Looking for Python shared library...
+1260 INFO: Using Python shared library: <python-runtime>/cpython-3.13.15-linux-x86_64-gnu/lib/libpython3.13.so.1.0
+1260 INFO: Running Analysis Analysis-00.toc
+1260 INFO: Target bytecode optimization level: 1
+1260 INFO: Initializing module dependency graph...
+1260 INFO: Initializing module graph hook caches...
+1265 INFO: Analyzing modules for base_library.zip ...
+1573 INFO: Processing standard module hook 'hook-heapq.py' from '<repo>/.venv/lib/python3.13/site-packages/PyInstaller/hooks'
+1583 INFO: Processing standard module hook 'hook-math.py' from '<repo>/.venv/lib/python3.13/site-packages/PyInstaller/hooks'
+1824 INFO: Processing standard module hook 'hook-encodings.py' from '<repo>/.venv/lib/python3.13/site-packages/PyInstaller/hooks'
+3114 INFO: Processing standard module hook 'hook-pickle.py' from '<repo>/.venv/lib/python3.13/site-packages/PyInstaller/hooks'
+4092 INFO: Caching module dependency graph...
+4122 INFO: Analyzing <repo>/packaging/pyinstaller_entry.py
+4125 INFO: Processing standard module hook 'hook-uvicorn.py' from '<repo>/.venv/lib/python3.13/site-packages/_pyinstaller_hooks_contrib/stdhooks'
+4419 INFO: Processing standard module hook 'hook-multiprocessing.util.py' from '<repo>/.venv/lib/python3.13/site-packages/PyInstaller/hooks'
+4587 INFO: Processing standard module hook 'hook-xml.py' from '<repo>/.venv/lib/python3.13/site-packages/PyInstaller/hooks'
+4813 INFO: Processing standard module hook 'hook-sysconfig.py' from '<repo>/.venv/lib/python3.13/site-packages/PyInstaller/hooks'
+4816 INFO: Processing standard module hook 'hook-_ctypes.py' from '<repo>/.venv/lib/python3.13/site-packages/PyInstaller/hooks'
+5253 INFO: Processing pre-safe-import-module hook 'hook-typing_extensions.py' from '<repo>/.venv/lib/python3.13/site-packages/PyInstaller/hooks/pre_safe_import_module'
+5255 INFO: SetuptoolsInfo: initializing cached setuptools info...
+5856 INFO: Processing standard module hook 'hook-platform.py' from '<repo>/.venv/lib/python3.13/site-packages/PyInstaller/hooks'
+6057 INFO: Processing standard module hook 'hook-difflib.py' from '<repo>/.venv/lib/python3.13/site-packages/PyInstaller/hooks'
+6160 INFO: Processing standard module hook 'hook-webbrowser.py' from '<repo>/.venv/lib/python3.13/site-packages/PyInstaller/hooks'
+6308 INFO: Processing standard module hook 'hook-websockets.py' from '<repo>/.venv/lib/python3.13/site-packages/_pyinstaller_hooks_contrib/stdhooks'
+6864 INFO: Processing standard module hook 'hook-anyio.py' from '<repo>/.venv/lib/python3.13/site-packages/_pyinstaller_hooks_contrib/stdhooks'
+7377 INFO: Processing standard module hook 'hook-pydantic.py' from '<repo>/.venv/lib/python3.13/site-packages/_pyinstaller_hooks_contrib/stdhooks'
+7902 INFO: Processing standard module hook 'hook-zoneinfo.py' from '<repo>/.venv/lib/python3.13/site-packages/_pyinstaller_hooks_contrib/stdhooks'
+8544 INFO: Processing standard module hook 'hook-cryptography.py' from '<repo>/.venv/lib/python3.13/site-packages/_pyinstaller_hooks_contrib/stdhooks'
+8880 INFO: hook-cryptography: cryptography does not seem to be using dynamically linked OpenSSL.
+8940 INFO: Processing standard module hook 'hook-sqlite3.py' from '<repo>/.venv/lib/python3.13/site-packages/PyInstaller/hooks'
+9156 INFO: Processing standard module hook 'hook-jsonschema.py' from '<repo>/.venv/lib/python3.13/site-packages/_pyinstaller_hooks_contrib/stdhooks'
+9339 INFO: Processing standard module hook 'hook-jsonschema_specifications.py' from '<repo>/.venv/lib/python3.13/site-packages/_pyinstaller_hooks_contrib/stdhooks'
+9345 INFO: Processing pre-safe-import-module hook 'hook-importlib_resources.py' from '<repo>/.venv/lib/python3.13/site-packages/PyInstaller/hooks/pre_safe_import_module'
+9373 INFO: Analyzing hidden import 'lingshu_gate.access_control'
+10923 INFO: Processing standard module hook 'hook-opentelemetry.py' from '<repo>/.venv/lib/python3.13/site-packages/_pyinstaller_hooks_contrib/stdhooks'
+11609 INFO: Processing pre-safe-import-module hook 'hook-backports.py' from '<repo>/.venv/lib/python3.13/site-packages/PyInstaller/hooks/pre_safe_import_module'
+11610 INFO: Setuptools: 'backports' appears to be a full setuptools-vendored copy - creating alias to 'setuptools._vendor.backports'!
+11614 INFO: Processing standard module hook 'hook-setuptools.py' from '<repo>/.venv/lib/python3.13/site-packages/PyInstaller/hooks'
+11622 INFO: Processing pre-safe-import-module hook 'hook-distutils.py' from '<repo>/.venv/lib/python3.13/site-packages/PyInstaller/hooks/pre_safe_import_module'
+11642 INFO: Processing pre-safe-import-module hook 'hook-jaraco.py' from '<repo>/.venv/lib/python3.13/site-packages/PyInstaller/hooks/pre_safe_import_module'
+11643 INFO: Setuptools: 'jaraco' appears to be a full setuptools-vendored copy - creating alias to 'setuptools._vendor.jaraco'!
+11651 INFO: Processing pre-safe-import-module hook 'hook-more_itertools.py' from '<repo>/.venv/lib/python3.13/site-packages/PyInstaller/hooks/pre_safe_import_module'
+11652 INFO: Setuptools: 'more_itertools' appears to be a setuptools-vendored copy - creating alias to 'setuptools._vendor.more_itertools'!
+11818 INFO: Processing pre-safe-import-module hook 'hook-packaging.py' from '<repo>/.venv/lib/python3.13/site-packages/PyInstaller/hooks/pre_safe_import_module'
+12014 INFO: Processing standard module hook 'hook-setuptools._vendor.jaraco.text.py' from '<repo>/.venv/lib/python3.13/site-packages/PyInstaller/hooks'
+12142 INFO: Processing pre-safe-import-module hook 'hook-importlib_metadata.py' from '<repo>/.venv/lib/python3.13/site-packages/PyInstaller/hooks/pre_safe_import_module'
+12142 INFO: Setuptools: 'importlib_metadata' appears to be a setuptools-vendored copy - creating alias to 'setuptools._vendor.importlib_metadata'!
+12161 INFO: Processing standard module hook 'hook-setuptools._vendor.importlib_metadata.py' from '<repo>/.venv/lib/python3.13/site-packages/PyInstaller/hooks'
+12177 INFO: Processing pre-safe-import-module hook 'hook-zipp.py' from '<repo>/.venv/lib/python3.13/site-packages/PyInstaller/hooks/pre_safe_import_module'
+12177 INFO: Setuptools: 'zipp' appears to be a setuptools-vendored copy - creating alias to 'setuptools._vendor.zipp'!
+12332 INFO: Processing pre-safe-import-module hook 'hook-tomli.py' from '<repo>/.venv/lib/python3.13/site-packages/PyInstaller/hooks/pre_safe_import_module'
+12333 INFO: Setuptools: 'tomli' appears to be a setuptools-vendored copy - creating alias to 'setuptools._vendor.tomli'!
+12721 INFO: Processing pre-safe-import-module hook 'hook-wheel.py' from '<repo>/.venv/lib/python3.13/site-packages/PyInstaller/hooks/pre_safe_import_module'
+12721 INFO: Setuptools: 'wheel' appears to be a setuptools-vendored copy - creating alias to 'setuptools._vendor.wheel'!
+12826 INFO: Processing standard module hook 'hook-pygments.py' from '<repo>/.venv/lib/python3.13/site-packages/PyInstaller/hooks'
+13966 INFO: Analyzing hidden import 'lingshu_gate.access_routes'
+13994 INFO: Analyzing hidden import 'lingshu_gate.adapters'
+13997 INFO: Analyzing hidden import 'lingshu_gate.adapters.native_executor'
+13997 INFO: Analyzing hidden import 'lingshu_gate.adapters.native_executor.controller'
+14029 INFO: Analyzing hidden import 'lingshu_gate.adapters.native_executor.executor'
+14125 INFO: Analyzing hidden import 'lingshu_gate.adapters.native_executor.runner'
+14136 INFO: Analyzing hidden import 'lingshu_gate.adapters.safe_network_factory'
+14138 INFO: Analyzing hidden import 'lingshu_gate.application.external_mcp_configuration'
+14189 INFO: Analyzing hidden import 'lingshu_gate.application.mcp_group_catalog'
+14199 INFO: Analyzing hidden import 'lingshu_gate.application.mcp_group_routing'
+14220 INFO: Analyzing hidden import 'lingshu_gate.build_deploy_routes'
+14233 INFO: Analyzing hidden import 'lingshu_gate.diagnostics'
+14241 INFO: Analyzing hidden import 'lingshu_gate.external_mcp_config_mcp'
+14242 INFO: Analyzing hidden import 'lingshu_gate.git_import_mcp'
+14261 INFO: Analyzing hidden import 'lingshu_gate.interfaces'
+14261 INFO: Analyzing hidden import 'lingshu_gate.interfaces.control_api'
+14322 INFO: Analyzing hidden import 'lingshu_gate.interfaces.control_api.catalog_routes'
+14350 INFO: Analyzing hidden import 'lingshu_gate.interfaces.control_api.console_security'
+14351 INFO: Analyzing hidden import 'lingshu_gate.interfaces.control_api.external_connection_routes'
+14366 INFO: Analyzing hidden import 'lingshu_gate.interfaces.control_api.external_mcp_config_routes'
+14370 INFO: Analyzing hidden import 'lingshu_gate.interfaces.control_api.mcp_group_routes'
+14377 INFO: Analyzing hidden import 'lingshu_gate.interfaces.control_api.network_routes'
+14383 INFO: Analyzing hidden import 'lingshu_gate.interfaces.control_api.oauth_routes'
+14421 INFO: Analyzing hidden import 'lingshu_gate.interfaces.control_api.retention_routes'
+14427 INFO: Analyzing hidden import 'lingshu_gate.main'
+14492 INFO: Analyzing hidden import 'lingshu_gate.ports.mcp_group_routing'
+14493 INFO: Processing module hooks (post-graph stage)...
+14505 INFO: Processing standard module hook 'hook-uvloop.py' from '<repo>/.venv/lib/python3.13/site-packages/_pyinstaller_hooks_contrib/stdhooks'
+17139 INFO: Performing binary vs. data reclassification (153 entries)
+17196 INFO: Looking for ctypes DLLs
+17346 INFO: Analyzing run-time hooks ...
+17357 INFO: Including run-time hook 'pyi_rth_inspect.py' from '<repo>/.venv/lib/python3.13/site-packages/PyInstaller/hooks/rthooks'
+17359 INFO: Including run-time hook 'pyi_rth_cryptography_openssl.py' from '<repo>/.venv/lib/python3.13/site-packages/_pyinstaller_hooks_contrib/rthooks'
+17359 INFO: Including run-time hook 'pyi_rth_pkgutil.py' from '<repo>/.venv/lib/python3.13/site-packages/PyInstaller/hooks/rthooks'
+17361 INFO: Including run-time hook 'pyi_rth_multiprocessing.py' from '<repo>/.venv/lib/python3.13/site-packages/PyInstaller/hooks/rthooks'
+17362 INFO: Including run-time hook 'pyi_rth_setuptools.py' from '<repo>/.venv/lib/python3.13/site-packages/PyInstaller/hooks/rthooks'
+17377 INFO: Creating base_library.zip...
+17529 INFO: Looking for dynamic libraries
+17610 INFO: Warnings written to <repo>/build/release/linux-x86_64/pyinstaller-work/lingshu-gate/warn-lingshu-gate.txt
+17670 INFO: Graph cross-reference written to <repo>/build/release/linux-x86_64/pyinstaller-work/lingshu-gate/xref-lingshu-gate.html
+17699 INFO: checking PYZ
+17699 INFO: Building PYZ because PYZ-00.toc is non existent
+17699 INFO: Building PYZ (ZlibArchive) <repo>/build/release/linux-x86_64/pyinstaller-work/lingshu-gate/PYZ-00.pyz
+21129 INFO: Building PYZ (ZlibArchive) <repo>/build/release/linux-x86_64/pyinstaller-work/lingshu-gate/PYZ-00.pyz completed successfully.
+21154 INFO: checking PKG
+21154 INFO: Building PKG because PKG-00.toc is non existent
+21154 INFO: Building PKG (CArchive) lingshu-gate.pkg
+21172 INFO: Building PKG (CArchive) lingshu-gate.pkg completed successfully.
+21172 INFO: Bootloader <repo>/.venv/lib/python3.13/site-packages/PyInstaller/bootloader/Linux-64bit-intel/run
+21172 INFO: checking EXE
+21172 INFO: Building EXE because EXE-00.toc is non existent
+21172 INFO: Building EXE from EXE-00.toc
+21172 INFO: Copying bootloader EXE to <repo>/build/release/linux-x86_64/pyinstaller-work/lingshu-gate/lingshu-gate
+21173 INFO: Appending PKG archive to custom ELF section in EXE
+21198 INFO: Building EXE from EXE-00.toc completed successfully.
+21200 INFO: checking COLLECT
+21200 INFO: Building COLLECT because COLLECT-00.toc is non existent
+21200 INFO: Building COLLECT COLLECT-00.toc
+21564 INFO: Building COLLECT COLLECT-00.toc completed successfully.
+21567 INFO: Build complete! The results are available in: <repo>/build/release/linux-x86_64/pyinstaller-dist
+lingshu-gate 0.4.4
+<validation-root>/native-candidate/lingshu-gate-v0.4.4-linux-x86_64.tar.gz
+
+=== native-identity.log ===
+repository identity check passed
+
+=== extract-native.log ===
+<repo>/build/release/pr54-native-smoke-extracted/lingshu-gate-v0.4.4-linux-x86_64
+
+=== native-readiness.log ===
+native readiness smoke test passed
+
+=== ruff.log ===
+All checks passed!
+
+=== mypy.log ===
+Success: no issues found in 158 source files
+
+=== identity.log ===
+repository identity check passed
+
+=== version.log ===
+0.4.4
+
+=== compose.log ===
+
+=== diff.log ===
+
+=== selected-backend.log ===
+........................................................................ [ 40%]
+........................................................................ [ 81%]
+................................                                         [100%]
+- generated xml file: <validation-root>/results.xml -
+176 passed in 20.08s

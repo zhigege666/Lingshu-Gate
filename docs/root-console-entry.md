@@ -99,3 +99,34 @@ The [earlier standalone root evidence](benchmarks/gate-root-entry-77d0815.json)
 and [its logs](benchmarks/gate-root-entry-77d0815.log) remain an unchanged historical
 checkpoint; the earlier unpublished interim CI trial is superseded by this exact
 reviewed merge.
+
+## Native readiness smoke follow-up
+
+Repair source `63e31a9ec1eaebd3cceb7a65c8d50f3fab5a9acd` fixes the Release smoke contract that failed on all five
+native platforms at `8f3f946`. Original Linux and Windows logs were independently
+read. The old request to `/console` had no HTML Accept, so its root destination
+correctly returned JSON; the asset pattern also still required `/console/`.
+The updated checker explicitly requests root HTML, retains machine JSON checks,
+and verifies each legacy entry's single 307, final root URL, duplicate query,
+HTML content type and identical body. It requires both JavaScript and CSS,
+fetches every referenced asset with status/type/nonempty checks, and verifies
+identical bytes through the legacy asset aliases. Resource checks were retained
+and strengthened.
+
+The repair passed 176 related backend/release checks, including 29 new loopback
+HTTP regressions. The preliminary 31-case native subset overlaps that total.
+Fresh official web/native builds, archive identity, safe extraction and actual
+Linux x86_64 frozen readiness smoke passed with CPython 3.13.15/PyInstaller
+6.22.2. The candidate archive SHA-256 is
+`dc5386253dd3e164a125156a76aabcdcc38a871104dfe1de9182b5e6b86990b9`. All 100 packaged static files match the fresh web build and
+the inventory above. Product/web source, locks, version and security workflows
+are unchanged. This is an unpublished local candidate; other native platforms
+and new exact-head GitHub CI require their own checks. nx5 has not been switched
+by this task. The remaining real-host/client acceptance and formal alert triage
+stay separate.
+
+[Native-smoke repair evidence](benchmarks/gate-root-native-smoke-63e31a9.json) and
+[normalized logs](benchmarks/gate-root-native-smoke-63e31a9.log) preserve the
+original failures, actual before/after HTTP probes, test commands and candidate
+inventory. New CI status is intentionally not inferred from the old head's
+successful CI, Code scanning and Container workflows.

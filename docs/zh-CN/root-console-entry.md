@@ -81,3 +81,26 @@ dismiss 告警，没有对合并 SHA 跑 CodeQL，也不声称 GitHub 所有检�
 [此前独立根入口证据](../benchmarks/gate-root-entry-77d0815.json) 与
 [原日志](../benchmarks/gate-root-entry-77d0815.log) 作为历史检查点保持原样；此前未
 推送的中间 CI 试合已由此次精确已审源码的合并取代。
+
+## Native readiness smoke 补充修复
+
+修复源码 `63e31a9ec1eaebd3cceb7a65c8d50f3fab5a9acd` 修正了 `8f3f946` 上五个平台均失败的 Release smoke 契约。
+已独立读取原始 Linux/Windows 日志。旧脚本访问 `/console` 时没有 HTML Accept，
+跳转后的根路径正确返回 JSON；资源正则也仍要求 `/console/` 前缀。新检查明确请求
+根路径 HTML，保留机器 JSON 验证，并逐一验证旧入口只有一次 307、最终根 URL、
+重复 query、HTML 类型及相同正文。必须同时有 JS 与 CSS；每个引用资源均检查
+状态、类型及非空内容，旧资源别名还须字节一致。资源校验保留并加强。
+
+相关后端/打包回归 176 项通过，包含 29 项新增 loopback HTTP 回归；先前 31 项
+native 子集与此总数重叠。实际重新执行正式 web/native 构建、归档身份验证、安全
+解包及 Linux x86_64 frozen readiness smoke，CPython 3.13.15/PyInstaller
+6.22.2 均通过。候选归档 SHA-256 为
+`dc5386253dd3e164a125156a76aabcdcc38a871104dfe1de9182b5e6b86990b9`。包内全部 100 个静态文件与最新 web 构建及上述清单一致。
+产品/web 源码、锁、版本、安全工作流保持不变。该包仅为未发布的本地候选，其他
+平台 native 与新精确 head 的 GitHub CI 须分别核对；本任务未切换 nx5 服务。
+真实宿主/客户端验收及告警正式 triage 保持独立。
+
+[Native smoke 修复证据](../benchmarks/gate-root-native-smoke-63e31a9.json) 与
+[规范化日志](../benchmarks/gate-root-native-smoke-63e31a9.log) 保存原始失败、实际
+前后 HTTP 探测、测试命令及候选清单。未将旧 head 的 CI、Code scanning、Container
+成功推断为新 head 的结果。
