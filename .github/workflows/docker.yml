@@ -20,6 +20,7 @@ on:
       - "src/**"
       - "web/**"
       - ".github/workflows/docker.yml"
+      - "tests/fixtures/qemu-smoke/**"
   pull_request:
     branches:
       - main
@@ -39,6 +40,7 @@ on:
       - "src/**"
       - "web/**"
       - ".github/workflows/docker.yml"
+      - "tests/fixtures/qemu-smoke/**"
   workflow_dispatch:
 
 permissions:
@@ -77,6 +79,15 @@ jobs:
         with:
           version: ${{ env.LINGSHU_GATE_CI_BUILDX_VERSION }}
           driver-opts: image=${{ env.LINGSHU_GATE_CI_BUILDKIT_IMAGE }}
+
+      - name: Verify host binfmt registration and direct emulated execution
+        shell: bash
+        run: |
+          set -euo pipefail
+          grep -E '^flags:.*F' /proc/sys/fs/binfmt_misc/qemu-aarch64
+          docker run --rm --platform linux/arm64 --entrypoint python \
+            "$LINGSHU_GATE_CI_PYTHON_BASE_IMAGE" \
+            -c 'import platform; assert platform.machine() == "aarch64", platform.machine(); print("Host binfmt arm64 smoke passed")'
 
       - name: Execute native and emulated Python without publishing
         shell: bash
