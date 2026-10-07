@@ -1,0 +1,59 @@
+CLI program identity validation
+Base: 7d145c28a94a00a6c5d6f4f7d4fc38c0e6153436
+Validated source: ae999912e3175bc6f79daf54da1d586836d4d06e
+Execution: saved cloud Linux x86_64 environment, not nx5
+
+Baseline: CPython 3.14.4, python -m pytest -q tests/test_cli.py
+F........                                                                [100%]
+=================================== FAILURES ===================================
+_________________ test_version_flag_uses_single_version_source _________________
+
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at <address>>
+capsys = <_pytest.capture.CaptureFixture object at <address>>
+
+    def test_version_flag_uses_single_version_source(monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]) -> None:
+        monkeypatch.setattr(sys, "argv", ["lingshu-gate", "--version"])
+
+        with pytest.raises(SystemExit) as exc_info:
+            _parse_args()
+
+        assert exc_info.value.code == 0
+>       assert capsys.readouterr().out.strip() == f"lingshu-gate {__version__}"
+E       AssertionError: assert 'python -m pytest 0.4.4' == 'lingshu-gate 0.4.4'
+E
+E         - lingshu-gate 0.4.4
+E         + python -m pytest 0.4.4
+
+tests/test_cli.py:20: AssertionError
+=========================== short test summary info ============================
+FAILED tests/test_cli.py::test_version_flag_uses_single_version_source - Asse...
+1 failed, 8 passed in 0.43s
+
+CPython 3.11.16 / pytest 8.4.2
+Command: python -m pytest -q tests/test_cli.py tests/test_schema_validation_budget.py --basetemp <owned temporary root> -o cache_dir=<owned temporary cache>
+.........................                                                [100%]
+25 passed in 5.58s
+
+CPython 3.12.14 / pytest 8.4.2
+Command: python -m pytest -q tests/test_cli.py tests/test_schema_validation_budget.py --basetemp <owned temporary root> -o cache_dir=<owned temporary cache>
+.........................                                                [100%]
+25 passed in 5.60s
+
+CPython 3.13.15 / pytest 8.4.2
+Command: python -m pytest -q tests/test_cli.py tests/test_schema_validation_budget.py --basetemp <owned temporary root> -o cache_dir=<owned temporary cache>
+.........................                                                [100%]
+25 passed in 5.86s
+
+CPython 3.14.4 / pytest 8.4.2
+Command: python -m pytest -q tests/test_cli.py tests/test_schema_validation_budget.py --basetemp <owned temporary root> -o cache_dir=<owned temporary cache>
+.........................                                                [100%]
+25 passed in 5.99s
+
+Static checks: CPython 3.13.15 project environment
+ruff check . -> exit 0; All checks passed!
+mypy -> exit 0; Success: no issues found in 158 source files
+python scripts/quality/check_repository_identity.py -> exit 0; repository identity check passed
+python -m scripts.release.check_version -> exit 0; 0.4.4
+git diff --check -> exit 0; no output
+
+Post-test process observation: zero live processes with the exact --gate-schema-validation-worker argument.

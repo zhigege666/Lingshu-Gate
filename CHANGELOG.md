@@ -1,5 +1,24 @@
 # Changelog
 
+## Unreleased
+
+- Explicit MCP logical groups reference existing instance configurations without copying credentials or granting access. Administrator APIs and four group management tools retain current permissions, confirmation, revision checks and atomic audit.
+- Matching complete contracts share a logical directory entry; differing schemas, safety declarations and advertised contract versions remain separate. The internal routing port retains actual tool/server IDs and rechecks logical and physical authorization.
+- Explicit connection-bound sessions pin an instance and reject configuration/runtime drift, revocation and instance switches. Existing direct tools remain compatible; the on-demand directory owns public invocation.
+- MCP services adds a compact Groups view and centered bilingual editor with instance status, contract version and a suggested default. Real peer/deployment and independent root visual acceptance remain separate from synthetic regression evidence.
+- Implement the optional Native/Linux rootless Podman executor, trusted pinned HTTPS/Git acquisition, official exact tool cache, registry-only npm/pnpm 8–9/Yarn Classic offline frozen install/build, observed readiness and durable phase/container/cgroup reconciliation. Core remains gateway-only. pnpm 10/11, Yarn Berry, Python sandbox caches and unsupported origins are refused; physical host acceptance remains untested.
+- Block admission on unknown acquisition jobs after DNS timeout. Restore readiness only after the exact resolver and caller stop, resource reconciliation and retained workspace cleanup; keep unknown consumers' inputs and never replay interrupted keys. Cleanup failure retains a readiness barrier while releasing the operation gate.
+- Preserve live DNS worker evidence through HTTPS deadline/cancellation error classification. Real request-wrapper tests cover upstream/proxy DNS, unknown journals, retained staging/owner leases and safe readiness recovery.
+
+## 0.4.4
+
+- The four management tools reject Console cookies at generic invocation entries; dedicated Console REST retains Origin/session/body-bound CSRF. Connection/probe checks reject credential rotation after lock waits and before decryption. Memory diagnostics omit command arguments and environments, and Core installs Debian's exact Perl security revision without scan exceptions.
+- Administrator external HTTP configuration adds shared REST/MCP offline plan, digest-bound confirmed apply, actor-owned status and cancellation. Saved configuration is retained on connection failure; initial and refreshed discovery quarantine changed classifications without granting access.
+- Live administrator sessions, token scopes, role permissions and credential revisions are rechecked. Plans retain CAS and idempotent completion; attempts enforce cooperative deadlines, cancellation and connection ownership. The Delivery Skill documents separate ZIP, Git and external HTTP paths.
+- Separate built-in `/mcp/manage` is disabled by default, uses an explicit client resource allowlist and management consent, and exposes only the four external configuration tools. Business/external tokens and cross-resource code/refresh use are denied.
+- Exact create/update targets bind dispatch, queued work, plans and idempotent completions. Private owner target changes require live administrator authority, Origin/session CSRF, reviewed one-use confirmation, revision CAS and atomic audit; JWT/family scopes and business grants do not expand.
+- Console and public consent explain resource/scopes and exact targets, with protected centered editors, complete target pagination and brief saved feedback. [Management contract](docs/oauth-external-management-design.md) and [external configuration contract](docs/external-mcp-configuration.md) describe the behavior. Real-client/peer integration remains unverified. Multi-instance routing, large-catalog search and the Git executor are outside this release.
+
 ## 0.4.3
 
 - Explicit owner confirmation in Gate adds, reconfirms or removes MCPs/tools on the existing OAuth grant. The same bearer and refresh family follow the live tool list within unchanged OAuth scope ceilings; no repeated client OAuth flow is needed for same-scope tools.

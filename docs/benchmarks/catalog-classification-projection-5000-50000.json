@@ -1,0 +1,312 @@
+{
+  "baseline_sha": "7d145c28a94a00a6c5d6f4f7d4fc38c0e6153436",
+  "production_sha": "93d70525e848a571c429ef80e77f5513640bceb4",
+  "original_complete_loader_unchanged": true,
+  "original_complete_loader_body_sha256": "e5e96dffc2cc50762b166ca5071cf0609a9fb6dd0f0f2fccb804ff7ff4520aed",
+  "comparison": "Original complete SELECT * loader replayed versus the catalog-only loader; each run a separate sequential process with identical data shape and five ordinary latency samples per stage. Tracemalloc probes separate.",
+  "environment": {
+    "memory_limit_bytes": 17179869184,
+    "cpu_max": "400000 100000",
+    "cpuset_cpus_effective": "0-4",
+    "logical_cpu_count": 5
+  },
+  "permission_results_identical": true,
+  "runs": [
+    {
+      "source_sha": "93d70525e848a571c429ef80e77f5513640bceb4",
+      "script_sha256": "fb9d3dae9576a2825a6485c8fff2698ac38022e2ac441e0db1e74caf93f7ec3d",
+      "complete_loader_sha256": "9a42cc6302f88787ac0b8e479c5ca40f0c7d048a1c80645a352278a500fe1750",
+      "mode": "complete",
+      "python": "3.12.14",
+      "platform": "Linux-6.18.44-x86_64-with-glibc2.41",
+      "services": 5000,
+      "tools": 50000,
+      "evidence_payload_bytes_per_row": 1024,
+      "evidence_json_bytes_per_row": 1049,
+      "selected_columns": [
+        "confidence",
+        "created_at",
+        "destructive",
+        "effective_access",
+        "evidence_json",
+        "fingerprint",
+        "id",
+        "idempotent",
+        "open_world",
+        "reviewed_at",
+        "reviewed_by",
+        "server_id",
+        "source",
+        "status",
+        "suggested_access",
+        "tool_id",
+        "tool_name",
+        "updated_at"
+      ],
+      "classification_selects_per_load": 200,
+      "fixture_seconds": 2.34,
+      "baseline_rss_kib": 71784,
+      "profiles": {
+        "classification_load": {
+          "samples": 5,
+          "median_ms": 485.163,
+          "p95_ms": 500.562,
+          "samples_ms": [
+            460.936,
+            500.562,
+            475.059,
+            489.803,
+            485.163
+          ],
+          "result_count": 50000,
+          "policy_result_sha256": "8ba308127665d59c5d2f029004b1a87b2686983fa9e9671bbc86e46345e1eb31",
+          "allocation_probe_retained_bytes": 122239730,
+          "allocation_probe_peak_bytes": 122671534,
+          "allocation_probe_rss_before_kib": 233732,
+          "allocation_probe_rss_while_result_retained_kib": 408460
+        },
+        "visible_policy_projection": {
+          "samples": 5,
+          "median_ms": 720.222,
+          "p95_ms": 732.491,
+          "samples_ms": [
+            713.347,
+            714.939,
+            732.491,
+            720.222,
+            728.265
+          ],
+          "result_count": 49989,
+          "policy_result_sha256": "5fe4c7cb6344ec3a09c05cfc6d1ad4a12e7d2225102010b1f0a4a97f8ae77b79",
+          "allocation_probe_retained_bytes": 120337853,
+          "allocation_probe_peak_bytes": 134972283,
+          "allocation_probe_rss_before_kib": 270504,
+          "allocation_probe_rss_while_result_retained_kib": 464280
+        }
+      },
+      "process_lifetime_ru_maxrss_kib": 467260,
+      "scope": "Same synthetic 5000-service/50000-tool classification and current-grant projection; complete mode replays the unchanged original SELECT * loader. Separate Linux processes, warm SQLite. No full group HTTP snapshot, file configuration loading, downstream, concurrency or production SLA.",
+      "memory_note": "tracemalloc probes are separate from latency samples; RSS is observed process residency. ru_maxrss is cumulative for the whole process including fixture and all profiles, not a request peak."
+    },
+    {
+      "source_sha": "93d70525e848a571c429ef80e77f5513640bceb4",
+      "script_sha256": "fb9d3dae9576a2825a6485c8fff2698ac38022e2ac441e0db1e74caf93f7ec3d",
+      "complete_loader_sha256": "9a42cc6302f88787ac0b8e479c5ca40f0c7d048a1c80645a352278a500fe1750",
+      "mode": "catalog",
+      "python": "3.12.14",
+      "platform": "Linux-6.18.44-x86_64-with-glibc2.41",
+      "services": 5000,
+      "tools": 50000,
+      "evidence_payload_bytes_per_row": 1024,
+      "evidence_json_bytes_per_row": 1049,
+      "selected_columns": [
+        "destructive",
+        "effective_access",
+        "fingerprint",
+        "idempotent",
+        "open_world",
+        "reviewed_at",
+        "reviewed_by",
+        "server_id",
+        "status",
+        "tool_id"
+      ],
+      "classification_selects_per_load": 200,
+      "fixture_seconds": 2.217,
+      "baseline_rss_kib": 71704,
+      "profiles": {
+        "classification_load": {
+          "samples": 5,
+          "median_ms": 292.721,
+          "p95_ms": 302.221,
+          "samples_ms": [
+            285.477,
+            302.221,
+            298.065,
+            284.885,
+            292.721
+          ],
+          "result_count": 50000,
+          "policy_result_sha256": "8ba308127665d59c5d2f029004b1a87b2686983fa9e9671bbc86e46345e1eb31",
+          "allocation_probe_retained_bytes": 42236400,
+          "allocation_probe_peak_bytes": 42668042,
+          "allocation_probe_rss_before_kib": 196536,
+          "allocation_probe_rss_while_result_retained_kib": 287720
+        },
+        "visible_policy_projection": {
+          "samples": 5,
+          "median_ms": 548.533,
+          "p95_ms": 552.283,
+          "samples_ms": [
+            548.533,
+            552.283,
+            534.167,
+            536.094,
+            548.661
+          ],
+          "result_count": 49989,
+          "policy_result_sha256": "5fe4c7cb6344ec3a09c05cfc6d1ad4a12e7d2225102010b1f0a4a97f8ae77b79",
+          "allocation_probe_retained_bytes": 40351833,
+          "allocation_probe_peak_bytes": 54969063,
+          "allocation_probe_rss_before_kib": 209628,
+          "allocation_probe_rss_while_result_retained_kib": 320376
+        }
+      },
+      "process_lifetime_ru_maxrss_kib": 330924,
+      "scope": "Same synthetic 5000-service/50000-tool classification and current-grant projection; complete mode replays the unchanged original SELECT * loader. Separate Linux processes, warm SQLite. No full group HTTP snapshot, file configuration loading, downstream, concurrency or production SLA.",
+      "memory_note": "tracemalloc probes are separate from latency samples; RSS is observed process residency. ru_maxrss is cumulative for the whole process including fixture and all profiles, not a request peak."
+    },
+    {
+      "source_sha": "93d70525e848a571c429ef80e77f5513640bceb4",
+      "script_sha256": "fb9d3dae9576a2825a6485c8fff2698ac38022e2ac441e0db1e74caf93f7ec3d",
+      "complete_loader_sha256": "9a42cc6302f88787ac0b8e479c5ca40f0c7d048a1c80645a352278a500fe1750",
+      "mode": "complete",
+      "python": "3.12.14",
+      "platform": "Linux-6.18.44-x86_64-with-glibc2.41",
+      "services": 5000,
+      "tools": 50000,
+      "evidence_payload_bytes_per_row": 8192,
+      "evidence_json_bytes_per_row": 8217,
+      "selected_columns": [
+        "confidence",
+        "created_at",
+        "destructive",
+        "effective_access",
+        "evidence_json",
+        "fingerprint",
+        "id",
+        "idempotent",
+        "open_world",
+        "reviewed_at",
+        "reviewed_by",
+        "server_id",
+        "source",
+        "status",
+        "suggested_access",
+        "tool_id",
+        "tool_name",
+        "updated_at"
+      ],
+      "classification_selects_per_load": 200,
+      "fixture_seconds": 3.183,
+      "baseline_rss_kib": 71568,
+      "profiles": {
+        "classification_load": {
+          "samples": 5,
+          "median_ms": 806.65,
+          "p95_ms": 820.633,
+          "samples_ms": [
+            820.633,
+            790.796,
+            818.754,
+            806.65,
+            792.777
+          ],
+          "result_count": 50000,
+          "policy_result_sha256": "8ba308127665d59c5d2f029004b1a87b2686983fa9e9671bbc86e46345e1eb31",
+          "allocation_probe_retained_bytes": 480639730,
+          "allocation_probe_peak_bytes": 481071534,
+          "allocation_probe_rss_before_kib": 197148,
+          "allocation_probe_rss_while_result_retained_kib": 758252
+        },
+        "visible_policy_projection": {
+          "samples": 5,
+          "median_ms": 1177.183,
+          "p95_ms": 1272.946,
+          "samples_ms": [
+            923.768,
+            1067.444,
+            1243.306,
+            1177.183,
+            1272.946
+          ],
+          "result_count": 49989,
+          "policy_result_sha256": "5fe4c7cb6344ec3a09c05cfc6d1ad4a12e7d2225102010b1f0a4a97f8ae77b79",
+          "allocation_probe_retained_bytes": 478659005,
+          "allocation_probe_peak_bytes": 493372283,
+          "allocation_probe_rss_before_kib": 387136,
+          "allocation_probe_rss_while_result_retained_kib": 814024
+        }
+      },
+      "process_lifetime_ru_maxrss_kib": 817048,
+      "scope": "Same synthetic 5000-service/50000-tool classification and current-grant projection; complete mode replays the unchanged original SELECT * loader. Separate Linux processes, warm SQLite. No full group HTTP snapshot, file configuration loading, downstream, concurrency or production SLA.",
+      "memory_note": "tracemalloc probes are separate from latency samples; RSS is observed process residency. ru_maxrss is cumulative for the whole process including fixture and all profiles, not a request peak."
+    },
+    {
+      "source_sha": "93d70525e848a571c429ef80e77f5513640bceb4",
+      "script_sha256": "fb9d3dae9576a2825a6485c8fff2698ac38022e2ac441e0db1e74caf93f7ec3d",
+      "complete_loader_sha256": "9a42cc6302f88787ac0b8e479c5ca40f0c7d048a1c80645a352278a500fe1750",
+      "mode": "catalog",
+      "python": "3.12.14",
+      "platform": "Linux-6.18.44-x86_64-with-glibc2.41",
+      "services": 5000,
+      "tools": 50000,
+      "evidence_payload_bytes_per_row": 8192,
+      "evidence_json_bytes_per_row": 8217,
+      "selected_columns": [
+        "destructive",
+        "effective_access",
+        "fingerprint",
+        "idempotent",
+        "open_world",
+        "reviewed_at",
+        "reviewed_by",
+        "server_id",
+        "status",
+        "tool_id"
+      ],
+      "classification_selects_per_load": 200,
+      "fixture_seconds": 3.05,
+      "baseline_rss_kib": 71788,
+      "profiles": {
+        "classification_load": {
+          "samples": 5,
+          "median_ms": 376.018,
+          "p95_ms": 479.708,
+          "samples_ms": [
+            376.298,
+            376.018,
+            479.708,
+            375.483,
+            373.002
+          ],
+          "result_count": 50000,
+          "policy_result_sha256": "8ba308127665d59c5d2f029004b1a87b2686983fa9e9671bbc86e46345e1eb31",
+          "allocation_probe_retained_bytes": 42236400,
+          "allocation_probe_peak_bytes": 42668042,
+          "allocation_probe_rss_before_kib": 196580,
+          "allocation_probe_rss_while_result_retained_kib": 287792
+        },
+        "visible_policy_projection": {
+          "samples": 5,
+          "median_ms": 664.621,
+          "p95_ms": 743.522,
+          "samples_ms": [
+            630.432,
+            650.031,
+            701.066,
+            664.621,
+            743.522
+          ],
+          "result_count": 49989,
+          "policy_result_sha256": "5fe4c7cb6344ec3a09c05cfc6d1ad4a12e7d2225102010b1f0a4a97f8ae77b79",
+          "allocation_probe_retained_bytes": 40351833,
+          "allocation_probe_peak_bytes": 54969063,
+          "allocation_probe_rss_before_kib": 209356,
+          "allocation_probe_rss_while_result_retained_kib": 321488
+        }
+      },
+      "process_lifetime_ru_maxrss_kib": 332052,
+      "scope": "Same synthetic 5000-service/50000-tool classification and current-grant projection; complete mode replays the unchanged original SELECT * loader. Separate Linux processes, warm SQLite. No full group HTTP snapshot, file configuration loading, downstream, concurrency or production SLA.",
+      "memory_note": "tracemalloc probes are separate from latency samples; RSS is observed process residency. ru_maxrss is cumulative for the whole process including fixture and all profiles, not a request peak."
+    }
+  ],
+  "limitations": "Classification/policy projection only; no whole-group HTTP, sustained load, nx5 cgroup OOM reproduction or memory-leak proof. Process lifetime ru_maxrss includes fixture and all profiles and is not request RSS.",
+  "digest_fields": [
+    "tool/service identity",
+    "fingerprint",
+    "status",
+    "effective_access"
+  ],
+  "reviewed_safety_equivalence": "Covered separately by the 25 policy/review regression scenarios; the digest is not a byte-for-byte comparison of complete analysis/evidence rows."
+}

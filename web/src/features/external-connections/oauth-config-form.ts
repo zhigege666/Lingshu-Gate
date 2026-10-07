@@ -1,4 +1,4 @@
-import type { OAuthConfig } from "./oauth-api"
+import type { OAuthClient, OAuthConfig } from "./oauth-api"
 
 export type OAuthConfigDraft = Pick<OAuthConfig, "issuer" | "resource" | "enabled">
 export type SigningKeyState = { phase: "loading" } | { phase: "error" } | { phase: "ready"; count: number }
@@ -28,4 +28,9 @@ export function signingKeyState(keys: unknown): SigningKeyState {
 
 export function canEnableOAuth(keys: SigningKeyState): boolean {
   return keys.phase === "ready" && keys.count > 0
+}
+
+/** Saved prerequisites only; this does not claim external connectivity. */
+export function showOAuthSetupSteps(config: Pick<OAuthConfig, "issuer" | "resource" | "enabled"> | null, keys: SigningKeyState, clientsReady: boolean, clients: Pick<OAuthClient, "enabled">[]): boolean {
+  return !config?.enabled || !config.issuer || !config.resource || !canEnableOAuth(keys) || !clientsReady || !clients.some(client => client.enabled)
 }

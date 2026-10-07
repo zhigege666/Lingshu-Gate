@@ -725,8 +725,9 @@ class ProjectDeliveryMcpService:
         result: dict[str, Any],
         resource_type: str,
         resource_id: str | None,
+        connection: sqlite3.Connection | None = None,
     ) -> None:
-        with self.database.connect() as connection:
+        with self.database.connect() if connection is None else nullcontext(connection) as connection:
             updated = connection.execute(
                 """
                 UPDATE mcp_idempotent_operations
@@ -2009,6 +2010,9 @@ class ProjectDeliveryMcpService:
                 _redact_text(build.get("error")) if build.get("error") else None
             ),
             "failure_hint": build.get("failure_hint"),
+            "execution_state": "unknown" if build.get("status") == "interrupted" else build.get("status"),
+            "execution_terminated": build.get("status") in {"success", "failed", "cancelled", "unsupported"},
+            "requires_reconciliation": build.get("status") == "interrupted",
             "created_at": build.get("created_at"),
             "updated_at": build.get("updated_at"),
         }

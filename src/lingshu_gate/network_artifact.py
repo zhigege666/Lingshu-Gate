@@ -11,6 +11,7 @@ from typing import Any, Callable
 from urllib.parse import quote
 
 from lingshu_gate.git_source import SECRET_TEXT
+from lingshu_gate.safe_files import open_regular_file
 
 NETWORK_ARTIFACT_LIMITS = {"files": 30000, "bytes": 500 * 1024 * 1024, "seconds": 30}
 
@@ -85,7 +86,9 @@ def export_network_artifact(source: Path, target: Path, *, ignored: set[str], fo
             if not stat.S_ISREG(info.st_mode):
                 raise ValueError("network_artifact_type_rejected")
             tail = b""
-            with path.open("rb") as reader, output.open("xb") as writer:
+            with output.open("xb") as writer, open_regular_file(path, maximum=NETWORK_ARTIFACT_LIMITS["bytes"]) as (reader, info):
+                if info.st_size > bounds["bytes"] - total:
+                    raise ValueError("network_artifact_size_limit")
                 while True:
                     checkpoint()
                     chunk = reader.read(1024 * 1024)

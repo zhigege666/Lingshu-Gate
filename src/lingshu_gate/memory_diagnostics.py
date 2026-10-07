@@ -85,6 +85,8 @@ def _top_processes(limit: int) -> list[dict[str, Any]]:
 
     The runtime image is intentionally slim and may not include procps/ps.
     Reading procfs keeps memory diagnostics useful without growing the image.
+    Read only status metrics and the short process name. Arguments and
+    environment values can contain secrets with arbitrary parameter names.
     """
 
     if not PROC_ROOT.exists():
@@ -116,7 +118,6 @@ def _top_processes(limit: int) -> list[dict[str, Any]]:
                 "vsz_bytes": vms_bytes,
                 "threads": _to_int(status.get("Threads")),
                 "command": command,
-                "args": _read_cmdline(pid_dir / "cmdline") or command,
                 "source": "procfs",
             }
         )
@@ -142,16 +143,6 @@ def _read_proc_status(path: Path) -> dict[str, str]:
 
 def _read_meminfo(path: Path) -> dict[str, str]:
     return _read_proc_status(path)
-
-
-def _read_cmdline(path: Path) -> str:
-    try:
-        raw = path.read_bytes()
-    except OSError:
-        return ""
-    if not raw:
-        return ""
-    return raw.replace(b"\x00", b" ").decode("utf-8", errors="replace").strip()[:500]
 
 
 def _read_int_file(path: Path) -> int | None:

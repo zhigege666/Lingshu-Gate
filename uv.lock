@@ -528,6 +528,7 @@ source = { editable = "." }
 dependencies = [
     { name = "cryptography" },
     { name = "fastapi" },
+    { name = "jsonschema" },
     { name = "mcp" },
     { name = "pydantic" },
     { name = "pyjwt", extra = ["crypto"] },
@@ -554,6 +555,7 @@ release = [
 requires-dist = [
     { name = "cryptography", specifier = ">=42.0,<45.0" },
     { name = "fastapi", specifier = ">=0.110,<1.0" },
+    { name = "jsonschema", specifier = ">=4.23,<5" },
     { name = "mcp", specifier = ">=2.0,<3.0" },
     { name = "pydantic", specifier = ">=2.6,<3.0" },
     { name = "pyjwt", extras = ["crypto"], specifier = ">=2.14.0,<3.0" },

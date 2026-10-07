@@ -9,6 +9,8 @@ from typing import Any
 from fastapi import Depends, FastAPI, HTTPException, Request
 from fastapi.responses import JSONResponse, Response
 from starlette.concurrency import run_in_threadpool
+from starlette.datastructures import QueryParams
+from pydantic import ValidationError
 
 from lingshu_gate.access_control import AccessControlStore, AccessDeniedError
 from lingshu_gate.auth import AuthPrincipal
@@ -21,7 +23,8 @@ from lingshu_gate.protocol.tool_namespace import (
     ToolNamespace,
     ToolNamespaceCollisionError,
 )
-from lingshu_gate.registry import ToolNotFoundError, ToolRegistry
+from lingshu_gate.registry import ToolExecutionError, ToolNotFoundError, ToolRegistry
+from lingshu_gate.tool_catalog import CATALOG_TOOL_NAMES, ToolCatalog, catalog_tools
 from lingshu_gate.transports.http import (
     HttpProtocolContext,
     HttpProtocolValidationError,
@@ -50,6 +53,10 @@ def register_mcp_gateway_route(
     access_store: AccessControlStore,
     require_viewer: Callable[[Request], AuthPrincipal],
     oauth_boundary: McpOAuthDiscoveryBoundary | Callable[[], McpOAuthDiscoveryBoundary | None] | None = None,
+    *,
+    path: str = "/mcp",
+    metadata_path: str | None = None,
+    catalog: ToolCatalog | None = None,
 ) -> None:
     """注册聚合 MCP 网关；发现与调用都复用统一访问策略。"""
 
@@ -60,9 +67,9 @@ def register_mcp_gateway_route(
     )
     require_mcp_viewer = with_mcp_auth_challenge(require_viewer, oauth_boundary)
     if oauth_boundary is not None:
-        register_oauth_protected_resource_routes(app, oauth_boundary)
+        register_oauth_protected_resource_routes(app, oauth_boundary, include_root=path == "/mcp", metadata_path=metadata_path)
 
-    @app.post("/mcp", tags=["mcp-gateway"])
+    @app.post(path, tags=["mcp-gateway"])
     async def mcp_gateway(
         request: Request,
         principal: AuthPrincipal = Depends(require_mcp_viewer),
@@ -76,7 +83,7 @@ def register_mcp_gateway_route(
             return _error_response(
                 None,
                 exc.code,
-                str(exc),
+                exc.message,
                 settings,
                 status_code=exc.status_code,
                 protocol_version=MCP_PROTOCOL_VERSION,
@@ -113,7 +120,7 @@ def register_mcp_gateway_route(
             return _error_response(
                 request_id,
                 exc.code,
-                str(exc),
+                exc.message,
                 settings,
                 data=exc.data,
                 status_code=exc.status_code,
@@ -122,6 +129,46 @@ def register_mcp_gateway_route(
 
         if not has_request_id:
             return Response(status_code=202)
+        query_params = QueryParams(request.scope.get("query_string", b""))
+        mode = query_params.get("tool_mode", request.headers.get("x-gate-tool-mode", "direct"))
+        header_mode = request.headers.get("x-gate-tool-mode")
+        if (len(query_params.getlist("tool_mode")) > 1 or len(request.headers.getlist("x-gate-tool-mode")) > 1
+                or mode not in {"direct", "on_demand"} or header_mode is not None and header_mode != mode
+                or mode == "on_demand" and (path != "/mcp" or catalog is None)):
+            return _error_response(request_id, -32602, "Unsupported or conflicting tool_mode", settings,
+                status_code=400, protocol_version=protocol_context.protocol_version)
+        if mode == "on_demand" and method in {"tools/list", "tools/call"}:
+            assert catalog is not None
+            try:
+                catalog.check_namespace()
+                if method == "tools/list":
+                    result = OfficialSdkTypesAdapter.list_tools(catalog_tools(), server_name=SERVER_NAME,
+                        server_version=settings.version, protocol_version=protocol_context.protocol_version)
+                    return _result_response(request_id, result, settings, protocol_version=protocol_context.protocol_version)
+                params = message.get("params")
+                if (not isinstance(params, dict) or params.get("name") not in CATALOG_TOOL_NAMES
+                        or not isinstance(params.get("arguments", {}), dict)):
+                    return _error_response(request_id, -32602, "Select a catalog entry with object arguments", settings,
+                        status_code=400, protocol_version=protocol_context.protocol_version)
+                invocation = await run_in_threadpool(_call_catalog_authenticated, catalog, request,
+                    require_mcp_viewer, params["name"], params.get("arguments", {}))
+            except ValidationError:
+                return _tool_error(request_id, "Invalid catalog parameters", settings,
+                    structured_content={"error": {"code": "catalog_parameters_invalid"}}, protocol_context=protocol_context)
+            except ToolExecutionError as exc:
+                return _tool_error(request_id, exc.message, settings, structured_content=exc.to_payload(),
+                    protocol_context=protocol_context)
+            except AccessDeniedError:
+                return _tool_error(request_id, "The selected tool is unavailable", settings,
+                    structured_content={"error": {"code": "catalog_tool_unavailable"}}, protocol_context=protocol_context)
+            if not invocation.ok:
+                return _tool_error(request_id, invocation.error or "Tool invocation failed", settings,
+                    structured_content=invocation.output or None, protocol_context=protocol_context)
+            result = (_normalize_tool_result(invocation.output) if params["name"] == "gate_tool_invoke" else
+                      {"content": [], "structuredContent": invocation.output, "isError": False})
+            result = OfficialSdkTypesAdapter.call_tool(result, server_name=SERVER_NAME,
+                server_version=settings.version, protocol_version=protocol_context.protocol_version)
+            return _result_response(request_id, result, settings, protocol_version=protocol_context.protocol_version)
         if protocol_context.protocol_version in GATEWAY_HANDSHAKE_VERSIONS:
             if method == "initialize":
                 return _result_response(
@@ -313,6 +360,14 @@ def _invoke_authenticated_tool(request: Request, require_principal: Callable[[Re
     return access_store.invoke_tool(registry, principal, tool_id, arguments)
 
 
+def _call_catalog_authenticated(catalog: ToolCatalog, request: Request,
+                                require_principal: Callable[[Request], AuthPrincipal],
+                                name: str, arguments: dict[str, Any]) -> ToolInvokeResponse:
+    return catalog.call(name, arguments, require_principal(request),
+        refresh_principal=lambda: require_principal(request),
+        correlation_id=request.headers.get("x-correlation-id"))
+
+
 def _gateway_tools(
     registry: ToolRegistry,
     definitions: list[ToolDefinition] | None = None,
@@ -335,7 +390,7 @@ def _gateway_tools(
             "inputSchema": definition.input_schema or {"type": "object", "properties": {}},
             "annotations": _tool_annotations(definition),
         }
-        output_schema = definition.metadata.get("outputSchema") or definition.metadata.get("output_schema")
+        output_schema = definition.metadata.get("outputSchema", definition.metadata.get("output_schema"))
         if isinstance(output_schema, dict):
             payload["outputSchema"] = output_schema
         payload = OfficialSdkTypesAdapter.tool(payload)

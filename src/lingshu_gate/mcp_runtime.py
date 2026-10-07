@@ -8,14 +8,19 @@ import json
 import logging
 import threading
 import time
-from collections.abc import Callable
+from collections.abc import Callable, Iterator
+from contextlib import contextmanager, nullcontext
 from dataclasses import dataclass, field
 from datetime import datetime, timedelta, timezone
 from enum import StrEnum
 from typing import Any
+from uuid import uuid4
 
 from lingshu_gate.config import Settings
 from lingshu_gate.database import SQLiteDatabase
+from lingshu_gate.domain.dispatch_lock import DispatchLock
+from lingshu_gate.domain.operation_deadline import operation_lock
+from lingshu_gate.domain.tool_structure import check_tool_structure
 from lingshu_gate.endpoint_security import redact_endpoint
 from lingshu_gate.invocation_payloads import audit_header_values, snapshot
 from lingshu_gate.logging import log_event
@@ -160,6 +165,7 @@ class McpServerRuntime:
     manifest: McpServerManifest
     state: McpServerState = McpServerState.LOADED
     client: McpClient | None = None
+    connection_operation_id: str | None = None
     last_error: str | None = None
     tools: list[dict[str, Any]] = field(default_factory=list)
     lock: threading.RLock = field(default_factory=threading.RLock)
@@ -180,6 +186,19 @@ class McpServerRuntime:
     desired_intent: McpRuntimeIntent | None = None
     runtime_role: str = "local"
     docker_binary: str = "docker"
+    connection_epoch: str = field(default_factory=lambda: uuid4().hex, init=False)
+    connection_generation: int = field(default=0, init=False)
+
+    def __setattr__(self, name: str, value: Any) -> None:
+        # Replacing, clearing or restoring a client is an irreversible generation
+        # transition, including A -> B -> A. Initial construction has no observer.
+        if name == "client" and "client" in self.__dict__:
+            self.advance_connection_generation()
+        object.__setattr__(self, name, value)
+
+    def advance_connection_generation(self) -> None:
+        """Caller holds runtime.lock; advance before every shared connect attempt."""
+        object.__setattr__(self, "connection_generation", self.connection_generation + 1)
 
     @property
     def pid(self) -> int | None:
@@ -261,7 +280,28 @@ class McpRuntimeManager:
         self.state_store = state_store or McpRuntimeStateStore(SQLiteDatabase(settings.db_url, settings.data_dir))
         self._servers: dict[str, McpServerRuntime] = {}
         self.load_errors: list[str] = []
-        self._manager_lock = threading.RLock()
+        self._manager_lock = DispatchLock()
+        self._route_process_generation = uuid4().hex
+
+    @contextmanager
+    def route_instance_guard(self, server_id: str) -> Iterator[str]:
+        """Pin the current runtime connection while a logical route is checked/dispatched."""
+        with self._manager_lock.read_lock():
+            runtime = self._get_runtime(server_id)
+            with runtime.lock:
+                if runtime.state != McpServerState.RUNNING or runtime.client is None:
+                    raise ToolExecutionError("group_instance_unavailable", "The selected instance is not running.")
+                # Persist only a process-bound opaque generation, never the
+                # endpoint, client object, downstream session ID or credentials.
+                generation = self._route_generation(runtime)
+                yield generation
+                if self._route_generation(runtime) != generation:
+                    raise ToolExecutionError("group_session_changed", "The bound connection changed; reconcile and open a new routing session.")
+
+    def _route_generation(self, runtime: McpServerRuntime) -> str:
+        identity = [self._route_process_generation, runtime.manifest.id,
+                    runtime.connection_epoch, runtime.connection_generation]
+        return hashlib.sha256(json.dumps(identity).encode()).hexdigest()
 
     def load_manifests(self, *, restore_startup_policy: bool = True) -> None:
         loader = McpConfigLoader(self.settings.config_dir)
@@ -656,6 +696,7 @@ class McpRuntimeManager:
                         log_sink=lambda level, message, event_type, payload: self._log_runtime(server_id, level, message, event_type, payload),
                     )
                 runtime.client = client
+                runtime.advance_connection_generation()
                 client.start()
                 runtime.tools = client.list_tools()
                 self._register_mcp_tools(runtime)
@@ -685,7 +726,81 @@ class McpRuntimeManager:
                 self._schedule_restart_locked(server_id, runtime, reason="start_failure", returncode=None)
             return runtime.to_response()
 
-    def _connect_external_locked(self, server_id: str, runtime: McpServerRuntime) -> McpServerStatusResponse:
+    def apply_external_configuration(
+        self, manifest: McpServerManifest, *, cancel: threading.Event, deadline: float,
+        before_apply: Callable[[], None],
+    ) -> McpServerStatusResponse:
+        """Load only an external target, with bounded manager/target contention."""
+        if manifest.launch.type != "external":
+            raise ValueError("External configuration requires an external manifest")
+        with operation_lock(self._manager_lock, cancel=cancel, deadline=deadline):
+            previous = self._servers.get(manifest.id)
+            guard = operation_lock(previous.lock, cancel=cancel, deadline=deadline) if previous else nullcontext()
+            with guard:
+                before_apply()
+                return self.apply_manifest(manifest, start=False, source="external_config_apply")
+
+    def external_configuration_status(self, server_id: str, *, deadline: float) -> tuple[McpServerStatusResponse | None, str | None]:
+        with operation_lock(self._manager_lock, cancel=None, deadline=deadline):
+            runtime = self._servers.get(server_id)
+            if runtime is None:
+                return None, None
+            with operation_lock(runtime.lock, cancel=None, deadline=deadline):
+                return runtime.to_response(), self._manifest_digest(runtime.manifest)
+
+    def connect_external_if_manifest_digest(
+        self, server_id: str, expected_digest: str, *, cancel: threading.Event, deadline: float, operation_id: str,
+        before_connect: Callable[[], None],
+        before_replace: Callable[[list[ToolDefinition]], None],
+        discovery: dict[str, Any],
+        credential_revisions: dict[str, str],
+    ) -> McpServerStatusResponse:
+        """A confirmed external connection; this never starts a remote process."""
+        with operation_lock(self._manager_lock, cancel=cancel, deadline=deadline):
+            runtime = self._get_runtime(server_id)
+            with operation_lock(runtime.lock, cancel=cancel, deadline=deadline):
+                if runtime.manifest.launch.type != "external":
+                    raise ValueError("External connection requires an external manifest")
+                actual = self._manifest_digest(runtime.manifest)
+                if actual != expected_digest:
+                    raise McpManifestDigestConflict(server_id, expected_digest, actual)
+                before_connect()
+                self._set_desired_state_locked(server_id, "running", source="external_config_connect")
+                return self._connect_external_locked(server_id, runtime, cancel=cancel, deadline=deadline,
+                                                     operation_id=operation_id, before_replace=before_replace, discovery=discovery,
+                                                     credential_revisions=credential_revisions)
+
+    def disconnect_external_operation(
+        self, server_id: str, expected_digest: str, operation_id: str, *, deadline: float,
+    ) -> bool:
+        """Clean up this attempt only; never disconnect a successor connection."""
+        with operation_lock(self._manager_lock, cancel=None, deadline=deadline):
+            runtime = self._get_runtime(server_id)
+            with operation_lock(runtime.lock, cancel=None, deadline=deadline):
+                if self._manifest_digest(runtime.manifest) != expected_digest:
+                    return False
+                if runtime.connection_operation_id != operation_id:
+                    return False
+                if runtime.client is None:
+                    self._set_desired_state_locked(server_id, "stopped", source="external_config_cleanup")
+                    self._stop_runtime_locked(server_id, runtime, clear_error=False)
+                    return True
+                client = runtime.client
+                if not isinstance(client, StreamableHttpMcpClient):
+                    return False
+                with client.operation_bounds(threading.Event(), deadline):
+                    self._set_desired_state_locked(server_id, "stopped", source="external_config_cleanup")
+                    self._stop_runtime_locked(server_id, runtime, clear_error=False)
+                return True
+
+    def _connect_external_locked(
+        self, server_id: str, runtime: McpServerRuntime, *,
+        cancel: threading.Event | None = None, deadline: float | None = None,
+        operation_id: str | None = None,
+        before_replace: Callable[[list[ToolDefinition]], None] | None = None,
+        discovery: dict[str, Any] | None = None,
+        credential_revisions: dict[str, str] | None = None,
+    ) -> McpServerStatusResponse:
         """Connect to an external MCP server. Caller must hold runtime.lock."""
         manifest = runtime.manifest
         if manifest.transport.type != "streamable_http":
@@ -696,6 +811,7 @@ class McpRuntimeManager:
             return runtime.to_response()
 
         runtime.state = McpServerState.STARTING
+        runtime.connection_operation_id = operation_id
         runtime.last_error = None
         runtime.health_status = "unknown"
         safe_endpoint = redact_endpoint(manifest.transport.endpoint)
@@ -704,9 +820,13 @@ class McpRuntimeManager:
         try:
             client = StreamableHttpMcpClient(manifest, self.settings, log_sink=lambda level, message, event_type, payload: self._log_runtime(server_id, level, message, event_type, payload))
             runtime.client = client
-            client.start()
-            runtime.tools = client.list_tools()
-            self._register_mcp_tools(runtime)
+            with client.operation_bounds(cancel, deadline, credential_revisions=credential_revisions) if cancel is not None and deadline is not None else nullcontext():
+                runtime.advance_connection_generation()
+                client.start()
+                runtime.tools = client.list_tools()
+            snapshot = self._register_mcp_tools(runtime, before_replace=before_replace, strict=before_replace is not None)
+            if discovery is not None:
+                discovery.update(snapshot)
             runtime.state = McpServerState.RUNNING
             runtime.last_started_at = _now()
             log_event(logger, logging.INFO, "gate.mcp.server_running", "External MCP server is connected", server_id=server_id, endpoint=safe_endpoint, tool_count=len(runtime.tools))
@@ -715,7 +835,7 @@ class McpRuntimeManager:
             runtime.state = McpServerState.FAILED
             safe_error = redact_text(
                 str(exc),
-                known_secrets=(manifest.transport.endpoint or "",),
+                known_secrets=(manifest.transport.endpoint or "", *(runtime.client.audit_redaction_values() if isinstance(runtime.client, StreamableHttpMcpClient) else ())),
             )
             runtime.last_error = safe_error
             if runtime.client:
@@ -723,8 +843,10 @@ class McpRuntimeManager:
                 runtime.client = None
             runtime.tools = []
             self.registry.unregister_by_metadata("server_id", server_id, source="mcp")
-            log_event(logger, logging.ERROR, "gate.mcp.server_start_failed", "Failed to connect external MCP server", server_id=server_id, endpoint=safe_endpoint, error=safe_error, exc_info=True)
+            log_event(logger, logging.ERROR, "gate.mcp.server_start_failed", "Failed to connect external MCP server", server_id=server_id, endpoint=safe_endpoint, error=safe_error, exc_info=cancel is None)
             self._log_runtime(server_id, "error", "Failed to connect external MCP server", "gate.mcp.server_start_failed", {"endpoint": safe_endpoint, "error": safe_error})
+            if cancel is not None:
+                raise
         return runtime.to_response()
 
     def stop_server(self, server_id: str) -> McpServerStatusResponse:
@@ -812,6 +934,7 @@ class McpRuntimeManager:
         if runtime.client:
             runtime.client.stop()
             runtime.client = None
+        runtime.connection_operation_id = None
         runtime.state = McpServerState.STOPPED
         runtime.tools = []
         if clear_error:
@@ -1022,9 +1145,12 @@ class McpRuntimeManager:
             delay = min(delay, max_delay_seconds)
         return max(0.0, delay)
 
-    def _register_mcp_tools(self, runtime: McpServerRuntime) -> None:
+    def _register_mcp_tools(self, runtime: McpServerRuntime, *,
+                            before_replace: Callable[[list[ToolDefinition]], None] | None = None, strict: bool = False) -> dict[str, Any]:
         manifest = runtime.manifest
-        records = self._mcp_tool_records(runtime, runtime.tools, strict=False)
+        records = self._mcp_tool_records(runtime, runtime.tools, strict=strict)
+        if before_replace is not None:
+            before_replace([record.definition for record in records])
         self.registry.replace_by_metadata(
             "server_id",
             manifest.id,
@@ -1033,20 +1159,40 @@ class McpRuntimeManager:
         )
         log_event(logger, logging.INFO, "gate.mcp.tools_registered", "MCP tools registered into Gate registry", server_id=manifest.id, tool_count=len(records))
         self._log_runtime(manifest.id, "info", "MCP tools registered into Gate registry", "gate.mcp.tools_registered", {"tool_count": len(records)})
+        return {"tool_count": len(records), "tool_snapshot_digest": self._tool_snapshot_digest(records)}
+
+    @staticmethod
+    def _tool_snapshot_digest(records: list[ToolRecord]) -> str:
+        snapshot = [{"id": record.definition.id, "name": record.definition.name,
+                     "description": record.definition.description, "input_schema": record.definition.input_schema,
+                     "annotations": record.definition.metadata.get("annotations", {}),
+                     **({"output_schema": record.definition.metadata["outputSchema"]}
+                        if "outputSchema" in record.definition.metadata else {})} for record in records]
+        return hashlib.sha256(json.dumps(snapshot, ensure_ascii=False, sort_keys=True, separators=(",", ":")).encode()).hexdigest()
 
     def refresh_server_tools(
         self,
         server_id: str,
         *,
         before_replace: Callable[[list[ToolDefinition]], None] | None = None,
+        cancel: threading.Event | None = None,
+        deadline: float | None = None,
+        before_discovery: Callable[[], None] | None = None,
     ) -> dict[str, Any]:
         """重新发现工具；可先执行失败关闭的分类门禁，再原子替换快照。"""
 
-        with self._manager_lock:
-            return self._refresh_server_tools_locked(
-                server_id,
-                before_replace=before_replace,
-            )
+        guard = operation_lock(self._manager_lock, cancel=cancel, deadline=deadline) if deadline is not None else self._manager_lock
+        with guard:
+            runtime = self._get_runtime(server_id)
+            target_guard = operation_lock(runtime.lock, cancel=cancel, deadline=deadline) if deadline is not None else runtime.lock
+            with target_guard:
+                if before_discovery is not None:
+                    before_discovery()
+                bounds = (runtime.client.operation_bounds(cancel, deadline)
+                          if isinstance(runtime.client, StreamableHttpMcpClient) and cancel is not None and deadline is not None
+                          else nullcontext())
+                with bounds:
+                    return self._refresh_server_tools_locked(server_id, before_replace=before_replace)
 
     def _refresh_server_tools_locked(
         self,
@@ -1064,24 +1210,7 @@ class McpRuntimeManager:
                 )
             discovered = runtime.client.list_tools()
             records = self._mcp_tool_records(runtime, discovered, strict=True)
-            snapshot_payload = [
-                {
-                    "id": record.definition.id,
-                    "name": record.definition.name,
-                    "description": record.definition.description,
-                    "input_schema": record.definition.input_schema,
-                    "annotations": record.definition.metadata.get("annotations", {}),
-                }
-                for record in records
-            ]
-            snapshot_digest = hashlib.sha256(
-                json.dumps(
-                    snapshot_payload,
-                    ensure_ascii=False,
-                    sort_keys=True,
-                    separators=(",", ":"),
-                ).encode("utf-8")
-            ).hexdigest()
+            snapshot_digest = self._tool_snapshot_digest(records)
             definitions = [record.definition for record in records]
             if before_replace is not None:
                 # 分类门禁先于 Registry 提交：门禁失败最多收紧旧分类，不能让新工具
@@ -1167,17 +1296,29 @@ class McpRuntimeManager:
                         f"MCP tool annotations must be an object: {normalized_name}"
                     )
                 annotations = {}
-            definition = ToolDefinition(
-                id=tool_id,
-                name=tool.get("title") or normalized_name,
-                description=tool.get("description") or f"MCP tool {normalized_name} from {manifest.id}",
-                permission=self._permission_from_manifest(manifest),
-                input_schema=input_schema,
-                source="mcp",
-                metadata={"server_id": manifest.id, "server_name": manifest.name,
+            output_metadata: dict[str, Any] = {}
+            if "outputSchema" in tool:
+                if not isinstance(tool["outputSchema"], dict):
+                    raise ValueError(f"MCP tool outputSchema must be an object: {normalized_name}")
+                output_metadata["outputSchema"] = tool["outputSchema"]
+            definition_data: dict[str, Any] = {
+                "id": tool_id,
+                "name": tool.get("title") or normalized_name,
+                "description": tool.get("description") or f"MCP tool {normalized_name} from {manifest.id}",
+                "permission": self._permission_from_manifest(manifest),
+                "input_schema": input_schema,
+                "source": "mcp",
+                "metadata": {"server_id": manifest.id, "server_name": manifest.name,
                           "launch_type": manifest.launch.type, "transport_type": manifest.transport.type,
-                          "original_tool_name": normalized_name, "annotations": annotations},
-            )
+                          "original_tool_name": normalized_name, "annotations": annotations,
+                          **({"_meta": tool["_meta"]} if "_meta" in tool else {}),
+                          **({"contract_version": tool["version"]} if "version" in tool else {}),
+                          **output_metadata},
+            }
+            # Discovery digests and review synchronization run before Registry
+            # publication, so enforce the same boundary before either can serialize.
+            check_tool_structure(definition_data)
+            definition = ToolDefinition(**definition_data)
 
             def handler(arguments: dict[str, Any], *, server_id: str = manifest.id, tool_name: str = normalized_name) -> dict[str, Any]:
                 return self.invoke_mcp_tool(server_id, tool_name, arguments)
@@ -1187,23 +1328,28 @@ class McpRuntimeManager:
 
     def invoke_mcp_tool(
         self, server_id: str, tool_name: str, arguments: dict[str, Any], *, retry_read_only: bool = False,
+        dispatch_guard: Callable[[], None] | None = None,
     ) -> dict[str, Any]:
         runtime = self._get_runtime(server_id)
         with runtime.lock:
             if runtime.state != McpServerState.RUNNING or not runtime.client:
                 raise RuntimeError(f"MCP server is not running: {server_id} ({runtime.state.value})")
             try:
+                if dispatch_guard is not None:
+                    dispatch_guard()
                 return runtime.client.call_tool(tool_name, arguments)
             except McpSessionExpiredError:
                 if runtime.manifest.launch.type != "external":
                     raise
                 return self._recover_expired_session_locked(
                     server_id, runtime, tool_name, arguments, retry_read_only=retry_read_only,
+                    dispatch_guard=dispatch_guard,
                 )
 
     def _recover_expired_session_locked(
         self, server_id: str, runtime: McpServerRuntime, tool_name: str,
         arguments: dict[str, Any], *, retry_read_only: bool,
+        dispatch_guard: Callable[[], None] | None = None,
     ) -> dict[str, Any]:
         """持有服务锁，只重连一次；写调用与变更后的工具定义不重放。"""
         client = runtime.client
@@ -1216,6 +1362,7 @@ class McpRuntimeManager:
         self._log_runtime(server_id, "warning", "MCP session expired; reconnecting", "gate.mcp.session_reconnect_started", {})
         try:
             # 客户端已经清除了失效的 session id；初始化继续使用原凭据和协议配置。
+            runtime.advance_connection_generation()
             client.start()
             tools = client.list_tools()
             records = self._mcp_tool_records(runtime, tools, strict=True)
@@ -1249,6 +1396,8 @@ class McpRuntimeManager:
                 next_action="Check the original operation result before invoking again.",
             )
         try:
+            if dispatch_guard is not None:
+                dispatch_guard()
             return client.call_tool(tool_name, arguments)
         except McpSessionExpiredError as exc:
             # 新会话仍失效时到此停止，避免递归重连或无限重试。
@@ -1300,6 +1449,7 @@ class McpRuntimeManager:
         self, server_id: str, tool_name: str, arguments: dict[str, Any], *,
         user_id: str, retry_read_only: bool = False,
         audit_snapshot: Callable[[dict[str, Any]], None] | None = None,
+        dispatch_guard: Callable[[], None] | None = None,
     ) -> dict[str, Any]:
         # Secrets stay local to this invocation and are never handed to audit storage.
         secrets: list[str] = []
@@ -1308,6 +1458,7 @@ class McpRuntimeManager:
                 server_id, tool_name, arguments, user_id=user_id,
                 retry_read_only=retry_read_only,
                 audit_secrets=secrets if audit_snapshot is not None else None,
+                dispatch_guard=dispatch_guard,
             )
         except Exception as exc:
             if audit_snapshot is not None and not isinstance(exc, UserCredentialBindingError):
@@ -1330,6 +1481,7 @@ class McpRuntimeManager:
         user_id: str,
         retry_read_only: bool = False,
         audit_secrets: list[str] | None = None,
+        dispatch_guard: Callable[[], None] | None = None,
     ) -> dict[str, Any]:
         """解析用户文件引用，并在需要时使用当前用户自己的下游凭据。"""
 
@@ -1364,7 +1516,8 @@ class McpRuntimeManager:
                 raise RuntimeError(f"fileRef resolution failed ({exc.code}): {exc}") from exc
         if not slots:
             try:
-                return self.invoke_mcp_tool(server_id, tool_name, prepared_arguments, retry_read_only=retry_read_only)
+                return self.invoke_mcp_tool(server_id, tool_name, prepared_arguments, retry_read_only=retry_read_only,
+                                            **({"dispatch_guard": dispatch_guard} if dispatch_guard is not None else {}))
             finally:
                 # Reconnection can replace/refresh the client's resolved credentials.
                 if audit_secrets is not None and hasattr(runtime.client, "audit_redaction_values"):
@@ -1414,6 +1567,10 @@ class McpRuntimeManager:
             if audit_secrets is not None and hasattr(client, "audit_redaction_values"):
                 audit_secrets.extend(client.audit_redaction_values())
             try:
+                if dispatch_guard is not None:
+                    with runtime.lock:
+                        dispatch_guard()
+                        return client.call_tool(tool_name, prepared_arguments)
                 return client.call_tool(tool_name, prepared_arguments)
             except McpSessionExpiredError:
                 # 用户会话仍使用当前用户凭据，不能借用或覆盖共享客户端与健康状态。
@@ -1438,6 +1595,10 @@ class McpRuntimeManager:
                         next_action="Check the original operation result before invoking again.",
                     )
                 try:
+                    if dispatch_guard is not None:
+                        with runtime.lock:
+                            dispatch_guard()
+                            return client.call_tool(tool_name, prepared_arguments)
                     return client.call_tool(tool_name, prepared_arguments)
                 except McpSessionExpiredError as exc:
                     raise ToolExecutionError(

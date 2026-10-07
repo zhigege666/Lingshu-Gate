@@ -1,0 +1,53 @@
+{
+  "source_sha": "ed34c5a474747b2f0933b8fbee7fccf193ee7315",
+  "production_source_sha": "a3b57f708ae3d848382e46ee9c9b85ccae8e5722",
+  "installed_wheel_resources_match_dist": true,
+  "source_checkout_absent": true,
+  "modes": {
+    "installed_wheel": {
+      "version": "0.4.4",
+      "cli": [
+        {
+          "flag": "--version",
+          "returncode": 0,
+          "settings_bypassed": true
+        },
+        {
+          "flag": "--help",
+          "returncode": 0,
+          "settings_bypassed": true
+        }
+      ],
+      "readyz_status": 200,
+      "healthz_status": 200,
+      "served_recovery_chunk": "assets/external-connections-page-5G7cff7c.js",
+      "served_recovery_chunk_sha256": "f590c4b7289fd21e299bdfb32cec47c25aa18c5e6a35798f02197ceaf3605c90",
+      "default_disabled_oauth_status": 404,
+      "process_reaped": true,
+      "elapsed_ms": 1709.843
+    },
+    "extracted_native": {
+      "version": "0.4.4",
+      "cli": [
+        {
+          "flag": "--version",
+          "returncode": 0,
+          "settings_bypassed": true
+        },
+        {
+          "flag": "--help",
+          "returncode": 0,
+          "settings_bypassed": true
+        }
+      ],
+      "readyz_status": 200,
+      "healthz_status": 200,
+      "served_recovery_chunk": "assets/external-connections-page-5G7cff7c.js",
+      "served_recovery_chunk_sha256": "f590c4b7289fd21e299bdfb32cec47c25aa18c5e6a35798f02197ceaf3605c90",
+      "default_disabled_oauth_status": 404,
+      "process_reaped": true,
+      "elapsed_ms": 1589.139
+    }
+  },
+  "scope": "Synthetic loopback only, separate ephemeral data/config/workspace per package, empty manifests, Native executor disabled, no credentials/providers/engine start. Four CLI probes bypass poisoned service settings; both real package processes stopped and reaped."
+}

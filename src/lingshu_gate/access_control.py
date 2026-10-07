@@ -8,8 +8,8 @@ import re
 import sqlite3
 import threading
 from collections import deque
-from collections.abc import Callable
-from contextlib import nullcontext
+from collections.abc import Callable, Mapping
+from contextlib import AbstractContextManager, nullcontext
 from datetime import datetime, timedelta, timezone
 from functools import partial
 from time import monotonic, perf_counter
@@ -18,11 +18,13 @@ from uuid import uuid4
 
 from lingshu_gate.auth import AuthPrincipal
 from lingshu_gate.database import SQLiteDatabase
+from lingshu_gate.domain.tool_structure import FrozenToolDefinition
+from lingshu_gate.domain.oauth_management import MANAGEMENT_READ_TOOLS, MANAGEMENT_TOOL_IDS, management_resource, management_tool_snapshot
 from lingshu_gate.invocation_payloads import snapshot
 from lingshu_gate.retention_store import RetentionStore
 from lingshu_gate.mcp_runtime import McpRuntimeManager
 from lingshu_gate.models import ToolDefinition, ToolInvokeResponse
-from lingshu_gate.registry import ToolExecutionError, ToolInvocationContext, ToolRegistry
+from lingshu_gate.registry import ToolDispatchRejectedError, ToolExecutionError, ToolInvocationContext, ToolRegistry
 from lingshu_gate.user_credential_store import UserCredentialBindingError
 
 ACCESS_RANK = {"none": 0, "read": 1, "write": 2, "unknown": -1}
@@ -631,6 +633,32 @@ class AccessControlStore:
             result.update({(row["server_id"], row["tool_id"]): dict(row) for row in rows})
         return result
 
+    @staticmethod
+    def _load_catalog_classifications(
+        connection: sqlite3.Connection,
+        tool_keys: Iterable[tuple[str, str]],
+    ) -> dict[tuple[str, str], dict[str, Any]]:
+        """Read only current policy and reviewed-safety columns for a directory.
+
+        Evidence and analysis fields remain available to the complete loader.
+        This projection is request-local; publication, fingerprint and grants
+        are still rechecked before any catalog ordering or pagination.
+        """
+        keys = sorted(set(tool_keys))
+        result: dict[tuple[str, str], dict[str, Any]] = {}
+        for offset in range(0, len(keys), 250):
+            batch = keys[offset:offset + 250]
+            placeholders = ",".join("(?, ?)" for _ in batch)
+            rows = connection.execute(
+                "SELECT server_id,tool_id,fingerprint,status,effective_access,"
+                "reviewed_by,reviewed_at,destructive,idempotent,open_world "
+                "FROM mcp_tool_classifications "
+                f"WHERE (server_id, tool_id) IN (VALUES {placeholders})",
+                tuple(value for key in batch for value in key),
+            ).fetchall()
+            result.update({(row["server_id"], row["tool_id"]): dict(row) for row in rows})
+        return result
+
     def _synchronize_tools(
         self,
         connection: sqlite3.Connection,
@@ -701,10 +729,20 @@ class AccessControlStore:
                 continue
             if existing["fingerprint"] != fingerprint:
                 invalidation_evidence = dict(suggestion["evidence"])
+                previous_snapshot = _loads(existing["evidence_json"]).get("definition_snapshot")
+                current_snapshot = invalidation_evidence["definition_snapshot"]
                 invalidation_evidence["invalidation"] = {
                     "reason": "tool_definition_changed", "at": now,
                     "previous_fingerprint": existing["fingerprint"],
                     "current_fingerprint": fingerprint,
+                    "changed_fields": sorted(
+                        field for field, digest in current_snapshot.items()
+                        if isinstance(previous_snapshot, dict) and previous_snapshot.get(field) != digest
+                    ),
+                    "previous_definition_unrecorded": not isinstance(previous_snapshot, dict),
+                    "output_schema_recorded": isinstance(definition.metadata.get("outputSchema"), dict),
+                    "previous_definition_snapshot": previous_snapshot if isinstance(previous_snapshot, dict) else None,
+                    "current_definition_snapshot": current_snapshot,
                 }
                 evidence_json = json.dumps(invalidation_evidence, ensure_ascii=False)
                 connection.execute(
@@ -1176,6 +1214,40 @@ class AccessControlStore:
                     }))
             return visible
 
+    def visible_tool_contracts(
+        self, principal: AuthPrincipal, definitions: Iterable[ToolDefinition | FrozenToolDefinition], *,
+        connection: sqlite3.Connection, fingerprints: Mapping[str, str] | None = None,
+    ) -> list[tuple[ToolDefinition | FrozenToolDefinition, dict[str, Any] | None]]:
+        """Read-only current policy projection; do not analyze or persist on a catalog GET."""
+        items = list(definitions)
+        keys = [(_server_id(item), item.id) for item in items]
+        classifications = self._load_catalog_classifications(connection, keys)
+        grants = self._effective_access_map(connection, principal, keys)
+        result: list[tuple[ToolDefinition | FrozenToolDefinition, dict[str, Any] | None]] = []
+        for definition, key in zip(items, keys, strict=True):
+            classification = classifications.get(key)
+            # An old published row cannot authorize a changed registry contract.
+            # Unlike discovery synchronization, this query leaves the row intact.
+            if classification:
+                try:
+                    fingerprint: str | None
+                    if fingerprints is None:
+                        mutable = definition.copy_definition() if isinstance(definition, FrozenToolDefinition) else definition
+                        fingerprint = _tool_fingerprint(mutable)
+                    else:
+                        fingerprint = fingerprints.get(definition.id)
+                    if classification["fingerprint"] != fingerprint:
+                        classification = None
+                except (ValueError, TypeError, RecursionError):
+                    classification = None
+            decision = self._evaluate(principal, definition, classification, partial(grants.__getitem__, key))
+            permission = "tools.read" if decision["required_access"] == "read" else "tools.invoke"
+            # Legacy admin discovery bypass does not widen this read-only
+            # directory's freshly loaded explicit control-permission ceiling.
+            if decision["allowed"] and ("*" in principal.permissions or permission in principal.permissions):
+                result.append((definition, classification))
+        return result
+
     def evaluate(self, principal: AuthPrincipal, definition: ToolDefinition) -> dict[str, Any]:
         key = (_server_id(definition), definition.id)
         with self.database.session() as connection:
@@ -1187,10 +1259,70 @@ class AccessControlStore:
                 lambda: self._effective_access_map(connection, principal, [key])[key],
             )
 
+    def catalog_authorizer(self, connection: sqlite3.Connection, principal: AuthPrincipal) -> Callable[..., int]:
+        """Request-local scalar policy for schema-free SQL search.
+
+        Read grants once. Preserve tool-over-server overrides, including explicit
+        none, and role precedence. Every candidate uses the original evaluator;
+        no shared authorization/result cache or separate allow-all policy exists.
+        """
+        rows = connection.execute("""
+            SELECT g.subject_type,g.subject_id,g.server_id,g.tool_id,g.expires_at,p.base_level
+            FROM mcp_resource_grants g JOIN permission_types p ON p.id=g.permission_type_id
+            WHERE p.enabled=1 AND ((g.subject_type='user' AND g.subject_id=?) OR
+                (g.subject_type='role' AND g.subject_id IN (
+                    SELECT ur.role_id FROM user_roles ur JOIN roles r ON r.id=ur.role_id
+                    WHERE ur.user_id=? AND r.enabled=1)))
+        """, (principal.id, principal.id)).fetchall()
+        grants = {(r["subject_type"], r["subject_id"], r["server_id"], r["tool_id"]): r["base_level"]
+                  for r in rows if not _is_expired(r["expires_at"])}
+        role_ids = {key[1] for key in grants if key[0] == "role"}
+        # Most large directories have many tools with one service-level grant.
+        # Memoize only within this read transaction, after resolving exact tool
+        # overrides. OAuth uses exact per-tool allowlists and stays uncached.
+        decisions: dict[tuple[Any, ...], int] = {}
+        oauth_tools = set(principal.external_tool_ids)
+        oauth_servers = set(principal.external_server_ids)
+
+        def authorize(tool_id: str, server_id: str, source: str, permission: str, policy: str,
+                      effective_access: str | None, status: str | None) -> int:
+            def granted() -> str:
+                direct = grants.get(("user", principal.id, server_id, tool_id))
+                if direct is None:
+                    direct = grants.get(("user", principal.id, server_id, ""))
+                if direct is not None:
+                    return direct
+                levels = [grants.get(("role", role, server_id, tool_id),
+                          grants.get(("role", role, server_id, ""), "none")) for role in role_ids]
+                return max(levels, key=lambda level: ACCESS_RANK[level]) if levels else "none"
+
+            # Management OAuth has a different resource and complete-schema
+            # snapshots. It cannot use the normal catalog or invoke adapter.
+            if principal.oauth_resource and principal.oauth_resource.endswith("/mcp/manage"):
+                return 0
+            if principal.auth_type == "oauth" and (source != "mcp" or tool_id not in oauth_tools or server_id not in oauth_servers):
+                return 0
+            granted_access = granted()
+            cache_key = (server_id, source, permission, policy, effective_access, status, granted_access,
+                         tool_id if source == "builtin" else None)
+            if principal.auth_type != "oauth" and cache_key in decisions:
+                return decisions[cache_key]
+            definition = ToolDefinition.model_construct(
+                id=tool_id, name="", description="", source=source, permission=permission,
+                metadata={**json.loads(policy), "server_id": server_id},
+            )
+            classification = {"effective_access": effective_access, "status": status} if status else None
+            allowed = int(self._evaluate(principal, definition, classification, lambda: granted_access)["allowed"])
+            if principal.auth_type != "oauth":
+                decisions[cache_key] = allowed
+            return allowed
+
+        return authorize
+
     def _evaluate(
         self,
         principal: AuthPrincipal,
-        definition: ToolDefinition,
+        definition: ToolDefinition | FrozenToolDefinition,
         classification: dict[str, Any] | None,
         grant_lookup: Callable[[], str],
     ) -> dict[str, Any]:
@@ -1198,6 +1330,28 @@ class AccessControlStore:
 
         server_id = _server_id(definition)
         if principal.auth_type == "oauth":
+            if principal.oauth_builtin and principal.oauth_resource and principal.oauth_resource.endswith("/mcp/manage"):
+                config_row = self.database.query_one("SELECT payload_json FROM gate_oauth_config WHERE id=1")
+                config = json.loads(config_row["payload_json"]) if config_row else {}
+                management = self.database.query_one("SELECT enabled FROM gate_oauth_management_config WHERE id=1")
+                required = "read" if definition.id in MANAGEMENT_READ_TOOLS else "write"
+                allowed = bool(config.get("enabled") and management and management["enabled"]
+                    and principal.oauth_resource == management_resource(config.get("resource", ""))
+                    and principal.oauth_issuer == config.get("issuer")
+                    and "admin" in principal.roles and "operations.manage" in principal.permissions
+                    and principal.external_grant_id and principal.oauth_family_id and principal.oauth_client_id
+                    and principal.external_expires_at and not _is_expired(principal.external_expires_at)
+                    and definition.source == "builtin" and server_id == "gate_mcp_configuration"
+                    and definition.id in MANAGEMENT_TOOL_IDS and definition.id in principal.external_tool_ids
+                    and dict(principal.oauth_tool_snapshots).get(definition.id) == management_tool_snapshot(
+                        definition.copy_definition() if isinstance(definition, FrozenToolDefinition) else definition)
+                    and "operations.manage" in principal.scopes
+                    and principal.delegated_scopes is not None and "operations.manage" in principal.delegated_scopes
+                    and (required == "read" or ("tools.invoke" in principal.scopes
+                         and "tools.invoke" in principal.delegated_scopes and "tools.invoke" in principal.permissions)))
+                return {"allowed": allowed, "reason": "management grant matched" if allowed else "management grant does not allow this tool",
+                        "server_id": server_id, "required_access": required, "granted_access": required if allowed else "none",
+                        "classification_status": "management_resource"}
             required = str(classification["effective_access"]) if classification else "unknown"
             if (not principal.external_grant_id or definition.source != "mcp"
                     or server_id not in principal.external_server_ids
@@ -1213,6 +1367,20 @@ class AccessControlStore:
         else:
             required_control_permission = required_control_permission.strip()
         roles = set(getattr(principal, "roles", ()) or (principal.role,))
+        if (
+            definition.source == "builtin" and server_id == "gate_mcp_groups"
+            and definition.metadata.get("group_management_control_plane") is True
+        ):
+            from lingshu_gate.mcp_group_mcp import GROUP_MANAGEMENT_TOOL_IDS
+
+            required = "read" if definition.permission == "read" else "write"
+            allowed = (definition.id in GROUP_MANAGEMENT_TOOL_IDS and principal.auth_type in {"session", "token"}
+                and "admin" in roles and self.has_control_permission(principal, "operations.manage")
+                and _token_scope_allows(principal, required)
+                and (required == "read" or self.has_control_permission(principal, "tools.invoke")))
+            return {"allowed": allowed, "reason": "group administration matched" if allowed else "group administration denied",
+                "server_id": server_id, "required_access": required, "granted_access": required if allowed else "none",
+                "classification_status": "control_plane"}
         if (
             definition.metadata.get("classification_control_plane") is True
             and required_control_permission == "classifications.manage"
@@ -1484,12 +1652,27 @@ class AccessControlStore:
         arguments: dict[str, Any],
         *,
         correlation_id: str | None = None,
+        dispatch_guard: Callable[[], None] | None = None,
+        expected_definition_revision: str | None = None,
+        allow_read_retry: bool = True,
+        arguments_validator: Callable[[], None] | None = None,
+        dispatch_context: AbstractContextManager[None] | None = None,
     ) -> ToolInvokeResponse:
         definition = registry.get_definition(tool_id)
-        self.synchronize_tools([definition])
+        from lingshu_gate.registry import tool_definition_revision
+
+        if expected_definition_revision is not None and tool_definition_revision(definition) != expected_definition_revision:
+            raise ToolExecutionError("group_tool_contract_changed", "The selected tool contract changed; describe it again.")
+        # Synchronize the requested definition without projecting every
+        # classification row merely to discard synchronize_tools()'s return.
+        with self.database.session() as connection:
+            self._synchronize_tools(connection, [definition])
         decision = self.evaluate(principal, definition)
         correlation_id = correlation_id or str(uuid4())
-        summary = _payload_summary(arguments)
+        # On-demand inputs have not crossed their bounded validator yet. Do not
+        # serialize or retain attacker-controlled deep/large values for audits
+        # before permission and external rate/concurrency admission.
+        summary = _payload_summary(arguments) if arguments_validator is None else {"values_recorded": False}
         if not decision["allowed"]:
             self._record_invocation_audit(
                 principal,
@@ -1505,7 +1688,8 @@ class AccessControlStore:
                 required_access=decision["required_access"],
                 granted_access=decision["granted_access"],
             )
-        recorded_input = snapshot(arguments) if RetentionStore(self.database).policy()["payload_mode"] == "redacted" else None
+        recorded_input = (snapshot(arguments) if arguments_validator is None
+            and RetentionStore(self.database).policy()["payload_mode"] == "redacted" else None)
         try:
             external_lease = self._acquire_external_invocation(principal)
         except AccessDeniedError as exc:
@@ -1514,41 +1698,81 @@ class AccessControlStore:
                                           decision=denied, outcome="not_invoked", duration_ms=None, payload=summary)
             raise
         recorded_outputs: list[dict[str, Any]] = []
+        guard_passed = dispatch_guard is None and arguments_validator is None and dispatch_context is None
+
+        def checked_guard() -> None:
+            nonlocal guard_passed
+            assert dispatch_guard is not None
+            dispatch_guard()
+            guard_passed = True
+
+        registry_dispatch: dict[str, Any] = (
+            {"dispatch_guard": checked_guard, "expected_definition": definition} if dispatch_guard is not None else {}
+        )
+
         started = perf_counter()
         try:
-            if definition.source == "mcp" and self.mcp_runtime:
-                server_id = str(definition.metadata.get("server_id") or "")
-                tool_name = str(definition.metadata.get("original_tool_name") or "")
-                if not server_id or not tool_name:
-                    raise RuntimeError(f"MCP tool metadata is incomplete: {tool_id}")
-                output = self.mcp_runtime.invoke_mcp_tool_for_user(
-                    server_id,
-                    tool_name,
-                    arguments,
-                    user_id=principal.id,
-                    audit_snapshot=recorded_outputs.append if recorded_input is not None else None,
-                    retry_read_only=(
-                        decision["classification_status"] == "published"
-                        and decision["required_access"] == "read"
-                    ),
-                )
-                response = ToolInvokeResponse(ok=True, tool_id=tool_id, output=output)
-            else:
-                response = registry.invoke(
-                    tool_id,
-                    arguments,
-                    context=ToolInvocationContext(
-                        actor_id=principal.id,
-                        username=principal.username,
-                        auth_type=principal.auth_type,
-                        token_id=getattr(principal, "token_id", None),
-                        correlation_id=correlation_id,
-                        roles=tuple(getattr(principal, "roles", ()) or (principal.role,)),
-                        permissions=tuple(getattr(principal, "permissions", ())),
-                        scopes=tuple(getattr(principal, "scopes", ())),
-                        delegated_scopes=getattr(principal, "delegated_scopes", None),
-                    ),
-                )
+            if arguments_validator is not None:
+                arguments_validator()
+                summary = _payload_summary(arguments)
+                if RetentionStore(self.database).policy()["payload_mode"] == "redacted":
+                    recorded_input = snapshot(arguments)
+            with dispatch_context or nullcontext():
+                if definition.source == "mcp" and self.mcp_runtime:
+                    server_id = str(definition.metadata.get("server_id") or "")
+                    tool_name = str(definition.metadata.get("original_tool_name") or "")
+                    if not server_id or not tool_name:
+                        raise RuntimeError(f"MCP tool metadata is incomplete: {tool_id}")
+                    output = self.mcp_runtime.invoke_mcp_tool_for_user(
+                        server_id,
+                        tool_name,
+                        arguments,
+                        user_id=principal.id,
+                        **({"dispatch_guard": checked_guard} if dispatch_guard is not None else {}),
+                        audit_snapshot=recorded_outputs.append if recorded_input is not None else None,
+                        retry_read_only=(
+                            allow_read_retry and decision["classification_status"] == "published"
+                            and decision["required_access"] == "read"
+                        ),
+                    )
+                    response = ToolInvokeResponse(ok=True, tool_id=tool_id, output=output)
+                else:
+                    response = registry.invoke(
+                        tool_id,
+                        arguments,
+                        **registry_dispatch,
+                        context=ToolInvocationContext(
+                            actor_id=principal.id,
+                            username=principal.username,
+                            auth_type=principal.auth_type,
+                            token_id=getattr(principal, "token_id", None),
+                            correlation_id=correlation_id,
+                            roles=tuple(getattr(principal, "roles", ()) or (principal.role,)),
+                            permissions=tuple(getattr(principal, "permissions", ())),
+                            scopes=tuple(getattr(principal, "scopes", ())),
+                            delegated_scopes=getattr(principal, "delegated_scopes", None),
+                            session_id=getattr(principal, "session_id", None),
+                            oauth_builtin=principal.oauth_builtin,
+                            oauth_issuer=principal.oauth_issuer,
+                            oauth_resource=principal.oauth_resource,
+                            oauth_client_id=principal.oauth_client_id,
+                            oauth_grant_id=principal.external_grant_id if principal.oauth_builtin else None,
+                            oauth_family_id=principal.oauth_family_id,
+                            oauth_token_expires_at=principal.oauth_token_expires_at,
+                            oauth_target_revision=principal.oauth_target_revision,
+                            oauth_tool_snapshots=principal.oauth_tool_snapshots,
+                            oauth_subject=principal.oauth_subject,
+                            oauth_audiences=principal.oauth_audiences,
+                            oauth_jwks_uri=principal.oauth_jwks_uri,
+                            external_grant_id=principal.external_grant_id,
+                            external_server_ids=principal.external_server_ids,
+                            external_tool_ids=principal.external_tool_ids,
+                            external_access=principal.external_access,
+                            external_expires_at=principal.external_expires_at,
+                            external_rate_per_minute=principal.external_rate_per_minute,
+                            external_concurrency=principal.external_concurrency,
+                        ),
+                    )
         except UserCredentialBindingError as exc:
             credential_decision = {
                 **decision,
@@ -1571,18 +1795,22 @@ class AccessControlStore:
                 granted_access=decision["granted_access"],
             ) from exc
         except ToolExecutionError as exc:
+            if isinstance(exc, ToolDispatchRejectedError):
+                guard_passed = False
             response = ToolInvokeResponse(ok=False, tool_id=tool_id, error=str(exc), output=exc.to_payload())
         except Exception as exc:  # noqa: BLE001 - 工具边界统一返回失败响应
             response = ToolInvokeResponse(ok=False, tool_id=tool_id, error=str(exc))
         finally:
             self._release_external_invocation(external_lease)
         duration_ms = max(0, round((perf_counter() - started) * 1000))
+        if not guard_passed:
+            decision = {**decision, "allowed": False, "reason": "catalog dispatch rejected"}
         self._record_invocation_audit(
             principal,
             definition,
             correlation_id=correlation_id,
             decision=decision,
-            outcome="success" if response.ok else "error",
+            outcome="not_invoked" if not guard_passed else "success" if response.ok else "error",
             duration_ms=duration_ms,
             payload=summary,
             recorded_input=recorded_input,
@@ -1806,15 +2034,15 @@ class AccessControlStore:
         }
 
 
-def _server_id(definition: ToolDefinition) -> str:
+def _server_id(definition: ToolDefinition | FrozenToolDefinition) -> str:
     value = definition.metadata.get("server_id")
     if isinstance(value, str) and value.strip():
         return value.strip()
     return definition.source or "builtin"
 
 
-def _tool_fingerprint(definition: ToolDefinition) -> str:
-    payload = {
+def _tool_fingerprint_payload(definition: ToolDefinition) -> dict[str, Any]:
+    return {
         "id": definition.id,
         "name": definition.name,
         "description": definition.description,
@@ -1827,8 +2055,20 @@ def _tool_fingerprint(definition: ToolDefinition) -> str:
         "sensitive_input_fields": definition.metadata.get("sensitive_input_fields"),
         "sensitive_output_fields": definition.metadata.get("sensitive_output_fields"),
     }
-    raw = json.dumps(payload, ensure_ascii=False, sort_keys=True, separators=(",", ":"))
+
+
+def _tool_fingerprint(definition: ToolDefinition) -> str:
+    raw = json.dumps(_tool_fingerprint_payload(definition), ensure_ascii=False, sort_keys=True, separators=(",", ":"))
     return hashlib.sha256(raw.encode("utf-8")).hexdigest()
+
+
+def _tool_definition_snapshot(definition: ToolDefinition) -> dict[str, str]:
+    # Field digests explain contract drift without returning full schemas in every row.
+    return {
+        field: hashlib.sha256(json.dumps(value, ensure_ascii=False, sort_keys=True,
+                                        separators=(",", ":")).encode("utf-8")).hexdigest()
+        for field, value in _tool_fingerprint_payload(definition).items()
+    }
 
 
 def _suggest_tool(definition: ToolDefinition) -> dict[str, Any]:
@@ -1866,6 +2106,7 @@ def _suggest_tool(definition: ToolDefinition) -> dict[str, Any]:
         "open_world": open_world,
         "evidence": {
             "annotations": annotations,
+            "definition_snapshot": _tool_definition_snapshot(definition),
             "rule": {
                 "read_hits": read_hits,
                 "write_hits": write_hits,

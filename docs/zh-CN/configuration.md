@@ -61,6 +61,8 @@ lingshu-gate/
 
 ## 下游 Manifest
 
+管理员可通过共用 REST/MCP [外部配置流程](external-mcp-configuration.md)核对并登记现有外部 HTTP MCP。它保留已有托管凭据引用，更新使用原始文件摘要 CAS，分开保存、当前连接/发现和未来启动策略。此开发候选未安装 Git 执行器或远程进程 runtime。
+
 Manifest 是存放在 `mcp.d` 中的 YAML 或 JSON 对象。文件名不是身份，`id` 才是。ID 必须匹配 `^[A-Za-z0-9_.-]+$`，并保持稳定，因为授权、凭据、运行状态和审计都会引用它。
 
 ### Gate 启动策略
@@ -258,6 +260,8 @@ HTTPS 反代到 HTTP 后端时，代理必须保留外部 `Host`（含非默认�
 保存 Manifest 前，使用 Console 或 `POST /v1/mcp/configs/validate` 校验。新建/已有配置的两条校验路由只检查 Schema、本地策略和文件元数据，不执行 Manifest command 或任何版本探测。准确工具版本明确保持未验证，直到已授权启动；校验不授予启动权限，也不证明远程 Endpoint 可信或健康。保存后应检查服务状态、发现的工具、分类和授权，再允许调用。
 
 ## 交付网络配置
+
+Native 隔离交付以管理员专用 `LINGSHU_GATE_NATIVE_EXECUTOR` JSON 对象配置，默认关闭，要求 Linux/local、独立 owned root/有界 tmpfs、精确预载镜像 digest、受审 Podman/代理 host 和实际 namespace/cgroup 终止证据。Core 不创建引擎适配器。见 [Native 配置与支持边界](native-executor.md)。
 
 新生成的 manager 本地启动配置带 `launch.toolchain: {manager, version}`，command 仅为工具名 `npm`、`pnpm` 或 `yarn`。带 pin 的绝对/相对执行路径和别名均拒绝。服务管理员通过 `LINGSHU_GATE_RUNTIME_TOOLCHAIN_PATHS` 登记 `node` 与所选 manager：Node 为受审查的绝对原生 `node`/`node.exe`；manager 为受审查的绝对官方 JS CLI 入口（`.js`、`.cjs`、`.mjs`），不使用 shell/Corepack launcher。工具链接解析后须在项目根、Data 和 Manifest 目录之外，注册表和安装文件须防止项目或未授权写入。登记是管理员信任决策，文件名/超时不能证明信任。项目 API 不更新注册表；部署配置修改后需重启 Gate。
 

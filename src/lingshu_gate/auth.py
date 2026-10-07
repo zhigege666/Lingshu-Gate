@@ -61,6 +61,18 @@ class AuthPrincipal:
     external_expires_at: str | None = None
     external_rate_per_minute: int = 0
     external_concurrency: int = 0
+    session_id: str | None = None
+    oauth_builtin: bool = False
+    oauth_issuer: str | None = None
+    oauth_resource: str | None = None
+    oauth_client_id: str | None = None
+    oauth_family_id: str | None = None
+    oauth_token_expires_at: int = 0
+    oauth_target_revision: int = 0
+    oauth_tool_snapshots: tuple[tuple[str, str], ...] = ()
+    oauth_subject: str | None = None
+    oauth_audiences: tuple[str, ...] = ()
+    oauth_jwks_uri: str | None = None
 
 
 def utc_now() -> datetime:
@@ -72,6 +84,10 @@ def iso_now() -> str:
 
 
 def hash_secret(value: str) -> str:
+    """Stable lookup/binding digest for random tokens and protocol metadata.
+
+    Human passwords must use hash_password's salted PBKDF2 path instead.
+    """
     return hashlib.sha256(value.encode("utf-8")).hexdigest()
 
 
@@ -443,7 +459,7 @@ class AuthStore:
             "INSERT INTO auth_sessions (id, user_id, token_hash, expires_at, created_at, purpose) VALUES (?, ?, ?, ?, ?, ?)",
             (session_id, row["id"], hash_secret(token), expires_at, iso_now(), purpose),
         )
-        return principal, token, expires_at
+        return replace(principal, session_id=session_id), token, expires_at
 
     def logout(self, token: str | None, *, purpose: SessionPurpose = "console") -> None:
         if not token:
@@ -719,6 +735,21 @@ class AuthStore:
     def authenticate_mcp_request(self, request: Request) -> AuthPrincipal:
         """External JWTs authenticate only this protocol endpoint, never Console."""
         bearer = self._bearer_token(request)
+        # The trusted route selects this audience before looking at any token.
+        # Neither a Console session/API token nor an external verifier may
+        # bootstrap management-resource access.
+        if request.url.path == "/mcp/manage":
+            from lingshu_gate.oauth_server import OAuthError
+
+            if not self.enabled or self.builtin_oauth is None or not self.builtin_oauth.store.management_config()["active"]:
+                raise HTTPException(404, detail="OAuth management resource is disabled")
+            if not bearer or bearer.count(".") != 2:
+                raise HTTPException(401, detail="management OAuth authorization required", headers={"WWW-Authenticate": "Bearer"})
+            try:
+                resource = self.builtin_oauth.store.management_config()["resource"]
+                return self.builtin_oauth.verify(bearer, expected_resource=resource)
+            except (OAuthError, ValueError, KeyError, PermissionError) as exc:
+                raise HTTPException(401, detail="invalid management OAuth authorization", headers={"WWW-Authenticate": "Bearer"}) from exc
         if self.external_connections is not None and self.external_connections.configuration().enabled and not self.enabled:
             raise HTTPException(503, detail="external authentication requires Gate authentication")
         if "authorization" not in request.headers:
@@ -766,7 +797,9 @@ class AuthStore:
             external_grant_id=grant["id"], external_server_ids=tuple(grant["server_allowlist"]),
             external_tool_ids=tuple(grant["tool_allowlist"]), external_access=access,
             external_expires_at=min(identity.expires_at, datetime.fromisoformat(grant["expires_at"])).isoformat(),
-            external_rate_per_minute=int(grant["rate_per_minute"]), external_concurrency=int(grant["concurrency"]))
+            external_rate_per_minute=int(grant["rate_per_minute"]), external_concurrency=int(grant["concurrency"]),
+            oauth_issuer=identity.issuer, oauth_subject=identity.subject, oauth_client_id=identity.client_id,
+            oauth_audiences=identity.audiences, oauth_resource=identity.canonical_resource, oauth_jwks_uri=identity.jwks_uri)
         return self._enforce_password_change(principal, request)
 
     def authenticate_request(self, request: Request) -> AuthPrincipal:
@@ -817,7 +850,8 @@ class AuthStore:
     def _principal_from_session(self, token: str, *, purpose: SessionPurpose = "console") -> AuthPrincipal | None:
         row = self.database.query_one(
             """
-            SELECT users.*, auth_sessions.expires_at AS session_expires_at
+            SELECT users.*, auth_sessions.expires_at AS session_expires_at,
+                   auth_sessions.id AS auth_session_id
             FROM auth_sessions
             JOIN users ON users.id = auth_sessions.user_id
             WHERE auth_sessions.token_hash = ? AND auth_sessions.purpose = ?
@@ -826,7 +860,7 @@ class AuthStore:
         )
         if not row or row["status"] != "active" or _is_expired(row["session_expires_at"]):
             return None
-        return self._build_principal(row, auth_type="session")
+        return replace(self._build_principal(row, auth_type="session"), session_id=str(row["auth_session_id"]))
 
     def _principal_from_api_token(self, token: str) -> AuthPrincipal | None:
         row = self.database.query_one(

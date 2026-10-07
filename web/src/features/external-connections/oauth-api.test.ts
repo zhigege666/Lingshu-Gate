@@ -38,4 +38,12 @@ describe("OAuth scope and request boundaries", () => {
     const result = await oauthRequest<{ client_secret: string }>("/v1/auth/oauth/clients", { name: "Synthetic" })
     expect(result.client_secret).toBe("synthetic-once")
   })
+  it("sends a supplied single-use management ticket without retrying or persisting it", async () => {
+    vi.stubGlobal("window", { setTimeout, clearTimeout })
+    const fetch = vi.fn().mockResolvedValue(new Response(JSON.stringify({ error: "invalid_csrf" }), { status: 403 }))
+    vi.stubGlobal("fetch", fetch)
+    await expect(oauthRequest("/v1/auth/oauth/management/config", { enabled: true, expected_revision: 0 }, "POST", { "X-CSRF-Token": "synthetic-once" })).rejects.toMatchObject({ code: "invalid_csrf" })
+    expect(fetch).toHaveBeenCalledTimes(1)
+    expect(fetch.mock.calls[0][1].headers).toEqual({ "Content-Type": "application/json", "X-CSRF-Token": "synthetic-once" })
+  })
 })

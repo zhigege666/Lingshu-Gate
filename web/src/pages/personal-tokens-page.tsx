@@ -18,6 +18,7 @@ import { Switch } from "@/components/ui/switch"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { Toaster } from "@/components/ui/toast"
 import { getAvailableTokenScopes, getDefaultTokenScopes, getTokenScopeOptions } from "@/features/personal-token-scopes"
+import { McpClientSettingsDialog } from "@/features/mcp-client-settings-dialog"
 import type { Locale, TFunction } from "@/i18n"
 import { formatDateTime } from "@/lib/utils"
 import { TableEmptyRow } from "@/pages/page-utils"
@@ -238,7 +239,7 @@ export function PersonalTokensPage({ locale, t }: { locale: Locale; t: TFunction
         toolbar={<PageToolbar query={query} onQueryChange={setQuery} placeholder={t("search")} resultCount={filteredRecords.length} resultLabel={c.title} clearLabel={t("clearSearch")} />}
         helpContent={<p>{c.scopeHint}</p>}
         stats={[{ label: c.active, value: activeCount, tone: "success" }, { label: c.expired, value: expiredCount, tone: expiredCount ? "warning" : "default" }, { label: c.revoked, value: revokedCount }]}
-        actions={<Button disabled={busy} onClick={openCreate}><Plus />{c.newToken}</Button>}
+        actions={<><McpClientSettingsDialog locale={locale} t={t} /><Button disabled={busy} onClick={openCreate}><Plus />{c.newToken}</Button></>}
       />
       {error && <Alert variant="destructive" role="alert"><AlertDescription>{error}</AlertDescription><Button variant="outline" size="sm" className="mt-2" disabled={busy} onClick={() => void load()}>{t("refresh")}</Button></Alert>}
       <Card>

@@ -20,7 +20,9 @@ on:
       - "src/lingshu_gate/build_preflight.py"
       - "src/lingshu_gate/diagnostics.py"
       - "tests/test_release_packaging.py"
+      - "tests/test_wheel_build.py"
       - "tests/test_auto_release.py"
+      - "MANIFEST.in"
       - "web/package.json"
       - "web/package-lock.json"
       - "web/vite.config.*"
@@ -143,7 +145,7 @@ jobs:
 
       - name: Verify release engineering on pull requests
         if: github.event_name == 'pull_request'
-        run: uv run --no-sync pytest -q tests/test_release_packaging.py tests/test_auto_release.py
+        run: uv run --no-sync pytest -q tests/test_release_packaging.py tests/test_wheel_build.py tests/test_auto_release.py
 
   native:
     name: Native ${{ matrix.target }}
