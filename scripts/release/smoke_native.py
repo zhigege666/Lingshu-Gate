@@ -16,7 +16,7 @@ from pathlib import Path
 
 from scripts.release.common import python_executable_name
 
-CONSOLE_ASSET_PATTERN = re.compile(r'(?:src|href)="(/console/[^"?#]+\.(?:js|css))"')
+CONSOLE_ASSET_PATTERN = re.compile(r'(?:src|href)="(/assets/[^"?#]+\.(?:js|css))"')
 
 
 def _free_loopback_port() -> int:
@@ -25,24 +25,69 @@ def _free_loopback_port() -> int:
         return int(listener.getsockname()[1])
 
 
+class _ConsoleRedirectHandler(urllib.request.HTTPRedirectHandler):
+    def __init__(self, expected_url: str) -> None:
+        self.expected_url = expected_url
+        self.redirects: list[int] = []
+
+    def redirect_request(self, request, fp, code, message, headers, new_url):
+        if code != 307 or new_url != self.expected_url or self.redirects:
+            raise RuntimeError("Frozen Console entry point has an unexpected redirect")
+        self.redirects.append(code)
+        return super().redirect_request(request, fp, code, message, headers, new_url)
+
+
+def _read_console_entry(url: str, *, expected_url: str) -> str:
+    redirects = _ConsoleRedirectHandler(expected_url)
+    opener = urllib.request.build_opener(redirects)
+    request = urllib.request.Request(url, headers={"Accept": "text/html"})
+    try:
+        with opener.open(request, timeout=5) as response:
+            if (response.status != 200 or response.geturl() != expected_url
+                    or response.headers.get_content_type() != "text/html"
+                    or redirects.redirects != ([307] if url != expected_url else [])):
+                raise RuntimeError("Frozen Console entry point is unavailable")
+            return response.read().decode("utf-8")
+    except urllib.error.HTTPError as error:
+        raise RuntimeError("Frozen Console entry point is unavailable") from error
+
+
+def _read_console_asset(origin: str, asset: str) -> bytes:
+    expected_types = {"text/javascript", "application/javascript"} if asset.endswith(".js") else {"text/css"}
+    url = f"{origin}{asset}"
+    try:
+        with urllib.request.urlopen(url, timeout=5) as response:
+            content = response.read()
+            if (response.status != 200 or response.geturl() != url or not content
+                    or response.headers.get_content_type() not in expected_types):
+                raise RuntimeError(f"Frozen Console asset is unavailable: {asset}")
+            return content
+    except urllib.error.HTTPError as error:
+        raise RuntimeError(f"Frozen Console asset is unavailable: {asset}") from error
+
+
 def _verify_http_surface(port: int) -> None:
     origin = f"http://127.0.0.1:{port}"
     with urllib.request.urlopen(f"{origin}/", timeout=5) as response:
         metadata = json.loads(response.read())
-        if response.status != 200 or metadata.get("service") != "Lingshu Gate":
+        if (response.status != 200 or metadata.get("service") != "Lingshu Gate"
+                or response.headers.get_content_type() != "application/json"):
             raise RuntimeError("Frozen root metadata response is invalid")
-    with urllib.request.urlopen(f"{origin}/console", timeout=5) as response:
-        console_html = response.read().decode("utf-8")
-        if response.status != 200:
-            raise RuntimeError("Frozen Console entry point is unavailable")
+    console_html = _read_console_entry(f"{origin}/", expected_url=f"{origin}/")
+    query = "?native_smoke=one&native_smoke=two"
+    for entry in ("/console", "/console/", "/console/index.html"):
+        legacy_html = _read_console_entry(f"{origin}{entry}{query}", expected_url=f"{origin}/{query}")
+        if legacy_html != console_html:
+            raise RuntimeError("Frozen legacy Console entry does not match the root Console")
     assets = sorted(set(CONSOLE_ASSET_PATTERN.findall(console_html)))
     if not assets or not any(asset.endswith(".js") for asset in assets):
         raise RuntimeError("Frozen Console does not reference a JavaScript asset")
+    if not any(asset.endswith(".css") for asset in assets):
+        raise RuntimeError("Frozen Console does not reference a CSS asset")
     for asset in assets:
-        with urllib.request.urlopen(f"{origin}{asset}", timeout=5) as response:
-            content = response.read()
-            if response.status != 200 or not content:
-                raise RuntimeError(f"Frozen Console asset is unavailable: {asset}")
+        content = _read_console_asset(origin, asset)
+        if _read_console_asset(origin, f"/console{asset}") != content:
+            raise RuntimeError(f"Frozen legacy Console asset does not match the root asset: {asset}")
 
 
 def _launcher_command(bundle_dir: Path, target: str) -> list[str]:

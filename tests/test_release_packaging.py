@@ -11,8 +11,12 @@ import stat
 import subprocess
 import sys
 import tarfile
+import threading
 import zipfile
+from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
+from types import SimpleNamespace
+from urllib.parse import urlsplit
 
 import pytest
 
@@ -88,6 +92,156 @@ def test_windows_native_smoke_uses_cwd_relative_batch_launcher(
 def test_windows_native_smoke_rejects_missing_launcher(tmp_path: Path) -> None:
     with pytest.raises(RuntimeError, match="Native launcher is missing"):
         smoke_native._launcher_command(tmp_path, "windows-x86_64")
+
+
+@pytest.fixture
+def native_http_surface():
+    """Real loopback HTTP; exercise urllib negotiation and redirect handling."""
+    state = SimpleNamespace(
+        html='<script src="/assets/main.js"></script><link href="/assets/main.css">'
+             '<link rel="modulepreload" href="/assets/preload.js">',
+        html_type="text/html", metadata={"service": "Lingshu Gate"}, metadata_type="application/json",
+        redirect_status=307, redirect_location=None, legacy_html=None, legacy_type=None,
+        assets={"/assets/main.js": (200, "text/javascript", b"/* synthetic JavaScript */"),
+                "/assets/preload.js": (200, "text/javascript", b"/* synthetic preload */"),
+                "/assets/main.css": (200, "text/css", b"/* synthetic stylesheet */")},
+        legacy_assets={}, received=[],
+    )
+
+    class Handler(BaseHTTPRequestHandler):
+        def do_GET(self):
+            state.received.append((self.path, self.headers.get("Accept")))
+            path = urlsplit(self.path)
+            if path.path in {"/console", "/console/", "/console/index.html"}:
+                location = state.redirect_location or ("/" + ("?" + path.query if path.query else ""))
+                self.send_response(state.redirect_status)
+                self.send_header("Location", location)
+                self.end_headers()
+                return
+            if path.path == "/":
+                if self.headers.get("Accept") != "text/html":
+                    status, media_type, body = 200, state.metadata_type, json.dumps(state.metadata).encode()
+                else:
+                    media_type, html = state.html_type, state.html
+                    if path.query:
+                        media_type = state.legacy_type or media_type
+                        html = state.legacy_html if state.legacy_html is not None else html
+                    status, body = 200, html.encode()
+            elif path.path.startswith("/console/assets/"):
+                asset = path.path.removeprefix("/console")
+                status, media_type, body = state.legacy_assets.get(asset, state.assets.get(asset, (404, "text/plain", b"missing")))
+            else:
+                status, media_type, body = state.assets.get(path.path, (404, "text/plain", b"missing"))
+            self.send_response(status)
+            self.send_header("Content-Type", media_type)
+            self.send_header("Content-Length", str(len(body)))
+            self.end_headers()
+            self.wfile.write(body)
+
+        def log_message(self, *args):
+            pass
+
+    server = ThreadingHTTPServer(("127.0.0.1", 0), Handler)
+    state.port = server.server_port
+    thread = threading.Thread(target=server.serve_forever, daemon=True)
+    thread.start()
+    try:
+        yield state
+    finally:
+        server.shutdown()
+        server.server_close()
+        thread.join(timeout=5)
+        assert not thread.is_alive()
+
+
+def test_native_smoke_checks_root_negotiation_redirects_and_every_js_css_asset(native_http_surface):
+    state = native_http_surface
+    smoke_native._verify_http_surface(state.port)
+
+    assert ("/", None) in state.received
+    assert ("/", "text/html") in state.received
+    query = "?native_smoke=one&native_smoke=two"
+    for entry in ("/console", "/console/", "/console/index.html"):
+        assert (entry + query, "text/html") in state.received
+    assert state.received.count(("/" + query, "text/html")) == 3
+    for asset in state.assets:
+        assert (asset, None) in state.received
+        assert ("/console" + asset, None) in state.received
+
+
+@pytest.mark.parametrize("media_type", ["text/javascript", "application/javascript"])
+def test_native_smoke_accepts_standard_javascript_media_types(native_http_surface, media_type):
+    native_http_surface.assets["/assets/main.js"] = (200, media_type, b"/* synthetic JavaScript */")
+    smoke_native._verify_http_surface(native_http_surface.port)
+
+
+@pytest.mark.parametrize("field,value", [("metadata", {"service": "Other"}), ("metadata_type", "text/html")])
+def test_native_smoke_rejects_invalid_root_metadata(native_http_surface, field, value):
+    setattr(native_http_surface, field, value)
+    with pytest.raises(RuntimeError, match="Frozen root metadata response is invalid"):
+        smoke_native._verify_http_surface(native_http_surface.port)
+
+
+@pytest.mark.parametrize("media_type", ["application/json", "text/plain"])
+def test_native_smoke_rejects_non_html_console_response(native_http_surface, media_type):
+    native_http_surface.html_type = media_type
+    with pytest.raises(RuntimeError, match="Frozen Console entry point is unavailable"):
+        smoke_native._verify_http_surface(native_http_surface.port)
+
+
+@pytest.mark.parametrize("status,location", [(302, None), (303, None), (307, "/unexpected"),
+                                           (307, "http://127.0.0.1:1/outside")])
+def test_native_smoke_rejects_wrong_redirect_before_following_it(native_http_surface, status, location):
+    state = native_http_surface
+    state.redirect_status, state.redirect_location = status, location
+    with pytest.raises(RuntimeError, match="Frozen Console entry point has an unexpected redirect"):
+        smoke_native._verify_http_surface(state.port)
+    assert not any(path.startswith("/unexpected") for path, _ in state.received)
+
+
+@pytest.mark.parametrize("field,value,message", [
+    ("legacy_type", "application/json", "Frozen Console entry point is unavailable"),
+    ("legacy_html", "<title>Other entry</title>", "Frozen legacy Console entry does not match"),
+])
+def test_native_smoke_rejects_wrong_final_legacy_response(native_http_surface, field, value, message):
+    setattr(native_http_surface, field, value)
+    with pytest.raises(RuntimeError, match=message):
+        smoke_native._verify_http_surface(native_http_surface.port)
+
+
+@pytest.mark.parametrize("html,message", [
+    ('<link href="/assets/main.css">', "JavaScript asset"),
+    ('<script src="/assets/main.js"></script>', "CSS asset"),
+    ('<script src="/console/assets/main.js"></script><link href="/console/assets/main.css">', "JavaScript asset"),
+])
+def test_native_smoke_requires_both_root_js_and_css_references(native_http_surface, html, message):
+    native_http_surface.html = html
+    with pytest.raises(RuntimeError, match=message):
+        smoke_native._verify_http_surface(native_http_surface.port)
+
+
+@pytest.mark.parametrize("asset", ["/assets/main.js", "/assets/main.css", "/assets/preload.js"])
+@pytest.mark.parametrize("failure", ["missing", "empty", "html"])
+def test_native_smoke_rejects_each_missing_empty_or_wrong_type_asset(native_http_surface, asset, failure):
+    state = native_http_surface
+    if failure == "missing":
+        state.assets.pop(asset)
+    else:
+        media_type = "text/css" if asset.endswith(".css") else "text/javascript"
+        state.assets[asset] = (200, "text/html", b"<title>Fallback</title>") if failure == "html" else (200, media_type, b"")
+    with pytest.raises(RuntimeError, match="Frozen Console asset is unavailable: " + re.escape(asset)):
+        smoke_native._verify_http_surface(state.port)
+
+
+@pytest.mark.parametrize("asset", ["/assets/main.js", "/assets/main.css"])
+@pytest.mark.parametrize("failure", ["missing", "different"])
+def test_native_smoke_verifies_legacy_asset_availability_and_identical_bytes(native_http_surface, asset, failure):
+    state = native_http_surface
+    media_type = "text/css" if asset.endswith(".css") else "text/javascript"
+    state.legacy_assets[asset] = (404, "text/plain", b"missing") if failure == "missing" else (200, media_type, b"different")
+    message = "Frozen Console asset is unavailable" if failure == "missing" else "Frozen legacy Console asset does not match"
+    with pytest.raises(RuntimeError, match=message):
+        smoke_native._verify_http_surface(state.port)
 
 
 @pytest.mark.parametrize("archive_type", ["tar.gz", "zip"])

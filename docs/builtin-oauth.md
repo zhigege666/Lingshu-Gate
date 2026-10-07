@@ -111,7 +111,7 @@ In **My connections**, active management grants provide **Adjust targets**. The 
 
 ## Public proxy allowlist
 
-Expose only these paths with their stated methods. Block all other paths, including `/console`, `/v1`, `/docs`, `/openapi.json` and service-management routes, on the public listener. Internal Console access can use a separate private listener/origin. Do not proxy a catch-all location to Gate.
+Expose only these paths with their stated methods. Block all other paths, including the private Console root `/`, its `/assets/` and `/lingshu-gate-*` icons, legacy `/console`, `/v1`, `/docs`, `/openapi.json` and service-management routes, on the public listener. Internal Console access can use a separate private listener/origin. The root entry does not move `/oauth/consent` or `/oauth/assets/` into the Console bundle. Do not proxy a catch-all location to Gate.
 
 | Path | Public methods | Purpose |
 |---|---|---|

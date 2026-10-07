@@ -15,7 +15,7 @@ if (!versionMatch && process.env.NODE_ENV === "production") {
 }
 
 export default defineConfig({
-  base: "/console/",
+  base: "/",
   server: {
     host: "0.0.0.0",
     port: 4173,

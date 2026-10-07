@@ -244,7 +244,7 @@ export function AuthGate({ children }: AuthGateProps) {
       <div className="grid min-h-screen bg-background text-foreground lg:grid-cols-[minmax(360px,0.9fr)_minmax(460px,1.1fr)]">
         <section className="hidden flex-col justify-between border-r bg-primary p-10 text-primary-foreground lg:flex">
           <div className="flex items-center gap-3">
-            <div className="flex size-11 items-center justify-center rounded-xl bg-white/95 shadow-sm"><img src="/console/lingshu-gate-icon.svg" alt="Lingshu Gate" className="size-7" /></div>
+            <div className="flex size-11 items-center justify-center rounded-xl bg-white/95 shadow-sm"><img src="/lingshu-gate-icon.svg" alt="Lingshu Gate" className="size-7" /></div>
             <div><div className="font-semibold">Lingshu Gate</div><div className="text-xs text-primary-foreground/70">Access Governance Console</div></div>
           </div>
           <div className="max-w-xl">
@@ -267,7 +267,7 @@ export function AuthGate({ children }: AuthGateProps) {
         <Card className="w-full max-w-md border-border/80 shadow-xl shadow-primary/5">
           <CardHeader>
             <div className="mb-3 flex items-center gap-3 lg:hidden">
-              <div className="flex size-10 items-center justify-center rounded-xl border bg-background shadow-sm"><img src="/console/lingshu-gate-icon.svg" alt="Lingshu Gate" className="size-6" /></div>
+              <div className="flex size-10 items-center justify-center rounded-xl border bg-background shadow-sm"><img src="/lingshu-gate-icon.svg" alt="Lingshu Gate" className="size-6" /></div>
               <div className="min-w-0"><div className="text-sm font-semibold">Lingshu Gate</div><p className="break-all text-xs text-muted-foreground" aria-live="polite" data-gate-version>{runtimeVersion.status === "ready" && `${translate(locale, "version")} `}<span className="font-mono">{versionText}</span></p></div>
             </div>
             <CardTitle>{isRegister ? c.registerTitle : isPasswordChange ? c.changeTitle : c.loginTitle}</CardTitle>

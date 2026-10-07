@@ -2,7 +2,7 @@
 
 [简体中文](zh-CN/local-development.md) · [Documentation index](README.md)
 
-Lingshu Gate uses Python for the service and React/TypeScript for the Console. The built Console is embedded in the Python package and served under `/console`.
+Lingshu Gate uses Python for the service and React/TypeScript for the Console. The built Console is embedded in the Python package and served to browsers at `/`, retaining hash navigation. Legacy `/console` entries redirect to the root; generated assets use `/assets/`, and their old `/console/assets/` paths remain compatible. Service information is always JSON at `/v1/meta`, or at `/` with an acceptable explicit `Accept: application/json`.
 
 ## Requirements
 
@@ -80,7 +80,7 @@ For live Console development, keep Gate running and start the Vite server in ano
 npm --prefix web run dev
 ```
 
-Open `http://127.0.0.1:4173/console/`. The development server proxies Gate API requests to `http://127.0.0.1:8000` by default. Set `LINGSHU_GATE_DEV_PROXY_TARGET` before starting Vite only when the local Gate service uses a different origin.
+Open `http://127.0.0.1:4173/`. The development server proxies Gate API requests to `http://127.0.0.1:8000` by default. Set `LINGSHU_GATE_DEV_PROXY_TARGET` before starting Vite only when the local Gate service uses a different origin. Use the built Gate server on port 8000 to test root content negotiation and legacy-entry redirects; Vite serves the development HTML directly.
 
 ```bash
 npm --prefix web run check

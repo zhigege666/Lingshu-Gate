@@ -95,7 +95,7 @@ docker compose up -d --build core
 docker compose ps
 ```
 
-Open <http://127.0.0.1:8000/console>. On an empty data volume, Gate creates a one-time administrator password in `/data/initial-admin-credentials.json`:
+Open <http://127.0.0.1:8000/>. On an empty data volume, Gate creates a one-time administrator password in `/data/initial-admin-credentials.json`:
 
 ```bash
 docker compose exec core sh -c 'cat /data/initial-admin-credentials.json'
@@ -132,7 +132,7 @@ npm --prefix web run build
 uv run lingshu-gate
 ```
 
-Gate listens on `127.0.0.1:8000` by default. The Web Console is at `/console`, OpenAPI documentation at `/docs`, and readiness probe at `/readyz`.
+Gate listens on `127.0.0.1:8000` by default. Browsers open the Web Console at `/`, OpenAPI documentation at `/docs`, and readiness probe at `/readyz`. Service information is always JSON at `/v1/meta`; `/` also retains JSON for default curl/programmatic requests and explicit acceptable `application/json`. Old `/console` bookmarks redirect to `/` with their query and hash navigation preserved. The independent OAuth entry remains `/oauth/consent`.
 
 The **Roles & Permission Types** Console page separates roles and resource permission types into tabs. Search and source/status/level filters keep the lists compact; row actions stay visible and a detail panel shows the full permission set. Copy creates a new custom item with a new code. System-item restrictions and assigned-role/referenced-type deletion checks remain enforced by the API.
 

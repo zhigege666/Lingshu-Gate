@@ -28,6 +28,7 @@ This documentation describes the current Gate product boundary. English is autho
 | [Deployment](deployment.md) | Docker Compose, native service, production hardening, backup, upgrade, and rollback |
 | [Operations](operations.md) | Health probes, logs, events, diagnostics, runtime cache, audits, and incident checks |
 | [Local development](local-development.md) | Source setup, Console build, test suites, and repository conventions |
+| [Root Console entry candidate](root-console-entry.md) | Root HTML/JSON negotiation, legacy bookmarks, resource boundaries and candidate validation |
 | [UI interaction contract](ui-interaction-contract.md) | Acceptance rules for new or migrated Console UI, editor safety, evidence, and independent review |
 | [Browser regression](browser-regression.md) | Isolated real-backend Playwright, synthetic large lists, scenario IDs and evidence boundaries |
 | [External OAuth resource access](external-connections.md) | Default-disabled JWT verification, trust configuration, personal delegations and integration boundaries |
@@ -44,7 +45,9 @@ API schemas are served by a running Gate instance at `/docs`. Security policy an
 
 | Entry point | Purpose | Authentication |
 |---|---|---|
-| `/console` | Web Console | Authenticated cookie |
+| `/` | Browser Console; JSON service information for programmatic requests | Sign-in page is public; Console operations require an authenticated cookie |
+| `/v1/meta` | JSON service information, independent of Accept | Public metadata |
+| `/console`, `/console/` | Compatibility redirect to `/`, preserving query and hash | Same Console boundary |
 | `/docs` | OpenAPI UI | Deployment policy applies |
 | `/mcp` | Stateless Streamable HTTP MCP gateway | Console cookie or bearer token |
 | `/v1/*` | Control and operation APIs | Permission-specific |

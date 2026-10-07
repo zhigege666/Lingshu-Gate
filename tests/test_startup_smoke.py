@@ -47,14 +47,17 @@ class StartupSmokeTest(unittest.TestCase):
             from lingshu_gate.main import create_app
 
             with TestClient(create_app()) as client:
-                console = client.get("/console")
-                console_slash = client.get("/console/")
+                console = client.get("/", headers={"Accept": "text/html"})
+                console_slash = client.get("/console/", headers={"Accept": "text/html"})
                 script_match = re.search(r'src="([^"]+\.js)"', console.text)
 
                 self.assertEqual(console.status_code, 200)
                 self.assertEqual(console_slash.status_code, 200)
                 self.assertIn("no-store", console.headers["cache-control"])
                 self.assertIn("no-store", console_slash.headers["cache-control"])
+                self.assertEqual(console_slash.history[0].status_code, 307)
+                self.assertEqual(console_slash.url.path, "/")
+                self.assertEqual(console.headers["vary"], "Accept")
                 self.assertIsNotNone(script_match)
 
                 asset = client.get(script_match.group(1))  # type: ignore[union-attr]

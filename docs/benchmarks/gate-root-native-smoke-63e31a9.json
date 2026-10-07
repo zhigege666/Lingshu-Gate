@@ -1,0 +1,1218 @@
+{
+  "schema_version": 1,
+  "recorded_at_utc": "2026-10-07T06:23:27.255382+00:00",
+  "source_sha": "63e31a9ec1eaebd3cceb7a65c8d50f3fab5a9acd",
+  "base_sha": "8f3f9469376445b5ba9136bdac5f3539c1cdb156",
+  "branch": "test/gate-root-entry-20261007",
+  "pr": 54,
+  "version": "0.4.4",
+  "root_cause": [
+    "urllib requested the legacy Console without HTML Accept; its 307 destination correctly negotiated JSON.",
+    "The smoke asset pattern still required /console/ although Vite now emits /assets/."
+  ],
+  "original_ci": {
+    "pr": {
+      "number": 54,
+      "draft": true,
+      "head_sha": "8f3f9469376445b5ba9136bdac5f3539c1cdb156",
+      "head_branch": "test/gate-root-entry-20261007",
+      "state": "open",
+      "merged": false
+    },
+    "runs": [
+      {
+        "id": 37574505742,
+        "name": "Release artifacts",
+        "head_sha": "8f3f9469376445b5ba9136bdac5f3539c1cdb156",
+        "status": "completed",
+        "conclusion": "failure",
+        "url": "https://github.com/zhigege666/Lingshu-Gate/actions/runs/37574505742"
+      },
+      {
+        "id": 37574505734,
+        "name": "Code scanning",
+        "head_sha": "8f3f9469376445b5ba9136bdac5f3539c1cdb156",
+        "status": "completed",
+        "conclusion": "success",
+        "url": "https://github.com/zhigege666/Lingshu-Gate/actions/runs/37574505734"
+      },
+      {
+        "id": 37574505771,
+        "name": "Container images",
+        "head_sha": "8f3f9469376445b5ba9136bdac5f3539c1cdb156",
+        "status": "completed",
+        "conclusion": "success",
+        "url": "https://github.com/zhigege666/Lingshu-Gate/actions/runs/37574505771"
+      },
+      {
+        "id": 37574505754,
+        "name": "Continuous integration",
+        "head_sha": "8f3f9469376445b5ba9136bdac5f3539c1cdb156",
+        "status": "completed",
+        "conclusion": "success",
+        "url": "https://github.com/zhigege666/Lingshu-Gate/actions/runs/37574505754"
+      }
+    ],
+    "native_jobs": [
+      {
+        "id": 112640579814,
+        "name": "Native linux-aarch64",
+        "status": "completed",
+        "conclusion": "failure",
+        "smoke_step": {
+          "name": "Run native readiness smoke test",
+          "status": "completed",
+          "conclusion": "failure",
+          "number": 12
+        }
+      },
+      {
+        "id": 112640579852,
+        "name": "Native windows-x86_64",
+        "status": "completed",
+        "conclusion": "failure",
+        "smoke_step": {
+          "name": "Run native readiness smoke test",
+          "status": "completed",
+          "conclusion": "failure",
+          "number": 12
+        }
+      },
+      {
+        "id": 112640579865,
+        "name": "Native macos-x86_64",
+        "status": "completed",
+        "conclusion": "failure",
+        "smoke_step": {
+          "name": "Run native readiness smoke test",
+          "status": "completed",
+          "conclusion": "failure",
+          "number": 12
+        }
+      },
+      {
+        "id": 112640579912,
+        "name": "Native linux-x86_64",
+        "status": "completed",
+        "conclusion": "failure",
+        "smoke_step": {
+          "name": "Run native readiness smoke test",
+          "status": "completed",
+          "conclusion": "failure",
+          "number": 12
+        }
+      },
+      {
+        "id": 112640579915,
+        "name": "Native macos-arm64",
+        "status": "completed",
+        "conclusion": "failure",
+        "smoke_step": {
+          "name": "Run native readiness smoke test",
+          "status": "completed",
+          "conclusion": "failure",
+          "number": 12
+        }
+      }
+    ]
+  },
+  "original_raw_job_log_sha256": {
+    "linux-initial-job.log": "0e21ca3cd2f3215d5641d55c4cc645a2a6173427937be9d4b88e2d3049da19aa",
+    "windows-initial-job.log": "edad0c8beaa8bbc601f73cf431667999e1efc08a30390e71c56dc30ecb428921"
+  },
+  "source_http_probes": {
+    "before": {
+      "label": "before",
+      "entries": [
+        {
+          "path": "/",
+          "accept": null,
+          "status": 200,
+          "final_path": "/",
+          "content_type": "application/json",
+          "body_sha256": "a578a684d0c9ad9f561764ca2e8aa0f0c3672a8e75295755cd373a52294a66eb"
+        },
+        {
+          "path": "/console",
+          "accept": null,
+          "status": 200,
+          "final_path": "/",
+          "content_type": "application/json",
+          "body_sha256": "a578a684d0c9ad9f561764ca2e8aa0f0c3672a8e75295755cd373a52294a66eb"
+        },
+        {
+          "path": "/console/",
+          "accept": null,
+          "status": 200,
+          "final_path": "/",
+          "content_type": "application/json",
+          "body_sha256": "a578a684d0c9ad9f561764ca2e8aa0f0c3672a8e75295755cd373a52294a66eb"
+        },
+        {
+          "path": "/console/index.html",
+          "accept": null,
+          "status": 200,
+          "final_path": "/",
+          "content_type": "application/json",
+          "body_sha256": "a578a684d0c9ad9f561764ca2e8aa0f0c3672a8e75295755cd373a52294a66eb"
+        },
+        {
+          "path": "/",
+          "accept": "text/html",
+          "status": 200,
+          "final_path": "/",
+          "content_type": "text/html",
+          "body_sha256": "e7e91a806dfc65b5c40ff07b9f32b0ea1299433520450e7a86d40d18ea32e655"
+        },
+        {
+          "path": "/console",
+          "accept": "text/html",
+          "status": 200,
+          "final_path": "/",
+          "content_type": "text/html",
+          "body_sha256": "e7e91a806dfc65b5c40ff07b9f32b0ea1299433520450e7a86d40d18ea32e655"
+        },
+        {
+          "path": "/console/",
+          "accept": "text/html",
+          "status": 200,
+          "final_path": "/",
+          "content_type": "text/html",
+          "body_sha256": "e7e91a806dfc65b5c40ff07b9f32b0ea1299433520450e7a86d40d18ea32e655"
+        },
+        {
+          "path": "/console/index.html",
+          "accept": "text/html",
+          "status": 200,
+          "final_path": "/",
+          "content_type": "text/html",
+          "body_sha256": "e7e91a806dfc65b5c40ff07b9f32b0ea1299433520450e7a86d40d18ea32e655"
+        }
+      ],
+      "assets": [
+        {
+          "path": "/assets/index-DcAnjevD.js",
+          "status": 200,
+          "content_type": "text/javascript",
+          "bytes": 1093307,
+          "sha256": "bf4bb3a9db4e537827e3914bb17dd10b701e2859435b4a3367bf044d6085bf17",
+          "legacy_status": 200,
+          "legacy_identical": true
+        },
+        {
+          "path": "/assets/index-BoydD9Sb.css",
+          "status": 200,
+          "content_type": "text/css",
+          "bytes": 82584,
+          "sha256": "e6ac24303e75ba98648ae2345e2af63ff602a8521b015a47950cd6ccbd71f383",
+          "legacy_status": 200,
+          "legacy_identical": true
+        }
+      ],
+      "native_surface_contract": "Frozen Console does not reference a JavaScript asset",
+      "server_thread_stopped": true,
+      "runtime_directory_removed": true
+    },
+    "after": {
+      "label": "after",
+      "entries": [
+        {
+          "path": "/",
+          "accept": null,
+          "status": 200,
+          "final_path": "/",
+          "content_type": "application/json",
+          "body_sha256": "a578a684d0c9ad9f561764ca2e8aa0f0c3672a8e75295755cd373a52294a66eb"
+        },
+        {
+          "path": "/console",
+          "accept": null,
+          "status": 200,
+          "final_path": "/",
+          "content_type": "application/json",
+          "body_sha256": "a578a684d0c9ad9f561764ca2e8aa0f0c3672a8e75295755cd373a52294a66eb"
+        },
+        {
+          "path": "/console/",
+          "accept": null,
+          "status": 200,
+          "final_path": "/",
+          "content_type": "application/json",
+          "body_sha256": "a578a684d0c9ad9f561764ca2e8aa0f0c3672a8e75295755cd373a52294a66eb"
+        },
+        {
+          "path": "/console/index.html",
+          "accept": null,
+          "status": 200,
+          "final_path": "/",
+          "content_type": "application/json",
+          "body_sha256": "a578a684d0c9ad9f561764ca2e8aa0f0c3672a8e75295755cd373a52294a66eb"
+        },
+        {
+          "path": "/",
+          "accept": "text/html",
+          "status": 200,
+          "final_path": "/",
+          "content_type": "text/html",
+          "body_sha256": "e7e91a806dfc65b5c40ff07b9f32b0ea1299433520450e7a86d40d18ea32e655"
+        },
+        {
+          "path": "/console",
+          "accept": "text/html",
+          "status": 200,
+          "final_path": "/",
+          "content_type": "text/html",
+          "body_sha256": "e7e91a806dfc65b5c40ff07b9f32b0ea1299433520450e7a86d40d18ea32e655"
+        },
+        {
+          "path": "/console/",
+          "accept": "text/html",
+          "status": 200,
+          "final_path": "/",
+          "content_type": "text/html",
+          "body_sha256": "e7e91a806dfc65b5c40ff07b9f32b0ea1299433520450e7a86d40d18ea32e655"
+        },
+        {
+          "path": "/console/index.html",
+          "accept": "text/html",
+          "status": 200,
+          "final_path": "/",
+          "content_type": "text/html",
+          "body_sha256": "e7e91a806dfc65b5c40ff07b9f32b0ea1299433520450e7a86d40d18ea32e655"
+        }
+      ],
+      "assets": [
+        {
+          "path": "/assets/index-DcAnjevD.js",
+          "status": 200,
+          "content_type": "text/javascript",
+          "bytes": 1093307,
+          "sha256": "bf4bb3a9db4e537827e3914bb17dd10b701e2859435b4a3367bf044d6085bf17",
+          "legacy_status": 200,
+          "legacy_identical": true
+        },
+        {
+          "path": "/assets/index-BoydD9Sb.css",
+          "status": 200,
+          "content_type": "text/css",
+          "bytes": 82584,
+          "sha256": "e6ac24303e75ba98648ae2345e2af63ff602a8521b015a47950cd6ccbd71f383",
+          "legacy_status": 200,
+          "legacy_identical": true
+        }
+      ],
+      "native_surface_contract": "passed",
+      "server_thread_stopped": true,
+      "runtime_directory_removed": true
+    }
+  },
+  "contract": {
+    "machine_root_json_retained": true,
+    "canonical_root_html_accept": "text/html",
+    "legacy_entries": [
+      "/console",
+      "/console/",
+      "/console/index.html"
+    ],
+    "legacy_redirect": "exactly one 307 to the same root, preserving duplicate query keys",
+    "html_final_url_type_and_body_checked": true,
+    "both_js_and_css_references_required": true,
+    "every_referenced_js_css_fetched": true,
+    "asset_status_type_nonempty_and_final_url_checked": true,
+    "legacy_asset_bytes_must_equal_root_assets": true,
+    "redirects_to_another_origin_rejected_before_following": true
+  },
+  "backend": {
+    "passed": 176,
+    "failed": 0,
+    "errors": 0,
+    "skipped": 0,
+    "junit_seconds": 20.082,
+    "counts_by_module": {
+      "test_composition_root": 3,
+      "test_console_root_entry": 64,
+      "test_health_probes": 3,
+      "test_release_packaging": 103,
+      "test_startup_smoke": 3
+    },
+    "new_http_regressions": 29,
+    "preliminary_native_subset_passed": 31,
+    "preliminary_subset_overlaps_final_total": true
+  },
+  "runs": [
+    {
+      "label": "uv-ci-version",
+      "command": [
+        "uv",
+        "tool",
+        "run",
+        "--from",
+        "uv==0.11.33",
+        "uv",
+        "--version"
+      ],
+      "exit_code": 0,
+      "source_sha": "8f3f9469376445b5ba9136bdac5f3539c1cdb156",
+      "wall_seconds": 0.651404,
+      "log": "uv-ci-version.log",
+      "log_sha256": "5c3aee5d6904cbf1fbd16be4e75239125677369a72f525fc91967fd6a4e04204"
+    },
+    {
+      "label": "sync-release-frozen",
+      "command": [
+        "uv",
+        "tool",
+        "run",
+        "--from",
+        "uv==0.11.33",
+        "uv",
+        "sync",
+        "--frozen",
+        "--group",
+        "release"
+      ],
+      "exit_code": 0,
+      "source_sha": "8f3f9469376445b5ba9136bdac5f3539c1cdb156",
+      "wall_seconds": 0.345141,
+      "log": "sync-release-frozen.log",
+      "log_sha256": "d80eb255361300d7d59aafdc3f6313cc10f63408edcfe0e462830eee45b5d57f"
+    },
+    {
+      "label": "build-native-linux",
+      "command": [
+        "<repo>/.venv/bin/python",
+        "-m",
+        "scripts.release.build_native",
+        "--target",
+        "linux-x86_64",
+        "--output-dir",
+        "<validation-root>/native-candidate"
+      ],
+      "exit_code": 0,
+      "source_sha": "63e31a9ec1eaebd3cceb7a65c8d50f3fab5a9acd",
+      "wall_seconds": 70.360036,
+      "log": "build-native-linux.log",
+      "log_sha256": "2dac224de1aa8b20592bf3b157d5e4136812b84f0cf87b9333eb735b48a2607a"
+    },
+    {
+      "label": "native-identity",
+      "command": [
+        "<repo>/.venv/bin/python",
+        "scripts/quality/check_repository_identity.py",
+        "--artifacts",
+        "<validation-root>/native-candidate/lingshu-gate-v0.4.4-linux-x86_64.tar.gz"
+      ],
+      "exit_code": 0,
+      "source_sha": "63e31a9ec1eaebd3cceb7a65c8d50f3fab5a9acd",
+      "wall_seconds": 7.864142,
+      "log": "native-identity.log",
+      "log_sha256": "c2abe4b85441da546d672d41b520819e0f611660fce7d205b7529bffc9036ceb"
+    },
+    {
+      "label": "extract-native",
+      "command": [
+        "<repo>/.venv/bin/python",
+        "-m",
+        "scripts.release.extract_native",
+        "--target",
+        "linux-x86_64",
+        "--archive",
+        "<validation-root>/native-candidate/lingshu-gate-v0.4.4-linux-x86_64.tar.gz",
+        "--output-dir",
+        "build/release/pr54-native-smoke-extracted"
+      ],
+      "exit_code": 0,
+      "source_sha": "63e31a9ec1eaebd3cceb7a65c8d50f3fab5a9acd",
+      "wall_seconds": 0.945662,
+      "log": "extract-native.log",
+      "log_sha256": "ccf53f03899a99b6996ca96b4d2bd676f14d333395221f0161c337a608be193a"
+    },
+    {
+      "label": "native-readiness",
+      "command": [
+        "<repo>/.venv/bin/python",
+        "-m",
+        "scripts.release.smoke_native",
+        "--target",
+        "linux-x86_64",
+        "--bundle-dir",
+        "<repo>/build/release/pr54-native-smoke-extracted/lingshu-gate-v0.4.4-linux-x86_64"
+      ],
+      "exit_code": 0,
+      "source_sha": "63e31a9ec1eaebd3cceb7a65c8d50f3fab5a9acd",
+      "wall_seconds": 1.898689,
+      "log": "native-readiness.log",
+      "log_sha256": "f69c6a53a19f5679f1628ee9dfc2eed1aea3742d0a59ba96885d2957f05bbf21"
+    },
+    {
+      "label": "ruff",
+      "command": [
+        "<repo>/.venv/bin/python",
+        "-m",
+        "ruff",
+        "check",
+        "."
+      ],
+      "exit_code": 0,
+      "source_sha": "63e31a9ec1eaebd3cceb7a65c8d50f3fab5a9acd",
+      "wall_seconds": 0.032169,
+      "log": "ruff.log",
+      "log_sha256": "82b3e6a6c090a57601d22943bd23fca9218d1031dbe5a7b754092f9a156b4f18"
+    },
+    {
+      "label": "mypy",
+      "command": [
+        "<repo>/.venv/bin/python",
+        "-m",
+        "mypy"
+      ],
+      "exit_code": 0,
+      "source_sha": "63e31a9ec1eaebd3cceb7a65c8d50f3fab5a9acd",
+      "wall_seconds": 0.185976,
+      "log": "mypy.log",
+      "log_sha256": "a4be80670a49e40967d7663defa16bbef3d09cd6a5dbd3e7d61ae68cbaf7a2e4"
+    },
+    {
+      "label": "identity",
+      "command": [
+        "<repo>/.venv/bin/python",
+        "scripts/quality/check_repository_identity.py"
+      ],
+      "exit_code": 0,
+      "source_sha": "63e31a9ec1eaebd3cceb7a65c8d50f3fab5a9acd",
+      "wall_seconds": 5.085819,
+      "log": "identity.log",
+      "log_sha256": "c2abe4b85441da546d672d41b520819e0f611660fce7d205b7529bffc9036ceb"
+    },
+    {
+      "label": "version",
+      "command": [
+        "<repo>/.venv/bin/python",
+        "-m",
+        "scripts.release.check_version"
+      ],
+      "exit_code": 0,
+      "source_sha": "63e31a9ec1eaebd3cceb7a65c8d50f3fab5a9acd",
+      "wall_seconds": 0.040035,
+      "log": "version.log",
+      "log_sha256": "175307e07ac7f0bdc0f3dba371ba3a202aaf3c0117368a93d2331e1bea4af4f3"
+    },
+    {
+      "label": "compose",
+      "command": [
+        "docker",
+        "compose",
+        "config",
+        "--quiet"
+      ],
+      "exit_code": 0,
+      "source_sha": "63e31a9ec1eaebd3cceb7a65c8d50f3fab5a9acd",
+      "wall_seconds": 0.079785,
+      "log": "compose.log",
+      "log_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "label": "diff",
+      "command": [
+        "git",
+        "diff",
+        "--check"
+      ],
+      "exit_code": 0,
+      "source_sha": "63e31a9ec1eaebd3cceb7a65c8d50f3fab5a9acd",
+      "wall_seconds": 0.005174,
+      "log": "diff.log",
+      "log_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "label": "selected-backend",
+      "command": [
+        "<repo>/.venv/bin/python",
+        "-m",
+        "pytest",
+        "-q",
+        "tests/test_release_packaging.py",
+        "tests/test_console_root_entry.py",
+        "tests/test_startup_smoke.py",
+        "tests/test_composition_root.py",
+        "tests/test_health_probes.py",
+        "--basetemp",
+        "<validation-root>/pytest-final",
+        "-o",
+        "cache_dir=<validation-root>/pytest-cache-final",
+        "--junitxml",
+        "<validation-root>/results.xml"
+      ],
+      "exit_code": 0,
+      "source_sha": "63e31a9ec1eaebd3cceb7a65c8d50f3fab5a9acd",
+      "wall_seconds": 21.427609,
+      "log": "selected-backend.log",
+      "log_sha256": "af87c8d7cbd717b0632a4fb93eec6327e1e64c89284a087bfcff75c2c158b74f"
+    }
+  ],
+  "native_candidate": {
+    "archive": "lingshu-gate-v0.4.4-linux-x86_64.tar.gz",
+    "sha256": "dc5386253dd3e164a125156a76aabcdcc38a871104dfe1de9182b5e6b86990b9",
+    "bytes": 35698845,
+    "build_source_sha": "63e31a9ec1eaebd3cceb7a65c8d50f3fab5a9acd",
+    "static_counts": {
+      "console": 97,
+      "oauth": 3
+    },
+    "static_manifest_sha256": "28e5f475bfd27138fe80f238aec5f7fa6df77ff614f2f5401419405573b40a8b",
+    "static_manifest": [
+      {
+        "root": "console",
+        "path": "assets/CSSMotionList-DVPYVwsl.js",
+        "sha256": "47838dee5728114ad2fcdba4ffe7cba84032dbc1b8a5d2e31f5d67e3f3b17cc9",
+        "bytes": 4133
+      },
+      {
+        "root": "console",
+        "path": "assets/ExclamationCircleFilled-DW3a-G5A.js",
+        "sha256": "487bef44d7035975c96c7ecbd7b50bbbf383fcbd26f8026ad0ad9b7881eca1bc",
+        "bytes": 1891
+      },
+      {
+        "root": "console",
+        "path": "assets/InfoCircleOutlined-Cr4Lml58.js",
+        "sha256": "648463a6d78aae0695d74d2006473e4a7980a4ee3117b7749dbb9b442ead6880",
+        "bytes": 1043
+      },
+      {
+        "root": "console",
+        "path": "assets/Pagination-B6Rn5WbI.js",
+        "sha256": "8ed50cd7ac7eca19f234abe104fc8146d2e65fde0492f77da0d2ad644d57732c",
+        "bytes": 36307
+      },
+      {
+        "root": "console",
+        "path": "assets/PlusOutlined-CYJwpRj9.js",
+        "sha256": "70d1f15759803f221248422e71efab50e133968103b9d023a9b17c95a5a6a360",
+        "bytes": 825
+      },
+      {
+        "root": "console",
+        "path": "assets/Table-BGpqQKgr.js",
+        "sha256": "b7c50f580d13f3162b7d623f58ec38bf1ffc914632ab2f2c56e47708a391e7f1",
+        "bytes": 253269
+      },
+      {
+        "root": "console",
+        "path": "assets/access-grants-page-CbmMPBL3.js",
+        "sha256": "d7aab8db6f45fb9b0254331d2974e29b8c413635b58ff2005ec1ba7b72b984d2",
+        "bytes": 19770
+      },
+      {
+        "root": "console",
+        "path": "assets/access-roles-page-Bqk9Y4ag.js",
+        "sha256": "6a91644c5382ac4aa66d93701296cd58a3f9bc1800af8153e031ec51ddf11391",
+        "bytes": 44501
+      },
+      {
+        "root": "console",
+        "path": "assets/access-roles-page-CtEgu0jR.css",
+        "sha256": "388d9f514b90640a97e3135e643fdd9db3ab6c627c4b8f65841267132d144954",
+        "bytes": 6830
+      },
+      {
+        "root": "console",
+        "path": "assets/access-users-page-D99NXAqC.js",
+        "sha256": "376d6f498f53dd76dfe4c690021b8eb2c6cd3edab95b8a59498182860a215182",
+        "bytes": 21161
+      },
+      {
+        "root": "console",
+        "path": "assets/action-menu-BNjxvfpa.js",
+        "sha256": "1a41a245e7b076803f3f22ad6fe75db61def7f5be1b050021900349ae13ed250",
+        "bytes": 5282
+      },
+      {
+        "root": "console",
+        "path": "assets/badge-CvR36c2y.js",
+        "sha256": "07e23f05e5cd616e2c51040b059faab9047a7888e80b21d8fe03100bf6a20ec4",
+        "bytes": 892
+      },
+      {
+        "root": "console",
+        "path": "assets/builds-DtuVReBY.js",
+        "sha256": "0d911a24c92457cf88de158e5b6fbf68c94e532b0bba639eddd8cbf3c6b334d1",
+        "bytes": 3630
+      },
+      {
+        "root": "console",
+        "path": "assets/builds-page-C9Q46pPw.js",
+        "sha256": "81a2fe3a637dcc4c0ada09f5238ef1bbe62a2ff293391d504e0eaa07c1b2039e",
+        "bytes": 85533
+      },
+      {
+        "root": "console",
+        "path": "assets/builds-page-aX5Z9VWe.css",
+        "sha256": "6589cf44529083dd1c03bed5d9893fab9a06339cef666eb546dedf4809dc5e2b",
+        "bytes": 2708
+      },
+      {
+        "root": "console",
+        "path": "assets/chevron-down-Cd0pDUPs.js",
+        "sha256": "ebfd23ccfae20d00e36edd8cf3934aa213a4010e81ad7907f78aa0a31d2d1832",
+        "bytes": 347
+      },
+      {
+        "root": "console",
+        "path": "assets/chevron-left-Buyzdk3J.js",
+        "sha256": "de62d0d325fda258562d2d38794c1e611a52f96730b6d05e5ca1f3ffd31605f2",
+        "bytes": 349
+      },
+      {
+        "root": "console",
+        "path": "assets/chevron-right-CCHcDBnv.js",
+        "sha256": "95801749122b9a296a8f6b28e017048fc07c2f5170bfc43fb5ac160b6d85a946",
+        "bytes": 351
+      },
+      {
+        "root": "console",
+        "path": "assets/command-BHxll4YZ.js",
+        "sha256": "c867efab740e5d772879987876494abef0e115edbbf1230547e4ab28cb8c39ff",
+        "bytes": 16396
+      },
+      {
+        "root": "console",
+        "path": "assets/configs-page-CsJU1JxU.js",
+        "sha256": "7a78a88b62e53e62d536a6de060004fa4cc034bea44e30d9678b06a0d08cd6ea",
+        "bytes": 21756
+      },
+      {
+        "root": "console",
+        "path": "assets/context-D-BSPeCu.js",
+        "sha256": "f7d7902147e182dd7c3d9cf28b42d097c84ba13bebac4cfce9406f2c5e9f260f",
+        "bytes": 41941
+      },
+      {
+        "root": "console",
+        "path": "assets/copy-Br9SvLkq.js",
+        "sha256": "17eb053c7452149411fd52b82b0b00ffe5c3b39875a00f100c88282712cea65f",
+        "bytes": 442
+      },
+      {
+        "root": "console",
+        "path": "assets/credentials-page-sih6xvlc.js",
+        "sha256": "a9bb9bad3bc63c719bdf8f5c627110938ec5699f1c88cba0f3aeee0d9f506d6f",
+        "bytes": 13594
+      },
+      {
+        "root": "console",
+        "path": "assets/dashboard-page-CGZJOK3t.css",
+        "sha256": "4f7b427ff7a454e58dc0f97cfcf44d1d4b4bbc0561d4a95a6ebbae86462af93b",
+        "bytes": 7722
+      },
+      {
+        "root": "console",
+        "path": "assets/dashboard-page-CVnFNeNX.js",
+        "sha256": "a0ee486dca3b0928025d82b2095fe0eb259ea1ae26093c27650d35a95fce5acb",
+        "bytes": 25276
+      },
+      {
+        "root": "console",
+        "path": "assets/deployment-options-D2uVI1pP.js",
+        "sha256": "37064d65ce3ad4e54f911ad98fe08762972fbf6b70cb1f707ede3d6e2ac40f64",
+        "bytes": 19045
+      },
+      {
+        "root": "console",
+        "path": "assets/diagnostics-page-fDr0TMrs.js",
+        "sha256": "968de7d50a0f9539ba4ca4ea3021881fd2230da07b466ad5979baf1f11269d6e",
+        "bytes": 8004
+      },
+      {
+        "root": "console",
+        "path": "assets/downstream-credentials-page-Dg03pmyN.js",
+        "sha256": "216023e9ce5b1bbc7f68a8a945fbe0f0074ad67017ff33090d59c852ca0c214a",
+        "bytes": 15787
+      },
+      {
+        "root": "console",
+        "path": "assets/downstream-credentials-page-ETbsmqs_.css",
+        "sha256": "25db5275fce10e0163df3d6a0898e30c4926906e9e477c5b446cef947b220a07",
+        "bytes": 2304
+      },
+      {
+        "root": "console",
+        "path": "assets/external-connections-page-BgpMVlcb.js",
+        "sha256": "a68773b986dd417e7b62475432d00cb4b6560f0e698d9280807c2bec3e84461c",
+        "bytes": 234150
+      },
+      {
+        "root": "console",
+        "path": "assets/external-connections-page-OkTGTzWM.css",
+        "sha256": "7a9bb276a4a7f2f157ac3c64c373b13e8a292e00b0c88b972fe7e4969a9bc38d",
+        "bytes": 13549
+      },
+      {
+        "root": "console",
+        "path": "assets/filter-radio-Cvd3loxI.css",
+        "sha256": "f2323fb8de9781d920033c43661bee02a2e41e3c0f14b06280f9bea4025d8bd3",
+        "bytes": 992
+      },
+      {
+        "root": "console",
+        "path": "assets/filter-radio-Mi5SeBY6.js",
+        "sha256": "ece8a0f47ffa1f5ec8d29e8384d48c475a3add92096999e23543f38f83ec1d06",
+        "bytes": 701
+      },
+      {
+        "root": "console",
+        "path": "assets/form-dialog-C1S4lG9f.js",
+        "sha256": "86b2031e384a9b75c89a973fc22f6aa357bb1f060c83047be301462454851610",
+        "bytes": 2065
+      },
+      {
+        "root": "console",
+        "path": "assets/index-B0Pcojzi.js",
+        "sha256": "9001a5d32c477463db950d3b22ed1be52417b5eaebaf246a6a7f12b72a588e08",
+        "bytes": 15618
+      },
+      {
+        "root": "console",
+        "path": "assets/index-B45mUtFA.js",
+        "sha256": "d25317f75f185fb5b79c390b3f1e32d70203d15d6851315de48fd86da38f13e1",
+        "bytes": 26305
+      },
+      {
+        "root": "console",
+        "path": "assets/index-BKoEnKAt.js",
+        "sha256": "6da196b6e4c1ae20146ff833f66a34175d4cd9a55d7c6e0f85500725e309016b",
+        "bytes": 3223
+      },
+      {
+        "root": "console",
+        "path": "assets/index-BQuZ1_38.js",
+        "sha256": "9084b589dab8310fa0c4616c54c70bbe304344ce3640af3828a9f1f414a03d57",
+        "bytes": 55570
+      },
+      {
+        "root": "console",
+        "path": "assets/index-BkbQhTk4.js",
+        "sha256": "f03e06598450002dc7782d27b4150b731b2f610ef67fa8c325aac90928ca641f",
+        "bytes": 35503
+      },
+      {
+        "root": "console",
+        "path": "assets/index-BoydD9Sb.css",
+        "sha256": "e6ac24303e75ba98648ae2345e2af63ff602a8521b015a47950cd6ccbd71f383",
+        "bytes": 82584
+      },
+      {
+        "root": "console",
+        "path": "assets/index-D1Sfy9I0.js",
+        "sha256": "57134c5f20ff56ef1fcbce3f6bbbc7a1abf527301e54c2f8797c55e2f3276abe",
+        "bytes": 43215
+      },
+      {
+        "root": "console",
+        "path": "assets/index-D642Qfru.js",
+        "sha256": "f571b7b635a1cd57285da74c7ad7da797fa7fbc67bd2ca458742adb85771bd7e",
+        "bytes": 975
+      },
+      {
+        "root": "console",
+        "path": "assets/index-DZX2_8Ws.js",
+        "sha256": "b8f0e2561aa2ef446064b640bc462bdee75d472b07de266ce496bde80c7161b3",
+        "bytes": 910
+      },
+      {
+        "root": "console",
+        "path": "assets/index-DcAnjevD.js",
+        "sha256": "bf4bb3a9db4e537827e3914bb17dd10b701e2859435b4a3367bf044d6085bf17",
+        "bytes": 1093307
+      },
+      {
+        "root": "console",
+        "path": "assets/index-Di1z8nGz.js",
+        "sha256": "ac5dfeddb107e098164edda55bfe45f0d0d0a9388435aa9ee0c1fac90d2707dd",
+        "bytes": 11278
+      },
+      {
+        "root": "console",
+        "path": "assets/index-aoAnvGbj.js",
+        "sha256": "ffffb9f1f37d5e716989787475514b0bd426e1b6fd7f995e006498c68d5610ef",
+        "bytes": 24903
+      },
+      {
+        "root": "console",
+        "path": "assets/index-avVDPkjX.js",
+        "sha256": "d25e09aa4caa0e7e97819846ef0ce2c374e78c56b9a163cc879a070a5c0e019c",
+        "bytes": 11953
+      },
+      {
+        "root": "console",
+        "path": "assets/index-wSD6x79G.js",
+        "sha256": "ae06ceb4299110c658858eeab9c32deef9417e5e47dbf98dfed22a6de90e0c96",
+        "bytes": 41253
+      },
+      {
+        "root": "console",
+        "path": "assets/info-BcvPSEoQ.js",
+        "sha256": "d8812e156ff2618b6ab09713bfd89f671e05ea68c3d85f7e70b89d0a8d350983",
+        "bytes": 410
+      },
+      {
+        "root": "console",
+        "path": "assets/invocation-audit-page-2ZQOX3Y5.js",
+        "sha256": "645ba7ef0ecc6a36a18a5a6c426898f99e0cc0ac262beead01ab29c30c7ba36f",
+        "bytes": 21257
+      },
+      {
+        "root": "console",
+        "path": "assets/invocation-audit-page-gZTTbDC-.css",
+        "sha256": "8604e0e4a2c1726d8d3fa9affe19ebcdb692083f8e172963a997aff097c95bf4",
+        "bytes": 361
+      },
+      {
+        "root": "console",
+        "path": "assets/invocation-payload-panel-oHdYzcQl.js",
+        "sha256": "0d21fc5d7a470af06bfa292bd22e220872f7e901a6f861f95192e1a9830b494a",
+        "bytes": 3457
+      },
+      {
+        "root": "console",
+        "path": "assets/invoke-page-BuHvpxcL.js",
+        "sha256": "6f9ca73f16b9078d6d2171accdfff561a35b3d447726c81e436558a301ecff94",
+        "bytes": 291586
+      },
+      {
+        "root": "console",
+        "path": "assets/invoke-page-Cl_tmlbM.css",
+        "sha256": "6846ef1de2e49a09f6bfb0060016f6a6f21fb4fb885c25d71dd667694d12aca8",
+        "bytes": 10099
+      },
+      {
+        "root": "console",
+        "path": "assets/json-panel-DdXfZ-h7.js",
+        "sha256": "96ac0168e05da146fb2ec1b2e70b38828f541a19368d84725362791b40ba37f5",
+        "bytes": 25409
+      },
+      {
+        "root": "console",
+        "path": "assets/list-pagination-Bhk33GaC.css",
+        "sha256": "c51b1ddb4cfd1727af160f3d2acbb3546baed6df89e5b18ef83c45bfdd202dfa",
+        "bytes": 881
+      },
+      {
+        "root": "console",
+        "path": "assets/list-pagination-CISguBgq.js",
+        "sha256": "9ab4bc7852d3f42f2bd22e5b48e604bf33548ef5992c219d687559f866a8a36b",
+        "bytes": 5313
+      },
+      {
+        "root": "console",
+        "path": "assets/logs-events-page-C_tXKfZX.css",
+        "sha256": "1f51fb715b7494f82d88dd6bb7b673ac80440eda2f72cce5fbe0e5f86fbda5e6",
+        "bytes": 404
+      },
+      {
+        "root": "console",
+        "path": "assets/logs-events-page-De04kuyq.js",
+        "sha256": "b8ebb5f30491bf2524c1829b107bc56ee674b68a77282fffa425185b1248a9ff",
+        "bytes": 44788
+      },
+      {
+        "root": "console",
+        "path": "assets/maintenance-lists-LZ9NZWjb.css",
+        "sha256": "323fb543dee996d4088fb250bf4d7ac29d31d0c541b1100129be91a23b751101",
+        "bytes": 3843
+      },
+      {
+        "root": "console",
+        "path": "assets/mcp-config-editor-BfgY_Zvm.css",
+        "sha256": "cedd2150ad3aeb1598a663ade308e945fa62120f580e95a6fba4c5d62f540eff",
+        "bytes": 4336
+      },
+      {
+        "root": "console",
+        "path": "assets/mcp-config-editor-dP694YUJ.js",
+        "sha256": "295dc3cc146dd1cba1ce7422f1df6932111c4fae2af7a3b73a393478c006e7cd",
+        "bytes": 46105
+      },
+      {
+        "root": "console",
+        "path": "assets/network-ClIGszOE.js",
+        "sha256": "b0234308b59d864c42ae36317717a81aa0072348033bc8d09bd9082f5a36a817",
+        "bytes": 1785
+      },
+      {
+        "root": "console",
+        "path": "assets/network-settings-panel-2xmfsTTl.js",
+        "sha256": "058b24c0f6ae5e9d52564ca30c7b5f374d639f79603b7e59e3626431ef3257a3",
+        "bytes": 33081
+      },
+      {
+        "root": "console",
+        "path": "assets/network-settings-panel-DdqzOYSp.css",
+        "sha256": "57d570a293923903ea02065cdbcbc04b9ff33e88c73f9352016c6556d280640e",
+        "bytes": 1274
+      },
+      {
+        "root": "console",
+        "path": "assets/page-shell-OfO8QBDI.js",
+        "sha256": "dd8e66302b1247bd6c9dfb0a57e4088bf6daec71f8f4e9083db0087f89dc7b65",
+        "bytes": 122867
+      },
+      {
+        "root": "console",
+        "path": "assets/page-utils-BJQ1SsBJ.js",
+        "sha256": "4f7aa48339124e220e9171d8ea3d10400da8df589162df012e9306be74c9fc35",
+        "bytes": 4954
+      },
+      {
+        "root": "console",
+        "path": "assets/personal-tokens-page-CkWBF4Ey.css",
+        "sha256": "87b564863cb8e33526cdb208eedc2e46a08161ba3dd8564385e3e456a5b40eed",
+        "bytes": 597
+      },
+      {
+        "root": "console",
+        "path": "assets/personal-tokens-page-DMZq3FGc.js",
+        "sha256": "350099dfe2636e13b54c101ce99631c85731d2eefc9c6eb54ea2543c36f35732",
+        "bytes": 23539
+      },
+      {
+        "root": "console",
+        "path": "assets/personal-workspace-page-BXR7YmBI.css",
+        "sha256": "f196af89c4f65f0cc86543aa582ebf6886ab0b87ae2ca2b809acc34ab174a0a9",
+        "bytes": 1416
+      },
+      {
+        "root": "console",
+        "path": "assets/personal-workspace-page-DKvctrQe.js",
+        "sha256": "b76dcdfceb547786e02d51374ea87fc20f4209b62a54979874844c70b17f82d0",
+        "bytes": 12573
+      },
+      {
+        "root": "console",
+        "path": "assets/plus-LbQvuW4T.js",
+        "sha256": "f7edbf3620d7d3f6ea7b01f15da6a2319deb6f1226498e474c185ea5946ebac3",
+        "bytes": 359
+      },
+      {
+        "root": "console",
+        "path": "assets/query-status-CF5BvUt7.js",
+        "sha256": "2c711742665fa588eaa755612ac749dfdb1b17b14fe77ccd12103871186f1e83",
+        "bytes": 803
+      },
+      {
+        "root": "console",
+        "path": "assets/runtime-cache-page-BTsO0bd9.js",
+        "sha256": "4e9c51d18bec3524b10e89de9faddef386f6618796ab6ebcfc288a131e844f50",
+        "bytes": 12221
+      },
+      {
+        "root": "console",
+        "path": "assets/search-CbfAwHMm.js",
+        "sha256": "f4393396f14aeef9bc9e470f50b14637559948df06b7f7e42025d5c407858886",
+        "bytes": 382
+      },
+      {
+        "root": "console",
+        "path": "assets/select-CFJXUpV3.js",
+        "sha256": "714931e0ab38b54cd542ec0742fceb20e409fcfa26f8b0b91d81e92ad0e32d9e",
+        "bytes": 98392
+      },
+      {
+        "root": "console",
+        "path": "assets/servers-page-CCvbJEf9.js",
+        "sha256": "64dbc6274b74f9b6dc269ba6186c0b3555def83689ed60c7c0d5e1ad3656ca67",
+        "bytes": 125448
+      },
+      {
+        "root": "console",
+        "path": "assets/servers-page-D5FAfNti.css",
+        "sha256": "45ad1f2be1cfe7ece6de5c8f7c03d5adb4913cc66089047203effa1e2a80077f",
+        "bytes": 2712
+      },
+      {
+        "root": "console",
+        "path": "assets/shield-alert-BtpKXvtD.js",
+        "sha256": "8545d7f9b84f8c8bc8c96e9bcbf6d77f56334893c3e0ab1359cd9b1442ed6d28",
+        "bytes": 572
+      },
+      {
+        "root": "console",
+        "path": "assets/skeleton-CvrCDQx-.js",
+        "sha256": "12fc6032f8c6bb02143d8014df72ff74d3bc7e38f1bdff3fe1d1365adb19aba9",
+        "bytes": 603
+      },
+      {
+        "root": "console",
+        "path": "assets/switch-CYcnRvRj.js",
+        "sha256": "6ecc062e9abf057c0ce061323fd557a90f5ac318571870f7362de2255e628d27",
+        "bytes": 6819
+      },
+      {
+        "root": "console",
+        "path": "assets/system-settings-page-oYMCv8HX.js",
+        "sha256": "6d92b10a8bc00a854e3b792b9101f69e458e7d104e60774f4a19a68d882cb116",
+        "bytes": 1370
+      },
+      {
+        "root": "console",
+        "path": "assets/table-tools-GmtolFeX.js",
+        "sha256": "e43d54406f6ad644da462781ee0876694e0697dcbde4d0c401a8dde4dcac8606",
+        "bytes": 5685
+      },
+      {
+        "root": "console",
+        "path": "assets/textarea-CWNL9OPM.js",
+        "sha256": "a082e750c185b75313492e66dcfd5fc99606ee2188daacbdf6a3afce64259fdb",
+        "bytes": 549
+      },
+      {
+        "root": "console",
+        "path": "assets/tool-classifications-page-CvaUMHsJ.css",
+        "sha256": "8214b2f71bd9a7aeb0cb1058b287413e664ffe18f58036a39b6ccb7c8cc85f75",
+        "bytes": 950
+      },
+      {
+        "root": "console",
+        "path": "assets/tool-classifications-page-DoueZDq_.js",
+        "sha256": "91db16c5f931069479bc632060093854f442cdd57246390dacfde4b34cd0517b",
+        "bytes": 35898
+      },
+      {
+        "root": "console",
+        "path": "assets/tool-origin-DjhHdlu0.js",
+        "sha256": "bc3f0725b411cef39c4d839395076597cc22b35afe9ab1c621e25c7e9685f892",
+        "bytes": 1794
+      },
+      {
+        "root": "console",
+        "path": "assets/tools-page-BkMVscAt.js",
+        "sha256": "680405221dd85ded43dfd5c106bc9af319e125529c83dbd0443bddc0bf6f27fb",
+        "bytes": 13093
+      },
+      {
+        "root": "console",
+        "path": "assets/tools-page-DIO8IAOg.css",
+        "sha256": "6e47aa4fcb563ede970d30b1ed4619e1c4ed8daaea69832f055e933dc6e764da",
+        "bytes": 4862
+      },
+      {
+        "root": "console",
+        "path": "assets/uploads-page-BsVdfmOl.js",
+        "sha256": "e6cc1031e08b713167541d2fa8fd41316468ff5c9100b5a7823d8b94acf36559",
+        "bytes": 60329
+      },
+      {
+        "root": "console",
+        "path": "assets/use-draft-close-guard-DO3eNWhw.js",
+        "sha256": "3fb5c2354f1f378cdeef1cb177e04d3f168fb7ca3cb7d961fe8e4715676cbf88",
+        "bytes": 796
+      },
+      {
+        "root": "console",
+        "path": "assets/use-remaining-viewport-B3bY1837.js",
+        "sha256": "8d0338b048de468938218da5acbdca568c78be68a47415e7d554156ba5fa48e5",
+        "bytes": 1616
+      },
+      {
+        "root": "console",
+        "path": "assets/validation-errors-CvyCoj3c.js",
+        "sha256": "f53f9882b2f41154ac532b898ef65343794f41a4188bbf46a4ef3a60c9271527",
+        "bytes": 1398
+      },
+      {
+        "root": "console",
+        "path": "index.html",
+        "sha256": "e7e91a806dfc65b5c40ff07b9f32b0ea1299433520450e7a86d40d18ea32e655",
+        "bytes": 557
+      },
+      {
+        "root": "console",
+        "path": "lingshu-gate-app-icon.svg",
+        "sha256": "d71eaa8f740ee28d91c2e76f989b1974f1383d4dfe333779f1162054bbb6f276",
+        "bytes": 2326
+      },
+      {
+        "root": "console",
+        "path": "lingshu-gate-icon-512.png",
+        "sha256": "322c8f0cc9d4498946a5dd1309458a594c08cbb201bd87310d2b0c076ddd61a4",
+        "bytes": 32454
+      },
+      {
+        "root": "console",
+        "path": "lingshu-gate-icon.svg",
+        "sha256": "fa3b2ea6a4dc577f15678f9530eaab11cdcbe6a80b88f32a24eaf6501d4815c4",
+        "bytes": 2158
+      },
+      {
+        "root": "oauth",
+        "path": "assets/oauth-Ccl8Q35g.js",
+        "sha256": "8e11a5fe4ef8b3576649e02741234f2e3797d3a5ecb02d873478558b33ccb1ac",
+        "bytes": 1445523
+      },
+      {
+        "root": "oauth",
+        "path": "assets/oauth-DSpYj97H.css",
+        "sha256": "34b00f4faaee3b7049c0d0614966ba0fe1aa213c26e2e9add6e258746a0f3620",
+        "bytes": 73504
+      },
+      {
+        "root": "oauth",
+        "path": "oauth.html",
+        "sha256": "c0b76733f79b8cd10b026d13dbbd15a6a0853a8384bf7c882eece6e84b14f941",
+        "bytes": 381
+      }
+    ],
+    "all_packaged_static_bytes_equal_current_build": true,
+    "smoke_runtime_directory_removed": true
+  },
+  "native_build_info": {
+    "application": "Lingshu Gate",
+    "builder": {
+      "altgraph": "0.17.5",
+      "implementation": "CPython",
+      "machine": "x86_64",
+      "node": "v24.19.0",
+      "npm": "11.9.0",
+      "packaging": "26.3",
+      "pyinstaller": "6.22.2",
+      "pyinstaller-hooks-contrib": "2026.7",
+      "python": "3.13.15",
+      "system": "Linux",
+      "uv": "uv 0.12.19 (x86_64-unknown-linux-gnu)"
+    },
+    "created": "2026-10-07T06:15:09Z",
+    "source_date_epoch": 1791353709,
+    "source_revision": "63e31a9ec1eaebd3cceb7a65c8d50f3fab5a9acd",
+    "target": "linux-x86_64",
+    "version": "0.4.4"
+  },
+  "runtime_note": "Frozen sync used uv 0.11.33. Native BUILD-INFO records the default PATH uv 0.12.19 discovered for metadata; build used CPython 3.13.15/PyInstaller 6.22.2.",
+  "file_sha256": {
+    "scripts/release/smoke_native.py": "494e1e30ade0fcbb51259a5f9dff50d94c467f558213650f486987f4d49f31b5",
+    "tests/test_release_packaging.py": "74edb7c055ad154232bd1048f8b25953888cb61be6fed32f71e11d1f19f9253a"
+  },
+  "unchanged_product_source": true,
+  "ci_followup_at_recording": "New exact-head CI will be checked after push; this local evidence does not certify pending GitHub jobs.",
+  "not_run_locally": [
+    "Native builds on Windows, macOS or Linux ARM",
+    "Complete backend suite on this repair SHA",
+    "Frontend unit/browser rerun on this repair SHA (product and web source unchanged)",
+    "New wheel/sdist",
+    "Local Linux glibc compatibility baseline",
+    "nx5 deployment/real-root acceptance; delegating root owns the service switch",
+    "Real Podman/ChatGPT OAuth",
+    "Formal alert triage or release publication"
+  ],
+  "boundaries": {
+    "pr_remains_draft": true,
+    "main_merged": false,
+    "release_published": false,
+    "version_changed": false,
+    "security_policy_or_workflow_changed": false,
+    "alerts_dismissed": false,
+    "ssh_used": false
+  },
+  "evidence_log": "docs/benchmarks/gate-root-native-smoke-63e31a9.log",
+  "evidence_log_sha256": "49b32c4fbf03a6caf65289b60d3dc8d435c38a9ac4d240e60cf21fa692b03271",
+  "log_normalization": "Replace cloud/runner absolute paths with labels; original GitHub excerpts and actual local command output retained. Full original logs stay in the owned cloud validation directory."
+}
