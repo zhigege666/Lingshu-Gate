@@ -16,6 +16,7 @@ from lingshu_gate.application.manifest_edit import restore_masked_mounts
 from lingshu_gate.endpoint_security import REDACTED_ENDPOINT
 from lingshu_gate.mcp_manifest import McpServerManifest, validate_manifest_for_write
 from lingshu_gate.models import McpConfigApplyResponse, McpConfigSaveRequest
+from lingshu_gate.persistence.mcp_groups import McpGroupStore
 from lingshu_gate.ports.control_plane import (
     McpConfigurationRepository,
     McpRuntimeControl,
@@ -56,10 +57,12 @@ class McpConfigurationService:
         config_store: McpConfigurationRepository,
         runtime: McpRuntimeControl,
         user_credential_store: UserCredentialRepository,
+        group_store: McpGroupStore | None = None,
     ) -> None:
         self._config_store = config_store
         self._runtime = runtime
         self._user_credential_store = user_credential_store
+        self._group_store = group_store
 
     def prepare_user_credentials(
         self,
@@ -173,6 +176,10 @@ class McpConfigurationService:
 
         with getattr(self._config_store, "mutation_lock", nullcontext()):
             previous_manifest = self._config_store.load_manifest(server_id)
+            if self._group_store is not None:
+                # Fail closed before destructive file/runtime steps. A compensated
+                # failure still needs an explicit group re-confirmation.
+                self._group_store.invalidate_instances({server_id}, reason="instance_delete_requested")
             previous_server = (
                 self._runtime.get_server(server_id)
                 if self._runtime.has_server(server_id)
@@ -214,11 +221,13 @@ class McpConfigurationService:
             return response, removed_user_credentials
 
     def reload(self) -> McpConfigApplyResponse:
-        self._runtime.reload_manifests()
-        return McpConfigApplyResponse(
-            servers=self._runtime.list_servers(),
-            message="reloaded",
-        )
+        with getattr(self._config_store, "mutation_lock", nullcontext()):
+            self._config_store.invalidate_instance_metadata()
+            if self._group_store is not None:
+                present = {config.id for config in self._config_store.list_configs().configs}
+                self._group_store.reconcile_instances(present)
+            self._runtime.reload_manifests()
+            return McpConfigApplyResponse(servers=self._runtime.list_servers(), message="reloaded")
 
     def apply(self, server_id: str) -> McpConfigApplyResponse:
         with getattr(self._config_store, "mutation_lock", nullcontext()):

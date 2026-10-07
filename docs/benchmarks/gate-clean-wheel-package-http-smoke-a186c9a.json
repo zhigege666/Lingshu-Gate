@@ -1,0 +1,61 @@
+{
+  "source_checkout_absent": true,
+  "modes": {
+    "installed_wheel": {
+      "version": "0.4.4",
+      "cli": [
+        {
+          "flag": "--version",
+          "returncode": 0,
+          "service_settings_bypassed": true,
+          "process_reaped": true
+        },
+        {
+          "flag": "--help",
+          "returncode": 0,
+          "service_settings_bypassed": true,
+          "process_reaped": true
+        }
+      ],
+      "readyz_status": 200,
+      "healthz_status": 200,
+      "console_files_served_byte_equal": 97,
+      "served_recovery_chunk": "assets/external-connections-page-5G7cff7c.js",
+      "served_recovery_chunk_sha256": "f590c4b7289fd21e299bdfb32cec47c25aa18c5e6a35798f02197ceaf3605c90",
+      "default_disabled_oauth_status": 404,
+      "process_reaped": true,
+      "elapsed_ms": 1705.911
+    },
+    "extracted_native": {
+      "version": "0.4.4",
+      "cli": [
+        {
+          "flag": "--version",
+          "returncode": 0,
+          "service_settings_bypassed": true,
+          "process_reaped": true
+        },
+        {
+          "flag": "--help",
+          "returncode": 0,
+          "service_settings_bypassed": true,
+          "process_reaped": true
+        }
+      ],
+      "readyz_status": 200,
+      "healthz_status": 200,
+      "console_files_served_byte_equal": 97,
+      "served_recovery_chunk": "assets/external-connections-page-5G7cff7c.js",
+      "served_recovery_chunk_sha256": "f590c4b7289fd21e299bdfb32cec47c25aa18c5e6a35798f02197ceaf3605c90",
+      "default_disabled_oauth_status": 404,
+      "process_reaped": true,
+      "elapsed_ms": 1907.495
+    }
+  },
+  "scope": "Synthetic loopback, separate temporary runtime roots; native executor disabled, empty manifests, no provider/credential/container deployment.",
+  "source_sha": "a186c9ad5de44e98f39552c0bca09a8c0dabd97c",
+  "production_source_sha": "a3b57f708ae3d848382e46ee9c9b85ccae8e5722",
+  "wheel_sha256": "696bde45fccca195560fbe200df53378f7dc2bd3e7886a59dfab01c6d78b5fb0",
+  "native_sha256": "995c36b64409d17060d87acf63de43017dfd59a8f7af08ef877e600d20df759b",
+  "runner_sha256": "ca8207ee0b9ffed2c146a482e9cf9033c2e6ee36992f33e93bfeb6ce94d06f1b"
+}

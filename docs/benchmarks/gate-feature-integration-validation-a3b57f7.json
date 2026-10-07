@@ -1,0 +1,916 @@
+{
+  "source_sha": "a3b57f708ae3d848382e46ee9c9b85ccae8e5722",
+  "production_source_sha": "a3b57f708ae3d848382e46ee9c9b85ccae8e5722",
+  "frontend_test_checkpoint_sha": "a3b57f708ae3d848382e46ee9c9b85ccae8e5722",
+  "branch": "test/gate-feature-integration-20261005",
+  "version": "0.4.4",
+  "followup_source_sha": "9af3ddb5f5d7699f3c2bfe408c4f09cf04861020",
+  "integration": "Conflict-free cherry-pick; all 12 input blobs match the source commit.",
+  "provenance": "gate-feature-integration-provenance-a3b57f7.json",
+  "backend": {
+    "inherited_result": true,
+    "execution_checkpoint_sha": "31b7cca9155d36094250a47bc7f688797b8217a7",
+    "passed": 2126,
+    "skipped": 7,
+    "failed": 0,
+    "duration_seconds": 954.48,
+    "evidence": "gate-feature-integration-validation-31b7cca.json",
+    "raw_log": "gate-feature-integration-backend-31b7cca.log",
+    "rerun": false,
+    "basis": "src/, tests/, scripts/, pyproject.toml, uv.lock, web/package.json and web/package-lock.json retain exactly the same Git tree records. Parent explicitly authorized inheritance for this frontend-only follow-up; no complete backend execution claimed at the new SHA."
+  },
+  "frontend": {
+    "npm_ci": "passed",
+    "type_and_ux_check": "passed",
+    "vitest_files": 74,
+    "vitest_passed": 439,
+    "vitest_failed": 0,
+    "console_build": "passed",
+    "oauth_build": "passed",
+    "build_note": "Existing chunk-size warning; no dependency upgrade."
+  },
+  "browser": {
+    "command": "GATE_E2E_OAUTH_CATALOG_SCALE=1 PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH=<system Chromium> PLAYWRIGHT_JSON_OUTPUT_FILE=<runner report> NPM_CONFIG_CACHE=<controlled npm cache> npx --no-install playwright test e2e/oauth-grants.spec.ts e2e/oauth-consent.spec.ts e2e/oauth-paged-catalog.spec.ts --grep-invert @visual --reporter=list,json",
+    "working_directory": "web",
+    "services_fixture": 5000,
+    "tools_fixture": 50000,
+    "passed": 98,
+    "skipped": 0,
+    "failed": 0,
+    "flaky": 0,
+    "retries": 0,
+    "duration_seconds": 291.1884,
+    "started_at": "2026-10-05T22:03:49.537Z",
+    "raw_runner_report_sha256": "679779d739b8cf05651f774bbbd6df2eaa7d931df75ad343e32c3906e9c520f3",
+    "real_post_commit_response_loss_cases": [
+      {
+        "file": "oauth-paged-catalog.spec.ts",
+        "line": 184,
+        "title": "committed scope save with a lost response refreshes actual state en-US",
+        "status": "passed",
+        "duration_ms": 7402,
+        "retries": 0
+      },
+      {
+        "file": "oauth-paged-catalog.spec.ts",
+        "line": 184,
+        "title": "committed scope save with a lost response refreshes actual state zh-CN",
+        "status": "passed",
+        "duration_ms": 5950,
+        "retries": 0
+      }
+    ],
+    "scope": "Synthetic local Chromium with real catalog/session/selection/preview/save HTTP for paged recovery. Other cases retain their explicit mocks in the recorded specs. No real credentials, downstream provider/client or production service.",
+    "independent_visual_acceptance": "Not asserted by this browser run.",
+    "cases": [
+      {
+        "file": "oauth-consent.spec.ts",
+        "line": 19,
+        "title": "OAuth ui_locales hint selects language without changing authorization en-US",
+        "status": "passed",
+        "duration_ms": 598,
+        "retries": 0
+      },
+      {
+        "file": "oauth-consent.spec.ts",
+        "line": 19,
+        "title": "OAuth ui_locales hint selects language without changing authorization zh-CN",
+        "status": "passed",
+        "duration_ms": 471,
+        "retries": 0
+      },
+      {
+        "file": "oauth-consent.spec.ts",
+        "line": 32,
+        "title": "OAuth unsupported locale preserves the existing language without an authorization error",
+        "status": "passed",
+        "duration_ms": 446,
+        "retries": 0
+      },
+      {
+        "file": "oauth-consent.spec.ts",
+        "line": 41,
+        "title": "OAuth direct access filters and reset preserve selected scope en-US @large-data",
+        "status": "passed",
+        "duration_ms": 2160,
+        "retries": 0
+      },
+      {
+        "file": "oauth-consent.spec.ts",
+        "line": 41,
+        "title": "OAuth direct access filters and reset preserve selected scope zh-CN @large-data",
+        "status": "passed",
+        "duration_ms": 2207,
+        "retries": 0
+      },
+      {
+        "file": "oauth-consent.spec.ts",
+        "line": 89,
+        "title": "OAuth tool scope 1600x900 en-US @large-data",
+        "status": "passed",
+        "duration_ms": 978,
+        "retries": 0
+      },
+      {
+        "file": "oauth-consent.spec.ts",
+        "line": 89,
+        "title": "OAuth tool scope 1600x900 zh-CN @large-data",
+        "status": "passed",
+        "duration_ms": 989,
+        "retries": 0
+      },
+      {
+        "file": "oauth-consent.spec.ts",
+        "line": 89,
+        "title": "OAuth tool scope 1920x1080 en-US @large-data",
+        "status": "passed",
+        "duration_ms": 1003,
+        "retries": 0
+      },
+      {
+        "file": "oauth-consent.spec.ts",
+        "line": 89,
+        "title": "OAuth tool scope 1920x1080 zh-CN @large-data",
+        "status": "passed",
+        "duration_ms": 957,
+        "retries": 0
+      },
+      {
+        "file": "oauth-consent.spec.ts",
+        "line": 89,
+        "title": "OAuth tool scope 2560x1080 en-US @large-data",
+        "status": "passed",
+        "duration_ms": 1064,
+        "retries": 0
+      },
+      {
+        "file": "oauth-consent.spec.ts",
+        "line": 89,
+        "title": "OAuth tool scope 2560x1080 zh-CN @large-data",
+        "status": "passed",
+        "duration_ms": 1013,
+        "retries": 0
+      },
+      {
+        "file": "oauth-consent.spec.ts",
+        "line": 89,
+        "title": "OAuth tool scope 2560x1440 en-US @large-data",
+        "status": "passed",
+        "duration_ms": 1013,
+        "retries": 0
+      },
+      {
+        "file": "oauth-consent.spec.ts",
+        "line": 89,
+        "title": "OAuth tool scope 2560x1440 zh-CN @large-data",
+        "status": "passed",
+        "duration_ms": 1012,
+        "retries": 0
+      },
+      {
+        "file": "oauth-consent.spec.ts",
+        "line": 109,
+        "title": "OAuth login expiry preserves selection and requires reauthentication @permissions",
+        "status": "passed",
+        "duration_ms": 1439,
+        "retries": 0
+      },
+      {
+        "file": "oauth-consent.spec.ts",
+        "line": 129,
+        "title": "OAuth completed submission cannot be repeated @permissions",
+        "status": "passed",
+        "duration_ms": 1040,
+        "retries": 0
+      },
+      {
+        "file": "oauth-grants.spec.ts",
+        "line": 79,
+        "title": "OAuth bulk selection replaces the full current catalog across filters and pages en-US @large-data",
+        "status": "passed",
+        "duration_ms": 3389,
+        "retries": 0
+      },
+      {
+        "file": "oauth-grants.spec.ts",
+        "line": 107,
+        "title": "OAuth MCP group checkbox spans hidden tools and group pages en-US @large-data",
+        "status": "passed",
+        "duration_ms": 3216,
+        "retries": 0
+      },
+      {
+        "file": "oauth-grants.spec.ts",
+        "line": 140,
+        "title": "OAuth refresh retains quota and unavailable draft without selecting later services en-US",
+        "status": "passed",
+        "duration_ms": 2156,
+        "retries": 0
+      },
+      {
+        "file": "oauth-grants.spec.ts",
+        "line": 176,
+        "title": "OAuth owner-visible exclusions provide classification review without a mutation en-US",
+        "status": "passed",
+        "duration_ms": 2091,
+        "retries": 0
+      },
+      {
+        "file": "oauth-grants.spec.ts",
+        "line": 79,
+        "title": "OAuth bulk selection replaces the full current catalog across filters and pages zh-CN @large-data",
+        "status": "passed",
+        "duration_ms": 3616,
+        "retries": 0
+      },
+      {
+        "file": "oauth-grants.spec.ts",
+        "line": 107,
+        "title": "OAuth MCP group checkbox spans hidden tools and group pages zh-CN @large-data",
+        "status": "passed",
+        "duration_ms": 3081,
+        "retries": 0
+      },
+      {
+        "file": "oauth-grants.spec.ts",
+        "line": 140,
+        "title": "OAuth refresh retains quota and unavailable draft without selecting later services zh-CN",
+        "status": "passed",
+        "duration_ms": 2189,
+        "retries": 0
+      },
+      {
+        "file": "oauth-grants.spec.ts",
+        "line": 176,
+        "title": "OAuth owner-visible exclusions provide classification review without a mutation zh-CN",
+        "status": "passed",
+        "duration_ms": 1990,
+        "retries": 0
+      },
+      {
+        "file": "oauth-grants.spec.ts",
+        "line": 199,
+        "title": "OAuth bulk controls and unavailable draft fit desktop en-US-1600x900",
+        "status": "passed",
+        "duration_ms": 2066,
+        "retries": 0
+      },
+      {
+        "file": "oauth-grants.spec.ts",
+        "line": 199,
+        "title": "OAuth bulk controls and unavailable draft fit desktop zh-CN-1600x900",
+        "status": "passed",
+        "duration_ms": 2106,
+        "retries": 0
+      },
+      {
+        "file": "oauth-grants.spec.ts",
+        "line": 199,
+        "title": "OAuth bulk controls and unavailable draft fit desktop en-US-1920x1080",
+        "status": "passed",
+        "duration_ms": 2017,
+        "retries": 0
+      },
+      {
+        "file": "oauth-grants.spec.ts",
+        "line": 199,
+        "title": "OAuth bulk controls and unavailable draft fit desktop zh-CN-1920x1080",
+        "status": "passed",
+        "duration_ms": 2144,
+        "retries": 0
+      },
+      {
+        "file": "oauth-grants.spec.ts",
+        "line": 199,
+        "title": "OAuth bulk controls and unavailable draft fit desktop en-US-2560x1080",
+        "status": "passed",
+        "duration_ms": 2141,
+        "retries": 0
+      },
+      {
+        "file": "oauth-grants.spec.ts",
+        "line": 199,
+        "title": "OAuth bulk controls and unavailable draft fit desktop zh-CN-2560x1080",
+        "status": "passed",
+        "duration_ms": 2201,
+        "retries": 0
+      },
+      {
+        "file": "oauth-grants.spec.ts",
+        "line": 199,
+        "title": "OAuth bulk controls and unavailable draft fit desktop en-US-2560x1440",
+        "status": "passed",
+        "duration_ms": 2263,
+        "retries": 0
+      },
+      {
+        "file": "oauth-grants.spec.ts",
+        "line": 199,
+        "title": "OAuth bulk controls and unavailable draft fit desktop zh-CN-2560x1440",
+        "status": "passed",
+        "duration_ms": 2222,
+        "retries": 0
+      },
+      {
+        "file": "oauth-grants.spec.ts",
+        "line": 261,
+        "title": "grant reduction has one main scroll and single-line MCP IDs en-US-light-1600x900",
+        "status": "passed",
+        "duration_ms": 3201,
+        "retries": 0
+      },
+      {
+        "file": "oauth-grants.spec.ts",
+        "line": 317,
+        "title": "personal OAuth grants statuses and read-only details en-US-light-1600x900",
+        "status": "passed",
+        "duration_ms": 2170,
+        "retries": 0
+      },
+      {
+        "file": "oauth-grants.spec.ts",
+        "line": 261,
+        "title": "grant reduction has one main scroll and single-line MCP IDs en-US-dark-1600x900",
+        "status": "passed",
+        "duration_ms": 3280,
+        "retries": 0
+      },
+      {
+        "file": "oauth-grants.spec.ts",
+        "line": 317,
+        "title": "personal OAuth grants statuses and read-only details en-US-dark-1600x900",
+        "status": "passed",
+        "duration_ms": 2203,
+        "retries": 0
+      },
+      {
+        "file": "oauth-grants.spec.ts",
+        "line": 261,
+        "title": "grant reduction has one main scroll and single-line MCP IDs zh-CN-light-1600x900",
+        "status": "passed",
+        "duration_ms": 3136,
+        "retries": 0
+      },
+      {
+        "file": "oauth-grants.spec.ts",
+        "line": 317,
+        "title": "personal OAuth grants statuses and read-only details zh-CN-light-1600x900",
+        "status": "passed",
+        "duration_ms": 2210,
+        "retries": 0
+      },
+      {
+        "file": "oauth-grants.spec.ts",
+        "line": 261,
+        "title": "grant reduction has one main scroll and single-line MCP IDs zh-CN-dark-1600x900",
+        "status": "passed",
+        "duration_ms": 3267,
+        "retries": 0
+      },
+      {
+        "file": "oauth-grants.spec.ts",
+        "line": 317,
+        "title": "personal OAuth grants statuses and read-only details zh-CN-dark-1600x900",
+        "status": "passed",
+        "duration_ms": 2110,
+        "retries": 0
+      },
+      {
+        "file": "oauth-grants.spec.ts",
+        "line": 261,
+        "title": "grant reduction has one main scroll and single-line MCP IDs en-US-light-1920x1080",
+        "status": "passed",
+        "duration_ms": 3306,
+        "retries": 0
+      },
+      {
+        "file": "oauth-grants.spec.ts",
+        "line": 317,
+        "title": "personal OAuth grants statuses and read-only details en-US-light-1920x1080",
+        "status": "passed",
+        "duration_ms": 2114,
+        "retries": 0
+      },
+      {
+        "file": "oauth-grants.spec.ts",
+        "line": 261,
+        "title": "grant reduction has one main scroll and single-line MCP IDs en-US-dark-1920x1080",
+        "status": "passed",
+        "duration_ms": 3151,
+        "retries": 0
+      },
+      {
+        "file": "oauth-grants.spec.ts",
+        "line": 317,
+        "title": "personal OAuth grants statuses and read-only details en-US-dark-1920x1080",
+        "status": "passed",
+        "duration_ms": 2259,
+        "retries": 0
+      },
+      {
+        "file": "oauth-grants.spec.ts",
+        "line": 261,
+        "title": "grant reduction has one main scroll and single-line MCP IDs zh-CN-light-1920x1080",
+        "status": "passed",
+        "duration_ms": 3323,
+        "retries": 0
+      },
+      {
+        "file": "oauth-grants.spec.ts",
+        "line": 317,
+        "title": "personal OAuth grants statuses and read-only details zh-CN-light-1920x1080",
+        "status": "passed",
+        "duration_ms": 2063,
+        "retries": 0
+      },
+      {
+        "file": "oauth-grants.spec.ts",
+        "line": 261,
+        "title": "grant reduction has one main scroll and single-line MCP IDs zh-CN-dark-1920x1080",
+        "status": "passed",
+        "duration_ms": 3320,
+        "retries": 0
+      },
+      {
+        "file": "oauth-grants.spec.ts",
+        "line": 317,
+        "title": "personal OAuth grants statuses and read-only details zh-CN-dark-1920x1080",
+        "status": "passed",
+        "duration_ms": 2216,
+        "retries": 0
+      },
+      {
+        "file": "oauth-grants.spec.ts",
+        "line": 261,
+        "title": "grant reduction has one main scroll and single-line MCP IDs en-US-light-2560x1080",
+        "status": "passed",
+        "duration_ms": 3461,
+        "retries": 0
+      },
+      {
+        "file": "oauth-grants.spec.ts",
+        "line": 317,
+        "title": "personal OAuth grants statuses and read-only details en-US-light-2560x1080",
+        "status": "passed",
+        "duration_ms": 2246,
+        "retries": 0
+      },
+      {
+        "file": "oauth-grants.spec.ts",
+        "line": 261,
+        "title": "grant reduction has one main scroll and single-line MCP IDs en-US-dark-2560x1080",
+        "status": "passed",
+        "duration_ms": 3316,
+        "retries": 0
+      },
+      {
+        "file": "oauth-grants.spec.ts",
+        "line": 317,
+        "title": "personal OAuth grants statuses and read-only details en-US-dark-2560x1080",
+        "status": "passed",
+        "duration_ms": 2201,
+        "retries": 0
+      },
+      {
+        "file": "oauth-grants.spec.ts",
+        "line": 261,
+        "title": "grant reduction has one main scroll and single-line MCP IDs zh-CN-light-2560x1080",
+        "status": "passed",
+        "duration_ms": 3374,
+        "retries": 0
+      },
+      {
+        "file": "oauth-grants.spec.ts",
+        "line": 317,
+        "title": "personal OAuth grants statuses and read-only details zh-CN-light-2560x1080",
+        "status": "passed",
+        "duration_ms": 2273,
+        "retries": 0
+      },
+      {
+        "file": "oauth-grants.spec.ts",
+        "line": 261,
+        "title": "grant reduction has one main scroll and single-line MCP IDs zh-CN-dark-2560x1080",
+        "status": "passed",
+        "duration_ms": 3236,
+        "retries": 0
+      },
+      {
+        "file": "oauth-grants.spec.ts",
+        "line": 317,
+        "title": "personal OAuth grants statuses and read-only details zh-CN-dark-2560x1080",
+        "status": "passed",
+        "duration_ms": 2229,
+        "retries": 0
+      },
+      {
+        "file": "oauth-grants.spec.ts",
+        "line": 261,
+        "title": "grant reduction has one main scroll and single-line MCP IDs en-US-light-2560x1440",
+        "status": "passed",
+        "duration_ms": 3622,
+        "retries": 0
+      },
+      {
+        "file": "oauth-grants.spec.ts",
+        "line": 317,
+        "title": "personal OAuth grants statuses and read-only details en-US-light-2560x1440",
+        "status": "passed",
+        "duration_ms": 2235,
+        "retries": 0
+      },
+      {
+        "file": "oauth-grants.spec.ts",
+        "line": 261,
+        "title": "grant reduction has one main scroll and single-line MCP IDs en-US-dark-2560x1440",
+        "status": "passed",
+        "duration_ms": 3505,
+        "retries": 0
+      },
+      {
+        "file": "oauth-grants.spec.ts",
+        "line": 317,
+        "title": "personal OAuth grants statuses and read-only details en-US-dark-2560x1440",
+        "status": "passed",
+        "duration_ms": 2308,
+        "retries": 0
+      },
+      {
+        "file": "oauth-grants.spec.ts",
+        "line": 261,
+        "title": "grant reduction has one main scroll and single-line MCP IDs zh-CN-light-2560x1440",
+        "status": "passed",
+        "duration_ms": 3478,
+        "retries": 0
+      },
+      {
+        "file": "oauth-grants.spec.ts",
+        "line": 317,
+        "title": "personal OAuth grants statuses and read-only details zh-CN-light-2560x1440",
+        "status": "passed",
+        "duration_ms": 2257,
+        "retries": 0
+      },
+      {
+        "file": "oauth-grants.spec.ts",
+        "line": 261,
+        "title": "grant reduction has one main scroll and single-line MCP IDs zh-CN-dark-2560x1440",
+        "status": "passed",
+        "duration_ms": 3537,
+        "retries": 0
+      },
+      {
+        "file": "oauth-grants.spec.ts",
+        "line": 317,
+        "title": "personal OAuth grants statuses and read-only details zh-CN-dark-2560x1440",
+        "status": "passed",
+        "duration_ms": 2297,
+        "retries": 0
+      },
+      {
+        "file": "oauth-grants.spec.ts",
+        "line": 372,
+        "title": "Gate confirmation updates the existing connection en-US mixed=false",
+        "status": "passed",
+        "duration_ms": 2980,
+        "retries": 0
+      },
+      {
+        "file": "oauth-grants.spec.ts",
+        "line": 372,
+        "title": "Gate confirmation updates the existing connection en-US mixed=true",
+        "status": "passed",
+        "duration_ms": 3165,
+        "retries": 0
+      },
+      {
+        "file": "oauth-grants.spec.ts",
+        "line": 372,
+        "title": "Gate confirmation updates the existing connection zh-CN mixed=false",
+        "status": "passed",
+        "duration_ms": 3037,
+        "retries": 0
+      },
+      {
+        "file": "oauth-grants.spec.ts",
+        "line": 372,
+        "title": "Gate confirmation updates the existing connection zh-CN mixed=true",
+        "status": "passed",
+        "duration_ms": 2992,
+        "retries": 0
+      },
+      {
+        "file": "oauth-grants.spec.ts",
+        "line": 424,
+        "title": "late available-scope read cannot reopen a closed editor",
+        "status": "passed",
+        "duration_ms": 1526,
+        "retries": 0
+      },
+      {
+        "file": "oauth-grants.spec.ts",
+        "line": 445,
+        "title": "available-scope failure remains visible and retries only the read",
+        "status": "passed",
+        "duration_ms": 2139,
+        "retries": 0
+      },
+      {
+        "file": "oauth-grants.spec.ts",
+        "line": 461,
+        "title": "scope preview failure keeps the selection and requires renewed review en-US",
+        "status": "passed",
+        "duration_ms": 2445,
+        "retries": 0
+      },
+      {
+        "file": "oauth-grants.spec.ts",
+        "line": 461,
+        "title": "scope save failure keeps the selection and requires renewed review en-US",
+        "status": "passed",
+        "duration_ms": 2993,
+        "retries": 0
+      },
+      {
+        "file": "oauth-grants.spec.ts",
+        "line": 461,
+        "title": "scope preview failure keeps the selection and requires renewed review zh-CN",
+        "status": "passed",
+        "duration_ms": 2379,
+        "retries": 0
+      },
+      {
+        "file": "oauth-grants.spec.ts",
+        "line": 461,
+        "title": "scope save failure keeps the selection and requires renewed review zh-CN",
+        "status": "passed",
+        "duration_ms": 2961,
+        "retries": 0
+      },
+      {
+        "file": "oauth-grants.spec.ts",
+        "line": 486,
+        "title": "pending scope preview blocks duplicate submission, keyboard close and mode switch",
+        "status": "passed",
+        "duration_ms": 1699,
+        "retries": 0
+      },
+      {
+        "file": "oauth-grants.spec.ts",
+        "line": 511,
+        "title": "a late scope response cannot overwrite another grant editor",
+        "status": "passed",
+        "duration_ms": 2070,
+        "retries": 0
+      },
+      {
+        "file": "oauth-grants.spec.ts",
+        "line": 542,
+        "title": "OAuth old clipboard success does not change new grant details en-US",
+        "status": "passed",
+        "duration_ms": 1888,
+        "retries": 0
+      },
+      {
+        "file": "oauth-grants.spec.ts",
+        "line": 542,
+        "title": "OAuth old clipboard failure does not change new grant details en-US",
+        "status": "passed",
+        "duration_ms": 1814,
+        "retries": 0
+      },
+      {
+        "file": "oauth-grants.spec.ts",
+        "line": 560,
+        "title": "OAuth 1000 records filter before pagination and 5000 tools remain searchable en-US @large-data",
+        "status": "passed",
+        "duration_ms": 2684,
+        "retries": 0
+      },
+      {
+        "file": "oauth-grants.spec.ts",
+        "line": 589,
+        "title": "OAuth zero/one record and expired active metadata are accurate en-US",
+        "status": "passed",
+        "duration_ms": 884,
+        "retries": 0
+      },
+      {
+        "file": "oauth-grants.spec.ts",
+        "line": 602,
+        "title": "OAuth reduction and revocation keep explicit confirmations en-US @permissions",
+        "status": "passed",
+        "duration_ms": 4490,
+        "retries": 0
+      },
+      {
+        "file": "oauth-grants.spec.ts",
+        "line": 542,
+        "title": "OAuth old clipboard success does not change new grant details zh-CN",
+        "status": "passed",
+        "duration_ms": 1799,
+        "retries": 0
+      },
+      {
+        "file": "oauth-grants.spec.ts",
+        "line": 542,
+        "title": "OAuth old clipboard failure does not change new grant details zh-CN",
+        "status": "passed",
+        "duration_ms": 1850,
+        "retries": 0
+      },
+      {
+        "file": "oauth-grants.spec.ts",
+        "line": 560,
+        "title": "OAuth 1000 records filter before pagination and 5000 tools remain searchable zh-CN @large-data",
+        "status": "passed",
+        "duration_ms": 2659,
+        "retries": 0
+      },
+      {
+        "file": "oauth-grants.spec.ts",
+        "line": 589,
+        "title": "OAuth zero/one record and expired active metadata are accurate zh-CN",
+        "status": "passed",
+        "duration_ms": 892,
+        "retries": 0
+      },
+      {
+        "file": "oauth-grants.spec.ts",
+        "line": 602,
+        "title": "OAuth reduction and revocation keep explicit confirmations zh-CN @permissions",
+        "status": "passed",
+        "duration_ms": 4278,
+        "retries": 0
+      },
+      {
+        "file": "oauth-paged-catalog.spec.ts",
+        "line": 37,
+        "title": "OAuth entry avoids full definitions and the tool route still loads on navigation",
+        "status": "passed",
+        "duration_ms": 2118,
+        "retries": 0
+      },
+      {
+        "file": "oauth-paged-catalog.spec.ts",
+        "line": 56,
+        "title": "real paged OAuth catalog fits en-US 1600x900",
+        "status": "passed",
+        "duration_ms": 3943,
+        "retries": 0
+      },
+      {
+        "file": "oauth-paged-catalog.spec.ts",
+        "line": 56,
+        "title": "real paged OAuth catalog fits zh-CN 1600x900",
+        "status": "passed",
+        "duration_ms": 3091,
+        "retries": 0
+      },
+      {
+        "file": "oauth-paged-catalog.spec.ts",
+        "line": 56,
+        "title": "real paged OAuth catalog fits en-US 1920x1080",
+        "status": "passed",
+        "duration_ms": 3048,
+        "retries": 0
+      },
+      {
+        "file": "oauth-paged-catalog.spec.ts",
+        "line": 56,
+        "title": "real paged OAuth catalog fits zh-CN 1920x1080",
+        "status": "passed",
+        "duration_ms": 3050,
+        "retries": 0
+      },
+      {
+        "file": "oauth-paged-catalog.spec.ts",
+        "line": 56,
+        "title": "real paged OAuth catalog fits en-US 2560x1080",
+        "status": "passed",
+        "duration_ms": 2941,
+        "retries": 0
+      },
+      {
+        "file": "oauth-paged-catalog.spec.ts",
+        "line": 56,
+        "title": "real paged OAuth catalog fits zh-CN 2560x1080",
+        "status": "passed",
+        "duration_ms": 3041,
+        "retries": 0
+      },
+      {
+        "file": "oauth-paged-catalog.spec.ts",
+        "line": 56,
+        "title": "real paged OAuth catalog fits en-US 2560x1440",
+        "status": "passed",
+        "duration_ms": 3132,
+        "retries": 0
+      },
+      {
+        "file": "oauth-paged-catalog.spec.ts",
+        "line": 56,
+        "title": "real paged OAuth catalog fits zh-CN 2560x1440",
+        "status": "passed",
+        "duration_ms": 3075,
+        "retries": 0
+      },
+      {
+        "file": "oauth-paged-catalog.spec.ts",
+        "line": 104,
+        "title": "real paging group selection limits refresh and save recovery en-US",
+        "status": "passed",
+        "duration_ms": 15213,
+        "retries": 0
+      },
+      {
+        "file": "oauth-paged-catalog.spec.ts",
+        "line": 104,
+        "title": "real paging group selection limits refresh and save recovery zh-CN",
+        "status": "passed",
+        "duration_ms": 14742,
+        "retries": 0
+      },
+      {
+        "file": "oauth-paged-catalog.spec.ts",
+        "line": 184,
+        "title": "committed scope save with a lost response refreshes actual state en-US",
+        "status": "passed",
+        "duration_ms": 7402,
+        "retries": 0
+      },
+      {
+        "file": "oauth-paged-catalog.spec.ts",
+        "line": 184,
+        "title": "committed scope save with a lost response refreshes actual state zh-CN",
+        "status": "passed",
+        "duration_ms": 5950,
+        "retries": 0
+      }
+    ],
+    "command_path_normalization": "Original runner-local path values replaced by role placeholders; command arguments and flags are unchanged."
+  },
+  "generated_assets": {
+    "console": {
+      "file_count": 97,
+      "manifest_sha256": "2190b9baccdb5379405dd20955f81c8e05d2b6ab7c45fe1fe51f1031a1877a1a"
+    },
+    "oauth": {
+      "file_count": 3,
+      "manifest_sha256": "2d4ffbdf3263cb73dd8c18e6384900f98143cde3726ce0ff6ad1c89d2ed87ca2"
+    }
+  },
+  "static_repository_checks": {
+    "repository_identity": "passed",
+    "git_diff_check": "passed"
+  },
+  "independent_reviews": [
+    {
+      "source_sha": "31b7cca9155d36094250a47bc7f688797b8217a7",
+      "reviewer": "parent/root",
+      "result": "No new P1/P2",
+      "scope": "True d8d4833/76bfe2c merge parents and per-blob source provenance; Native close finally, migration and lock composition."
+    },
+    {
+      "source_sha": "9af3ddb5f5d7699f3c2bfe408c4f09cf04861020",
+      "reviewer": "parent/root",
+      "result": "Recovery gap closed; no new P1/P2",
+      "scope": "Real post-commit response loss, unknown write locks, stale metadata removal, actual grant/catalog/selection readback before unlock, quota draft retention, unavailable authority checks and CAS."
+    }
+  ],
+  "packaging": {
+    "prior_worker_execution_checkpoint_sha": "31b7cca9155d36094250a47bc7f688797b8217a7",
+    "prior_evidence": "gate-feature-integration-package-workers-31b7cca.json",
+    "new_wheel_or_native_bundle_built": false,
+    "scope": "Prior wheel/frozen-worker checks remain evidence only for their original artifact hashes/source. Console/OAuth assets were rebuilt here; no newly packaged combined artifact is claimed."
+  },
+  "remaining_acceptance": [
+    "4 operator-provisioned real rootless Podman cases",
+    "3 fixed external Playwright MCP installation cases",
+    "real credential/provider/client acceptance",
+    "formal release/native/other-OS packaging and nx5 deployment by parent"
+  ],
+  "runner_log_hashes": {
+    "ci": {
+      "runner_filename": "lingshu-gate-oauth-loss-integration-ci.log",
+      "sha256": "9565f78e72e233ba271e95805053cefa06d775fe75882091ff976dd3a038480e"
+    },
+    "web-check": {
+      "runner_filename": "lingshu-gate-oauth-loss-integration-web-check.log",
+      "sha256": "2249a37e956892b747e90809cb9072ea2087a445b29e94fe696c79ed49cc5a46"
+    },
+    "web-test": {
+      "runner_filename": "lingshu-gate-oauth-loss-integration-web-test.log",
+      "sha256": "82a3048d52771abab0248cdbde7bd0125d4f18fea6ba63ca4380abc21638f4d0"
+    },
+    "web-build": {
+      "runner_filename": "lingshu-gate-oauth-loss-integration-web-build.log",
+      "sha256": "662cded481c43a349581ce74618a1119ab50d2aa0230bfe00b4b0d8f5b44df57"
+    },
+    "browser": {
+      "runner_filename": "lingshu-gate-oauth-loss-integration-browser.log",
+      "sha256": "248e04258a9c246dcfb7682e746e10a8bdf194753e099cddbcfca9081b966810"
+    }
+  },
+  "export_scope": "Repository-published synthetic result fields, per-case observations and provenance. Runner-local directories/configuration/request data are excluded. No real credentials. Documentation export does not establish a new product/test checkpoint."
+}

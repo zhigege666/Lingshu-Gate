@@ -6,7 +6,7 @@ import os
 
 import pytest
 
-from lingshu_gate.git_source import digest_json, verify_git_snapshot
+from lingshu_gate.git_source import digest_json, verify_git_snapshot, network_secret_values
 from lingshu_gate.network_artifact import export_network_artifact
 
 
@@ -45,6 +45,18 @@ def test_artifact_scan_cross_chunk_network_value_is_rejected(tmp_path):
     (source / "file").write_bytes(b"x" * (1024 * 1024 - 5) + b"synthetic-proxy-secret")
     with pytest.raises(ValueError, match="network_artifact_secret_rejected"):
         export(source, target)
+
+
+def test_reflected_basic_secret_component_is_filtered_from_artifact(tmp_path):
+    source, target = tmp_path / "source", tmp_path / "artifact"
+    source.mkdir()
+    target.mkdir()
+    (source / "file").write_text("fixture-bare-private-token")
+    values = network_secret_values({"git.git_credential": "public-username:fixture-bare-private-token"})
+    assert "public-username" not in values
+    with pytest.raises(ValueError, match="network_artifact_secret_rejected") as rejected:
+        export_network_artifact(source, target, ignored=set(), forbidden_values=values, cancelled=lambda: False)
+    assert "fixture-bare-private-token" not in str(rejected.value)
 
 
 def test_artifact_size_file_count_cancel_and_timeout_bounds(tmp_path):

@@ -30,6 +30,7 @@ dependencies = [
   "PyJWT[crypto]>=2.14.0,<3.0",
   "python-multipart>=0.0.9,<1.0",
   "mcp>=2.0,<3.0",
+  "jsonschema>=4.23,<5",
 ]
 
 [project.urls]
@@ -62,6 +63,14 @@ version = { attr = "lingshu_gate._version.__version__" }
 
 [tool.setuptools.packages.find]
 where = ["src"]
+
+[tool.setuptools.package-dir]
+"" = "src"
+scripts = "scripts"
+
+[tool.setuptools.cmdclass]
+build_py = "scripts.release.wheel_build.FreshBuildPy"
+bdist_wheel = "scripts.release.wheel_build.FreshBdistWheel"
 
 [tool.setuptools.package-data]
 lingshu_gate = ["static/console/**/*", "static/oauth/**/*"]

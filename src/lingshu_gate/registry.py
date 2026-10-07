@@ -3,6 +3,8 @@
 from __future__ import annotations
 
 import logging
+import hashlib
+import json
 import re
 import threading
 from collections.abc import Callable, Iterable
@@ -11,8 +13,10 @@ from typing import Any
 
 from lingshu_gate.logging import log_event
 from lingshu_gate.models import ToolDefinition, ToolInvokeResponse
+from lingshu_gate.domain.tool_structure import FrozenToolDefinition, freeze_tool_definition
 
 ToolHandler = Callable[..., dict[str, Any]]
+CatalogListener = Callable[[dict[str, ToolDefinition | None]], None]
 logger = logging.getLogger(__name__)
 SENSITIVE_LOG_KEY = re.compile(
     r"(?:password|passwd|secret|token|authorization|cookie|credential|api[_-]?key|private[_-]?key|data_base64)",
@@ -20,6 +24,13 @@ SENSITIVE_LOG_KEY = re.compile(
 )
 MAX_LOG_STRING_LENGTH = 4_096
 MAX_LOG_COLLECTION_ITEMS = 100
+
+
+def tool_definition_revision(definition: ToolDefinition) -> str:
+    """Exact registered descriptor revision for guarded delayed dispatch."""
+    raw = json.dumps(definition.model_dump(), sort_keys=True, ensure_ascii=False,
+                     separators=(",", ":"), allow_nan=False)
+    return hashlib.sha256(raw.encode()).hexdigest()
 
 
 @dataclass(frozen=True)
@@ -45,6 +56,16 @@ class ToolInvocationContext:
     oauth_token_expires_at: int = 0
     oauth_target_revision: int = 0
     oauth_tool_snapshots: tuple[tuple[str, str], ...] = ()
+    oauth_subject: str | None = None
+    oauth_audiences: tuple[str, ...] = ()
+    oauth_jwks_uri: str | None = None
+    external_grant_id: str | None = None
+    external_server_ids: tuple[str, ...] = ()
+    external_tool_ids: tuple[str, ...] = ()
+    external_access: tuple[str, ...] = ()
+    external_expires_at: str | None = None
+    external_rate_per_minute: int = 0
+    external_concurrency: int = 0
 
 
 class ToolExecutionError(RuntimeError):
@@ -85,6 +106,26 @@ class ToolRecord:
     contextual: bool = False
 
 
+@dataclass(frozen=True)
+class RegistryToolSnapshot:
+    structure: FrozenToolDefinition
+    revision: int
+
+
+class ToolDispatchRejectedError(ToolExecutionError):
+    """The selected record changed before dispatch; no handler was entered."""
+
+
+@dataclass(frozen=True)
+class McpRegistrySnapshot:
+    revisions: tuple[tuple[str, int], ...]
+    tools: tuple[RegistryToolSnapshot, ...]
+
+
+class RegistrySnapshotCapacityError(ValueError):
+    """An indexed read cannot allocate an unbounded candidate snapshot."""
+
+
 class ToolNotFoundError(KeyError):
     """Raised when a requested tool is not registered."""
 
@@ -95,6 +136,39 @@ class ToolRegistry:
     def __init__(self) -> None:
         self._tools: dict[str, ToolRecord] = {}
         self._lock = threading.RLock()
+        self._revision = 0
+        self._structures: dict[str, FrozenToolDefinition] = {}
+        self._mcp_index: dict[str, dict[str, RegistryToolSnapshot]] = {}
+        self._mcp_revisions: dict[str, int] = {}
+        self._catalog_listeners: list[CatalogListener] = []
+
+    def subscribe_catalog(self, listener: CatalogListener) -> None:
+        """Seed atomically; listeners only enqueue and never do I/O or callbacks."""
+        with self._lock:
+            listener({key: record.definition for key, record in self._tools.items()})
+            self._catalog_listeners.append(listener)
+
+    def _notify_catalog(self, changes: dict[str, ToolDefinition | None]) -> None:
+        for listener in self._catalog_listeners:
+            listener(changes)
+
+    def _index_change(self, previous: ToolRecord | None, current: ToolRecord | None,
+                      structure: FrozenToolDefinition | None = None) -> None:
+        for record, remove in ((previous, True), (current, False)):
+            if record is None or record.definition.source != "mcp":
+                continue
+            instance = record.definition.metadata.get("server_id")
+            if not isinstance(instance, str):
+                continue
+            self._mcp_revisions[instance] = self._revision
+            entries = self._mcp_index.setdefault(instance, {})
+            if remove:
+                entries.pop(record.definition.id, None)
+            else:
+                assert structure is not None
+                entries[record.definition.id] = RegistryToolSnapshot(structure, self._revision)
+            if not entries:
+                self._mcp_index.pop(instance, None)
 
     def register(
         self,
@@ -104,23 +178,50 @@ class ToolRegistry:
         replace: bool = False,
         contextual: bool = False,
     ) -> None:
+        structure = freeze_tool_definition(definition)
+        owned = structure.copy_definition()
         with self._lock:
-            if definition.id in self._tools and not replace:
-                raise ValueError(f"Tool already registered: {definition.id}")
-            self._tools[definition.id] = ToolRecord(
-                definition=definition,
+            if owned.id in self._tools and not replace:
+                raise ValueError(f"Tool already registered: {owned.id}")
+            previous = self._tools.get(owned.id)
+            current = ToolRecord(
+                definition=owned,
                 handler=handler,
                 contextual=contextual,
             )
+            self._revision += 1
+            self._index_change(previous, current, structure)
+            self._structures[owned.id] = structure
+            self._tools[owned.id] = current
+            self._notify_catalog({owned.id: owned})
         log_event(
             logger,
             logging.INFO,
             "gate.tool.registered",
             "Tool registered",
-            tool_id=definition.id,
-            source=definition.source,
-            metadata=definition.metadata,
+            tool_id=owned.id,
+            source=owned.source,
+            metadata=owned.metadata,
         )
+
+    def update_definition(self, definition: ToolDefinition) -> None:
+        """Explicit structural publication; preserve the original handler/context."""
+        structure = freeze_tool_definition(definition)
+        owned = structure.copy_definition()
+        with self._lock:
+            previous = self._tools.get(owned.id)
+            if previous is None:
+                raise ToolNotFoundError(owned.id)
+            if (owned.source != previous.definition.source
+                    or any(owned.metadata.get(key) != previous.definition.metadata.get(key)
+                           for key in ("server_id", "original_tool_name"))):
+                raise ValueError("Tool identity changes require explicit registration with a handler")
+            current = ToolRecord(owned, previous.handler, previous.contextual)
+            self._revision += 1
+            self._index_change(previous, current, structure)
+            self._structures[owned.id] = structure
+            self._tools[owned.id] = current
+            self._notify_catalog({owned.id: owned})
 
     def unregister_by_metadata(
         self,
@@ -138,8 +239,13 @@ class ToolRegistry:
                 if record.definition.metadata.get(key) == value
                 and (source is None or record.definition.source == source)
             ]
+            if removed:
+                self._revision += 1
             for tool_id in removed:
-                self._tools.pop(tool_id, None)
+                self._index_change(self._tools.pop(tool_id), None)
+                self._structures.pop(tool_id)
+            if removed:
+                self._notify_catalog(dict.fromkeys(removed))
         for tool_id in removed:
             log_event(
                 logger,
@@ -164,8 +270,10 @@ class ToolRegistry:
         """先校验完整替换集，再一次性替换目标工具，避免暴露部分刷新快照。"""
 
         replacement: dict[str, ToolRecord] = {}
+        structures: dict[str, FrozenToolDefinition] = {}
         for record in records:
-            definition = record.definition
+            structure = freeze_tool_definition(record.definition)
+            definition = structure.copy_definition()
             if definition.metadata.get(key) != value:
                 raise ValueError(
                     f"Replacement tool metadata mismatch: {definition.id} {key}"
@@ -176,7 +284,8 @@ class ToolRegistry:
                 )
             if definition.id in replacement:
                 raise ValueError(f"Duplicate replacement tool: {definition.id}")
-            replacement[definition.id] = record
+            replacement[definition.id] = ToolRecord(definition, record.handler, record.contextual)
+            structures[definition.id] = structure
 
         with self._lock:
             retained = {
@@ -195,9 +304,20 @@ class ToolRegistry:
                 )
 
             removed_count = len(self._tools) - len(retained)
+            retired_ids = self._tools.keys() - retained.keys() - replacement.keys()
+            self._revision += 1
+            for tool_id in self._tools.keys() - retained.keys():
+                self._index_change(self._tools[tool_id], None)
+                self._structures.pop(tool_id)
+            for tool_id, record in replacement.items():
+                self._index_change(None, record, structures[tool_id])
+            self._structures.update(structures)
             # One assignment publishes the complete replacement snapshot. Readers
             # protected by the same lock can never observe a partially refreshed set.
             self._tools = {**retained, **replacement}
+            changes: dict[str, ToolDefinition | None] = dict.fromkeys(retired_ids)
+            changes.update({tool_id: record.definition for tool_id, record in replacement.items()})
+            self._notify_catalog(changes)
         log_event(
             logger,
             logging.INFO,
@@ -216,14 +336,36 @@ class ToolRegistry:
 
     def list_definitions(self) -> list[ToolDefinition]:
         with self._lock:
-            return [record.definition for record in self._tools.values()]
+            structures = tuple(self._structures.values())
+        return [structure.copy_definition() for structure in structures]
+
+    def mcp_snapshot(self, instance_ids: Iterable[str], *, max_tools: int) -> McpRegistrySnapshot:
+        """Read only selected instance buckets; definitions change through publication APIs."""
+        instances = sorted(set(instance_ids))
+        with self._lock:
+            if sum(len(self._mcp_index.get(instance, {})) for instance in instances) > max_tools:
+                raise RegistrySnapshotCapacityError("indexed_catalog_capacity")
+            revisions = tuple((instance, self._mcp_revisions.get(instance, 0)) for instance in instances)
+            return McpRegistrySnapshot(revisions, tuple(entry for instance in instances
+                for entry in self._mcp_index.get(instance, {}).values()))
+
+    def mcp_snapshot_current(self, revisions: tuple[tuple[str, int], ...]) -> bool:
+        with self._lock:
+            return all(self._mcp_revisions.get(instance, 0) == revision for instance, revision in revisions)
+
+    def get_definitions(self, tool_ids: Iterable[str]) -> list[ToolDefinition]:
+        """Read one atomic snapshot of requested IDs without traversing the registry."""
+        requested = tuple(dict.fromkeys(tool_ids))
+        with self._lock:
+            return [self._structures[key].copy_definition() for key in requested if key in self._structures]
 
     def get_definition(self, tool_id: str) -> ToolDefinition:
         with self._lock:
             try:
-                return self._tools[tool_id].definition
+                structure = self._structures[tool_id]
             except KeyError as exc:
                 raise ToolNotFoundError(tool_id) from exc
+        return structure.copy_definition()
 
     def invoke(
         self,
@@ -231,15 +373,24 @@ class ToolRegistry:
         arguments: dict[str, Any],
         *,
         context: ToolInvocationContext | None = None,
+        dispatch_guard: Callable[[], None] | None = None,
+        expected_definition: ToolDefinition | None = None,
     ) -> ToolInvokeResponse:
         # Only protect snapshot lookup. Handlers can perform long-running I/O and
         # may themselves register tools, so invoking them while holding the registry
         # lock would serialize unrelated traffic and risk lock-order deadlocks.
+        # Credential/database reads precede the registry lock to avoid lock cycles.
+        if dispatch_guard is not None:
+            dispatch_guard()
         with self._lock:
             try:
                 record = self._tools[tool_id]
             except KeyError as exc:
                 raise ToolNotFoundError(tool_id) from exc
+            if (expected_definition is not None
+                    and record.definition.model_dump(mode="json") != expected_definition.model_dump(mode="json")):
+                raise ToolDispatchRejectedError("catalog_schema_revision_conflict",
+                    "The selected registry record changed before dispatch.")
 
         sensitive_inputs = _metadata_fields(record.definition.metadata, "sensitive_input_fields")
         sensitive_outputs = _metadata_fields(record.definition.metadata, "sensitive_output_fields")

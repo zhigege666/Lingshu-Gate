@@ -1,0 +1,17 @@
+{
+  "source_sha": "fdcb3545aa88d1ccb3a961fca3e2c47055bfb105",
+  "fixture_services": 5000,
+  "fixture_tools": 50000,
+  "catalog_apis_mocked": false,
+  "locale": "en-US",
+  "width": 1600,
+  "height": 900,
+  "rows": 9,
+  "labels": [
+    true,
+    true,
+    true
+  ],
+  "bodyOverflow": 0,
+  "pageOverflow": 0
+}

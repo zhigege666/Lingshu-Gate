@@ -1,5 +1,15 @@
 # Changelog
 
+## Unreleased
+
+- Explicit MCP logical groups reference existing instance configurations without copying credentials or granting access. Administrator APIs and four group management tools retain current permissions, confirmation, revision checks and atomic audit.
+- Matching complete contracts share a logical directory entry; differing schemas, safety declarations and advertised contract versions remain separate. The internal routing port retains actual tool/server IDs and rechecks logical and physical authorization.
+- Explicit connection-bound sessions pin an instance and reject configuration/runtime drift, revocation and instance switches. Existing direct tools remain compatible; the on-demand directory owns public invocation.
+- MCP services adds a compact Groups view and centered bilingual editor with instance status, contract version and a suggested default. Real peer/deployment and independent root visual acceptance remain separate from synthetic regression evidence.
+- Implement the optional Native/Linux rootless Podman executor, trusted pinned HTTPS/Git acquisition, official exact tool cache, registry-only npm/pnpm 8–9/Yarn Classic offline frozen install/build, observed readiness and durable phase/container/cgroup reconciliation. Core remains gateway-only. pnpm 10/11, Yarn Berry, Python sandbox caches and unsupported origins are refused; physical host acceptance remains untested.
+- Block admission on unknown acquisition jobs after DNS timeout. Restore readiness only after the exact resolver and caller stop, resource reconciliation and retained workspace cleanup; keep unknown consumers' inputs and never replay interrupted keys. Cleanup failure retains a readiness barrier while releasing the operation gate.
+- Preserve live DNS worker evidence through HTTPS deadline/cancellation error classification. Real request-wrapper tests cover upstream/proxy DNS, unknown journals, retained staging/owner leases and safe readiness recovery.
+
 ## 0.4.4
 
 - The four management tools reject Console cookies at generic invocation entries; dedicated Console REST retains Origin/session/body-bound CSRF. Connection/probe checks reject credential rotation after lock waits and before decryption. Memory diagnostics omit command arguments and environments, and Core installs Debian's exact Perl security revision without scan exceptions.

@@ -20,6 +20,7 @@ PackageManager = Literal["npm"]
 HealthCheckMethod = Literal["tools_list"]
 UserCredentialInjectionType = Literal["http_header"]
 PROTECTED_HTTP_HEADERS = {"content-type", "accept", "mcp-session-id", "mcp-protocol-version"}
+MCP_SERVER_ID_PATTERN = r"^[a-zA-Z0-9_.-]+$"
 CONTAINER_IMAGE_DIGEST_PATTERN = re.compile(
     r"^[a-z0-9][a-z0-9._:/-]*@sha256:[a-f0-9]{64}$"
 )
@@ -300,7 +301,7 @@ class McpServerManifest(BaseModel):
         validate_assignment=True,
     )
 
-    id: str = Field(..., pattern=r"^[a-zA-Z0-9_.-]+$")
+    id: str = Field(..., pattern=MCP_SERVER_ID_PATTERN)
     name: str | None = None
     enabled: bool = True
     launch: LaunchConfig

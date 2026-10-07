@@ -40,6 +40,8 @@ class HttpProtocolContext:
 
 
 class HttpProtocolValidationError(ValueError):
+    """Protocol rejection with an explicit public message and structured fields."""
+
     def __init__(
         self,
         code: int,
@@ -49,6 +51,7 @@ class HttpProtocolValidationError(ValueError):
         data: dict[str, Any] | None = None,
     ) -> None:
         self.code = code
+        self.message = message
         self.status_code = status_code
         self.data = data
         super().__init__(message)

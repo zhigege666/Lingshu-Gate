@@ -22,6 +22,61 @@ def definition(tool_id: str, generation: str) -> ToolDefinition:
 
 
 class ToolRegistryConcurrencyTest(unittest.TestCase):
+    def test_dispatch_guard_does_not_hold_registry_lock(self) -> None:
+        registry = ToolRegistry()
+        target = definition("mcp.demo.target", "initial")
+        registry.register(target, lambda _: {})
+
+        def guard() -> None:
+            worker = threading.Thread(target=lambda: registry.register(definition("mcp.demo.other", "new"), lambda _: {}))
+            worker.start()
+            worker.join(timeout=1)
+            self.assertFalse(worker.is_alive(), "Credential/policy guard held registry lock")
+
+        self.assertTrue(registry.invoke(target.id, {}, dispatch_guard=guard, expected_definition=target).ok)
+
+    def test_record_replacement_after_guard_never_enters_handler(self) -> None:
+        from lingshu_gate.registry import ToolDispatchRejectedError
+
+        registry = ToolRegistry()
+        target = definition("mcp.demo.target", "old")
+        calls: list[str] = []
+        registry.register(target, lambda _: calls.append("old") or {})
+        def guard() -> None:
+            registry.register(definition(target.id, "new"), lambda _: calls.append("new") or {}, replace=True)
+        with self.assertRaises(ToolDispatchRejectedError):
+            registry.invoke(target.id, {}, dispatch_guard=guard, expected_definition=target)
+        self.assertEqual(calls, [])
+
+    def test_requested_definitions_are_one_bounded_atomic_snapshot(self) -> None:
+        registry = ToolRegistry()
+        ids = ["mcp.demo.0", "mcp.demo.1"]
+        snapshots = [tuple(ToolRecord(definition(key, generation), lambda _: {}) for key in ids)
+                     for generation in ("old", "new")]
+        registry.replace_by_metadata("server_id", "demo", snapshots[0], source="mcp")
+        def writer() -> None:
+            for index in range(300):
+                registry.replace_by_metadata("server_id", "demo", snapshots[index % 2], source="mcp")
+        thread = threading.Thread(target=writer)
+        thread.start()
+        for _ in range(300):
+            selected = registry.get_definitions([ids[1], "missing", ids[0], ids[1]])
+            self.assertEqual([tool.id for tool in selected], [ids[1], ids[0]])
+            self.assertEqual(len({tool.metadata["generation"] for tool in selected}), 1)
+        thread.join(timeout=3)
+        self.assertFalse(thread.is_alive())
+
+    def test_selected_definition_copies_do_not_modify_registry_owned_contracts(self) -> None:
+        registry = ToolRegistry()
+        target = definition("mcp.demo.selected", "original")
+        registry.register(target, lambda _: {})
+        selected = registry.get_definitions([target.id])[0]
+        selected.metadata["generation"] = "tampered"
+        selected.input_schema["type"] = "string"
+        actual = registry.get_definition(target.id)
+        self.assertEqual(actual.metadata["generation"], "original")
+        self.assertEqual(actual.input_schema["type"], "object")
+
     def test_handler_execution_does_not_hold_registry_lock(self) -> None:
         registry = ToolRegistry()
         entered = threading.Event()

@@ -132,13 +132,28 @@ export default function App() {
   const toast: ToastState = message ? { message, tone: "success" } : null
   function dismissToast() { setMessage(null) }
 
-  useEffect(() => { void refreshAll() }, [])
+  useEffect(() => { void refreshAll(false) }, [])
   const can = (permission: string) => (user.auth_type === "disabled" || user.permissions.includes(permission) || user.permissions.includes("*")) && (user.auth_type !== "token" && user.auth_type !== "oauth" || user.scopes.includes(permission) || user.scopes.includes("*"))
   // Delivery pages own their tasks; entering the service route reads a new
   // runtime snapshot so a newly deployed service needs no document reload.
   const canManageOperations = can("operations.manage")
   const canManageHttpTrust = user.auth_type !== "disabled" && user.auth_type !== "oauth" && (user.roles || [user.role]).includes("admin") && canManageOperations
   const canReadTools = can("tools.read")
+  // OAuth pages own their bounded candidate reads. Read the legacy full tool
+  // list only when a route actually consumes it, including after navigation.
+  useEffect(() => {
+    if (!["dashboard", "tools", "invoke"].includes(view) || !canReadTools) return
+    let active = true
+    setToolsLoaded(false); setToolsError(null)
+    void api.tools().then(data => {
+      if (!active) return
+      setTools(data); setToolsLoaded(true)
+      setSelectedToolId(previous => previous || data[0]?.id || "")
+    }).catch(reason => {
+      if (active) setToolsError(reason instanceof Error ? reason.message : String(reason))
+    })
+    return () => { active = false }
+  }, [view, canReadTools, user.id])
   useEffect(() => {
     if (view !== "diagnostics" || !canManageOperations) return
     let active = true
@@ -184,7 +199,7 @@ export default function App() {
     return () => window.removeEventListener("keydown", onKey)
   }, [])
   useEffect(() => { if (!commandOpen) setCommandQuery("") }, [commandOpen])
-  async function refreshAll() {
+  async function refreshAll(readTools = true) {
     setBusy(true); setError(null); setToolsLoaded(false); setToolsError(null)
     setServersLoaded(false)
     try {
@@ -228,7 +243,7 @@ export default function App() {
         setDiagnostics(null); setServers([]); setServersLoaded(false); setServersError(null); setLoadErrors([]); setConfigs([]); setConfigErrors([])
       }
 
-      if (can("tools.read")) {
+      if (can("tools.read") && readTools) {
         requests.push(api.tools()
           .then((toolData) => {
             setTools(toolData)
@@ -239,7 +254,7 @@ export default function App() {
             setToolsError(reason instanceof Error ? reason.message : String(reason))
             recordRefreshError("tools", reason)
           }))
-      } else {
+      } else if (!can("tools.read")) {
         setTools([])
         setSelectedToolId("")
       }
@@ -390,7 +405,7 @@ export default function App() {
             {view === "connectionInfrastructure" && <ConnectionInfrastructurePage locale={locale} t={t} />}
             {view === "dashboard" && <DashboardPage health={health} healthError={healthError} servers={servers} serversLoaded={serversLoaded} serversError={serversError} tools={tools} principalId={user.id} globalRefreshId={dashboardRefreshId} operationsAllowed={can("operations.manage")} canReadAudit={can("audit.read")} canReadTools={can("tools.read")} toolsLoaded={toolsLoaded} toolsError={toolsError} t={t} />}
             {view === "configs" && <ConfigsPage canManageHttpTrust={canManageHttpTrust} locale={locale} t={t} configs={configs} configErrors={configErrors} selectedConfigId={selectedConfigId} configText={configText} busy={busy} editorOpen={configEditorOpen} onCloseEditor={() => { if (!busy) { setConfigEditorOpen(false); setConfigText(prettyJson(createMcpConfigTemplate())) } }} onNewConfig={newConfig} onReloadConfigs={reloadConfigs} onEditConfig={editConfig} onApplyConfig={applyConfig} onDeleteConfig={deleteConfig} onConfigTextChange={setConfigText} onSaveConfig={saveConfig} />}
-            {view === "servers" && <ServersPage canManageHttpTrust={canManageHttpTrust} initialServerId={routeServerId} locale={locale} t={t} servers={servers} loadErrors={loadErrors} busy={busy} visibleTools={toolsLoaded ? tools : null} toolsError={toolsError} canReadTools={can("tools.read")} canManageClassifications={can("classifications.manage")} onServerAction={serverAction} onRefresh={refreshCurrentPage} onNewConfig={newConfig} onNavigate={navigate} onInvoke={async toolId => { if (await navigate("invoke")) setSelectedToolId(toolId) }} />}
+            {view === "servers" && <ServersPage canManageGroups={canManageHttpTrust} canWriteGroups={canManageHttpTrust && can("tools.invoke")} canManageHttpTrust={canManageHttpTrust} initialServerId={routeServerId} locale={locale} t={t} servers={servers} loadErrors={loadErrors} busy={busy} visibleTools={toolsLoaded ? tools : null} toolsError={toolsError} canReadTools={can("tools.read")} canManageClassifications={can("classifications.manage")} onServerAction={serverAction} onRefresh={refreshCurrentPage} onNewConfig={newConfig} onNavigate={navigate} onInvoke={async toolId => { if (await navigate("invoke")) setSelectedToolId(toolId) }} />}
             {view === "builds" && <BuildsPage t={t} initialBuildId={routeBuildId} />}
             {view === "credentials" && <CredentialsPage locale={locale} t={t} />}
             {view === "accessUsers" && <AccessUsersPage locale={locale} t={t} />}

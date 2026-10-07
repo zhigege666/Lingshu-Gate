@@ -70,6 +70,9 @@ class AuthPrincipal:
     oauth_token_expires_at: int = 0
     oauth_target_revision: int = 0
     oauth_tool_snapshots: tuple[tuple[str, str], ...] = ()
+    oauth_subject: str | None = None
+    oauth_audiences: tuple[str, ...] = ()
+    oauth_jwks_uri: str | None = None
 
 
 def utc_now() -> datetime:
@@ -81,6 +84,10 @@ def iso_now() -> str:
 
 
 def hash_secret(value: str) -> str:
+    """Stable lookup/binding digest for random tokens and protocol metadata.
+
+    Human passwords must use hash_password's salted PBKDF2 path instead.
+    """
     return hashlib.sha256(value.encode("utf-8")).hexdigest()
 
 
@@ -790,7 +797,9 @@ class AuthStore:
             external_grant_id=grant["id"], external_server_ids=tuple(grant["server_allowlist"]),
             external_tool_ids=tuple(grant["tool_allowlist"]), external_access=access,
             external_expires_at=min(identity.expires_at, datetime.fromisoformat(grant["expires_at"])).isoformat(),
-            external_rate_per_minute=int(grant["rate_per_minute"]), external_concurrency=int(grant["concurrency"]))
+            external_rate_per_minute=int(grant["rate_per_minute"]), external_concurrency=int(grant["concurrency"]),
+            oauth_issuer=identity.issuer, oauth_subject=identity.subject, oauth_client_id=identity.client_id,
+            oauth_audiences=identity.audiences, oauth_resource=identity.canonical_resource, oauth_jwks_uri=identity.jwks_uri)
         return self._enforce_password_change(principal, request)
 
     def authenticate_request(self, request: Request) -> AuthPrincipal:

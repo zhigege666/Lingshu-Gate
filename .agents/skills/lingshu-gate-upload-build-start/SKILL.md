@@ -35,6 +35,10 @@ A URL alone does not authorize contacting it. Default external precheck is offli
 
 ## Workflow
 
+### On-demand discovery compatibility
+
+客户端连接 `/mcp?tool_mode=on_demand` 时，`tools/list` 固定列出 `gate_catalog_search`、`gate_tool_describe`、`gate_tool_invoke`、`gate_instance_list` 及 `gate_instance_session_open`/`gate_instance_session_close`。先按原交付工具 ID 搜索，选择有权 `tool_ref`，describe 完整 schema，再通过 `gate_tool_invoke` 的独立封装传回 `tool_ref`、准确 `schema_revision`、可选实际 `instance_id` 和原 `arguments`。本 Skill 的所有 `confirmed=true`、摘要、幂等键、来源审查、凭据及分类边界仍放在原 arguments 中并逐项保留。按需发现不授权、不发布、不重试未知结果的写操作；版本或游标过期先重新搜索/描述。使用 [按需工具指南](../../../docs/on-demand-tools.md) 和 [MCP contract](references/mcp-contract.md) 核对入口及原工具字段。
+
 ### 1. Prepare locally
 
 1. Confirm the project root and its trust source.

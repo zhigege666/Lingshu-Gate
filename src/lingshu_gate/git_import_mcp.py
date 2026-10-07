@@ -14,7 +14,7 @@ from pydantic import Field
 
 from lingshu_gate.build_deploy import LocalExecutionBlocked
 from lingshu_gate.application.delivery_drafts import DeliveryDraftRequest
-from lingshu_gate.git_source import COMMIT_RE, GIT_ENVIRONMENT_POLICY, GIT_POLICY, GitSourceInput, digest_json, repository_rule, snapshot_inventory
+from lingshu_gate.git_source import COMMIT_RE, GIT_ENVIRONMENT_POLICY, GIT_POLICY, GitSourceInput, digest_json, repository_rule, snapshot_inventory, network_secret_values
 from lingshu_gate.network_settings import PROFILE_ID, NetworkSelection, NetworkSettingsStore, StrictModel, now, require_network_permission
 from lingshu_gate.ports.safe_network_executor import TEST_TARGETS, SafeExecutionCancelled, SafeNetworkExecutor, require_proxy_support, require_safe_executor
 from lingshu_gate.project_delivery_mcp import IDEMPOTENCY_PATTERN, ProjectDeliveryMcpService, _definition, _parse_input
@@ -109,6 +109,8 @@ class GitImportService:
         material = self._material(base)
         try:
             sha = executor.resolve_commit(base, material=material, timeout_seconds=15)
+        except ToolExecutionError:
+            raise
         except Exception:
             raise ToolExecutionError("git_resolution_failed", "Commit resolution failed in the execution environment", next_action="Inspect executor status and repository access; do not reuse an unconfirmed moving ref.") from None
         finally:
@@ -206,7 +208,9 @@ class GitImportService:
                 raise _ImportCancelled
             self._progress(import_id, "fetch", "running")
             material = self._material(plan)
-            content = executor.export_snapshot(plan, material=material, cancel=cancel)
+            identity = self.database.query_one("SELECT actor_id FROM git_imports WHERE id=?", (import_id,))
+            execution = {"import_id": import_id, "actor_id": identity["actor_id"] if identity else "", "plan_digest": digest_json(plan)}
+            content = executor.export_snapshot({**plan, "execution": execution}, material=material, cancel=cancel)
             if cancel.is_set():
                 raise _ImportCancelled
             self._progress(import_id, "validate", "running")
@@ -214,7 +218,7 @@ class GitImportService:
             scan_material = self.network.execution_material(plan["network"], "install")
             for prefix in ("npm", "python"):
                 scan_material[prefix] = self.network.credentials.resolve_value(plan["network"].get(f"{prefix}_credential_ref"))
-            file_digest, inventory = snapshot_inventory(content, plan["source"]["project_root"], forbidden_values=[value for value in [*material.values(), *scan_material.values()] if isinstance(value, str)])
+            file_digest, inventory = snapshot_inventory(content, plan["source"]["project_root"], forbidden_values=network_secret_values(material) + network_secret_values(scan_material))
             if cancel.is_set():
                 raise _ImportCancelled
             # Publication/cancellation are serialized: never commit a cancelled snapshot.
@@ -248,6 +252,8 @@ class GitImportService:
             status, error = "interrupted", "operation_interrupted"
         except TimeoutError:
             error = "git_import_timeout"
+        except ToolExecutionError as exc:
+            error = exc.code
         except Exception:
             # Executor exceptions/output can contain credentials. Persist stable code only.
             error = "git_snapshot_rejected" if phase == "validate" else "git_import_failed"

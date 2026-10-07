@@ -1,0 +1,146 @@
+{
+  "source_sha": "f51d1b18d7475034b61567be00ef999128918e83",
+  "python": "3.12.14",
+  "platform": "Linux-6.18.44-x86_64-with-glibc2.41",
+  "wheel_name": "lingshu_gate-0.4.4-py3-none-any.whl",
+  "wheel_sha256": "cd3dccc53dcc2c4b7b054e1df739b75c224d4e5e2830621ce2aeefcab974baa2",
+  "wheel_bytes": 1708929,
+  "native_binary_sha256": "0e4a70e16c6c4a6c55c1035e4e4e3131010e8689c107fc98792386e61600acaa",
+  "native_binary_bytes": 10582536,
+  "installed_worker_sha256": "933bc0858f4f8059821e9da0bf92d3fe47a354662237b9493d7db005705b79e0",
+  "source_checkout_on_parent_import_path": false,
+  "service_settings_bypassed": true,
+  "parent_validator_source": "installed wheel in isolated venv (never source checkout)",
+  "native_parent_probe": "frozen command branch exercised by installed-wheel parent; real PyInstaller workers",
+  "modes": {
+    "installed_wheel": {
+      "parent_module_from_installed_wheel": true,
+      "children": 5,
+      "all_children_reaped": true,
+      "command_shape": [
+        "isolated_venv_python",
+        "-m",
+        "lingshu_gate.application.schema_validation",
+        "--worker"
+      ],
+      "cases": [
+        {
+          "case": "valid",
+          "code": null,
+          "elapsed_ms": 554.01
+        },
+        {
+          "case": "invalid_type",
+          "code": "catalog_arguments_invalid",
+          "elapsed_ms": 309.449
+        },
+        {
+          "case": "regex_deadline",
+          "code": "catalog_validation_timeout",
+          "elapsed_ms": 904.783
+        },
+        {
+          "case": "reuse_after_timeout",
+          "code": null,
+          "elapsed_ms": 334.858
+        },
+        {
+          "case": "512k_binary_chunk_envelope",
+          "code": null,
+          "elapsed_ms": 643.191
+        }
+      ]
+    },
+    "actual_native_worker": {
+      "parent_module_from_installed_wheel": true,
+      "children": 5,
+      "all_children_reaped": true,
+      "command_shape": [
+        "native_executable",
+        "--gate-schema-validation-worker"
+      ],
+      "cases": [
+        {
+          "case": "valid",
+          "code": null,
+          "elapsed_ms": 973.139
+        },
+        {
+          "case": "invalid_type",
+          "code": "catalog_arguments_invalid",
+          "elapsed_ms": 761.984
+        },
+        {
+          "case": "regex_deadline",
+          "code": "catalog_validation_timeout",
+          "elapsed_ms": 903.231
+        },
+        {
+          "case": "reuse_after_timeout",
+          "code": null,
+          "elapsed_ms": 537.455
+        },
+        {
+          "case": "512k_binary_chunk_envelope",
+          "code": null,
+          "elapsed_ms": 1915.202
+        }
+      ]
+    }
+  },
+  "direct_native_entry": [
+    {
+      "case": "valid",
+      "returncode": 0,
+      "stdout": "valid",
+      "stderr_empty": true
+    },
+    {
+      "case": "invalid_type",
+      "returncode": 1,
+      "stdout": "",
+      "stderr_empty": true
+    }
+  ],
+  "scope": "Linux x86_64 isolated synthetic CLI/API and schema worker startup/IPC/deadline/reaping; no real downstream, release archive/SBOM, production deployment or other OS verification",
+  "native_bundle_files": 203,
+  "native_bundle_bytes": 88839189,
+  "native_bundle_manifest_sha256": "21c442e616a04e34ae735b2ee2c6f190e1d422bb83f36feb472c72062cd9a2e1",
+  "locked_runtime_requirements_sha256": "9b9442ad0ca5b6cf38a013bf2332e91a51307a3ee387a5884a271e3be74d076f",
+  "actual_packaged_parent_dispatch": {
+    "wheel_cli_parent": {
+      "actual_parent_executable": true,
+      "read_only_tool": "gate_system_debug",
+      "valid_invoke": true,
+      "invalid_type_code": "catalog_arguments_invalid",
+      "audit_outcomes": [
+        "success",
+        "not_invoked"
+      ],
+      "downstream_configured": false,
+      "synthetic_local_identity_only": true,
+      "parent_reaped": true
+    },
+    "frozen_native_parent": {
+      "actual_parent_executable": true,
+      "read_only_tool": "gate_system_debug",
+      "valid_invoke": true,
+      "invalid_type_code": "catalog_arguments_invalid",
+      "audit_outcomes": [
+        "success",
+        "not_invoked"
+      ],
+      "downstream_configured": false,
+      "synthetic_local_identity_only": true,
+      "parent_reaped": true
+    }
+  },
+  "source_hashes": {
+    "src/lingshu_gate/application/schema_validation.py": "933bc0858f4f8059821e9da0bf92d3fe47a354662237b9493d7db005705b79e0",
+    "src/lingshu_gate/cli.py": "fd2162cfa2eddf5d73a39c54043a961a6c3c213122effddc468346b8c7bb47a6",
+    "packaging/lingshu-gate.spec": "7916b20ac30aa646dd69d545a6a1e12de96f12849eee8ca33e8377eaacd51f86",
+    "src/lingshu_gate/tool_catalog.py": "7e68d97dcdc5540b3dc47d792a4e950df5ed19559114a3df2e70ae9d85f8d05f"
+  },
+  "driver_uses_only_local_http_and_synthetic_accounts": true,
+  "earlier_probe_fixture_note": "Initial local HTTP driver used runtime-only venv lacking the dev HTTP client; driver moved to the dev interpreter. Both actual artifact parents stayed isolated; no product change."
+}

@@ -1,10 +1,16 @@
 export type OAuthTool = { id: string; name: string; server_id: string; server_name?: string | null; access: "read" | "write"; snapshot: string; currently_authorized?: boolean }
 export type OAuthClient = { id: string; name: string; redirect_uris: string[]; scopes: string[]; resources?: string[]; enabled: boolean; revision: number; created_at: number }
 export type OAuthConfig = { enabled: boolean; issuer: string; resource: string; revision: number; metadata_url: string; authorization_endpoint: string; token_endpoint: string; jwks_uri: string; signing_keys: { kid: string; active: boolean; retire_at: number | null }[] }
-export type OAuthGrant = { id: string; client_id: string; client_name: string; resource: string; resource_kind?: "business" | "management"; management_targets?: Record<string, string[]>; target_revision?: number; scopes: string[]; tools: OAuthTool[]; state: string; created_at?: number; expires_at: number; rate_per_minute: number; concurrency: number; revision: number; scope_currently_authorized: boolean; effective_tool_count: number }
+export type OAuthGrant = { id: string; client_id: string; client_name: string; resource: string; resource_kind?: "business" | "management"; management_targets?: Record<string, string[]>; target_revision?: number; scopes: string[]; tools: OAuthTool[]; state: string; created_at?: number; expires_at: number; rate_per_minute: number; concurrency: number; revision: number; scope_currently_authorized: boolean; effective_tool_count: number; scope_catalog_mode?: "paged" | "legacy" }
 export type ScopeSnapshot = Pick<OAuthTool, "id" | "server_id" | "access" | "snapshot"> & Partial<Pick<OAuthTool, "name" | "server_name">>
-export type OAuthScopeOptions = { csrf: string; expires_at: number; grant_revision: number; scopes: string[]; effective_scopes: string[]; family_scope_limits: { scopes: string[]; count: number }[]; tools: OAuthTool[] }
-export type OAuthScopePreview = { confirmation: string; confirmation_expires_at: number; expires_at: number; tool_ids: string[]; added: string[]; removed: string[]; previous_tools: ScopeSnapshot[]; tools: OAuthTool[]; rate_per_minute: number; concurrency: number }
+export type OAuthScopeUnavailableServer = { server_id: string; server_name: string | null; reasons: { code: "classification_not_published" | "classification_unavailable" | "grant_scope_ceiling" | "client_scope_ceiling"; count: number }[] }
+export type OAuthScopeOptions = { csrf: string; expires_at: number; grant_revision: number; scopes: string[]; effective_scopes: string[]; family_scope_limits: { scopes: string[]; count: number }[]; tools: OAuthTool[]; unavailable_servers?: OAuthScopeUnavailableServer[]; can_review_classifications?: boolean }
+export type OAuthDifferenceSummary = { added: number; removed: number; added_write: number; removed_write: number; write: number }
+export type OAuthScopeCounts = { tools: number; read: number; write: number; mcps: number }
+export type OAuthScopeGroup = { server_id: string; server_name: string | null; tool_count: number; read_count: number; write_count: number }
+export type OAuthScopeCatalog = Omit<OAuthScopeOptions, "tools"> & { complete: false; view: "tools" | "groups" | "unavailable"; catalog_revision: string; items: (OAuthTool | OAuthScopeGroup | OAuthScopeUnavailableServer)[]; next_cursor: string | null; matching_counts: OAuthScopeCounts; catalog_counts: OAuthScopeCounts; unavailable_counts: OAuthScopeCounts; selection_limits: { tools: number; mcps: number } }
+export type OAuthScopeSelection = { catalog_revision: string; tool_ids: string[]; available_ids: string[]; unavailable_ids: string[]; tools: OAuthTool[]; selected_counts: OAuthScopeCounts; group_selected_counts: { server_id: string; selected_count: number }[]; difference_summary: OAuthDifferenceSummary }
+export type OAuthScopePreview = { confirmation: string; confirmation_expires_at: number; expires_at: number; tool_ids: string[]; added: string[]; removed: string[]; previous_tools: ScopeSnapshot[]; tools: OAuthTool[]; rate_per_minute: number; concurrency: number; difference_summary?: OAuthDifferenceSummary }
 export type ConsentContext = { csrf: string; completed: boolean; phase: "preauth" | "authenticated" | "completed"; expires_at: number; client: { id: string; name: string }; resource: string; resource_kind?: "business" | "management"; scopes: string[]; user: { id: string; username: string; display_name: string } | null; tools: OAuthTool[]; max_grant_days: number; access_seconds: number; refresh_days: number }
 export type OAuthManagementConfig = { enabled: boolean; active: boolean; revision: number; resource: string }
 export type ManagementTargetOptions = { csrf: string; expires_at: number; expected_revision: number; expected_target_revision: number; targets: Record<string, string[]>; scopes: string[]; tool_ids: string[] }
@@ -29,6 +35,12 @@ export async function oauthRequest<T>(path: string, body?: unknown, method = "PO
   } finally { window.clearTimeout(timeout) }
 }
 const errors: Record<string, [string, string]> = {
+  scope_selection_tool_limit: ["此次选择超过 5000 工具上限，草稿已保留。请搜索工具或选择较少的 MCP。", "This selection exceeds 5,000 tools. Your draft is retained; search for tools or choose fewer MCPs."],
+  server_scope_limit: ["此次选择超过 100 MCP 上限，草稿已保留。请选择较少的 MCP。", "This selection exceeds 100 MCPs. Your draft is retained; choose fewer MCPs."],
+  scope_catalog_unavailable: ["可授权目录暂不可用，草稿已保留；请稍后刷新。", "The available catalog is temporarily unavailable. Your draft is retained; refresh later."],
+  scope_catalog_cursor_invalid: ["分页条件已变化，请刷新可授权范围后继续；草稿已保留。", "The page conditions changed. Refresh available scope to continue; your draft is retained."],
+  scope_catalog_query_invalid: ["请输入工具名称或 ID，最多八个关键词。", "Enter a tool name or ID using at most eight keywords."],
+  scope_catalog_output_limit: ["本页摘要超过响应预算，请缩小页大小；草稿已保留。", "This summary exceeds the response budget. Use a smaller page; your draft is retained."],
   oauth_management_disabled: ["管理员尚未启用独立的管理 OAuth 资源。", "The separate management OAuth resource has not been enabled."],
   management_admin_required: ["管理连接需要当前有效的管理员身份和 operations.manage 权限。", "A management connection requires a currently active administrator with operations.manage permission."],
   invalid_management_targets: ["逐项填写精确服务 ID 和创建/更新操作；不支持重复 ID、通配符或其他操作。", "Enter exact server IDs and create/update actions. Duplicate IDs, wildcards and other actions are unsupported."],

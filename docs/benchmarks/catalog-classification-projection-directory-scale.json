@@ -1,0 +1,158 @@
+{
+  "baseline_sha": "7d145c28a94a00a6c5d6f4f7d4fc38c0e6153436",
+  "production_sha": "93d70525e848a571c429ef80e77f5513640bceb4",
+  "scale_test_sha256": "5332bc0cb80787113b01b6a34d972eab26e88b0775aa369fd5c97308921d6a39",
+  "scale_test_unchanged_from_baseline": true,
+  "each_case_in_separate_pytest_process": true,
+  "all_original_samples_and_thresholds_preserved": true,
+  "cases": [
+    {
+      "case": "five_groups",
+      "source_sha": "93d70525e848a571c429ef80e77f5513640bceb4",
+      "nodeid": "tests/test_mcp_group_catalog_scale.py::test_full_directory_5000_instances_50000_tools[five_groups]",
+      "command": "uv run --frozen pytest -q -s tests/test_mcp_group_catalog_scale.py::test_full_directory_5000_instances_50000_tools[five_groups]",
+      "passed": 1,
+      "failures": 0,
+      "skipped": 0,
+      "pytest_duration_seconds": 42.35,
+      "log_sha256": "068aeaf4f2c0f9fde23bc3c3ab885ba9e99d0c8b0283b93f19dafe207f2a1688",
+      "metrics": {
+        "instances": 5000,
+        "registry_tools": 50000,
+        "groups": 5,
+        "over_cache_bytes": false,
+        "retained_after_cold": 50000,
+        "estimated_full_working_set_charged_bytes": 58700003,
+        "members_per_group": 1000,
+        "tools_per_request": 10000,
+        "cold_samples": 5,
+        "cold_p95_ms": 1535.286,
+        "hot_samples": 10,
+        "hot_p95_ms": 823.255,
+        "catalog_page_samples": 10,
+        "catalog_page_p95_ms": 840.527,
+        "member_page_samples": 10,
+        "member_page_p95_ms": 811.377,
+        "cold_structure_counts": {
+          "fingerprints": 50000,
+          "normalizations": 50000,
+          "canonical_serializations": 150000
+        },
+        "warm_and_paged_additional_structure_counts": {
+          "fingerprints": 0,
+          "normalizations": 0,
+          "canonical_serializations": 0
+        },
+        "warm_initial_miss_min": 0,
+        "warm_initial_miss_max": 0,
+        "alternating_group_initial_misses": [],
+        "writer_additional_preparations": 1,
+        "config_writer_lock_wait_ms": 0.007,
+        "cache_entries": 50000,
+        "cache_charged_bytes": 58700003,
+        "process_peak_rss_kib": 820392
+      }
+    },
+    {
+      "case": "maximum_single_group",
+      "source_sha": "64140292520667b12aa39bbb9f0119737fc89ca0",
+      "nodeid": "tests/test_mcp_group_catalog_scale.py::test_full_directory_5000_instances_50000_tools[maximum_single_group]",
+      "command": "uv run --frozen pytest -q -s tests/test_mcp_group_catalog_scale.py::test_full_directory_5000_instances_50000_tools[maximum_single_group]",
+      "passed": 1,
+      "failures": 0,
+      "skipped": 0,
+      "pytest_duration_seconds": 122.44,
+      "log_sha256": "5299e31d3d92340392c98fac38cf5123b48accf5cd19c610e41b946bd8c411df",
+      "metrics": {
+        "instances": 5000,
+        "registry_tools": 50000,
+        "groups": 1,
+        "over_cache_bytes": false,
+        "retained_after_cold": 50000,
+        "estimated_full_working_set_charged_bytes": 58700003,
+        "members_per_group": 1000,
+        "tools_per_request": 50000,
+        "cold_samples": 5,
+        "cold_p95_ms": 7465.634,
+        "hot_samples": 10,
+        "hot_p95_ms": 2669.541,
+        "catalog_page_samples": 10,
+        "catalog_page_p95_ms": 2743.274,
+        "member_page_samples": 10,
+        "member_page_p95_ms": 2546.592,
+        "cold_structure_counts": {
+          "fingerprints": 250000,
+          "normalizations": 250000,
+          "canonical_serializations": 750000
+        },
+        "warm_and_paged_additional_structure_counts": {
+          "fingerprints": 0,
+          "normalizations": 0,
+          "canonical_serializations": 0
+        },
+        "warm_initial_miss_min": 0,
+        "warm_initial_miss_max": 0,
+        "alternating_group_initial_misses": [],
+        "writer_additional_preparations": 1,
+        "config_writer_lock_wait_ms": 0.008,
+        "cache_entries": 50000,
+        "cache_charged_bytes": 58700003,
+        "process_peak_rss_kib": 820264
+      }
+    },
+    {
+      "case": "over_cache_bytes",
+      "source_sha": "64140292520667b12aa39bbb9f0119737fc89ca0",
+      "nodeid": "tests/test_mcp_group_catalog_scale.py::test_full_directory_5000_instances_50000_tools[over_cache_bytes]",
+      "command": "uv run --frozen pytest -q -s tests/test_mcp_group_catalog_scale.py::test_full_directory_5000_instances_50000_tools[over_cache_bytes]",
+      "passed": 1,
+      "failures": 0,
+      "skipped": 0,
+      "pytest_duration_seconds": 171.43,
+      "log_sha256": "48f0697285af3bb2fb5dd32bb2a10bea86cb91f47a29ff201d0b6064411453cf",
+      "metrics": {
+        "instances": 5000,
+        "registry_tools": 50000,
+        "groups": 1,
+        "over_cache_bytes": true,
+        "retained_after_cold": 42259,
+        "estimated_full_working_set_charged_bytes": 79400000,
+        "members_per_group": 1000,
+        "tools_per_request": 50000,
+        "cold_samples": 5,
+        "cold_p95_ms": 11243.867,
+        "hot_samples": 10,
+        "hot_p95_ms": 3250.854,
+        "catalog_page_samples": 10,
+        "catalog_page_p95_ms": 2936.641,
+        "member_page_samples": 10,
+        "member_page_p95_ms": 3296.626,
+        "cold_structure_counts": {
+          "fingerprints": 250000,
+          "normalizations": 250000,
+          "canonical_serializations": 750000
+        },
+        "warm_and_paged_additional_structure_counts": {
+          "fingerprints": 232230,
+          "normalizations": 232230,
+          "canonical_serializations": 696690
+        },
+        "warm_initial_miss_min": 7741,
+        "warm_initial_miss_max": 7741,
+        "alternating_group_initial_misses": [
+          7741,
+          7741,
+          7741,
+          7741
+        ],
+        "writer_additional_preparations": 15483,
+        "config_writer_lock_wait_ms": 0.01,
+        "cache_entries": 42259,
+        "cache_charged_bytes": 67107295,
+        "process_peak_rss_kib": 820088
+      }
+    }
+  ],
+  "scope": "Post-change synthetic full HTTP directory cases, all original cold/warm/pagination/concurrent-writer/over-cache assertions retained. No same-host whole-HTTP pre-change comparator.",
+  "memory_note": "process_peak_rss_kib is the per-process cumulative ru_maxrss including fixture and all requests; not a per-request peak and not cgroup MemoryCurrent. This environment has a 16 GiB cgroup limit; no claim to solve nx5 3 GiB OOM or establish a leak."
+}

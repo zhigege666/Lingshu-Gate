@@ -1,0 +1,130 @@
+{
+  "provenance": "Final nx5 results and evidence SHA-256 values supplied by the delegating root; not independently executed, fetched or verified in this cloud documentation update",
+  "source_sha": "be30faf1c293c64dc90a160150ad182f7a4177a9",
+  "deployed_source_sha": "be30faf1c293c64dc90a160150ad182f7a4177a9",
+  "documentation_checkpoint_sha": "9154d15cfe0a24875b0808418d5a8ea0b03fcd1e",
+  "runtime_code_matches_documentation_checkpoint": true,
+  "branch": "test/gate-nx5-followup-integration-20261006",
+  "environment": {
+    "host_label": "nx5",
+    "python": "CPython 3.14.4",
+    "pytest_execution": "single process",
+    "MemoryMax": "3GiB",
+    "CPU": "200%",
+    "temporary_storage": "run-owned disk directory on the host /srv mount; concrete host paths omitted",
+    "temporary_controls": [
+      "TMPDIR",
+      "pytest --basetemp"
+    ]
+  },
+  "full_backend": {
+    "completed": true,
+    "passed": 2201,
+    "skipped": 4,
+    "failed": 0,
+    "warnings": 5,
+    "reported_seconds": 2632.83,
+    "skipped_test_file": "tests/test_native_executor_host_acceptance.py",
+    "skip_requirements": [
+      "rootless Podman",
+      "image",
+      "tmpfs"
+    ],
+    "host_security_configuration_authorized": false,
+    "podman_host_acceptance_executed": false
+  },
+  "frontend": {
+    "check": "passed",
+    "unit_passed": 441,
+    "official_console_build": "passed",
+    "official_public_oauth_build": "passed"
+  },
+  "post_build_backend": {
+    "test_files": [
+      "tests/test_builtin_oauth.py",
+      "tests/test_release_packaging.py",
+      "tests/test_startup_smoke.py"
+    ],
+    "passed": 184,
+    "overlaps_full_backend": true,
+    "add_to_full_backend_total": false
+  },
+  "real_nx5_browser": {
+    "pages": 22,
+    "viewport_sizes": 4,
+    "checks_passed": 88,
+    "scope": [
+      "login",
+      "navigation",
+      "no horizontal overflow"
+    ],
+    "all_business_flows_accepted": false,
+    "infrastructure_http_status": {
+      "config": 200,
+      "clients": 200,
+      "management_config": 200
+    },
+    "connection_guide": {
+      "opens": true,
+      "escape_closes": true,
+      "focus_returns_to_trigger": true
+    }
+  },
+  "oauth_acceptance_boundary": {
+    "test_environment_oauth_enabled": false,
+    "test_environment_client_count": 0,
+    "real_chatgpt_authorization_accepted": false
+  },
+  "historical_runs_preserved": {
+    "source_sha": "7bc834e38f7b737bca1c660b92de2d3b6f60acd3",
+    "tmpfs": {
+      "outcome": "OOM-killed after approximately 81 percent at D01",
+      "completed": false,
+      "accepted_as_passed": false,
+      "temporary_file_shmem_reported": "1.53GB",
+      "python_anonymous_memory_reported": "1.55GB"
+    },
+    "old_disk_run": {
+      "missing_static_precondition_failures_reported": 11,
+      "earlier_consent_subset_failures_reported": 9,
+      "accepted_as_passed": false
+    },
+    "final_source_build_preconditions_completed": true,
+    "final_source_disk_retest_completed": true,
+    "test_assertions_and_system_safety_settings_unchanged": true,
+    "product_memory_leak_fix_established": false,
+    "earlier_checkpoint_evidence": "gate-nx5-followup-integration-d8b1ee0.json"
+  },
+  "root_retained_evidence": {
+    "sha256_provenance": "Supplied by the delegating root; raw logs were not fetched or independently hash-verified here",
+    "acceptance_receipt_saved": true,
+    "final_run_log_sha256": "634bfe4d16d67c8a79e75a43f7fa511f45b3f1cc965fe5f3914f6875debafd2a",
+    "final_results_xml_sha256": "06a02b46eb1479ca80ebcfe5af512b25d4892d3c928ea461eac13c71a5c7f94d",
+    "build_log_sha256": "608e90e9009dee4e3c74c6a690e692fa4e56ffe1750f5cbc907383e2ad4435a7",
+    "navigation_log_sha256": "36ee451b075cb890021db58f547d604443de020f7a820ddd3b0310f1c7353c6f",
+    "raw_logs_fetched_here": false,
+    "raw_log_hashes_independently_verified_here": false
+  },
+  "root_post_run_cleanup": {
+    "provenance": "Delegating root report; not performed or independently inspected in this cloud workspace",
+    "removed": "this run's disk temporary databases and dependency caches",
+    "removed_usage_reported": "approximately 3.15GB",
+    "retained": [
+      "all source",
+      "deployment",
+      "necessary logs",
+      "screenshots",
+      "JUnit"
+    ],
+    "test_chrome_process_count_reported": 0,
+    "gate_test_service_state_reported": "active"
+  },
+  "documentation_update_scope": {
+    "documentation_only": true,
+    "product_or_test_changes": false,
+    "tests_rerun_here": false,
+    "raw_nx5_logs_downloaded": false,
+    "new_wheel_sdist_or_native_built": false,
+    "main_tag_release_or_ssh_action": false
+  }
+}

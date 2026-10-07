@@ -1,0 +1,145 @@
+{
+  "source_checkout_on_import_path": false,
+  "parent_module": "installed-wheel-env/lingshu_gate/application/schema_validation.py",
+  "native_module_imports": {
+    "pending": "installed-wheel-env/lingshu_gate/adapters/native_executor/pending.py",
+    "https": "installed-wheel-env/lingshu_gate/adapters/native_executor/https.py",
+    "journal": "installed-wheel-env/lingshu_gate/adapters/native_executor/journal.py",
+    "controller": "installed-wheel-env/lingshu_gate/adapters/native_executor/controller.py",
+    "packages": "installed-wheel-env/lingshu_gate/adapters/native_executor/packages.py",
+    "executor": "installed-wheel-env/lingshu_gate/adapters/native_executor/executor.py"
+  },
+  "service_settings_bypassed": true,
+  "modes": {
+    "installed_wheel": {
+      "cases": [
+        {
+          "case": "valid",
+          "code": null,
+          "elapsed_ms": 201.37
+        },
+        {
+          "case": "invalid_type",
+          "code": "catalog_arguments_invalid",
+          "elapsed_ms": 202.085
+        },
+        {
+          "case": "regex_deadline",
+          "code": "catalog_validation_timeout",
+          "elapsed_ms": 901.404
+        },
+        {
+          "case": "reuse_after_timeout",
+          "code": null,
+          "elapsed_ms": 208.471
+        },
+        {
+          "case": "512k_chunk",
+          "code": null,
+          "elapsed_ms": 259.313
+        },
+        {
+          "case": "cancel_during_worker",
+          "code": "catalog_validation_cancelled",
+          "elapsed_ms": 359.582
+        },
+        {
+          "case": "reuse_after_cancel",
+          "code": null,
+          "elapsed_ms": 254.498
+        }
+      ],
+      "children": 7,
+      "all_children_reaped": true,
+      "command": [
+        "installed-wheel-env/bin/python",
+        "-m",
+        "lingshu_gate.application.schema_validation",
+        "--worker"
+      ]
+    },
+    "actual_native_worker": {
+      "cases": [
+        {
+          "case": "valid",
+          "code": null,
+          "elapsed_ms": 367.087
+        },
+        {
+          "case": "invalid_type",
+          "code": "catalog_arguments_invalid",
+          "elapsed_ms": 409.183
+        },
+        {
+          "case": "regex_deadline",
+          "code": "catalog_validation_timeout",
+          "elapsed_ms": 901.707
+        },
+        {
+          "case": "reuse_after_timeout",
+          "code": null,
+          "elapsed_ms": 433.27
+        },
+        {
+          "case": "512k_chunk",
+          "code": null,
+          "elapsed_ms": 424.385
+        },
+        {
+          "case": "cancel_during_worker",
+          "code": "catalog_validation_cancelled",
+          "elapsed_ms": 357.43
+        },
+        {
+          "case": "reuse_after_cancel",
+          "code": null,
+          "elapsed_ms": 360.716
+        }
+      ],
+      "children": 7,
+      "all_children_reaped": true,
+      "command": [
+        "extracted-linux-native/lingshu-gate",
+        "--gate-schema-validation-worker"
+      ]
+    }
+  },
+  "direct_worker_entry_probes": {
+    "installed_wheel": [
+      {
+        "returncode": 0,
+        "stdout": "valid",
+        "service_settings_bypassed": true,
+        "process_reaped": true
+      },
+      {
+        "returncode": 1,
+        "stdout": "",
+        "service_settings_bypassed": true,
+        "process_reaped": true
+      }
+    ],
+    "extracted_native": [
+      {
+        "returncode": 0,
+        "stdout": "valid",
+        "service_settings_bypassed": true,
+        "process_reaped": true
+      },
+      {
+        "returncode": 1,
+        "stdout": "",
+        "service_settings_bypassed": true,
+        "process_reaped": true
+      }
+    ]
+  },
+  "total_validation_children": 14,
+  "all_children_reaped": true,
+  "scope": "Installed-wheel parent outside checkout; real wheel and frozen native worker IPC, deadlines, cancellation, slot reuse and direct CLI flags. Synthetic local data only.",
+  "source_sha": "a186c9ad5de44e98f39552c0bca09a8c0dabd97c",
+  "production_source_sha": "a3b57f708ae3d848382e46ee9c9b85ccae8e5722",
+  "wheel_sha256": "696bde45fccca195560fbe200df53378f7dc2bd3e7886a59dfab01c6d78b5fb0",
+  "native_sha256": "995c36b64409d17060d87acf63de43017dfd59a8f7af08ef877e600d20df759b",
+  "runner_sha256": "86507d0709293f1ce5e8e9caf35f77af8d8dd2a70f0cd801e76609fd6d17115b"
+}

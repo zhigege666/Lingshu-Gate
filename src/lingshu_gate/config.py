@@ -12,6 +12,7 @@ from types import MappingProxyType
 
 from lingshu_gate import __version__
 from lingshu_gate.external_connection import ExternalConnectionConfig
+from lingshu_gate.native_executor_config import NativeExecutorConfig
 
 
 def _platform_paths() -> tuple[Path, Path, Path]:
@@ -75,6 +76,7 @@ class Settings:
     retention_worker_enabled: bool = False
     retention_interval_seconds: int = 3600
     docker_bin: str = "docker"
+    native_executor: NativeExecutorConfig = field(default_factory=NativeExecutorConfig)
     external_connection: ExternalConnectionConfig = field(default_factory=ExternalConnectionConfig)
 
     def __post_init__(self) -> None:
@@ -165,4 +167,5 @@ class Settings:
             ).lower()
             in {"1", "true", "yes", "on"},
             docker_bin=os.getenv("LINGSHU_GATE_DOCKER_BIN", cls.docker_bin),
+            native_executor=NativeExecutorConfig.parse(json.loads(os.getenv("LINGSHU_GATE_NATIVE_EXECUTOR", "{}"))),
         )

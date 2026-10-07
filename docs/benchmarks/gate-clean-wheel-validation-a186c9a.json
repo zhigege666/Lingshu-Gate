@@ -1,0 +1,115 @@
+{
+  "tested_working_tree_bytes_committed_as": "a186c9ad5de44e98f39552c0bca09a8c0dabd97c",
+  "base_sha": "98d945a37839e6cbd4619245dcee3e66c7ae7ffe",
+  "recovery_input_sha": "3e774c9c6ed5444b67506af84a022520ac5cb687",
+  "branch": "test/gate-clean-wheel-20261006",
+  "version": "0.4.4",
+  "input_reused": {
+    "original_commit": "3e774c9c6ed5444b67506af84a022520ac5cb687",
+    "local_cherry_pick": "9f9bfb270c94a58a947984bdd57eabe5bf124fa4",
+    "files": [
+      "pyproject.toml",
+      "MANIFEST.in",
+      "scripts/release/wheel_build.py",
+      "tests/test_wheel_build.py"
+    ]
+  },
+  "fresh_execution": {
+    "packaging_and_release_tests": {
+      "command": "python -m pytest -q tests/test_wheel_build.py tests/test_release_packaging.py tests/test_auto_release.py tests/test_ci_workflows.py",
+      "passed": 200,
+      "failed": 0,
+      "skipped": 0,
+      "seconds": 25.58,
+      "exit_code": 0,
+      "log": "gate-clean-wheel-validation-a186c9a.log"
+    },
+    "ruff": "passed",
+    "mypy": "passed (158 source files)",
+    "repository_identity": "passed (source, complete reachable history, final wheel and Linux native archive)",
+    "version_check": "passed (0.4.4)",
+    "git_diff_check": "passed",
+    "npm_ci": "passed with frozen web/package-lock.json",
+    "console_and_oauth_build": "passed",
+    "full_repository_consecutive_wheels": "passed (two roots, A then B, second wheel contains no A)",
+    "full_repository_concurrent_wheels": "passed (two simultaneous builds, identical hashes)",
+    "standard_pep517_command": "uv build --offline --force-pep517 --python <CPython3.13.15> --out-dir <private candidates>",
+    "direct_wheel_command": "uv build --offline --force-pep517 --wheel --python <CPython3.13.15> --out-dir <private candidates>",
+    "native_build_command": "python -m scripts.release.build_native --target linux-x86_64 --output-dir <private candidates>",
+    "wheel_static_record_python_payload": "passed (100 static files, 265 RECORD entries, 158 Python source files)",
+    "native_archive_build_info_checksums_glibc": "passed (457 BUILD-INFO entries; maximum glibc 2.35)",
+    "installed_wheel_and_native_worker_and_http_smoke": "passed; all validation, CLI and service processes reaped",
+    "evidence_links_and_json": "passed (paired guides, five JSON files, no runner absolute paths or detected credential patterns)"
+  },
+  "new_regression_scope": [
+    "build/lib leftovers",
+    "default and custom bdist leftovers",
+    "both Console/OAuth roots",
+    "missing/extra/changed files at copy/install/archive stages",
+    "final RECORD file-list/digest/size integrity",
+    "symlinks/ancestors/FIFO/unknown static scope",
+    "build-parent boundary and user-data preservation",
+    "editable before frontend build",
+    "sdist hook and built assets",
+    "source mutation during build",
+    "skip-build rejection",
+    "failed build then retry",
+    "concurrent builds",
+    "atomic output replacement without following a user-data symlink"
+  ],
+  "unchanged_product": {
+    "src_web_tree_matches_a3b57f7": true,
+    "src_web_version_permissions_match_base": true,
+    "uv_lock_and_requirements_versions_unchanged": true,
+    "static_bytes_match_prior_browser_tested_manifest": true
+  },
+  "inherited_execution": {
+    "backend": {
+      "checkpoint_sha": "31b7cca9155d36094250a47bc7f688797b8217a7",
+      "passed": 2126,
+      "skipped": 7,
+      "rerun": false,
+      "evidence": "gate-feature-integration-validation-31b7cca.json"
+    },
+    "frontend": {
+      "checkpoint_sha": "a3b57f708ae3d848382e46ee9c9b85ccae8e5722",
+      "vitest_passed": 439,
+      "browser_passed": 98,
+      "rerun": false,
+      "evidence": "gate-feature-integration-validation-a3b57f7.json"
+    },
+    "docker_compose_config": {
+      "rerun": false,
+      "evidence": "gate-feature-integration-validation-31b7cca.json"
+    }
+  },
+  "preparation_observations": [
+    {
+      "stage": "input tests on restored cloud files",
+      "result": "138 passed, one inherited launcher-mode check failed",
+      "resolution": "Restored two source launchers to their tracked 100755 POSIX mode; no Git mode/blob change. Final 200 passed."
+    },
+    {
+      "stage": "final RECORD size fault injection",
+      "result": "one test initially used size 0 for an already-empty file",
+      "resolution": "Corrected the injected size to actual+1; final 200 passed. No production defect was hidden."
+    },
+    {
+      "stage": "offline isolated dependency installation",
+      "result": "cached wheel existed but annotated-doc resolution metadata was absent",
+      "resolution": "Installed exact frozen requirements with --require-hashes, then installed/reinstalled candidate offline with --no-deps."
+    }
+  ],
+  "requirements_export": {
+    "text_comparison": "inherited comment-only mismatch retained",
+    "detail": "jsonschema via comments add lingshu-gate; requirements, versions and all hashes are identical. No lock/export file changed.",
+    "semantic_sha256": "36e528bf7e2049cfb300c19a0eb7169fd876d664c4373f1f598e394fb4a7e13c"
+  },
+  "remaining_acceptance": [
+    "real nx5/rootless Podman host pending restored root connection and approved safe configuration",
+    "four operator-provisioned rootless Podman cases and three fixed external Playwright opt-ins",
+    "real credentials/providers/clients",
+    "other OS/architectures and full formal release matrix"
+  ],
+  "boundaries": "Saved cloud environment only; no SSH, host provisioning, main merge, tag, release, official 0.4.4 assets or permission changes."
+}

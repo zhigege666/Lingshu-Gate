@@ -2,6 +2,12 @@
 
 ## English — release overview
 
+Development source addition, not part of the published 0.4.4 assets: per-client on-demand tool discovery exposes six bounded MCP discovery/session entries and matching catalog APIs. It uses an incremental SQLite FTS directory, existing permission evaluation and real-target invocation audit, revision/parameter/instance checks and credential revalidation before dispatch. Console offers a local client-mode dialog, and the Delivery Skill preserves its original confirmations and digests through the invoke envelope. Synthetic 5,000-service/50,000-tool regression/benchmark evidence and remaining real-client/session-isolation limits are documented in [on-demand tools](../docs/on-demand-tools.md).
+
+The development integration adds explicit grouped-instance sessions, shared read leases for parallel instances, bounded killable schema validation and deidentified rejection audit. Saved built-in OAuth grants are revalidated against their explicit IDs instead of the owner's entire directory; selection ceilings remain unchanged. Exact copied commits and integration evidence are in [provenance](../docs/on-demand-integration.md). No release assets or tags were published by this source work.
+
+This source integration also preserves equivalent authority-set ordering and rechecks route-session close/expiry after private-client initialization. Changed authority/proof remains rejected, with no complete-group projection at the final dispatch boundary.
+
 0.4.4 adds confirmed external HTTP MCP configuration through REST and four built-in management tools: `gate_mcp_config_plan`, `gate_mcp_config_apply`, `gate_mcp_config_status` and `gate_mcp_config_cancel`. The bundled Delivery Skill selects external HTTP configuration separately from ZIP delivery and the blocked Git execution path.
 
 - Planning is offline by default. An explicit bounded probe requires its own authorization. Apply binds the exact manifest, plan digest, prior configuration digest, action choices and managed credential revisions; plans expire after five minutes and are single use. Operations retain actor ownership, revision CAS, idempotent completion, cancellation, cooperative deadlines and connection ownership checks.
@@ -19,6 +25,12 @@ Real-client management-scope requests and real HTTP peer/deployment acceptance r
 
 ## 简体中文 — 版本概述
 
+开发源码补充，未包含在已发布的 0.4.4 制品中：每客户端按需发现通过六个有界 MCP 发现/会话入口及对应目录 API 提供工具访问，使用 SQLite FTS 增量目录、原权限判定及实际目标调用审计、版本/参数/实例校验和派发前凭据复核。Console 提供本地客户端模式弹窗；Delivery Skill 通过 invoke 封装保留原确认及摘要。5,000 服务/50,000 工具合成回归与基准证据，以及真实客户端/会话隔离的剩余边界，见[按需工具指南](../docs/zh-CN/on-demand-tools.md)。
+
+开发集成另加显式分组实例会话、允许实例并发的共享读租约、有界且可终止的 schema 验证，以及脱敏拒绝审计。内置 OAuth 既有 grant 根据其显式 IDs 重新校验，不重建 owner 全目录；选择上限保持。精确复制提交与集成证据见[溯源](../docs/zh-CN/on-demand-integration.md)。此次源码工作未发布 release 制品或 tag。
+
+此次源码集成另保留等价授权集合的顺序语义，并在私有客户端初始化后复核路由会话关闭/到期。真实授权/证据变化仍拒绝，最终派发边界不投影完整分组。
+
 0.4.4 通过 REST 与四个内置管理工具增加外部 HTTP MCP 的确认配置流程：`gate_mcp_config_plan`、`gate_mcp_config_apply`、`gate_mcp_config_status`、`gate_mcp_config_cancel`。自带 Delivery Skill 将外部 HTTP 配置与 ZIP 交付、仍阻断的 Git 执行路径分别路由。
 
 - 计划默认离线。明确且有界的远程探测需要独立授权。应用绑定准确 manifest、计划摘要、原配置摘要、操作选择与已有凭据版本；计划五分钟到期且只能消费一次。操作保留本人归属、版本 CAS、幂等完成、取消、协作期限及连接所有权检查。
@@ -33,3 +45,27 @@ Real-client management-scope requests and real HTTP peer/deployment acceptance r
 真实客户端管理 scope 请求与真实 HTTP peer/部署验收仍未验证。本版不实现分组路由、海量目录检索、DCR/CIMD 或生产 `SafeNetworkExecutor`；真实 Git 拉取、代理测试、工具准备和指定网络安装仍阻断。安装或配置本版不会启用这些操作或登记凭据。
 
 [验证记录](../docs/zh-CN/release-validation-0.4.4.md) 区分合成后端/浏览器证据、独立视觉复核与真实客户端验收。正式发布须通过既有发行工作流，构建五种原生目标（Linux x86_64/ARM64、Windows x86_64、macOS x86_64/ARM64）、Compose、两个离线 Core 镜像、应用 SPDX SBOM、镜像摘要与 SHA256SUMS，共 11 项资产及来源证明。须回读核验全部发行任务、校验和、SBOM、来源证明和发布标题/正文；历史 tag 与制品保持不可变。
+
+## Pending release integration — OAuth scope selection / 待发行整合 — OAuth 范围选择
+
+The independent test branch adds explicit full-catalog read-only/all/custom choices, MCP group checkboxes and always-available refresh. Refresh and failures retain the draft; unavailable choices require explicit removal. Owner-visible exclusion counts explain publication and scope ceilings without widening authorization. Admin API-token invocation does not establish OAuth publication eligibility. At tested code head `3a730f91e2caca5ad46a4ba227749fc8be049c12`, nx5 independently passed the build and 85 grants/consent browser cases; root inspected and accepted the compact 1600×900 Chinese layout with six complete MCP rows and a visible footer. See the [separate validation evidence](../docs/release-validation-0.4.4.md#pending-integration-business-oauth-scope-selection-2026-10-05). These changes await integration and real-client acceptance and are not part of the already tagged 0.4.4 artifacts. The real Plane classification state and ChatGPT authorization/tool-cache behavior remain unverified.
+
+独立测试分支增加明确的全目录只读/全部/自定义选择、MCP 整组复选及常驻刷新。刷新和失败保留草稿；失效选择需显式移除。仅本人可见工具的排除计数说明发布门禁和 scope 上限，不扩大授权；管理员 API Token 调用成功不证明符合 OAuth 发布门禁。已测试代码 head `3a730f91e2caca5ad46a4ba227749fc8be049c12` 在 nx5 独立构建和 85 项授权/同意浏览器回归通过；root 实际查看并接受 1600×900 中文紧凑布局，确认 6 行完整 MCP 及可见页脚。见[分列验证证据](../docs/zh-CN/release-validation-0.4.4.md#待整合业务-oauth-范围选择2026-10-05)。这些变更仍待整合与真实客户端验收，不属于已打 tag 的 0.4.4 制品；真实 Plane 分类状态及 ChatGPT 授权/工具缓存行为仍未验证。
+
+The follow-up `test/oauth-catalog-paged-20261005` candidate connects this editor to private, schema-free pages and a whole-current-selection resolver over the shared incremental catalog. Existing grants remain bounded to 5,000 explicit tools / 100 MCPs even with a larger owner directory. Candidate/grant ceilings, draft retention, versioned CSRF/cursors, synchronized-generation conflict checks and existing reviewed one-use CAS saves are preserved. OAuth startup avoids a legacy full-definition preload; initial public consent and separate legacy tool pages keep their existing bounds. See the [paired contract and execution record](../docs/oauth-catalog-scaling.md). This follow-up has no release assets/tags or real ChatGPT/Plane acceptance.
+
+后续 `test/oauth-catalog-paged-20261005` 候选将该编辑器接到共享增量目录的私有无 schema 分页及整个当前选择解析器。本人目录较大时，既有 grant 仍限制为 5,000 明确工具 / 100 MCP。保留候选/grant 上限、草稿、版本化 CSRF/游标、同步 generation 冲突检查和原复核单次 CAS 保存。OAuth 启动不预取旧全定义表；首次公共同意及独立旧工具页保留原有上限。见[成对合同及执行记录](../docs/zh-CN/oauth-catalog-scaling.md)。该后续任务不包含发行制品/tag 或真实 ChatGPT/Plane 验收。
+
+The scope-editor recovery follow-up keeps attempted writes with lost/timeout/unreadable responses in an unknown state. Review stays blocked until explicit readback of the actual saved grant and fresh scope metadata; draft IDs/limits survive reconciliation and failed reads. The next explicit update uses a new preview/confirmation at the current revision. Real loopback HTTP regression forwards a committed 200 before dropping only the browser response; pre-send abort is tested separately.
+
+范围编辑器恢复后续将写入响应丢失/超时/无法读取标记为未知；明确重读实际已保存 grant 和新范围元数据前禁止再次核对。核对和读取失败保留 IDs/限额草稿，后续明确更新使用当前版本的新预览/确认。真实 loopback HTTP 回归先转发并收到已提交 200，再仅丢弃浏览器响应；发送前 abort 独立验证。
+
+The development Console density candidate compacts the centered scope editor and configured built-in OAuth management page. Tool IDs, scope rules, callbacks and connection guidance remain accessible on demand; whole-directory selection, fresh reads, confirmation, draft/unknown-result recovery and one-time secrets keep their existing boundaries. It adds bounded MCP search with keyboard-accessible load/retry actions, compact whole-row client scrolling and name-based client details. Bilingual desktop/keyboard regressions preserve existing authorization and confirmation behavior; real external acceptance remains separate. See the [separate implementation and evidence record](../docs/oauth-console-density.md); it is not part of the already published 0.4.4 artifacts.
+
+开发中的 Console 密度候选压缩居中范围编辑器与已配置内置 OAuth 管理页；工具 ID、scope 规则、回调和接入指引均可按需查看。全目录选择、刷新、确认、草稿/未知结果恢复和一次性秘密保留原边界；增加可用键盘加载/重试的有界 MCP 搜索、整行滚动的紧凑客户端表及名称进入详情；双语桌面/键盘回归保留原授权与确认行为，真实外部验收仍需单独完成。见独立[实现与证据记录](../docs/zh-CN/oauth-console-density.md)，不属于已经发行的 0.4.4 制品。
+
+## Pending CI repair — PR51 / 待发行 CI 修复 — PR51
+
+The PR51 source repair synchronizes the frozen requirements export and allows ordinary Windows startup with the Native executor disabled. Explicit enablement retains reviewed absolute paths, pinned images and the local Linux platform boundary. Trusted acquisition sets a TLS 1.2 minimum with verified server identity. OAuth authorization issues only fresh browser-binding cookies, preserving parallel tickets and the original cookie lifetime; MCP protocol errors expose explicit public fields. Exact fixture URL/lock assertions strengthen the security regressions. [The eight-finding CodeQL review](../docs/pr51-ci-validation.md) records five repaired findings and three evidence-backed false positives without suppressions or alert dismissal. Windows package CI and real host acceptance remain separate; this repair creates no release or tag.
+
+PR51 源码修复同步 frozen requirements 导出，并使 Native 执行器禁用时的 Windows 主程序正常启动。明确启用仍保留受审绝对路径、固定镜像摘要及 local Linux 平台边界。受信获取明确设置 TLS 1.2 最低版本并验证服务端身份。OAuth 授权仅签发新的浏览器绑定 Cookie，保留并行票据及原 Cookie 期限；MCP 协议错误仅输出明确公开字段。精确夹具 URL/lock 断言加强安全回归。[八条 CodeQL 发现的审查记录](../docs/zh-CN/pr51-ci-validation.md) 对齐五条已修复项和三条有证据的误报，不抑制或关闭告警。Windows 打包 CI 和真实宿主验收仍独立；此修复不生成发行或 tag。

@@ -20,6 +20,12 @@ Lingshu Gate 位于认证用户与可执行下游服务之间。其配置、数�
 
 ## 支持范围
 
+源码按需目录在排序/分页前使用现有授权策略，发现不授予访问权。所选调用在实际派发与只读恢复前复核当前凭据、完整身份、实际实例、schema 版本和 ACL；只读 scope 不能通过封装获得写权限。签名游标绑定身份和当前目录/授权，每一页重验权限。禁止远程 schema 引用获取。独立管理 OAuth 资源不能使用普通目录入口。限制及合成/真实客户端验证边界见[按需工具指南](docs/zh-CN/on-demand-tools.md)。
+
+schema 求值具备有限结构/展开预算，位于原调用准入之后、派发租约之前，在有期限的子进程执行；超时或取消会终止并回收。已解析目标拒绝仅记录一条原物理 `not_invoked` 审计；未解析引用仅记录哈希/关联事件，不含名称或参数值。公共 describe 拒绝并发策略/目录变化。分组调用保留显式实例/会话选择，禁止读重放。内置 OAuth 验证及进程内证据刷新仅查询数据库 grant 的有限显式目标，保留当前 owner/client/family/发布检查，不授权新发现工具。源码检查不能认证真实提供方或生产部署行为。
+
+调用身份比较将授权集合视为集合，证据字段、权限收窄及数值上限仍严格比较。分组最终派发 guard 在私有客户端初始化后重新执行既有有界会话/实例/配置/代际检查；关闭或到期的会话产生零业务调用及一条 `not_invoked` 审计。
+
 安全修复面向最新公开发行版和 `main` 分支。旧版可能必须升级才能获得修复。发行归档和容器镜像应从仓库官方 Releases 与 Packages 页面获取，并按摘要完成校验。
 
 ## 部署边界
@@ -59,6 +65,8 @@ Docker Core 镜像不会启动本机 stdio 进程或执行项目构建。这些�
 固定的 Bookworm Python 基础镜像包含 `perl-base` 5.36.0-7+deb12u3。Core 从 Debian 签名仓库安装准确安全版本 5.36.0-7+deb12u4，修复 CVE-2026-13221、CVE-2026-42496 和 CVE-2026-8376；Critical 扫描失败仍阻断发布，不排除漏洞或降低扫描门槛。
 
 ## 访问控制边界
+
+MCP 组引用已有实例配置，创建或归组不授予访问权限。逻辑目录和路由读取交集当前身份／token／OAuth 上限、逻辑服务／工具授权与原实际实例／工具策略。完整合同和声明版本将不兼容工具保持独立分区。路由会话绑定认证连接，必须显式选择实例；配置／runtime 漂移使其失效，不选择其他实例、不重放写调用。内部 guard 将实际派发和工具审计留在原调用路径。管理员组写入保留当前 `operations.manage`／`tools.invoke`、确认、Console CSRF、修订 CAS 与事务审计；独立管理 OAuth 资源仍仅允许原四个外部配置工具。生命周期和代际限制见[内部适配合同](docs/zh-CN/mcp-group-routing-contract.md)。
 
 最终工具访问权限是认证状态、控制权限、资源授权、已发布的读写分类和 API Token scope 的交集。Tool annotation 和发现到的 Schema 都是不可信提示，不能自行授予权限。
 
@@ -102,15 +110,19 @@ Manifest 应使用 `${credential:<id>}` 引用而不是明文。用户下游值�
 
 ## Git 与交付网络设置
 
-命名网络配置要求 `system_settings.manage`；网络调用额外要求 `network.use` 与既有操作、工具和 token 权限。代理地址仅写入并加密，认证仅使用凭据引用。配置与默认项使用乐观版本检查；排队工作固定不可变版本，失败不静默直连。引用中的配置不能悄然删除。生产环境尚无 Git、代理测试及指定网络安装所需的隔离执行器，相关操作明确阻断。宿主子进程环境过滤不等于隔离，Core 执行仍被禁止。
+命名网络配置要求 `system_settings.manage`；网络调用额外要求 `network.use` 与既有操作、工具和 token 权限。代理地址仅写入并加密，认证仅使用凭据引用。配置与默认项使用乐观版本检查；排队工作固定不可变版本，失败不静默直连。引用中的配置不能悄然删除。本开发分支提供可选 Native/Linux 隔离适配器，Git、代理测试及受支持网络安装须实际 readiness；未准备宿主时明确阻断。已实现 registry-only npm、pnpm 8/9、Yarn Classic 离线冻结缓存安装；pnpm 10/11 package-ID store、Berry、Python sandbox cache 明确拒绝，Python 仅保留既有 upload/direct legacy 路径。宿主子进程环境过滤不等于隔离，Core 执行仍被禁止。
 
 HTTPS 来源计划固定完整 commit、摘要、精确主机策略与有界快照。SSH、hooks、远程 helper、重定向转发凭据、自动 submodule/LFS、宿主全局配置和 Docker socket 均不支持。工具准备是显式确认阶段，在执行器专属缓存中准备通过官方完整性校验的固定版本，不做全局安装。受审查适配器必须约束依赖来源、DNS、出口、资源、取消和产物秘密扫描，代理出口也需遵循。参见 [Git/网络设计](docs/zh-CN/git-import-network.md)。
+
+本开发分支增加可选 Native/Linux rootless Podman adapter，默认关闭；缺宿主前提即 fail closed。使用预载 digest 镜像、可信固定 HTTPS 获取、无秘密离线项目执行；派发前记录阶段/container/cgroup，未知结果不重放/不删除，整组终止后才冻结校验输出。仅支持 registry-only npm cache 安装，pnpm/Yarn/Python 缓存安装明确拒绝。Core 不碰引擎/socket。见 [Native 准备与支持](docs/zh-CN/native-executor.md)。
 
 ## 内置 OAuth 边界
 
 默认关闭的内置服务复用已有 Gate 密码/RBAC 身份，使用每用户明确工具同意、机密静态客户端、S256 PKCE 和本地 RS256 验证。授权服务令牌认证业务 `/mcp` 或单独启用且精确 audience 的 `/mcp/manage`，不能认证私有 Console `/v1` API。每请求重新读取用户、客户端、授权和刷新令牌族状态，保存的工具快照与当前权限/发布状态取交集；扩大分类或发现工具不能扩大既有授权。SQLite 事务串行处理单次授权码和刷新轮换；已用刷新令牌重放撤销整族，即使返回错误也提交撤销。访问令牌最长 10 分钟、授权码 60 秒、刷新令牌族绝对 30 天，均受授权到期约束。
 
 本人确认的 live 工具更新要求真实本人 Console 会话、严格 Origin/会话绑定 CSRF、当前权限，以及绑定版本/目录/目标的确认。预览不授予权限。写事务重验依赖，仅以 CAS 更新指定授权，同时消费最新确认摘要并原子记录脱敏审计，失败整体回滚。JWT 签名、issuer/resource/client/family 绑定、scope 交集、到期、撤销及配额检查保持。相同授权的令牌在各自 OAuth scope 上限内跟随明确更新的工具，其他授权不扩围。确认摘要最长十分钟，具有全局/用户容量上限，不保存工具或 secret；这些私有接口不得经公网代理公开。
+
+私有业务 OAuth 候选分页与选择解析共用增量目录索引。每次查询先按当前本人权限、发布和 grant/client 上限筛选，再分页/计数；已保存 grant IDs 不限制候选浏览。页面不含 schema，JSON/摘要有界且明确不完整；只有明确、有界 IDs 可进入确认/保存。全局选择超过 5,000 工具或 100 MCP 即失败，不返回部分选择。刷新保留草稿，不自动加入未来服务。游标/票据绑定会话和当前 registry/policy generation；同步后 registry 变化和当前权限变化均安全拒绝。本人可见排除原因不暴露隐藏服务；管理员 API Token 调用不绕过 OAuth 发布门禁。见[候选合同与证据](docs/zh-CN/oauth-catalog-scaling.md)。
 
 管理资源默认关闭，只接受内置 issuer、当前管理员及控制权限、四个已同意配置工具指纹和精确创建/更新目标。路由从可信配置选择 audience，拒绝跨资源令牌、授权码和刷新，不回退其他验证器。派发/worker/缓存结果检查绑定 issuer/resource/client/grant/family/到期及当前目标。目标编辑要求真实本人 Console 会话、严格 Origin/CSRF、复核后的单次确认、版本 CAS 和原子脱敏审计，使旧计划失效但不扩大 JWT/令牌族 scope 或业务授权。关闭管理只撤销其令牌族；凭据、HTTP 信任、分类发布和执行保持独立。参见[管理契约](docs/zh-CN/oauth-external-management-design.md)。
 

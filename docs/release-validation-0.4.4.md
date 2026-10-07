@@ -41,3 +41,24 @@ Record redacted IDs, digests, state transitions, actual client scope request and
 Independent root review, real-client management scopes, real-peer/socket/DNS behavior and deployment acceptance remain pending. File persistence, runtime state and SQLite are not one transaction; deadlines remain cooperative. The safe Git/proxy executor, group invocation/routing and large-catalog search are not implemented by this release.
 
 No tag, main merge or publication is performed by this branch's author. After review and merge, the existing formal workflow must produce and verify all five native targets, Compose, two offline Core images, application SBOM, image digests and SHA256SUMS (11 assets), including provenance and published title/body readback. Local builds do not establish cross-platform release acceptance.
+
+## Pending integration: business OAuth scope selection (2026-10-05)
+
+This supplemental record covers `test/oauth-scope-bulk-20261005`, based on `release/http-skills-management` at `5e4c591d4e3158e70e49ca8fe77431073282e35b`. The tested code head is `3a730f91e2caca5ad46a4ba227749fc8be049c12`. Its scope-selection additions await integration and are not part of the already tagged 0.4.4 artifacts. The browser health fixture reads the existing backend source version instead of hardcoding a frontend version.
+
+The author's frontend type/UX source checks, Console/OAuth build and 429 frontend tests passed. The targeted scope-catalog backend run passed three tests covering published/unpublished MCP additions, administrator API-token versus delegated OAuth access, owner-visible exclusions, scope ceilings and a narrower old token family. The final grants/consent browser run passed 85 tests in 3.4 minutes: the original 70 grant cases and 15 consent cases remain. Coverage includes whole-catalog read-only/all choices across filters and pages, MCP group selection, refresh without selecting later services, failed reads/previews/saves retaining the draft, and Escape closing the rule disclosure without discarding unsaved choices. Existing CSRF, one-use confirmation, revision CAS, scope ceilings and quota narrowing remain in force.
+
+Author browser measurements for both English and Simplified Chinese were:
+
+| Desktop viewport | Tool-table viewport | Complete visible MCP rows |
+|---|---:|---:|
+| 1600×900 | 270.25 px | 6 |
+| 1920×1080 | 450.25 px | 10 |
+| 2560×1080 | 450.25 px | 10 |
+| 2560×1440 | 810.25 px | 15 |
+
+All eight measured layouts had zero main-body overflow, labels beside controls, one row each for quick selection/refresh, filters and the table toolbar, visible pagination/actions and a 56 px footer. The author inspected the generated screenshots; these measurements are synthetic browser evidence.
+
+Root independently reported reconstructing the exact tested head on nx5 and verifying all nine changed blobs. Its build exited 0 and its separate OAuth grants/consent run passed 85/85 in 6.8 minutes. Root actually inspected the 1600×900 Chinese screenshot, confirmed six complete MCP rows and a visible footer, and accepted the compact layout correction. This independent visual acceptance is specific to that screenshot; it does not claim independent visual inspection of all eight layouts.
+
+The real Plane service's publication/classification state has not been read or established. A successful administrator API-token invocation alone does not establish OAuth catalog eligibility. The original three Library screenshots could not be materialized in the author's executor and were not visually inspected there. Real ChatGPT authorization, discovery, invocation and cached-tool-list refresh remain untested. No SSH access, production Gate modification or real credential use was performed for these checks.

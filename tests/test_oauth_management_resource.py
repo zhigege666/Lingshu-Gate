@@ -166,7 +166,8 @@ def test_management_requires_admin_and_exact_targets_and_tool_snapshot(gate):
         with pytest.raises(OAuthError, match="invalid_management_targets"):
             server.consent(ticket, browser, context["csrf"], gate["management_principal"], sorted(MANAGEMENT_TOOL_IDS), 7, 30, 1,
                            management_targets=targets)
-    gate["registry"].get_definition("gate_mcp_config_plan").description = "Changed synthetic schema envelope"
+    definition = gate["registry"].get_definition("gate_mcp_config_plan")
+    gate["registry"].update_definition(definition.model_copy(update={"description": "Changed synthetic schema envelope"}))
     with pytest.raises(OAuthError, match="tool_scope_changed"):
         server.consent(ticket, browser, context["csrf"], gate["management_principal"], sorted(MANAGEMENT_TOOL_IDS), 7, 30, 1,
                        management_targets={"synthetic": ["create"]})

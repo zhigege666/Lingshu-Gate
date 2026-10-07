@@ -10,7 +10,7 @@ import threading
 import time
 from collections import deque
 from pathlib import Path
-from typing import Any
+from typing import Any, Literal
 from urllib.parse import parse_qsl, unquote, urlencode
 
 from fastapi import Depends, FastAPI, HTTPException, Request
@@ -112,10 +112,35 @@ class RevokeRequest(StrictRequest):
 
 class ScopePreviewRequest(NarrowRequest):
     csrf: str = Field(min_length=40, max_length=MAX_INTERACTION_TICKET)
+    catalog_revision: str | None = Field(default=None, pattern=r"^[a-f0-9]{64}$")
 
 
 class ScopeUpdateRequest(NarrowRequest):
     confirmation: str = Field(min_length=40, max_length=MAX_INTERACTION_TICKET)
+    catalog_revision: str | None = Field(default=None, pattern=r"^[a-f0-9]{64}$")
+
+
+class ScopeCatalogRequest(StrictRequest):
+    query: str = Field(default="", max_length=256)
+    server_id: str = Field(default="", max_length=512)
+    access: Literal["", "read", "write"] = ""
+    view: Literal["tools", "groups", "unavailable"] = "tools"
+    limit: int = Field(default=50, ge=1, le=100)
+    max_bytes: int = Field(default=65536, ge=8192, le=65536)
+    cursor: str | None = Field(default=None, max_length=MAX_INTERACTION_TICKET)
+    catalog_revision: str | None = Field(default=None, pattern=r"^[a-f0-9]{64}$")
+
+
+class ScopeSelectionRequest(StrictRequest):
+    csrf: str = Field(min_length=40, max_length=MAX_INTERACTION_TICKET)
+    expected_revision: int = Field(ge=1)
+    catalog_revision: str = Field(pattern=r"^[a-f0-9]{64}$")
+    mode: Literal["ids", "all", "read", "groups"]
+    tool_ids: list[str] = Field(default_factory=list, max_length=MAX_TOOLS)
+    server_ids: list[str] = Field(default_factory=list, max_length=100)
+    checked: StrictBool = True
+    metadata_ids: list[str] = Field(default_factory=list, max_length=100)
+    max_bytes: int = Field(default=65536, ge=2048, le=65536)
 
 
 class OAuthRateBoundary:
@@ -423,25 +448,22 @@ def register_oauth_routes(app: FastAPI, *, server: OAuthServer, observability: O
                  for key, value in grant["tools"].items()]
         return {**safe, "tools": tools, "client_name": client["name"] if client else grant["client_id"],
                 "resource_kind": "management" if management else "business", "state": state, "effective_tool_count": sum(bool(item["currently_authorized"]) for item in tools),
+                "scope_catalog_mode": "paged" if server.candidate_catalog is not None and not management else "legacy",
                 "scope_currently_authorized": all(item["currently_authorized"] for item in tools)}
 
     def grant_catalog(principal: AuthPrincipal, grant: dict[str, Any]) -> dict[str, dict[str, Any]]:
         if grant["target_revision"] > 0:
             try:
-                return server.catalog(principal, ["operations.manage", "tools.invoke"], resource=grant["resource"])
+                return server.catalog(principal, ["operations.manage", "tools.invoke"], resource=grant["resource"], tool_ids=grant["tools"])
             except OAuthError:
                 return {}
-        return server.catalog(principal, ["tools.read", "tools.invoke"])
+        return server.catalog(principal, ["tools.read", "tools.invoke"], tool_ids=grant["tools"])
 
     @app.get("/v1/auth/oauth/grants", tags=["oauth-management"])
     def grants(principal: AuthPrincipal = Depends(owner)) -> dict[str, Any]:
-        catalogs: dict[str, dict[str, dict[str, Any]]] = {}
         result = []
         for grant in server.store.grants(principal.id):
-            key = grant["resource"] if grant["target_revision"] > 0 else "business"
-            if key not in catalogs:
-                catalogs[key] = grant_catalog(principal, grant)
-            result.append(describe_grant(grant, catalogs[key]))
+            result.append(describe_grant(grant, grant_catalog(principal, grant)))
         return {"grants": result}
 
     @app.get("/v1/auth/oauth/grants/{grant_id}/management-targets", tags=["oauth-management"])
@@ -479,22 +501,49 @@ def register_oauth_routes(app: FastAPI, *, server: OAuthServer, observability: O
         rate.check(request, "grant-scope-options", 30, principal)
         return JSONResponse(server.scope_options(principal, grant_id, request.cookies[server.auth.cookie_name]), headers=SAFE_HEADERS)
 
+    @app.get("/v1/auth/oauth/grants/{grant_id}/scope-catalog", tags=["oauth-management"])
+    def scope_catalog(grant_id: str, request: Request, principal: AuthPrincipal = Depends(scope_owner)) -> JSONResponse:
+        rate.check(request, "grant-scope-catalog", 120, principal)
+        if len(request.scope.get("query_string", b"")) > 32768:
+            raise OAuthError("request_too_large", 413)
+        fields: dict[str, Any] = parse_fields(request.url.query, set(ScopeCatalogRequest.model_fields), MAX_INTERACTION_TICKET)
+        for key in ("limit", "max_bytes"):
+            if key in fields:
+                if not fields[key].isascii() or not fields[key].isdecimal() or len(fields[key]) > 6:
+                    raise OAuthError("invalid_request")
+                fields[key] = int(fields[key])
+        try:
+            body = ScopeCatalogRequest.model_validate(fields)
+        except ValidationError:
+            raise OAuthError("invalid_request") from None
+        return JSONResponse(server.scope_catalog(principal, grant_id, request.cookies[server.auth.cookie_name],
+            **body.model_dump()), headers=SAFE_HEADERS)
+
+    @app.post("/v1/auth/oauth/grants/{grant_id}/scope-selection", tags=["oauth-management"])
+    async def scope_selection(grant_id: str, request: Request, principal: AuthPrincipal = Depends(scope_owner)) -> JSONResponse:
+        rate.check(request, "grant-scope-selection", 120, principal)
+        body = await read_json(request, ScopeSelectionRequest, 4 * 1024 * 1024)
+        result = await run_in_threadpool(server.scope_selection, principal, grant_id, request.cookies[server.auth.cookie_name],
+            body.csrf, body.expected_revision, body.catalog_revision, mode=body.mode, tool_ids=body.tool_ids,
+            server_ids=body.server_ids, checked=body.checked, metadata_ids=body.metadata_ids, max_bytes=body.max_bytes)
+        return JSONResponse(result, headers=SAFE_HEADERS)
+
     @app.post("/v1/auth/oauth/grants/{grant_id}/scope-preview", tags=["oauth-management"])
     async def preview_scope(grant_id: str, request: Request, principal: AuthPrincipal = Depends(scope_owner)) -> JSONResponse:
         rate.check(request, "grant-scope-preview", 30, principal)
-        body = await read_json(request, ScopePreviewRequest, 2 * 1024 * 1024)
+        body = await read_json(request, ScopePreviewRequest, 4 * 1024 * 1024)
         result = await run_in_threadpool(server.preview_scope, principal, grant_id, request.cookies[server.auth.cookie_name],
                                         body.csrf, body.expected_revision, body.tool_ids, body.expires_at,
-                                        body.rate_per_minute, body.concurrency)
+                                        body.rate_per_minute, body.concurrency, body.catalog_revision)
         return JSONResponse(result, headers=SAFE_HEADERS)
 
     @app.post("/v1/auth/oauth/grants/{grant_id}/scope", tags=["oauth-management"])
     async def update_scope(grant_id: str, request: Request, principal: AuthPrincipal = Depends(scope_owner)) -> JSONResponse:
         rate.check(request, "grant-scope-update", 30, principal)
-        body = await read_json(request, ScopeUpdateRequest, 2 * 1024 * 1024)
+        body = await read_json(request, ScopeUpdateRequest, 4 * 1024 * 1024)
         grant = await run_in_threadpool(server.update_scope, principal, grant_id, request.cookies[server.auth.cookie_name],
                                        body.confirmation, body.expected_revision, body.tool_ids, body.expires_at,
-                                       body.rate_per_minute, body.concurrency)
+                                      body.rate_per_minute, body.concurrency, body.catalog_revision)
         current = await run_in_threadpool(grant_catalog, principal, grant)
         return JSONResponse(describe_grant(grant, current), headers=SAFE_HEADERS)
 
@@ -526,7 +575,9 @@ def register_oauth_routes(app: FastAPI, *, server: OAuthServer, observability: O
         params = parse_fields(request.url.query, {"client_id", "redirect_uri", "response_type", "scope",
                                                 "resource", "code_challenge", "code_challenge_method", "state", "ui_locales"})
         ui_locale = authorization_ui_locale(params.pop("ui_locales", ""))
-        browser = request.cookies.get(BROWSER_COOKIE) or secrets.token_urlsafe(32)
+        existing_browser = request.cookies.get(BROWSER_COOKIE)
+        new_browser = secrets.token_urlsafe(32) if not existing_browser else ""
+        browser = existing_browser or new_browser
         try:
             interaction = server.start_authorization(params, browser)
         except OAuthError as error:
@@ -537,8 +588,11 @@ def register_oauth_routes(app: FastAPI, *, server: OAuthServer, observability: O
             raise
         fragment = urlencode({"request": interaction, **({"ui_locales": ui_locale} if ui_locale else {})})
         response = RedirectResponse(config["issuer"] + "/oauth/consent#" + fragment, status_code=303, headers=SAFE_HEADERS)
-        response.set_cookie(BROWSER_COOKIE, browser, secure=True, httponly=True, samesite="lax",
-                            path="/oauth", max_age=INTERACTION_TTL)
+        # Reuse the browser binding for concurrent interactions without reflecting
+        # a supplied cookie into Set-Cookie or extending its original lifetime.
+        if new_browser:
+            response.set_cookie(BROWSER_COOKIE, new_browser, secure=True, httponly=True, samesite="lax",
+                                path="/oauth", max_age=INTERACTION_TTL)
         return response
 
     @app.get("/oauth/consent", include_in_schema=False)
