@@ -167,7 +167,15 @@ editable 安装仍支持尚未构建前端的源码树；非 editable wheel 会�
 打包回归检查使用 `uv run pytest -q tests/test_wheel_build.py tests/test_release_packaging.py`。
 连续/并发构建及候选证据见[干净 wheel 暂存验证](wheel-build-validation.md)。
 
-发行工作流会在匹配的操作系统和架构上构建每个原生归档。在匹配的本机上，维护者可以构建一个 Target：
+发行工作流会在匹配的操作系统和架构上构建每个原生归档。
+Cryptography 50.0.2 不再提供上游 Intel macOS wheel。Intel 作业使用锁定的源码发行包、
+Rust 1.90.0 和经过 SHA-256 核验的 OpenSSL 4.0.3 源码静态链接构建。打包前运行 OpenSSL 测试，
+拒绝 cryptography 扩展链接 OpenSSL 或 Homebrew dylib，并核对实际加载的 OpenSSL 版本。
+五个原生平台仍必须通过解压后归档的 Ready 冒烟。Intel 源码构建路径需要实际原生 CI 通过；
+仅 Linux 源码检查不能证明此路径已验收。参考
+[cryptography 源码构建说明](https://cryptography.io/en/50.0.2/installation/)和
+[OpenSSL 4.0.3 发行记录](https://github.com/openssl/openssl/releases/tag/openssl-4.0.3)。
+在匹配的本机上，维护者可以构建一个 Target：
 
 ```bash
 uv run python -m scripts.release.build_native --target linux-x86_64

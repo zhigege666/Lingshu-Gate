@@ -185,7 +185,15 @@ concurrent wheel builds from one source tree.
 Run `uv run pytest -q tests/test_wheel_build.py tests/test_release_packaging.py` for packaging regressions.
 See [clean wheel staging validation](wheel-build-validation.md) for the consecutive/concurrent build and candidate evidence.
 
-The release workflow builds each native archive on its matching operating system and architecture. On a matching local host, a maintainer can build one target:
+The release workflow builds each native archive on its matching operating system and architecture.
+Cryptography 50.0.2 has no upstream Intel macOS wheel. The Intel job uses the locked source distribution,
+Rust 1.90.0 and a SHA-256-verified OpenSSL 4.0.3 source build with static linkage. It runs OpenSSL's tests,
+rejects cryptography extensions linked to OpenSSL or Homebrew dylibs, and checks the loaded OpenSSL version
+before native packaging. All five native targets still require the extracted-archive readiness smoke.
+The Intel source-build path needs successful native CI; Linux source checks alone do not validate it.
+See the [cryptography source-build instructions](https://cryptography.io/en/50.0.2/installation/)
+and [OpenSSL 4.0.3 release](https://github.com/openssl/openssl/releases/tag/openssl-4.0.3).
+On a matching local host, a maintainer can build one target:
 
 ```bash
 uv run python -m scripts.release.build_native --target linux-x86_64
