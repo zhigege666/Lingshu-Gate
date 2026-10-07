@@ -28,6 +28,7 @@
 | [部署](deployment.md) | Docker Compose、原生服务、生产加固、备份、升级和回滚 |
 | [运维](operations.md) | 健康探针、日志、事件、诊断、运行时缓存、审计和故障检查 |
 | [本地开发](local-development.md) | 源码环境、Console 构建、测试套件和仓库约定 |
+| [根路径 Console 入口候选](root-console-entry.md) | 根入口 HTML/JSON 协商、旧书签、资源边界及候选验证 |
 | [UI 交互约束](ui-interaction-contract.md) | 新增或迁移 Console UI 的验收规则、编辑安全、证据与独立评审 |
 | [浏览器回归](browser-regression.md) | 隔离真实后端 Playwright、合成大列表、场景编号及证据边界 |
 | [外部 OAuth 资源访问](external-connections.md) | 默认关闭的 JWT 验证、信任配置、个人委托与实际接入边界 |
