@@ -28,11 +28,26 @@ type Props = {
 export function ConsoleShell({ view, title, user, version, groups, items, busy, onNavigate, onSearch, onRefresh, onLogout, children }: Props) {
   const { theme, setTheme, locale, setLocale } = useConsoleDesign()
   const [mobileOpen, setMobileOpen] = useState(false)
+  const [accountOpen, setAccountOpen] = useState(false)
+  const accountTrigger = useRef<HTMLButtonElement>(null)
   const activeNavItem = useRef<HTMLAnchorElement>(null)
   useEffect(() => {
+    setAccountOpen(false)
     activeNavItem.current?.scrollIntoView({ block: "nearest" })
     if (view !== "tools") window.scrollTo(0, 0)
   }, [view])
+  useEffect(() => {
+    if (!accountOpen) return
+    function closeOnEscape(event: KeyboardEvent) {
+      if (event.key !== "Escape") return
+      event.preventDefault()
+      event.stopPropagation()
+      setAccountOpen(false)
+      accountTrigger.current?.focus()
+    }
+    document.addEventListener("keydown", closeOnEscape, true)
+    return () => document.removeEventListener("keydown", closeOnEscape, true)
+  }, [accountOpen])
   const zh = locale === "zh-CN"
   const languageOptions = [{ value: "zh-CN", label: "中文" }, { value: "en-US", label: "English" }]
   const allowedIds = groups.flatMap(group => group.items)
@@ -40,6 +55,7 @@ export function ConsoleShell({ view, title, user, version, groups, items, busy, 
     if (!allowedIds.includes(key as ConsoleView)) return
     onNavigate(key as ConsoleView)
     setMobileOpen(false)
+    setAccountOpen(false)
   }
   const mobileItems: MenuProps["items"] = groups.map(group => ({
     type: "group", key: items[group.items[0]].section, label: group.title,
@@ -70,13 +86,16 @@ export function ConsoleShell({ view, title, user, version, groups, items, busy, 
         </Tooltip>
         <Button className="console-header-secondary" type="text" icon={<ApiOutlined />} onClick={() => window.open("/docs", "_blank", "noreferrer")}>OpenAPI</Button>
         {user.auth_type !== "disabled" && <Button className="console-header-secondary" type="text" icon={<LogoutOutlined />} onClick={onLogout}>{zh ? "退出登录" : "Sign out"}</Button>}
-        <Dropdown trigger={["click"]} classNames={{ root: "console-account-menu" }} menu={{ items: [
+        <Dropdown trigger={["click"]} placement="bottomRight" autoFocus destroyOnHidden open={accountOpen} onOpenChange={setAccountOpen} classNames={{ root: "console-account-menu" }} menu={{ onClick: () => {
+          setAccountOpen(false)
+          accountTrigger.current?.focus()
+        }, items: [
           { key: "identity", label: `${user.display_name || user.username} · ${user.roles.join(", ") || user.role}`, disabled: true },
           { type: "group", key: "version", label: <div className="console-account-version"><span>{zh ? "版本" : "Version"}</span><code>{version}</code></div>, children: [] },
           { key: "api", className: "console-account-mobile-action", icon: <ApiOutlined />, label: "OpenAPI", onClick: () => window.open("/docs", "_blank", "noreferrer") },
           ...(user.auth_type !== "disabled" ? [{ key: "logout", className: "console-account-mobile-action", icon: <LogoutOutlined />, label: zh ? "退出登录" : "Sign out", onClick: onLogout }] : []),
         ] }}>
-          <Button type="text" className="console-account" aria-label={zh ? "账号菜单" : "Account menu"}>
+          <Button ref={accountTrigger} type="text" className="console-account" aria-label={zh ? "账号菜单" : "Account menu"} aria-haspopup="menu" aria-expanded={accountOpen}>
             <Avatar size={28}>{(user.display_name || user.username || "U").slice(0, 1).toUpperCase()}</Avatar>
             <span>{user.display_name || user.username}</span><DownOutlined />
           </Button>

@@ -5,6 +5,7 @@
 - Move the browser Console to the root with content-negotiated JSON discovery, stable /v1/meta, compatible old links, confined assets and verified native entry smoke.
 - Integrate explicit MCP groups/connection-bound instance sessions, the bounded on-demand directory and killable schema validation; actual tool/instance authority and credential checks remain in dispatch.
 - Integrate private OAuth catalog pagination, whole-selection resolution, compact bilingual editors, lossless drafts and explicit recovery after unknown write outcomes; scope/family and selection ceilings stay unchanged.
+- Restore controlled account-menu closing and keyboard focus; explain available classification contract changes and distinguish legacy records without field digests.
 - Stage repeated wheel builds privately and verify exact static inventories/RECORD, including sdist-to-wheel; preserve safe path boundaries and frozen worker entries.
 - Keep Vite 8/Rolldown with identifier mangling disabled and Console base /; include reviewed Windows startup, TLS, protocol/OAuth and frozen-export fixes.
 - Optional Native/Linux rootless Podman remains disabled until separately approved host provisioning/readiness. Real Podman, ChatGPT OAuth and multi-machine acceptance remain incomplete.

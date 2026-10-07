@@ -2,7 +2,7 @@
 
 [English](../release-validation-0.4.5.md) · [发行指南](releases.md) · [发行摘要](../../packaging/release-notes.md)
 
-本候选从准确 main `8941738096ab69c0b9fa014f39ff9749cca64822` 开始，该 main 已正常合并根入口和依赖 PR。唯一运行时改动是版本源递增至 0.4.5；保留 Vite 8/Rolldown、两入口 `mangle: false` 及 Console `base: "/"`。先前根入口工作树没有独有已跟踪或未跟踪修改；该工作树与旧包独立保留。
+本候选从准确 main `8941738096ab69c0b9fa014f39ff9749cca64822` 开始，该 main 已正常合并根入口和依赖 PR。版本源递增至 0.4.5，并最小适配遗漏提交 `4c61cb4fa9301805386122e27a2e88098c0770fc` 的账户菜单行为及 `8ff92ef5694f47faed30b3a38c288c72ccbf3551` 的前端分类原因说明。后端已有分类证据，其策略与权限不变。保留 Vite 8/Rolldown、两入口 `mangle: false`、Console `base: "/"`、当前 tokens 和页头布局。先前根入口工作树没有独有已跟踪或未跟踪修改；该工作树与旧包独立保留。
 
 ## 候选检查
 

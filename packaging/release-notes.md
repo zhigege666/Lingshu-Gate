@@ -2,7 +2,7 @@
 
 ## English — release overview
 
-0.4.5 consolidates the source changes since the immutable v0.4.4 release: explicit MCP groups and instance sessions, a bounded on-demand tool directory, private OAuth catalog/editor improvements, the root Console entry and fresh package staging. The runtime, CLI, package metadata and archive names use the single version source; the Console reads the running version from /healthz.
+0.4.5 consolidates the source changes since the immutable v0.4.4 release: explicit MCP groups and instance sessions, a bounded on-demand tool directory, private OAuth catalog/editor improvements, account-menu recovery, classification change explanations, the root Console entry and fresh package staging. The runtime, CLI, package metadata and archive names use the single version source; the Console reads the running version from /healthz.
 
 - The browser Console opens at /; /console, /console/ and /console/index.html keep compatible same-origin 307 redirects with query and browser-fragment behavior. Explicit JSON discovery remains available at / and stable metadata at /v1/meta. Root and old asset aliases retain identical bytes, confined paths and appropriate cache rules.
 - Groups reference existing configurations without copying credentials or granting access. Matching complete contracts share logical entries; differing schemas/safety/version contracts remain separate. Explicit connection-bound sessions pin instances and reject changed authority, configuration/runtime drift, close/expiry and cross-instance reuse.
@@ -21,7 +21,7 @@ Pushing a version change to main automatically starts tag creation and the forma
 
 ## 简体中文 — 版本概述
 
-0.4.5 整合不可变 v0.4.4 发行后的源码变化：显式 MCP 分组与实例会话、有界按需工具目录、私有 OAuth 目录/编辑改进、根路径 Console 入口及干净打包 staging。运行时、CLI、包元数据和归档名称使用唯一版本源；Console 从 /healthz 读取实际运行版本。
+0.4.5 整合不可变 v0.4.4 发行后的源码变化：显式 MCP 分组与实例会话、有界按需工具目录、私有 OAuth 目录/编辑改进、账户菜单恢复、分类变化原因、根路径 Console 入口及干净打包 staging。运行时、CLI、包元数据和归档名称使用唯一版本源；Console 从 /healthz 读取实际运行版本。
 
 - 浏览器 Console 从 / 打开；/console、/console/、/console/index.html 保留同源 307 兼容跳转、查询串及浏览器片段行为。/ 保留显式 JSON 发现，/v1/meta 提供稳定元信息。根资源与旧别名保留相同字节、路径边界及适当缓存规则。
 - 分组引用已有配置，不复制凭据、不自动授权。完整合同相同的工具共用逻辑条目；schema/安全声明/版本不同则保留独立分区。显式连接绑定会话固定实例，拒绝权限变化、配置/runtime 漂移、关闭/过期及跨实例复用。

@@ -2,7 +2,7 @@
 
 [简体中文](zh-CN/release-validation-0.4.5.md) · [Release guide](releases.md) · [Release summary](../packaging/release-notes.md)
 
-This candidate starts from exact main `8941738096ab69c0b9fa014f39ff9749cca64822`, which normally merged the root-entry and dependency PRs. Its only runtime change is the single source version to 0.4.5; Vite 8/Rolldown, `mangle: false` on both entries and Console `base: "/"` remain unchanged. The working tree at the earlier root-entry checkout had no unique tracked or untracked changes; that checkout and its old packages are retained separately.
+This candidate starts from exact main `8941738096ab69c0b9fa014f39ff9749cca64822`, which normally merged the root-entry and dependency PRs. It changes the single source version to 0.4.5 and minimally restores omitted account-menu behavior from `4c61cb4fa9301805386122e27a2e88098c0770fc` and frontend classification explanations from `8ff92ef5694f47faed30b3a38c288c72ccbf3551`. The backend already provides the classification evidence; its policy and permissions do not change. Vite 8/Rolldown, `mangle: false` on both entries, Console `base: "/"`, current tokens and header layout remain unchanged. The working tree at the earlier root-entry checkout had no unique tracked or untracked changes; that checkout and its old packages are retained separately.
 
 ## Candidate checks
 

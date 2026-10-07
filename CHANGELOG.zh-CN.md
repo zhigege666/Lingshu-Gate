@@ -5,6 +5,7 @@
 - 浏览器 Console 迁移至根路径，保留内容协商 JSON 发现、稳定 /v1/meta、旧链接兼容、资源路径边界和经核对的 native 入口 smoke。
 - 整合显式 MCP 分组/连接绑定实例会话、有界按需目录及可终止 schema 验证；派发保留实际工具/实例权限与凭据复核。
 - 整合私有 OAuth 目录分页、完整选择解析、紧凑双语编辑器、无损草稿及写结果未知后的明确核对；scope/令牌族与选择上限保持。
+- 补齐账户菜单受控关闭与键盘焦点恢复；展示已有工具分类合同变化原因，明确旧记录未保存字段摘要的限制。
 - 连续 wheel 构建采用私有 staging，并准确校验静态清单/RECORD，覆盖 sdist-to-wheel，保留安全路径边界和冻结 worker 入口。
 - 保留 Vite 8/Rolldown、关闭标识符 mangle 及 Console base /；包含经审查的 Windows 启动、TLS、协议/OAuth 与冻结导出修复。
 - 可选 Native/Linux rootless Podman 在另行批准宿主准备/readiness 前保持关闭；真实 Podman、ChatGPT OAuth 及多机器验收仍未完成。
