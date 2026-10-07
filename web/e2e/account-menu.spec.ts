@@ -62,9 +62,9 @@ test('@smoke @full @account-menu an account action closes the menu and restores 
   const menu = page.locator('.console-account-menu')
   await account.click()
   await expect(menu).toBeVisible()
-  const popup = page.waitForEvent('popup')
-  await menu.getByRole('menuitem', { name: 'OpenAPI', exact: true }).click()
-  const docs = await popup
+  // Existing decorative icons contribute an "api" prefix to this menu item's name.
+  const action = menu.getByRole('menuitem', { name: /(?:^| )OpenAPI$/ })
+  const [docs] = await Promise.all([page.waitForEvent('popup'), action.click()])
   await expect(docs).toHaveURL(/\/docs$/)
   await docs.close()
   await expect(menu).toHaveCount(0)
