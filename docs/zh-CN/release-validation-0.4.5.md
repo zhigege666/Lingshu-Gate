@@ -70,6 +70,8 @@ JSON 保存当前 118 个文件的完整静态清单，其规范 SHA-256 为 `95
 
 五种 native 均在自身平台验证包身份、校验解包及 readiness，Linux 另执行 glibc 基线门禁。PR release quality 实际运行 194 个发行工程测试；容器契约实际执行 Core 构建/检查/readiness/critical 漏洞检查及 QEMU 原生/仿真执行，不是仅检查文档。
 
+Compose 仅执行本地、生产及打包 Compose 文件的模型/config 检查。Core readiness 通过 GitHub runner 上安全镜像的 `docker run` 验证；这些结果不表示 nx5 部署、真实 rootless Podman 准备/readiness 或真实 OAuth 客户端验收通过。
+
 历史 7c7 源码 CI 第 1、2 次均通过前端 455 项及 Python 3.12 后端 2311/7/134，随后在 Ubuntu APT 镜像/索引阶段 exit 124，未到 Chromium 下载。浏览器断言及 Python 3.11/3.13 均未运行，两个失败及原日志摘要保留；未原样重跑第三次。必要的 2ef739b 修复只改 `.github/workflows/backend.yml`，本地 35 个既有 CI 契约测试及 YAML/Shell 顺序检查通过。真实新 CI runner 已在后端前通过完整官方依赖/字体安装及 Chromium 下载；当前准确 head 源码工作流为 **completed / success**。此 head 的浏览器 smoke、两项完整 Python 兼容任务及 CI result 门禁均已终结成功；准确版本/数量与日志证明保存于 JSON。
 
 已下载 Windows、两个 macOS 与 Compose 制品，核对 GitHub ZIP 原始摘要、内层 SHA256SUMS、完整 BUILD-INFO 清单及 SPDX SBOM。两个 macOS 的 118 静态字节均与 Linux 相同；Windows 同为 118 路径且全部 JS/CSS 字节一致，但两个 HTML/两个 SVG 的 CR/CRLF 文本换行不同。其自身声明摘要有效，去除 CR 后与 Linux 文本相同；不声称这四项跨平台字节相同。两个 Linux CI ZIP 超过本地下载工具 32 MiB 上限，未在本环境独立下载；其 CI 校验/解包/readiness 日志及 artifact 元数据，与本地新建并完整检查的 Linux 包分别记录。
