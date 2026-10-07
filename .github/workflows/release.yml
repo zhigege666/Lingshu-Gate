@@ -275,8 +275,31 @@ jobs:
           enable-cache: true
           cache-dependency-glob: uv.lock
 
+      - name: Prepare static OpenSSL for Intel macOS cryptography
+        if: matrix.target == 'macos-x86_64'
+        shell: bash
+        run: bash scripts/release/prepare_macos_crypto.sh
+
       - name: Install frozen runtime and release toolchain
-        run: uv sync --frozen --no-dev --group release
+        shell: bash
+        run: |
+          crypto_options=()
+          if [[ "${{ matrix.target }}" == "macos-x86_64" ]]; then
+            crypto_options=(--no-binary-package cryptography --reinstall-package cryptography)
+          fi
+          uv sync --frozen --no-dev --group release "${crypto_options[@]}"
+
+      - name: Verify Intel macOS cryptography is independent of OpenSSL dylibs
+        if: matrix.target == 'macos-x86_64'
+        shell: bash
+        run: |
+          extension=$(uv run --no-sync python -c 'from cryptography.hazmat.bindings import _rust; print(_rust.__file__)')
+          otool -L "$extension" | tee "$RUNNER_TEMP/gate-cryptography-linkage.txt"
+          if otool -L "$extension" | grep -E 'lib(ssl|crypto)[^/]*\.dylib|/usr/local/|/opt/homebrew/'; then
+            echo "cryptography must statically link its locked OpenSSL build"
+            exit 1
+          fi
+          uv run --no-sync python -c 'from cryptography.hazmat.backends.openssl.backend import backend; assert backend.openssl_version_text().startswith("OpenSSL 4.0.3 "), backend.openssl_version_text()'
 
       - name: Build native archive
         run: uv run --no-sync python -m scripts.release.build_native --target "${{ matrix.target }}"
