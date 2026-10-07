@@ -11,7 +11,7 @@ async function selectLocale(page: Page, locale: 'zh-CN' | 'en-US') {
 test('E2E-007 @delivery real upload, build, configure, deploy and start', async ({ page }, testInfo) => {
   test.setTimeout(60_000)
   const archive = join(process.env.GATE_E2E_TEMP_ROOT!, 'synthetic-browser-delivery.zip')
-  execFileSync('../.venv/bin/python', ['../scripts/e2e/make_bundle.py', archive], { timeout: 10_000 })
+  execFileSync(process.env.GATE_E2E_PYTHON || '../.venv/bin/python', ['../scripts/e2e/make_bundle.py', archive], { timeout: 10_000 })
   await login(page)
   await page.goto('/console/#/uploads')
   await page.locator('input[type=file]').setInputFiles(archive)
@@ -150,15 +150,19 @@ test('E2E-007 @delivery real upload, build, configure, deploy and start', async 
   await page.getByRole('button', { name: '修改配置', exact: true }).click()
   const serviceEditor = page.getByRole('dialog', { name: `修改配置 · ${deployment.server_id}`, exact: true })
   await serviceEditor.getByLabel('名称', { exact: true }).fill('合成项目配置未保存草稿')
+  await expect(serviceEditor.getByRole('radio', { name: '仅保存（未生效）', exact: true })).toBeChecked()
+  await serviceEditor.getByRole('radio', { name: '保存并应用启动', exact: true }).check()
   await serviceEditor.getByText('崩溃重启策略', { exact: true }).click()
   for (const viewport of [{ width: 1672, height: 941 }, { width: 1366, height: 768 }, { width: 390, height: 844 }]) {
     await page.setViewportSize(viewport)
-    // Drawer width animates after viewport resize; scroll only after its responsive layout settles.
-    await expect.poll(() => serviceEditor.locator('.ant-drawer-body').evaluate(element => ({ width: Math.round(element.getBoundingClientRect().width), left: Math.round(element.getBoundingClientRect().left) }))).toEqual({ width: Math.min(760, viewport.width), left: Math.max(0, viewport.width - 760) })
-    await serviceEditor.locator('.ant-drawer-body').evaluate(element => { element.scrollTop = element.scrollHeight })
+    const expectedWidth = Math.min(1200, viewport.width - (viewport.width <= 600 ? 32 : 96))
+    // The centered dialog keeps a single scrolling editor body and fixed actions.
+    await expect.poll(() => serviceEditor.evaluate(element => ({ width: Math.round(element.getBoundingClientRect().width), left: Math.round(element.getBoundingClientRect().left) }))).toEqual({ width: expectedWidth, left: Math.round((viewport.width - expectedWidth) / 2) })
+    await expect.poll(async () => (await serviceEditor.boundingBox())!.height).toBeLessThanOrEqual(viewport.height - (viewport.width <= 600 ? 32 : 64))
     await serviceEditor.locator('.manifest-editor-body').evaluate(element => { element.scrollTop = element.scrollHeight })
     await expectInViewportAndUnobscured(serviceEditor.getByLabel('失败阈值', { exact: true }))
-    await expectInViewportAndUnobscured(serviceEditor.getByRole('button', { name: '保存并重启', exact: true }))
+    await expectInViewportAndUnobscured(serviceEditor.getByRole('button', { name: '保存配置', exact: true }))
+    await expect(serviceEditor.getByRole('radio', { name: '保存并应用启动', exact: true })).toBeChecked()
     await page.screenshot({ path: testInfo.outputPath(`real-service-config-bottom-${viewport.width}x${viewport.height}.png`), animations: 'disabled' })
   }
 })

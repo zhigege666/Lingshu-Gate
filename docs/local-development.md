@@ -7,7 +7,7 @@ Lingshu Gate uses Python for the service and React/TypeScript for the Console. T
 ## Requirements
 
 - Python 3.11, 3.12, or 3.13
-- Node.js 22 and npm
+- Node.js 22.12+ (22.x), 24.x, or 26+ and npm (matching the selected frontend tools)
 - `uv` 0.11.33 or the version pinned by CI
 - Docker with Compose for container verification
 - PowerShell 7 only when testing the bundled Delivery packaging script

@@ -28,15 +28,21 @@ for (const view of ['accessUsers','accessRoles','accessGrants','credentials','pe
 }
 
 for(const width of [390,1366,2048]) {
-  test(`E2E-591-${width} @visual reset is compact and does not shift the list`,async({page})=>{
+  test(`E2E-591-${width} @visual reset is compact and does not shift the list`,async({page},testInfo)=>{
     await page.setViewportSize({width,height:900})
     await page.goto('/console/#/downstreamCredentials')
     const reset=page.getByRole('button',{name:'Reset Filters',exact:true})
     await expect(reset).toBeDisabled()
+    const searchGeometry=()=>page.locator('.page-toolbar-search > .ant-input-affix-wrapper').evaluate(el=>{
+      const css=getComputedStyle(el)
+      return {height:el.getBoundingClientRect().height,minHeight:css.minHeight,paddingTop:css.paddingTop,paddingBottom:css.paddingBottom,borderTop:css.borderTopWidth,borderBottom:css.borderBottomWidth,clearHeight:el.querySelector('button')?.getBoundingClientRect().height??0}
+    })
     const before=await page.locator('.downstream-credentials-table').boundingBox()
+    const searchBefore=await searchGeometry()
     await page.locator('.page-toolbar-search input').fill('Synthetic')
     await expect(reset).toBeEnabled()
     const after=await page.locator('.downstream-credentials-table').boundingBox()
+    await testInfo.attach('search-reset-geometry',{body:JSON.stringify({viewport:{width,height:900},before:{table:before,search:searchBefore},after:{table:after,search:await searchGeometry()}},null,2),contentType:'application/json'})
     expect(Math.abs(after!.y-before!.y)).toBeLessThan(2)
     expect((await reset.boundingBox())!.width).toBeLessThan(180)
     await expectInViewportAndUnobscured(reset)

@@ -31,7 +31,7 @@ export function ListPagination({ paging, t }: { paging: PageControls; t: TFuncti
   </nav>
 }
 
-export function ListViewport({ children, viewport, label, actions = true }: { children: ReactNode; viewport: RefObject<HTMLDivElement>; label: string; actions?: boolean }) {
+export function ListViewport({ children, viewport, label, actions = true }: { children: ReactNode; viewport: RefObject<HTMLDivElement | null>; label: string; actions?: boolean }) {
   return <div ref={viewport} className={`bounded-list-scroll${actions ? " bounded-list-actions" : ""}`} role="region" aria-label={label} tabIndex={0}>{children}</div>
 }
 

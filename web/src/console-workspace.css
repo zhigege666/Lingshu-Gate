@@ -351,6 +351,8 @@
 
 .page-toolbar-search > .ant-input-affix-wrapper {
   max-width: 480px;
+  /* Reserve the clear target using this Input's padding and border tokens. */
+  min-height: calc(24px + 2 * var(--ant-input-padding-block, 6px) + 2 * var(--ant-line-width, 1px));
 }
 
 .page-toolbar-search .ant-input-suffix .ant-btn {
