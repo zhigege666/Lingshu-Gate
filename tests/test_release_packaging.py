@@ -1041,10 +1041,10 @@ def test_all_github_actions_are_allowlisted_immutable_commit_pins() -> None:
     allowed_actions = {
         "actions/attest-build-provenance": ("4d101475d8b20a2381f78447822ac1eab6504dd8", "v4"),
         "actions/checkout": ("fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09", "v5"),
-        "actions/download-artifact": ("37930b1c2abaa49bbe596cd826c3c89aef350131", "v7"),
+        "actions/download-artifact": ("3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c", "v8.0.1"),
         "actions/setup-node": ("a0853c24544627f65ddf259abe73b1d18a591444", "v5"),
         "actions/setup-python": ("ece7cb06caefa5fff74198d8649806c4678c61a1", "v6"),
-        "actions/upload-artifact": ("b7c566a772e6b6bfb58ed0dc250532a479d7789f", "v6"),
+        "actions/upload-artifact": ("043fb46d1a93c77aae656e7c1c64a875d1fc6a0a", "v7.0.1"),
         "aquasecurity/trivy-action": ("ed142fd0673e97e23eac54620cfb913e5ce36c25", "v0.36.0"),
         "astral-sh/setup-uv": ("37802adc94f370d6bfd71619e3f0bf239e1f3b78", "v7"),
         "docker/build-push-action": ("53b7df96c91f9c12dcc8a07bcb9ccacbed38856a", "v7"),
