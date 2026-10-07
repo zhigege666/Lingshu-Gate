@@ -1051,8 +1051,8 @@ def test_all_github_actions_are_allowlisted_immutable_commit_pins() -> None:
         "docker/login-action": ("dbcb813823bdd20940b903addbd779551569679f", "v4"),
         "docker/setup-buildx-action": ("37fe631027851001ddb9b187196cc803df7f5f0e", "v4"),
         "docker/setup-qemu-action": ("96fe6ef7f33517b61c61be40b68a1882f3264fb8", "v4"),
-        "github/codeql-action/analyze": ("cdf488f595d80d6e07e03d4674febd5ab45fa938", "v4.37.9"),
-        "github/codeql-action/init": ("cdf488f595d80d6e07e03d4674febd5ab45fa938", "v4.37.9"),
+        "github/codeql-action/analyze": ("b96794f015dfd88f77b49b1c93e0fa7110f94c63", "v4.38.0"),
+        "github/codeql-action/init": ("b96794f015dfd88f77b49b1c93e0fa7110f94c63", "v4.38.0"),
         "sigstore/cosign-installer": ("398d4b0eeef1380460a10c8013a76f728fb906ac", "v3"),
     }
     action_pattern = re.compile(
