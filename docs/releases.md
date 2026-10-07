@@ -183,7 +183,7 @@ The separate **Container images** workflow is validation-only. Pushes to `main`,
 - tagged runs additionally export offline Core images from the verified container payloads, build the application SPDX SBOM, assemble a collision-free asset directory, regenerate the aggregate `SHA256SUMS`, attest every asset, and create the GitHub Release;
 - if a release already exists for the tag, the workflow requires an immutable, non-draft release with an exact asset-name set and byte-for-byte matching content, then leaves it unchanged; a mutable release or missing, stale, or different assets fail the run;
 - a newly created release is immediately re-read and must be immutable, complete, and byte-for-byte identical to the verified local assets; enable **Settings > Releases > Enable release immutability** before creating a release tag;
-- native packages are built on their target operating system and architecture with PyInstaller `6.22.2`;
+- native packages are built on their target operating system and architecture with PyInstaller `6.22.3`;
 - Console assets and frozen Python dependencies are built from lock files before packaging;
 - archive paths, timestamps, modes, symlinks, required notices, checksums, SBOM structure, and startup behavior are verified before publication.
 

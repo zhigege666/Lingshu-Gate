@@ -181,7 +181,7 @@ ARM64 使用 `arm64` 资产和 Tag。让 `LINGSHU_GATE_IMAGE` 指向加载后的
 - Tag 运行还会从已验证的容器 Payload 导出 Core 离线镜像、构建应用 SPDX SBOM，汇总无文件名冲突的资产目录，重新生成聚合 `SHA256SUMS`，为每个资产生成 Attestation，并创建 GitHub Release；
 - 如果该 Tag 的 Release 已存在，工作流要求其不可变、不是 Draft、资产名称集合完全一致且内容逐字节一致，随后保持其不变；Release 可变或资产缺失、陈旧、内容不同都会使运行失败；
 - 新建 Release 后，工作流会立即重新读取并要求其不可变、资产完整且与已验证的本地资产逐字节一致；创建发行 Tag 前，请先启用 **Settings > Releases > Enable release immutability**；
-- 原生包使用 PyInstaller `6.22.2` 在目标操作系统和架构上构建；
+- 原生包使用 PyInstaller `6.22.3` 在目标操作系统和架构上构建；
 - 打包前基于 Lock File 构建 Console 资产和冻结的 Python 依赖；
 - 发布前校验归档路径、时间戳、Mode、Symlink、必需声明、Checksum、SBOM 结构和启动行为。
 
