@@ -149,6 +149,24 @@ uv run python scripts/quality/check_repository_identity.py --history
 
 ## 发行检查
 
+构建非 editable Python 包前先构建前端，再使用常规 PEP 517 入口：
+
+```bash
+npm --prefix web ci
+npm --prefix web run build
+uv build
+```
+
+setuptools 构建钩子为包复制和 wheel 安装分别创建独立临时目录，在归档前核对 Console/OAuth 的
+完整文件名清单及 SHA-256，拒绝缺失的前端入口、符号链接、特殊文件及构建期间的源文件变化。
+它们不会删除已有的 `build/lib`、旧 wheel 暂存目录、原生制品或用户指定的构建路径。
+sdist 包含构建钩子和已生成的静态资源，因此可在没有 Node.js 的情况下继续构建 wheel。
+editable 安装仍支持尚未构建前端的源码树；非 editable wheel 会拒绝绕过校验的 `--skip-build`。
+最终 wheel zip 及每条 RECORD 的哈希和大小也在独立暂存目录中校验，通过后才原子替换输出文件；
+无效归档不会成为报告的构建结果。回归测试包含失败后重试及同一源码树的并发 wheel 构建。
+打包回归检查使用 `uv run pytest -q tests/test_wheel_build.py tests/test_release_packaging.py`。
+连续/并发构建及候选证据见[干净 wheel 暂存验证](wheel-build-validation.md)。
+
 发行工作流会在匹配的操作系统和架构上构建每个原生归档。在匹配的本机上，维护者可以构建一个 Target：
 
 ```bash

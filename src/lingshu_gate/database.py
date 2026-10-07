@@ -27,6 +27,21 @@ from lingshu_gate.persistence.git_network_migration import (
 from lingshu_gate.persistence.session_purpose_migration import (
     SESSION_PURPOSE_MIGRATION_ID, apply_session_purpose_migration,
 )
+from lingshu_gate.persistence.external_mcp_config_migration import (
+    EXTERNAL_MCP_CONFIG_MIGRATION_ID, apply_external_mcp_config_migration,
+)
+from lingshu_gate.persistence.console_csrf_migration import (
+    CONSOLE_CSRF_MIGRATION_ID, apply_console_csrf_migration,
+)
+from lingshu_gate.persistence.tool_catalog_migration import (
+    TOOL_CATALOG_MIGRATION_ID, apply_tool_catalog_migration,
+)
+from lingshu_gate.persistence.catalog_group_epoch_migration import (
+    CATALOG_GROUP_EPOCH_MIGRATION_ID, apply_catalog_group_epoch_migration,
+)
+from lingshu_gate.persistence.mcp_groups_migration import MCP_GROUPS_MIGRATION_ID, apply_mcp_groups_migration
+from lingshu_gate.persistence.mcp_group_requests_migration import MCP_GROUP_REQUESTS_MIGRATION_ID, apply_mcp_group_requests_migration
+from lingshu_gate.persistence.mcp_group_routing_migration import MCP_GROUP_ROUTING_MIGRATION_ID, apply_mcp_group_routing_migration
 
 BASELINE_MIGRATION_ID = "0001_gate_baseline"
 SQLITE_BUSY_TIMEOUT_MS = 30_000
@@ -69,7 +84,14 @@ class SQLiteDatabase:
              Migration(RETENTION_MIGRATION_ID, apply_retention_migration),
              Migration(AUDIT_LOOKUP_MIGRATION_ID, apply_audit_lookup_migration),
              Migration(GIT_NETWORK_MIGRATION_ID, apply_git_network_migration),
-             Migration(SESSION_PURPOSE_MIGRATION_ID, apply_session_purpose_migration)),
+             Migration(SESSION_PURPOSE_MIGRATION_ID, apply_session_purpose_migration),
+             Migration(EXTERNAL_MCP_CONFIG_MIGRATION_ID, apply_external_mcp_config_migration),
+             Migration(CONSOLE_CSRF_MIGRATION_ID, apply_console_csrf_migration),
+             Migration(TOOL_CATALOG_MIGRATION_ID, apply_tool_catalog_migration),
+             Migration(MCP_GROUPS_MIGRATION_ID, apply_mcp_groups_migration),
+             Migration(MCP_GROUP_REQUESTS_MIGRATION_ID, apply_mcp_group_requests_migration),
+             Migration(MCP_GROUP_ROUTING_MIGRATION_ID, apply_mcp_group_routing_migration),
+             Migration(CATALOG_GROUP_EPOCH_MIGRATION_ID, apply_catalog_group_epoch_migration)),
         ).run()
 
     def _apply_baseline_migration(self, connection: sqlite3.Connection) -> None:

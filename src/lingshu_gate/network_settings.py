@@ -7,7 +7,7 @@ import json
 import re
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import Any, Literal
+from typing import Any, Literal, Callable
 from urllib.parse import urlsplit
 from uuid import uuid4
 
@@ -129,6 +129,7 @@ class NetworkSettingsStore:
         self.audit = audit
         # Same encryption implementation, separate namespace from user credentials.
         self.endpoints = CredentialStore(data_dir / "private-network-profiles")
+        self.executor_readiness: Callable[[], dict[str, Any]] = lambda: {"available": False, "code": "safe_executor_unavailable", "missing": ["native_executor_not_configured"]}
 
     def _credential_revision(self, ref: str | None) -> str | None:
         if ref is None:
@@ -140,7 +141,7 @@ class NetworkSettingsStore:
 
     def settings(self) -> dict[str, Any]:
         row = self.database.query_one("SELECT * FROM delivery_network_settings WHERE id=1")
-        return {"revision": int(row["revision"]) if row else 0, "defaults": json.loads(row["settings_json"]) if row else NetworkDefaults().model_dump(), "executor": {"available": False, "code": "safe_executor_unavailable"}}
+        return {"revision": int(row["revision"]) if row else 0, "defaults": json.loads(row["settings_json"]) if row else NetworkDefaults().model_dump(), "executor": self.executor_readiness()}
 
     def profiles(self) -> list[dict[str, Any]]:
         rows = self.database.query_all("""SELECT v.* FROM network_profiles p JOIN network_profile_versions v

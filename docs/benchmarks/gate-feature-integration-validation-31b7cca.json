@@ -1,0 +1,92 @@
+{
+  "source_sha": "31b7cca9155d36094250a47bc7f688797b8217a7",
+  "branch": "test/gate-feature-integration-20261005",
+  "remote_matches": true,
+  "worktree_clean": true,
+  "version": "0.4.4",
+  "backend": {
+    "passed": 2126,
+    "skipped": 7,
+    "failed": 0,
+    "duration_seconds": 954.48,
+    "exit_code": 0,
+    "skip_scope": "4 operator-provisioned rootless Podman acceptance cases; 3 fixed external Playwright MCP installation opt-ins",
+    "raw_log": "gate-feature-integration-backend-31b7cca.log",
+    "raw_log_sha256": "6e462142be05b3010714682a556f23efb1957846918f795132f59c4bd1079675"
+  },
+  "frontend": {
+    "vitest_files": 74,
+    "vitest_passed": 439,
+    "type_ux_check": "passed",
+    "console_oauth_build": "passed",
+    "npm_ci": "passed"
+  },
+  "synthetic_browser": {
+    "regular_passed": 196,
+    "regular_initial_opt_in_skips": 11,
+    "enabled_5000_services_50000_tools_passed": 11,
+    "visual_acceptance": "not asserted"
+  },
+  "static_checks": {
+    "ruff": "passed",
+    "mypy": "passed (158 source files)",
+    "repository_identity": "passed",
+    "version": "passed",
+    "docker_compose_config": "passed",
+    "git_diff_check": "passed"
+  },
+  "packaging": {
+    "installed_wheel_and_frozen_worker_children": 14,
+    "all_children_reaped": true,
+    "direct_native_entry_probes": 2,
+    "installed_wheel_native_module_imports": 6,
+    "checkout_excluded": true,
+    "raw_evidence": "gate-feature-integration-package-workers-31b7cca.json",
+    "artifacts": {
+      "wheel": {
+        "path": "built-wheel/lingshu_gate-0.4.4-py3-none-any.whl",
+        "sha256": "669c11664f6b229e87f051560bf5086b1c75917873e367840e39eba058b87cce"
+      },
+      "linux_frozen_worker": {
+        "path": "linux-frozen-bundle/lingshu-gate",
+        "sha256": "47c4daedc8e4e9a862e8d390259a8138e51606ed4074fd7e5f059e0f61d4645d"
+      }
+    }
+  },
+  "provenance": "gate-feature-integration-provenance-31b7cca.json",
+  "root_independent_review": "confirmed no new P1/P2 at this SHA; true merge parents, blob provenance, teardown finally and migration/lock composition reviewed",
+  "remaining_acceptance": [
+    "operator-provisioned rootless Podman namespace/controller/image/cache",
+    "real credential/provider/client acceptance",
+    "nx5 deployment and host preparation by parent"
+  ],
+  "boundaries": "test branch only; no main merge, tag, SSH, real credentials, production service, Core engine/socket, host-shell fallback or host provisioning",
+  "production_source_sha": "31b7cca9155d36094250a47bc7f688797b8217a7",
+  "test_checkpoint_sha": "31b7cca9155d36094250a47bc7f688797b8217a7",
+  "evidence_export": {
+    "scope": "Documentation-only export; no product change or new test execution.",
+    "raw_runner_json_sha256": "a2b59a18ce9bfdea4e9e8380222dfcc726ea2610a8cb187cd5c18ee3cb02f570",
+    "path_normalization": "Runner-local absolute roots replaced by relative aliases. These paths describe observed imports/commands and are not downloadable assets.",
+    "credentials": "Synthetic data only; no real credentials or provider/client acceptance."
+  },
+  "runner_log_basenames": [
+    "lingshu-gate-integration-final-backend.log",
+    "lingshu-gate-integration-final-browser.log",
+    "lingshu-gate-integration-final-export.log",
+    "lingshu-gate-integration-final-native-build.log",
+    "lingshu-gate-integration-final-package-probe.log",
+    "lingshu-gate-integration-final-paged-browser.log",
+    "lingshu-gate-integration-final-web-build.log",
+    "lingshu-gate-integration-final-web-check.log",
+    "lingshu-gate-integration-final-web-ci.log",
+    "lingshu-gate-integration-final-web-test.log",
+    "lingshu-gate-integration-final-wheel-build.log",
+    "lingshu-gate-integration-final-wheel-env.log"
+  ],
+  "runner_log_scope": "Original runner filenames recorded for traceability; only repository evidence files below are published by this documentation change.",
+  "repository_evidence": [
+    "gate-feature-integration-provenance-31b7cca.json",
+    "gate-feature-integration-package-workers-31b7cca.json",
+    "gate-feature-integration-backend-31b7cca.log"
+  ]
+}

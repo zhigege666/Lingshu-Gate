@@ -1,57 +1,36 @@
-# Git 执行缺口与落地决策
+# Git 执行器实现与落地决策
 
-[English](../git-executor-decision.md) · [Git/网络契约](git-import-network.md)
+[English](../git-executor-decision.md) · [Git/网络合同](git-import-network.md) · [Native 宿主准备](native-executor.md)
 
-本文是提案，不是已安装的执行器或隔离证据。功能尚未完成：同时缺具体 adapter 代码和隔离运行环境。在现有 Gate 旁安装 Git、pnpm 或 Docker 不能补齐。
+已决定采用 **Native/Linux 先行**。本开发分支实现可信 HTTPS 获取和真实本机 rootless Podman 适配器，复用计划、确认/digest/idempotency、GitImport/ProjectUpload、BuildDeploy 链。适配器可选且默认关闭，须管理员准备及审查前提；真实宿主验收未测。源码版本保持 0.4.4，本轮不发布、打 tag 或 merge。
 
-当前待批准范围仅涉及 Git 拉取、依赖安装和构建。远程 MCP 运行时、stdio bridge 或新部署体系不在此范围，需另行明确决策。下文较广的运行讨论仅指出潜在后续缺口，不授权实现；现有 local 运行工具 pin 修复不新增 worker。
+Core 继续是非特权 gateway 和权威单 SQLite coordinator：不创建适配器、不接引擎/socket、不执行本地项目、不准备宿主工具、不远程部署 runtime、不桥接 stdio。Core readiness 明确返回 `core_gateway_only_native_delivery_disabled`。Native 构建成功不增加 Core deploy/start 支持。
 
-## 现有执行路径
+## 已实现代码
 
-| 代码 | 当前行为 / 缺口 |
+| 范围 | 实现 |
 |---|---|
-| `config.py:Settings.runtime_role` | 原生默认 `local`，只接受 `local`/`core`，没有 worker 连接配置。 |
-| `compose.yaml`、`compose.prod.yaml`、Dockerfile `core` | 默认 `core`，UID 10001、根/Workspace 只读、无引擎 socket、无 Git/Node 构建工具；定位控制面/外部 HTTP MCP 网关。 |
-| `build_deploy.py:BuildDeployStore._require_local_execution` | 构建/部署/回滚要求 `local`，仅注入新端口不能启用 Core 交付。 |
-| `build_deploy.py:build_upload`、`_run_build_job`、`_execute_plan_dag`、`_run_single_step` | 既有队列/IR/协调/持久化；安全计划转交可选端口，旧直连走 `_run_command`。必须复用此链路。 |
-| `build_deploy.py:_build_subprocess_environment`、`_run_command` | 专用目录、净化环境、宿主 `subprocess.Popen`、输出/时间限制、进程组终止；没有文件系统/网络/cgroup 隔离，子孙进程可逃离进程组。 |
-| `ports/safe_network_executor.py:SafeNetworkExecutor` | `resolve_commit`、`export_snapshot`、`probe`、`prepare_package_manager`、`run_command` 五方法仅协议定义，缺具体实现。 |
-| `main.py:create_app` | 两个服务都不注入执行器，缺 factory/配置/readiness/生命周期。 |
-| `git_import_mcp.py:GitImportService._executor` | Core 先被角色阻断，原生再被缺少 adapter 阻断。 |
-| `network_settings.py:NetworkSettingsStore.settings` | 状态硬编码 false，需真实可信 adapter readiness。 |
-| `build_plan.py:finalize_manifest` | 只生成本地 `managed_process` 和产物路径，没有远程制品/运行目标。 |
-| `mcp_runtime.py:McpRuntimeManager.start_server` | Core 拒绝受管进程/容器，支持外部 HTTP MCP；远程构建不自动带来部署/启动。 |
-| `mcp_container.py:build_docker_command` | 既有容器无网络、根/挂载只读；不是 install/build 沙箱，不能移除其基线。 |
+| `native_executor_config.py`、`adapters/safe_network_factory.py` | 管理员固定 digest/root/binary/proxy 策略，Linux/local 工厂在导入引擎前守卫。 |
+| `main.py`、`network_settings.py` | 同一个适配器接入 GitImport/BuildDeploy，真实 readiness、启动对账/自检、关闭接单。 |
+| `adapters/native_executor/controller.py`、`journal.py` | 固定 Podman argv、已预载 digest 镜像、实际 namespace/controller、有界 tmpfs、持久阶段/资源账、整 cgroup 终止与未知阻断。 |
+| `adapters/native_executor/https.py`、`git.py`、`git_acquisition.py` | 有界 TLS、数字 DNS/代理目标连接、固定 smart HTTPS fetch、离线 strict pack 解析、hash-bound 原始 object 导出，不 checkout。 |
+| `adapters/native_executor/packages.py`、`runner.py` | 官方固定 npm/pnpm/Yarn 完整性/engines；npm/pnpm 8–9/Yarn Classic registry cache、无秘密离线冻结 install/build。 |
+| `build_deploy.py`、`git_import_mcp.py` | 保持既有 coordinator/artifact，绑定持久 actor/source/plan/network，interrupted 不盲重跑、不删除未知资源。 |
 
-原生/local 仍可构建可信上传项目，要求 Node/Python 与受支持的匹配工具已安装，且计划无需新安全端口；这不是不可信 Git 的隔离。两种部署的 Git 拉取、受控测试、指定出口及工具 bootstrap 都没有生产实现。默认 Core 原本也不能构建/部署/启动上传本地代码。功能目标尚未完成。
+保留原五方法协议及 capability 名称，生产组合额外要求真实 readiness；Native 仅声明 capability 不够。factory/settings/lifecycle 已非 stub。只复用历史原始 object/scanner/offline integrity 校验器，未带入无关 Stage 1 修改。
 
-## 必须先决定范围
+## 有界支持范围
 
-| 范围 | 代码 | 基础设施 / 代价 | 结果 |
-|---|---|---|---|
-| 先原生/local | 具体隔离 adapter、可信下载/出口、工具缓存、factory/readiness/生命周期 | 独立 Linux 执行账户/主机、受审查固定镜像、实际 namespace/资源控制器可用的 rootless 引擎、独立 Workspace/cache | 保留本地部署/启动；Docker Core 仍仅网关；Windows/macOS 需显式 Linux 执行主机。 |
-| 默认 Core + 远程 worker | 上述代码，加认证阶段 RPC、源码/产物传输、持久化操作对账、远程部署/启动目标 | Core 外独立 worker 服务、mTLS/信任/秘密供应、镜像与缓存维护、配额及监控 | Core 协调全流程，不执行项目代码，不控制引擎。 |
+Git 支持 HTTPS smart v0/v1 和 SHA-1 固定 commit，禁 hooks/helpers/checkout/submodule/LFS/redirect。HTTP CONNECT/SOCKS 代理接收已验证数字上游 IP，保持原 host TLS。HTTPS 代理传输明确拒绝；代理 host 策略与 Git 策略分开，Git/install revision 独立固定。
 
-若默认 Docker 产品必须有全流程，建议远程 worker；接受仅原生交付则原生优先改动较小。当前进程内 `cwd`/结果端口及本地 guard 不能表示远程产物和运行目标，需先选择范围。尚未新增 daemon、引擎暴露、Core 权限、服务部署或真实凭据。
+固定官方 npm/pnpm/Yarn 可在不使用 Corepack/global install 的情况下准备。受审依赖闭环覆盖 registry-only npm lock v2/v3、pnpm 8/9 v3 store、Yarn Classic 1.22 mirror，强固定 integrity、有界内容及官方离线冻结闭包验证。pnpm 10/11 package-ID store、Berry、Python sandbox cache、workspace/link/bundled/custom/Git/file、项目 rc/hook 明确拒绝；Python 仅保留本适配器之外的 legacy upload/direct 路径，没有 manager/version/network fallback。所选受审 Node manager 可离线执行确认 build script。
 
-## 安全边界提案
+项目代码只有只读校验 source/tool/cache 和有界可写工作目录，无 network/secret/engine mount。整组终止后才冻结输出，再通过既有有界制品边界。持久 journal 将阶段绑定唯一 sandbox；重启/取消/超时保留未知结果、不自动重放。deploy/start/overwrite/rollback 的独立确认仍保留。
 
-Core 保留唯一权威 SQLite 写入者及现有 Project Delivery 协调器，负责 actor/权限、确认、源码/计划/配置摘要、幂等、代理固定修订及部署记录。worker 执行校验过的阶段，不另建交付流程。请求不可指定任意宿主路径、镜像、命令、凭据或探测 URL。网络秘密只经获准认证通道到可信下载/出口组件，不到项目代码、普通返回、日志或产物。
+## 仍须管理员验收
 
-worker 在 Core 外使用独立账户，只有该账户接触受审查引擎；Core 和项目容器均无此能力。任务使用预加载 digest 固定镜像，禁止自动拉镜像，独立 PID/mount/user namespace、删除 capabilities、禁止提权、只读工具根、受限 Workspace/tmp、实际资源控制器。不得挂 Gate data/config/密钥、宿主 socket/home 或引擎控制。readiness 验证真实条件，缺项准确报错；只有容器命令不够。
+代码已实现，宿主准备与真实验收分开。受审预载镜像、专用非 root Native 账户、实际 cgroup v2 CPU/memory/pids 委派、owned bounded tmpfs 为前提。缺 namespace/controller/image/quota/journal 所有权时返回可行动 readiness 原因，不执行宿主 fallback。
 
-依赖出口是最难缺口。bridge 加 HTTP_PROXY 不能约束 DNS/重定向/来源，也不能防 lifecycle 读取认证。提案的可信下载/缓存组件持有上游代理和凭据；Git、准确官方分发不运行源码 hook/filter。依赖获取不能执行项目 hook；pnpm hook、其他工具/bootstrap 及解析期代码必须禁用或拒绝。校验过的缓存不带秘密用于冻结安装/构建，未计划 lifecycle 网络获取失败。依赖网络的脚本/custom registry 流程需要单独审查出口/来源策略，不能因选代理就承诺支持。每项 npm/pnpm/Yarn 冻结缓存流程都需验证。
+云端证据为合成。准备后宿主仍须验证真实 HTTPS Git/credential/proxy 来源保真、官方 manager 及 npm/pnpm/Yarn cache、恶意 lifecycle、全部后代终止、重启对账、制品和既有 deploy/rollback。未使用生产凭据、SSH，未变更 nx 服务、信任或宿主网络。见[可部署 Native 合同](native-executor.md)。
 
-每阶段绑定 actor/operation、源码/计划/网络摘要、固定修订、限制、deadline、独立幂等键。worker journal 把键对应到唯一沙箱和输出摘要。不确定完成时只查询，不盲重放。取消/超时终止整个沙箱/cgroup 和所有 writer 再冻结输出；重启先对账 journal/容器 ID，未知结果阻断。
-
-源码/制品采用有界流及文件清单/内容摘要，不信任 worker 路径。Core 再校验并写新制品；失败不替换当前部署。远程部署/启动需要独立目标句柄及 generation 乐观锁。stdio 项目需 worker 认证 HTTP bridge；Core 连接外部 Streamable HTTP，不能启动 worker 本地 Manifest。保留 grants/分类/按用户凭据语义；运行时不继承交付代理，更新可打断 session。
-
-## 决策后实现
-
-1. 严格配置/readiness/阶段/源码/产物契约及真实 factory，保留旧 local 行为和 Core 宿主 guard。
-2. 具体有界 TLS/DNS/重定向 Git/测试/官方工具获取、不可变缓存及隔离冻结安装/构建，补离线 transport/container/journal 测试；区分代码/配置缺失与运行条件缺失。
-3. Core 范围在现协调器扩展远程制品/目标，只允许验证过的远程 dispatch，禁止宿主回退，保留单独确认的部署/启动/回滚。
-4. 提供操作者复核的镜像/服务供应文档；当前只做静态检查，不启动 daemon/引擎/网络服务/Git/install/部署。
-5. 后续验收真实 namespace/controller、DNS/代理凭据、快照、工具 integrity、所有锁流程、恶意 lifecycle、超时/取消/重启、旧部署/回滚及双语桌面布局。
-
-提案运行条件参考 [Podman run](https://docs.podman.io/en/latest/markdown/podman-run.1.html)和 [Docker rootless 资源限制](https://docs.docker.com/engine/security/rootless/tips/#limiting-resources)。namespace/网络选项与主机 controller 委派需实际验证，不代表本分支已有运行沙箱。
+未来 Core remote worker 须另立鉴权 phase/artifact/runtime、远程 deploy/stdio 合同；不在本实现内，也不因 Native 支持而自动授权。

@@ -165,6 +165,26 @@ existing Git objects; this bounded record avoids rewriting shared history.
 
 ## Release checks
 
+Build the frontend before a noneditable Python package, then use the normal PEP 517 entry point:
+
+```bash
+npm --prefix web ci
+npm --prefix web run build
+uv build
+```
+
+The setuptools build hooks use new private staging directories for both package copying and wheel installation.
+They check the exact Console/OAuth file names and SHA-256 values before archiving, reject missing frontend
+entry points, symlinks, special files and source changes during the build, and never delete an existing
+`build/lib`, old wheel staging directory, native artifact or user-selected build path. A source distribution
+includes the hooks and built static assets so a wheel can be built from it without Node.js. Editable installs
+still work before building the frontend; noneditable wheels reject `--skip-build` because it bypasses validation.
+The final wheel zip and every RECORD hash/size are checked in private staging before atomic output replacement;
+an invalid archive never becomes the reported build result. Regression tests include failed-build retries and
+concurrent wheel builds from one source tree.
+Run `uv run pytest -q tests/test_wheel_build.py tests/test_release_packaging.py` for packaging regressions.
+See [clean wheel staging validation](wheel-build-validation.md) for the consecutive/concurrent build and candidate evidence.
+
 The release workflow builds each native archive on its matching operating system and architecture. On a matching local host, a maintainer can build one target:
 
 ```bash

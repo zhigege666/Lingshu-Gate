@@ -1,0 +1,108 @@
+{
+  "source_sha": "a3b57f708ae3d848382e46ee9c9b85ccae8e5722",
+  "followup_source_sha": "9af3ddb5f5d7699f3c2bfe408c4f09cf04861020",
+  "backend_test_checkpoint": "31b7cca9155d36094250a47bc7f688797b8217a7",
+  "cherry_pick_conflicts": [],
+  "followup_blob_checks": [
+    {
+      "path": "docs/builtin-oauth.md",
+      "blob": "65f71178c89c2d885ec14cd30a16539c6a4151c7"
+    },
+    {
+      "path": "docs/images/console/oauth-catalog/save-reconciled-en-US-1600x900.png",
+      "blob": "83ca5e43f971e3d4102b10a822fa4ed804e59803"
+    },
+    {
+      "path": "docs/images/console/oauth-catalog/save-reconciled-zh-CN-1600x900.png",
+      "blob": "23da621d63d4a60391ddd1919b7ac9c1b16ef2c3"
+    },
+    {
+      "path": "docs/images/console/oauth-catalog/save-unknown-en-US-1600x900.png",
+      "blob": "e55f421b7e92de9db53798c5aa59ae40f158a43e"
+    },
+    {
+      "path": "docs/images/console/oauth-catalog/save-unknown-zh-CN-1600x900.png",
+      "blob": "3dc526ebb0dd72bcca171b3578a013cded6d90ff"
+    },
+    {
+      "path": "docs/oauth-catalog-scaling.md",
+      "blob": "ef82991c9769855640bff7df6890c55d9bf6f669"
+    },
+    {
+      "path": "docs/zh-CN/builtin-oauth.md",
+      "blob": "ddf2862e97be8dae6d97c1b549b90d87e9d23304"
+    },
+    {
+      "path": "docs/zh-CN/oauth-catalog-scaling.md",
+      "blob": "6d464a56641598365297251cb863086ec502718c"
+    },
+    {
+      "path": "packaging/release-notes.md",
+      "blob": "93cc24599803bb94e8523d04e8785d502f671477"
+    },
+    {
+      "path": "web/e2e/oauth-paged-catalog.spec.ts",
+      "blob": "3388b99f56a194c01d9677711b9496803b76eecf"
+    },
+    {
+      "path": "web/src/features/external-connections/oauth-paged-tool-picker.tsx",
+      "blob": "4512e84aa44302d010a7e1bd26755ccc75293a0c"
+    },
+    {
+      "path": "web/src/pages/oauth-grants.tsx",
+      "blob": "e5aa11acd0c2410419fa1396f72d730dbc48d7e3"
+    }
+  ],
+  "unchanged_backend_lock_checks": [
+    {
+      "path": "src",
+      "tree_records_sha256": "d3bd6da25257c6dee70404cbf111762f201f20ff16ac7fce74279333697f7849",
+      "matched_entries": 158
+    },
+    {
+      "path": "tests",
+      "tree_records_sha256": "7a91fedc8f211a8db831624d8bab10055a2271c45a93d4e8e3b221f3f85ee8cb",
+      "matched_entries": 110
+    },
+    {
+      "path": "scripts",
+      "tree_records_sha256": "afc0e475a5eb96cd6c1e9edbac031aed92138d016d25dfa886362be3656bb629",
+      "matched_entries": 37
+    },
+    {
+      "path": "pyproject.toml",
+      "tree_records_sha256": "ceca5cc135157611d893918a2e14fba2c73e4193f12375d534502d5352a36b35",
+      "matched_entries": 1
+    },
+    {
+      "path": "uv.lock",
+      "tree_records_sha256": "97bf4436dcc7a9778412df2f1fe158a2892588d67d95b1dd9bbb5d819612285c",
+      "matched_entries": 1
+    },
+    {
+      "path": "web/package.json",
+      "tree_records_sha256": "9ab96ff584bc7b5211dc06838e8306e51450ea8ab5f9fb2abcf5ef242ffc2b4b",
+      "matched_entries": 1
+    },
+    {
+      "path": "web/package-lock.json",
+      "tree_records_sha256": "dfb642d2c8a015619bb06e171cb3104a16729b633e4d74fa56ec9d3d2cd77d2e",
+      "matched_entries": 1
+    }
+  ],
+  "independent_reviews": [
+    {
+      "source_sha": "31b7cca9155d36094250a47bc7f688797b8217a7",
+      "reviewer": "parent/root",
+      "result": "No new P1/P2",
+      "scope": "True d8d4833/76bfe2c merge parents and per-blob source provenance; Native close finally, migration and lock composition."
+    },
+    {
+      "source_sha": "9af3ddb5f5d7699f3c2bfe408c4f09cf04861020",
+      "reviewer": "parent/root",
+      "result": "Recovery gap closed; no new P1/P2",
+      "scope": "Real post-commit response loss, unknown write locks, stale metadata removal, actual grant/catalog/selection readback before unlock, quota draft retention, unavailable authority checks and CAS."
+    }
+  ],
+  "integration_scope": "Conflict-free cherry-pick with all 12 input blobs unchanged. Backend source/tests/scripts and Python/npm dependency definitions and locks remain byte-identical to the full-backend checkpoint."
+}

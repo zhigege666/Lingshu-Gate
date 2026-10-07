@@ -33,6 +33,83 @@ GIT_POLICY = {
     "filter.lfs.smudge": "", "filter.lfs.process": "",
 }
 GIT_ENVIRONMENT_POLICY = {"GIT_CONFIG_NOSYSTEM": "1", "GIT_CONFIG_GLOBAL": "/dev/null", "GIT_TERMINAL_PROMPT": "0", "GIT_LFS_SKIP_SMUDGE": "1", "GIT_ALLOW_PROTOCOL": "https", "GIT_OPTIONAL_LOCKS": "0"}
+SNAPSHOT_CHUNK_BYTES = 64 * 1024
+LFS_PREFIX = b"version https://git-lfs.github.com/spec/v1"
+
+
+def network_secret_values(material: dict[str, Any]) -> list[str]:
+    """Derive actual Basic/proxy password components, never usernames alone.
+
+    This uses the same first-colon split as trusted Git/proxy authentication.
+    Preserve every original material value and add its secret component so
+    reflected bare tokens and their existing URL/base64 forms are also scanned.
+    Short components remain active; conservative rejection is intentional.
+    """
+    values = [value for value in material.values() if isinstance(value, str)]
+    for key, value in material.items():
+        if key.rsplit(".", 1)[-1] in {"git_credential", "proxy_credential"} and isinstance(value, str) and ":" in value:
+            _, secret = value.split(":", 1)
+            if not secret:
+                raise ValueError("Network credential secret component is empty")
+            values.append(secret)
+    return list(dict.fromkeys(values))
+
+
+def snapshot_forbidden_values(values: list[str]) -> frozenset[bytes]:
+    """Bound scanner state; do not retain arbitrarily large network material."""
+    if len(values) > 32 or any(len(value) > 64 * 1024 for value in values):
+        raise ValueError("Git snapshot network scan material exceeds limit")
+    forbidden: set[bytes] = set()
+    total = 0
+    for value in values:
+        if value:
+            raw = value.encode()
+            total += len(raw)
+            if len(raw) > 64 * 1024 or total > 256 * 1024:
+                raise ValueError("Git snapshot network scan material exceeds limit")
+            forbidden.update({raw, quote(value, safe="").encode(), base64.b64encode(raw)})
+    return frozenset(forbidden)
+
+
+def validate_snapshot_path(entry: zipfile.ZipInfo, forbidden: frozenset[bytes]) -> tuple[str, str]:
+    """Shared raw-object/ZIP path policy, including every unselected subtree."""
+    parts, key = _validated_zip_member(entry)
+    relative = "/".join(parts)
+    if any(value in relative.encode() for value in forbidden):
+        raise ValueError("Git snapshot path contains network material")
+    if any(part.lower() in SENSITIVE_PARTS or part.lower().startswith(".env") or part.lower().endswith((".pem", ".key", ".p12", ".pfx")) for part in parts):
+        raise ValueError("Git snapshot contains sensitive/configuration paths")
+    if any(part.lower().endswith(".gitmodules") for part in parts):
+        raise ValueError("Git submodules are unsupported; remove submodules before import")
+    return relative, key
+
+
+class SnapshotContentScanner:
+    """Incremental content/hash scan; neither decoder nor scanner loads a blob."""
+
+    def __init__(self, forbidden: frozenset[bytes], max_bytes: int) -> None:
+        self.forbidden = forbidden
+        self.max_bytes = max_bytes
+        self.size = 0
+        self.digest = hashlib.sha256()
+        self._overlap = max(128, *(len(value) for value in forbidden)) if forbidden else 128
+        self._tail = b""
+        self._prefix = b""
+
+    def update(self, chunk: bytes) -> None:
+        if len(chunk) > SNAPSHOT_CHUNK_BYTES or self.size + len(chunk) > self.max_bytes:
+            raise ValueError("Git snapshot exceeds expanded size or chunk limit")
+        window = self._tail + chunk
+        if any(value in window for value in self.forbidden):
+            raise ValueError("Git snapshot contains network material")
+        if SECRET_TEXT.search(window):
+            raise ValueError("Git snapshot contains possible credentials; review source")
+        self._prefix = (self._prefix + chunk)[:len(LFS_PREFIX)]
+        if self._prefix == LFS_PREFIX:
+            raise ValueError("Git LFS is unsupported; materialize and review regular source files before import")
+        self._tail = window[-self._overlap:]
+        self.size += len(chunk)
+        self.digest.update(chunk)
 
 
 class GitSourceInput(StrictModel):
@@ -147,21 +224,12 @@ def snapshot_inventory(content: bytes, project_root: str, *, forbidden_values: l
     files: list[dict[str, Any]] = []
     expanded = 0
     seen: set[str] = set()
-    forbidden: set[bytes] = set()
-    for value in forbidden_values or []:
-        if value:
-            forbidden.update({value.encode(), quote(value, safe="").encode(), base64.b64encode(value.encode())})
+    forbidden = snapshot_forbidden_values(forbidden_values or [])
     with zipfile.ZipFile(io.BytesIO(content)) as archive:
         if len(archive.infolist()) > MAX_FILES:
             raise ValueError("Git snapshot exceeds file count limit")
         for entry in archive.infolist():
-            # Reuse the upload path/type validator, plus source-specific controls.
-            parts, key = _validated_zip_member(entry)
-            relative = "/".join(parts)
-            if any(value in relative.encode() for value in forbidden):
-                raise ValueError("Git snapshot path contains network material")
-            if any(part.lower() in SENSITIVE_PARTS or part.lower().startswith(".env") or part.lower().endswith((".pem", ".key", ".p12", ".pfx")) for part in parts):
-                raise ValueError("Git snapshot contains sensitive/configuration paths")
+            relative, key = validate_snapshot_path(entry, forbidden)
             if key in seen:
                 raise ValueError("Git snapshot contains duplicate/ambiguous paths")
             seen.add(key)
@@ -172,14 +240,13 @@ def snapshot_inventory(content: bytes, project_root: str, *, forbidden_values: l
             expanded += entry.file_size
             if expanded > MAX_EXTRACTED_BYTES:
                 raise ValueError("Git snapshot exceeds expanded size limit")
-            data = archive.read(entry)
-            if any(value in data for value in forbidden):
-                raise ValueError("Git snapshot contains network material")
-            if SECRET_TEXT.search(data):
-                raise ValueError("Git snapshot contains possible credentials; review source")
-            if entry.filename.endswith(".gitmodules") or data.startswith(b"version https://git-lfs.github.com/spec/v1"):
-                raise ValueError("Submodules and Git LFS require separate permission and are unsupported")
-            files.append({"path": relative, "size_bytes": len(data), "sha256": hashlib.sha256(data).hexdigest()})
+            scanner = SnapshotContentScanner(forbidden, entry.file_size)
+            with archive.open(entry) as reader:
+                while chunk := reader.read(SNAPSHOT_CHUNK_BYTES):
+                    scanner.update(chunk)
+            if scanner.size != entry.file_size:
+                raise ValueError("Git snapshot entry size does not match its declared size")
+            files.append({"path": relative, "size_bytes": scanner.size, "sha256": scanner.digest.hexdigest()})
     if not files or (project_root != "." and not any(item["path"].startswith(project_root + "/") for item in files)):
         raise ValueError("selected project directory has no files")
     inventory = sorted(files, key=lambda item: item["path"])

@@ -73,7 +73,7 @@ for (const size of sizes) for (const locale of ["en-US", "zh-CN"] as const) for 
     const model = await setup(page, locale, theme)
     const issuer = page.locator("#oauth-issuer"), resource = page.locator("#oauth-resource"), toggle = enableSwitch(page, zh)
     await expect(toggle).toBeDisabled()
-    await expect(resource).toHaveAttribute("placeholder", "https://gate.example.com/mcp")
+    await expect(resource).toHaveAttribute("placeholder", "https://gate.example.test/mcp")
     await expect(page.locator(".oauth-setup-steps li")).toHaveCount(4)
     await expect(page.locator("#oauth-enable-help")).toContainText(zh ? "先保存地址" : "Save URLs")
     await capture(page, `no-key-${suffix}`, "saved URLs; no key; disabled enable switch; four prerequisite steps")
@@ -180,6 +180,7 @@ for (const locale of ["en-US", "zh-CN"] as const) {
     const model = await setup(page, locale)
     async function editAndSave(name: string) {
       await page.getByRole("button", { name: model.client.name, exact: true }).click()
+      await page.getByRole("dialog", { name: zh ? "客户端详情" : "Client details", exact: true }).getByRole("button", { name: zh ? "编辑客户端" : "Edit client", exact: true }).click()
       const dialog = page.getByRole("dialog", { name: zh ? "编辑客户端" : "Edit client", exact: true })
       await expect(page.getByRole("status").filter({ hasText: zh ? "客户端已保存" : "Client saved" })).toHaveCount(0)
       await dialog.getByLabel(zh ? "客户端名称" : "Client name", { exact: true }).fill(name)

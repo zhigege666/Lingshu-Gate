@@ -22,8 +22,18 @@ from lingshu_gate.adapters.control_plane import (
     McpRuntimeDriverAdapter,
     SQLiteStateStoreAdapter,
 )
+from lingshu_gate.adapters.safe_network_factory import create_safe_network_executor, unavailable_readiness
 from lingshu_gate.application.health import HealthService, StartupState
 from lingshu_gate.application.mcp_configuration import McpConfigurationService
+from lingshu_gate.application.mcp_groups import McpGroupService
+from lingshu_gate.application.mcp_group_catalog import McpGroupCatalogService
+from lingshu_gate.application.mcp_group_routing import McpGroupRoutingService
+from lingshu_gate.mcp_group_mcp import register_mcp_group_tools
+from lingshu_gate.persistence.mcp_groups import McpGroupStore
+from lingshu_gate.interfaces.control_api.mcp_group_routes import register_mcp_group_routes
+from lingshu_gate.application.external_mcp_configuration import ExternalMcpConfigurationService
+from lingshu_gate.external_mcp_config_mcp import register_external_mcp_config_tools
+from lingshu_gate.interfaces.control_api.external_mcp_config_routes import register_external_mcp_config_routes
 from lingshu_gate.mcp_http_trust import McpHttpTrustStore
 from lingshu_gate.auth import AuthStore
 from lingshu_gate.build_deploy import BuildDeployStore
@@ -52,6 +62,9 @@ from lingshu_gate.interfaces.control_api.dependencies import (
 from lingshu_gate.logging import configure_logging, log_event
 from lingshu_gate.mcp_config_store import McpConfigStore
 from lingshu_gate.mcp_gateway import register_mcp_gateway_route
+from lingshu_gate.tool_catalog import ToolCatalog
+from lingshu_gate.oauth_candidate_catalog import OAuthCandidateCatalog
+from lingshu_gate.interfaces.control_api.catalog_routes import register_catalog_routes
 from lingshu_gate.mcp_runtime import McpRuntimeManager
 from lingshu_gate.mcp_runtime_state_store import McpRuntimeStateStore
 from lingshu_gate.memory_diagnostics import log_memory_snapshot
@@ -91,6 +104,7 @@ def create_app() -> FastAPI:
     registry = create_registry()
     database = SQLiteDatabase(settings.db_url, settings.data_dir)
     access_store = AccessControlStore(database)
+    tool_catalog = ToolCatalog(registry, access_store)
     auth_store = AuthStore(settings, database)
     observability_store = ObservabilityStore(database)
     retention_store = RetentionStore(database)
@@ -101,6 +115,8 @@ def create_app() -> FastAPI:
     user_credential_store = UserCredentialStore(database, settings.data_dir)
     credential_store = CredentialStore(settings.data_dir)
     network_settings_store = NetworkSettingsStore(database, settings.data_dir, credential_store, observability_store)
+    safe_network_executor = create_safe_network_executor(settings)
+    network_settings_store.executor_readiness = getattr(safe_network_executor, "readiness", lambda: unavailable_readiness(settings))
     mcp_config_store = McpConfigStore(settings.config_dir, http_trust_store=McpHttpTrustStore(database))
 
     mcp_runtime = McpRuntimeManager(
@@ -127,6 +143,7 @@ def create_app() -> FastAPI:
         observability_store,
         runtime_role=settings.runtime_role,
         network_settings=network_settings_store,
+        safe_network_executor=safe_network_executor,
     )
     project_delivery_service = ProjectDeliveryMcpService(
         database,
@@ -142,7 +159,7 @@ def create_app() -> FastAPI:
         tool_classification_reconciler=access_store.reconcile_server_tools,
     )
     register_project_delivery_tools(registry, project_delivery_service)
-    git_import_service = GitImportService(project_delivery_service, network_settings_store)
+    git_import_service = GitImportService(project_delivery_service, network_settings_store, executor=safe_network_executor)
     register_git_import_tools(registry, git_import_service)
 
     tool_file_service = ToolFileMcpService(tool_file_store)
@@ -158,11 +175,23 @@ def create_app() -> FastAPI:
     if settings.system_debug_mcp_enabled:
         register_system_debug_tool(registry, system_debug_service)
 
+    mcp_group_store = McpGroupStore(database, observability_store)
+    mcp_group_service = McpGroupService(mcp_group_store, mcp_config_store, mcp_runtime, registry=registry)
+    register_mcp_group_tools(registry, mcp_group_service)
+    mcp_group_router = McpGroupRoutingService(mcp_group_service, registry, access_store, auth_store)
+    tool_catalog.group_router = mcp_group_router
     mcp_configuration_service = McpConfigurationService(
         mcp_config_store,
         mcp_runtime,
         user_credential_store,
+        group_store=mcp_group_store,
     )
+    external_mcp_configuration_service = ExternalMcpConfigurationService(
+        settings=settings, database=database, auth=auth_store, access=access_store,
+        configs=mcp_config_store, runtime=mcp_runtime, credentials=credential_store,
+        configuration=mcp_configuration_service, delivery=project_delivery_service,
+    )
+    register_external_mcp_config_tools(registry, external_mcp_configuration_service)
     startup_state = StartupState()
     health_service = HealthService(
         service_name=settings.service_name,
@@ -215,6 +244,8 @@ def create_app() -> FastAPI:
                 "Memory snapshot before MCP startup",
             )
             settings.data_dir.mkdir(parents=True, exist_ok=True)
+            if safe_network_executor is not None:
+                safe_network_executor.start()  # type: ignore[attr-defined]
             mcp_runtime.load_manifests()
             mcp_runtime.start_auto_servers()
             log_event(
@@ -248,32 +279,39 @@ def create_app() -> FastAPI:
             raise
         finally:
             await retention_worker.stop()
-            if not startup_failed:
-                startup_state.mark_stopping()
-            log_event(
-                logger,
-                logging.INFO,
-                "gate.shutdown",
-                "Lingshu Gate shutdown started",
-            )
-            observability_store.emit_event("gate.shutdown", source="system")
-            observability_store.add_log(
-                "info",
-                "Lingshu Gate shutdown started",
-                source="system",
-                event_type="gate.shutdown",
-            )
-            log_memory_snapshot(
-                logger,
-                "gate.diagnostics.memory_snapshot_shutdown_before_mcp_stop",
-                "Memory snapshot before MCP shutdown",
-            )
-            mcp_runtime.shutdown()
-            log_memory_snapshot(
-                logger,
-                "gate.diagnostics.memory_snapshot_shutdown_complete",
-                "Memory snapshot after MCP shutdown",
-            )
+            try:
+                if safe_network_executor is not None:
+                    safe_network_executor.close()  # type: ignore[attr-defined]
+            finally:
+                # Native uncertainty retains its own journal/lease and error,
+                # while independent control-plane connections still shut down.
+                if not startup_failed:
+                    startup_state.mark_stopping()
+                log_event(
+                    logger,
+                    logging.INFO,
+                    "gate.shutdown",
+                    "Lingshu Gate shutdown started",
+                )
+                observability_store.emit_event("gate.shutdown", source="system")
+                observability_store.add_log(
+                    "info",
+                    "Lingshu Gate shutdown started",
+                    source="system",
+                    event_type="gate.shutdown",
+                )
+                log_memory_snapshot(
+                    logger,
+                    "gate.diagnostics.memory_snapshot_shutdown_before_mcp_stop",
+                    "Memory snapshot before MCP shutdown",
+                )
+                external_mcp_configuration_service.shutdown()
+                mcp_runtime.shutdown()
+                log_memory_snapshot(
+                    logger,
+                    "gate.diagnostics.memory_snapshot_shutdown_complete",
+                    "Memory snapshot after MCP shutdown",
+                )
             log_event(
                 logger,
                 logging.INFO,
@@ -293,12 +331,16 @@ def create_app() -> FastAPI:
     state.registry = registry
     state.database = database
     state.access_store = access_store
+    state.tool_catalog = tool_catalog
     state.auth_store = auth_store
     state.observability_store = observability_store
     state.project_upload_store = project_upload_store
     state.mcp_runtime = mcp_runtime
     state.mcp_config_store = mcp_config_store
     state.mcp_configuration_service = mcp_configuration_service
+    state.mcp_group_service = mcp_group_service
+    state.mcp_group_router = mcp_group_router
+    state.external_mcp_configuration_service = external_mcp_configuration_service
     state.credential_store = credential_store
     state.user_credential_store = user_credential_store
     state.tool_classification_service = tool_classification_service
@@ -336,7 +378,8 @@ def create_app() -> FastAPI:
     auth_store.external_connections = external_connection_store
     auth_store.external_verifier = external_jwt_verifier
     app.state.external_jwt_verifier = external_jwt_verifier
-    oauth_server = OAuthServer(OAuthStore(database), auth_store, access_store, registry, settings.data_dir)
+    oauth_server = OAuthServer(OAuthStore(database), auth_store, access_store, registry, settings.data_dir,
+                              candidate_catalog=OAuthCandidateCatalog(tool_catalog, access_store))
     auth_store.builtin_oauth = oauth_server
     app.state.oauth_server = oauth_server
     register_oauth_routes(app, server=oauth_server, observability=observability_store)
@@ -394,6 +437,7 @@ def create_app() -> FastAPI:
         observability_store=observability_store,
         require_authenticated=require_authenticated,
     )
+    register_catalog_routes(app, catalog=tool_catalog, require_authenticated=require_authenticated)
     register_mcp_config_routes(
         app,
         settings=settings,
@@ -403,6 +447,9 @@ def create_app() -> FastAPI:
         observability_store=observability_store,
         require_operations_manager=require_operations_manager,
     )
+    register_external_mcp_config_routes(app, auth=auth_store, service=external_mcp_configuration_service)
+    register_mcp_group_routes(app, auth=auth_store, service=mcp_group_service,
+                             catalog=McpGroupCatalogService(mcp_group_service, registry, access_store))
     register_mcp_runtime_routes(
         app,
         settings=settings,
@@ -433,6 +480,17 @@ def create_app() -> FastAPI:
             resource=resource, authorization_servers=tuple(dict.fromkeys(issuers)),
         ))
 
+    def management_oauth_discovery() -> McpOAuthDiscoveryBoundary | None:
+        from lingshu_gate.domain.oauth_management import MANAGEMENT_METADATA_PATH, MANAGEMENT_SCOPES
+
+        management = oauth_server.store.management_config()
+        if not settings.auth_enabled or not management["active"]:
+            return None
+        return McpOAuthDiscoveryBoundary(OAuthProtectedResourceMetadata(
+            resource=management["resource"], authorization_servers=(oauth_server.ready_config()["issuer"],),
+            scopes_supported=tuple(sorted(MANAGEMENT_SCOPES)),
+        ), metadata_path=MANAGEMENT_METADATA_PATH)
+
     register_mcp_gateway_route(
         app,
         settings,
@@ -440,6 +498,12 @@ def create_app() -> FastAPI:
         access_store,
         auth_store.authenticate_mcp_request,
         oauth_boundary=external_oauth_discovery,
+        catalog=tool_catalog,
+    )
+    register_mcp_gateway_route(
+        app, settings, registry, access_store, auth_store.authenticate_mcp_request,
+        oauth_boundary=management_oauth_discovery, path="/mcp/manage",
+        metadata_path="/.well-known/oauth-protected-resource/mcp/manage",
     )
     return app
 

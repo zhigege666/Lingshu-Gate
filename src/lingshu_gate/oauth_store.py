@@ -12,6 +12,7 @@ from contextlib import closing, contextmanager
 from typing import Any
 
 from lingshu_gate.database import SQLiteDatabase
+from lingshu_gate.domain.oauth_management import management_resource
 from lingshu_gate.persistence.migrations import Migration, MigrationRunner, execute_sql_script
 
 
@@ -85,12 +86,25 @@ CREATE INDEX gate_oauth_scope_confirmation_expiry ON gate_oauth_scope_confirmati
 """)
 
 
+def _management_resource_schema(connection: sqlite3.Connection) -> None:
+    execute_sql_script(connection, """
+CREATE TABLE gate_oauth_management_config (
+    id INTEGER PRIMARY KEY CHECK(id=1), enabled INTEGER NOT NULL CHECK(enabled IN (0,1)),
+    revision INTEGER NOT NULL
+);
+ALTER TABLE gate_oauth_clients ADD COLUMN resources_json TEXT NOT NULL DEFAULT '["business"]';
+ALTER TABLE gate_oauth_grants ADD COLUMN management_targets_json TEXT NOT NULL DEFAULT '{}';
+ALTER TABLE gate_oauth_grants ADD COLUMN target_revision INTEGER NOT NULL DEFAULT 0;
+""")
+
+
 class OAuthStore:
     def __init__(self, database: SQLiteDatabase) -> None:
         self.database = database
         MigrationRunner(database.connect, (Migration("0006_builtin_oauth", _schema),
                                            Migration("0008_oauth_interaction_capacity", _interaction_capacity_schema),
-                                           Migration("0009_oauth_scope_confirmations", _scope_confirmation_schema))).run()
+                                           Migration("0009_oauth_scope_confirmations", _scope_confirmation_schema),
+                                           Migration("0012_oauth_management_resource", _management_resource_schema))).run()
 
     @contextmanager
     def transaction(self) -> Iterator[sqlite3.Connection]:
@@ -106,11 +120,20 @@ class OAuthStore:
         return ({**json.loads(row["payload_json"]), "revision": row["revision"]} if row else
                 {"enabled": False, "issuer": "", "resource": "", "revision": 0})
 
+    def management_config(self, connection: sqlite3.Connection | None = None) -> dict[str, Any]:
+        row = (connection.execute("SELECT * FROM gate_oauth_management_config WHERE id=1").fetchone()
+               if connection else self.database.query_one("SELECT * FROM gate_oauth_management_config WHERE id=1"))
+        config = self.config(connection)
+        return {"enabled": bool(row and row["enabled"]), "revision": row["revision"] if row else 0,
+                "active": bool(row and row["enabled"] and config["enabled"]),
+                "resource": management_resource(config["resource"])}
+
     @staticmethod
     def client(row: Any) -> dict[str, Any]:
         return {"id": row["id"], "name": row["name"],
                 "redirect_uris": json.loads(row["redirect_uris_json"]),
                 "scopes": json.loads(row["scopes_json"]), "enabled": bool(row["enabled"]),
+                "resources": json.loads(row["resources_json"]),
                 "revision": row["revision"], "created_at": row["created_at"]}
 
     def clients(self) -> list[dict[str, Any]]:
@@ -120,7 +143,7 @@ class OAuthStore:
     @staticmethod
     def grant(row: Any) -> dict[str, Any]:
         return {**dict(row), "scopes": json.loads(row["scopes_json"]),
-                "tools": json.loads(row["tools_json"])}
+                "tools": json.loads(row["tools_json"]), "management_targets": json.loads(row["management_targets_json"])}
 
     def grants(self, user_id: str) -> list[dict[str, Any]]:
         return [self.grant(row) for row in self.database.query_all(

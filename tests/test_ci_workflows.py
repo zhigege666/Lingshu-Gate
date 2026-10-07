@@ -100,6 +100,8 @@ def test_compatibility_keeps_all_supported_python_versions_with_one_console_buil
         ("src/lingshu_gate/build_preflight.py", True),
         ("src/lingshu_gate/diagnostics.py", True),
         ("pyproject.toml", True),
+        ("MANIFEST.in", True),
+        ("tests/test_wheel_build.py", True),
         ("uv.lock", True),
         ("web/package-lock.json", True),
         ("web/vite.config.ts", True),

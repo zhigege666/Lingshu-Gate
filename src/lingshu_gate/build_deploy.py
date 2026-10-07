@@ -22,7 +22,7 @@ from lingshu_gate.build_plan import build_plan, finalize_manifest, plan_commands
 from lingshu_gate.build_preflight import check_diff, compute_preflight_fingerprint, fingerprint_key, preflight_diff, run_build_preflight, scope_key as compute_scope_key, tools_signature
 from lingshu_gate.node_toolchain import NodeToolchainOverride, node_requirement, node_version_supported
 from lingshu_gate.network_artifact import NETWORK_ARTIFACT_LIMITS, export_network_artifact
-from lingshu_gate.git_source import verify_git_snapshot
+from lingshu_gate.git_source import verify_git_snapshot, network_secret_values
 from lingshu_gate.credential_store import CredentialStore
 from lingshu_gate.database import SQLiteDatabase
 from lingshu_gate.mcp_config_store import McpConfigStore
@@ -32,7 +32,7 @@ from lingshu_gate.models import ResourceDeleteConflict
 from lingshu_gate.observability_store import ObservabilityStore
 from lingshu_gate.project_uploads import ProjectUploadStore
 from lingshu_gate.network_settings import NetworkSelection, NetworkSettingsStore
-from lingshu_gate.ports.safe_network_executor import SafeNetworkExecutor, require_proxy_support, require_safe_executor
+from lingshu_gate.ports.safe_network_executor import SafeNetworkExecutor, SafeExecutionCancelled, require_proxy_support, require_safe_executor
 from lingshu_gate.registry import ToolExecutionError
 
 IGNORED_COPY_DIRS = {".git", "node_modules", ".venv", "venv", "target", "__pycache__"}
@@ -43,7 +43,7 @@ PROCESS_READ_CHUNK_BYTES = 16 * 1024
 PROCESS_POLL_INTERVAL_SECONDS = 0.1
 PROCESS_TERMINATE_GRACE_SECONDS = 1.0
 SUPPORTED_LOCAL_RUNTIMES = {"node", "python"}
-TERMINAL_BUILD_STATUSES = {"success", "failed", "unsupported", "cancelled"}
+TERMINAL_BUILD_STATUSES = {"success", "failed", "unsupported", "cancelled", "interrupted"}
 BUILD_EXECUTOR_WORKERS = 2
 STEP_EXECUTOR_WORKERS = 4
 # 构建子进程不继承服务进程的令牌、代理或用户级配置；仅保留定位
@@ -149,6 +149,16 @@ class BuildDeployStore:
         self.root.mkdir(parents=True, exist_ok=True)
         self.executor = ThreadPoolExecutor(max_workers=BUILD_EXECUTOR_WORKERS, thread_name_prefix="gate-build")
         self._step_lock = threading.Lock()
+        self._reconcile_isolated_builds()
+
+    def _reconcile_isolated_builds(self) -> None:
+        # The single coordinator never resumes a persisted isolated phase. The
+        # Native journal reconciles physical resources independently at startup.
+        with self.database.session() as connection:
+            rows = connection.execute("SELECT id,plan_json FROM builds WHERE status IN ('queued','running','cancel_requested')").fetchall()
+            for row in rows:
+                if self._requires_safe_network(json.loads(row["plan_json"])):
+                    connection.execute("UPDATE builds SET status='interrupted',error='operation_interrupted',updated_at=? WHERE id=?", (iso_now(), row["id"]))
 
     def _require_local_execution(self, operation: str) -> None:
         if self.local_execution_enabled:
@@ -181,6 +191,8 @@ class BuildDeployStore:
     def delete_build(self, build_id: str) -> dict[str, Any]:
         build = self.get_build(build_id)
         status = str(build.get("status") or "")
+        if status == "interrupted":
+            raise ResourceDeleteConflict(code="build_requires_reconciliation", message="Interrupted execution requires resource reconciliation before deletion.", resource_type="build", resource_id=build_id, dependencies={"execution_state": "unknown"})
         if status not in TERMINAL_BUILD_STATUSES:
             raise ResourceDeleteConflict(
                 code="build_active" if status in {"queued", "running", "cancel_requested"} else "build_not_terminal",
@@ -533,7 +545,10 @@ class BuildDeployStore:
         if self._requires_safe_network(plan):
             if not network_authorized:
                 raise ToolExecutionError("network_permission_denied", "Configured delivery networking requires network.use and a confirmed plan", next_action="Use the digest-bound delivery tools or Git Console flow.")
-            require_safe_executor(self.safe_network_executor)
+            executor = require_safe_executor(self.safe_network_executor)
+            validate_support = getattr(executor, "validate_plan", None)
+            if validate_support:
+                validate_support(plan)
             if self.network_settings is None:
                 raise ToolExecutionError("safe_executor_unavailable", "An execution network policy store is unavailable", next_action="Configure the reviewed executor composition before queuing work.")
         if self.network_settings and plan.get("delivery_network"):
@@ -639,6 +654,16 @@ class BuildDeployStore:
         preflight = self.preflight_upload(upload_id, runtime_override=runtime_override, project_root=project_root, refresh=refresh, package_manager_override=package_manager_override)
         plan = self._delivery_plan(self.uploads.get_upload(upload_id), preflight, run_install=run_install, run_build=run_build)
         validation = validate_plan(plan)
+        if self._requires_safe_network(plan) and self.safe_network_executor is not None:
+            check = getattr(self.safe_network_executor, "validate_plan", None)
+            if check:
+                try:
+                    check(plan)
+                except ToolExecutionError as exc:
+                    plan["buildable"] = False
+                    plan["executor_block"] = exc.to_payload()
+                    validation["ok"] = False
+                    validation["errors"].append(exc.code)
         self.observability.emit_event("gate.build.plan", source="builds", subject_type="upload", subject_id=upload_id, payload={"runtime": plan.get("runtime"), "buildable": plan.get("buildable"), "plan_steps": len(plan.get("steps") or []), "plan_valid": validation["ok"]})
         return {"preflight": preflight, "plan": plan, "validation": {"ok": validation["ok"], "errors": validation["errors"]}}
 
@@ -1009,6 +1034,8 @@ class BuildDeployStore:
         return {"deployment": deployment, "server": server.model_dump(mode="json"), "message": "rolled_back"}
 
     def _run_build_job(self, build_id: str, upload: dict[str, Any], runtime: str, upload_root: Path, source_dir: Path, artifact_dir: Path, plan: dict[str, Any], timeout_seconds: int) -> None:
+        if self.get_build(build_id)["status"] == "interrupted":
+            return
         upload_id = str(upload.get("id") or "")
         plan_steps = list(plan.get("steps") or [])
         commands: list[list[str]] = plan_commands(plan)
@@ -1041,7 +1068,7 @@ class BuildDeployStore:
                         scan_material.update({f"{phase}.{key}": value for key, value in self.network_settings.execution_material(plan["delivery_network"], phase).items()})
                     for prefix in ("npm", "python"):
                         scan_material[prefix] = self.network_settings.credentials.resolve_value(plan["delivery_network"].get(f"{prefix}_credential_ref"))
-                    export_network_artifact(source_dir, artifact_dir, ignored=ARTIFACT_IGNORED_COPY_DIRS, forbidden_values=[value for value in scan_material.values() if isinstance(value, str)], cancelled=lambda: self._is_cancel_requested(build_id))
+                    export_network_artifact(source_dir, artifact_dir, ignored=ARTIFACT_IGNORED_COPY_DIRS, forbidden_values=network_secret_values(scan_material), cancelled=lambda: self._is_cancel_requested(build_id))
                 except InterruptedError:
                     raise BuildCancelled("build cancelled during artifact export") from None
                 finally:
@@ -1056,6 +1083,10 @@ class BuildDeployStore:
             _mark_pending_steps(step_states, "skipped")
             self._insert_build_log(build_id, sequence=self._next_build_log_sequence(build_id), phase="cancel", level="warning", message=error, command=[], result={"returncode": 130, "stdout": "", "stderr": error, "started_at": iso_now(), "finished_at": iso_now(), "duration_ms": 0})
             self.observability.add_log("warning", f"Build cancelled: {error}", source="builds", event_type="gate.build.cancelled", payload={"build_id": build_id, "upload_id": upload_id, "runtime": runtime})
+        except InterruptedError:
+            status, error = "interrupted", "operation_interrupted"
+            _mark_pending_steps(step_states, "interrupted")
+            self._insert_build_log(build_id, sequence=self._next_build_log_sequence(build_id), phase="reconcile", level="error", message="Isolated execution outcome is unknown; automatic replay is blocked", command=[], result=None)
         except Exception as exc:  # noqa: BLE001 - background worker must persist failures
             status = "failed"
             error = str(exc)
@@ -1129,7 +1160,9 @@ class BuildDeployStore:
             failure_code = "safe_network_execution_failed"
             try:
                 manager = plan.get("package_manager") or {}
-                descriptor = {**network, "package_manager": manager}
+                build = self.get_build(build_id)
+                owner = self.database.query_one("SELECT owner_id FROM project_delivery_resource_owners WHERE resource_type='build' AND resource_id=?", (build_id,))
+                descriptor = {**network, "package_manager": manager, "execution": {"build_id": build_id, "step_id": step["id"], "plan_fingerprint": build.get("plan_fingerprint"), "source_sha256": build.get("source_sha256"), "operation_id": build.get("operation_id"), "actor_id": owner["owner_id"] if owner else None}}
                 if step.get("id") == "node-toolchain":
                     specification = manager["preparation"]
                     result = executor.prepare_package_manager(specification, network=descriptor, material=material, timeout_seconds=min(timeout_seconds, specification["limits"]["timeout_seconds"]), cancel_requested=lambda: self._is_cancel_requested(build_id))
@@ -1159,6 +1192,12 @@ class BuildDeployStore:
                         result["package_manager"]["node_version"] = executed_node_version
                     if tool_source:
                         result["package_manager"]["source"] = tool_source
+            except SafeExecutionCancelled:
+                raise BuildCancelled("Isolated executor confirmed cancellation of the entire sandbox") from None
+            except InterruptedError:
+                raise InterruptedError("operation_interrupted") from None
+            except ToolExecutionError as exc:
+                raise RuntimeError(exc.code) from None
             except Exception:
                 raise RuntimeError(failure_code) from None
             finally:

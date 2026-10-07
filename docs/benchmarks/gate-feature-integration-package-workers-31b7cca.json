@@ -1,0 +1,195 @@
+{
+  "source_sha": "31b7cca9155d36094250a47bc7f688797b8217a7",
+  "parent_module": "isolated-wheel-env/lib/python3.12/site-packages/lingshu_gate/application/schema_validation.py",
+  "source_checkout_on_import_path": false,
+  "service_settings_bypassed": true,
+  "wheel_sha256": "669c11664f6b229e87f051560bf5086b1c75917873e367840e39eba058b87cce",
+  "native_sha256": "47c4daedc8e4e9a862e8d390259a8138e51606ed4074fd7e5f059e0f61d4645d",
+  "native_module_imports": {
+    "pending": "isolated-wheel-env/lib/python3.12/site-packages/lingshu_gate/adapters/native_executor/pending.py",
+    "https": "isolated-wheel-env/lib/python3.12/site-packages/lingshu_gate/adapters/native_executor/https.py",
+    "journal": "isolated-wheel-env/lib/python3.12/site-packages/lingshu_gate/adapters/native_executor/journal.py",
+    "controller": "isolated-wheel-env/lib/python3.12/site-packages/lingshu_gate/adapters/native_executor/controller.py",
+    "packages": "isolated-wheel-env/lib/python3.12/site-packages/lingshu_gate/adapters/native_executor/packages.py",
+    "executor": "isolated-wheel-env/lib/python3.12/site-packages/lingshu_gate/adapters/native_executor/executor.py"
+  },
+  "modes": {
+    "installed_wheel": {
+      "cases": [
+        {
+          "case": "valid",
+          "code": null,
+          "elapsed_ms": 263.49
+        },
+        {
+          "case": "invalid_type",
+          "code": "catalog_arguments_invalid",
+          "elapsed_ms": 232.827
+        },
+        {
+          "case": "regex_deadline",
+          "code": "catalog_validation_timeout",
+          "elapsed_ms": 910.552
+        },
+        {
+          "case": "reuse_after_timeout",
+          "code": null,
+          "elapsed_ms": 233.929
+        },
+        {
+          "case": "512k_chunk",
+          "code": null,
+          "elapsed_ms": 305.727
+        },
+        {
+          "case": "cancel_during_worker",
+          "code": "catalog_validation_cancelled",
+          "elapsed_ms": 306.613
+        },
+        {
+          "case": "reuse_after_cancel",
+          "code": null,
+          "elapsed_ms": 211.498
+        }
+      ],
+      "children": 7,
+      "all_children_reaped": true,
+      "commands": [
+        [
+          "isolated-wheel-env/bin/python",
+          "-m",
+          "lingshu_gate.application.schema_validation",
+          "--worker"
+        ],
+        [
+          "isolated-wheel-env/bin/python",
+          "-m",
+          "lingshu_gate.application.schema_validation",
+          "--worker"
+        ],
+        [
+          "isolated-wheel-env/bin/python",
+          "-m",
+          "lingshu_gate.application.schema_validation",
+          "--worker"
+        ],
+        [
+          "isolated-wheel-env/bin/python",
+          "-m",
+          "lingshu_gate.application.schema_validation",
+          "--worker"
+        ],
+        [
+          "isolated-wheel-env/bin/python",
+          "-m",
+          "lingshu_gate.application.schema_validation",
+          "--worker"
+        ],
+        [
+          "isolated-wheel-env/bin/python",
+          "-m",
+          "lingshu_gate.application.schema_validation",
+          "--worker"
+        ],
+        [
+          "isolated-wheel-env/bin/python",
+          "-m",
+          "lingshu_gate.application.schema_validation",
+          "--worker"
+        ]
+      ]
+    },
+    "actual_native_worker": {
+      "cases": [
+        {
+          "case": "valid",
+          "code": null,
+          "elapsed_ms": 355.282
+        },
+        {
+          "case": "invalid_type",
+          "code": "catalog_arguments_invalid",
+          "elapsed_ms": 384.594
+        },
+        {
+          "case": "regex_deadline",
+          "code": "catalog_validation_timeout",
+          "elapsed_ms": 902.928
+        },
+        {
+          "case": "reuse_after_timeout",
+          "code": null,
+          "elapsed_ms": 383.031
+        },
+        {
+          "case": "512k_chunk",
+          "code": null,
+          "elapsed_ms": 450.991
+        },
+        {
+          "case": "cancel_during_worker",
+          "code": "catalog_validation_cancelled",
+          "elapsed_ms": 308.295
+        },
+        {
+          "case": "reuse_after_cancel",
+          "code": null,
+          "elapsed_ms": 371.51
+        }
+      ],
+      "children": 7,
+      "all_children_reaped": true,
+      "commands": [
+        [
+          "linux-frozen-bundle/lingshu-gate",
+          "--gate-schema-validation-worker"
+        ],
+        [
+          "linux-frozen-bundle/lingshu-gate",
+          "--gate-schema-validation-worker"
+        ],
+        [
+          "linux-frozen-bundle/lingshu-gate",
+          "--gate-schema-validation-worker"
+        ],
+        [
+          "linux-frozen-bundle/lingshu-gate",
+          "--gate-schema-validation-worker"
+        ],
+        [
+          "linux-frozen-bundle/lingshu-gate",
+          "--gate-schema-validation-worker"
+        ],
+        [
+          "linux-frozen-bundle/lingshu-gate",
+          "--gate-schema-validation-worker"
+        ],
+        [
+          "linux-frozen-bundle/lingshu-gate",
+          "--gate-schema-validation-worker"
+        ]
+      ]
+    }
+  },
+  "direct_native_entry_probes": [
+    {
+      "returncode": 0,
+      "stdout": "valid"
+    },
+    {
+      "returncode": 1,
+      "stdout": ""
+    }
+  ],
+  "total_children": 14,
+  "all_children_reaped": true,
+  "production_source_sha": "31b7cca9155d36094250a47bc7f688797b8217a7",
+  "test_checkpoint_sha": "31b7cca9155d36094250a47bc7f688797b8217a7",
+  "evidence_export": {
+    "scope": "Documentation-only export; no product change or new test execution.",
+    "raw_runner_json_sha256": "3ebceee0b61bfd7bf770aecea0a12c2839f0dd7eeeb099f04c070bec2dd3838d",
+    "path_normalization": "Runner-local absolute roots replaced by relative aliases. These paths describe observed imports/commands and are not downloadable assets.",
+    "credentials": "Synthetic data only; no real credentials or provider/client acceptance."
+  },
+  "scope": "Installed wheel and real Linux PyInstaller schema workers; isolated-wheel parent exercises frozen child dispatch. No release archive/SBOM, actual Podman executor acceptance, other OS, production service or deployment verification."
+}

@@ -1,14 +1,11 @@
-"""Contract for a separately reviewed executor. There is no host subprocess adapter.
-
-Capability declarations alone are not a sandbox implementation. Composition must
-only inject an independently validated adapter; production composition injects None.
-"""
+"""Isolated delivery port. Native composition verifies a rootless Podman adapter."""
 
 from __future__ import annotations
 
 import threading
+from dataclasses import dataclass
 from pathlib import Path
-from typing import Any, Protocol
+from typing import Any, Literal, Protocol
 
 from lingshu_gate.registry import ToolExecutionError
 
@@ -20,6 +17,45 @@ REQUIRED_CAPABILITIES = frozenset({
     "no_unplanned_tool_downloads", "dependency_origin_policy",
 })
 TEST_TARGETS = {"github": "https://github.com/", "npm": "https://registry.npmjs.org/", "python": "https://pypi.org/simple/"}
+ExecutionPhase = Literal["git_acquisition", "offline_build"]
+ROOTLESS_CHECKS = frozenset({
+    "rootless_user", "user_mount_pid_namespaces", "read_only_tools", "bounded_workspace",
+    "cgroup_delegation", "cpu_memory_pids_limits", "whole_group_termination",
+})
+PHASE_CHECKS = {
+    "git_acquisition": frozenset({"trusted_acquisition", "pinned_dns_egress", "tls_verify", "no_redirects", "origin_bound_credentials"}),
+    "offline_build": frozenset({"network_disconnected", "verified_content_mounts", "secrets_outside_project"}),
+}
+
+
+@dataclass(frozen=True)
+class ExecutorReadiness:
+    """Observed adapter evidence, not capabilities or permission to inject one.
+
+    A reviewed adapter must check actual namespaces, delegated controllers and
+    whole-cgroup termination. CLI discovery must not populate these checks.
+    Native composition checks these prerequisites with the actual Podman sandbox;
+    Core composition never injects or probes an engine adapter.
+    """
+
+    backend: str
+    platform: str
+    checks: frozenset[str] = frozenset()
+
+    def blocked_reasons(self, phase: ExecutionPhase) -> tuple[str, ...]:
+        if phase not in PHASE_CHECKS:
+            return ("unsupported_phase",)
+        missing = set(ROOTLESS_CHECKS | PHASE_CHECKS[phase]) - self.checks
+        if self.platform != "linux":
+            missing.add("unsupported_platform")
+        if self.backend != "linux_rootless_oci":
+            missing.add("reviewed_rootless_backend_missing")
+        return tuple(sorted(missing))
+
+    def require(self, phase: ExecutionPhase) -> None:
+        missing = self.blocked_reasons(phase)
+        if missing:
+            raise ToolExecutionError("safe_executor_unavailable", "The reviewed rootless execution boundary is unavailable", next_action="Provision and validate the missing isolation prerequisites; host execution is prohibited.", details={"phase": phase, "missing": list(missing)})
 
 
 class SafeExecutionCancelled(InterruptedError):
@@ -89,8 +125,11 @@ class SafeNetworkExecutor(Protocol):
 
 
 def require_safe_executor(executor: SafeNetworkExecutor | None) -> SafeNetworkExecutor:
-    if executor is None or not REQUIRED_CAPABILITIES <= executor.capabilities:
+    if executor is None or not REQUIRED_CAPABILITIES <= getattr(executor, "capabilities", frozenset()):
         raise ToolExecutionError("safe_executor_unavailable", "A reviewed isolated network executor is unavailable", next_action="Install and validate a dedicated executor; do not enable host execution or relax Core isolation.")
+    readiness = getattr(executor, "require_ready", None)
+    if readiness is not None:
+        readiness()
     return executor
 
 

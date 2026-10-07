@@ -61,6 +61,8 @@ For unattended provisioning, configure an administrator username and inject the 
 
 ## Downstream manifests
 
+An administrator can plan and register an existing external HTTP MCP through the shared REST/MCP [external configuration workflow](external-mcp-configuration.md). It preserves existing managed credential references, uses a raw-file digest for update CAS, and separates saving, current connection/discovery and future startup policy. This development addition installs no Git executor or remote process runtime.
+
 Manifests are YAML or JSON objects stored in `mcp.d`. The file name is not the identity; `id` is. IDs must match `^[A-Za-z0-9_.-]+$` and remain stable because grants, credentials, runtime state, and audits reference them.
 
 ### Gate startup policy
@@ -273,6 +275,8 @@ See [external resource access](external-connections.md) for the disabled JSON ex
 Use the Console or `POST /v1/mcp/configs/validate` before saving a manifest. Both new/existing-manifest validation routes check schema, local policy and file metadata without executing the manifest command or any version probe. Tool versions remain explicitly unverified until authorized startup; validation is not a startup permission or proof of remote endpoint trust/health. After saving, inspect server status, discovered tools, classifications, and grants before enabling invocation.
 
 ## Delivery network configuration
+
+Native isolated delivery is configured with the administrator-only `LINGSHU_GATE_NATIVE_EXECUTOR` JSON object. It defaults to disabled and requires Linux/local, a separate owned root and bounded tmpfs, an exact preloaded image digest, reviewed Podman binary and proxy hosts, and observed namespace/cgroup termination evidence. Core never constructs an engine adapter. See [Native configuration and support limits](native-executor.md).
 
 Generated manager-based local launches carry `launch.toolchain: {manager, version}` and the symbolic command `npm`, `pnpm` or `yarn`. Absolute/relative executable paths and aliases with a pin are rejected. The service administrator registers `node` and the selected manager using `LINGSHU_GATE_RUNTIME_TOOLCHAIN_PATHS`: Node is the reviewed absolute native `node`/`node.exe` binary; manager values are reviewed absolute official JS CLI entrypoints (`.js`, `.cjs` or `.mjs`), not shell/Corepack launchers. Resolve tool symlinks outside the project root, data directory and manifest directory; protect the registry and installed files against project or unauthorized writes. Registration is an administrator trust decision, not proof established by a filename or timeout. No project API updates this registry; changing deployment configuration requires restarting Gate.
 
