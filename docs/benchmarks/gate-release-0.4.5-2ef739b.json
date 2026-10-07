@@ -1,0 +1,4432 @@
+{
+  "schema_version": 1,
+  "version": "0.4.5",
+  "status": "candidate_not_published",
+  "captured_at_utc": "2026-10-07T20:38:07.867045+00:00",
+  "source_sha": "2ef739b5a9f72e8a7a01c7044f20b5d766de415c",
+  "base_sha": "8941738096ab69c0b9fa014f39ff9749cca64822",
+  "branch": "test/gate-release-0.4.5-20261007",
+  "evidence_branch": "test/gate-release-0.4.5-evidence-20261007",
+  "pull_request": "https://github.com/zhigege666/Lingshu-Gate/pull/55",
+  "reviewed_product_source_sha": "7c7e39f0f5b6a13f332ad20d1f6c6370a5e9c692",
+  "changes_since_reviewed_product": [
+    ".github/workflows/backend.yml"
+  ],
+  "runtime_ui_package_input_trees_unchanged": true,
+  "historical_product_evidence": "gate-release-0.4.5-7c7e39f.json",
+  "inherited_local_product_checks": {
+    "source_sha": "7c7e39f0f5b6a13f332ad20d1f6c6370a5e9c692",
+    "frontend_unit_passed": 455,
+    "frontend_unit_files": 75,
+    "backend_passed": 2311,
+    "backend_skipped": 7,
+    "subtests_passed": 134,
+    "browser_smoke_passed": 29,
+    "browser_failed": 0,
+    "browser_skipped": 0,
+    "reused_because_product_input_trees_unchanged": true,
+    "claimed_as_local_rerun_on_current_head": false
+  },
+  "local_checks": {
+    "packaging_regressions": {
+      "source_sha": "2ef739b5a9f72e8a7a01c7044f20b5d766de415c",
+      "passed": 156,
+      "cleanup": {
+        "runtime_directory_removed": true
+      }
+    },
+    "fresh_static_inventory": {
+      "source_sha": "2ef739b5a9f72e8a7a01c7044f20b5d766de415c",
+      "counts": {
+        "console": 115,
+        "oauth": 3
+      },
+      "canonical_sha256": "95bf75f824b5d0770931666340a1b4a3156fc660eba46e81154176d566b60902",
+      "manifest": [
+        {
+          "root": "console",
+          "path": "assets/ExclamationCircleFilled-Dt3xfINN.js",
+          "sha256": "e4205cf20e33f17437d2540e075f98a21f7d144ff97b6a4629d9422a297886ae",
+          "bytes": 1882
+        },
+        {
+          "root": "console",
+          "path": "assets/InfoCircleOutlined-BMOKeI_z.js",
+          "sha256": "03e7c80aaf0eb01de24864fce4bcbd18f77acafb97b37c6cc498cda289ff8ff9",
+          "bytes": 1086
+        },
+        {
+          "root": "console",
+          "path": "assets/PlusOutlined-DVH659TE.js",
+          "sha256": "f381b6853a5cfb24007cba1a9c9d76de82ffa2e4f345ec1b6499178ecffac708",
+          "bytes": 880
+        },
+        {
+          "root": "console",
+          "path": "assets/RightOutlined-CuMeqWz4.js",
+          "sha256": "ed4174640866ed9c55b794e8dfa45daa883d3cbcdcf859a482d6e1380566b400",
+          "bytes": 1701
+        },
+        {
+          "root": "console",
+          "path": "assets/access-grants-page-DVRgzBqd.js",
+          "sha256": "def2622fe61ab2e4ab79aa111b2ccd3c22ef59a305d82a86d38a484552110b4d",
+          "bytes": 20242
+        },
+        {
+          "root": "console",
+          "path": "assets/access-roles-page-BO8bIVSD.css",
+          "sha256": "7e90bb626c48971dd5d0834bdb9e16106a78a9d856b1730ab5a35cc8613c2896",
+          "bytes": 6772
+        },
+        {
+          "root": "console",
+          "path": "assets/access-roles-page-CBnk4upK.js",
+          "sha256": "8f98e051b27dffad2024e61b7c18bd2d5cf8d6773b871d5a0fa4d1c386bbc4e4",
+          "bytes": 44811
+        },
+        {
+          "root": "console",
+          "path": "assets/access-users-page-Bg_-OIjC.js",
+          "sha256": "cd4919b91ab37c00ba132c6195b2b615028a22a0dfd1be2fb0fbf1bf45c0a44b",
+          "bytes": 21695
+        },
+        {
+          "root": "console",
+          "path": "assets/action-menu-Dv0KA1Up.js",
+          "sha256": "0cb2a9af3d08c4149901b701f62a83cea60242cf2a31d15ab03cfed654d57d1a",
+          "bytes": 5263
+        },
+        {
+          "root": "console",
+          "path": "assets/activity-C6Wjubl2.js",
+          "sha256": "fdb38a168a903fdcf11281d7669082ec85b08579ac1c09d35a7d9bc586d08de4",
+          "bytes": 333
+        },
+        {
+          "root": "console",
+          "path": "assets/alert-BWyCcnRa.js",
+          "sha256": "c48fd68950eaeb637becbd19766372df1080f219eaf22dd18597a003c0a4ae16",
+          "bytes": 11249
+        },
+        {
+          "root": "console",
+          "path": "assets/badge-OW3g16Oh.js",
+          "sha256": "a5c0689f69ab5c8511bd3bf186fecbacbcdbb6dd03755c8c11ad1e98faea3378",
+          "bytes": 1005
+        },
+        {
+          "root": "console",
+          "path": "assets/builds-BhcPewqH.js",
+          "sha256": "251d33e5c081784f81ea9894b863b27c6ea7f9abd1dcc11de57afd77b71e1371",
+          "bytes": 3306
+        },
+        {
+          "root": "console",
+          "path": "assets/builds-page-BEV8No5U.js",
+          "sha256": "7848bcacc48e86f7d198cebb9340736c0e1c8ecffbc2910e918fa1d6f3ee87bf",
+          "bytes": 85693
+        },
+        {
+          "root": "console",
+          "path": "assets/builds-page-DPSeElhz.css",
+          "sha256": "8c81d348d2854a8c2fbc19b9a971881784e746f62c94a7656e10f61cfee77151",
+          "bytes": 2691
+        },
+        {
+          "root": "console",
+          "path": "assets/card-BhqefgbM.js",
+          "sha256": "fa33fd519c3b167d77defd1c1e424043a2159fb77b917f5d120ed9538704fd13",
+          "bytes": 30893
+        },
+        {
+          "root": "console",
+          "path": "assets/chevron-down-C1KIKeCa.js",
+          "sha256": "c80bfdaab48cbb01b915191cb21bebb77a382efa2a72f9034b0848312f481558",
+          "bytes": 233
+        },
+        {
+          "root": "console",
+          "path": "assets/chevron-left-Y2wo7Xec.js",
+          "sha256": "25c43c9375a59d212586dbe4359240c6b1c598bbf8ff6151985eeef242a346c2",
+          "bytes": 235
+        },
+        {
+          "root": "console",
+          "path": "assets/chevron-right-CfbPxlQa.js",
+          "sha256": "7244bf177379dad25b5400a92b9bbdbc97ae1820188569a8e35d0ab2a6cfdab0",
+          "bytes": 237
+        },
+        {
+          "root": "console",
+          "path": "assets/collapse-BgX--bqA.js",
+          "sha256": "4fa3cd0bae0587be44288a852deabc65dd95413609fa6927ad80e206d651e9b8",
+          "bytes": 512
+        },
+        {
+          "root": "console",
+          "path": "assets/command-CfsS4uDk.js",
+          "sha256": "b43cd93c2824a3b3d02ba82fe5c5f098a8995ea18d46ae176cf6ad879d2adc0c",
+          "bytes": 15471
+        },
+        {
+          "root": "console",
+          "path": "assets/config-provider-DWHTOUEA.js",
+          "sha256": "11d096478b64bbe6e3cf9e9e8e272f150aa15739ff489c14d005d5b379e6dc74",
+          "bytes": 10753
+        },
+        {
+          "root": "console",
+          "path": "assets/configs-page-YFbfRRDH.js",
+          "sha256": "5589e9c57ee504f168b57961a4847c2eabac1b3ebed8f703ee39e08777aa4066",
+          "bytes": 21872
+        },
+        {
+          "root": "console",
+          "path": "assets/context-C482taiw.js",
+          "sha256": "a0a1f7b63905be4fc845768e7a32d4d551277929f6ec6eae8ef47e8b8be601b5",
+          "bytes": 40279
+        },
+        {
+          "root": "console",
+          "path": "assets/context-CgYzR2b9.js",
+          "sha256": "6e5e0382add7d84832850b3265190a6e9947026c73ded48856e0f3c35ad2da82",
+          "bytes": 17357
+        },
+        {
+          "root": "console",
+          "path": "assets/copy-DgBQnHsw.js",
+          "sha256": "358ee91c815c69edb0a22facdbab0b806466fe2f9497dafb3b2e30ce94f77051",
+          "bytes": 327
+        },
+        {
+          "root": "console",
+          "path": "assets/credentials-page-Bg7XVhIc.js",
+          "sha256": "54063d7159fd1c99c0ecb45869fc807e042653455a0dbfe94ba4a808666bc09c",
+          "bytes": 14041
+        },
+        {
+          "root": "console",
+          "path": "assets/dashboard-page-C5QTwuKt.css",
+          "sha256": "a3967235e50df8b195f7c391f03fdf47682e7b0b891dc3dbe6cab6e0ff3e52cc",
+          "bytes": 7698
+        },
+        {
+          "root": "console",
+          "path": "assets/dashboard-page-uzkWGTab.js",
+          "sha256": "39ecc8edb55e0b5673b687ef52ae351a888639559e787bde3a4f9bdfa30f3251",
+          "bytes": 25851
+        },
+        {
+          "root": "console",
+          "path": "assets/deployment-options-CcX4Sgal.js",
+          "sha256": "40eb363aa9a4c4601db669ba86dcf406322016218f892e2c2389c4e99b79c266",
+          "bytes": 19013
+        },
+        {
+          "root": "console",
+          "path": "assets/diagnostics-page-JEuPAna3.js",
+          "sha256": "6b5c2f6e5f81742b3de06693ea5b0ce963c439481971a605fd5294390087feff",
+          "bytes": 8484
+        },
+        {
+          "root": "console",
+          "path": "assets/dialog-Cu6KYnmi.js",
+          "sha256": "e2f251cb35e69d81230bbe27ec741ecefe6988063a7bf2576ec4ce5cf139d8f6",
+          "bytes": 64781
+        },
+        {
+          "root": "console",
+          "path": "assets/dist-BVyVd9XC.js",
+          "sha256": "3048de973f6c3435e3ce6ffda9d34fdefd2863e3ae6eba7c0560e61d84c2a8c0",
+          "bytes": 894
+        },
+        {
+          "root": "console",
+          "path": "assets/dist-DKZ8D-UA.js",
+          "sha256": "d1a68745cc4f27acac96b5471c6cc612a1e1cd2f219b3b0f7701d56fa340c756",
+          "bytes": 1043
+        },
+        {
+          "root": "console",
+          "path": "assets/dist-wTiNGevj.js",
+          "sha256": "b6bb4caaac81c42fe8b78bcf53026a55d0431b8c022f44bc1452399ed28f32c7",
+          "bytes": 77040
+        },
+        {
+          "root": "console",
+          "path": "assets/downstream-credentials-page-BlB0jakO.css",
+          "sha256": "b1a9454ce4122286292b97fcc65fb62e2c4e3f279f26a8eec723be79dfc5e478",
+          "bytes": 2277
+        },
+        {
+          "root": "console",
+          "path": "assets/downstream-credentials-page-CshPSd0r.js",
+          "sha256": "d5ad871b3c8af70ce16a25be2d8346a25417509ba50908beac00adf8af9d07d7",
+          "bytes": 16326
+        },
+        {
+          "root": "console",
+          "path": "assets/es-BlfxCsxF.js",
+          "sha256": "39eb0b372425560960aecb900a4cadbb1d6484ffa62d334160a7fabff08cfc09",
+          "bytes": 41001
+        },
+        {
+          "root": "console",
+          "path": "assets/external-connections-page-DXNrSTR9.js",
+          "sha256": "03963ab3550c801f47fc72545b98d181916feb24a6fc6b825e0edc803758b10b",
+          "bytes": 236554
+        },
+        {
+          "root": "console",
+          "path": "assets/external-connections-page-mT9jXUKm.css",
+          "sha256": "e99b366c4860fb91a821cf251b41c979dc497a4f1781c7c400f4957654740cb1",
+          "bytes": 13417
+        },
+        {
+          "root": "console",
+          "path": "assets/filter-radio-By-vwnXz.css",
+          "sha256": "85b1dafc4d1b7dfeb5e5a242c75291efa14910adc661253d216e0463af7237ef",
+          "bytes": 989
+        },
+        {
+          "root": "console",
+          "path": "assets/filter-radio-omTQlyWe.js",
+          "sha256": "2a78848996743e7b821c27d7a819c3afee2754ddb863ff22276e449b4f2ea8fc",
+          "bytes": 826
+        },
+        {
+          "root": "console",
+          "path": "assets/form-5DWEzj3M.js",
+          "sha256": "9b7b34c6a14f07bd56f7bc96961a32b66b7e901e95b4850731da5c7ed13252d4",
+          "bytes": 40551
+        },
+        {
+          "root": "console",
+          "path": "assets/form-dialog-eXHnktg3.js",
+          "sha256": "d059131956c96b9bbf984b10be17a3211521fb4a8dbc1718e82db849e3ea8903",
+          "bytes": 2247
+        },
+        {
+          "root": "console",
+          "path": "assets/http-CTk34Y6z.js",
+          "sha256": "3227217b895813dd2e5e1aa2515c2d84d2be91a9c38b8e6ed269b42b64f54ad8",
+          "bytes": 1212
+        },
+        {
+          "root": "console",
+          "path": "assets/index-BblcVoBI.js",
+          "sha256": "2a02db241e8420f805068b3fd7464645f1d80a24e9fff4d5e3fa678440574752",
+          "bytes": 232392
+        },
+        {
+          "root": "console",
+          "path": "assets/index-C_hPtwDh.css",
+          "sha256": "8971a2afe0796265416dd0d769df794c4975d994e0de6b439996c9380dc96973",
+          "bytes": 82884
+        },
+        {
+          "root": "console",
+          "path": "assets/info-Bx3wqeIY.js",
+          "sha256": "4ad157e8b688725b8f74f99c2ce96ebde2c294ff620b150319ed1e3ee6b0e157",
+          "bytes": 295
+        },
+        {
+          "root": "console",
+          "path": "assets/input-number-BKcfprjf.js",
+          "sha256": "9d03a24f786e1483ed0896fbd203d5341e2553dcdddd5b7966ba50e0e4f55fc3",
+          "bytes": 34391
+        },
+        {
+          "root": "console",
+          "path": "assets/invocation-audit-page-Bt20jPN4.css",
+          "sha256": "c13e6369eef5ac0553c3cffe8a0ebe0c74bbf7fe276df932d678d374ff707df3",
+          "bytes": 359
+        },
+        {
+          "root": "console",
+          "path": "assets/invocation-audit-page-CqPTNtQU.js",
+          "sha256": "83f420cfdd79a4bdc9a879900d775c15cbd82749992cae97f2e963fb761ad96e",
+          "bytes": 21792
+        },
+        {
+          "root": "console",
+          "path": "assets/invocation-payload-panel-MkU7VMKX.js",
+          "sha256": "5680d74dc85238cf1c0a4f5621e384744ce871f9ac7de16c63bffb7b08e4e1ad",
+          "bytes": 3683
+        },
+        {
+          "root": "console",
+          "path": "assets/invoke-page-BTA55JBX.css",
+          "sha256": "5a4b2c2a9cea05850f39948d6dfe30d55687325143a4da86bf8a38c9a2d7888c",
+          "bytes": 10069
+        },
+        {
+          "root": "console",
+          "path": "assets/invoke-page-BVuOSDrs.js",
+          "sha256": "1e13b0c9b3d98e8ddace96ad749bf4c4f22051f174d74146a96a57b3904823c7",
+          "bytes": 284057
+        },
+        {
+          "root": "console",
+          "path": "assets/json-panel-BQduC3Ep.js",
+          "sha256": "330e0860b4899de65ecc2725ed1625f08a4f0d221c148c427b92501c3e0da20c",
+          "bytes": 25544
+        },
+        {
+          "root": "console",
+          "path": "assets/list-pagination-CFUjdCU4.css",
+          "sha256": "65fcfbb43d329877165709b6d8b9f0a1575cc74f6735be64a1faab6ecf27c896",
+          "bytes": 878
+        },
+        {
+          "root": "console",
+          "path": "assets/list-pagination-DFBrXFNJ.js",
+          "sha256": "fb44a5dd71bfeb65244e6a3dbb158e1d0eb1d6ac91ccda02fe86919a7c3977fe",
+          "bytes": 5276
+        },
+        {
+          "root": "console",
+          "path": "assets/logs-events-page-By2wPKjp.css",
+          "sha256": "f71b383d7d8eb23115842a3b37ac76730d2aa76e5fe2c2bfa93b567c3f7d9871",
+          "bytes": 392
+        },
+        {
+          "root": "console",
+          "path": "assets/logs-events-page-DAdATdrA.js",
+          "sha256": "2ffd6cadff33c45b4608e82c4f61a5fdb603da0ab7d9d7d5b6764894f76e6b0e",
+          "bytes": 45439
+        },
+        {
+          "root": "console",
+          "path": "assets/maintenance-lists-Db-gJatN.css",
+          "sha256": "f631cc5b3dd80f648a9d868128884c87ccfe4c7be8a2972026bf720307e20ad4",
+          "bytes": 3836
+        },
+        {
+          "root": "console",
+          "path": "assets/mcp-config-editor-BAkFRdpf.css",
+          "sha256": "9b6c90c600e363d762767cf77960dbfa562b508b159122cf5c1ac58197d350f6",
+          "bytes": 4306
+        },
+        {
+          "root": "console",
+          "path": "assets/mcp-config-editor-DIwEDRr1.js",
+          "sha256": "91b9c5b76c557d960fa667314a3c27d79a64d935ed331a7e037b8de3a7cb8d07",
+          "bytes": 46452
+        },
+        {
+          "root": "console",
+          "path": "assets/network-CPko-rSJ.js",
+          "sha256": "717d812260ef5779f9a597e3f26c10acfef0b3f9df24930d0d219cb3e590f404",
+          "bytes": 1781
+        },
+        {
+          "root": "console",
+          "path": "assets/network-settings-panel-ChV9eh_J.css",
+          "sha256": "0457547d832c9e3d5f17f8d61a9444eb2994c6274869a1e2a4cecec471198153",
+          "bytes": 1266
+        },
+        {
+          "root": "console",
+          "path": "assets/network-settings-panel-jy3sZIl7.js",
+          "sha256": "803c1cdffde43ad60f892fcc411a19e01406568311378ed7ae5b0c32ecf20bca",
+          "bytes": 33468
+        },
+        {
+          "root": "console",
+          "path": "assets/page-shell-DoCOfY_C.js",
+          "sha256": "3a7d620a9473a97eff51191d096676bdc95c637659912bb08dd37c5bd37b5c30",
+          "bytes": 120484
+        },
+        {
+          "root": "console",
+          "path": "assets/page-utils-DD4d3K4s.js",
+          "sha256": "9055765a80879fc4448f65aec0804a884939b28d3795feaac3957a09c629d94b",
+          "bytes": 5199
+        },
+        {
+          "root": "console",
+          "path": "assets/pagination-IVGuxch9.js",
+          "sha256": "6610507d550092fd3e8e8835491aa10d21160fc630c63944a1b3978dd815e73a",
+          "bytes": 35994
+        },
+        {
+          "root": "console",
+          "path": "assets/personal-tokens-page-CgKMttU8.css",
+          "sha256": "673d2c020c8194961989b2dc6cf390d5283799927e3ec8be44c747069c17c1c3",
+          "bytes": 595
+        },
+        {
+          "root": "console",
+          "path": "assets/personal-tokens-page-CnRO9qCl.js",
+          "sha256": "2ee7c6d3fd32a63706c4bc153aa3a01996356ef34b6958d4b05f763384263e48",
+          "bytes": 23967
+        },
+        {
+          "root": "console",
+          "path": "assets/personal-workspace-page-Bxtrfd6J.css",
+          "sha256": "de0b6b8a09fb0e934c1d58ddfbc5716815d3c3621a4161ce1c24edbbe296898f",
+          "bytes": 1412
+        },
+        {
+          "root": "console",
+          "path": "assets/personal-workspace-page-D0UH7dLT.js",
+          "sha256": "3631b08eeee55151a89221aa31f9711c44b9eaf168f00030f96a0e88ca19821d",
+          "bytes": 12299
+        },
+        {
+          "root": "console",
+          "path": "assets/plus-D_pyY9nN.js",
+          "sha256": "ccc51dccb0c2e212e60e5c43f47ecadf27d1999fd352e19b8ef1d1e868ed7ac3",
+          "bytes": 244
+        },
+        {
+          "root": "console",
+          "path": "assets/query-status-BnfV0vtj.js",
+          "sha256": "24f03d95032116a326e975bdd8b3846f3c4ef8a03f1fda35581cbca7c450b9a3",
+          "bytes": 867
+        },
+        {
+          "root": "console",
+          "path": "assets/radio-CwpO4NvB.js",
+          "sha256": "a5d516166d2eb11461d1b1bd28180daa0f767a9bbd76b071210bb1a70861a932",
+          "bytes": 24163
+        },
+        {
+          "root": "console",
+          "path": "assets/runtime-cache-page-BLf0ZTHt.js",
+          "sha256": "fb0d44e0ac701f9e9ab82c7bc90374b8f1f34e7657424a7d2963efacd1bf365d",
+          "bytes": 12516
+        },
+        {
+          "root": "console",
+          "path": "assets/search-DhTkXi8A.js",
+          "sha256": "3ef9717683ea0c720afa9ec22efddfdb9a1e44021ea5ccca80aa835fcc952fc9",
+          "bytes": 269
+        },
+        {
+          "root": "console",
+          "path": "assets/segmented-CwwCg9eA.js",
+          "sha256": "2bf1031f0eb3c54750c3e47b4a0abc63da565cff840ef2d78cf346efcee1efce",
+          "bytes": 14950
+        },
+        {
+          "root": "console",
+          "path": "assets/select-1f_zeaWe.js",
+          "sha256": "a98a57195ae3f14dce37a777150b7c25f013b1e408e0d54bb68290dfe00bee3a",
+          "bytes": 94674
+        },
+        {
+          "root": "console",
+          "path": "assets/select-BXj1UITW.js",
+          "sha256": "327fbff112b5ceccd59408f82c8b78e0c170effc3029d45c86590db7a5c108ce",
+          "bytes": 132761
+        },
+        {
+          "root": "console",
+          "path": "assets/servers-page-D0AvbjH-.js",
+          "sha256": "034fb048fccecd606c4ccdd1cb4bf40a72054b30cef6517a023f70235ea484fc",
+          "bytes": 125310
+        },
+        {
+          "root": "console",
+          "path": "assets/servers-page-DepLcCbk.css",
+          "sha256": "cd1bd12618dc743a1918de30cee1881b631db87c75fdca274efe9d0bf4cff8bf",
+          "bytes": 2682
+        },
+        {
+          "root": "console",
+          "path": "assets/shield-alert-Cp4L2uk_.js",
+          "sha256": "93cd533bb4c7d475ab9051efc93305ff8242437483546d371e6237b24ff7957b",
+          "bytes": 458
+        },
+        {
+          "root": "console",
+          "path": "assets/shield-check-BJ1vOIKV.js",
+          "sha256": "8b1a2fd93118d90affd24441956c895f7951534113c67f4deb9b65ba3ba59099",
+          "bytes": 425
+        },
+        {
+          "root": "console",
+          "path": "assets/skeleton-C6I4ewAl.js",
+          "sha256": "b64279b245492e73298b1e8afed228fc60b6bfbe24c0d64d99c2c5e51ddaf59f",
+          "bytes": 537
+        },
+        {
+          "root": "console",
+          "path": "assets/space-Ddo43wfB.js",
+          "sha256": "9c1ab54f8bf31f6cae89f2e2b662000b655ad15a23b91dd01d87f0e6cc7133a3",
+          "bytes": 71813
+        },
+        {
+          "root": "console",
+          "path": "assets/style-CaSOBl_y.js",
+          "sha256": "c201b0a5795b1053265dd63d70df028c46aef1ae484bf982540b66d8cc9a3652",
+          "bytes": 3216
+        },
+        {
+          "root": "console",
+          "path": "assets/switch--lFydxs1.js",
+          "sha256": "e1975dd98e0ba9454a758f6d8a0fdbab4dfb3636060493bfdebe245cca8d30d1",
+          "bytes": 11792
+        },
+        {
+          "root": "console",
+          "path": "assets/switch-CXyDLd3S.js",
+          "sha256": "10dae2c5c1393afc771b0d3a4dc32a2e4b207539b6d8a29f48e2371b1ff2b8be",
+          "bytes": 6907
+        },
+        {
+          "root": "console",
+          "path": "assets/system-settings-page-Cwpg3aXl.js",
+          "sha256": "d41b3bef9a444879fd88d2d526b1f14937b2f41ed334f105d825cadddc665a5d",
+          "bytes": 1096
+        },
+        {
+          "root": "console",
+          "path": "assets/table-DwidlQvd.js",
+          "sha256": "14657a0a527d72db8ccf87ac43e28ff65498032f8bdad419a526eb268d02f7af",
+          "bytes": 243964
+        },
+        {
+          "root": "console",
+          "path": "assets/table-tools-Cfo408TU.js",
+          "sha256": "3604d5f65b2315c900d1750a223ae8694379e95b65ecd2bb0f7af595f04b488e",
+          "bytes": 5546
+        },
+        {
+          "root": "console",
+          "path": "assets/tabs-kBGfCh4r.js",
+          "sha256": "48252f459e8ee64a690a4fb84dde7ecd52146d42ab2f53b1e67ad4b0822d36ed",
+          "bytes": 54330
+        },
+        {
+          "root": "console",
+          "path": "assets/tag-B_MAFVrO.js",
+          "sha256": "2266adfbe858871f56dfde0d8016ab950c726b7b366bc74aeecbd14c01ee02ed",
+          "bytes": 25710
+        },
+        {
+          "root": "console",
+          "path": "assets/textarea-tJL5OFBK.js",
+          "sha256": "8766ee9d6c156bf53ed63e7fd419c4ed51b8c00d9a06b22c1f9e7287a114ba5c",
+          "bytes": 647
+        },
+        {
+          "root": "console",
+          "path": "assets/tool-access-CtKHIheZ.js",
+          "sha256": "d70110e04846000bbd16374fd7f327e502ee2b4e63b4b3b704643ae6113fc098",
+          "bytes": 409
+        },
+        {
+          "root": "console",
+          "path": "assets/tool-classifications-page-BGhDXg7K.css",
+          "sha256": "4866f15166af03fa998b939894fd0ec770ec09897afc2e87c7253ae5f26858ab",
+          "bytes": 948
+        },
+        {
+          "root": "console",
+          "path": "assets/tool-classifications-page-BO-2NyRg.js",
+          "sha256": "90b2f1cb9fe4e84c2c6c93aedb94d293685ebcda248445f875db4847c34265fe",
+          "bytes": 37770
+        },
+        {
+          "root": "console",
+          "path": "assets/tool-origin-mXy-TKr4.js",
+          "sha256": "b3145e27d0d77dbbf070c4c7919c289c2728212acb682908806107b5e48525e9",
+          "bytes": 1756
+        },
+        {
+          "root": "console",
+          "path": "assets/tools-page-lFlOsfiq.css",
+          "sha256": "fab74284501cf41d22fb3ab2ffa0a519464b2defa44e7d79719920d3bd421389",
+          "bytes": 4842
+        },
+        {
+          "root": "console",
+          "path": "assets/tools-page-xbjOThNA.js",
+          "sha256": "3aa5d6fdf07f906c4c57d08f30b65c82695cabe20007544d09b446dad455f2f1",
+          "bytes": 12972
+        },
+        {
+          "root": "console",
+          "path": "assets/tooltip-C2ZjJ2UH.js",
+          "sha256": "e79cba541344f92be30e75601a03dfcebfefdf34e8352297ae269e2228c980ae",
+          "bytes": 740204
+        },
+        {
+          "root": "console",
+          "path": "assets/uploads-page-DZN4Cm32.js",
+          "sha256": "9afc44522f95db4ee6150f8ade29ee2b44072b2bfe47bb2f0225ff90ba3b8336",
+          "bytes": 59257
+        },
+        {
+          "root": "console",
+          "path": "assets/use-draft-close-guard-D2-uOUhL.js",
+          "sha256": "61ce868245106318f9ca66a39f66e3cb1e3ca153d623351a282adf115f1a5c02",
+          "bytes": 846
+        },
+        {
+          "root": "console",
+          "path": "assets/use-remaining-viewport-DbWVprg9.js",
+          "sha256": "e0d82d83997ff7291b8e083d3713b4768e7099502f03a8f5ea45f426c7deb283",
+          "bytes": 1563
+        },
+        {
+          "root": "console",
+          "path": "assets/useClosable-DPAx9KaY.js",
+          "sha256": "4bb67298a982567dd9c02744b2d676aa180805897e8e41d99f8be69a5c887248",
+          "bytes": 3178
+        },
+        {
+          "root": "console",
+          "path": "assets/useModal-DmoF0W0g.js",
+          "sha256": "09a8776b9f20049d2050c71903dba5218b4460114684f38871c6bfa0348c2861",
+          "bytes": 42003
+        },
+        {
+          "root": "console",
+          "path": "assets/user-plus-BTAxZYVC.js",
+          "sha256": "7255a76bb5970c9dc8c4b6b310ed226ad3fdc872f19f2b34c29d4b229c054c2c",
+          "bytes": 409
+        },
+        {
+          "root": "console",
+          "path": "assets/validateMessagesContext-Ym1bDdgu.js",
+          "sha256": "68bf5c649164e70889ea7be8afa465fb870672080789b2e87451e9014e601342",
+          "bytes": 196
+        },
+        {
+          "root": "console",
+          "path": "assets/validation-D6vjtMIC.js",
+          "sha256": "48ec206505a65e79236ddea209010ccb845d72f63a0012ca4f4fbce711bcc37d",
+          "bytes": 868
+        },
+        {
+          "root": "console",
+          "path": "assets/validation-errors-CGzfaoDV.js",
+          "sha256": "7a29bce1feb55d071fb4c5ceda4d32ab33084eb5e0726db237dca7f43fc74999",
+          "bytes": 1393
+        },
+        {
+          "root": "console",
+          "path": "index.html",
+          "sha256": "07ee8a76d69bbe7bd2fddfb9ea1f285ceab8f56c5c25970410f5acc55970d0ce",
+          "bytes": 2071
+        },
+        {
+          "root": "console",
+          "path": "lingshu-gate-app-icon.svg",
+          "sha256": "d71eaa8f740ee28d91c2e76f989b1974f1383d4dfe333779f1162054bbb6f276",
+          "bytes": 2326
+        },
+        {
+          "root": "console",
+          "path": "lingshu-gate-icon-512.png",
+          "sha256": "322c8f0cc9d4498946a5dd1309458a594c08cbb201bd87310d2b0c076ddd61a4",
+          "bytes": 32454
+        },
+        {
+          "root": "console",
+          "path": "lingshu-gate-icon.svg",
+          "sha256": "fa3b2ea6a4dc577f15678f9530eaab11cdcbe6a80b88f32a24eaf6501d4815c4",
+          "bytes": 2158
+        },
+        {
+          "root": "oauth",
+          "path": "assets/oauth-B0Q7W4g8.js",
+          "sha256": "13678c5b1d4ac16ec49221d2954b03478e47348eadda81944012384df7f98ade",
+          "bytes": 1745925
+        },
+        {
+          "root": "oauth",
+          "path": "assets/oauth-BH4S-ygD.css",
+          "sha256": "8ddefa5e7a21069fccc6fd669f32770aec14165a38cb99aa4df169fc0222b6b0",
+          "bytes": 73726
+        },
+        {
+          "root": "oauth",
+          "path": "oauth.html",
+          "sha256": "34473eb45be680d3a041da6b24297df4defeda4cadea641ebfd8ba066802b769",
+          "bytes": 381
+        }
+      ],
+      "actual_fresh_native_web_build_and_wheel_verified": true,
+      "reviewed_product_manifest_source_sha": "7c7e39f0f5b6a13f332ad20d1f6c6370a5e9c692"
+    },
+    "wheel_and_sdist": {
+      "source_sha": "2ef739b5a9f72e8a7a01c7044f20b5d766de415c",
+      "pep517_build_backend": "setuptools.build_meta",
+      "setuptools": "84.0.0",
+      "sdist": {
+        "name": "lingshu_gate-0.4.5.tar.gz",
+        "bytes": 2136451,
+        "sha256": "8d74105e35f1af813917adbbf622a3b5c980926ddc2687488ee0a9e6d7f8243a"
+      },
+      "wheels": [
+        {
+          "route": "direct",
+          "name": "lingshu_gate-0.4.5-py3-none-any.whl",
+          "bytes": 1923055,
+          "sha256": "099aea2df45506c0975ea620e528fbe17d43193aeb08df3547b583952fe5353c",
+          "exact_static_inventory_and_record": true
+        },
+        {
+          "route": "from-sdist",
+          "name": "lingshu_gate-0.4.5-py3-none-any.whl",
+          "bytes": 1923055,
+          "sha256": "099aea2df45506c0975ea620e528fbe17d43193aeb08df3547b583952fe5353c",
+          "exact_static_inventory_and_record": true
+        }
+      ],
+      "direct_and_sdist_wheel_bytes_equal": true,
+      "static_counts": {
+        "console": 115,
+        "oauth": 3
+      },
+      "owned_staging_removed": true
+    },
+    "native_linux": {
+      "archive": "lingshu-gate-v0.4.5-linux-x86_64.tar.gz",
+      "bytes": 36315093,
+      "sha256": "af98eb535cbd9e279c66a1a6722e443fd956aabca228fa78f2068e60e1c088d0",
+      "build_source_sha": "2ef739b5a9f72e8a7a01c7044f20b5d766de415c",
+      "static_counts": {
+        "console": 115,
+        "oauth": 3
+      },
+      "static_manifest_sha256": "95bf75f824b5d0770931666340a1b4a3156fc660eba46e81154176d566b60902",
+      "all_packaged_static_bytes_equal_current_build": true,
+      "initial_and_native_web_builds_identical": true,
+      "smoke_runtime_directory_removed": true,
+      "build_info": {
+        "application": "Lingshu Gate",
+        "builder": {
+          "altgraph": "0.17.5",
+          "implementation": "CPython",
+          "machine": "x86_64",
+          "node": "v22.23.2",
+          "npm": "10.9.8",
+          "packaging": "26.3",
+          "pyinstaller": "6.22.3",
+          "pyinstaller-hooks-contrib": "2026.7",
+          "python": "3.13.15",
+          "system": "Linux",
+          "uv": "uv 0.11.33 (x86_64-unknown-linux-gnu)"
+        },
+        "created": "2026-10-07T19:41:12Z",
+        "source_date_epoch": 1791402072,
+        "source_revision": "2ef739b5a9f72e8a7a01c7044f20b5d766de415c",
+        "target": "linux-x86_64",
+        "version": "0.4.5"
+      },
+      "complete_build_info_file_count": 467,
+      "build_info_canonical_sha256": "5567a4f50864279dc4b12c4eb10a54072ee6e4bd87657b7c8fd965eb819c2e3b"
+    },
+    "native_worker": {
+      "source_sha": "2ef739b5a9f72e8a7a01c7044f20b5d766de415c",
+      "native_archive_sha256": "af98eb535cbd9e279c66a1a6722e443fd956aabca228fa78f2068e60e1c088d0",
+      "cases": [
+        {
+          "case": "draft2020-local-ref-valid",
+          "exit_code": 0,
+          "output": "valid",
+          "wall_seconds": 0.406603,
+          "child_reaped": true,
+          "service_runtime_not_created": true,
+          "values_not_echoed": true
+        },
+        {
+          "case": "invalid-argument-refused",
+          "exit_code": 1,
+          "output": "",
+          "wall_seconds": 0.480209,
+          "child_reaped": true,
+          "service_runtime_not_created": true,
+          "values_not_echoed": true
+        },
+        {
+          "case": "unknown-schema-dialect-refused",
+          "exit_code": 1,
+          "output": "",
+          "wall_seconds": 0.409653,
+          "child_reaped": true,
+          "service_runtime_not_created": true,
+          "values_not_echoed": true
+        },
+        {
+          "case": "remote-reference-refused",
+          "exit_code": 1,
+          "output": "",
+          "wall_seconds": 0.446815,
+          "child_reaped": true,
+          "service_runtime_not_created": true,
+          "values_not_echoed": true
+        },
+        {
+          "case": "parent-dispatch-native-valid",
+          "result": "valid",
+          "worker_count": 1,
+          "child_reaped": true,
+          "wall_seconds": 0.452958,
+          "service_runtime_not_created": true
+        },
+        {
+          "case": "parent-dispatch-native-invalid",
+          "result": "catalog_arguments_invalid",
+          "worker_count": 1,
+          "child_reaped": true,
+          "wall_seconds": 0.461339,
+          "service_runtime_not_created": true
+        },
+        {
+          "case": "deadline-kills-native-worker",
+          "result": "catalog_validation_timeout",
+          "worker_count": 1,
+          "child_reaped": true,
+          "wall_seconds": 0.502518,
+          "service_runtime_not_created": true
+        },
+        {
+          "case": "cancellation-kills-native-worker",
+          "result": "catalog_validation_cancelled",
+          "worker_count": 1,
+          "child_reaped": true,
+          "wall_seconds": 0.305819,
+          "service_runtime_not_created": true
+        },
+        {
+          "case": "slot-reused-after-kill",
+          "result": "valid",
+          "worker_count": 1,
+          "child_reaped": true,
+          "wall_seconds": 0.402012,
+          "service_runtime_not_created": true
+        }
+      ],
+      "cleanup": {
+        "runtime_directory_removed": true,
+        "all_owned_children_reaped": true
+      }
+    },
+    "installed_wheel_worker": {
+      "source_sha": "2ef739b5a9f72e8a7a01c7044f20b5d766de415c",
+      "wheel_sha256": "099aea2df45506c0975ea620e528fbe17d43193aeb08df3547b583952fe5353c",
+      "cases": [
+        {
+          "case": "draft2020-local-ref-valid",
+          "exit_code": 0,
+          "output": "valid",
+          "wall_seconds": 0.30569,
+          "child_reaped": true,
+          "service_runtime_not_created": true,
+          "values_not_echoed": true
+        },
+        {
+          "case": "invalid-argument-refused",
+          "exit_code": 1,
+          "output": "",
+          "wall_seconds": 0.22875,
+          "child_reaped": true,
+          "service_runtime_not_created": true,
+          "values_not_echoed": true
+        },
+        {
+          "case": "unknown-schema-dialect-refused",
+          "exit_code": 1,
+          "output": "",
+          "wall_seconds": 0.253174,
+          "child_reaped": true,
+          "service_runtime_not_created": true,
+          "values_not_echoed": true
+        },
+        {
+          "case": "remote-reference-refused",
+          "exit_code": 1,
+          "output": "",
+          "wall_seconds": 0.211593,
+          "child_reaped": true,
+          "service_runtime_not_created": true,
+          "values_not_echoed": true
+        },
+        {
+          "case": "parent-dispatch-wheel-valid",
+          "result": "valid",
+          "worker_count": 1,
+          "child_reaped": true,
+          "wall_seconds": 0.235356,
+          "service_runtime_not_created": true
+        },
+        {
+          "case": "parent-dispatch-wheel-invalid",
+          "result": "catalog_arguments_invalid",
+          "worker_count": 1,
+          "child_reaped": true,
+          "wall_seconds": 0.208797,
+          "service_runtime_not_created": true
+        },
+        {
+          "case": "deadline-kills-wheel-worker",
+          "result": "catalog_validation_timeout",
+          "worker_count": 1,
+          "child_reaped": true,
+          "wall_seconds": 0.502039,
+          "service_runtime_not_created": true
+        },
+        {
+          "case": "cancellation-kills-wheel-worker",
+          "result": "catalog_validation_cancelled",
+          "worker_count": 1,
+          "child_reaped": true,
+          "wall_seconds": 0.305107,
+          "service_runtime_not_created": true
+        },
+        {
+          "case": "slot-reused-after-kill",
+          "result": "valid",
+          "worker_count": 1,
+          "child_reaped": true,
+          "wall_seconds": 0.216781,
+          "service_runtime_not_created": true
+        }
+      ],
+      "cleanup": {
+        "runtime_directory_removed": true,
+        "all_owned_children_reaped": true
+      }
+    },
+    "installed_wheel_http": {
+      "source_sha": "2ef739b5a9f72e8a7a01c7044f20b5d766de415c",
+      "wheel_sha256": "099aea2df45506c0975ea620e528fbe17d43193aeb08df3547b583952fe5353c",
+      "real_loopback_http": true,
+      "requests": [
+        {
+          "path": "/",
+          "status": 200,
+          "accept": null,
+          "representation": "json"
+        },
+        {
+          "path": "/",
+          "status": 200,
+          "accept": "*/*",
+          "representation": "json"
+        },
+        {
+          "path": "/",
+          "status": 200,
+          "accept": "text/html",
+          "representation": "html"
+        },
+        {
+          "path": "/",
+          "status": 200,
+          "accept": "application/json;q=0.001,text/html;q=1",
+          "representation": "json"
+        },
+        {
+          "path": "/",
+          "status": 200,
+          "accept": "application/json;q=0,text/html",
+          "representation": "html"
+        },
+        {
+          "path": "/",
+          "status": 200,
+          "accept": "text/html;q=0,*/*;q=1",
+          "representation": "json"
+        },
+        {
+          "path": "/",
+          "status": 406,
+          "accept": "text/html;q=0,application/json;q=0,*/*;q=1",
+          "representation": "json"
+        },
+        {
+          "path": "/",
+          "status": 200
+        },
+        {
+          "path": "/v1/meta",
+          "status": 200
+        },
+        {
+          "path": "/healthz",
+          "status": 200
+        },
+        {
+          "path": "/",
+          "status": 200
+        },
+        {
+          "path": "/console?bookmark=one&bookmark=two&return=%2F%23%2FmyServers&label=a+b",
+          "status": 307
+        },
+        {
+          "path": "/?bookmark=one&bookmark=two&return=%2F%23%2FmyServers&label=a+b",
+          "status": 200
+        },
+        {
+          "path": "/console/?bookmark=one&bookmark=two&return=%2F%23%2FmyServers&label=a+b",
+          "status": 307
+        },
+        {
+          "path": "/?bookmark=one&bookmark=two&return=%2F%23%2FmyServers&label=a+b",
+          "status": 200
+        },
+        {
+          "path": "/console/index.html?bookmark=one&bookmark=two&return=%2F%23%2FmyServers&label=a+b",
+          "status": 307
+        },
+        {
+          "path": "/?bookmark=one&bookmark=two&return=%2F%23%2FmyServers&label=a+b",
+          "status": 200
+        },
+        {
+          "path": "/assets/ExclamationCircleFilled-Dt3xfINN.js",
+          "status": 200
+        },
+        {
+          "path": "/console/assets/ExclamationCircleFilled-Dt3xfINN.js",
+          "status": 200
+        },
+        {
+          "path": "/assets/InfoCircleOutlined-BMOKeI_z.js",
+          "status": 200
+        },
+        {
+          "path": "/console/assets/InfoCircleOutlined-BMOKeI_z.js",
+          "status": 200
+        },
+        {
+          "path": "/assets/PlusOutlined-DVH659TE.js",
+          "status": 200
+        },
+        {
+          "path": "/console/assets/PlusOutlined-DVH659TE.js",
+          "status": 200
+        },
+        {
+          "path": "/assets/RightOutlined-CuMeqWz4.js",
+          "status": 200
+        },
+        {
+          "path": "/console/assets/RightOutlined-CuMeqWz4.js",
+          "status": 200
+        },
+        {
+          "path": "/assets/access-grants-page-DVRgzBqd.js",
+          "status": 200
+        },
+        {
+          "path": "/console/assets/access-grants-page-DVRgzBqd.js",
+          "status": 200
+        },
+        {
+          "path": "/assets/access-roles-page-BO8bIVSD.css",
+          "status": 200
+        },
+        {
+          "path": "/console/assets/access-roles-page-BO8bIVSD.css",
+          "status": 200
+        },
+        {
+          "path": "/assets/access-roles-page-CBnk4upK.js",
+          "status": 200
+        },
+        {
+          "path": "/console/assets/access-roles-page-CBnk4upK.js",
+          "status": 200
+        },
+        {
+          "path": "/assets/access-users-page-Bg_-OIjC.js",
+          "status": 200
+        },
+        {
+          "path": "/console/assets/access-users-page-Bg_-OIjC.js",
+          "status": 200
+        },
+        {
+          "path": "/assets/action-menu-Dv0KA1Up.js",
+          "status": 200
+        },
+        {
+          "path": "/console/assets/action-menu-Dv0KA1Up.js",
+          "status": 200
+        },
+        {
+          "path": "/assets/activity-C6Wjubl2.js",
+          "status": 200
+        },
+        {
+          "path": "/console/assets/activity-C6Wjubl2.js",
+          "status": 200
+        },
+        {
+          "path": "/assets/alert-BWyCcnRa.js",
+          "status": 200
+        },
+        {
+          "path": "/console/assets/alert-BWyCcnRa.js",
+          "status": 200
+        },
+        {
+          "path": "/assets/badge-OW3g16Oh.js",
+          "status": 200
+        },
+        {
+          "path": "/console/assets/badge-OW3g16Oh.js",
+          "status": 200
+        },
+        {
+          "path": "/assets/builds-BhcPewqH.js",
+          "status": 200
+        },
+        {
+          "path": "/console/assets/builds-BhcPewqH.js",
+          "status": 200
+        },
+        {
+          "path": "/assets/builds-page-BEV8No5U.js",
+          "status": 200
+        },
+        {
+          "path": "/console/assets/builds-page-BEV8No5U.js",
+          "status": 200
+        },
+        {
+          "path": "/assets/builds-page-DPSeElhz.css",
+          "status": 200
+        },
+        {
+          "path": "/console/assets/builds-page-DPSeElhz.css",
+          "status": 200
+        },
+        {
+          "path": "/assets/card-BhqefgbM.js",
+          "status": 200
+        },
+        {
+          "path": "/console/assets/card-BhqefgbM.js",
+          "status": 200
+        },
+        {
+          "path": "/assets/chevron-down-C1KIKeCa.js",
+          "status": 200
+        },
+        {
+          "path": "/console/assets/chevron-down-C1KIKeCa.js",
+          "status": 200
+        },
+        {
+          "path": "/assets/chevron-left-Y2wo7Xec.js",
+          "status": 200
+        },
+        {
+          "path": "/console/assets/chevron-left-Y2wo7Xec.js",
+          "status": 200
+        },
+        {
+          "path": "/assets/chevron-right-CfbPxlQa.js",
+          "status": 200
+        },
+        {
+          "path": "/console/assets/chevron-right-CfbPxlQa.js",
+          "status": 200
+        },
+        {
+          "path": "/assets/collapse-BgX--bqA.js",
+          "status": 200
+        },
+        {
+          "path": "/console/assets/collapse-BgX--bqA.js",
+          "status": 200
+        },
+        {
+          "path": "/assets/command-CfsS4uDk.js",
+          "status": 200
+        },
+        {
+          "path": "/console/assets/command-CfsS4uDk.js",
+          "status": 200
+        },
+        {
+          "path": "/assets/config-provider-DWHTOUEA.js",
+          "status": 200
+        },
+        {
+          "path": "/console/assets/config-provider-DWHTOUEA.js",
+          "status": 200
+        },
+        {
+          "path": "/assets/configs-page-YFbfRRDH.js",
+          "status": 200
+        },
+        {
+          "path": "/console/assets/configs-page-YFbfRRDH.js",
+          "status": 200
+        },
+        {
+          "path": "/assets/context-C482taiw.js",
+          "status": 200
+        },
+        {
+          "path": "/console/assets/context-C482taiw.js",
+          "status": 200
+        },
+        {
+          "path": "/assets/context-CgYzR2b9.js",
+          "status": 200
+        },
+        {
+          "path": "/console/assets/context-CgYzR2b9.js",
+          "status": 200
+        },
+        {
+          "path": "/assets/copy-DgBQnHsw.js",
+          "status": 200
+        },
+        {
+          "path": "/console/assets/copy-DgBQnHsw.js",
+          "status": 200
+        },
+        {
+          "path": "/assets/credentials-page-Bg7XVhIc.js",
+          "status": 200
+        },
+        {
+          "path": "/console/assets/credentials-page-Bg7XVhIc.js",
+          "status": 200
+        },
+        {
+          "path": "/assets/dashboard-page-C5QTwuKt.css",
+          "status": 200
+        },
+        {
+          "path": "/console/assets/dashboard-page-C5QTwuKt.css",
+          "status": 200
+        },
+        {
+          "path": "/assets/dashboard-page-uzkWGTab.js",
+          "status": 200
+        },
+        {
+          "path": "/console/assets/dashboard-page-uzkWGTab.js",
+          "status": 200
+        },
+        {
+          "path": "/assets/deployment-options-CcX4Sgal.js",
+          "status": 200
+        },
+        {
+          "path": "/console/assets/deployment-options-CcX4Sgal.js",
+          "status": 200
+        },
+        {
+          "path": "/assets/diagnostics-page-JEuPAna3.js",
+          "status": 200
+        },
+        {
+          "path": "/console/assets/diagnostics-page-JEuPAna3.js",
+          "status": 200
+        },
+        {
+          "path": "/assets/dialog-Cu6KYnmi.js",
+          "status": 200
+        },
+        {
+          "path": "/console/assets/dialog-Cu6KYnmi.js",
+          "status": 200
+        },
+        {
+          "path": "/assets/dist-BVyVd9XC.js",
+          "status": 200
+        },
+        {
+          "path": "/console/assets/dist-BVyVd9XC.js",
+          "status": 200
+        },
+        {
+          "path": "/assets/dist-DKZ8D-UA.js",
+          "status": 200
+        },
+        {
+          "path": "/console/assets/dist-DKZ8D-UA.js",
+          "status": 200
+        },
+        {
+          "path": "/assets/dist-wTiNGevj.js",
+          "status": 200
+        },
+        {
+          "path": "/console/assets/dist-wTiNGevj.js",
+          "status": 200
+        },
+        {
+          "path": "/assets/downstream-credentials-page-BlB0jakO.css",
+          "status": 200
+        },
+        {
+          "path": "/console/assets/downstream-credentials-page-BlB0jakO.css",
+          "status": 200
+        },
+        {
+          "path": "/assets/downstream-credentials-page-CshPSd0r.js",
+          "status": 200
+        },
+        {
+          "path": "/console/assets/downstream-credentials-page-CshPSd0r.js",
+          "status": 200
+        },
+        {
+          "path": "/assets/es-BlfxCsxF.js",
+          "status": 200
+        },
+        {
+          "path": "/console/assets/es-BlfxCsxF.js",
+          "status": 200
+        },
+        {
+          "path": "/assets/external-connections-page-DXNrSTR9.js",
+          "status": 200
+        },
+        {
+          "path": "/console/assets/external-connections-page-DXNrSTR9.js",
+          "status": 200
+        },
+        {
+          "path": "/assets/external-connections-page-mT9jXUKm.css",
+          "status": 200
+        },
+        {
+          "path": "/console/assets/external-connections-page-mT9jXUKm.css",
+          "status": 200
+        },
+        {
+          "path": "/assets/filter-radio-By-vwnXz.css",
+          "status": 200
+        },
+        {
+          "path": "/console/assets/filter-radio-By-vwnXz.css",
+          "status": 200
+        },
+        {
+          "path": "/assets/filter-radio-omTQlyWe.js",
+          "status": 200
+        },
+        {
+          "path": "/console/assets/filter-radio-omTQlyWe.js",
+          "status": 200
+        },
+        {
+          "path": "/assets/form-5DWEzj3M.js",
+          "status": 200
+        },
+        {
+          "path": "/console/assets/form-5DWEzj3M.js",
+          "status": 200
+        },
+        {
+          "path": "/assets/form-dialog-eXHnktg3.js",
+          "status": 200
+        },
+        {
+          "path": "/console/assets/form-dialog-eXHnktg3.js",
+          "status": 200
+        },
+        {
+          "path": "/assets/http-CTk34Y6z.js",
+          "status": 200
+        },
+        {
+          "path": "/console/assets/http-CTk34Y6z.js",
+          "status": 200
+        },
+        {
+          "path": "/assets/index-BblcVoBI.js",
+          "status": 200
+        },
+        {
+          "path": "/console/assets/index-BblcVoBI.js",
+          "status": 200
+        },
+        {
+          "path": "/assets/index-C_hPtwDh.css",
+          "status": 200
+        },
+        {
+          "path": "/console/assets/index-C_hPtwDh.css",
+          "status": 200
+        },
+        {
+          "path": "/assets/info-Bx3wqeIY.js",
+          "status": 200
+        },
+        {
+          "path": "/console/assets/info-Bx3wqeIY.js",
+          "status": 200
+        },
+        {
+          "path": "/assets/input-number-BKcfprjf.js",
+          "status": 200
+        },
+        {
+          "path": "/console/assets/input-number-BKcfprjf.js",
+          "status": 200
+        },
+        {
+          "path": "/assets/invocation-audit-page-Bt20jPN4.css",
+          "status": 200
+        },
+        {
+          "path": "/console/assets/invocation-audit-page-Bt20jPN4.css",
+          "status": 200
+        },
+        {
+          "path": "/assets/invocation-audit-page-CqPTNtQU.js",
+          "status": 200
+        },
+        {
+          "path": "/console/assets/invocation-audit-page-CqPTNtQU.js",
+          "status": 200
+        },
+        {
+          "path": "/assets/invocation-payload-panel-MkU7VMKX.js",
+          "status": 200
+        },
+        {
+          "path": "/console/assets/invocation-payload-panel-MkU7VMKX.js",
+          "status": 200
+        },
+        {
+          "path": "/assets/invoke-page-BTA55JBX.css",
+          "status": 200
+        },
+        {
+          "path": "/console/assets/invoke-page-BTA55JBX.css",
+          "status": 200
+        },
+        {
+          "path": "/assets/invoke-page-BVuOSDrs.js",
+          "status": 200
+        },
+        {
+          "path": "/console/assets/invoke-page-BVuOSDrs.js",
+          "status": 200
+        },
+        {
+          "path": "/assets/json-panel-BQduC3Ep.js",
+          "status": 200
+        },
+        {
+          "path": "/console/assets/json-panel-BQduC3Ep.js",
+          "status": 200
+        },
+        {
+          "path": "/assets/list-pagination-CFUjdCU4.css",
+          "status": 200
+        },
+        {
+          "path": "/console/assets/list-pagination-CFUjdCU4.css",
+          "status": 200
+        },
+        {
+          "path": "/assets/list-pagination-DFBrXFNJ.js",
+          "status": 200
+        },
+        {
+          "path": "/console/assets/list-pagination-DFBrXFNJ.js",
+          "status": 200
+        },
+        {
+          "path": "/assets/logs-events-page-By2wPKjp.css",
+          "status": 200
+        },
+        {
+          "path": "/console/assets/logs-events-page-By2wPKjp.css",
+          "status": 200
+        },
+        {
+          "path": "/assets/logs-events-page-DAdATdrA.js",
+          "status": 200
+        },
+        {
+          "path": "/console/assets/logs-events-page-DAdATdrA.js",
+          "status": 200
+        },
+        {
+          "path": "/assets/maintenance-lists-Db-gJatN.css",
+          "status": 200
+        },
+        {
+          "path": "/console/assets/maintenance-lists-Db-gJatN.css",
+          "status": 200
+        },
+        {
+          "path": "/assets/mcp-config-editor-BAkFRdpf.css",
+          "status": 200
+        },
+        {
+          "path": "/console/assets/mcp-config-editor-BAkFRdpf.css",
+          "status": 200
+        },
+        {
+          "path": "/assets/mcp-config-editor-DIwEDRr1.js",
+          "status": 200
+        },
+        {
+          "path": "/console/assets/mcp-config-editor-DIwEDRr1.js",
+          "status": 200
+        },
+        {
+          "path": "/assets/network-CPko-rSJ.js",
+          "status": 200
+        },
+        {
+          "path": "/console/assets/network-CPko-rSJ.js",
+          "status": 200
+        },
+        {
+          "path": "/assets/network-settings-panel-ChV9eh_J.css",
+          "status": 200
+        },
+        {
+          "path": "/console/assets/network-settings-panel-ChV9eh_J.css",
+          "status": 200
+        },
+        {
+          "path": "/assets/network-settings-panel-jy3sZIl7.js",
+          "status": 200
+        },
+        {
+          "path": "/console/assets/network-settings-panel-jy3sZIl7.js",
+          "status": 200
+        },
+        {
+          "path": "/assets/page-shell-DoCOfY_C.js",
+          "status": 200
+        },
+        {
+          "path": "/console/assets/page-shell-DoCOfY_C.js",
+          "status": 200
+        },
+        {
+          "path": "/assets/page-utils-DD4d3K4s.js",
+          "status": 200
+        },
+        {
+          "path": "/console/assets/page-utils-DD4d3K4s.js",
+          "status": 200
+        },
+        {
+          "path": "/assets/pagination-IVGuxch9.js",
+          "status": 200
+        },
+        {
+          "path": "/console/assets/pagination-IVGuxch9.js",
+          "status": 200
+        },
+        {
+          "path": "/assets/personal-tokens-page-CgKMttU8.css",
+          "status": 200
+        },
+        {
+          "path": "/console/assets/personal-tokens-page-CgKMttU8.css",
+          "status": 200
+        },
+        {
+          "path": "/assets/personal-tokens-page-CnRO9qCl.js",
+          "status": 200
+        },
+        {
+          "path": "/console/assets/personal-tokens-page-CnRO9qCl.js",
+          "status": 200
+        },
+        {
+          "path": "/assets/personal-workspace-page-Bxtrfd6J.css",
+          "status": 200
+        },
+        {
+          "path": "/console/assets/personal-workspace-page-Bxtrfd6J.css",
+          "status": 200
+        },
+        {
+          "path": "/assets/personal-workspace-page-D0UH7dLT.js",
+          "status": 200
+        },
+        {
+          "path": "/console/assets/personal-workspace-page-D0UH7dLT.js",
+          "status": 200
+        },
+        {
+          "path": "/assets/plus-D_pyY9nN.js",
+          "status": 200
+        },
+        {
+          "path": "/console/assets/plus-D_pyY9nN.js",
+          "status": 200
+        },
+        {
+          "path": "/assets/query-status-BnfV0vtj.js",
+          "status": 200
+        },
+        {
+          "path": "/console/assets/query-status-BnfV0vtj.js",
+          "status": 200
+        },
+        {
+          "path": "/assets/radio-CwpO4NvB.js",
+          "status": 200
+        },
+        {
+          "path": "/console/assets/radio-CwpO4NvB.js",
+          "status": 200
+        },
+        {
+          "path": "/assets/runtime-cache-page-BLf0ZTHt.js",
+          "status": 200
+        },
+        {
+          "path": "/console/assets/runtime-cache-page-BLf0ZTHt.js",
+          "status": 200
+        },
+        {
+          "path": "/assets/search-DhTkXi8A.js",
+          "status": 200
+        },
+        {
+          "path": "/console/assets/search-DhTkXi8A.js",
+          "status": 200
+        },
+        {
+          "path": "/assets/segmented-CwwCg9eA.js",
+          "status": 200
+        },
+        {
+          "path": "/console/assets/segmented-CwwCg9eA.js",
+          "status": 200
+        },
+        {
+          "path": "/assets/select-1f_zeaWe.js",
+          "status": 200
+        },
+        {
+          "path": "/console/assets/select-1f_zeaWe.js",
+          "status": 200
+        },
+        {
+          "path": "/assets/select-BXj1UITW.js",
+          "status": 200
+        },
+        {
+          "path": "/console/assets/select-BXj1UITW.js",
+          "status": 200
+        },
+        {
+          "path": "/assets/servers-page-D0AvbjH-.js",
+          "status": 200
+        },
+        {
+          "path": "/console/assets/servers-page-D0AvbjH-.js",
+          "status": 200
+        },
+        {
+          "path": "/assets/servers-page-DepLcCbk.css",
+          "status": 200
+        },
+        {
+          "path": "/console/assets/servers-page-DepLcCbk.css",
+          "status": 200
+        },
+        {
+          "path": "/assets/shield-alert-Cp4L2uk_.js",
+          "status": 200
+        },
+        {
+          "path": "/console/assets/shield-alert-Cp4L2uk_.js",
+          "status": 200
+        },
+        {
+          "path": "/assets/shield-check-BJ1vOIKV.js",
+          "status": 200
+        },
+        {
+          "path": "/console/assets/shield-check-BJ1vOIKV.js",
+          "status": 200
+        },
+        {
+          "path": "/assets/skeleton-C6I4ewAl.js",
+          "status": 200
+        },
+        {
+          "path": "/console/assets/skeleton-C6I4ewAl.js",
+          "status": 200
+        },
+        {
+          "path": "/assets/space-Ddo43wfB.js",
+          "status": 200
+        },
+        {
+          "path": "/console/assets/space-Ddo43wfB.js",
+          "status": 200
+        },
+        {
+          "path": "/assets/style-CaSOBl_y.js",
+          "status": 200
+        },
+        {
+          "path": "/console/assets/style-CaSOBl_y.js",
+          "status": 200
+        },
+        {
+          "path": "/assets/switch--lFydxs1.js",
+          "status": 200
+        },
+        {
+          "path": "/console/assets/switch--lFydxs1.js",
+          "status": 200
+        },
+        {
+          "path": "/assets/switch-CXyDLd3S.js",
+          "status": 200
+        },
+        {
+          "path": "/console/assets/switch-CXyDLd3S.js",
+          "status": 200
+        },
+        {
+          "path": "/assets/system-settings-page-Cwpg3aXl.js",
+          "status": 200
+        },
+        {
+          "path": "/console/assets/system-settings-page-Cwpg3aXl.js",
+          "status": 200
+        },
+        {
+          "path": "/assets/table-DwidlQvd.js",
+          "status": 200
+        },
+        {
+          "path": "/console/assets/table-DwidlQvd.js",
+          "status": 200
+        },
+        {
+          "path": "/assets/table-tools-Cfo408TU.js",
+          "status": 200
+        },
+        {
+          "path": "/console/assets/table-tools-Cfo408TU.js",
+          "status": 200
+        },
+        {
+          "path": "/assets/tabs-kBGfCh4r.js",
+          "status": 200
+        },
+        {
+          "path": "/console/assets/tabs-kBGfCh4r.js",
+          "status": 200
+        },
+        {
+          "path": "/assets/tag-B_MAFVrO.js",
+          "status": 200
+        },
+        {
+          "path": "/console/assets/tag-B_MAFVrO.js",
+          "status": 200
+        },
+        {
+          "path": "/assets/textarea-tJL5OFBK.js",
+          "status": 200
+        },
+        {
+          "path": "/console/assets/textarea-tJL5OFBK.js",
+          "status": 200
+        },
+        {
+          "path": "/assets/tool-access-CtKHIheZ.js",
+          "status": 200
+        },
+        {
+          "path": "/console/assets/tool-access-CtKHIheZ.js",
+          "status": 200
+        },
+        {
+          "path": "/assets/tool-classifications-page-BGhDXg7K.css",
+          "status": 200
+        },
+        {
+          "path": "/console/assets/tool-classifications-page-BGhDXg7K.css",
+          "status": 200
+        },
+        {
+          "path": "/assets/tool-classifications-page-BO-2NyRg.js",
+          "status": 200
+        },
+        {
+          "path": "/console/assets/tool-classifications-page-BO-2NyRg.js",
+          "status": 200
+        },
+        {
+          "path": "/assets/tool-origin-mXy-TKr4.js",
+          "status": 200
+        },
+        {
+          "path": "/console/assets/tool-origin-mXy-TKr4.js",
+          "status": 200
+        },
+        {
+          "path": "/assets/tools-page-lFlOsfiq.css",
+          "status": 200
+        },
+        {
+          "path": "/console/assets/tools-page-lFlOsfiq.css",
+          "status": 200
+        },
+        {
+          "path": "/assets/tools-page-xbjOThNA.js",
+          "status": 200
+        },
+        {
+          "path": "/console/assets/tools-page-xbjOThNA.js",
+          "status": 200
+        },
+        {
+          "path": "/assets/tooltip-C2ZjJ2UH.js",
+          "status": 200
+        },
+        {
+          "path": "/console/assets/tooltip-C2ZjJ2UH.js",
+          "status": 200
+        },
+        {
+          "path": "/assets/uploads-page-DZN4Cm32.js",
+          "status": 200
+        },
+        {
+          "path": "/console/assets/uploads-page-DZN4Cm32.js",
+          "status": 200
+        },
+        {
+          "path": "/assets/use-draft-close-guard-D2-uOUhL.js",
+          "status": 200
+        },
+        {
+          "path": "/console/assets/use-draft-close-guard-D2-uOUhL.js",
+          "status": 200
+        },
+        {
+          "path": "/assets/use-remaining-viewport-DbWVprg9.js",
+          "status": 200
+        },
+        {
+          "path": "/console/assets/use-remaining-viewport-DbWVprg9.js",
+          "status": 200
+        },
+        {
+          "path": "/assets/useClosable-DPAx9KaY.js",
+          "status": 200
+        },
+        {
+          "path": "/console/assets/useClosable-DPAx9KaY.js",
+          "status": 200
+        },
+        {
+          "path": "/assets/useModal-DmoF0W0g.js",
+          "status": 200
+        },
+        {
+          "path": "/console/assets/useModal-DmoF0W0g.js",
+          "status": 200
+        },
+        {
+          "path": "/assets/user-plus-BTAxZYVC.js",
+          "status": 200
+        },
+        {
+          "path": "/console/assets/user-plus-BTAxZYVC.js",
+          "status": 200
+        },
+        {
+          "path": "/assets/validateMessagesContext-Ym1bDdgu.js",
+          "status": 200
+        },
+        {
+          "path": "/console/assets/validateMessagesContext-Ym1bDdgu.js",
+          "status": 200
+        },
+        {
+          "path": "/assets/validation-D6vjtMIC.js",
+          "status": 200
+        },
+        {
+          "path": "/console/assets/validation-D6vjtMIC.js",
+          "status": 200
+        },
+        {
+          "path": "/assets/validation-errors-CGzfaoDV.js",
+          "status": 200
+        },
+        {
+          "path": "/console/assets/validation-errors-CGzfaoDV.js",
+          "status": 200
+        },
+        {
+          "path": "/lingshu-gate-app-icon.svg",
+          "status": 200
+        },
+        {
+          "path": "/console/lingshu-gate-app-icon.svg",
+          "status": 200
+        },
+        {
+          "path": "/lingshu-gate-icon-512.png",
+          "status": 200
+        },
+        {
+          "path": "/console/lingshu-gate-icon-512.png",
+          "status": 200
+        },
+        {
+          "path": "/lingshu-gate-icon.svg",
+          "status": 200
+        },
+        {
+          "path": "/console/lingshu-gate-icon.svg",
+          "status": 200
+        },
+        {
+          "path": "/docs",
+          "status": 200
+        },
+        {
+          "path": "/openapi.json",
+          "status": 200
+        },
+        {
+          "path": "/v1/mcp/configs",
+          "status": 401
+        },
+        {
+          "path": "/v1/auth/me",
+          "status": 401
+        },
+        {
+          "method": "POST",
+          "path": "/mcp",
+          "status": 401
+        },
+        {
+          "path": "/.well-known/oauth-authorization-server",
+          "status": 404
+        },
+        {
+          "path": "/oauth/consent",
+          "status": 404
+        },
+        {
+          "path": "/oauth/unknown",
+          "status": 404
+        },
+        {
+          "path": "/assets/not-built.js",
+          "status": 404
+        },
+        {
+          "path": "/assets/%2e%2e/private.json",
+          "status": 404
+        },
+        {
+          "path": "/assets/%5c..%5coutside.json",
+          "status": 404
+        },
+        {
+          "path": "/console/assets/%2e%2e/index.html",
+          "status": 404
+        },
+        {
+          "path": "/index.html",
+          "status": 404
+        },
+        {
+          "path": "/unknown-root-path",
+          "status": 404
+        },
+        {
+          "path": "/v1/unknown",
+          "status": 404
+        },
+        {
+          "path": "/mcp/unknown",
+          "status": 404
+        }
+      ],
+      "console_file_pairs": 114,
+      "all_bytes_match_current_vite_output": true,
+      "runtime_version": "0.4.5",
+      "cleanup": {
+        "owned_process_reaped": true,
+        "runtime_directory_removed": true,
+        "listener_closed": true
+      }
+    }
+  },
+  "runs": [
+    {
+      "label": "ruff",
+      "command": [
+        "<repo>/.venv/bin/python",
+        "-m",
+        "ruff",
+        "check",
+        "."
+      ],
+      "cwd": "<repo>",
+      "source_sha": "2ef739b5a9f72e8a7a01c7044f20b5d766de415c",
+      "exit_code": 0,
+      "timed_out": false,
+      "wall_seconds": 0.031988,
+      "log": "quality/ruff.log",
+      "log_sha256": "82b3e6a6c090a57601d22943bd23fca9218d1031dbe5a7b754092f9a156b4f18"
+    },
+    {
+      "label": "mypy",
+      "command": [
+        "<repo>/.venv/bin/python",
+        "-m",
+        "mypy"
+      ],
+      "cwd": "<repo>",
+      "source_sha": "2ef739b5a9f72e8a7a01c7044f20b5d766de415c",
+      "exit_code": 0,
+      "timed_out": false,
+      "wall_seconds": 0.264631,
+      "log": "quality/mypy.log",
+      "log_sha256": "a4be80670a49e40967d7663defa16bbef3d09cd6a5dbd3e7d61ae68cbaf7a2e4"
+    },
+    {
+      "label": "identity-history",
+      "command": [
+        "<repo>/.venv/bin/python",
+        "scripts/quality/check_repository_identity.py",
+        "--history"
+      ],
+      "cwd": "<repo>",
+      "source_sha": "2ef739b5a9f72e8a7a01c7044f20b5d766de415c",
+      "exit_code": 0,
+      "timed_out": false,
+      "wall_seconds": 24.770849,
+      "log": "quality/identity-history.log",
+      "log_sha256": "a7507cd98b517cd1ff693675a6ebe556e776e33478c24de417fffb05f215ce73"
+    },
+    {
+      "label": "version-tag",
+      "command": [
+        "<repo>/.venv/bin/python",
+        "-m",
+        "scripts.release.check_version",
+        "--tag",
+        "v0.4.5"
+      ],
+      "cwd": "<repo>",
+      "source_sha": "2ef739b5a9f72e8a7a01c7044f20b5d766de415c",
+      "exit_code": 0,
+      "timed_out": false,
+      "wall_seconds": 0.064457,
+      "log": "quality/version-tag.log",
+      "log_sha256": "345a551b61a5dc33388b9bf40df339c9a0d9446ced7eeaeb576e3dbf4321918e"
+    },
+    {
+      "label": "compose",
+      "command": [
+        "docker",
+        "compose",
+        "config",
+        "--quiet"
+      ],
+      "cwd": "<repo>",
+      "source_sha": "2ef739b5a9f72e8a7a01c7044f20b5d766de415c",
+      "exit_code": 0,
+      "timed_out": false,
+      "wall_seconds": 0.115411,
+      "log": "quality/compose.log",
+      "log_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "label": "diff",
+      "command": [
+        "git",
+        "diff",
+        "--check"
+      ],
+      "cwd": "<repo>",
+      "source_sha": "2ef739b5a9f72e8a7a01c7044f20b5d766de415c",
+      "exit_code": 0,
+      "timed_out": false,
+      "wall_seconds": 0.003888,
+      "log": "quality/diff.log",
+      "log_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "label": "pep517-wheel",
+      "command": [
+        "<validation-current>/uv-bin/uv",
+        "build",
+        "--wheel",
+        "--offline",
+        "--python",
+        "<repo>/.venv/bin/python",
+        "--out-dir",
+        "<validation-current>/wheel/direct"
+      ],
+      "cwd": "<repo>",
+      "source_sha": "2ef739b5a9f72e8a7a01c7044f20b5d766de415c",
+      "exit_code": 0,
+      "timed_out": false,
+      "wall_seconds": 1.270129,
+      "log": "wheel/pep517-wheel.log",
+      "log_sha256": "0c58f86fed1ec34605da35d1850d2ae937aadc8e969a34730e6cb06c203e2d2c"
+    },
+    {
+      "label": "pep517-sdist",
+      "command": [
+        "<validation-current>/uv-bin/uv",
+        "build",
+        "--sdist",
+        "--offline",
+        "--python",
+        "<repo>/.venv/bin/python",
+        "--out-dir",
+        "<validation-current>/wheel/sdist"
+      ],
+      "cwd": "<repo>",
+      "source_sha": "2ef739b5a9f72e8a7a01c7044f20b5d766de415c",
+      "exit_code": 0,
+      "timed_out": false,
+      "wall_seconds": 1.320177,
+      "log": "wheel/pep517-sdist.log",
+      "log_sha256": "04651a4646ce905d9ce3c5c3570fb9a11a8c8a6af49b47b357287dc47f9fe08d"
+    },
+    {
+      "label": "sdist-to-wheel",
+      "command": [
+        "<validation-current>/uv-bin/uv",
+        "build",
+        "--wheel",
+        "--offline",
+        "--python",
+        "<repo>/.venv/bin/python",
+        "--out-dir",
+        "<validation-current>/wheel/from-sdist"
+      ],
+      "cwd": "<validation-current>/wheel/restored/lingshu_gate-0.4.5",
+      "source_sha": "2ef739b5a9f72e8a7a01c7044f20b5d766de415c",
+      "exit_code": 0,
+      "timed_out": false,
+      "wall_seconds": 1.118032,
+      "log": "wheel/sdist-to-wheel.log",
+      "log_sha256": "43535608995d2dd2e809be139c28f59153e3b14783560408d591319e0dbbcee8"
+    },
+    {
+      "label": "build-native-linux",
+      "command": [
+        "<repo>/.venv/bin/python",
+        "-m",
+        "scripts.release.build_native",
+        "--target",
+        "linux-x86_64",
+        "--output-dir",
+        "<validation-current>/native/candidate"
+      ],
+      "cwd": "<repo>",
+      "source_sha": "2ef739b5a9f72e8a7a01c7044f20b5d766de415c",
+      "exit_code": 0,
+      "timed_out": false,
+      "wall_seconds": 49.613745,
+      "log": "native/build-native-linux.log",
+      "log_sha256": "ed1098ef4febe9750123dc0b796de4618c53ff10533d08f823f74fb20aa1d4cb"
+    },
+    {
+      "label": "native-identity",
+      "command": [
+        "<repo>/.venv/bin/python",
+        "scripts/quality/check_repository_identity.py",
+        "--artifacts",
+        "<validation-current>/native/candidate/lingshu-gate-v0.4.5-linux-x86_64.tar.gz"
+      ],
+      "cwd": "<repo>",
+      "source_sha": "2ef739b5a9f72e8a7a01c7044f20b5d766de415c",
+      "exit_code": 0,
+      "timed_out": false,
+      "wall_seconds": 8.691372,
+      "log": "native/native-identity.log",
+      "log_sha256": "c2abe4b85441da546d672d41b520819e0f611660fce7d205b7529bffc9036ceb"
+    },
+    {
+      "label": "extract-native",
+      "command": [
+        "<repo>/.venv/bin/python",
+        "-m",
+        "scripts.release.extract_native",
+        "--target",
+        "linux-x86_64",
+        "--archive",
+        "<validation-current>/native/candidate/lingshu-gate-v0.4.5-linux-x86_64.tar.gz",
+        "--output-dir",
+        "build/release/release-045-local-extracted"
+      ],
+      "cwd": "<repo>",
+      "source_sha": "2ef739b5a9f72e8a7a01c7044f20b5d766de415c",
+      "exit_code": 0,
+      "timed_out": false,
+      "wall_seconds": 1.316973,
+      "log": "native/extract-native.log",
+      "log_sha256": "4cd730c76de46da1d1337b953850ef04434dff15a7638c26ef646b5105bf695d"
+    },
+    {
+      "label": "native-readiness",
+      "command": [
+        "<repo>/.venv/bin/python",
+        "-m",
+        "scripts.release.smoke_native",
+        "--target",
+        "linux-x86_64",
+        "--bundle-dir",
+        "<repo>/build/release/release-045-local-extracted/lingshu-gate-v0.4.5-linux-x86_64"
+      ],
+      "cwd": "<repo>",
+      "source_sha": "2ef739b5a9f72e8a7a01c7044f20b5d766de415c",
+      "exit_code": 0,
+      "timed_out": false,
+      "wall_seconds": 2.571,
+      "log": "native/native-readiness.log",
+      "log_sha256": "f69c6a53a19f5679f1628ee9dfc2eed1aea3742d0a59ba96885d2957f05bbf21"
+    },
+    {
+      "label": "isolated-venv",
+      "command": [
+        "<validation-current>/uv-bin/uv",
+        "venv",
+        "--python",
+        "<toolchain>/uv-python/cpython-3.13.15-linux-x86_64-gnu/bin/python3.13",
+        "<validation-current>/wheel-runtime/venv"
+      ],
+      "cwd": "<repo>",
+      "source_sha": "2ef739b5a9f72e8a7a01c7044f20b5d766de415c",
+      "exit_code": 0,
+      "timed_out": false,
+      "wall_seconds": 0.031911,
+      "log": "wheel-runtime/isolated-venv.log",
+      "log_sha256": "72f93b079d0f9335095be88f119aa398aa929b8bed6760f1ef1bd2d3cf80f5fb"
+    },
+    {
+      "label": "frozen-hashed-runtime",
+      "command": [
+        "<validation-current>/uv-bin/uv",
+        "pip",
+        "install",
+        "--python",
+        "<validation-current>/wheel-runtime/venv/bin/python",
+        "--require-hashes",
+        "-r",
+        "<repo>/requirements.lock"
+      ],
+      "cwd": "<repo>",
+      "source_sha": "2ef739b5a9f72e8a7a01c7044f20b5d766de415c",
+      "exit_code": 0,
+      "timed_out": false,
+      "wall_seconds": 0.418524,
+      "log": "wheel-runtime/frozen-hashed-runtime.log",
+      "log_sha256": "4b510279cb00e2ce698ae84e994c19adeb6bed5a2d7de56434b9002711bc4e5e"
+    },
+    {
+      "label": "install-candidate-wheel",
+      "command": [
+        "<validation-current>/uv-bin/uv",
+        "pip",
+        "install",
+        "--offline",
+        "--no-deps",
+        "--python",
+        "<validation-current>/wheel-runtime/venv/bin/python",
+        "<validation-current>/wheel/direct/lingshu_gate-0.4.5-py3-none-any.whl"
+      ],
+      "cwd": "<repo>",
+      "source_sha": "2ef739b5a9f72e8a7a01c7044f20b5d766de415c",
+      "exit_code": 0,
+      "timed_out": false,
+      "wall_seconds": 0.064637,
+      "log": "wheel-runtime/install-candidate-wheel.log",
+      "log_sha256": "448e923233ba2b16d94ab388afe67c74257e928c7c941bc714404cd64585a964"
+    },
+    {
+      "label": "wheel-binding-and-static",
+      "command": [
+        "<validation-current>/wheel-runtime/venv/bin/python",
+        "-c",
+        "import json,hashlib,importlib.metadata; from pathlib import Path; import lingshu_gate; r=Path(lingshu_gate.__file__).resolve().parent; assert r.is_relative_to(Path('<validation-current>/wheel-runtime/venv')); assert importlib.metadata.version('lingshu-gate')==lingshu_gate.__version__=='0.4.5'; expected=json.loads(Path('<validation-current>/frontend/static-manifest.json').read_text())['manifest']; actual={f.relative_to(r/'static').as_posix():hashlib.sha256(f.read_bytes()).hexdigest() for f in (r/'static').rglob('*') if f.is_file()}; assert actual=={row['root']+'/'+row['path']:row['sha256'] for row in expected}; print('0.4.5 installed wheel: 118 exact static files')"
+      ],
+      "cwd": "<validation-current>",
+      "source_sha": "2ef739b5a9f72e8a7a01c7044f20b5d766de415c",
+      "exit_code": 0,
+      "timed_out": false,
+      "wall_seconds": 0.064045,
+      "log": "wheel-runtime/wheel-binding-and-static.log",
+      "log_sha256": "9711117e72d555f6e6d69ff08e3fc5110421eeaa9ffe01136dfa99d1152098fc"
+    },
+    {
+      "label": "wheel-cli-version",
+      "command": [
+        "<validation-current>/wheel-runtime/venv/bin/lingshu-gate",
+        "--version"
+      ],
+      "cwd": "<validation-current>",
+      "source_sha": "2ef739b5a9f72e8a7a01c7044f20b5d766de415c",
+      "exit_code": 0,
+      "timed_out": false,
+      "wall_seconds": 0.515296,
+      "log": "wheel-runtime/wheel-cli-version.log",
+      "log_sha256": "028488298a2745db522fb2ba348f53849f09806a5183f68381aa451e3ee9411a"
+    },
+    {
+      "label": "wheel-worker-smoke",
+      "command": [
+        "<validation-current>/wheel-runtime/venv/bin/python",
+        "<validation-current>/check_installed_wheel_worker.py"
+      ],
+      "cwd": "<validation-current>",
+      "source_sha": "2ef739b5a9f72e8a7a01c7044f20b5d766de415c",
+      "exit_code": 0,
+      "timed_out": false,
+      "wall_seconds": 2.773605,
+      "log": "wheel-runtime/wheel-worker-smoke.log",
+      "log_sha256": "aa91bff2482a91b46e7eee75163fc824fe2b282d2aef231a565887900819a1e0"
+    },
+    {
+      "label": "wheel-http-smoke",
+      "command": [
+        "<repo>/.venv/bin/python",
+        "<validation-current>/check_installed_wheel_http.py"
+      ],
+      "cwd": "<validation-current>",
+      "source_sha": "2ef739b5a9f72e8a7a01c7044f20b5d766de415c",
+      "exit_code": 0,
+      "timed_out": false,
+      "wall_seconds": 2.771523,
+      "log": "wheel-runtime/wheel-http-smoke.log",
+      "log_sha256": "59d0c95bf67031f1a151ad96a51f7887d1de4996e831dcacec68a7d94bbc8dc7"
+    },
+    {
+      "label": "packaging-regressions",
+      "command": [
+        "<repo>/.venv/bin/python",
+        "-m",
+        "pytest",
+        "-q",
+        "tests/test_wheel_build.py",
+        "tests/test_release_packaging.py",
+        "tests/test_schema_validation_budget.py",
+        "--basetemp",
+        "<validation-current>/packaging/pytest-temp",
+        "-o",
+        "cache_dir=<validation-current>/packaging/pytest-cache",
+        "--junitxml",
+        "<validation-current>/packaging/results.xml"
+      ],
+      "cwd": "<repo>",
+      "source_sha": "2ef739b5a9f72e8a7a01c7044f20b5d766de415c",
+      "exit_code": 0,
+      "timed_out": false,
+      "wall_seconds": 43.292243,
+      "log": "packaging/packaging-regressions.log",
+      "log_sha256": "05486489b857273ddc65f245c7d51bd42522804031577572092d2bbb966918f5"
+    }
+  ],
+  "ci_checkpoint": {
+    "captured_at_utc": "2026-10-07 20:37:50 UTC",
+    "branch_head_sha": "2ef739b5a9f72e8a7a01c7044f20b5d766de415c",
+    "actual_ci_merge_checkout_sha": "d49696e29d92f1627160ab18b77b560175826d85",
+    "workflow_runs": [
+      {
+        "id": 37676428487,
+        "name": "Continuous integration",
+        "html_url": "https://github.com/zhigege666/Lingshu-Gate/actions/runs/37676428487",
+        "head_sha": "2ef739b5a9f72e8a7a01c7044f20b5d766de415c",
+        "run_attempt": 1,
+        "event": "pull_request",
+        "status": "completed",
+        "conclusion": "success",
+        "jobs": [
+          {
+            "id": 112981013531,
+            "name": "Source checks",
+            "status": "completed",
+            "conclusion": "success",
+            "steps": [
+              {
+                "name": "Set up job",
+                "status": "completed",
+                "conclusion": "success"
+              },
+              {
+                "name": "Checkout complete history",
+                "status": "completed",
+                "conclusion": "success"
+              },
+              {
+                "name": "Validate repository identity and version",
+                "status": "completed",
+                "conclusion": "success"
+              },
+              {
+                "name": "Set up Node.js",
+                "status": "completed",
+                "conclusion": "success"
+              },
+              {
+                "name": "Verify and build Console once",
+                "status": "completed",
+                "conclusion": "success"
+              },
+              {
+                "name": "Set up Python",
+                "status": "completed",
+                "conclusion": "success"
+              },
+              {
+                "name": "Set up uv",
+                "status": "completed",
+                "conclusion": "success"
+              },
+              {
+                "name": "Install frozen dependencies",
+                "status": "completed",
+                "conclusion": "success"
+              },
+              {
+                "name": "Verify pip export is synchronized",
+                "status": "completed",
+                "conclusion": "success"
+              },
+              {
+                "name": "Install browser for isolated smoke",
+                "status": "completed",
+                "conclusion": "success"
+              },
+              {
+                "name": "Verify backend on Python 3.12",
+                "status": "completed",
+                "conclusion": "success"
+              },
+              {
+                "name": "Test Console against isolated real backend",
+                "status": "completed",
+                "conclusion": "success"
+              },
+              {
+                "name": "Retain synthetic browser failure evidence",
+                "status": "completed",
+                "conclusion": "skipped"
+              },
+              {
+                "name": "Share tested Console with compatibility jobs",
+                "status": "completed",
+                "conclusion": "success"
+              },
+              {
+                "name": "Share built OAuth assets with compatibility jobs",
+                "status": "completed",
+                "conclusion": "success"
+              },
+              {
+                "name": "Post Set up uv",
+                "status": "completed",
+                "conclusion": "success"
+              },
+              {
+                "name": "Post Set up Python",
+                "status": "completed",
+                "conclusion": "success"
+              },
+              {
+                "name": "Post Set up Node.js",
+                "status": "completed",
+                "conclusion": "success"
+              },
+              {
+                "name": "Post Checkout complete history",
+                "status": "completed",
+                "conclusion": "success"
+              },
+              {
+                "name": "Complete job",
+                "status": "completed",
+                "conclusion": "success"
+              }
+            ]
+          },
+          {
+            "id": 112993170545,
+            "name": "Python 3.11",
+            "status": "completed",
+            "conclusion": "success",
+            "steps": [
+              {
+                "name": "Set up job",
+                "status": "completed",
+                "conclusion": "success"
+              },
+              {
+                "name": "Checkout",
+                "status": "completed",
+                "conclusion": "success"
+              },
+              {
+                "name": "Download Console from this workflow run",
+                "status": "completed",
+                "conclusion": "success"
+              },
+              {
+                "name": "Download OAuth assets from this workflow run",
+                "status": "completed",
+                "conclusion": "success"
+              },
+              {
+                "name": "Set up Node.js for packaging script tests",
+                "status": "completed",
+                "conclusion": "success"
+              },
+              {
+                "name": "Install Console dependencies for license tests",
+                "status": "completed",
+                "conclusion": "success"
+              },
+              {
+                "name": "Set up Python",
+                "status": "completed",
+                "conclusion": "success"
+              },
+              {
+                "name": "Set up uv",
+                "status": "completed",
+                "conclusion": "success"
+              },
+              {
+                "name": "Install frozen dependencies",
+                "status": "completed",
+                "conclusion": "success"
+              },
+              {
+                "name": "Test",
+                "status": "completed",
+                "conclusion": "success"
+              },
+              {
+                "name": "Post Set up uv",
+                "status": "completed",
+                "conclusion": "success"
+              },
+              {
+                "name": "Post Set up Python",
+                "status": "completed",
+                "conclusion": "success"
+              },
+              {
+                "name": "Post Set up Node.js for packaging script tests",
+                "status": "completed",
+                "conclusion": "success"
+              },
+              {
+                "name": "Post Checkout",
+                "status": "completed",
+                "conclusion": "success"
+              },
+              {
+                "name": "Complete job",
+                "status": "completed",
+                "conclusion": "success"
+              }
+            ]
+          },
+          {
+            "id": 112993170553,
+            "name": "Python 3.13",
+            "status": "completed",
+            "conclusion": "success",
+            "steps": [
+              {
+                "name": "Set up job",
+                "status": "completed",
+                "conclusion": "success"
+              },
+              {
+                "name": "Checkout",
+                "status": "completed",
+                "conclusion": "success"
+              },
+              {
+                "name": "Download Console from this workflow run",
+                "status": "completed",
+                "conclusion": "success"
+              },
+              {
+                "name": "Download OAuth assets from this workflow run",
+                "status": "completed",
+                "conclusion": "success"
+              },
+              {
+                "name": "Set up Node.js for packaging script tests",
+                "status": "completed",
+                "conclusion": "success"
+              },
+              {
+                "name": "Install Console dependencies for license tests",
+                "status": "completed",
+                "conclusion": "success"
+              },
+              {
+                "name": "Set up Python",
+                "status": "completed",
+                "conclusion": "success"
+              },
+              {
+                "name": "Set up uv",
+                "status": "completed",
+                "conclusion": "success"
+              },
+              {
+                "name": "Install frozen dependencies",
+                "status": "completed",
+                "conclusion": "success"
+              },
+              {
+                "name": "Test",
+                "status": "completed",
+                "conclusion": "success"
+              },
+              {
+                "name": "Post Set up uv",
+                "status": "completed",
+                "conclusion": "success"
+              },
+              {
+                "name": "Post Set up Python",
+                "status": "completed",
+                "conclusion": "success"
+              },
+              {
+                "name": "Post Set up Node.js for packaging script tests",
+                "status": "completed",
+                "conclusion": "success"
+              },
+              {
+                "name": "Post Checkout",
+                "status": "completed",
+                "conclusion": "success"
+              },
+              {
+                "name": "Complete job",
+                "status": "completed",
+                "conclusion": "success"
+              }
+            ]
+          },
+          {
+            "id": 113004203758,
+            "name": "CI result",
+            "status": "completed",
+            "conclusion": "success",
+            "steps": [
+              {
+                "name": "Set up job",
+                "status": "completed",
+                "conclusion": "success"
+              },
+              {
+                "name": "Require every source and compatibility check",
+                "status": "completed",
+                "conclusion": "success"
+              },
+              {
+                "name": "Complete job",
+                "status": "completed",
+                "conclusion": "success"
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "id": 37676428322,
+        "name": "Release artifacts",
+        "html_url": "https://github.com/zhigege666/Lingshu-Gate/actions/runs/37676428322",
+        "head_sha": "2ef739b5a9f72e8a7a01c7044f20b5d766de415c",
+        "run_attempt": 1,
+        "event": "pull_request",
+        "status": "completed",
+        "conclusion": "success",
+        "jobs": [
+          {
+            "id": 112981014554,
+            "name": "Cosign OCI env-key signing smoke",
+            "status": "completed",
+            "conclusion": "success",
+            "steps": [
+              {
+                "name": "Set up job",
+                "status": "completed",
+                "conclusion": "success"
+              },
+              {
+                "name": "Checkout",
+                "status": "completed",
+                "conclusion": "success"
+              },
+              {
+                "name": "Install pinned Cosign for the isolated fixture",
+                "status": "completed",
+                "conclusion": "success"
+              },
+              {
+                "name": "Verify synthetic OCI signing and wrong-key rejection",
+                "status": "completed",
+                "conclusion": "success"
+              },
+              {
+                "name": "Post Checkout",
+                "status": "completed",
+                "conclusion": "success"
+              },
+              {
+                "name": "Complete job",
+                "status": "completed",
+                "conclusion": "success"
+              }
+            ]
+          },
+          {
+            "id": 112981015024,
+            "name": "Validate release version",
+            "status": "completed",
+            "conclusion": "success",
+            "steps": [
+              {
+                "name": "Set up job",
+                "status": "completed",
+                "conclusion": "success"
+              },
+              {
+                "name": "Checkout",
+                "status": "completed",
+                "conclusion": "success"
+              },
+              {
+                "name": "Read and validate version",
+                "status": "completed",
+                "conclusion": "success"
+              },
+              {
+                "name": "Read source timestamp",
+                "status": "completed",
+                "conclusion": "success"
+              },
+              {
+                "name": "Post Checkout",
+                "status": "completed",
+                "conclusion": "success"
+              },
+              {
+                "name": "Complete job",
+                "status": "completed",
+                "conclusion": "success"
+              }
+            ]
+          },
+          {
+            "id": 112981081388,
+            "name": "Release quality gate",
+            "status": "completed",
+            "conclusion": "success",
+            "steps": [
+              {
+                "name": "Set up job",
+                "status": "completed",
+                "conclusion": "success"
+              },
+              {
+                "name": "Checkout",
+                "status": "completed",
+                "conclusion": "success"
+              },
+              {
+                "name": "Set up Python",
+                "status": "completed",
+                "conclusion": "success"
+              },
+              {
+                "name": "Validate repository identity",
+                "status": "completed",
+                "conclusion": "skipped"
+              },
+              {
+                "name": "Set up Node.js",
+                "status": "completed",
+                "conclusion": "success"
+              },
+              {
+                "name": "Verify and build Console",
+                "status": "completed",
+                "conclusion": "skipped"
+              },
+              {
+                "name": "Set up uv",
+                "status": "completed",
+                "conclusion": "success"
+              },
+              {
+                "name": "Install frozen quality and release dependencies",
+                "status": "completed",
+                "conclusion": "success"
+              },
+              {
+                "name": "Verify pip export is synchronized",
+                "status": "completed",
+                "conclusion": "skipped"
+              },
+              {
+                "name": "Verify backend and release engineering",
+                "status": "completed",
+                "conclusion": "skipped"
+              },
+              {
+                "name": "Install Console dependencies for release tests",
+                "status": "completed",
+                "conclusion": "success"
+              },
+              {
+                "name": "Verify release engineering on pull requests",
+                "status": "completed",
+                "conclusion": "success"
+              },
+              {
+                "name": "Post Set up uv",
+                "status": "completed",
+                "conclusion": "success"
+              },
+              {
+                "name": "Post Set up Node.js",
+                "status": "completed",
+                "conclusion": "success"
+              },
+              {
+                "name": "Post Set up Python",
+                "status": "completed",
+                "conclusion": "success"
+              },
+              {
+                "name": "Post Checkout",
+                "status": "completed",
+                "conclusion": "success"
+              },
+              {
+                "name": "Complete job",
+                "status": "completed",
+                "conclusion": "success"
+              }
+            ]
+          },
+          {
+            "id": 112981690636,
+            "name": "Docker Compose bundle",
+            "status": "completed",
+            "conclusion": "success",
+            "steps": [
+              {
+                "name": "Set up job",
+                "status": "completed",
+                "conclusion": "success"
+              },
+              {
+                "name": "Checkout",
+                "status": "completed",
+                "conclusion": "success"
+              },
+              {
+                "name": "Set up Node.js",
+                "status": "completed",
+                "conclusion": "success"
+              },
+              {
+                "name": "Install Console dependency metadata",
+                "status": "completed",
+                "conclusion": "success"
+              },
+              {
+                "name": "Set up Python",
+                "status": "completed",
+                "conclusion": "success"
+              },
+              {
+                "name": "Set up uv",
+                "status": "completed",
+                "conclusion": "success"
+              },
+              {
+                "name": "Install frozen runtime",
+                "status": "completed",
+                "conclusion": "success"
+              },
+              {
+                "name": "Build deployment bundle",
+                "status": "completed",
+                "conclusion": "success"
+              },
+              {
+                "name": "Validate deployment artifacts identity",
+                "status": "completed",
+                "conclusion": "success"
+              },
+              {
+                "name": "Validate bundled Compose model",
+                "status": "completed",
+                "conclusion": "success"
+              },
+              {
+                "name": "Upload Docker Compose bundle",
+                "status": "completed",
+                "conclusion": "success"
+              },
+              {
+                "name": "Post Set up uv",
+                "status": "completed",
+                "conclusion": "success"
+              },
+              {
+                "name": "Post Set up Python",
+                "status": "completed",
+                "conclusion": "success"
+              },
+              {
+                "name": "Post Set up Node.js",
+                "status": "completed",
+                "conclusion": "success"
+              },
+              {
+                "name": "Post Checkout",
+                "status": "completed",
+                "conclusion": "success"
+              },
+              {
+                "name": "Complete job",
+                "status": "completed",
+                "conclusion": "success"
+              }
+            ]
+          },
+          {
+            "id": 112981690722,
+            "name": "Native macos-arm64",
+            "status": "completed",
+            "conclusion": "success",
+            "steps": [
+              {
+                "name": "Set up job",
+                "status": "completed",
+                "conclusion": "success"
+              },
+              {
+                "name": "Checkout",
+                "status": "completed",
+                "conclusion": "success"
+              },
+              {
+                "name": "Parse and smoke-test the Delivery Skill packager",
+                "status": "completed",
+                "conclusion": "skipped"
+              },
+              {
+                "name": "Set up Node.js",
+                "status": "completed",
+                "conclusion": "success"
+              },
+              {
+                "name": "Set up Python",
+                "status": "completed",
+                "conclusion": "success"
+              },
+              {
+                "name": "Set up uv",
+                "status": "completed",
+                "conclusion": "success"
+              },
+              {
+                "name": "Prepare static OpenSSL for Intel macOS cryptography",
+                "status": "completed",
+                "conclusion": "skipped"
+              },
+              {
+                "name": "Install frozen runtime and release toolchain",
+                "status": "completed",
+                "conclusion": "success"
+              },
+              {
+                "name": "Verify Intel macOS cryptography is independent of OpenSSL dylibs",
+                "status": "completed",
+                "conclusion": "skipped"
+              },
+              {
+                "name": "Build native archive",
+                "status": "completed",
+                "conclusion": "success"
+              },
+              {
+                "name": "Validate native archive identity",
+                "status": "completed",
+                "conclusion": "success"
+              },
+              {
+                "name": "Validate and extract the publishable native archive",
+                "status": "completed",
+                "conclusion": "success"
+              },
+              {
+                "name": "Enforce Linux glibc compatibility baseline",
+                "status": "completed",
+                "conclusion": "skipped"
+              },
+              {
+                "name": "Run native readiness smoke test",
+                "status": "completed",
+                "conclusion": "success"
+              },
+              {
+                "name": "Upload native archive",
+                "status": "completed",
+                "conclusion": "success"
+              },
+              {
+                "name": "Post Set up uv",
+                "status": "completed",
+                "conclusion": "success"
+              },
+              {
+                "name": "Post Set up Python",
+                "status": "completed",
+                "conclusion": "success"
+              },
+              {
+                "name": "Post Set up Node.js",
+                "status": "completed",
+                "conclusion": "success"
+              },
+              {
+                "name": "Post Checkout",
+                "status": "completed",
+                "conclusion": "success"
+              },
+              {
+                "name": "Complete job",
+                "status": "completed",
+                "conclusion": "success"
+              }
+            ]
+          },
+          {
+            "id": 112981690742,
+            "name": "Native linux-x86_64",
+            "status": "completed",
+            "conclusion": "success",
+            "steps": [
+              {
+                "name": "Set up job",
+                "status": "completed",
+                "conclusion": "success"
+              },
+              {
+                "name": "Checkout",
+                "status": "completed",
+                "conclusion": "success"
+              },
+              {
+                "name": "Parse and smoke-test the Delivery Skill packager",
+                "status": "completed",
+                "conclusion": "skipped"
+              },
+              {
+                "name": "Set up Node.js",
+                "status": "completed",
+                "conclusion": "success"
+              },
+              {
+                "name": "Set up Python",
+                "status": "completed",
+                "conclusion": "success"
+              },
+              {
+                "name": "Set up uv",
+                "status": "completed",
+                "conclusion": "success"
+              },
+              {
+                "name": "Prepare static OpenSSL for Intel macOS cryptography",
+                "status": "completed",
+                "conclusion": "skipped"
+              },
+              {
+                "name": "Install frozen runtime and release toolchain",
+                "status": "completed",
+                "conclusion": "success"
+              },
+              {
+                "name": "Verify Intel macOS cryptography is independent of OpenSSL dylibs",
+                "status": "completed",
+                "conclusion": "skipped"
+              },
+              {
+                "name": "Build native archive",
+                "status": "completed",
+                "conclusion": "success"
+              },
+              {
+                "name": "Validate native archive identity",
+                "status": "completed",
+                "conclusion": "success"
+              },
+              {
+                "name": "Validate and extract the publishable native archive",
+                "status": "completed",
+                "conclusion": "success"
+              },
+              {
+                "name": "Enforce Linux glibc compatibility baseline",
+                "status": "completed",
+                "conclusion": "success"
+              },
+              {
+                "name": "Run native readiness smoke test",
+                "status": "completed",
+                "conclusion": "success"
+              },
+              {
+                "name": "Upload native archive",
+                "status": "completed",
+                "conclusion": "success"
+              },
+              {
+                "name": "Post Set up uv",
+                "status": "completed",
+                "conclusion": "success"
+              },
+              {
+                "name": "Post Set up Python",
+                "status": "completed",
+                "conclusion": "success"
+              },
+              {
+                "name": "Post Set up Node.js",
+                "status": "completed",
+                "conclusion": "success"
+              },
+              {
+                "name": "Post Checkout",
+                "status": "completed",
+                "conclusion": "success"
+              },
+              {
+                "name": "Complete job",
+                "status": "completed",
+                "conclusion": "success"
+              }
+            ]
+          },
+          {
+            "id": 112981690752,
+            "name": "Native macos-x86_64",
+            "status": "completed",
+            "conclusion": "success",
+            "steps": [
+              {
+                "name": "Set up job",
+                "status": "completed",
+                "conclusion": "success"
+              },
+              {
+                "name": "Checkout",
+                "status": "completed",
+                "conclusion": "success"
+              },
+              {
+                "name": "Parse and smoke-test the Delivery Skill packager",
+                "status": "completed",
+                "conclusion": "skipped"
+              },
+              {
+                "name": "Set up Node.js",
+                "status": "completed",
+                "conclusion": "success"
+              },
+              {
+                "name": "Set up Python",
+                "status": "completed",
+                "conclusion": "success"
+              },
+              {
+                "name": "Set up uv",
+                "status": "completed",
+                "conclusion": "success"
+              },
+              {
+                "name": "Prepare static OpenSSL for Intel macOS cryptography",
+                "status": "completed",
+                "conclusion": "success"
+              },
+              {
+                "name": "Install frozen runtime and release toolchain",
+                "status": "completed",
+                "conclusion": "success"
+              },
+              {
+                "name": "Verify Intel macOS cryptography is independent of OpenSSL dylibs",
+                "status": "completed",
+                "conclusion": "success"
+              },
+              {
+                "name": "Build native archive",
+                "status": "completed",
+                "conclusion": "success"
+              },
+              {
+                "name": "Validate native archive identity",
+                "status": "completed",
+                "conclusion": "success"
+              },
+              {
+                "name": "Validate and extract the publishable native archive",
+                "status": "completed",
+                "conclusion": "success"
+              },
+              {
+                "name": "Enforce Linux glibc compatibility baseline",
+                "status": "completed",
+                "conclusion": "skipped"
+              },
+              {
+                "name": "Run native readiness smoke test",
+                "status": "completed",
+                "conclusion": "success"
+              },
+              {
+                "name": "Upload native archive",
+                "status": "completed",
+                "conclusion": "success"
+              },
+              {
+                "name": "Post Set up uv",
+                "status": "completed",
+                "conclusion": "success"
+              },
+              {
+                "name": "Post Set up Python",
+                "status": "completed",
+                "conclusion": "success"
+              },
+              {
+                "name": "Post Set up Node.js",
+                "status": "completed",
+                "conclusion": "success"
+              },
+              {
+                "name": "Post Checkout",
+                "status": "completed",
+                "conclusion": "success"
+              },
+              {
+                "name": "Complete job",
+                "status": "completed",
+                "conclusion": "success"
+              }
+            ]
+          },
+          {
+            "id": 112981690753,
+            "name": "Native linux-aarch64",
+            "status": "completed",
+            "conclusion": "success",
+            "steps": [
+              {
+                "name": "Set up job",
+                "status": "completed",
+                "conclusion": "success"
+              },
+              {
+                "name": "Checkout",
+                "status": "completed",
+                "conclusion": "success"
+              },
+              {
+                "name": "Parse and smoke-test the Delivery Skill packager",
+                "status": "completed",
+                "conclusion": "skipped"
+              },
+              {
+                "name": "Set up Node.js",
+                "status": "completed",
+                "conclusion": "success"
+              },
+              {
+                "name": "Set up Python",
+                "status": "completed",
+                "conclusion": "success"
+              },
+              {
+                "name": "Set up uv",
+                "status": "completed",
+                "conclusion": "success"
+              },
+              {
+                "name": "Prepare static OpenSSL for Intel macOS cryptography",
+                "status": "completed",
+                "conclusion": "skipped"
+              },
+              {
+                "name": "Install frozen runtime and release toolchain",
+                "status": "completed",
+                "conclusion": "success"
+              },
+              {
+                "name": "Verify Intel macOS cryptography is independent of OpenSSL dylibs",
+                "status": "completed",
+                "conclusion": "skipped"
+              },
+              {
+                "name": "Build native archive",
+                "status": "completed",
+                "conclusion": "success"
+              },
+              {
+                "name": "Validate native archive identity",
+                "status": "completed",
+                "conclusion": "success"
+              },
+              {
+                "name": "Validate and extract the publishable native archive",
+                "status": "completed",
+                "conclusion": "success"
+              },
+              {
+                "name": "Enforce Linux glibc compatibility baseline",
+                "status": "completed",
+                "conclusion": "success"
+              },
+              {
+                "name": "Run native readiness smoke test",
+                "status": "completed",
+                "conclusion": "success"
+              },
+              {
+                "name": "Upload native archive",
+                "status": "completed",
+                "conclusion": "success"
+              },
+              {
+                "name": "Post Set up uv",
+                "status": "completed",
+                "conclusion": "success"
+              },
+              {
+                "name": "Post Set up Python",
+                "status": "completed",
+                "conclusion": "success"
+              },
+              {
+                "name": "Post Set up Node.js",
+                "status": "completed",
+                "conclusion": "success"
+              },
+              {
+                "name": "Post Checkout",
+                "status": "completed",
+                "conclusion": "success"
+              },
+              {
+                "name": "Complete job",
+                "status": "completed",
+                "conclusion": "success"
+              }
+            ]
+          },
+          {
+            "id": 112981690786,
+            "name": "Native windows-x86_64",
+            "status": "completed",
+            "conclusion": "success",
+            "steps": [
+              {
+                "name": "Set up job",
+                "status": "completed",
+                "conclusion": "success"
+              },
+              {
+                "name": "Checkout",
+                "status": "completed",
+                "conclusion": "success"
+              },
+              {
+                "name": "Parse and smoke-test the Delivery Skill packager",
+                "status": "completed",
+                "conclusion": "success"
+              },
+              {
+                "name": "Set up Node.js",
+                "status": "completed",
+                "conclusion": "success"
+              },
+              {
+                "name": "Set up Python",
+                "status": "completed",
+                "conclusion": "success"
+              },
+              {
+                "name": "Set up uv",
+                "status": "completed",
+                "conclusion": "success"
+              },
+              {
+                "name": "Prepare static OpenSSL for Intel macOS cryptography",
+                "status": "completed",
+                "conclusion": "skipped"
+              },
+              {
+                "name": "Install frozen runtime and release toolchain",
+                "status": "completed",
+                "conclusion": "success"
+              },
+              {
+                "name": "Verify Intel macOS cryptography is independent of OpenSSL dylibs",
+                "status": "completed",
+                "conclusion": "skipped"
+              },
+              {
+                "name": "Build native archive",
+                "status": "completed",
+                "conclusion": "success"
+              },
+              {
+                "name": "Validate native archive identity",
+                "status": "completed",
+                "conclusion": "success"
+              },
+              {
+                "name": "Validate and extract the publishable native archive",
+                "status": "completed",
+                "conclusion": "success"
+              },
+              {
+                "name": "Enforce Linux glibc compatibility baseline",
+                "status": "completed",
+                "conclusion": "skipped"
+              },
+              {
+                "name": "Run native readiness smoke test",
+                "status": "completed",
+                "conclusion": "success"
+              },
+              {
+                "name": "Upload native archive",
+                "status": "completed",
+                "conclusion": "success"
+              },
+              {
+                "name": "Post Set up uv",
+                "status": "completed",
+                "conclusion": "success"
+              },
+              {
+                "name": "Post Set up Python",
+                "status": "completed",
+                "conclusion": "success"
+              },
+              {
+                "name": "Post Set up Node.js",
+                "status": "completed",
+                "conclusion": "success"
+              },
+              {
+                "name": "Post Checkout",
+                "status": "completed",
+                "conclusion": "success"
+              },
+              {
+                "name": "Complete job",
+                "status": "completed",
+                "conclusion": "success"
+              }
+            ]
+          },
+          {
+            "id": 112981693223,
+            "name": "Build verified Core image candidate",
+            "status": "completed",
+            "conclusion": "skipped",
+            "steps": []
+          },
+          {
+            "id": 112981693816,
+            "name": "Offline Core images",
+            "status": "completed",
+            "conclusion": "skipped",
+            "steps": []
+          },
+          {
+            "id": 112993969647,
+            "name": "Publish GitHub Release",
+            "status": "completed",
+            "conclusion": "skipped",
+            "steps": []
+          }
+        ]
+      },
+      {
+        "id": 37676428302,
+        "name": "Container images",
+        "html_url": "https://github.com/zhigege666/Lingshu-Gate/actions/runs/37676428302",
+        "head_sha": "2ef739b5a9f72e8a7a01c7044f20b5d766de415c",
+        "run_attempt": 1,
+        "event": "pull_request",
+        "status": "completed",
+        "conclusion": "success",
+        "jobs": [
+          {
+            "id": 112981013300,
+            "name": "QEMU multi-architecture execution smoke",
+            "status": "completed",
+            "conclusion": "success",
+            "steps": [
+              {
+                "name": "Set up job",
+                "status": "completed",
+                "conclusion": "success"
+              },
+              {
+                "name": "Checkout",
+                "status": "completed",
+                "conclusion": "success"
+              },
+              {
+                "name": "Install pinned QEMU binfmt handlers",
+                "status": "completed",
+                "conclusion": "success"
+              },
+              {
+                "name": "Set up pinned Buildx and BuildKit",
+                "status": "completed",
+                "conclusion": "success"
+              },
+              {
+                "name": "Verify host binfmt registration and direct emulated execution",
+                "status": "completed",
+                "conclusion": "success"
+              },
+              {
+                "name": "Execute native and emulated Python without publishing",
+                "status": "completed",
+                "conclusion": "success"
+              },
+              {
+                "name": "Post Set up pinned Buildx and BuildKit",
+                "status": "completed",
+                "conclusion": "success"
+              },
+              {
+                "name": "Post Install pinned QEMU binfmt handlers",
+                "status": "completed",
+                "conclusion": "success"
+              },
+              {
+                "name": "Post Checkout",
+                "status": "completed",
+                "conclusion": "success"
+              },
+              {
+                "name": "Complete job",
+                "status": "completed",
+                "conclusion": "success"
+              }
+            ]
+          },
+          {
+            "id": 112981013631,
+            "name": "Validate container contracts",
+            "status": "completed",
+            "conclusion": "success",
+            "steps": [
+              {
+                "name": "Set up job",
+                "status": "completed",
+                "conclusion": "success"
+              },
+              {
+                "name": "Checkout",
+                "status": "completed",
+                "conclusion": "success"
+              },
+              {
+                "name": "Validate local Compose",
+                "status": "completed",
+                "conclusion": "success"
+              },
+              {
+                "name": "Validate production Compose",
+                "status": "completed",
+                "conclusion": "success"
+              },
+              {
+                "name": "Build and inspect secure Core image",
+                "status": "completed",
+                "conclusion": "success"
+              },
+              {
+                "name": "Run Core readiness smoke test",
+                "status": "completed",
+                "conclusion": "success"
+              },
+              {
+                "name": "Scan Core image for critical vulnerabilities",
+                "status": "completed",
+                "conclusion": "success"
+              },
+              {
+                "name": "Post Scan Core image for critical vulnerabilities",
+                "status": "completed",
+                "conclusion": "success"
+              },
+              {
+                "name": "Post Checkout",
+                "status": "completed",
+                "conclusion": "success"
+              },
+              {
+                "name": "Complete job",
+                "status": "completed",
+                "conclusion": "success"
+              }
+            ]
+          },
+          {
+            "id": 112981334478,
+            "name": "Validate multi-architecture Core image",
+            "status": "completed",
+            "conclusion": "skipped",
+            "steps": []
+          }
+        ]
+      },
+      {
+        "id": 37676428324,
+        "name": "Code scanning",
+        "html_url": "https://github.com/zhigege666/Lingshu-Gate/actions/runs/37676428324",
+        "head_sha": "2ef739b5a9f72e8a7a01c7044f20b5d766de415c",
+        "run_attempt": 1,
+        "event": "pull_request",
+        "status": "completed",
+        "conclusion": "success",
+        "jobs": [
+          {
+            "id": 112981045038,
+            "name": "Analyze python",
+            "status": "completed",
+            "conclusion": "success",
+            "steps": [
+              {
+                "name": "Set up job",
+                "status": "completed",
+                "conclusion": "success"
+              },
+              {
+                "name": "Checkout",
+                "status": "completed",
+                "conclusion": "success"
+              },
+              {
+                "name": "Initialize CodeQL",
+                "status": "completed",
+                "conclusion": "success"
+              },
+              {
+                "name": "Analyze",
+                "status": "completed",
+                "conclusion": "success"
+              },
+              {
+                "name": "Post Analyze",
+                "status": "completed",
+                "conclusion": "success"
+              },
+              {
+                "name": "Post Initialize CodeQL",
+                "status": "completed",
+                "conclusion": "success"
+              },
+              {
+                "name": "Post Checkout",
+                "status": "completed",
+                "conclusion": "success"
+              },
+              {
+                "name": "Complete job",
+                "status": "completed",
+                "conclusion": "success"
+              }
+            ]
+          },
+          {
+            "id": 112981045472,
+            "name": "Analyze javascript-typescript",
+            "status": "completed",
+            "conclusion": "success",
+            "steps": [
+              {
+                "name": "Set up job",
+                "status": "completed",
+                "conclusion": "success"
+              },
+              {
+                "name": "Checkout",
+                "status": "completed",
+                "conclusion": "success"
+              },
+              {
+                "name": "Initialize CodeQL",
+                "status": "completed",
+                "conclusion": "success"
+              },
+              {
+                "name": "Analyze",
+                "status": "completed",
+                "conclusion": "success"
+              },
+              {
+                "name": "Post Analyze",
+                "status": "completed",
+                "conclusion": "success"
+              },
+              {
+                "name": "Post Initialize CodeQL",
+                "status": "completed",
+                "conclusion": "success"
+              },
+              {
+                "name": "Post Checkout",
+                "status": "completed",
+                "conclusion": "success"
+              },
+              {
+                "name": "Complete job",
+                "status": "completed",
+                "conclusion": "success"
+              }
+            ]
+          }
+        ]
+      }
+    ],
+    "job_checkout_and_result_proofs": [
+      {
+        "job_id": 112981081388,
+        "job_url": "https://github.com/zhigege666/Lingshu-Gate/actions/runs/37676428322/job/112981081388",
+        "checkout_merge_sha": "d49696e29d92f1627160ab18b77b560175826d85",
+        "checkout_verified_from_logs": true,
+        "selected_safe_log_lines": [
+          "2026-10-07T19:42:03.8602518Z HEAD is now at d49696e Merge 2ef739b5a9f72e8a7a01c7044f20b5d766de415c into 8941738096ab69c0b9fa014f39ff9749cca64822",
+          "2026-10-07T19:43:18.0131628Z 194 passed in 52.95s"
+        ]
+      },
+      {
+        "job_id": 112981690752,
+        "job_url": "https://github.com/zhigege666/Lingshu-Gate/actions/runs/37676428322/job/112981690752",
+        "checkout_merge_sha": "d49696e29d92f1627160ab18b77b560175826d85",
+        "checkout_verified_from_logs": true,
+        "selected_safe_log_lines": [
+          "2026-10-07T19:43:37.8051110Z HEAD is now at d49696e Merge 2ef739b5a9f72e8a7a01c7044f20b5d766de415c into 8941738096ab69c0b9fa014f39ff9749cca64822",
+          "2026-10-07T20:09:08.8501620Z 446 INFO: PyInstaller: 6.22.3, contrib hooks: 2026.7",
+          "2026-10-07T20:11:42.3431530Z repository identity check passed",
+          "2026-10-07T20:11:50.7810320Z native readiness smoke test passed"
+        ]
+      },
+      {
+        "job_id": 112981690722,
+        "job_url": "https://github.com/zhigege666/Lingshu-Gate/actions/runs/37676428322/job/112981690722",
+        "checkout_merge_sha": "d49696e29d92f1627160ab18b77b560175826d85",
+        "checkout_verified_from_logs": true,
+        "selected_safe_log_lines": [
+          "2026-10-07T19:43:34.5101010Z HEAD is now at d49696e Merge 2ef739b5a9f72e8a7a01c7044f20b5d766de415c into 8941738096ab69c0b9fa014f39ff9749cca64822",
+          "2026-10-07T19:43:52.0308920Z 178 INFO: PyInstaller: 6.22.3, contrib hooks: 2026.7",
+          "2026-10-07T19:44:30.0625520Z repository identity check passed",
+          "2026-10-07T19:44:32.3500050Z native readiness smoke test passed"
+        ]
+      },
+      {
+        "job_id": 112981690742,
+        "job_url": "https://github.com/zhigege666/Lingshu-Gate/actions/runs/37676428322/job/112981690742",
+        "checkout_merge_sha": "d49696e29d92f1627160ab18b77b560175826d85",
+        "checkout_verified_from_logs": true,
+        "selected_safe_log_lines": [
+          "2026-10-07T19:43:29.1854552Z HEAD is now at d49696e Merge 2ef739b5a9f72e8a7a01c7044f20b5d766de415c into 8941738096ab69c0b9fa014f39ff9749cca64822",
+          "2026-10-07T19:43:57.9389861Z 170 INFO: PyInstaller: 6.22.3, contrib hooks: 2026.7",
+          "2026-10-07T19:44:49.3008342Z repository identity check passed",
+          "2026-10-07T19:44:53.5902962Z native readiness smoke test passed"
+        ]
+      },
+      {
+        "job_id": 112981690753,
+        "job_url": "https://github.com/zhigege666/Lingshu-Gate/actions/runs/37676428322/job/112981690753",
+        "checkout_merge_sha": "d49696e29d92f1627160ab18b77b560175826d85",
+        "checkout_verified_from_logs": true,
+        "selected_safe_log_lines": [
+          "2026-10-07T19:43:38.5202619Z HEAD is now at d49696e Merge 2ef739b5a9f72e8a7a01c7044f20b5d766de415c into 8941738096ab69c0b9fa014f39ff9749cca64822",
+          "2026-10-07T19:44:01.3429315Z 371 INFO: PyInstaller: 6.22.3, contrib hooks: 2026.7",
+          "2026-10-07T19:44:55.8498882Z repository identity check passed",
+          "2026-10-07T19:44:59.8291187Z native readiness smoke test passed"
+        ]
+      },
+      {
+        "job_id": 112981690786,
+        "job_url": "https://github.com/zhigege666/Lingshu-Gate/actions/runs/37676428322/job/112981690786",
+        "checkout_merge_sha": "d49696e29d92f1627160ab18b77b560175826d85",
+        "checkout_verified_from_logs": true,
+        "selected_safe_log_lines": [
+          "2026-10-07T19:43:40.4971875Z HEAD is now at d49696e Merge 2ef739b5a9f72e8a7a01c7044f20b5d766de415c into 8941738096ab69c0b9fa014f39ff9749cca64822\r",
+          "2026-10-07T19:44:33.9819489Z 676 INFO: PyInstaller: 6.22.3, contrib hooks: 2026.7\r",
+          "2026-10-07T19:45:20.1514704Z repository identity check passed\r",
+          "2026-10-07T19:45:27.2874801Z native readiness smoke test passed\r"
+        ]
+      },
+      {
+        "job_id": 112981690636,
+        "job_url": "https://github.com/zhigege666/Lingshu-Gate/actions/runs/37676428322/job/112981690636",
+        "checkout_merge_sha": "d49696e29d92f1627160ab18b77b560175826d85",
+        "checkout_verified_from_logs": true,
+        "selected_safe_log_lines": [
+          "2026-10-07T19:43:29.1933906Z HEAD is now at d49696e Merge 2ef739b5a9f72e8a7a01c7044f20b5d766de415c into 8941738096ab69c0b9fa014f39ff9749cca64822",
+          "2026-10-07T19:43:59.5945267Z repository identity check passed"
+        ]
+      },
+      {
+        "job_id": 112981013531,
+        "job_url": "https://github.com/zhigege666/Lingshu-Gate/actions/runs/37676428487/job/112981013531",
+        "checkout_merge_sha": "d49696e29d92f1627160ab18b77b560175826d85",
+        "checkout_verified_from_logs": true,
+        "frontend_passed": 455,
+        "backend_passed": 2311,
+        "backend_skipped": 7,
+        "subtests_passed": 134,
+        "browser_passed": 29,
+        "browser_skipped": 0,
+        "installation": {
+          "official_signed_sources_used": true,
+          "complete_fonts_installed": true,
+          "chromium_and_headless_shell_downloaded": true,
+          "chromium_version": "153.0.8010.12",
+          "playwright_browser_revision": 1243,
+          "completed_before_backend": true,
+          "elapsed_from_log_seconds": 34
+        },
+        "python_version": "3.12.14",
+        "frontend_unit_files": 75,
+        "selected_safe_log_lines": [
+          "2026-10-07T19:41:53.3624804Z HEAD is now at d49696e Merge 2ef739b5a9f72e8a7a01c7044f20b5d766de415c into 8941738096ab69c0b9fa014f39ff9749cca64822",
+          "2026-10-07T19:42:59.1647081Z Successfully set up CPython (3.12.14)",
+          "2026-10-07T20:09:07.3908973Z 2311 passed, 7 skipped, 134 subtests passed in 1521.54s (0:25:21)",
+          "2026-10-07T20:10:08.4371234Z   29 passed (59.5s)",
+          "2026-10-07T19:42:54.4033471Z  Test Files  75 passed (75)",
+          "2026-10-07T19:42:54.4035972Z       Tests  455 passed (455)"
+        ]
+      },
+      {
+        "job_id": 112981013300,
+        "job_url": "https://github.com/zhigege666/Lingshu-Gate/actions/runs/37676428302/job/112981013300",
+        "checkout_merge_sha": "d49696e29d92f1627160ab18b77b560175826d85",
+        "checkout_verified_from_logs": true,
+        "selected_safe_log_lines": [
+          "2026-10-07T19:41:53.4366269Z HEAD is now at d49696e Merge 2ef739b5a9f72e8a7a01c7044f20b5d766de415c into 8941738096ab69c0b9fa014f39ff9749cca64822",
+          "2026-10-07T19:42:26.0092958Z Host binfmt arm64 smoke passed",
+          "2026-10-07T19:42:28.8068906Z #8 0.098 QEMU architecture smoke passed: x86_64",
+          "2026-10-07T19:42:29.8484718Z #9 0.971 QEMU architecture smoke passed: aarch64"
+        ],
+        "actual_native_and_emulated_python_smoke_passed": true
+      },
+      {
+        "job_id": 112981013631,
+        "job_url": "https://github.com/zhigege666/Lingshu-Gate/actions/runs/37676428302/job/112981013631",
+        "checkout_merge_sha": "d49696e29d92f1627160ab18b77b560175826d85",
+        "checkout_verified_from_logs": true,
+        "selected_safe_log_lines": [
+          "2026-10-07T19:41:52.8872641Z HEAD is now at d49696e Merge 2ef739b5a9f72e8a7a01c7044f20b5d766de415c into 8941738096ab69c0b9fa014f39ff9749cca64822"
+        ],
+        "completed_required_steps": [
+          "Validate local Compose",
+          "Validate production Compose",
+          "Build and inspect secure Core image",
+          "Run Core readiness smoke test",
+          "Scan Core image for critical vulnerabilities"
+        ]
+      },
+      {
+        "job_id": 112981045038,
+        "job_url": "https://github.com/zhigege666/Lingshu-Gate/actions/runs/37676428324/job/112981045038",
+        "checkout_merge_sha": "d49696e29d92f1627160ab18b77b560175826d85",
+        "checkout_verified_from_logs": true,
+        "selected_safe_log_lines": [
+          "2026-10-07T19:42:00.9569251Z HEAD is now at d49696e Merge 2ef739b5a9f72e8a7a01c7044f20b5d766de415c into 8941738096ab69c0b9fa014f39ff9749cca64822",
+          "2026-10-07T19:42:47.0820622Z Successfully uploaded results"
+        ]
+      },
+      {
+        "job_id": 112981045472,
+        "job_url": "https://github.com/zhigege666/Lingshu-Gate/actions/runs/37676428324/job/112981045472",
+        "checkout_merge_sha": "d49696e29d92f1627160ab18b77b560175826d85",
+        "checkout_verified_from_logs": true,
+        "selected_safe_log_lines": [
+          "2026-10-07T19:42:00.0485508Z HEAD is now at d49696e Merge 2ef739b5a9f72e8a7a01c7044f20b5d766de415c into 8941738096ab69c0b9fa014f39ff9749cca64822",
+          "2026-10-07T19:43:02.1273136Z Successfully uploaded results"
+        ]
+      },
+      {
+        "job_id": 112993170545,
+        "job_url": "https://github.com/zhigege666/Lingshu-Gate/actions/runs/37676428487/job/112993170545",
+        "checkout_merge_sha": "d49696e29d92f1627160ab18b77b560175826d85",
+        "checkout_verified_from_logs": true,
+        "python_version": "3.11.17",
+        "backend_passed": 2311,
+        "backend_skipped": 7,
+        "subtests_passed": 134,
+        "selected_safe_log_lines": [
+          "2026-10-07T20:10:22.3209895Z HEAD is now at d49696e Merge 2ef739b5a9f72e8a7a01c7044f20b5d766de415c into 8941738096ab69c0b9fa014f39ff9749cca64822",
+          "2026-10-07T20:10:33.8863060Z Successfully set up CPython (3.11.17)",
+          "2026-10-07T20:33:24.9469787Z 2311 passed, 7 skipped, 134 subtests passed in 1364.64s (0:22:44)"
+        ]
+      },
+      {
+        "job_id": 112993170553,
+        "job_url": "https://github.com/zhigege666/Lingshu-Gate/actions/runs/37676428487/job/112993170553",
+        "checkout_merge_sha": "d49696e29d92f1627160ab18b77b560175826d85",
+        "checkout_verified_from_logs": true,
+        "python_version": "3.13.16",
+        "backend_passed": 2311,
+        "backend_skipped": 7,
+        "subtests_passed": 134,
+        "selected_safe_log_lines": [
+          "2026-10-07T20:10:20.8659274Z HEAD is now at d49696e Merge 2ef739b5a9f72e8a7a01c7044f20b5d766de415c into 8941738096ab69c0b9fa014f39ff9749cca64822",
+          "2026-10-07T20:10:36.2953589Z Successfully set up CPython (3.13.16)",
+          "2026-10-07T20:35:35.5075248Z 2311 passed, 7 skipped, 134 subtests passed in 1493.41s (0:24:53)"
+        ]
+      },
+      {
+        "job_id": 113004203758,
+        "job_url": "https://github.com/zhigege666/Lingshu-Gate/actions/runs/37676428487/job/113004203758",
+        "no_repository_checkout": true,
+        "required_dependencies": [
+          "Source checks",
+          "Python 3.11",
+          "Python 3.13"
+        ],
+        "all_required_dependencies_success": true,
+        "selected_safe_log_lines": [
+          "2026-10-07T20:35:43.1634012Z Complete job name: CI result",
+          "2026-10-07T20:35:43.2903930Z   SOURCE_RESULT: success",
+          "2026-10-07T20:35:43.2904566Z   COMPATIBILITY_RESULT: success"
+        ]
+      },
+      {
+        "job_id": 112981014554,
+        "job_url": "https://github.com/zhigege666/Lingshu-Gate/actions/runs/37676428322/job/112981014554",
+        "checkout_merge_sha": "d49696e29d92f1627160ab18b77b560175826d85",
+        "checkout_verified_from_logs": true,
+        "selected_safe_log_lines": [
+          "2026-10-07T19:41:52.2767121Z HEAD is now at d49696e Merge 2ef739b5a9f72e8a7a01c7044f20b5d766de415c into 8941738096ab69c0b9fa014f39ff9749cca64822"
+        ]
+      },
+      {
+        "job_id": 112981015024,
+        "job_url": "https://github.com/zhigege666/Lingshu-Gate/actions/runs/37676428322/job/112981015024",
+        "checkout_merge_sha": "d49696e29d92f1627160ab18b77b560175826d85",
+        "checkout_verified_from_logs": true,
+        "selected_safe_log_lines": [
+          "2026-10-07T19:41:54.2042657Z HEAD is now at d49696e Merge 2ef739b5a9f72e8a7a01c7044f20b5d766de415c into 8941738096ab69c0b9fa014f39ff9749cca64822"
+        ]
+      }
+    ],
+    "installation_success_observed": {
+      "source_job_id": 112981013531,
+      "step": "Install browser for isolated smoke",
+      "status": "completed",
+      "conclusion": "success",
+      "before_backend": true,
+      "official_signed_sources_used": true,
+      "complete_fonts_installed": true,
+      "chromium_and_headless_shell_downloaded": true,
+      "chromium_version": "153.0.8010.12",
+      "playwright_browser_revision": 1243,
+      "completed_before_backend": true,
+      "elapsed_from_log_seconds": 34,
+      "actual_source_pytest_passed": 2311,
+      "actual_browser_smoke_passed": 29
+    },
+    "conditional_skip_explanations": {
+      "release_tag_only": [
+        "Build verified Core image candidate",
+        "Offline Core images",
+        "Publish GitHub Release"
+      ],
+      "container_main_push_only": [
+        "Validate multi-architecture Core image"
+      ],
+      "native_platform_steps": {
+        "Parse and smoke-test the Delivery Skill packager": "Windows only",
+        "Prepare static OpenSSL for Intel macOS cryptography": "macos-x86_64 only",
+        "Verify Intel macOS cryptography is independent of OpenSSL dylibs": "macos-x86_64 only",
+        "Enforce Linux glibc compatibility baseline": "Linux only"
+      },
+      "release_pr_quality_branches": "Full source/frontend/backend checks are owned by Continuous integration; release-engineering pytest subset runs in Release quality gate",
+      "source_failure_upload": "Current successful source job skips the failure-only artifact upload. Historical 7c7 attempts failed before browser tests and produced no browser evidence."
+    },
+    "acceptance_gate": "Every current required source/browser/Python compatibility/native/Compose/container/code-scanning gate is terminal and successful on this exact head; formal main merge/tag/publication and 11-asset acceptance remain owner-controlled.",
+    "required_gates_terminal_success": true
+  },
+  "ci_checkout_proof": {
+    "branch_head_sha": "2ef739b5a9f72e8a7a01c7044f20b5d766de415c",
+    "actual_ci_merge_checkout_sha": "d49696e29d92f1627160ab18b77b560175826d85",
+    "tree_identical_to_branch_head": true,
+    "tree_sha": "716da35e388aab6784d8b41d6ae4e79a4c17f948",
+    "product_source_sha": "7c7e39f0f5b6a13f332ad20d1f6c6370a5e9c692",
+    "changes_from_reviewed_product": [
+      ".github/workflows/backend.yml"
+    ],
+    "runtime_ui_package_input_trees_unchanged": true
+  },
+  "failed_source_ci_attempts": [
+    {
+      "source_sha": "7c7e39f0f5b6a13f332ad20d1f6c6370a5e9c692",
+      "workflow_run": 37667948203,
+      "attempt": 1,
+      "source_job_id": 112952565886,
+      "saved_original_log_sha256": "03a7e592c7e3f04ca005b037df06028a49989cd2c4dd805dc24ead1c4fb638cc",
+      "frontend_passed": 455,
+      "backend_passed": 2311,
+      "backend_skipped": 7,
+      "subtests_passed": 134,
+      "overall_result": "failure",
+      "exit_code": 124,
+      "failure_step": "APT system dependency/index preparation before Chromium download",
+      "browser_assertions_executed": false,
+      "python_3_11_3_13_executed": false
+    },
+    {
+      "source_sha": "7c7e39f0f5b6a13f332ad20d1f6c6370a5e9c692",
+      "workflow_run": 37667948203,
+      "attempt": 2,
+      "source_job_id": 112965314112,
+      "saved_original_log_sha256": "87e8712208f487dc0ed4f19ae38d71de6997efebca12f1a77cf78cece13d078b",
+      "frontend_passed": 455,
+      "backend_passed": 2311,
+      "backend_skipped": 7,
+      "subtests_passed": 134,
+      "overall_result": "failure",
+      "exit_code": 124,
+      "failure_step": "APT system dependency/index preparation before Chromium download",
+      "browser_assertions_executed": false,
+      "python_3_11_3_13_executed": false
+    }
+  ],
+  "ci_artifact_readback": {
+    "branch_head_sha": "2ef739b5a9f72e8a7a01c7044f20b5d766de415c",
+    "actual_ci_merge_checkout_sha": "d49696e29d92f1627160ab18b77b560175826d85",
+    "artifacts": [
+      {
+        "artifact_id": 11507678761,
+        "name": "native-macos-x86_64",
+        "zip_sha256": "a13203f84df36feef34504b1d9285464ce7db2dc36db532d8337dd76b23f6088",
+        "checksums_verified": true,
+        "inner_archives": [
+          {
+            "name": "lingshu-gate-v0.4.5-macos-x86_64.tar.gz",
+            "sha256": "9179e6457a97f631f2c6f228fa2d3a1af43e31dbcb1aef45ff60792f085f76d9",
+            "bytes": 26358439,
+            "source_revision": "d49696e29d92f1627160ab18b77b560175826d85",
+            "version": "0.4.5",
+            "target": "macos-x86_64",
+            "complete_build_info_file_inventory_verified": true,
+            "all_static_bytes_match_linux_build": true,
+            "windows_text_line_ending_differences": [],
+            "all_other_static_bytes_match_linux_build": true,
+            "static_file_count": 118,
+            "spdx_sbom_verified": true,
+            "builder": {
+              "altgraph": "0.17.5",
+              "implementation": "CPython",
+              "machine": "x86_64",
+              "node": "v22.23.2",
+              "npm": "10.9.8",
+              "packaging": "26.3",
+              "pyinstaller": "6.22.3",
+              "pyinstaller-hooks-contrib": "2026.7",
+              "python": "3.13.15",
+              "system": "Darwin",
+              "uv": "uv 0.11.33 (fece32fc5 2026-07-28 x86_64-apple-darwin)"
+            }
+          }
+        ]
+      },
+      {
+        "artifact_id": 11507462129,
+        "name": "native-macos-arm64",
+        "zip_sha256": "e769b0b64e0ea25b5cd2ae147b1c602643856524b331e9037ce47ae5586ad213",
+        "checksums_verified": true,
+        "inner_archives": [
+          {
+            "name": "lingshu-gate-v0.4.5-macos-arm64.tar.gz",
+            "sha256": "44b8a6e9abf664de727dcbf0bff5d162ba67afed1094e067cb42fae0338c404c",
+            "bytes": 25152072,
+            "source_revision": "d49696e29d92f1627160ab18b77b560175826d85",
+            "version": "0.4.5",
+            "target": "macos-arm64",
+            "complete_build_info_file_inventory_verified": true,
+            "all_static_bytes_match_linux_build": true,
+            "windows_text_line_ending_differences": [],
+            "all_other_static_bytes_match_linux_build": true,
+            "static_file_count": 118,
+            "spdx_sbom_verified": true,
+            "builder": {
+              "altgraph": "0.17.5",
+              "implementation": "CPython",
+              "machine": "arm64",
+              "node": "v22.23.2",
+              "npm": "10.9.8",
+              "packaging": "26.3",
+              "pyinstaller": "6.22.3",
+              "pyinstaller-hooks-contrib": "2026.7",
+              "python": "3.13.15",
+              "system": "Darwin",
+              "uv": "uv 0.11.33 (fece32fc5 2026-07-28 aarch64-apple-darwin)"
+            }
+          }
+        ]
+      },
+      {
+        "artifact_id": 11506929329,
+        "name": "native-windows-x86_64",
+        "zip_sha256": "8dc13c871a226ef2d6f856592defacec8df71aed25443cbbcef5bd5a6a0e0801",
+        "checksums_verified": true,
+        "inner_archives": [
+          {
+            "name": "lingshu-gate-v0.4.5-windows-x86_64.zip",
+            "sha256": "1cf98bb8fd8a2201b3765f6808ac82d64dfae25c39074d360ad957a8a628fbab",
+            "bytes": 26040491,
+            "source_revision": "d49696e29d92f1627160ab18b77b560175826d85",
+            "version": "0.4.5",
+            "target": "windows-x86_64",
+            "complete_build_info_file_inventory_verified": true,
+            "all_static_bytes_match_linux_build": false,
+            "windows_text_line_ending_differences": [
+              "_internal/lingshu_gate/static/console/index.html",
+              "_internal/lingshu_gate/static/console/lingshu-gate-app-icon.svg",
+              "_internal/lingshu_gate/static/console/lingshu-gate-icon.svg",
+              "_internal/lingshu_gate/static/oauth/oauth.html"
+            ],
+            "all_other_static_bytes_match_linux_build": true,
+            "static_file_count": 118,
+            "spdx_sbom_verified": true,
+            "builder": {
+              "altgraph": "0.17.5",
+              "implementation": "CPython",
+              "machine": "AMD64",
+              "node": "v22.23.2",
+              "npm": "10.9.8",
+              "packaging": "26.3",
+              "pyinstaller": "6.22.3",
+              "pyinstaller-hooks-contrib": "2026.7",
+              "python": "3.13.15",
+              "system": "Windows",
+              "uv": "uv 0.11.33 (fece32fc5 2026-07-28 x86_64-pc-windows-msvc)"
+            }
+          }
+        ]
+      },
+      {
+        "artifact_id": 11506104308,
+        "name": "docker-compose",
+        "zip_sha256": "c42417405332cdda2846888ee4275d41b90c340f42230edd577dede04057eed0",
+        "checksums_verified": true,
+        "inner_archives": [
+          {
+            "name": "lingshu-gate-v0.4.5-docker-compose.tar.gz",
+            "sha256": "68d035afa3dfabf624bbbd35a1300ef3a905b4a962e5a2806b7c0b2db10a1885",
+            "bytes": 95915,
+            "source_revision": "d49696e29d92f1627160ab18b77b560175826d85",
+            "version": "0.4.5",
+            "target": "docker-compose",
+            "complete_build_info_file_inventory_verified": true
+          }
+        ],
+        "application_sbom_verified": true
+      }
+    ]
+  },
+  "ci_installation_repair": {
+    "changed_file": ".github/workflows/backend.yml",
+    "local_existing_ci_contract_tests_passed": 35,
+    "yaml_shell_syntax_and_ordering_passed": true,
+    "setup_runs_before_full_backend": true,
+    "ubuntu_scope": "Ubuntu 24.04 noble amd64 source runner",
+    "source_policy": "Invocation-owned official HTTPS Ubuntu primary/updates/security sources with Ubuntu archive keyring; no system source/config overwrite",
+    "apt_network_policy": "2 retries; 20-second HTTP/HTTPS request timeout; any update error fails; signature and TLS validation remain enabled",
+    "browser_policy": "Official pinned Playwright complete install-deps chromium (including fonts) followed by normal-user install chromium",
+    "product_smoke_command_unchanged": "timeout --kill-after=5 180 npm --prefix web run e2e:smoke",
+    "cleanup_policy": "Only newly created configuration files and empty staging directories",
+    "read_only_cloud_diagnosis": {
+      "captured_at_utc": "2026-10-07T19:10:49.023649+00:00",
+      "scope": "Read-only cloud-environment connectivity probes; they do not prove GitHub runner connectivity or APT signature trust. No source, package, system APT configuration or dependencies were changed.",
+      "results": [
+        {
+          "url": "http://azure.archive.ubuntu.com/ubuntu/dists/noble/InRelease",
+          "exit_code": 0,
+          "http_timing": [
+            "200",
+            "0.000920",
+            "0.053670"
+          ],
+          "wall_seconds": 0.078,
+          "stderr": "",
+          "bytes": 255850,
+          "sha256": "cdb2f31d809f589719a53c6ad15f255b27569c4059542ada282aaa21b8e164b0",
+          "signed_inrelease_envelope_present": true,
+          "apt_trust_signature_verification_performed": false
+        },
+        {
+          "url": "https://azure.archive.ubuntu.com/ubuntu/dists/noble/InRelease",
+          "exit_code": 22,
+          "http_timing": [
+            "503",
+            "0.001273",
+            "5.030221"
+          ],
+          "wall_seconds": 5.041,
+          "stderr": "curl: (22) The requested URL returned error: 503",
+          "bytes": 0,
+          "sha256": null,
+          "signed_inrelease_envelope_present": false,
+          "apt_trust_signature_verification_performed": false
+        },
+        {
+          "url": "https://archive.ubuntu.com/ubuntu/dists/noble/InRelease",
+          "exit_code": 0,
+          "http_timing": [
+            "200",
+            "0.000938",
+            "0.493136"
+          ],
+          "wall_seconds": 0.915,
+          "stderr": "",
+          "bytes": 255850,
+          "sha256": "cdb2f31d809f589719a53c6ad15f255b27569c4059542ada282aaa21b8e164b0",
+          "signed_inrelease_envelope_present": true,
+          "apt_trust_signature_verification_performed": false
+        },
+        {
+          "url": "https://security.ubuntu.com/ubuntu/dists/noble-security/InRelease",
+          "exit_code": 0,
+          "http_timing": [
+            "200",
+            "0.000569",
+            "3.472961"
+          ],
+          "wall_seconds": 3.748,
+          "stderr": "",
+          "bytes": 126127,
+          "sha256": "e845dfa589e4c4a0649ef6e672f9085eb23e3a1554017f926186a566259343e0",
+          "signed_inrelease_envelope_present": true,
+          "apt_trust_signature_verification_performed": false
+        }
+      ]
+    },
+    "read_only_cloud_index_diagnosis": {
+      "captured_at_utc": "2026-10-07T19:15:10.396709+00:00",
+      "scope": "Read-only bounded cloud probes of affected package indexes, not a GitHub runner connection or trusted APT install. No system configuration changed.",
+      "results": [
+        {
+          "url": "http://azure.archive.ubuntu.com/ubuntu/dists/noble-updates/main/binary-amd64/Packages.xz",
+          "range_requested": "bytes=0-65535",
+          "exit_code": 0,
+          "http_timing": [
+            "206",
+            "0.000990",
+            "0.046322"
+          ],
+          "wall_seconds": 0.064,
+          "stderr": "",
+          "received_bytes": 65536,
+          "received_sha256": "9d90259ef18eaa42166ca002dde811d2ff713406132be345478ac668e7de4394",
+          "apt_signature_and_index_digest_verification_performed": false
+        },
+        {
+          "url": "https://archive.ubuntu.com/ubuntu/dists/noble-updates/main/binary-amd64/Packages.xz",
+          "range_requested": "bytes=0-65535",
+          "exit_code": 0,
+          "http_timing": [
+            "206",
+            "0.000925",
+            "0.524561"
+          ],
+          "wall_seconds": 0.748,
+          "stderr": "",
+          "received_bytes": 65536,
+          "received_sha256": "9d90259ef18eaa42166ca002dde811d2ff713406132be345478ac668e7de4394",
+          "apt_signature_and_index_digest_verification_performed": false
+        },
+        {
+          "url": "https://security.ubuntu.com/ubuntu/dists/noble-security/main/binary-amd64/Packages.xz",
+          "range_requested": "bytes=0-65535",
+          "exit_code": 0,
+          "http_timing": [
+            "206",
+            "0.000844",
+            "0.511726"
+          ],
+          "wall_seconds": 0.729,
+          "stderr": "",
+          "received_bytes": 65536,
+          "received_sha256": "9079fe8d196fb48ea2a2bb068b5d6977f5195b60cdadc76d974714d5e32b9b45",
+          "apt_signature_and_index_digest_verification_performed": false
+        }
+      ]
+    },
+    "primary_references": [
+      "https://playwright.dev/docs/browsers#install-system-dependencies",
+      "https://manpages.ubuntu.com/manpages/noble/man5/apt.conf.5.html",
+      "https://manpages.ubuntu.com/manpages/noble/man1/apt-transport-http.1.html"
+    ]
+  },
+  "historical_browser_scope": {
+    "default": {
+      "total": 475,
+      "passed": 418,
+      "skipped": 55,
+      "failed": 2
+    },
+    "optional": {
+      "passed": 27,
+      "skipped": 3,
+      "failed": 7
+    },
+    "attribution": "unproven",
+    "whole_site_green_claimed": false
+  },
+  "not_executed": [
+    "nx5/SSH/service switch",
+    "real Podman provisioning/readiness",
+    "real ChatGPT OAuth client",
+    "multi-machine integration",
+    "formal main merge/tag/release/11-asset publication"
+  ],
+  "evidence_boundary": "This independent docs branch does not change the PR product/CI head. Exact CI conclusions must be accepted before owner-controlled main merge/tag/formal publication."
+}

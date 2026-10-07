@@ -1,0 +1,5584 @@
+{
+  "schema_version": 1,
+  "version": "0.4.5",
+  "status": "candidate_not_published",
+  "captured_at_utc": "2026-10-07T19:58:12.971019+00:00",
+  "source_sha": "7c7e39f0f5b6a13f332ad20d1f6c6370a5e9c692",
+  "base_sha": "8941738096ab69c0b9fa014f39ff9749cca64822",
+  "branch": "test/gate-release-0.4.5-20261007",
+  "pull_request": "https://github.com/zhigege666/Lingshu-Gate/pull/55",
+  "historical_omission_commits": [
+    "4c61cb4fa9301805386122e27a2e88098c0770fc",
+    "8ff92ef5694f47faed30b3a38c288c72ccbf3551"
+  ],
+  "runtime_scope": "Version candidate plus minimal account-menu/focus/localized-role and classification-reason adaptations; current tokens, header actions, dependencies, Vite mangle:false/base:/ and backend authorization remain intact",
+  "local_checks": {
+    "frozen_dependencies": {
+      "source_sha": "7c7e39f0f5b6a13f332ad20d1f6c6370a5e9c692",
+      "exit_code": 0,
+      "exact_match": true,
+      "export_sha256": "82163ef4a3b3c5325d51ac42871c50a4a6a52ac30e0b9df83ed3a663a8bca9f3"
+    },
+    "frontend": {
+      "unit_passed": 455,
+      "unit_files_passed": 75,
+      "check_and_dual_build_passed": true,
+      "static_inventory": {
+        "source_sha": "7c7e39f0f5b6a13f332ad20d1f6c6370a5e9c692",
+        "counts": {
+          "console": 115,
+          "oauth": 3
+        },
+        "canonical_sha256": "95bf75f824b5d0770931666340a1b4a3156fc660eba46e81154176d566b60902",
+        "manifest": [
+          {
+            "root": "console",
+            "path": "assets/ExclamationCircleFilled-Dt3xfINN.js",
+            "sha256": "e4205cf20e33f17437d2540e075f98a21f7d144ff97b6a4629d9422a297886ae",
+            "bytes": 1882
+          },
+          {
+            "root": "console",
+            "path": "assets/InfoCircleOutlined-BMOKeI_z.js",
+            "sha256": "03e7c80aaf0eb01de24864fce4bcbd18f77acafb97b37c6cc498cda289ff8ff9",
+            "bytes": 1086
+          },
+          {
+            "root": "console",
+            "path": "assets/PlusOutlined-DVH659TE.js",
+            "sha256": "f381b6853a5cfb24007cba1a9c9d76de82ffa2e4f345ec1b6499178ecffac708",
+            "bytes": 880
+          },
+          {
+            "root": "console",
+            "path": "assets/RightOutlined-CuMeqWz4.js",
+            "sha256": "ed4174640866ed9c55b794e8dfa45daa883d3cbcdcf859a482d6e1380566b400",
+            "bytes": 1701
+          },
+          {
+            "root": "console",
+            "path": "assets/access-grants-page-DVRgzBqd.js",
+            "sha256": "def2622fe61ab2e4ab79aa111b2ccd3c22ef59a305d82a86d38a484552110b4d",
+            "bytes": 20242
+          },
+          {
+            "root": "console",
+            "path": "assets/access-roles-page-BO8bIVSD.css",
+            "sha256": "7e90bb626c48971dd5d0834bdb9e16106a78a9d856b1730ab5a35cc8613c2896",
+            "bytes": 6772
+          },
+          {
+            "root": "console",
+            "path": "assets/access-roles-page-CBnk4upK.js",
+            "sha256": "8f98e051b27dffad2024e61b7c18bd2d5cf8d6773b871d5a0fa4d1c386bbc4e4",
+            "bytes": 44811
+          },
+          {
+            "root": "console",
+            "path": "assets/access-users-page-Bg_-OIjC.js",
+            "sha256": "cd4919b91ab37c00ba132c6195b2b615028a22a0dfd1be2fb0fbf1bf45c0a44b",
+            "bytes": 21695
+          },
+          {
+            "root": "console",
+            "path": "assets/action-menu-Dv0KA1Up.js",
+            "sha256": "0cb2a9af3d08c4149901b701f62a83cea60242cf2a31d15ab03cfed654d57d1a",
+            "bytes": 5263
+          },
+          {
+            "root": "console",
+            "path": "assets/activity-C6Wjubl2.js",
+            "sha256": "fdb38a168a903fdcf11281d7669082ec85b08579ac1c09d35a7d9bc586d08de4",
+            "bytes": 333
+          },
+          {
+            "root": "console",
+            "path": "assets/alert-BWyCcnRa.js",
+            "sha256": "c48fd68950eaeb637becbd19766372df1080f219eaf22dd18597a003c0a4ae16",
+            "bytes": 11249
+          },
+          {
+            "root": "console",
+            "path": "assets/badge-OW3g16Oh.js",
+            "sha256": "a5c0689f69ab5c8511bd3bf186fecbacbcdbb6dd03755c8c11ad1e98faea3378",
+            "bytes": 1005
+          },
+          {
+            "root": "console",
+            "path": "assets/builds-BhcPewqH.js",
+            "sha256": "251d33e5c081784f81ea9894b863b27c6ea7f9abd1dcc11de57afd77b71e1371",
+            "bytes": 3306
+          },
+          {
+            "root": "console",
+            "path": "assets/builds-page-BEV8No5U.js",
+            "sha256": "7848bcacc48e86f7d198cebb9340736c0e1c8ecffbc2910e918fa1d6f3ee87bf",
+            "bytes": 85693
+          },
+          {
+            "root": "console",
+            "path": "assets/builds-page-DPSeElhz.css",
+            "sha256": "8c81d348d2854a8c2fbc19b9a971881784e746f62c94a7656e10f61cfee77151",
+            "bytes": 2691
+          },
+          {
+            "root": "console",
+            "path": "assets/card-BhqefgbM.js",
+            "sha256": "fa33fd519c3b167d77defd1c1e424043a2159fb77b917f5d120ed9538704fd13",
+            "bytes": 30893
+          },
+          {
+            "root": "console",
+            "path": "assets/chevron-down-C1KIKeCa.js",
+            "sha256": "c80bfdaab48cbb01b915191cb21bebb77a382efa2a72f9034b0848312f481558",
+            "bytes": 233
+          },
+          {
+            "root": "console",
+            "path": "assets/chevron-left-Y2wo7Xec.js",
+            "sha256": "25c43c9375a59d212586dbe4359240c6b1c598bbf8ff6151985eeef242a346c2",
+            "bytes": 235
+          },
+          {
+            "root": "console",
+            "path": "assets/chevron-right-CfbPxlQa.js",
+            "sha256": "7244bf177379dad25b5400a92b9bbdbc97ae1820188569a8e35d0ab2a6cfdab0",
+            "bytes": 237
+          },
+          {
+            "root": "console",
+            "path": "assets/collapse-BgX--bqA.js",
+            "sha256": "4fa3cd0bae0587be44288a852deabc65dd95413609fa6927ad80e206d651e9b8",
+            "bytes": 512
+          },
+          {
+            "root": "console",
+            "path": "assets/command-CfsS4uDk.js",
+            "sha256": "b43cd93c2824a3b3d02ba82fe5c5f098a8995ea18d46ae176cf6ad879d2adc0c",
+            "bytes": 15471
+          },
+          {
+            "root": "console",
+            "path": "assets/config-provider-DWHTOUEA.js",
+            "sha256": "11d096478b64bbe6e3cf9e9e8e272f150aa15739ff489c14d005d5b379e6dc74",
+            "bytes": 10753
+          },
+          {
+            "root": "console",
+            "path": "assets/configs-page-YFbfRRDH.js",
+            "sha256": "5589e9c57ee504f168b57961a4847c2eabac1b3ebed8f703ee39e08777aa4066",
+            "bytes": 21872
+          },
+          {
+            "root": "console",
+            "path": "assets/context-C482taiw.js",
+            "sha256": "a0a1f7b63905be4fc845768e7a32d4d551277929f6ec6eae8ef47e8b8be601b5",
+            "bytes": 40279
+          },
+          {
+            "root": "console",
+            "path": "assets/context-CgYzR2b9.js",
+            "sha256": "6e5e0382add7d84832850b3265190a6e9947026c73ded48856e0f3c35ad2da82",
+            "bytes": 17357
+          },
+          {
+            "root": "console",
+            "path": "assets/copy-DgBQnHsw.js",
+            "sha256": "358ee91c815c69edb0a22facdbab0b806466fe2f9497dafb3b2e30ce94f77051",
+            "bytes": 327
+          },
+          {
+            "root": "console",
+            "path": "assets/credentials-page-Bg7XVhIc.js",
+            "sha256": "54063d7159fd1c99c0ecb45869fc807e042653455a0dbfe94ba4a808666bc09c",
+            "bytes": 14041
+          },
+          {
+            "root": "console",
+            "path": "assets/dashboard-page-C5QTwuKt.css",
+            "sha256": "a3967235e50df8b195f7c391f03fdf47682e7b0b891dc3dbe6cab6e0ff3e52cc",
+            "bytes": 7698
+          },
+          {
+            "root": "console",
+            "path": "assets/dashboard-page-uzkWGTab.js",
+            "sha256": "39ecc8edb55e0b5673b687ef52ae351a888639559e787bde3a4f9bdfa30f3251",
+            "bytes": 25851
+          },
+          {
+            "root": "console",
+            "path": "assets/deployment-options-CcX4Sgal.js",
+            "sha256": "40eb363aa9a4c4601db669ba86dcf406322016218f892e2c2389c4e99b79c266",
+            "bytes": 19013
+          },
+          {
+            "root": "console",
+            "path": "assets/diagnostics-page-JEuPAna3.js",
+            "sha256": "6b5c2f6e5f81742b3de06693ea5b0ce963c439481971a605fd5294390087feff",
+            "bytes": 8484
+          },
+          {
+            "root": "console",
+            "path": "assets/dialog-Cu6KYnmi.js",
+            "sha256": "e2f251cb35e69d81230bbe27ec741ecefe6988063a7bf2576ec4ce5cf139d8f6",
+            "bytes": 64781
+          },
+          {
+            "root": "console",
+            "path": "assets/dist-BVyVd9XC.js",
+            "sha256": "3048de973f6c3435e3ce6ffda9d34fdefd2863e3ae6eba7c0560e61d84c2a8c0",
+            "bytes": 894
+          },
+          {
+            "root": "console",
+            "path": "assets/dist-DKZ8D-UA.js",
+            "sha256": "d1a68745cc4f27acac96b5471c6cc612a1e1cd2f219b3b0f7701d56fa340c756",
+            "bytes": 1043
+          },
+          {
+            "root": "console",
+            "path": "assets/dist-wTiNGevj.js",
+            "sha256": "b6bb4caaac81c42fe8b78bcf53026a55d0431b8c022f44bc1452399ed28f32c7",
+            "bytes": 77040
+          },
+          {
+            "root": "console",
+            "path": "assets/downstream-credentials-page-BlB0jakO.css",
+            "sha256": "b1a9454ce4122286292b97fcc65fb62e2c4e3f279f26a8eec723be79dfc5e478",
+            "bytes": 2277
+          },
+          {
+            "root": "console",
+            "path": "assets/downstream-credentials-page-CshPSd0r.js",
+            "sha256": "d5ad871b3c8af70ce16a25be2d8346a25417509ba50908beac00adf8af9d07d7",
+            "bytes": 16326
+          },
+          {
+            "root": "console",
+            "path": "assets/es-BlfxCsxF.js",
+            "sha256": "39eb0b372425560960aecb900a4cadbb1d6484ffa62d334160a7fabff08cfc09",
+            "bytes": 41001
+          },
+          {
+            "root": "console",
+            "path": "assets/external-connections-page-DXNrSTR9.js",
+            "sha256": "03963ab3550c801f47fc72545b98d181916feb24a6fc6b825e0edc803758b10b",
+            "bytes": 236554
+          },
+          {
+            "root": "console",
+            "path": "assets/external-connections-page-mT9jXUKm.css",
+            "sha256": "e99b366c4860fb91a821cf251b41c979dc497a4f1781c7c400f4957654740cb1",
+            "bytes": 13417
+          },
+          {
+            "root": "console",
+            "path": "assets/filter-radio-By-vwnXz.css",
+            "sha256": "85b1dafc4d1b7dfeb5e5a242c75291efa14910adc661253d216e0463af7237ef",
+            "bytes": 989
+          },
+          {
+            "root": "console",
+            "path": "assets/filter-radio-omTQlyWe.js",
+            "sha256": "2a78848996743e7b821c27d7a819c3afee2754ddb863ff22276e449b4f2ea8fc",
+            "bytes": 826
+          },
+          {
+            "root": "console",
+            "path": "assets/form-5DWEzj3M.js",
+            "sha256": "9b7b34c6a14f07bd56f7bc96961a32b66b7e901e95b4850731da5c7ed13252d4",
+            "bytes": 40551
+          },
+          {
+            "root": "console",
+            "path": "assets/form-dialog-eXHnktg3.js",
+            "sha256": "d059131956c96b9bbf984b10be17a3211521fb4a8dbc1718e82db849e3ea8903",
+            "bytes": 2247
+          },
+          {
+            "root": "console",
+            "path": "assets/http-CTk34Y6z.js",
+            "sha256": "3227217b895813dd2e5e1aa2515c2d84d2be91a9c38b8e6ed269b42b64f54ad8",
+            "bytes": 1212
+          },
+          {
+            "root": "console",
+            "path": "assets/index-BblcVoBI.js",
+            "sha256": "2a02db241e8420f805068b3fd7464645f1d80a24e9fff4d5e3fa678440574752",
+            "bytes": 232392
+          },
+          {
+            "root": "console",
+            "path": "assets/index-C_hPtwDh.css",
+            "sha256": "8971a2afe0796265416dd0d769df794c4975d994e0de6b439996c9380dc96973",
+            "bytes": 82884
+          },
+          {
+            "root": "console",
+            "path": "assets/info-Bx3wqeIY.js",
+            "sha256": "4ad157e8b688725b8f74f99c2ce96ebde2c294ff620b150319ed1e3ee6b0e157",
+            "bytes": 295
+          },
+          {
+            "root": "console",
+            "path": "assets/input-number-BKcfprjf.js",
+            "sha256": "9d03a24f786e1483ed0896fbd203d5341e2553dcdddd5b7966ba50e0e4f55fc3",
+            "bytes": 34391
+          },
+          {
+            "root": "console",
+            "path": "assets/invocation-audit-page-Bt20jPN4.css",
+            "sha256": "c13e6369eef5ac0553c3cffe8a0ebe0c74bbf7fe276df932d678d374ff707df3",
+            "bytes": 359
+          },
+          {
+            "root": "console",
+            "path": "assets/invocation-audit-page-CqPTNtQU.js",
+            "sha256": "83f420cfdd79a4bdc9a879900d775c15cbd82749992cae97f2e963fb761ad96e",
+            "bytes": 21792
+          },
+          {
+            "root": "console",
+            "path": "assets/invocation-payload-panel-MkU7VMKX.js",
+            "sha256": "5680d74dc85238cf1c0a4f5621e384744ce871f9ac7de16c63bffb7b08e4e1ad",
+            "bytes": 3683
+          },
+          {
+            "root": "console",
+            "path": "assets/invoke-page-BTA55JBX.css",
+            "sha256": "5a4b2c2a9cea05850f39948d6dfe30d55687325143a4da86bf8a38c9a2d7888c",
+            "bytes": 10069
+          },
+          {
+            "root": "console",
+            "path": "assets/invoke-page-BVuOSDrs.js",
+            "sha256": "1e13b0c9b3d98e8ddace96ad749bf4c4f22051f174d74146a96a57b3904823c7",
+            "bytes": 284057
+          },
+          {
+            "root": "console",
+            "path": "assets/json-panel-BQduC3Ep.js",
+            "sha256": "330e0860b4899de65ecc2725ed1625f08a4f0d221c148c427b92501c3e0da20c",
+            "bytes": 25544
+          },
+          {
+            "root": "console",
+            "path": "assets/list-pagination-CFUjdCU4.css",
+            "sha256": "65fcfbb43d329877165709b6d8b9f0a1575cc74f6735be64a1faab6ecf27c896",
+            "bytes": 878
+          },
+          {
+            "root": "console",
+            "path": "assets/list-pagination-DFBrXFNJ.js",
+            "sha256": "fb44a5dd71bfeb65244e6a3dbb158e1d0eb1d6ac91ccda02fe86919a7c3977fe",
+            "bytes": 5276
+          },
+          {
+            "root": "console",
+            "path": "assets/logs-events-page-By2wPKjp.css",
+            "sha256": "f71b383d7d8eb23115842a3b37ac76730d2aa76e5fe2c2bfa93b567c3f7d9871",
+            "bytes": 392
+          },
+          {
+            "root": "console",
+            "path": "assets/logs-events-page-DAdATdrA.js",
+            "sha256": "2ffd6cadff33c45b4608e82c4f61a5fdb603da0ab7d9d7d5b6764894f76e6b0e",
+            "bytes": 45439
+          },
+          {
+            "root": "console",
+            "path": "assets/maintenance-lists-Db-gJatN.css",
+            "sha256": "f631cc5b3dd80f648a9d868128884c87ccfe4c7be8a2972026bf720307e20ad4",
+            "bytes": 3836
+          },
+          {
+            "root": "console",
+            "path": "assets/mcp-config-editor-BAkFRdpf.css",
+            "sha256": "9b6c90c600e363d762767cf77960dbfa562b508b159122cf5c1ac58197d350f6",
+            "bytes": 4306
+          },
+          {
+            "root": "console",
+            "path": "assets/mcp-config-editor-DIwEDRr1.js",
+            "sha256": "91b9c5b76c557d960fa667314a3c27d79a64d935ed331a7e037b8de3a7cb8d07",
+            "bytes": 46452
+          },
+          {
+            "root": "console",
+            "path": "assets/network-CPko-rSJ.js",
+            "sha256": "717d812260ef5779f9a597e3f26c10acfef0b3f9df24930d0d219cb3e590f404",
+            "bytes": 1781
+          },
+          {
+            "root": "console",
+            "path": "assets/network-settings-panel-ChV9eh_J.css",
+            "sha256": "0457547d832c9e3d5f17f8d61a9444eb2994c6274869a1e2a4cecec471198153",
+            "bytes": 1266
+          },
+          {
+            "root": "console",
+            "path": "assets/network-settings-panel-jy3sZIl7.js",
+            "sha256": "803c1cdffde43ad60f892fcc411a19e01406568311378ed7ae5b0c32ecf20bca",
+            "bytes": 33468
+          },
+          {
+            "root": "console",
+            "path": "assets/page-shell-DoCOfY_C.js",
+            "sha256": "3a7d620a9473a97eff51191d096676bdc95c637659912bb08dd37c5bd37b5c30",
+            "bytes": 120484
+          },
+          {
+            "root": "console",
+            "path": "assets/page-utils-DD4d3K4s.js",
+            "sha256": "9055765a80879fc4448f65aec0804a884939b28d3795feaac3957a09c629d94b",
+            "bytes": 5199
+          },
+          {
+            "root": "console",
+            "path": "assets/pagination-IVGuxch9.js",
+            "sha256": "6610507d550092fd3e8e8835491aa10d21160fc630c63944a1b3978dd815e73a",
+            "bytes": 35994
+          },
+          {
+            "root": "console",
+            "path": "assets/personal-tokens-page-CgKMttU8.css",
+            "sha256": "673d2c020c8194961989b2dc6cf390d5283799927e3ec8be44c747069c17c1c3",
+            "bytes": 595
+          },
+          {
+            "root": "console",
+            "path": "assets/personal-tokens-page-CnRO9qCl.js",
+            "sha256": "2ee7c6d3fd32a63706c4bc153aa3a01996356ef34b6958d4b05f763384263e48",
+            "bytes": 23967
+          },
+          {
+            "root": "console",
+            "path": "assets/personal-workspace-page-Bxtrfd6J.css",
+            "sha256": "de0b6b8a09fb0e934c1d58ddfbc5716815d3c3621a4161ce1c24edbbe296898f",
+            "bytes": 1412
+          },
+          {
+            "root": "console",
+            "path": "assets/personal-workspace-page-D0UH7dLT.js",
+            "sha256": "3631b08eeee55151a89221aa31f9711c44b9eaf168f00030f96a0e88ca19821d",
+            "bytes": 12299
+          },
+          {
+            "root": "console",
+            "path": "assets/plus-D_pyY9nN.js",
+            "sha256": "ccc51dccb0c2e212e60e5c43f47ecadf27d1999fd352e19b8ef1d1e868ed7ac3",
+            "bytes": 244
+          },
+          {
+            "root": "console",
+            "path": "assets/query-status-BnfV0vtj.js",
+            "sha256": "24f03d95032116a326e975bdd8b3846f3c4ef8a03f1fda35581cbca7c450b9a3",
+            "bytes": 867
+          },
+          {
+            "root": "console",
+            "path": "assets/radio-CwpO4NvB.js",
+            "sha256": "a5d516166d2eb11461d1b1bd28180daa0f767a9bbd76b071210bb1a70861a932",
+            "bytes": 24163
+          },
+          {
+            "root": "console",
+            "path": "assets/runtime-cache-page-BLf0ZTHt.js",
+            "sha256": "fb0d44e0ac701f9e9ab82c7bc90374b8f1f34e7657424a7d2963efacd1bf365d",
+            "bytes": 12516
+          },
+          {
+            "root": "console",
+            "path": "assets/search-DhTkXi8A.js",
+            "sha256": "3ef9717683ea0c720afa9ec22efddfdb9a1e44021ea5ccca80aa835fcc952fc9",
+            "bytes": 269
+          },
+          {
+            "root": "console",
+            "path": "assets/segmented-CwwCg9eA.js",
+            "sha256": "2bf1031f0eb3c54750c3e47b4a0abc63da565cff840ef2d78cf346efcee1efce",
+            "bytes": 14950
+          },
+          {
+            "root": "console",
+            "path": "assets/select-1f_zeaWe.js",
+            "sha256": "a98a57195ae3f14dce37a777150b7c25f013b1e408e0d54bb68290dfe00bee3a",
+            "bytes": 94674
+          },
+          {
+            "root": "console",
+            "path": "assets/select-BXj1UITW.js",
+            "sha256": "327fbff112b5ceccd59408f82c8b78e0c170effc3029d45c86590db7a5c108ce",
+            "bytes": 132761
+          },
+          {
+            "root": "console",
+            "path": "assets/servers-page-D0AvbjH-.js",
+            "sha256": "034fb048fccecd606c4ccdd1cb4bf40a72054b30cef6517a023f70235ea484fc",
+            "bytes": 125310
+          },
+          {
+            "root": "console",
+            "path": "assets/servers-page-DepLcCbk.css",
+            "sha256": "cd1bd12618dc743a1918de30cee1881b631db87c75fdca274efe9d0bf4cff8bf",
+            "bytes": 2682
+          },
+          {
+            "root": "console",
+            "path": "assets/shield-alert-Cp4L2uk_.js",
+            "sha256": "93cd533bb4c7d475ab9051efc93305ff8242437483546d371e6237b24ff7957b",
+            "bytes": 458
+          },
+          {
+            "root": "console",
+            "path": "assets/shield-check-BJ1vOIKV.js",
+            "sha256": "8b1a2fd93118d90affd24441956c895f7951534113c67f4deb9b65ba3ba59099",
+            "bytes": 425
+          },
+          {
+            "root": "console",
+            "path": "assets/skeleton-C6I4ewAl.js",
+            "sha256": "b64279b245492e73298b1e8afed228fc60b6bfbe24c0d64d99c2c5e51ddaf59f",
+            "bytes": 537
+          },
+          {
+            "root": "console",
+            "path": "assets/space-Ddo43wfB.js",
+            "sha256": "9c1ab54f8bf31f6cae89f2e2b662000b655ad15a23b91dd01d87f0e6cc7133a3",
+            "bytes": 71813
+          },
+          {
+            "root": "console",
+            "path": "assets/style-CaSOBl_y.js",
+            "sha256": "c201b0a5795b1053265dd63d70df028c46aef1ae484bf982540b66d8cc9a3652",
+            "bytes": 3216
+          },
+          {
+            "root": "console",
+            "path": "assets/switch--lFydxs1.js",
+            "sha256": "e1975dd98e0ba9454a758f6d8a0fdbab4dfb3636060493bfdebe245cca8d30d1",
+            "bytes": 11792
+          },
+          {
+            "root": "console",
+            "path": "assets/switch-CXyDLd3S.js",
+            "sha256": "10dae2c5c1393afc771b0d3a4dc32a2e4b207539b6d8a29f48e2371b1ff2b8be",
+            "bytes": 6907
+          },
+          {
+            "root": "console",
+            "path": "assets/system-settings-page-Cwpg3aXl.js",
+            "sha256": "d41b3bef9a444879fd88d2d526b1f14937b2f41ed334f105d825cadddc665a5d",
+            "bytes": 1096
+          },
+          {
+            "root": "console",
+            "path": "assets/table-DwidlQvd.js",
+            "sha256": "14657a0a527d72db8ccf87ac43e28ff65498032f8bdad419a526eb268d02f7af",
+            "bytes": 243964
+          },
+          {
+            "root": "console",
+            "path": "assets/table-tools-Cfo408TU.js",
+            "sha256": "3604d5f65b2315c900d1750a223ae8694379e95b65ecd2bb0f7af595f04b488e",
+            "bytes": 5546
+          },
+          {
+            "root": "console",
+            "path": "assets/tabs-kBGfCh4r.js",
+            "sha256": "48252f459e8ee64a690a4fb84dde7ecd52146d42ab2f53b1e67ad4b0822d36ed",
+            "bytes": 54330
+          },
+          {
+            "root": "console",
+            "path": "assets/tag-B_MAFVrO.js",
+            "sha256": "2266adfbe858871f56dfde0d8016ab950c726b7b366bc74aeecbd14c01ee02ed",
+            "bytes": 25710
+          },
+          {
+            "root": "console",
+            "path": "assets/textarea-tJL5OFBK.js",
+            "sha256": "8766ee9d6c156bf53ed63e7fd419c4ed51b8c00d9a06b22c1f9e7287a114ba5c",
+            "bytes": 647
+          },
+          {
+            "root": "console",
+            "path": "assets/tool-access-CtKHIheZ.js",
+            "sha256": "d70110e04846000bbd16374fd7f327e502ee2b4e63b4b3b704643ae6113fc098",
+            "bytes": 409
+          },
+          {
+            "root": "console",
+            "path": "assets/tool-classifications-page-BGhDXg7K.css",
+            "sha256": "4866f15166af03fa998b939894fd0ec770ec09897afc2e87c7253ae5f26858ab",
+            "bytes": 948
+          },
+          {
+            "root": "console",
+            "path": "assets/tool-classifications-page-BO-2NyRg.js",
+            "sha256": "90b2f1cb9fe4e84c2c6c93aedb94d293685ebcda248445f875db4847c34265fe",
+            "bytes": 37770
+          },
+          {
+            "root": "console",
+            "path": "assets/tool-origin-mXy-TKr4.js",
+            "sha256": "b3145e27d0d77dbbf070c4c7919c289c2728212acb682908806107b5e48525e9",
+            "bytes": 1756
+          },
+          {
+            "root": "console",
+            "path": "assets/tools-page-lFlOsfiq.css",
+            "sha256": "fab74284501cf41d22fb3ab2ffa0a519464b2defa44e7d79719920d3bd421389",
+            "bytes": 4842
+          },
+          {
+            "root": "console",
+            "path": "assets/tools-page-xbjOThNA.js",
+            "sha256": "3aa5d6fdf07f906c4c57d08f30b65c82695cabe20007544d09b446dad455f2f1",
+            "bytes": 12972
+          },
+          {
+            "root": "console",
+            "path": "assets/tooltip-C2ZjJ2UH.js",
+            "sha256": "e79cba541344f92be30e75601a03dfcebfefdf34e8352297ae269e2228c980ae",
+            "bytes": 740204
+          },
+          {
+            "root": "console",
+            "path": "assets/uploads-page-DZN4Cm32.js",
+            "sha256": "9afc44522f95db4ee6150f8ade29ee2b44072b2bfe47bb2f0225ff90ba3b8336",
+            "bytes": 59257
+          },
+          {
+            "root": "console",
+            "path": "assets/use-draft-close-guard-D2-uOUhL.js",
+            "sha256": "61ce868245106318f9ca66a39f66e3cb1e3ca153d623351a282adf115f1a5c02",
+            "bytes": 846
+          },
+          {
+            "root": "console",
+            "path": "assets/use-remaining-viewport-DbWVprg9.js",
+            "sha256": "e0d82d83997ff7291b8e083d3713b4768e7099502f03a8f5ea45f426c7deb283",
+            "bytes": 1563
+          },
+          {
+            "root": "console",
+            "path": "assets/useClosable-DPAx9KaY.js",
+            "sha256": "4bb67298a982567dd9c02744b2d676aa180805897e8e41d99f8be69a5c887248",
+            "bytes": 3178
+          },
+          {
+            "root": "console",
+            "path": "assets/useModal-DmoF0W0g.js",
+            "sha256": "09a8776b9f20049d2050c71903dba5218b4460114684f38871c6bfa0348c2861",
+            "bytes": 42003
+          },
+          {
+            "root": "console",
+            "path": "assets/user-plus-BTAxZYVC.js",
+            "sha256": "7255a76bb5970c9dc8c4b6b310ed226ad3fdc872f19f2b34c29d4b229c054c2c",
+            "bytes": 409
+          },
+          {
+            "root": "console",
+            "path": "assets/validateMessagesContext-Ym1bDdgu.js",
+            "sha256": "68bf5c649164e70889ea7be8afa465fb870672080789b2e87451e9014e601342",
+            "bytes": 196
+          },
+          {
+            "root": "console",
+            "path": "assets/validation-D6vjtMIC.js",
+            "sha256": "48ec206505a65e79236ddea209010ccb845d72f63a0012ca4f4fbce711bcc37d",
+            "bytes": 868
+          },
+          {
+            "root": "console",
+            "path": "assets/validation-errors-CGzfaoDV.js",
+            "sha256": "7a29bce1feb55d071fb4c5ceda4d32ab33084eb5e0726db237dca7f43fc74999",
+            "bytes": 1393
+          },
+          {
+            "root": "console",
+            "path": "index.html",
+            "sha256": "07ee8a76d69bbe7bd2fddfb9ea1f285ceab8f56c5c25970410f5acc55970d0ce",
+            "bytes": 2071
+          },
+          {
+            "root": "console",
+            "path": "lingshu-gate-app-icon.svg",
+            "sha256": "d71eaa8f740ee28d91c2e76f989b1974f1383d4dfe333779f1162054bbb6f276",
+            "bytes": 2326
+          },
+          {
+            "root": "console",
+            "path": "lingshu-gate-icon-512.png",
+            "sha256": "322c8f0cc9d4498946a5dd1309458a594c08cbb201bd87310d2b0c076ddd61a4",
+            "bytes": 32454
+          },
+          {
+            "root": "console",
+            "path": "lingshu-gate-icon.svg",
+            "sha256": "fa3b2ea6a4dc577f15678f9530eaab11cdcbe6a80b88f32a24eaf6501d4815c4",
+            "bytes": 2158
+          },
+          {
+            "root": "oauth",
+            "path": "assets/oauth-B0Q7W4g8.js",
+            "sha256": "13678c5b1d4ac16ec49221d2954b03478e47348eadda81944012384df7f98ade",
+            "bytes": 1745925
+          },
+          {
+            "root": "oauth",
+            "path": "assets/oauth-BH4S-ygD.css",
+            "sha256": "8ddefa5e7a21069fccc6fd669f32770aec14165a38cb99aa4df169fc0222b6b0",
+            "bytes": 73726
+          },
+          {
+            "root": "oauth",
+            "path": "oauth.html",
+            "sha256": "34473eb45be680d3a041da6b24297df4defeda4cadea641ebfd8ba066802b769",
+            "bytes": 381
+          }
+        ]
+      }
+    },
+    "backend": {
+      "source_sha": "7c7e39f0f5b6a13f332ad20d1f6c6370a5e9c692",
+      "passed": 2311,
+      "skipped": 7,
+      "subtests_passed": 134,
+      "warnings": 5,
+      "skip_cases": [
+        {
+          "case": "tests.test_mcp_playwright_interop::test_fixed_peer_rejects_modern_discovery_with_real_http_400_null_id",
+          "reason": "fixed Playwright MCP test installation not supplied"
+        },
+        {
+          "case": "tests.test_mcp_playwright_interop::test_fixed_peer_auto_initializes_and_lists_without_any_browser_call[None]",
+          "reason": "fixed Playwright MCP test installation not supplied"
+        },
+        {
+          "case": "tests.test_mcp_playwright_interop::test_fixed_peer_auto_initializes_and_lists_without_any_browser_call[auto]",
+          "reason": "fixed Playwright MCP test installation not supplied"
+        },
+        {
+          "case": "tests.test_native_executor_host_acceptance::test_real_nested_npm_and_existing_only_npx_in_prepared_sandbox",
+          "reason": "Operator-provisioned rootless Podman/image/tmpfs required; no host fallback"
+        },
+        {
+          "case": "tests.test_native_executor_host_acceptance::test_real_official_manager_cache_frozen_install_nested_build_and_missing_closure[yarn-1.22.22]",
+          "reason": "Operator-provisioned rootless Podman/image/tmpfs required; no host fallback"
+        },
+        {
+          "case": "tests.test_native_executor_host_acceptance::test_real_official_manager_cache_frozen_install_nested_build_and_missing_closure[pnpm-8.15.9]",
+          "reason": "Operator-provisioned rootless Podman/image/tmpfs required; no host fallback"
+        },
+        {
+          "case": "tests.test_native_executor_host_acceptance::test_real_official_manager_cache_frozen_install_nested_build_and_missing_closure[pnpm-9.15.4]",
+          "reason": "Operator-provisioned rootless Podman/image/tmpfs required; no host fallback"
+        }
+      ],
+      "runtime_cleanup": {
+        "owned_runtime_context_exited": true,
+        "owned_runtime_directories_remaining": [],
+        "owned_pytest_processes_remaining": [],
+        "post_run_cleanup_verified": true
+      }
+    },
+    "packaging_regressions": {
+      "passed": 156,
+      "junit_sha256": "200ab960f699c373b6c5b9b3e759b655ab3b7ea7a472795e2111d3608684c28e",
+      "scope": "Actual repeated PEP517 wheel A-to-B turnover in both static roots; stale lib/bdist preservation; missing/extra/changed files; source and staging path/symlink boundaries; RECORD tampering; sdist-to-wheel; editable installs; native archive and worker contracts"
+    },
+    "browser": {
+      "passed": 29,
+      "skipped": 0,
+      "failed": 0,
+      "scope": "10 root-entry tests plus real isolated API smoke, controlled account menu, bilingual builtin/custom/duplicate/blank role labels and classification drift explanation",
+      "cleanup": {
+        "runtime_directory_removed": true,
+        "listener_closed": true
+      }
+    },
+    "http": {
+      "source_sha": "7c7e39f0f5b6a13f332ad20d1f6c6370a5e9c692",
+      "real_loopback_http": true,
+      "requests": [
+        {
+          "path": "/",
+          "status": 200,
+          "accept": null,
+          "representation": "json"
+        },
+        {
+          "path": "/",
+          "status": 200,
+          "accept": "*/*",
+          "representation": "json"
+        },
+        {
+          "path": "/",
+          "status": 200,
+          "accept": "text/html",
+          "representation": "html"
+        },
+        {
+          "path": "/",
+          "status": 200,
+          "accept": "application/json;q=0.001,text/html;q=1",
+          "representation": "json"
+        },
+        {
+          "path": "/",
+          "status": 200,
+          "accept": "application/json;q=0,text/html",
+          "representation": "html"
+        },
+        {
+          "path": "/",
+          "status": 200,
+          "accept": "text/html;q=0,*/*;q=1",
+          "representation": "json"
+        },
+        {
+          "path": "/",
+          "status": 406,
+          "accept": "text/html;q=0,application/json;q=0,*/*;q=1",
+          "representation": "json"
+        },
+        {
+          "path": "/",
+          "status": 200
+        },
+        {
+          "path": "/v1/meta",
+          "status": 200
+        },
+        {
+          "path": "/healthz",
+          "status": 200
+        },
+        {
+          "path": "/",
+          "status": 200
+        },
+        {
+          "path": "/console?bookmark=one&bookmark=two&return=%2F%23%2FmyServers&label=a+b",
+          "status": 307
+        },
+        {
+          "path": "/?bookmark=one&bookmark=two&return=%2F%23%2FmyServers&label=a+b",
+          "status": 200
+        },
+        {
+          "path": "/console/?bookmark=one&bookmark=two&return=%2F%23%2FmyServers&label=a+b",
+          "status": 307
+        },
+        {
+          "path": "/?bookmark=one&bookmark=two&return=%2F%23%2FmyServers&label=a+b",
+          "status": 200
+        },
+        {
+          "path": "/console/index.html?bookmark=one&bookmark=two&return=%2F%23%2FmyServers&label=a+b",
+          "status": 307
+        },
+        {
+          "path": "/?bookmark=one&bookmark=two&return=%2F%23%2FmyServers&label=a+b",
+          "status": 200
+        },
+        {
+          "path": "/assets/ExclamationCircleFilled-Dt3xfINN.js",
+          "status": 200
+        },
+        {
+          "path": "/console/assets/ExclamationCircleFilled-Dt3xfINN.js",
+          "status": 200
+        },
+        {
+          "path": "/assets/InfoCircleOutlined-BMOKeI_z.js",
+          "status": 200
+        },
+        {
+          "path": "/console/assets/InfoCircleOutlined-BMOKeI_z.js",
+          "status": 200
+        },
+        {
+          "path": "/assets/PlusOutlined-DVH659TE.js",
+          "status": 200
+        },
+        {
+          "path": "/console/assets/PlusOutlined-DVH659TE.js",
+          "status": 200
+        },
+        {
+          "path": "/assets/RightOutlined-CuMeqWz4.js",
+          "status": 200
+        },
+        {
+          "path": "/console/assets/RightOutlined-CuMeqWz4.js",
+          "status": 200
+        },
+        {
+          "path": "/assets/access-grants-page-DVRgzBqd.js",
+          "status": 200
+        },
+        {
+          "path": "/console/assets/access-grants-page-DVRgzBqd.js",
+          "status": 200
+        },
+        {
+          "path": "/assets/access-roles-page-BO8bIVSD.css",
+          "status": 200
+        },
+        {
+          "path": "/console/assets/access-roles-page-BO8bIVSD.css",
+          "status": 200
+        },
+        {
+          "path": "/assets/access-roles-page-CBnk4upK.js",
+          "status": 200
+        },
+        {
+          "path": "/console/assets/access-roles-page-CBnk4upK.js",
+          "status": 200
+        },
+        {
+          "path": "/assets/access-users-page-Bg_-OIjC.js",
+          "status": 200
+        },
+        {
+          "path": "/console/assets/access-users-page-Bg_-OIjC.js",
+          "status": 200
+        },
+        {
+          "path": "/assets/action-menu-Dv0KA1Up.js",
+          "status": 200
+        },
+        {
+          "path": "/console/assets/action-menu-Dv0KA1Up.js",
+          "status": 200
+        },
+        {
+          "path": "/assets/activity-C6Wjubl2.js",
+          "status": 200
+        },
+        {
+          "path": "/console/assets/activity-C6Wjubl2.js",
+          "status": 200
+        },
+        {
+          "path": "/assets/alert-BWyCcnRa.js",
+          "status": 200
+        },
+        {
+          "path": "/console/assets/alert-BWyCcnRa.js",
+          "status": 200
+        },
+        {
+          "path": "/assets/badge-OW3g16Oh.js",
+          "status": 200
+        },
+        {
+          "path": "/console/assets/badge-OW3g16Oh.js",
+          "status": 200
+        },
+        {
+          "path": "/assets/builds-BhcPewqH.js",
+          "status": 200
+        },
+        {
+          "path": "/console/assets/builds-BhcPewqH.js",
+          "status": 200
+        },
+        {
+          "path": "/assets/builds-page-BEV8No5U.js",
+          "status": 200
+        },
+        {
+          "path": "/console/assets/builds-page-BEV8No5U.js",
+          "status": 200
+        },
+        {
+          "path": "/assets/builds-page-DPSeElhz.css",
+          "status": 200
+        },
+        {
+          "path": "/console/assets/builds-page-DPSeElhz.css",
+          "status": 200
+        },
+        {
+          "path": "/assets/card-BhqefgbM.js",
+          "status": 200
+        },
+        {
+          "path": "/console/assets/card-BhqefgbM.js",
+          "status": 200
+        },
+        {
+          "path": "/assets/chevron-down-C1KIKeCa.js",
+          "status": 200
+        },
+        {
+          "path": "/console/assets/chevron-down-C1KIKeCa.js",
+          "status": 200
+        },
+        {
+          "path": "/assets/chevron-left-Y2wo7Xec.js",
+          "status": 200
+        },
+        {
+          "path": "/console/assets/chevron-left-Y2wo7Xec.js",
+          "status": 200
+        },
+        {
+          "path": "/assets/chevron-right-CfbPxlQa.js",
+          "status": 200
+        },
+        {
+          "path": "/console/assets/chevron-right-CfbPxlQa.js",
+          "status": 200
+        },
+        {
+          "path": "/assets/collapse-BgX--bqA.js",
+          "status": 200
+        },
+        {
+          "path": "/console/assets/collapse-BgX--bqA.js",
+          "status": 200
+        },
+        {
+          "path": "/assets/command-CfsS4uDk.js",
+          "status": 200
+        },
+        {
+          "path": "/console/assets/command-CfsS4uDk.js",
+          "status": 200
+        },
+        {
+          "path": "/assets/config-provider-DWHTOUEA.js",
+          "status": 200
+        },
+        {
+          "path": "/console/assets/config-provider-DWHTOUEA.js",
+          "status": 200
+        },
+        {
+          "path": "/assets/configs-page-YFbfRRDH.js",
+          "status": 200
+        },
+        {
+          "path": "/console/assets/configs-page-YFbfRRDH.js",
+          "status": 200
+        },
+        {
+          "path": "/assets/context-C482taiw.js",
+          "status": 200
+        },
+        {
+          "path": "/console/assets/context-C482taiw.js",
+          "status": 200
+        },
+        {
+          "path": "/assets/context-CgYzR2b9.js",
+          "status": 200
+        },
+        {
+          "path": "/console/assets/context-CgYzR2b9.js",
+          "status": 200
+        },
+        {
+          "path": "/assets/copy-DgBQnHsw.js",
+          "status": 200
+        },
+        {
+          "path": "/console/assets/copy-DgBQnHsw.js",
+          "status": 200
+        },
+        {
+          "path": "/assets/credentials-page-Bg7XVhIc.js",
+          "status": 200
+        },
+        {
+          "path": "/console/assets/credentials-page-Bg7XVhIc.js",
+          "status": 200
+        },
+        {
+          "path": "/assets/dashboard-page-C5QTwuKt.css",
+          "status": 200
+        },
+        {
+          "path": "/console/assets/dashboard-page-C5QTwuKt.css",
+          "status": 200
+        },
+        {
+          "path": "/assets/dashboard-page-uzkWGTab.js",
+          "status": 200
+        },
+        {
+          "path": "/console/assets/dashboard-page-uzkWGTab.js",
+          "status": 200
+        },
+        {
+          "path": "/assets/deployment-options-CcX4Sgal.js",
+          "status": 200
+        },
+        {
+          "path": "/console/assets/deployment-options-CcX4Sgal.js",
+          "status": 200
+        },
+        {
+          "path": "/assets/diagnostics-page-JEuPAna3.js",
+          "status": 200
+        },
+        {
+          "path": "/console/assets/diagnostics-page-JEuPAna3.js",
+          "status": 200
+        },
+        {
+          "path": "/assets/dialog-Cu6KYnmi.js",
+          "status": 200
+        },
+        {
+          "path": "/console/assets/dialog-Cu6KYnmi.js",
+          "status": 200
+        },
+        {
+          "path": "/assets/dist-BVyVd9XC.js",
+          "status": 200
+        },
+        {
+          "path": "/console/assets/dist-BVyVd9XC.js",
+          "status": 200
+        },
+        {
+          "path": "/assets/dist-DKZ8D-UA.js",
+          "status": 200
+        },
+        {
+          "path": "/console/assets/dist-DKZ8D-UA.js",
+          "status": 200
+        },
+        {
+          "path": "/assets/dist-wTiNGevj.js",
+          "status": 200
+        },
+        {
+          "path": "/console/assets/dist-wTiNGevj.js",
+          "status": 200
+        },
+        {
+          "path": "/assets/downstream-credentials-page-BlB0jakO.css",
+          "status": 200
+        },
+        {
+          "path": "/console/assets/downstream-credentials-page-BlB0jakO.css",
+          "status": 200
+        },
+        {
+          "path": "/assets/downstream-credentials-page-CshPSd0r.js",
+          "status": 200
+        },
+        {
+          "path": "/console/assets/downstream-credentials-page-CshPSd0r.js",
+          "status": 200
+        },
+        {
+          "path": "/assets/es-BlfxCsxF.js",
+          "status": 200
+        },
+        {
+          "path": "/console/assets/es-BlfxCsxF.js",
+          "status": 200
+        },
+        {
+          "path": "/assets/external-connections-page-DXNrSTR9.js",
+          "status": 200
+        },
+        {
+          "path": "/console/assets/external-connections-page-DXNrSTR9.js",
+          "status": 200
+        },
+        {
+          "path": "/assets/external-connections-page-mT9jXUKm.css",
+          "status": 200
+        },
+        {
+          "path": "/console/assets/external-connections-page-mT9jXUKm.css",
+          "status": 200
+        },
+        {
+          "path": "/assets/filter-radio-By-vwnXz.css",
+          "status": 200
+        },
+        {
+          "path": "/console/assets/filter-radio-By-vwnXz.css",
+          "status": 200
+        },
+        {
+          "path": "/assets/filter-radio-omTQlyWe.js",
+          "status": 200
+        },
+        {
+          "path": "/console/assets/filter-radio-omTQlyWe.js",
+          "status": 200
+        },
+        {
+          "path": "/assets/form-5DWEzj3M.js",
+          "status": 200
+        },
+        {
+          "path": "/console/assets/form-5DWEzj3M.js",
+          "status": 200
+        },
+        {
+          "path": "/assets/form-dialog-eXHnktg3.js",
+          "status": 200
+        },
+        {
+          "path": "/console/assets/form-dialog-eXHnktg3.js",
+          "status": 200
+        },
+        {
+          "path": "/assets/http-CTk34Y6z.js",
+          "status": 200
+        },
+        {
+          "path": "/console/assets/http-CTk34Y6z.js",
+          "status": 200
+        },
+        {
+          "path": "/assets/index-BblcVoBI.js",
+          "status": 200
+        },
+        {
+          "path": "/console/assets/index-BblcVoBI.js",
+          "status": 200
+        },
+        {
+          "path": "/assets/index-C_hPtwDh.css",
+          "status": 200
+        },
+        {
+          "path": "/console/assets/index-C_hPtwDh.css",
+          "status": 200
+        },
+        {
+          "path": "/assets/info-Bx3wqeIY.js",
+          "status": 200
+        },
+        {
+          "path": "/console/assets/info-Bx3wqeIY.js",
+          "status": 200
+        },
+        {
+          "path": "/assets/input-number-BKcfprjf.js",
+          "status": 200
+        },
+        {
+          "path": "/console/assets/input-number-BKcfprjf.js",
+          "status": 200
+        },
+        {
+          "path": "/assets/invocation-audit-page-Bt20jPN4.css",
+          "status": 200
+        },
+        {
+          "path": "/console/assets/invocation-audit-page-Bt20jPN4.css",
+          "status": 200
+        },
+        {
+          "path": "/assets/invocation-audit-page-CqPTNtQU.js",
+          "status": 200
+        },
+        {
+          "path": "/console/assets/invocation-audit-page-CqPTNtQU.js",
+          "status": 200
+        },
+        {
+          "path": "/assets/invocation-payload-panel-MkU7VMKX.js",
+          "status": 200
+        },
+        {
+          "path": "/console/assets/invocation-payload-panel-MkU7VMKX.js",
+          "status": 200
+        },
+        {
+          "path": "/assets/invoke-page-BTA55JBX.css",
+          "status": 200
+        },
+        {
+          "path": "/console/assets/invoke-page-BTA55JBX.css",
+          "status": 200
+        },
+        {
+          "path": "/assets/invoke-page-BVuOSDrs.js",
+          "status": 200
+        },
+        {
+          "path": "/console/assets/invoke-page-BVuOSDrs.js",
+          "status": 200
+        },
+        {
+          "path": "/assets/json-panel-BQduC3Ep.js",
+          "status": 200
+        },
+        {
+          "path": "/console/assets/json-panel-BQduC3Ep.js",
+          "status": 200
+        },
+        {
+          "path": "/assets/list-pagination-CFUjdCU4.css",
+          "status": 200
+        },
+        {
+          "path": "/console/assets/list-pagination-CFUjdCU4.css",
+          "status": 200
+        },
+        {
+          "path": "/assets/list-pagination-DFBrXFNJ.js",
+          "status": 200
+        },
+        {
+          "path": "/console/assets/list-pagination-DFBrXFNJ.js",
+          "status": 200
+        },
+        {
+          "path": "/assets/logs-events-page-By2wPKjp.css",
+          "status": 200
+        },
+        {
+          "path": "/console/assets/logs-events-page-By2wPKjp.css",
+          "status": 200
+        },
+        {
+          "path": "/assets/logs-events-page-DAdATdrA.js",
+          "status": 200
+        },
+        {
+          "path": "/console/assets/logs-events-page-DAdATdrA.js",
+          "status": 200
+        },
+        {
+          "path": "/assets/maintenance-lists-Db-gJatN.css",
+          "status": 200
+        },
+        {
+          "path": "/console/assets/maintenance-lists-Db-gJatN.css",
+          "status": 200
+        },
+        {
+          "path": "/assets/mcp-config-editor-BAkFRdpf.css",
+          "status": 200
+        },
+        {
+          "path": "/console/assets/mcp-config-editor-BAkFRdpf.css",
+          "status": 200
+        },
+        {
+          "path": "/assets/mcp-config-editor-DIwEDRr1.js",
+          "status": 200
+        },
+        {
+          "path": "/console/assets/mcp-config-editor-DIwEDRr1.js",
+          "status": 200
+        },
+        {
+          "path": "/assets/network-CPko-rSJ.js",
+          "status": 200
+        },
+        {
+          "path": "/console/assets/network-CPko-rSJ.js",
+          "status": 200
+        },
+        {
+          "path": "/assets/network-settings-panel-ChV9eh_J.css",
+          "status": 200
+        },
+        {
+          "path": "/console/assets/network-settings-panel-ChV9eh_J.css",
+          "status": 200
+        },
+        {
+          "path": "/assets/network-settings-panel-jy3sZIl7.js",
+          "status": 200
+        },
+        {
+          "path": "/console/assets/network-settings-panel-jy3sZIl7.js",
+          "status": 200
+        },
+        {
+          "path": "/assets/page-shell-DoCOfY_C.js",
+          "status": 200
+        },
+        {
+          "path": "/console/assets/page-shell-DoCOfY_C.js",
+          "status": 200
+        },
+        {
+          "path": "/assets/page-utils-DD4d3K4s.js",
+          "status": 200
+        },
+        {
+          "path": "/console/assets/page-utils-DD4d3K4s.js",
+          "status": 200
+        },
+        {
+          "path": "/assets/pagination-IVGuxch9.js",
+          "status": 200
+        },
+        {
+          "path": "/console/assets/pagination-IVGuxch9.js",
+          "status": 200
+        },
+        {
+          "path": "/assets/personal-tokens-page-CgKMttU8.css",
+          "status": 200
+        },
+        {
+          "path": "/console/assets/personal-tokens-page-CgKMttU8.css",
+          "status": 200
+        },
+        {
+          "path": "/assets/personal-tokens-page-CnRO9qCl.js",
+          "status": 200
+        },
+        {
+          "path": "/console/assets/personal-tokens-page-CnRO9qCl.js",
+          "status": 200
+        },
+        {
+          "path": "/assets/personal-workspace-page-Bxtrfd6J.css",
+          "status": 200
+        },
+        {
+          "path": "/console/assets/personal-workspace-page-Bxtrfd6J.css",
+          "status": 200
+        },
+        {
+          "path": "/assets/personal-workspace-page-D0UH7dLT.js",
+          "status": 200
+        },
+        {
+          "path": "/console/assets/personal-workspace-page-D0UH7dLT.js",
+          "status": 200
+        },
+        {
+          "path": "/assets/plus-D_pyY9nN.js",
+          "status": 200
+        },
+        {
+          "path": "/console/assets/plus-D_pyY9nN.js",
+          "status": 200
+        },
+        {
+          "path": "/assets/query-status-BnfV0vtj.js",
+          "status": 200
+        },
+        {
+          "path": "/console/assets/query-status-BnfV0vtj.js",
+          "status": 200
+        },
+        {
+          "path": "/assets/radio-CwpO4NvB.js",
+          "status": 200
+        },
+        {
+          "path": "/console/assets/radio-CwpO4NvB.js",
+          "status": 200
+        },
+        {
+          "path": "/assets/runtime-cache-page-BLf0ZTHt.js",
+          "status": 200
+        },
+        {
+          "path": "/console/assets/runtime-cache-page-BLf0ZTHt.js",
+          "status": 200
+        },
+        {
+          "path": "/assets/search-DhTkXi8A.js",
+          "status": 200
+        },
+        {
+          "path": "/console/assets/search-DhTkXi8A.js",
+          "status": 200
+        },
+        {
+          "path": "/assets/segmented-CwwCg9eA.js",
+          "status": 200
+        },
+        {
+          "path": "/console/assets/segmented-CwwCg9eA.js",
+          "status": 200
+        },
+        {
+          "path": "/assets/select-1f_zeaWe.js",
+          "status": 200
+        },
+        {
+          "path": "/console/assets/select-1f_zeaWe.js",
+          "status": 200
+        },
+        {
+          "path": "/assets/select-BXj1UITW.js",
+          "status": 200
+        },
+        {
+          "path": "/console/assets/select-BXj1UITW.js",
+          "status": 200
+        },
+        {
+          "path": "/assets/servers-page-D0AvbjH-.js",
+          "status": 200
+        },
+        {
+          "path": "/console/assets/servers-page-D0AvbjH-.js",
+          "status": 200
+        },
+        {
+          "path": "/assets/servers-page-DepLcCbk.css",
+          "status": 200
+        },
+        {
+          "path": "/console/assets/servers-page-DepLcCbk.css",
+          "status": 200
+        },
+        {
+          "path": "/assets/shield-alert-Cp4L2uk_.js",
+          "status": 200
+        },
+        {
+          "path": "/console/assets/shield-alert-Cp4L2uk_.js",
+          "status": 200
+        },
+        {
+          "path": "/assets/shield-check-BJ1vOIKV.js",
+          "status": 200
+        },
+        {
+          "path": "/console/assets/shield-check-BJ1vOIKV.js",
+          "status": 200
+        },
+        {
+          "path": "/assets/skeleton-C6I4ewAl.js",
+          "status": 200
+        },
+        {
+          "path": "/console/assets/skeleton-C6I4ewAl.js",
+          "status": 200
+        },
+        {
+          "path": "/assets/space-Ddo43wfB.js",
+          "status": 200
+        },
+        {
+          "path": "/console/assets/space-Ddo43wfB.js",
+          "status": 200
+        },
+        {
+          "path": "/assets/style-CaSOBl_y.js",
+          "status": 200
+        },
+        {
+          "path": "/console/assets/style-CaSOBl_y.js",
+          "status": 200
+        },
+        {
+          "path": "/assets/switch--lFydxs1.js",
+          "status": 200
+        },
+        {
+          "path": "/console/assets/switch--lFydxs1.js",
+          "status": 200
+        },
+        {
+          "path": "/assets/switch-CXyDLd3S.js",
+          "status": 200
+        },
+        {
+          "path": "/console/assets/switch-CXyDLd3S.js",
+          "status": 200
+        },
+        {
+          "path": "/assets/system-settings-page-Cwpg3aXl.js",
+          "status": 200
+        },
+        {
+          "path": "/console/assets/system-settings-page-Cwpg3aXl.js",
+          "status": 200
+        },
+        {
+          "path": "/assets/table-DwidlQvd.js",
+          "status": 200
+        },
+        {
+          "path": "/console/assets/table-DwidlQvd.js",
+          "status": 200
+        },
+        {
+          "path": "/assets/table-tools-Cfo408TU.js",
+          "status": 200
+        },
+        {
+          "path": "/console/assets/table-tools-Cfo408TU.js",
+          "status": 200
+        },
+        {
+          "path": "/assets/tabs-kBGfCh4r.js",
+          "status": 200
+        },
+        {
+          "path": "/console/assets/tabs-kBGfCh4r.js",
+          "status": 200
+        },
+        {
+          "path": "/assets/tag-B_MAFVrO.js",
+          "status": 200
+        },
+        {
+          "path": "/console/assets/tag-B_MAFVrO.js",
+          "status": 200
+        },
+        {
+          "path": "/assets/textarea-tJL5OFBK.js",
+          "status": 200
+        },
+        {
+          "path": "/console/assets/textarea-tJL5OFBK.js",
+          "status": 200
+        },
+        {
+          "path": "/assets/tool-access-CtKHIheZ.js",
+          "status": 200
+        },
+        {
+          "path": "/console/assets/tool-access-CtKHIheZ.js",
+          "status": 200
+        },
+        {
+          "path": "/assets/tool-classifications-page-BGhDXg7K.css",
+          "status": 200
+        },
+        {
+          "path": "/console/assets/tool-classifications-page-BGhDXg7K.css",
+          "status": 200
+        },
+        {
+          "path": "/assets/tool-classifications-page-BO-2NyRg.js",
+          "status": 200
+        },
+        {
+          "path": "/console/assets/tool-classifications-page-BO-2NyRg.js",
+          "status": 200
+        },
+        {
+          "path": "/assets/tool-origin-mXy-TKr4.js",
+          "status": 200
+        },
+        {
+          "path": "/console/assets/tool-origin-mXy-TKr4.js",
+          "status": 200
+        },
+        {
+          "path": "/assets/tools-page-lFlOsfiq.css",
+          "status": 200
+        },
+        {
+          "path": "/console/assets/tools-page-lFlOsfiq.css",
+          "status": 200
+        },
+        {
+          "path": "/assets/tools-page-xbjOThNA.js",
+          "status": 200
+        },
+        {
+          "path": "/console/assets/tools-page-xbjOThNA.js",
+          "status": 200
+        },
+        {
+          "path": "/assets/tooltip-C2ZjJ2UH.js",
+          "status": 200
+        },
+        {
+          "path": "/console/assets/tooltip-C2ZjJ2UH.js",
+          "status": 200
+        },
+        {
+          "path": "/assets/uploads-page-DZN4Cm32.js",
+          "status": 200
+        },
+        {
+          "path": "/console/assets/uploads-page-DZN4Cm32.js",
+          "status": 200
+        },
+        {
+          "path": "/assets/use-draft-close-guard-D2-uOUhL.js",
+          "status": 200
+        },
+        {
+          "path": "/console/assets/use-draft-close-guard-D2-uOUhL.js",
+          "status": 200
+        },
+        {
+          "path": "/assets/use-remaining-viewport-DbWVprg9.js",
+          "status": 200
+        },
+        {
+          "path": "/console/assets/use-remaining-viewport-DbWVprg9.js",
+          "status": 200
+        },
+        {
+          "path": "/assets/useClosable-DPAx9KaY.js",
+          "status": 200
+        },
+        {
+          "path": "/console/assets/useClosable-DPAx9KaY.js",
+          "status": 200
+        },
+        {
+          "path": "/assets/useModal-DmoF0W0g.js",
+          "status": 200
+        },
+        {
+          "path": "/console/assets/useModal-DmoF0W0g.js",
+          "status": 200
+        },
+        {
+          "path": "/assets/user-plus-BTAxZYVC.js",
+          "status": 200
+        },
+        {
+          "path": "/console/assets/user-plus-BTAxZYVC.js",
+          "status": 200
+        },
+        {
+          "path": "/assets/validateMessagesContext-Ym1bDdgu.js",
+          "status": 200
+        },
+        {
+          "path": "/console/assets/validateMessagesContext-Ym1bDdgu.js",
+          "status": 200
+        },
+        {
+          "path": "/assets/validation-D6vjtMIC.js",
+          "status": 200
+        },
+        {
+          "path": "/console/assets/validation-D6vjtMIC.js",
+          "status": 200
+        },
+        {
+          "path": "/assets/validation-errors-CGzfaoDV.js",
+          "status": 200
+        },
+        {
+          "path": "/console/assets/validation-errors-CGzfaoDV.js",
+          "status": 200
+        },
+        {
+          "path": "/lingshu-gate-app-icon.svg",
+          "status": 200
+        },
+        {
+          "path": "/console/lingshu-gate-app-icon.svg",
+          "status": 200
+        },
+        {
+          "path": "/lingshu-gate-icon-512.png",
+          "status": 200
+        },
+        {
+          "path": "/console/lingshu-gate-icon-512.png",
+          "status": 200
+        },
+        {
+          "path": "/lingshu-gate-icon.svg",
+          "status": 200
+        },
+        {
+          "path": "/console/lingshu-gate-icon.svg",
+          "status": 200
+        },
+        {
+          "path": "/docs",
+          "status": 200
+        },
+        {
+          "path": "/openapi.json",
+          "status": 200
+        },
+        {
+          "path": "/v1/mcp/configs",
+          "status": 401
+        },
+        {
+          "path": "/v1/auth/me",
+          "status": 401
+        },
+        {
+          "method": "POST",
+          "path": "/mcp",
+          "status": 401
+        },
+        {
+          "path": "/.well-known/oauth-authorization-server",
+          "status": 404
+        },
+        {
+          "path": "/oauth/consent",
+          "status": 404
+        },
+        {
+          "path": "/oauth/unknown",
+          "status": 404
+        },
+        {
+          "path": "/assets/not-built.js",
+          "status": 404
+        },
+        {
+          "path": "/assets/%2e%2e/private.json",
+          "status": 404
+        },
+        {
+          "path": "/assets/%5c..%5coutside.json",
+          "status": 404
+        },
+        {
+          "path": "/console/assets/%2e%2e/index.html",
+          "status": 404
+        },
+        {
+          "path": "/index.html",
+          "status": 404
+        },
+        {
+          "path": "/unknown-root-path",
+          "status": 404
+        },
+        {
+          "path": "/v1/unknown",
+          "status": 404
+        },
+        {
+          "path": "/mcp/unknown",
+          "status": 404
+        }
+      ],
+      "console_file_pairs": 114,
+      "all_bytes_match_current_vite_output": true,
+      "runtime_version": "0.4.5",
+      "cleanup": {
+        "owned_process_reaped": true,
+        "runtime_directory_removed": true,
+        "listener_closed": true
+      }
+    },
+    "native_worker": {
+      "source_sha": "7c7e39f0f5b6a13f332ad20d1f6c6370a5e9c692",
+      "native_archive_sha256": "a7cc063119d2e788b24f1440bb1e171c2d2fb545a63680171a088d3a921ca78c",
+      "cases": [
+        {
+          "case": "draft2020-local-ref-valid",
+          "exit_code": 0,
+          "output": "valid",
+          "wall_seconds": 0.404739,
+          "child_reaped": true,
+          "service_runtime_not_created": true,
+          "values_not_echoed": true
+        },
+        {
+          "case": "invalid-argument-refused",
+          "exit_code": 1,
+          "output": "",
+          "wall_seconds": 0.400574,
+          "child_reaped": true,
+          "service_runtime_not_created": true,
+          "values_not_echoed": true
+        },
+        {
+          "case": "unknown-schema-dialect-refused",
+          "exit_code": 1,
+          "output": "",
+          "wall_seconds": 0.391172,
+          "child_reaped": true,
+          "service_runtime_not_created": true,
+          "values_not_echoed": true
+        },
+        {
+          "case": "remote-reference-refused",
+          "exit_code": 1,
+          "output": "",
+          "wall_seconds": 0.415775,
+          "child_reaped": true,
+          "service_runtime_not_created": true,
+          "values_not_echoed": true
+        },
+        {
+          "case": "parent-dispatch-native-valid",
+          "result": "valid",
+          "worker_count": 1,
+          "child_reaped": true,
+          "wall_seconds": 0.40525,
+          "service_runtime_not_created": true
+        },
+        {
+          "case": "parent-dispatch-native-invalid",
+          "result": "catalog_arguments_invalid",
+          "worker_count": 1,
+          "child_reaped": true,
+          "wall_seconds": 0.401848,
+          "service_runtime_not_created": true
+        },
+        {
+          "case": "deadline-kills-native-worker",
+          "result": "catalog_validation_timeout",
+          "worker_count": 1,
+          "child_reaped": true,
+          "wall_seconds": 0.505675,
+          "service_runtime_not_created": true
+        },
+        {
+          "case": "cancellation-kills-native-worker",
+          "result": "catalog_validation_cancelled",
+          "worker_count": 1,
+          "child_reaped": true,
+          "wall_seconds": 0.306709,
+          "service_runtime_not_created": true
+        },
+        {
+          "case": "slot-reused-after-kill",
+          "result": "valid",
+          "worker_count": 1,
+          "child_reaped": true,
+          "wall_seconds": 0.452179,
+          "service_runtime_not_created": true
+        }
+      ],
+      "cleanup": {
+        "runtime_directory_removed": true,
+        "all_owned_children_reaped": true
+      }
+    },
+    "wheel_and_sdist": {
+      "source_sha": "7c7e39f0f5b6a13f332ad20d1f6c6370a5e9c692",
+      "pep517_build_backend": "setuptools.build_meta",
+      "setuptools": "84.0.0",
+      "sdist": {
+        "name": "lingshu_gate-0.4.5.tar.gz",
+        "bytes": 2136397,
+        "sha256": "21beb56e248187438aae0acec0b797d34705130916031a3d3580e7372a99e13f"
+      },
+      "wheels": [
+        {
+          "route": "direct",
+          "name": "lingshu_gate-0.4.5-py3-none-any.whl",
+          "bytes": 1923055,
+          "sha256": "bd61f0bcad798c2ce6cd776e8e0f0c68718946c0516a52ba19f6e650352a8a25",
+          "exact_static_inventory_and_record": true
+        },
+        {
+          "route": "from-sdist",
+          "name": "lingshu_gate-0.4.5-py3-none-any.whl",
+          "bytes": 1923055,
+          "sha256": "bd61f0bcad798c2ce6cd776e8e0f0c68718946c0516a52ba19f6e650352a8a25",
+          "exact_static_inventory_and_record": true
+        }
+      ],
+      "direct_and_sdist_wheel_bytes_equal": true,
+      "static_counts": {
+        "console": 115,
+        "oauth": 3
+      },
+      "owned_staging_removed": true
+    },
+    "native_linux": {
+      "archive": "lingshu-gate-v0.4.5-linux-x86_64.tar.gz",
+      "bytes": 36312965,
+      "sha256": "a7cc063119d2e788b24f1440bb1e171c2d2fb545a63680171a088d3a921ca78c",
+      "build_source_sha": "7c7e39f0f5b6a13f332ad20d1f6c6370a5e9c692",
+      "static_counts": {
+        "console": 115,
+        "oauth": 3
+      },
+      "static_manifest_sha256": "95bf75f824b5d0770931666340a1b4a3156fc660eba46e81154176d566b60902",
+      "all_packaged_static_bytes_equal_current_build": true,
+      "initial_and_native_web_builds_identical": true,
+      "smoke_runtime_directory_removed": true,
+      "build_info": {
+        "application": "Lingshu Gate",
+        "builder": {
+          "altgraph": "0.17.5",
+          "implementation": "CPython",
+          "machine": "x86_64",
+          "node": "v22.23.2",
+          "npm": "10.9.8",
+          "packaging": "26.3",
+          "pyinstaller": "6.22.3",
+          "pyinstaller-hooks-contrib": "2026.7",
+          "python": "3.13.15",
+          "system": "Linux",
+          "uv": "uv 0.11.33 (x86_64-unknown-linux-gnu)"
+        },
+        "created": "2026-10-07T18:34:59Z",
+        "source_date_epoch": 1791398099,
+        "source_revision": "7c7e39f0f5b6a13f332ad20d1f6c6370a5e9c692",
+        "target": "linux-x86_64",
+        "version": "0.4.5"
+      },
+      "complete_build_info_file_count": 467,
+      "build_info_canonical_sha256": "0989211c8426bc3ef2f9c62af856350b18d02bc5693df8d9ba719d28da88e9ba"
+    },
+    "installed_wheel_worker": {
+      "source_sha": "7c7e39f0f5b6a13f332ad20d1f6c6370a5e9c692",
+      "wheel_sha256": "bd61f0bcad798c2ce6cd776e8e0f0c68718946c0516a52ba19f6e650352a8a25",
+      "cases": [
+        {
+          "case": "draft2020-local-ref-valid",
+          "exit_code": 0,
+          "output": "valid",
+          "wall_seconds": 0.268712,
+          "child_reaped": true,
+          "service_runtime_not_created": true,
+          "values_not_echoed": true
+        },
+        {
+          "case": "invalid-argument-refused",
+          "exit_code": 1,
+          "output": "",
+          "wall_seconds": 0.213563,
+          "child_reaped": true,
+          "service_runtime_not_created": true,
+          "values_not_echoed": true
+        },
+        {
+          "case": "unknown-schema-dialect-refused",
+          "exit_code": 1,
+          "output": "",
+          "wall_seconds": 0.222701,
+          "child_reaped": true,
+          "service_runtime_not_created": true,
+          "values_not_echoed": true
+        },
+        {
+          "case": "remote-reference-refused",
+          "exit_code": 1,
+          "output": "",
+          "wall_seconds": 0.209687,
+          "child_reaped": true,
+          "service_runtime_not_created": true,
+          "values_not_echoed": true
+        },
+        {
+          "case": "parent-dispatch-wheel-valid",
+          "result": "valid",
+          "worker_count": 1,
+          "child_reaped": true,
+          "wall_seconds": 0.208889,
+          "service_runtime_not_created": true
+        },
+        {
+          "case": "parent-dispatch-wheel-invalid",
+          "result": "catalog_arguments_invalid",
+          "worker_count": 1,
+          "child_reaped": true,
+          "wall_seconds": 0.233272,
+          "service_runtime_not_created": true
+        },
+        {
+          "case": "deadline-kills-wheel-worker",
+          "result": "catalog_validation_timeout",
+          "worker_count": 1,
+          "child_reaped": true,
+          "wall_seconds": 0.501995,
+          "service_runtime_not_created": true
+        },
+        {
+          "case": "cancellation-kills-wheel-worker",
+          "result": "catalog_validation_cancelled",
+          "worker_count": 1,
+          "child_reaped": true,
+          "wall_seconds": 0.305157,
+          "service_runtime_not_created": true
+        },
+        {
+          "case": "slot-reused-after-kill",
+          "result": "valid",
+          "worker_count": 1,
+          "child_reaped": true,
+          "wall_seconds": 0.233208,
+          "service_runtime_not_created": true
+        }
+      ],
+      "cleanup": {
+        "runtime_directory_removed": true,
+        "all_owned_children_reaped": true
+      }
+    },
+    "installed_wheel_http": {
+      "source_sha": "7c7e39f0f5b6a13f332ad20d1f6c6370a5e9c692",
+      "wheel_sha256": "bd61f0bcad798c2ce6cd776e8e0f0c68718946c0516a52ba19f6e650352a8a25",
+      "real_loopback_http": true,
+      "requests": [
+        {
+          "path": "/",
+          "status": 200,
+          "accept": null,
+          "representation": "json"
+        },
+        {
+          "path": "/",
+          "status": 200,
+          "accept": "*/*",
+          "representation": "json"
+        },
+        {
+          "path": "/",
+          "status": 200,
+          "accept": "text/html",
+          "representation": "html"
+        },
+        {
+          "path": "/",
+          "status": 200,
+          "accept": "application/json;q=0.001,text/html;q=1",
+          "representation": "json"
+        },
+        {
+          "path": "/",
+          "status": 200,
+          "accept": "application/json;q=0,text/html",
+          "representation": "html"
+        },
+        {
+          "path": "/",
+          "status": 200,
+          "accept": "text/html;q=0,*/*;q=1",
+          "representation": "json"
+        },
+        {
+          "path": "/",
+          "status": 406,
+          "accept": "text/html;q=0,application/json;q=0,*/*;q=1",
+          "representation": "json"
+        },
+        {
+          "path": "/",
+          "status": 200
+        },
+        {
+          "path": "/v1/meta",
+          "status": 200
+        },
+        {
+          "path": "/healthz",
+          "status": 200
+        },
+        {
+          "path": "/",
+          "status": 200
+        },
+        {
+          "path": "/console?bookmark=one&bookmark=two&return=%2F%23%2FmyServers&label=a+b",
+          "status": 307
+        },
+        {
+          "path": "/?bookmark=one&bookmark=two&return=%2F%23%2FmyServers&label=a+b",
+          "status": 200
+        },
+        {
+          "path": "/console/?bookmark=one&bookmark=two&return=%2F%23%2FmyServers&label=a+b",
+          "status": 307
+        },
+        {
+          "path": "/?bookmark=one&bookmark=two&return=%2F%23%2FmyServers&label=a+b",
+          "status": 200
+        },
+        {
+          "path": "/console/index.html?bookmark=one&bookmark=two&return=%2F%23%2FmyServers&label=a+b",
+          "status": 307
+        },
+        {
+          "path": "/?bookmark=one&bookmark=two&return=%2F%23%2FmyServers&label=a+b",
+          "status": 200
+        },
+        {
+          "path": "/assets/ExclamationCircleFilled-Dt3xfINN.js",
+          "status": 200
+        },
+        {
+          "path": "/console/assets/ExclamationCircleFilled-Dt3xfINN.js",
+          "status": 200
+        },
+        {
+          "path": "/assets/InfoCircleOutlined-BMOKeI_z.js",
+          "status": 200
+        },
+        {
+          "path": "/console/assets/InfoCircleOutlined-BMOKeI_z.js",
+          "status": 200
+        },
+        {
+          "path": "/assets/PlusOutlined-DVH659TE.js",
+          "status": 200
+        },
+        {
+          "path": "/console/assets/PlusOutlined-DVH659TE.js",
+          "status": 200
+        },
+        {
+          "path": "/assets/RightOutlined-CuMeqWz4.js",
+          "status": 200
+        },
+        {
+          "path": "/console/assets/RightOutlined-CuMeqWz4.js",
+          "status": 200
+        },
+        {
+          "path": "/assets/access-grants-page-DVRgzBqd.js",
+          "status": 200
+        },
+        {
+          "path": "/console/assets/access-grants-page-DVRgzBqd.js",
+          "status": 200
+        },
+        {
+          "path": "/assets/access-roles-page-BO8bIVSD.css",
+          "status": 200
+        },
+        {
+          "path": "/console/assets/access-roles-page-BO8bIVSD.css",
+          "status": 200
+        },
+        {
+          "path": "/assets/access-roles-page-CBnk4upK.js",
+          "status": 200
+        },
+        {
+          "path": "/console/assets/access-roles-page-CBnk4upK.js",
+          "status": 200
+        },
+        {
+          "path": "/assets/access-users-page-Bg_-OIjC.js",
+          "status": 200
+        },
+        {
+          "path": "/console/assets/access-users-page-Bg_-OIjC.js",
+          "status": 200
+        },
+        {
+          "path": "/assets/action-menu-Dv0KA1Up.js",
+          "status": 200
+        },
+        {
+          "path": "/console/assets/action-menu-Dv0KA1Up.js",
+          "status": 200
+        },
+        {
+          "path": "/assets/activity-C6Wjubl2.js",
+          "status": 200
+        },
+        {
+          "path": "/console/assets/activity-C6Wjubl2.js",
+          "status": 200
+        },
+        {
+          "path": "/assets/alert-BWyCcnRa.js",
+          "status": 200
+        },
+        {
+          "path": "/console/assets/alert-BWyCcnRa.js",
+          "status": 200
+        },
+        {
+          "path": "/assets/badge-OW3g16Oh.js",
+          "status": 200
+        },
+        {
+          "path": "/console/assets/badge-OW3g16Oh.js",
+          "status": 200
+        },
+        {
+          "path": "/assets/builds-BhcPewqH.js",
+          "status": 200
+        },
+        {
+          "path": "/console/assets/builds-BhcPewqH.js",
+          "status": 200
+        },
+        {
+          "path": "/assets/builds-page-BEV8No5U.js",
+          "status": 200
+        },
+        {
+          "path": "/console/assets/builds-page-BEV8No5U.js",
+          "status": 200
+        },
+        {
+          "path": "/assets/builds-page-DPSeElhz.css",
+          "status": 200
+        },
+        {
+          "path": "/console/assets/builds-page-DPSeElhz.css",
+          "status": 200
+        },
+        {
+          "path": "/assets/card-BhqefgbM.js",
+          "status": 200
+        },
+        {
+          "path": "/console/assets/card-BhqefgbM.js",
+          "status": 200
+        },
+        {
+          "path": "/assets/chevron-down-C1KIKeCa.js",
+          "status": 200
+        },
+        {
+          "path": "/console/assets/chevron-down-C1KIKeCa.js",
+          "status": 200
+        },
+        {
+          "path": "/assets/chevron-left-Y2wo7Xec.js",
+          "status": 200
+        },
+        {
+          "path": "/console/assets/chevron-left-Y2wo7Xec.js",
+          "status": 200
+        },
+        {
+          "path": "/assets/chevron-right-CfbPxlQa.js",
+          "status": 200
+        },
+        {
+          "path": "/console/assets/chevron-right-CfbPxlQa.js",
+          "status": 200
+        },
+        {
+          "path": "/assets/collapse-BgX--bqA.js",
+          "status": 200
+        },
+        {
+          "path": "/console/assets/collapse-BgX--bqA.js",
+          "status": 200
+        },
+        {
+          "path": "/assets/command-CfsS4uDk.js",
+          "status": 200
+        },
+        {
+          "path": "/console/assets/command-CfsS4uDk.js",
+          "status": 200
+        },
+        {
+          "path": "/assets/config-provider-DWHTOUEA.js",
+          "status": 200
+        },
+        {
+          "path": "/console/assets/config-provider-DWHTOUEA.js",
+          "status": 200
+        },
+        {
+          "path": "/assets/configs-page-YFbfRRDH.js",
+          "status": 200
+        },
+        {
+          "path": "/console/assets/configs-page-YFbfRRDH.js",
+          "status": 200
+        },
+        {
+          "path": "/assets/context-C482taiw.js",
+          "status": 200
+        },
+        {
+          "path": "/console/assets/context-C482taiw.js",
+          "status": 200
+        },
+        {
+          "path": "/assets/context-CgYzR2b9.js",
+          "status": 200
+        },
+        {
+          "path": "/console/assets/context-CgYzR2b9.js",
+          "status": 200
+        },
+        {
+          "path": "/assets/copy-DgBQnHsw.js",
+          "status": 200
+        },
+        {
+          "path": "/console/assets/copy-DgBQnHsw.js",
+          "status": 200
+        },
+        {
+          "path": "/assets/credentials-page-Bg7XVhIc.js",
+          "status": 200
+        },
+        {
+          "path": "/console/assets/credentials-page-Bg7XVhIc.js",
+          "status": 200
+        },
+        {
+          "path": "/assets/dashboard-page-C5QTwuKt.css",
+          "status": 200
+        },
+        {
+          "path": "/console/assets/dashboard-page-C5QTwuKt.css",
+          "status": 200
+        },
+        {
+          "path": "/assets/dashboard-page-uzkWGTab.js",
+          "status": 200
+        },
+        {
+          "path": "/console/assets/dashboard-page-uzkWGTab.js",
+          "status": 200
+        },
+        {
+          "path": "/assets/deployment-options-CcX4Sgal.js",
+          "status": 200
+        },
+        {
+          "path": "/console/assets/deployment-options-CcX4Sgal.js",
+          "status": 200
+        },
+        {
+          "path": "/assets/diagnostics-page-JEuPAna3.js",
+          "status": 200
+        },
+        {
+          "path": "/console/assets/diagnostics-page-JEuPAna3.js",
+          "status": 200
+        },
+        {
+          "path": "/assets/dialog-Cu6KYnmi.js",
+          "status": 200
+        },
+        {
+          "path": "/console/assets/dialog-Cu6KYnmi.js",
+          "status": 200
+        },
+        {
+          "path": "/assets/dist-BVyVd9XC.js",
+          "status": 200
+        },
+        {
+          "path": "/console/assets/dist-BVyVd9XC.js",
+          "status": 200
+        },
+        {
+          "path": "/assets/dist-DKZ8D-UA.js",
+          "status": 200
+        },
+        {
+          "path": "/console/assets/dist-DKZ8D-UA.js",
+          "status": 200
+        },
+        {
+          "path": "/assets/dist-wTiNGevj.js",
+          "status": 200
+        },
+        {
+          "path": "/console/assets/dist-wTiNGevj.js",
+          "status": 200
+        },
+        {
+          "path": "/assets/downstream-credentials-page-BlB0jakO.css",
+          "status": 200
+        },
+        {
+          "path": "/console/assets/downstream-credentials-page-BlB0jakO.css",
+          "status": 200
+        },
+        {
+          "path": "/assets/downstream-credentials-page-CshPSd0r.js",
+          "status": 200
+        },
+        {
+          "path": "/console/assets/downstream-credentials-page-CshPSd0r.js",
+          "status": 200
+        },
+        {
+          "path": "/assets/es-BlfxCsxF.js",
+          "status": 200
+        },
+        {
+          "path": "/console/assets/es-BlfxCsxF.js",
+          "status": 200
+        },
+        {
+          "path": "/assets/external-connections-page-DXNrSTR9.js",
+          "status": 200
+        },
+        {
+          "path": "/console/assets/external-connections-page-DXNrSTR9.js",
+          "status": 200
+        },
+        {
+          "path": "/assets/external-connections-page-mT9jXUKm.css",
+          "status": 200
+        },
+        {
+          "path": "/console/assets/external-connections-page-mT9jXUKm.css",
+          "status": 200
+        },
+        {
+          "path": "/assets/filter-radio-By-vwnXz.css",
+          "status": 200
+        },
+        {
+          "path": "/console/assets/filter-radio-By-vwnXz.css",
+          "status": 200
+        },
+        {
+          "path": "/assets/filter-radio-omTQlyWe.js",
+          "status": 200
+        },
+        {
+          "path": "/console/assets/filter-radio-omTQlyWe.js",
+          "status": 200
+        },
+        {
+          "path": "/assets/form-5DWEzj3M.js",
+          "status": 200
+        },
+        {
+          "path": "/console/assets/form-5DWEzj3M.js",
+          "status": 200
+        },
+        {
+          "path": "/assets/form-dialog-eXHnktg3.js",
+          "status": 200
+        },
+        {
+          "path": "/console/assets/form-dialog-eXHnktg3.js",
+          "status": 200
+        },
+        {
+          "path": "/assets/http-CTk34Y6z.js",
+          "status": 200
+        },
+        {
+          "path": "/console/assets/http-CTk34Y6z.js",
+          "status": 200
+        },
+        {
+          "path": "/assets/index-BblcVoBI.js",
+          "status": 200
+        },
+        {
+          "path": "/console/assets/index-BblcVoBI.js",
+          "status": 200
+        },
+        {
+          "path": "/assets/index-C_hPtwDh.css",
+          "status": 200
+        },
+        {
+          "path": "/console/assets/index-C_hPtwDh.css",
+          "status": 200
+        },
+        {
+          "path": "/assets/info-Bx3wqeIY.js",
+          "status": 200
+        },
+        {
+          "path": "/console/assets/info-Bx3wqeIY.js",
+          "status": 200
+        },
+        {
+          "path": "/assets/input-number-BKcfprjf.js",
+          "status": 200
+        },
+        {
+          "path": "/console/assets/input-number-BKcfprjf.js",
+          "status": 200
+        },
+        {
+          "path": "/assets/invocation-audit-page-Bt20jPN4.css",
+          "status": 200
+        },
+        {
+          "path": "/console/assets/invocation-audit-page-Bt20jPN4.css",
+          "status": 200
+        },
+        {
+          "path": "/assets/invocation-audit-page-CqPTNtQU.js",
+          "status": 200
+        },
+        {
+          "path": "/console/assets/invocation-audit-page-CqPTNtQU.js",
+          "status": 200
+        },
+        {
+          "path": "/assets/invocation-payload-panel-MkU7VMKX.js",
+          "status": 200
+        },
+        {
+          "path": "/console/assets/invocation-payload-panel-MkU7VMKX.js",
+          "status": 200
+        },
+        {
+          "path": "/assets/invoke-page-BTA55JBX.css",
+          "status": 200
+        },
+        {
+          "path": "/console/assets/invoke-page-BTA55JBX.css",
+          "status": 200
+        },
+        {
+          "path": "/assets/invoke-page-BVuOSDrs.js",
+          "status": 200
+        },
+        {
+          "path": "/console/assets/invoke-page-BVuOSDrs.js",
+          "status": 200
+        },
+        {
+          "path": "/assets/json-panel-BQduC3Ep.js",
+          "status": 200
+        },
+        {
+          "path": "/console/assets/json-panel-BQduC3Ep.js",
+          "status": 200
+        },
+        {
+          "path": "/assets/list-pagination-CFUjdCU4.css",
+          "status": 200
+        },
+        {
+          "path": "/console/assets/list-pagination-CFUjdCU4.css",
+          "status": 200
+        },
+        {
+          "path": "/assets/list-pagination-DFBrXFNJ.js",
+          "status": 200
+        },
+        {
+          "path": "/console/assets/list-pagination-DFBrXFNJ.js",
+          "status": 200
+        },
+        {
+          "path": "/assets/logs-events-page-By2wPKjp.css",
+          "status": 200
+        },
+        {
+          "path": "/console/assets/logs-events-page-By2wPKjp.css",
+          "status": 200
+        },
+        {
+          "path": "/assets/logs-events-page-DAdATdrA.js",
+          "status": 200
+        },
+        {
+          "path": "/console/assets/logs-events-page-DAdATdrA.js",
+          "status": 200
+        },
+        {
+          "path": "/assets/maintenance-lists-Db-gJatN.css",
+          "status": 200
+        },
+        {
+          "path": "/console/assets/maintenance-lists-Db-gJatN.css",
+          "status": 200
+        },
+        {
+          "path": "/assets/mcp-config-editor-BAkFRdpf.css",
+          "status": 200
+        },
+        {
+          "path": "/console/assets/mcp-config-editor-BAkFRdpf.css",
+          "status": 200
+        },
+        {
+          "path": "/assets/mcp-config-editor-DIwEDRr1.js",
+          "status": 200
+        },
+        {
+          "path": "/console/assets/mcp-config-editor-DIwEDRr1.js",
+          "status": 200
+        },
+        {
+          "path": "/assets/network-CPko-rSJ.js",
+          "status": 200
+        },
+        {
+          "path": "/console/assets/network-CPko-rSJ.js",
+          "status": 200
+        },
+        {
+          "path": "/assets/network-settings-panel-ChV9eh_J.css",
+          "status": 200
+        },
+        {
+          "path": "/console/assets/network-settings-panel-ChV9eh_J.css",
+          "status": 200
+        },
+        {
+          "path": "/assets/network-settings-panel-jy3sZIl7.js",
+          "status": 200
+        },
+        {
+          "path": "/console/assets/network-settings-panel-jy3sZIl7.js",
+          "status": 200
+        },
+        {
+          "path": "/assets/page-shell-DoCOfY_C.js",
+          "status": 200
+        },
+        {
+          "path": "/console/assets/page-shell-DoCOfY_C.js",
+          "status": 200
+        },
+        {
+          "path": "/assets/page-utils-DD4d3K4s.js",
+          "status": 200
+        },
+        {
+          "path": "/console/assets/page-utils-DD4d3K4s.js",
+          "status": 200
+        },
+        {
+          "path": "/assets/pagination-IVGuxch9.js",
+          "status": 200
+        },
+        {
+          "path": "/console/assets/pagination-IVGuxch9.js",
+          "status": 200
+        },
+        {
+          "path": "/assets/personal-tokens-page-CgKMttU8.css",
+          "status": 200
+        },
+        {
+          "path": "/console/assets/personal-tokens-page-CgKMttU8.css",
+          "status": 200
+        },
+        {
+          "path": "/assets/personal-tokens-page-CnRO9qCl.js",
+          "status": 200
+        },
+        {
+          "path": "/console/assets/personal-tokens-page-CnRO9qCl.js",
+          "status": 200
+        },
+        {
+          "path": "/assets/personal-workspace-page-Bxtrfd6J.css",
+          "status": 200
+        },
+        {
+          "path": "/console/assets/personal-workspace-page-Bxtrfd6J.css",
+          "status": 200
+        },
+        {
+          "path": "/assets/personal-workspace-page-D0UH7dLT.js",
+          "status": 200
+        },
+        {
+          "path": "/console/assets/personal-workspace-page-D0UH7dLT.js",
+          "status": 200
+        },
+        {
+          "path": "/assets/plus-D_pyY9nN.js",
+          "status": 200
+        },
+        {
+          "path": "/console/assets/plus-D_pyY9nN.js",
+          "status": 200
+        },
+        {
+          "path": "/assets/query-status-BnfV0vtj.js",
+          "status": 200
+        },
+        {
+          "path": "/console/assets/query-status-BnfV0vtj.js",
+          "status": 200
+        },
+        {
+          "path": "/assets/radio-CwpO4NvB.js",
+          "status": 200
+        },
+        {
+          "path": "/console/assets/radio-CwpO4NvB.js",
+          "status": 200
+        },
+        {
+          "path": "/assets/runtime-cache-page-BLf0ZTHt.js",
+          "status": 200
+        },
+        {
+          "path": "/console/assets/runtime-cache-page-BLf0ZTHt.js",
+          "status": 200
+        },
+        {
+          "path": "/assets/search-DhTkXi8A.js",
+          "status": 200
+        },
+        {
+          "path": "/console/assets/search-DhTkXi8A.js",
+          "status": 200
+        },
+        {
+          "path": "/assets/segmented-CwwCg9eA.js",
+          "status": 200
+        },
+        {
+          "path": "/console/assets/segmented-CwwCg9eA.js",
+          "status": 200
+        },
+        {
+          "path": "/assets/select-1f_zeaWe.js",
+          "status": 200
+        },
+        {
+          "path": "/console/assets/select-1f_zeaWe.js",
+          "status": 200
+        },
+        {
+          "path": "/assets/select-BXj1UITW.js",
+          "status": 200
+        },
+        {
+          "path": "/console/assets/select-BXj1UITW.js",
+          "status": 200
+        },
+        {
+          "path": "/assets/servers-page-D0AvbjH-.js",
+          "status": 200
+        },
+        {
+          "path": "/console/assets/servers-page-D0AvbjH-.js",
+          "status": 200
+        },
+        {
+          "path": "/assets/servers-page-DepLcCbk.css",
+          "status": 200
+        },
+        {
+          "path": "/console/assets/servers-page-DepLcCbk.css",
+          "status": 200
+        },
+        {
+          "path": "/assets/shield-alert-Cp4L2uk_.js",
+          "status": 200
+        },
+        {
+          "path": "/console/assets/shield-alert-Cp4L2uk_.js",
+          "status": 200
+        },
+        {
+          "path": "/assets/shield-check-BJ1vOIKV.js",
+          "status": 200
+        },
+        {
+          "path": "/console/assets/shield-check-BJ1vOIKV.js",
+          "status": 200
+        },
+        {
+          "path": "/assets/skeleton-C6I4ewAl.js",
+          "status": 200
+        },
+        {
+          "path": "/console/assets/skeleton-C6I4ewAl.js",
+          "status": 200
+        },
+        {
+          "path": "/assets/space-Ddo43wfB.js",
+          "status": 200
+        },
+        {
+          "path": "/console/assets/space-Ddo43wfB.js",
+          "status": 200
+        },
+        {
+          "path": "/assets/style-CaSOBl_y.js",
+          "status": 200
+        },
+        {
+          "path": "/console/assets/style-CaSOBl_y.js",
+          "status": 200
+        },
+        {
+          "path": "/assets/switch--lFydxs1.js",
+          "status": 200
+        },
+        {
+          "path": "/console/assets/switch--lFydxs1.js",
+          "status": 200
+        },
+        {
+          "path": "/assets/switch-CXyDLd3S.js",
+          "status": 200
+        },
+        {
+          "path": "/console/assets/switch-CXyDLd3S.js",
+          "status": 200
+        },
+        {
+          "path": "/assets/system-settings-page-Cwpg3aXl.js",
+          "status": 200
+        },
+        {
+          "path": "/console/assets/system-settings-page-Cwpg3aXl.js",
+          "status": 200
+        },
+        {
+          "path": "/assets/table-DwidlQvd.js",
+          "status": 200
+        },
+        {
+          "path": "/console/assets/table-DwidlQvd.js",
+          "status": 200
+        },
+        {
+          "path": "/assets/table-tools-Cfo408TU.js",
+          "status": 200
+        },
+        {
+          "path": "/console/assets/table-tools-Cfo408TU.js",
+          "status": 200
+        },
+        {
+          "path": "/assets/tabs-kBGfCh4r.js",
+          "status": 200
+        },
+        {
+          "path": "/console/assets/tabs-kBGfCh4r.js",
+          "status": 200
+        },
+        {
+          "path": "/assets/tag-B_MAFVrO.js",
+          "status": 200
+        },
+        {
+          "path": "/console/assets/tag-B_MAFVrO.js",
+          "status": 200
+        },
+        {
+          "path": "/assets/textarea-tJL5OFBK.js",
+          "status": 200
+        },
+        {
+          "path": "/console/assets/textarea-tJL5OFBK.js",
+          "status": 200
+        },
+        {
+          "path": "/assets/tool-access-CtKHIheZ.js",
+          "status": 200
+        },
+        {
+          "path": "/console/assets/tool-access-CtKHIheZ.js",
+          "status": 200
+        },
+        {
+          "path": "/assets/tool-classifications-page-BGhDXg7K.css",
+          "status": 200
+        },
+        {
+          "path": "/console/assets/tool-classifications-page-BGhDXg7K.css",
+          "status": 200
+        },
+        {
+          "path": "/assets/tool-classifications-page-BO-2NyRg.js",
+          "status": 200
+        },
+        {
+          "path": "/console/assets/tool-classifications-page-BO-2NyRg.js",
+          "status": 200
+        },
+        {
+          "path": "/assets/tool-origin-mXy-TKr4.js",
+          "status": 200
+        },
+        {
+          "path": "/console/assets/tool-origin-mXy-TKr4.js",
+          "status": 200
+        },
+        {
+          "path": "/assets/tools-page-lFlOsfiq.css",
+          "status": 200
+        },
+        {
+          "path": "/console/assets/tools-page-lFlOsfiq.css",
+          "status": 200
+        },
+        {
+          "path": "/assets/tools-page-xbjOThNA.js",
+          "status": 200
+        },
+        {
+          "path": "/console/assets/tools-page-xbjOThNA.js",
+          "status": 200
+        },
+        {
+          "path": "/assets/tooltip-C2ZjJ2UH.js",
+          "status": 200
+        },
+        {
+          "path": "/console/assets/tooltip-C2ZjJ2UH.js",
+          "status": 200
+        },
+        {
+          "path": "/assets/uploads-page-DZN4Cm32.js",
+          "status": 200
+        },
+        {
+          "path": "/console/assets/uploads-page-DZN4Cm32.js",
+          "status": 200
+        },
+        {
+          "path": "/assets/use-draft-close-guard-D2-uOUhL.js",
+          "status": 200
+        },
+        {
+          "path": "/console/assets/use-draft-close-guard-D2-uOUhL.js",
+          "status": 200
+        },
+        {
+          "path": "/assets/use-remaining-viewport-DbWVprg9.js",
+          "status": 200
+        },
+        {
+          "path": "/console/assets/use-remaining-viewport-DbWVprg9.js",
+          "status": 200
+        },
+        {
+          "path": "/assets/useClosable-DPAx9KaY.js",
+          "status": 200
+        },
+        {
+          "path": "/console/assets/useClosable-DPAx9KaY.js",
+          "status": 200
+        },
+        {
+          "path": "/assets/useModal-DmoF0W0g.js",
+          "status": 200
+        },
+        {
+          "path": "/console/assets/useModal-DmoF0W0g.js",
+          "status": 200
+        },
+        {
+          "path": "/assets/user-plus-BTAxZYVC.js",
+          "status": 200
+        },
+        {
+          "path": "/console/assets/user-plus-BTAxZYVC.js",
+          "status": 200
+        },
+        {
+          "path": "/assets/validateMessagesContext-Ym1bDdgu.js",
+          "status": 200
+        },
+        {
+          "path": "/console/assets/validateMessagesContext-Ym1bDdgu.js",
+          "status": 200
+        },
+        {
+          "path": "/assets/validation-D6vjtMIC.js",
+          "status": 200
+        },
+        {
+          "path": "/console/assets/validation-D6vjtMIC.js",
+          "status": 200
+        },
+        {
+          "path": "/assets/validation-errors-CGzfaoDV.js",
+          "status": 200
+        },
+        {
+          "path": "/console/assets/validation-errors-CGzfaoDV.js",
+          "status": 200
+        },
+        {
+          "path": "/lingshu-gate-app-icon.svg",
+          "status": 200
+        },
+        {
+          "path": "/console/lingshu-gate-app-icon.svg",
+          "status": 200
+        },
+        {
+          "path": "/lingshu-gate-icon-512.png",
+          "status": 200
+        },
+        {
+          "path": "/console/lingshu-gate-icon-512.png",
+          "status": 200
+        },
+        {
+          "path": "/lingshu-gate-icon.svg",
+          "status": 200
+        },
+        {
+          "path": "/console/lingshu-gate-icon.svg",
+          "status": 200
+        },
+        {
+          "path": "/docs",
+          "status": 200
+        },
+        {
+          "path": "/openapi.json",
+          "status": 200
+        },
+        {
+          "path": "/v1/mcp/configs",
+          "status": 401
+        },
+        {
+          "path": "/v1/auth/me",
+          "status": 401
+        },
+        {
+          "method": "POST",
+          "path": "/mcp",
+          "status": 401
+        },
+        {
+          "path": "/.well-known/oauth-authorization-server",
+          "status": 404
+        },
+        {
+          "path": "/oauth/consent",
+          "status": 404
+        },
+        {
+          "path": "/oauth/unknown",
+          "status": 404
+        },
+        {
+          "path": "/assets/not-built.js",
+          "status": 404
+        },
+        {
+          "path": "/assets/%2e%2e/private.json",
+          "status": 404
+        },
+        {
+          "path": "/assets/%5c..%5coutside.json",
+          "status": 404
+        },
+        {
+          "path": "/console/assets/%2e%2e/index.html",
+          "status": 404
+        },
+        {
+          "path": "/index.html",
+          "status": 404
+        },
+        {
+          "path": "/unknown-root-path",
+          "status": 404
+        },
+        {
+          "path": "/v1/unknown",
+          "status": 404
+        },
+        {
+          "path": "/mcp/unknown",
+          "status": 404
+        }
+      ],
+      "console_file_pairs": 114,
+      "all_bytes_match_current_vite_output": true,
+      "runtime_version": "0.4.5",
+      "cleanup": {
+        "owned_process_reaped": true,
+        "runtime_directory_removed": true,
+        "listener_closed": true
+      }
+    }
+  },
+  "runs": [
+    {
+      "label": "install-ci-uv",
+      "command": [
+        "<bootstrap-uv>",
+        "tool",
+        "install",
+        "uv==0.11.33",
+        "--python",
+        "<toolchain>/uv-python/cpython-3.13.15-linux-x86_64-gnu/bin/python3.13"
+      ],
+      "cwd": "<repo>",
+      "source_sha": "7c7e39f0f5b6a13f332ad20d1f6c6370a5e9c692",
+      "exit_code": 0,
+      "timed_out": false,
+      "wall_seconds": 0.064174,
+      "log": "sync/install-ci-uv.log",
+      "log_sha256": "243b33d04e1f0edaa93127f45ca6fc762eb945b48948c0c5ca67b35f2ebb8be6"
+    },
+    {
+      "label": "uv-version",
+      "command": [
+        "<validation>/uv-bin/uv",
+        "--version"
+      ],
+      "cwd": "<repo>",
+      "source_sha": "7c7e39f0f5b6a13f332ad20d1f6c6370a5e9c692",
+      "exit_code": 0,
+      "timed_out": false,
+      "wall_seconds": 0.007725,
+      "log": "sync/uv-version.log",
+      "log_sha256": "a22e5ad0466c29098fb4ca51058abdbb88f8b32b299ea3fb50c90d7df2444cff"
+    },
+    {
+      "label": "sync-frozen-release",
+      "command": [
+        "<validation>/uv-bin/uv",
+        "sync",
+        "--frozen",
+        "--group",
+        "release",
+        "--python",
+        "<toolchain>/uv-python/cpython-3.13.15-linux-x86_64-gnu/bin/python3.13"
+      ],
+      "cwd": "<repo>",
+      "source_sha": "7c7e39f0f5b6a13f332ad20d1f6c6370a5e9c692",
+      "exit_code": 0,
+      "timed_out": false,
+      "wall_seconds": 0.114108,
+      "log": "sync/sync-frozen-release.log",
+      "log_sha256": "8c567bf5a21b9741956a7d5fecfc4baff3ab7cf01595a96d4fb9284b35bbed21"
+    },
+    {
+      "label": "package-binding",
+      "command": [
+        "<repo>/.venv/bin/python",
+        "-c",
+        "from pathlib import Path; import lingshu_gate,importlib.metadata; assert Path(lingshu_gate.__file__).resolve()==Path('src/lingshu_gate/__init__.py').resolve(); assert lingshu_gate.__version__=='0.4.5'; assert importlib.metadata.version('lingshu-gate')=='0.4.5'; print(lingshu_gate.__version__, importlib.metadata.version('pyinstaller'))"
+      ],
+      "cwd": "<repo>",
+      "source_sha": "7c7e39f0f5b6a13f332ad20d1f6c6370a5e9c692",
+      "exit_code": 0,
+      "timed_out": false,
+      "wall_seconds": 0.064067,
+      "log": "sync/package-binding.log",
+      "log_sha256": "a0c060fc26d147bf7c6937114f020fcebf32829fb674d9a0446f1180d0541643"
+    },
+    {
+      "label": "node-version",
+      "command": [
+        "node",
+        "--version"
+      ],
+      "cwd": "<repo>",
+      "source_sha": "7c7e39f0f5b6a13f332ad20d1f6c6370a5e9c692",
+      "exit_code": 0,
+      "timed_out": false,
+      "wall_seconds": 0.003556,
+      "log": "frontend/node-version.log",
+      "log_sha256": "c42fcf0db5a550bda2f566fcdc21955df3e5a8ec3aeb90ac533f3776e7fce32a"
+    },
+    {
+      "label": "npm-version",
+      "command": [
+        "npm",
+        "--version"
+      ],
+      "cwd": "<repo>",
+      "source_sha": "7c7e39f0f5b6a13f332ad20d1f6c6370a5e9c692",
+      "exit_code": 0,
+      "timed_out": false,
+      "wall_seconds": 0.114094,
+      "log": "frontend/npm-version.log",
+      "log_sha256": "7eeb2f42ee0d10d4e00355252af2e7468bbff992af43b511355feb76da5c7cfb"
+    },
+    {
+      "label": "npm-ci",
+      "command": [
+        "npm",
+        "--prefix",
+        "web",
+        "ci"
+      ],
+      "cwd": "<repo>",
+      "source_sha": "7c7e39f0f5b6a13f332ad20d1f6c6370a5e9c692",
+      "exit_code": 0,
+      "timed_out": false,
+      "wall_seconds": 6.765298,
+      "log": "frontend/npm-ci.log",
+      "log_sha256": "1bc5fda83afe880af3e4988d97955f9795fa71581f02fc59533777d2ed3d9e44"
+    },
+    {
+      "label": "frontend-check",
+      "command": [
+        "npm",
+        "--prefix",
+        "web",
+        "run",
+        "check"
+      ],
+      "cwd": "<repo>",
+      "source_sha": "7c7e39f0f5b6a13f332ad20d1f6c6370a5e9c692",
+      "exit_code": 0,
+      "timed_out": false,
+      "wall_seconds": 2.842343,
+      "log": "frontend/frontend-check.log",
+      "log_sha256": "d1c0aeac257790ad20a5343d2b92c91489739ce07d0de1b9f85682bba923f5da"
+    },
+    {
+      "label": "frontend-unit",
+      "command": [
+        "npm",
+        "--prefix",
+        "web",
+        "test"
+      ],
+      "cwd": "<repo>",
+      "source_sha": "7c7e39f0f5b6a13f332ad20d1f6c6370a5e9c692",
+      "exit_code": 0,
+      "timed_out": false,
+      "wall_seconds": 15.194413,
+      "log": "frontend/frontend-unit.log",
+      "log_sha256": "16fd6dfdadf4a2d7caa8206c0423c0128d102d8292b323d2be34748618eeb945"
+    },
+    {
+      "label": "frontend-build",
+      "command": [
+        "npm",
+        "--prefix",
+        "web",
+        "run",
+        "build"
+      ],
+      "cwd": "<repo>",
+      "source_sha": "7c7e39f0f5b6a13f332ad20d1f6c6370a5e9c692",
+      "exit_code": 0,
+      "timed_out": false,
+      "wall_seconds": 4.390207,
+      "log": "frontend/frontend-build.log",
+      "log_sha256": "cab65de8993a6ab2e157ddafd27336c43e0597bf62569e42704d8302fabb890d"
+    },
+    {
+      "label": "ruff",
+      "command": [
+        "<repo>/.venv/bin/python",
+        "-m",
+        "ruff",
+        "check",
+        "."
+      ],
+      "cwd": "<repo>",
+      "source_sha": "7c7e39f0f5b6a13f332ad20d1f6c6370a5e9c692",
+      "exit_code": 0,
+      "timed_out": false,
+      "wall_seconds": 0.032625,
+      "log": "quality/ruff.log",
+      "log_sha256": "82b3e6a6c090a57601d22943bd23fca9218d1031dbe5a7b754092f9a156b4f18"
+    },
+    {
+      "label": "mypy",
+      "command": [
+        "<repo>/.venv/bin/python",
+        "-m",
+        "mypy"
+      ],
+      "cwd": "<repo>",
+      "source_sha": "7c7e39f0f5b6a13f332ad20d1f6c6370a5e9c692",
+      "exit_code": 0,
+      "timed_out": false,
+      "wall_seconds": 0.169981,
+      "log": "quality/mypy.log",
+      "log_sha256": "a4be80670a49e40967d7663defa16bbef3d09cd6a5dbd3e7d61ae68cbaf7a2e4"
+    },
+    {
+      "label": "identity-history",
+      "command": [
+        "<repo>/.venv/bin/python",
+        "scripts/quality/check_repository_identity.py",
+        "--history"
+      ],
+      "cwd": "<repo>",
+      "source_sha": "7c7e39f0f5b6a13f332ad20d1f6c6370a5e9c692",
+      "exit_code": 0,
+      "timed_out": false,
+      "wall_seconds": 30.250842,
+      "log": "quality/identity-history.log",
+      "log_sha256": "a7507cd98b517cd1ff693675a6ebe556e776e33478c24de417fffb05f215ce73"
+    },
+    {
+      "label": "version-tag",
+      "command": [
+        "<repo>/.venv/bin/python",
+        "-m",
+        "scripts.release.check_version",
+        "--tag",
+        "v0.4.5"
+      ],
+      "cwd": "<repo>",
+      "source_sha": "7c7e39f0f5b6a13f332ad20d1f6c6370a5e9c692",
+      "exit_code": 0,
+      "timed_out": false,
+      "wall_seconds": 0.064081,
+      "log": "quality/version-tag.log",
+      "log_sha256": "345a551b61a5dc33388b9bf40df339c9a0d9446ced7eeaeb576e3dbf4321918e"
+    },
+    {
+      "label": "compose",
+      "command": [
+        "docker",
+        "compose",
+        "config",
+        "--quiet"
+      ],
+      "cwd": "<repo>",
+      "source_sha": "7c7e39f0f5b6a13f332ad20d1f6c6370a5e9c692",
+      "exit_code": 0,
+      "timed_out": false,
+      "wall_seconds": 0.114166,
+      "log": "quality/compose.log",
+      "log_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "label": "diff",
+      "command": [
+        "git",
+        "diff",
+        "--check"
+      ],
+      "cwd": "<repo>",
+      "source_sha": "7c7e39f0f5b6a13f332ad20d1f6c6370a5e9c692",
+      "exit_code": 0,
+      "timed_out": false,
+      "wall_seconds": 0.00362,
+      "log": "quality/diff.log",
+      "log_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "label": "full-backend",
+      "command": [
+        "<repo>/.venv/bin/python",
+        "-m",
+        "pytest",
+        "-q",
+        "--basetemp",
+        "<validation>/backend-7c7e39f/pytest-temp",
+        "-o",
+        "cache_dir=<validation>/backend-7c7e39f/pytest-cache",
+        "--junitxml",
+        "<validation>/backend-7c7e39f/results.xml"
+      ],
+      "cwd": "<repo>",
+      "source_sha": "7c7e39f0f5b6a13f332ad20d1f6c6370a5e9c692",
+      "exit_code": 0,
+      "timed_out": false,
+      "wall_seconds": 1200.622044,
+      "log": "backend-7c7e39f/full-backend.log",
+      "log_sha256": "be2916378b37450e8ae47d7f849ef30adb8df65322c169ab4fc3e0aa9f503560"
+    },
+    {
+      "label": "browser-smoke",
+      "command": [
+        "node",
+        "node_modules/@playwright/test/cli.js",
+        "test",
+        "--grep",
+        "@smoke",
+        "--reporter=list,json",
+        "--output=<validation>/browser/test-results"
+      ],
+      "cwd": "<repo>/web",
+      "source_sha": "7c7e39f0f5b6a13f332ad20d1f6c6370a5e9c692",
+      "exit_code": 0,
+      "timed_out": false,
+      "wall_seconds": 68.745026,
+      "log": "browser/browser-smoke.log",
+      "log_sha256": "763e3a2114a76a676939b279616e3ad8770a5c74b172e746a4c8bf89e31db955"
+    },
+    {
+      "label": "packaging-regressions",
+      "command": [
+        "<repo>/.venv/bin/python",
+        "-m",
+        "pytest",
+        "-q",
+        "tests/test_wheel_build.py",
+        "tests/test_release_packaging.py",
+        "tests/test_schema_validation_budget.py",
+        "--basetemp",
+        "<validation>/packaging/pytest-temp",
+        "-o",
+        "cache_dir=<validation>/packaging/pytest-cache",
+        "--junitxml",
+        "<validation>/packaging/results.xml"
+      ],
+      "cwd": "<repo>",
+      "source_sha": "7c7e39f0f5b6a13f332ad20d1f6c6370a5e9c692",
+      "exit_code": 0,
+      "timed_out": false,
+      "wall_seconds": 44.17387,
+      "log": "packaging/packaging-regressions.log",
+      "log_sha256": "1cbe163a8278ee385f0f9da2d5ec745691d47c2e0c56eaecb2e8f65affa10ea7"
+    },
+    {
+      "label": "pep517-wheel",
+      "command": [
+        "<validation>/uv-bin/uv",
+        "build",
+        "--wheel",
+        "--offline",
+        "--python",
+        "<repo>/.venv/bin/python",
+        "--out-dir",
+        "<validation>/wheel/direct"
+      ],
+      "cwd": "<repo>",
+      "source_sha": "7c7e39f0f5b6a13f332ad20d1f6c6370a5e9c692",
+      "exit_code": 0,
+      "timed_out": false,
+      "wall_seconds": 1.52179,
+      "log": "wheel/pep517-wheel.log",
+      "log_sha256": "a1ab5d3e0cead426d0e2e308f3d725490d4acbf475728ef5d2bbb15597e3362b"
+    },
+    {
+      "label": "pep517-sdist",
+      "command": [
+        "<validation>/uv-bin/uv",
+        "build",
+        "--sdist",
+        "--offline",
+        "--python",
+        "<repo>/.venv/bin/python",
+        "--out-dir",
+        "<validation>/wheel/sdist"
+      ],
+      "cwd": "<repo>",
+      "source_sha": "7c7e39f0f5b6a13f332ad20d1f6c6370a5e9c692",
+      "exit_code": 0,
+      "timed_out": false,
+      "wall_seconds": 1.339097,
+      "log": "wheel/pep517-sdist.log",
+      "log_sha256": "864aea20cafe369a35d6ba970d5f4444b85dcfe36230e304598c4ad137e7637e"
+    },
+    {
+      "label": "sdist-to-wheel",
+      "command": [
+        "<validation>/uv-bin/uv",
+        "build",
+        "--wheel",
+        "--offline",
+        "--python",
+        "<repo>/.venv/bin/python",
+        "--out-dir",
+        "<validation>/wheel/from-sdist"
+      ],
+      "cwd": "<validation>/wheel/restored/lingshu_gate-0.4.5",
+      "source_sha": "7c7e39f0f5b6a13f332ad20d1f6c6370a5e9c692",
+      "exit_code": 0,
+      "timed_out": false,
+      "wall_seconds": 1.277461,
+      "log": "wheel/sdist-to-wheel.log",
+      "log_sha256": "5c07727b12f292bd9d81f1c5c7eb48649e2ddb8bfbf89a1e1c064435cc07d8aa"
+    },
+    {
+      "label": "build-native-linux",
+      "command": [
+        "<repo>/.venv/bin/python",
+        "-m",
+        "scripts.release.build_native",
+        "--target",
+        "linux-x86_64",
+        "--output-dir",
+        "<validation>/native/candidate"
+      ],
+      "cwd": "<repo>",
+      "source_sha": "7c7e39f0f5b6a13f332ad20d1f6c6370a5e9c692",
+      "exit_code": 0,
+      "timed_out": false,
+      "wall_seconds": 47.747476,
+      "log": "native/build-native-linux.log",
+      "log_sha256": "5f3ddf97a841efa45145fd237e54fd76604b838e5faa7443e1ac687653948467"
+    },
+    {
+      "label": "native-identity",
+      "command": [
+        "<repo>/.venv/bin/python",
+        "scripts/quality/check_repository_identity.py",
+        "--artifacts",
+        "<validation>/native/candidate/lingshu-gate-v0.4.5-linux-x86_64.tar.gz"
+      ],
+      "cwd": "<repo>",
+      "source_sha": "7c7e39f0f5b6a13f332ad20d1f6c6370a5e9c692",
+      "exit_code": 0,
+      "timed_out": false,
+      "wall_seconds": 8.541887,
+      "log": "native/native-identity.log",
+      "log_sha256": "c2abe4b85441da546d672d41b520819e0f611660fce7d205b7529bffc9036ceb"
+    },
+    {
+      "label": "extract-native",
+      "command": [
+        "<repo>/.venv/bin/python",
+        "-m",
+        "scripts.release.extract_native",
+        "--target",
+        "linux-x86_64",
+        "--archive",
+        "<validation>/native/candidate/lingshu-gate-v0.4.5-linux-x86_64.tar.gz",
+        "--output-dir",
+        "build/release/release-045-local-extracted"
+      ],
+      "cwd": "<repo>",
+      "source_sha": "7c7e39f0f5b6a13f332ad20d1f6c6370a5e9c692",
+      "exit_code": 0,
+      "timed_out": false,
+      "wall_seconds": 0.866253,
+      "log": "native/extract-native.log",
+      "log_sha256": "4cd730c76de46da1d1337b953850ef04434dff15a7638c26ef646b5105bf695d"
+    },
+    {
+      "label": "native-readiness",
+      "command": [
+        "<repo>/.venv/bin/python",
+        "-m",
+        "scripts.release.smoke_native",
+        "--target",
+        "linux-x86_64",
+        "--bundle-dir",
+        "<repo>/build/release/release-045-local-extracted/lingshu-gate-v0.4.5-linux-x86_64"
+      ],
+      "cwd": "<repo>",
+      "source_sha": "7c7e39f0f5b6a13f332ad20d1f6c6370a5e9c692",
+      "exit_code": 0,
+      "timed_out": false,
+      "wall_seconds": 2.57084,
+      "log": "native/native-readiness.log",
+      "log_sha256": "f69c6a53a19f5679f1628ee9dfc2eed1aea3742d0a59ba96885d2957f05bbf21"
+    },
+    {
+      "label": "isolated-venv",
+      "command": [
+        "<validation>/uv-bin/uv",
+        "venv",
+        "--python",
+        "<toolchain>/uv-python/cpython-3.13.15-linux-x86_64-gnu/bin/python3.13",
+        "<validation>/wheel-runtime/venv"
+      ],
+      "cwd": "<repo>",
+      "source_sha": "7c7e39f0f5b6a13f332ad20d1f6c6370a5e9c692",
+      "exit_code": 0,
+      "timed_out": false,
+      "wall_seconds": 0.032233,
+      "log": "wheel-runtime/isolated-venv.log",
+      "log_sha256": "5e0e4dbe47c48b59e95f1fdddb4018f252b97bd467d14fdd735ac273ff921280"
+    },
+    {
+      "label": "frozen-hashed-runtime",
+      "command": [
+        "<validation>/uv-bin/uv",
+        "pip",
+        "install",
+        "--python",
+        "<validation>/wheel-runtime/venv/bin/python",
+        "--require-hashes",
+        "-r",
+        "<repo>/requirements.lock"
+      ],
+      "cwd": "<repo>",
+      "source_sha": "7c7e39f0f5b6a13f332ad20d1f6c6370a5e9c692",
+      "exit_code": 0,
+      "timed_out": false,
+      "wall_seconds": 0.615462,
+      "log": "wheel-runtime/frozen-hashed-runtime.log",
+      "log_sha256": "28f472979e8aa7fcad8ace905a44a0f1a8bd6aa075d6792a044b101ac3638e3f"
+    },
+    {
+      "label": "install-candidate-wheel",
+      "command": [
+        "<validation>/uv-bin/uv",
+        "pip",
+        "install",
+        "--offline",
+        "--no-deps",
+        "--python",
+        "<validation>/wheel-runtime/venv/bin/python",
+        "<validation>/wheel/direct/lingshu_gate-0.4.5-py3-none-any.whl"
+      ],
+      "cwd": "<repo>",
+      "source_sha": "7c7e39f0f5b6a13f332ad20d1f6c6370a5e9c692",
+      "exit_code": 0,
+      "timed_out": false,
+      "wall_seconds": 0.064178,
+      "log": "wheel-runtime/install-candidate-wheel.log",
+      "log_sha256": "1aa76880c801f54fac427f82f17a1a1b1e45bcfef4d45506ccdc1b8c882ca7e2"
+    },
+    {
+      "label": "wheel-binding-and-static",
+      "command": [
+        "<validation>/wheel-runtime/venv/bin/python",
+        "-c",
+        "import json,hashlib,importlib.metadata; from pathlib import Path; import lingshu_gate; r=Path(lingshu_gate.__file__).resolve().parent; assert r.is_relative_to(Path('<validation>/wheel-runtime/venv')); assert importlib.metadata.version('lingshu-gate')==lingshu_gate.__version__=='0.4.5'; expected=json.loads(Path('<validation>/frontend/static-manifest.json').read_text())['manifest']; actual={f.relative_to(r/'static').as_posix():hashlib.sha256(f.read_bytes()).hexdigest() for f in (r/'static').rglob('*') if f.is_file()}; assert actual=={row['root']+'/'+row['path']:row['sha256'] for row in expected}; print('0.4.5 installed wheel: 118 exact static files')"
+      ],
+      "cwd": "<validation>",
+      "source_sha": "7c7e39f0f5b6a13f332ad20d1f6c6370a5e9c692",
+      "exit_code": 0,
+      "timed_out": false,
+      "wall_seconds": 0.063909,
+      "log": "wheel-runtime/wheel-binding-and-static.log",
+      "log_sha256": "9711117e72d555f6e6d69ff08e3fc5110421eeaa9ffe01136dfa99d1152098fc"
+    },
+    {
+      "label": "wheel-cli-version",
+      "command": [
+        "<validation>/wheel-runtime/venv/bin/lingshu-gate",
+        "--version"
+      ],
+      "cwd": "<validation>",
+      "source_sha": "7c7e39f0f5b6a13f332ad20d1f6c6370a5e9c692",
+      "exit_code": 0,
+      "timed_out": false,
+      "wall_seconds": 0.465929,
+      "log": "wheel-runtime/wheel-cli-version.log",
+      "log_sha256": "028488298a2745db522fb2ba348f53849f09806a5183f68381aa451e3ee9411a"
+    },
+    {
+      "label": "wheel-worker-smoke",
+      "command": [
+        "<validation>/wheel-runtime/venv/bin/python",
+        "<validation>/check_installed_wheel_worker.py"
+      ],
+      "cwd": "<validation>",
+      "source_sha": "7c7e39f0f5b6a13f332ad20d1f6c6370a5e9c692",
+      "exit_code": 0,
+      "timed_out": false,
+      "wall_seconds": 2.675904,
+      "log": "wheel-runtime/wheel-worker-smoke.log",
+      "log_sha256": "036a88c2f0a91ca52cf6b665a2f335789c80e45488305468433a52f95a6708e1"
+    },
+    {
+      "label": "wheel-http-smoke",
+      "command": [
+        "<repo>/.venv/bin/python",
+        "<validation>/check_installed_wheel_http.py"
+      ],
+      "cwd": "<validation>",
+      "source_sha": "7c7e39f0f5b6a13f332ad20d1f6c6370a5e9c692",
+      "exit_code": 0,
+      "timed_out": false,
+      "wall_seconds": 2.770716,
+      "log": "wheel-runtime/wheel-http-smoke.log",
+      "log_sha256": "e203c03e294144cf876fc60d0732661ecd30344affed105483f9c2a261b9a635"
+    }
+  ],
+  "ci_checkpoint": {
+    "captured_at_utc": "2026-10-07 19:58:11 UTC",
+    "branch_head_sha": "7c7e39f0f5b6a13f332ad20d1f6c6370a5e9c692",
+    "actual_ci_merge_checkout_sha": "d170e73cb9d66bdcebf98834ac95c34b8964da65",
+    "workflow_runs": [
+      {
+        "id": 37667948203,
+        "name": "Continuous integration",
+        "html_url": "https://github.com/zhigege666/Lingshu-Gate/actions/runs/37667948203",
+        "head_sha": "7c7e39f0f5b6a13f332ad20d1f6c6370a5e9c692",
+        "run_attempt": 2,
+        "event": "pull_request",
+        "status": "completed",
+        "conclusion": "failure",
+        "jobs": [
+          {
+            "id": 112965314112,
+            "name": "Source checks",
+            "status": "completed",
+            "conclusion": "failure",
+            "steps": [
+              {
+                "name": "Set up job",
+                "status": "completed",
+                "conclusion": "success"
+              },
+              {
+                "name": "Checkout complete history",
+                "status": "completed",
+                "conclusion": "success"
+              },
+              {
+                "name": "Validate repository identity and version",
+                "status": "completed",
+                "conclusion": "success"
+              },
+              {
+                "name": "Set up Node.js",
+                "status": "completed",
+                "conclusion": "success"
+              },
+              {
+                "name": "Verify and build Console once",
+                "status": "completed",
+                "conclusion": "success"
+              },
+              {
+                "name": "Set up Python",
+                "status": "completed",
+                "conclusion": "success"
+              },
+              {
+                "name": "Set up uv",
+                "status": "completed",
+                "conclusion": "success"
+              },
+              {
+                "name": "Install frozen dependencies",
+                "status": "completed",
+                "conclusion": "success"
+              },
+              {
+                "name": "Verify pip export is synchronized",
+                "status": "completed",
+                "conclusion": "success"
+              },
+              {
+                "name": "Verify backend on Python 3.12",
+                "status": "completed",
+                "conclusion": "success"
+              },
+              {
+                "name": "Install browser for isolated smoke",
+                "status": "completed",
+                "conclusion": "failure"
+              },
+              {
+                "name": "Test Console against isolated real backend",
+                "status": "completed",
+                "conclusion": "skipped"
+              },
+              {
+                "name": "Retain synthetic browser failure evidence",
+                "status": "completed",
+                "conclusion": "success"
+              },
+              {
+                "name": "Share tested Console with compatibility jobs",
+                "status": "completed",
+                "conclusion": "skipped"
+              },
+              {
+                "name": "Share built OAuth assets with compatibility jobs",
+                "status": "completed",
+                "conclusion": "skipped"
+              },
+              {
+                "name": "Post Set up uv",
+                "status": "completed",
+                "conclusion": "skipped"
+              },
+              {
+                "name": "Post Set up Python",
+                "status": "completed",
+                "conclusion": "skipped"
+              },
+              {
+                "name": "Post Set up Node.js",
+                "status": "completed",
+                "conclusion": "skipped"
+              },
+              {
+                "name": "Post Checkout complete history",
+                "status": "completed",
+                "conclusion": "success"
+              },
+              {
+                "name": "Complete job",
+                "status": "completed",
+                "conclusion": "success"
+              }
+            ]
+          },
+          {
+            "id": 112977213474,
+            "name": "CI result",
+            "status": "completed",
+            "conclusion": "failure",
+            "steps": [
+              {
+                "name": "Set up job",
+                "status": "completed",
+                "conclusion": "success"
+              },
+              {
+                "name": "Require every source and compatibility check",
+                "status": "completed",
+                "conclusion": "failure"
+              },
+              {
+                "name": "Complete job",
+                "status": "completed",
+                "conclusion": "success"
+              }
+            ]
+          },
+          {
+            "id": 112977215662,
+            "name": "Python ${{ matrix.python-version }}",
+            "status": "completed",
+            "conclusion": "skipped",
+            "steps": []
+          }
+        ]
+      },
+      {
+        "id": 37667948226,
+        "name": "Release artifacts",
+        "html_url": "https://github.com/zhigege666/Lingshu-Gate/actions/runs/37667948226",
+        "head_sha": "7c7e39f0f5b6a13f332ad20d1f6c6370a5e9c692",
+        "run_attempt": 1,
+        "event": "pull_request",
+        "status": "completed",
+        "conclusion": "success",
+        "jobs": [
+          {
+            "id": 112952596437,
+            "name": "Cosign OCI env-key signing smoke",
+            "status": "completed",
+            "conclusion": "success",
+            "steps": [
+              {
+                "name": "Set up job",
+                "status": "completed",
+                "conclusion": "success"
+              },
+              {
+                "name": "Checkout",
+                "status": "completed",
+                "conclusion": "success"
+              },
+              {
+                "name": "Install pinned Cosign for the isolated fixture",
+                "status": "completed",
+                "conclusion": "success"
+              },
+              {
+                "name": "Verify synthetic OCI signing and wrong-key rejection",
+                "status": "completed",
+                "conclusion": "success"
+              },
+              {
+                "name": "Post Checkout",
+                "status": "completed",
+                "conclusion": "success"
+              },
+              {
+                "name": "Complete job",
+                "status": "completed",
+                "conclusion": "success"
+              }
+            ]
+          },
+          {
+            "id": 112952596817,
+            "name": "Validate release version",
+            "status": "completed",
+            "conclusion": "success",
+            "steps": [
+              {
+                "name": "Set up job",
+                "status": "completed",
+                "conclusion": "success"
+              },
+              {
+                "name": "Checkout",
+                "status": "completed",
+                "conclusion": "success"
+              },
+              {
+                "name": "Read and validate version",
+                "status": "completed",
+                "conclusion": "success"
+              },
+              {
+                "name": "Read source timestamp",
+                "status": "completed",
+                "conclusion": "success"
+              },
+              {
+                "name": "Post Checkout",
+                "status": "completed",
+                "conclusion": "success"
+              },
+              {
+                "name": "Complete job",
+                "status": "completed",
+                "conclusion": "success"
+              }
+            ]
+          },
+          {
+            "id": 112952653995,
+            "name": "Release quality gate",
+            "status": "completed",
+            "conclusion": "success",
+            "steps": [
+              {
+                "name": "Set up job",
+                "status": "completed",
+                "conclusion": "success"
+              },
+              {
+                "name": "Checkout",
+                "status": "completed",
+                "conclusion": "success"
+              },
+              {
+                "name": "Set up Python",
+                "status": "completed",
+                "conclusion": "success"
+              },
+              {
+                "name": "Validate repository identity",
+                "status": "completed",
+                "conclusion": "skipped"
+              },
+              {
+                "name": "Set up Node.js",
+                "status": "completed",
+                "conclusion": "success"
+              },
+              {
+                "name": "Verify and build Console",
+                "status": "completed",
+                "conclusion": "skipped"
+              },
+              {
+                "name": "Set up uv",
+                "status": "completed",
+                "conclusion": "success"
+              },
+              {
+                "name": "Install frozen quality and release dependencies",
+                "status": "completed",
+                "conclusion": "success"
+              },
+              {
+                "name": "Verify pip export is synchronized",
+                "status": "completed",
+                "conclusion": "skipped"
+              },
+              {
+                "name": "Verify backend and release engineering",
+                "status": "completed",
+                "conclusion": "skipped"
+              },
+              {
+                "name": "Install Console dependencies for release tests",
+                "status": "completed",
+                "conclusion": "success"
+              },
+              {
+                "name": "Verify release engineering on pull requests",
+                "status": "completed",
+                "conclusion": "success"
+              },
+              {
+                "name": "Post Set up uv",
+                "status": "completed",
+                "conclusion": "success"
+              },
+              {
+                "name": "Post Set up Node.js",
+                "status": "completed",
+                "conclusion": "success"
+              },
+              {
+                "name": "Post Set up Python",
+                "status": "completed",
+                "conclusion": "success"
+              },
+              {
+                "name": "Post Checkout",
+                "status": "completed",
+                "conclusion": "success"
+              },
+              {
+                "name": "Complete job",
+                "status": "completed",
+                "conclusion": "success"
+              }
+            ]
+          },
+          {
+            "id": 112953267197,
+            "name": "Docker Compose bundle",
+            "status": "completed",
+            "conclusion": "success",
+            "steps": [
+              {
+                "name": "Set up job",
+                "status": "completed",
+                "conclusion": "success"
+              },
+              {
+                "name": "Checkout",
+                "status": "completed",
+                "conclusion": "success"
+              },
+              {
+                "name": "Set up Node.js",
+                "status": "completed",
+                "conclusion": "success"
+              },
+              {
+                "name": "Install Console dependency metadata",
+                "status": "completed",
+                "conclusion": "success"
+              },
+              {
+                "name": "Set up Python",
+                "status": "completed",
+                "conclusion": "success"
+              },
+              {
+                "name": "Set up uv",
+                "status": "completed",
+                "conclusion": "success"
+              },
+              {
+                "name": "Install frozen runtime",
+                "status": "completed",
+                "conclusion": "success"
+              },
+              {
+                "name": "Build deployment bundle",
+                "status": "completed",
+                "conclusion": "success"
+              },
+              {
+                "name": "Validate deployment artifacts identity",
+                "status": "completed",
+                "conclusion": "success"
+              },
+              {
+                "name": "Validate bundled Compose model",
+                "status": "completed",
+                "conclusion": "success"
+              },
+              {
+                "name": "Upload Docker Compose bundle",
+                "status": "completed",
+                "conclusion": "success"
+              },
+              {
+                "name": "Post Set up uv",
+                "status": "completed",
+                "conclusion": "success"
+              },
+              {
+                "name": "Post Set up Python",
+                "status": "completed",
+                "conclusion": "success"
+              },
+              {
+                "name": "Post Set up Node.js",
+                "status": "completed",
+                "conclusion": "success"
+              },
+              {
+                "name": "Post Checkout",
+                "status": "completed",
+                "conclusion": "success"
+              },
+              {
+                "name": "Complete job",
+                "status": "completed",
+                "conclusion": "success"
+              }
+            ]
+          },
+          {
+            "id": 112953267554,
+            "name": "Native windows-x86_64",
+            "status": "completed",
+            "conclusion": "success",
+            "steps": [
+              {
+                "name": "Set up job",
+                "status": "completed",
+                "conclusion": "success"
+              },
+              {
+                "name": "Checkout",
+                "status": "completed",
+                "conclusion": "success"
+              },
+              {
+                "name": "Parse and smoke-test the Delivery Skill packager",
+                "status": "completed",
+                "conclusion": "success"
+              },
+              {
+                "name": "Set up Node.js",
+                "status": "completed",
+                "conclusion": "success"
+              },
+              {
+                "name": "Set up Python",
+                "status": "completed",
+                "conclusion": "success"
+              },
+              {
+                "name": "Set up uv",
+                "status": "completed",
+                "conclusion": "success"
+              },
+              {
+                "name": "Prepare static OpenSSL for Intel macOS cryptography",
+                "status": "completed",
+                "conclusion": "skipped"
+              },
+              {
+                "name": "Install frozen runtime and release toolchain",
+                "status": "completed",
+                "conclusion": "success"
+              },
+              {
+                "name": "Verify Intel macOS cryptography is independent of OpenSSL dylibs",
+                "status": "completed",
+                "conclusion": "skipped"
+              },
+              {
+                "name": "Build native archive",
+                "status": "completed",
+                "conclusion": "success"
+              },
+              {
+                "name": "Validate native archive identity",
+                "status": "completed",
+                "conclusion": "success"
+              },
+              {
+                "name": "Validate and extract the publishable native archive",
+                "status": "completed",
+                "conclusion": "success"
+              },
+              {
+                "name": "Enforce Linux glibc compatibility baseline",
+                "status": "completed",
+                "conclusion": "skipped"
+              },
+              {
+                "name": "Run native readiness smoke test",
+                "status": "completed",
+                "conclusion": "success"
+              },
+              {
+                "name": "Upload native archive",
+                "status": "completed",
+                "conclusion": "success"
+              },
+              {
+                "name": "Post Set up uv",
+                "status": "completed",
+                "conclusion": "success"
+              },
+              {
+                "name": "Post Set up Python",
+                "status": "completed",
+                "conclusion": "success"
+              },
+              {
+                "name": "Post Set up Node.js",
+                "status": "completed",
+                "conclusion": "success"
+              },
+              {
+                "name": "Post Checkout",
+                "status": "completed",
+                "conclusion": "success"
+              },
+              {
+                "name": "Complete job",
+                "status": "completed",
+                "conclusion": "success"
+              }
+            ]
+          },
+          {
+            "id": 112953267585,
+            "name": "Native macos-arm64",
+            "status": "completed",
+            "conclusion": "success",
+            "steps": [
+              {
+                "name": "Set up job",
+                "status": "completed",
+                "conclusion": "success"
+              },
+              {
+                "name": "Checkout",
+                "status": "completed",
+                "conclusion": "success"
+              },
+              {
+                "name": "Parse and smoke-test the Delivery Skill packager",
+                "status": "completed",
+                "conclusion": "skipped"
+              },
+              {
+                "name": "Set up Node.js",
+                "status": "completed",
+                "conclusion": "success"
+              },
+              {
+                "name": "Set up Python",
+                "status": "completed",
+                "conclusion": "success"
+              },
+              {
+                "name": "Set up uv",
+                "status": "completed",
+                "conclusion": "success"
+              },
+              {
+                "name": "Prepare static OpenSSL for Intel macOS cryptography",
+                "status": "completed",
+                "conclusion": "skipped"
+              },
+              {
+                "name": "Install frozen runtime and release toolchain",
+                "status": "completed",
+                "conclusion": "success"
+              },
+              {
+                "name": "Verify Intel macOS cryptography is independent of OpenSSL dylibs",
+                "status": "completed",
+                "conclusion": "skipped"
+              },
+              {
+                "name": "Build native archive",
+                "status": "completed",
+                "conclusion": "success"
+              },
+              {
+                "name": "Validate native archive identity",
+                "status": "completed",
+                "conclusion": "success"
+              },
+              {
+                "name": "Validate and extract the publishable native archive",
+                "status": "completed",
+                "conclusion": "success"
+              },
+              {
+                "name": "Enforce Linux glibc compatibility baseline",
+                "status": "completed",
+                "conclusion": "skipped"
+              },
+              {
+                "name": "Run native readiness smoke test",
+                "status": "completed",
+                "conclusion": "success"
+              },
+              {
+                "name": "Upload native archive",
+                "status": "completed",
+                "conclusion": "success"
+              },
+              {
+                "name": "Post Set up uv",
+                "status": "completed",
+                "conclusion": "success"
+              },
+              {
+                "name": "Post Set up Python",
+                "status": "completed",
+                "conclusion": "success"
+              },
+              {
+                "name": "Post Set up Node.js",
+                "status": "completed",
+                "conclusion": "success"
+              },
+              {
+                "name": "Post Checkout",
+                "status": "completed",
+                "conclusion": "success"
+              },
+              {
+                "name": "Complete job",
+                "status": "completed",
+                "conclusion": "success"
+              }
+            ]
+          },
+          {
+            "id": 112953267609,
+            "name": "Native linux-x86_64",
+            "status": "completed",
+            "conclusion": "success",
+            "steps": [
+              {
+                "name": "Set up job",
+                "status": "completed",
+                "conclusion": "success"
+              },
+              {
+                "name": "Checkout",
+                "status": "completed",
+                "conclusion": "success"
+              },
+              {
+                "name": "Parse and smoke-test the Delivery Skill packager",
+                "status": "completed",
+                "conclusion": "skipped"
+              },
+              {
+                "name": "Set up Node.js",
+                "status": "completed",
+                "conclusion": "success"
+              },
+              {
+                "name": "Set up Python",
+                "status": "completed",
+                "conclusion": "success"
+              },
+              {
+                "name": "Set up uv",
+                "status": "completed",
+                "conclusion": "success"
+              },
+              {
+                "name": "Prepare static OpenSSL for Intel macOS cryptography",
+                "status": "completed",
+                "conclusion": "skipped"
+              },
+              {
+                "name": "Install frozen runtime and release toolchain",
+                "status": "completed",
+                "conclusion": "success"
+              },
+              {
+                "name": "Verify Intel macOS cryptography is independent of OpenSSL dylibs",
+                "status": "completed",
+                "conclusion": "skipped"
+              },
+              {
+                "name": "Build native archive",
+                "status": "completed",
+                "conclusion": "success"
+              },
+              {
+                "name": "Validate native archive identity",
+                "status": "completed",
+                "conclusion": "success"
+              },
+              {
+                "name": "Validate and extract the publishable native archive",
+                "status": "completed",
+                "conclusion": "success"
+              },
+              {
+                "name": "Enforce Linux glibc compatibility baseline",
+                "status": "completed",
+                "conclusion": "success"
+              },
+              {
+                "name": "Run native readiness smoke test",
+                "status": "completed",
+                "conclusion": "success"
+              },
+              {
+                "name": "Upload native archive",
+                "status": "completed",
+                "conclusion": "success"
+              },
+              {
+                "name": "Post Set up uv",
+                "status": "completed",
+                "conclusion": "success"
+              },
+              {
+                "name": "Post Set up Python",
+                "status": "completed",
+                "conclusion": "success"
+              },
+              {
+                "name": "Post Set up Node.js",
+                "status": "completed",
+                "conclusion": "success"
+              },
+              {
+                "name": "Post Checkout",
+                "status": "completed",
+                "conclusion": "success"
+              },
+              {
+                "name": "Complete job",
+                "status": "completed",
+                "conclusion": "success"
+              }
+            ]
+          },
+          {
+            "id": 112953267706,
+            "name": "Native linux-aarch64",
+            "status": "completed",
+            "conclusion": "success",
+            "steps": [
+              {
+                "name": "Set up job",
+                "status": "completed",
+                "conclusion": "success"
+              },
+              {
+                "name": "Checkout",
+                "status": "completed",
+                "conclusion": "success"
+              },
+              {
+                "name": "Parse and smoke-test the Delivery Skill packager",
+                "status": "completed",
+                "conclusion": "skipped"
+              },
+              {
+                "name": "Set up Node.js",
+                "status": "completed",
+                "conclusion": "success"
+              },
+              {
+                "name": "Set up Python",
+                "status": "completed",
+                "conclusion": "success"
+              },
+              {
+                "name": "Set up uv",
+                "status": "completed",
+                "conclusion": "success"
+              },
+              {
+                "name": "Prepare static OpenSSL for Intel macOS cryptography",
+                "status": "completed",
+                "conclusion": "skipped"
+              },
+              {
+                "name": "Install frozen runtime and release toolchain",
+                "status": "completed",
+                "conclusion": "success"
+              },
+              {
+                "name": "Verify Intel macOS cryptography is independent of OpenSSL dylibs",
+                "status": "completed",
+                "conclusion": "skipped"
+              },
+              {
+                "name": "Build native archive",
+                "status": "completed",
+                "conclusion": "success"
+              },
+              {
+                "name": "Validate native archive identity",
+                "status": "completed",
+                "conclusion": "success"
+              },
+              {
+                "name": "Validate and extract the publishable native archive",
+                "status": "completed",
+                "conclusion": "success"
+              },
+              {
+                "name": "Enforce Linux glibc compatibility baseline",
+                "status": "completed",
+                "conclusion": "success"
+              },
+              {
+                "name": "Run native readiness smoke test",
+                "status": "completed",
+                "conclusion": "success"
+              },
+              {
+                "name": "Upload native archive",
+                "status": "completed",
+                "conclusion": "success"
+              },
+              {
+                "name": "Post Set up uv",
+                "status": "completed",
+                "conclusion": "success"
+              },
+              {
+                "name": "Post Set up Python",
+                "status": "completed",
+                "conclusion": "success"
+              },
+              {
+                "name": "Post Set up Node.js",
+                "status": "completed",
+                "conclusion": "success"
+              },
+              {
+                "name": "Post Checkout",
+                "status": "completed",
+                "conclusion": "success"
+              },
+              {
+                "name": "Complete job",
+                "status": "completed",
+                "conclusion": "success"
+              }
+            ]
+          },
+          {
+            "id": 112953267725,
+            "name": "Native macos-x86_64",
+            "status": "completed",
+            "conclusion": "success",
+            "steps": [
+              {
+                "name": "Set up job",
+                "status": "completed",
+                "conclusion": "success"
+              },
+              {
+                "name": "Checkout",
+                "status": "completed",
+                "conclusion": "success"
+              },
+              {
+                "name": "Parse and smoke-test the Delivery Skill packager",
+                "status": "completed",
+                "conclusion": "skipped"
+              },
+              {
+                "name": "Set up Node.js",
+                "status": "completed",
+                "conclusion": "success"
+              },
+              {
+                "name": "Set up Python",
+                "status": "completed",
+                "conclusion": "success"
+              },
+              {
+                "name": "Set up uv",
+                "status": "completed",
+                "conclusion": "success"
+              },
+              {
+                "name": "Prepare static OpenSSL for Intel macOS cryptography",
+                "status": "completed",
+                "conclusion": "success"
+              },
+              {
+                "name": "Install frozen runtime and release toolchain",
+                "status": "completed",
+                "conclusion": "success"
+              },
+              {
+                "name": "Verify Intel macOS cryptography is independent of OpenSSL dylibs",
+                "status": "completed",
+                "conclusion": "success"
+              },
+              {
+                "name": "Build native archive",
+                "status": "completed",
+                "conclusion": "success"
+              },
+              {
+                "name": "Validate native archive identity",
+                "status": "completed",
+                "conclusion": "success"
+              },
+              {
+                "name": "Validate and extract the publishable native archive",
+                "status": "completed",
+                "conclusion": "success"
+              },
+              {
+                "name": "Enforce Linux glibc compatibility baseline",
+                "status": "completed",
+                "conclusion": "skipped"
+              },
+              {
+                "name": "Run native readiness smoke test",
+                "status": "completed",
+                "conclusion": "success"
+              },
+              {
+                "name": "Upload native archive",
+                "status": "completed",
+                "conclusion": "success"
+              },
+              {
+                "name": "Post Set up uv",
+                "status": "completed",
+                "conclusion": "success"
+              },
+              {
+                "name": "Post Set up Python",
+                "status": "completed",
+                "conclusion": "success"
+              },
+              {
+                "name": "Post Set up Node.js",
+                "status": "completed",
+                "conclusion": "success"
+              },
+              {
+                "name": "Post Checkout",
+                "status": "completed",
+                "conclusion": "success"
+              },
+              {
+                "name": "Complete job",
+                "status": "completed",
+                "conclusion": "success"
+              }
+            ]
+          },
+          {
+            "id": 112953268918,
+            "name": "Build verified Core image candidate",
+            "status": "completed",
+            "conclusion": "skipped",
+            "steps": []
+          },
+          {
+            "id": 112953273272,
+            "name": "Offline Core images",
+            "status": "completed",
+            "conclusion": "skipped",
+            "steps": []
+          },
+          {
+            "id": 112964554080,
+            "name": "Publish GitHub Release",
+            "status": "completed",
+            "conclusion": "skipped",
+            "steps": []
+          }
+        ]
+      },
+      {
+        "id": 37667948163,
+        "name": "Container images",
+        "html_url": "https://github.com/zhigege666/Lingshu-Gate/actions/runs/37667948163",
+        "head_sha": "7c7e39f0f5b6a13f332ad20d1f6c6370a5e9c692",
+        "run_attempt": 1,
+        "event": "pull_request",
+        "status": "completed",
+        "conclusion": "success",
+        "jobs": [
+          {
+            "id": 112951962477,
+            "name": "Validate container contracts",
+            "status": "completed",
+            "conclusion": "success",
+            "steps": [
+              {
+                "name": "Set up job",
+                "status": "completed",
+                "conclusion": "success"
+              },
+              {
+                "name": "Checkout",
+                "status": "completed",
+                "conclusion": "success"
+              },
+              {
+                "name": "Validate local Compose",
+                "status": "completed",
+                "conclusion": "success"
+              },
+              {
+                "name": "Validate production Compose",
+                "status": "completed",
+                "conclusion": "success"
+              },
+              {
+                "name": "Build and inspect secure Core image",
+                "status": "completed",
+                "conclusion": "success"
+              },
+              {
+                "name": "Run Core readiness smoke test",
+                "status": "completed",
+                "conclusion": "success"
+              },
+              {
+                "name": "Scan Core image for critical vulnerabilities",
+                "status": "completed",
+                "conclusion": "success"
+              },
+              {
+                "name": "Post Scan Core image for critical vulnerabilities",
+                "status": "completed",
+                "conclusion": "success"
+              },
+              {
+                "name": "Post Checkout",
+                "status": "completed",
+                "conclusion": "success"
+              },
+              {
+                "name": "Complete job",
+                "status": "completed",
+                "conclusion": "success"
+              }
+            ]
+          },
+          {
+            "id": 112951962650,
+            "name": "QEMU multi-architecture execution smoke",
+            "status": "completed",
+            "conclusion": "success",
+            "steps": [
+              {
+                "name": "Set up job",
+                "status": "completed",
+                "conclusion": "success"
+              },
+              {
+                "name": "Checkout",
+                "status": "completed",
+                "conclusion": "success"
+              },
+              {
+                "name": "Install pinned QEMU binfmt handlers",
+                "status": "completed",
+                "conclusion": "success"
+              },
+              {
+                "name": "Set up pinned Buildx and BuildKit",
+                "status": "completed",
+                "conclusion": "success"
+              },
+              {
+                "name": "Verify host binfmt registration and direct emulated execution",
+                "status": "completed",
+                "conclusion": "success"
+              },
+              {
+                "name": "Execute native and emulated Python without publishing",
+                "status": "completed",
+                "conclusion": "success"
+              },
+              {
+                "name": "Post Set up pinned Buildx and BuildKit",
+                "status": "completed",
+                "conclusion": "success"
+              },
+              {
+                "name": "Post Install pinned QEMU binfmt handlers",
+                "status": "completed",
+                "conclusion": "success"
+              },
+              {
+                "name": "Post Checkout",
+                "status": "completed",
+                "conclusion": "success"
+              },
+              {
+                "name": "Complete job",
+                "status": "completed",
+                "conclusion": "success"
+              }
+            ]
+          },
+          {
+            "id": 112952292199,
+            "name": "Validate multi-architecture Core image",
+            "status": "completed",
+            "conclusion": "skipped",
+            "steps": []
+          }
+        ]
+      },
+      {
+        "id": 37667948180,
+        "name": "Code scanning",
+        "html_url": "https://github.com/zhigege666/Lingshu-Gate/actions/runs/37667948180",
+        "head_sha": "7c7e39f0f5b6a13f332ad20d1f6c6370a5e9c692",
+        "run_attempt": 1,
+        "event": "pull_request",
+        "status": "completed",
+        "conclusion": "success",
+        "jobs": [
+          {
+            "id": 112951929711,
+            "name": "Analyze javascript-typescript",
+            "status": "completed",
+            "conclusion": "success",
+            "steps": [
+              {
+                "name": "Set up job",
+                "status": "completed",
+                "conclusion": "success"
+              },
+              {
+                "name": "Checkout",
+                "status": "completed",
+                "conclusion": "success"
+              },
+              {
+                "name": "Initialize CodeQL",
+                "status": "completed",
+                "conclusion": "success"
+              },
+              {
+                "name": "Analyze",
+                "status": "completed",
+                "conclusion": "success"
+              },
+              {
+                "name": "Post Analyze",
+                "status": "completed",
+                "conclusion": "success"
+              },
+              {
+                "name": "Post Initialize CodeQL",
+                "status": "completed",
+                "conclusion": "success"
+              },
+              {
+                "name": "Post Checkout",
+                "status": "completed",
+                "conclusion": "success"
+              },
+              {
+                "name": "Complete job",
+                "status": "completed",
+                "conclusion": "success"
+              }
+            ]
+          },
+          {
+            "id": 112951930093,
+            "name": "Analyze python",
+            "status": "completed",
+            "conclusion": "success",
+            "steps": [
+              {
+                "name": "Set up job",
+                "status": "completed",
+                "conclusion": "success"
+              },
+              {
+                "name": "Checkout",
+                "status": "completed",
+                "conclusion": "success"
+              },
+              {
+                "name": "Initialize CodeQL",
+                "status": "completed",
+                "conclusion": "success"
+              },
+              {
+                "name": "Analyze",
+                "status": "completed",
+                "conclusion": "success"
+              },
+              {
+                "name": "Post Analyze",
+                "status": "completed",
+                "conclusion": "success"
+              },
+              {
+                "name": "Post Initialize CodeQL",
+                "status": "completed",
+                "conclusion": "success"
+              },
+              {
+                "name": "Post Checkout",
+                "status": "completed",
+                "conclusion": "success"
+              },
+              {
+                "name": "Complete job",
+                "status": "completed",
+                "conclusion": "success"
+              }
+            ]
+          }
+        ]
+      }
+    ],
+    "job_checkout_and_result_proofs": [
+      {
+        "job_id": 112952653995,
+        "job_url": "https://github.com/zhigege666/Lingshu-Gate/actions/runs/37667948226/job/112952653995",
+        "checkout_merge_sha": "d170e73cb9d66bdcebf98834ac95c34b8964da65",
+        "checkout_verified_from_logs": true,
+        "selected_safe_log_lines": [
+          "2026-10-07T18:36:51.4061103Z HEAD is now at d170e73 Merge 7c7e39f0f5b6a13f332ad20d1f6c6370a5e9c692 into 8941738096ab69c0b9fa014f39ff9749cca64822",
+          "2026-10-07T18:38:04.1877270Z 194 passed in 46.57s"
+        ]
+      },
+      {
+        "job_id": 112953267725,
+        "job_url": "https://github.com/zhigege666/Lingshu-Gate/actions/runs/37667948226/job/112953267725",
+        "checkout_merge_sha": "d170e73cb9d66bdcebf98834ac95c34b8964da65",
+        "checkout_verified_from_logs": true,
+        "selected_safe_log_lines": [
+          "2026-10-07T18:38:19.1006070Z HEAD is now at d170e73 Merge 7c7e39f0f5b6a13f332ad20d1f6c6370a5e9c692 into 8941738096ab69c0b9fa014f39ff9749cca64822",
+          "2026-10-07T19:02:02.3016330Z 263 INFO: PyInstaller: 6.22.3, contrib hooks: 2026.7",
+          "2026-10-07T19:03:28.2173250Z repository identity check passed",
+          "2026-10-07T19:03:33.3327600Z native readiness smoke test passed"
+        ]
+      },
+      {
+        "job_id": 112953267554,
+        "job_url": "https://github.com/zhigege666/Lingshu-Gate/actions/runs/37667948226/job/112953267554",
+        "checkout_merge_sha": "d170e73cb9d66bdcebf98834ac95c34b8964da65",
+        "checkout_verified_from_logs": true,
+        "selected_safe_log_lines": [
+          "2026-10-07T18:38:23.5594225Z HEAD is now at d170e73 Merge 7c7e39f0f5b6a13f332ad20d1f6c6370a5e9c692 into 8941738096ab69c0b9fa014f39ff9749cca64822\r",
+          "2026-10-07T18:39:23.6321505Z 460 INFO: PyInstaller: 6.22.3, contrib hooks: 2026.7\r",
+          "2026-10-07T18:40:18.7428605Z repository identity check passed\r",
+          "2026-10-07T18:40:25.2863035Z native readiness smoke test passed\r"
+        ]
+      },
+      {
+        "job_id": 112953267585,
+        "job_url": "https://github.com/zhigege666/Lingshu-Gate/actions/runs/37667948226/job/112953267585",
+        "checkout_merge_sha": "d170e73cb9d66bdcebf98834ac95c34b8964da65",
+        "checkout_verified_from_logs": true,
+        "selected_safe_log_lines": [
+          "2026-10-07T18:38:22.4086690Z HEAD is now at d170e73 Merge 7c7e39f0f5b6a13f332ad20d1f6c6370a5e9c692 into 8941738096ab69c0b9fa014f39ff9749cca64822",
+          "2026-10-07T18:38:42.3546170Z 145 INFO: PyInstaller: 6.22.3, contrib hooks: 2026.7",
+          "2026-10-07T18:39:19.2606580Z repository identity check passed",
+          "2026-10-07T18:39:22.0885130Z native readiness smoke test passed"
+        ]
+      },
+      {
+        "job_id": 112953267706,
+        "job_url": "https://github.com/zhigege666/Lingshu-Gate/actions/runs/37667948226/job/112953267706",
+        "checkout_merge_sha": "d170e73cb9d66bdcebf98834ac95c34b8964da65",
+        "checkout_verified_from_logs": true,
+        "selected_safe_log_lines": [
+          "2026-10-07T18:38:17.4757377Z HEAD is now at d170e73 Merge 7c7e39f0f5b6a13f332ad20d1f6c6370a5e9c692 into 8941738096ab69c0b9fa014f39ff9749cca64822",
+          "2026-10-07T18:38:46.0078815Z 145 INFO: PyInstaller: 6.22.3, contrib hooks: 2026.7",
+          "2026-10-07T18:39:35.2710034Z repository identity check passed",
+          "2026-10-07T18:39:38.7595567Z native readiness smoke test passed"
+        ]
+      },
+      {
+        "job_id": 112953267197,
+        "job_url": "https://github.com/zhigege666/Lingshu-Gate/actions/runs/37667948226/job/112953267197",
+        "checkout_merge_sha": "d170e73cb9d66bdcebf98834ac95c34b8964da65",
+        "checkout_verified_from_logs": true,
+        "selected_safe_log_lines": [
+          "2026-10-07T18:38:15.1320309Z HEAD is now at d170e73 Merge 7c7e39f0f5b6a13f332ad20d1f6c6370a5e9c692 into 8941738096ab69c0b9fa014f39ff9749cca64822",
+          "2026-10-07T18:38:40.0201225Z repository identity check passed"
+        ]
+      },
+      {
+        "job_id": 112951962477,
+        "job_url": "https://github.com/zhigege666/Lingshu-Gate/actions/runs/37667948163/job/112951962477",
+        "checkout_merge_sha": "d170e73cb9d66bdcebf98834ac95c34b8964da65",
+        "checkout_verified_from_logs": true,
+        "selected_safe_log_lines": [
+          "2026-10-07T18:35:18.3067388Z HEAD is now at d170e73 Merge 7c7e39f0f5b6a13f332ad20d1f6c6370a5e9c692 into 8941738096ab69c0b9fa014f39ff9749cca64822",
+          "2026-10-07T18:35:18.4138717Z ##[group]Run docker compose -f compose.yaml config --quiet",
+          "2026-10-07T18:35:18.4139038Z docker compose -f compose.yaml config --quiet",
+          "2026-10-07T18:35:18.7480700Z docker compose -f compose.prod.yaml config --quiet"
+        ]
+      },
+      {
+        "job_id": 112951962650,
+        "job_url": "https://github.com/zhigege666/Lingshu-Gate/actions/runs/37667948163/job/112951962650",
+        "checkout_merge_sha": "d170e73cb9d66bdcebf98834ac95c34b8964da65",
+        "checkout_verified_from_logs": true,
+        "selected_safe_log_lines": [
+          "2026-10-07T18:35:20.1059904Z HEAD is now at d170e73 Merge 7c7e39f0f5b6a13f332ad20d1f6c6370a5e9c692 into 8941738096ab69c0b9fa014f39ff9749cca64822",
+          "2026-10-07T18:35:33.3989259Z   -c 'import platform; assert platform.machine() == \"aarch64\", platform.machine(); print(\"Host binfmt arm64 smoke passed\")'",
+          "2026-10-07T18:35:37.8867290Z Host binfmt arm64 smoke passed",
+          "2026-10-07T18:35:41.0888195Z #8 [linux/amd64 2/2] RUN python -c 'import os, platform; expected = {\"amd64\": \"x86_64\", \"arm64\": \"aarch64\"}[os.environ[\"TARGETARCH\"]]; assert platform.machine() == expected, (platform.machine(), expected); print(\"QEMU architecture smoke passed:\", expected)'",
+          "2026-10-07T18:35:41.2745377Z #8 0.159 QEMU architecture smoke passed: x86_64",
+          "2026-10-07T18:35:41.2749511Z #9 [linux/arm64 2/2] RUN python -c 'import os, platform; expected = {\"amd64\": \"x86_64\", \"arm64\": \"aarch64\"}[os.environ[\"TARGETARCH\"]]; assert platform.machine() == expected, (platform.machine(), expected); print(\"QEMU architecture smoke passed:\", expected)'",
+          "2026-10-07T18:35:42.7882398Z #9 1.693 QEMU architecture smoke passed: aarch64"
+        ]
+      },
+      {
+        "job_id": 112952565886,
+        "job_url": "https://github.com/zhigege666/Lingshu-Gate/actions/runs/37667948203/job/112952565886",
+        "checkout_merge_sha": "d170e73cb9d66bdcebf98834ac95c34b8964da65",
+        "checkout_verified_from_logs": true,
+        "source_attempt": 1,
+        "backend_passed": 2311,
+        "backend_skipped": 7,
+        "subtests_passed": 134,
+        "frontend_passed": 455,
+        "browser_tests_started": false,
+        "failure_step": "Install browser for isolated smoke",
+        "failure_exit_code": 124,
+        "failure_reason": "Ubuntu APT mirror dependency preparation hit the explicit 180-second timeout before browser installation/testing"
+      }
+    ],
+    "failed_attempts": [
+      {
+        "run_id": 37667948203,
+        "attempt": 1,
+        "source_job_id": 112952565886,
+        "status": "completed",
+        "conclusion": "failure",
+        "step": "Install browser for isolated smoke",
+        "exit_code": 124,
+        "root_cause_observation": "APT update stalled on azure/archive Ubuntu mirror indexes before Chromium download; external timeout 180. Browser assertions not executed.",
+        "frontend_passed": 455,
+        "backend_python": "3.12.14",
+        "backend_passed": 2311,
+        "backend_skipped": 7,
+        "subtests_passed": 134,
+        "browser_executed": false,
+        "compatibility_executed": false
+      },
+      {
+        "run_id": 37667948203,
+        "attempt": 2,
+        "source_job_id": 112965314112,
+        "status": "completed",
+        "conclusion": "failure",
+        "step": "Install browser for isolated smoke",
+        "exit_code": 124,
+        "root_cause_observation": "Repeated APT Ubuntu mirror/index stall before Chromium download; no browser assertions or compatibility execution.",
+        "frontend_passed": 455,
+        "backend_passed": 2311,
+        "backend_skipped": 7,
+        "subtests_passed": 134,
+        "browser_executed": false,
+        "compatibility_executed": false
+      }
+    ],
+    "retry": {
+      "requested": true,
+      "success_confirmed": true,
+      "run_id": 37667948203,
+      "attempt": 2,
+      "same_product_head": true,
+      "source_job_id": 112965314112,
+      "no_product_push": true,
+      "status": "completed",
+      "conclusion": "failure"
+    },
+    "conditional_skip_explanations": {
+      "release_tag_only": [
+        "Build verified Core image candidate",
+        "Offline Core images",
+        "Publish GitHub Release"
+      ],
+      "container_main_push_only": [
+        "Validate multi-architecture Core image"
+      ],
+      "native_platform_steps": {
+        "Parse and smoke-test the Delivery Skill packager": "Windows only",
+        "Prepare static OpenSSL for Intel macOS cryptography": "macos-x86_64 only",
+        "Verify Intel macOS cryptography is independent of OpenSSL dylibs": "macos-x86_64 only",
+        "Enforce Linux glibc compatibility baseline": "Linux only"
+      },
+      "release_pr_quality_branches": "Full source/frontend/backend checks are owned by Continuous integration; release-engineering pytest subset runs in Release quality gate",
+      "source_failure_upload": "Failure evidence upload runs only after a failure; no browser artifact existed in attempt 1 because browser tests had not started"
+    },
+    "acceptance_gate": "Both historical 7c source attempts failed. The necessary CI-only repair on 2ef739b and its independent current-head checks are recorded separately; no unchanged third rerun or old overall-green claim."
+  },
+  "evidence_branch": "test/gate-release-0.4.5-evidence-20261007",
+  "ci_checkout_proof": {
+    "branch_head_sha": "7c7e39f0f5b6a13f332ad20d1f6c6370a5e9c692",
+    "actual_ci_merge_checkout_sha": "d170e73cb9d66bdcebf98834ac95c34b8964da65",
+    "base_sha": "8941738096ab69c0b9fa014f39ff9749cca64822",
+    "tree_identical_to_branch_head": true,
+    "tree_sha": "f41e1b897870836f82d180d760b526642c0de2ca"
+  },
+  "ci_artifact_readback": {
+    "branch_head_sha": "7c7e39f0f5b6a13f332ad20d1f6c6370a5e9c692",
+    "actual_ci_merge_checkout_sha": "d170e73cb9d66bdcebf98834ac95c34b8964da65",
+    "artifacts": [
+      {
+        "artifact_id": 11505117556,
+        "name": "native-macos-x86_64",
+        "zip_sha256": "c983a4f91f37595ee9429e079d9057fe9dc8f735b18a2afe9385628dd716bbb4",
+        "checksums_verified": true,
+        "inner_archives": [
+          {
+            "name": "lingshu-gate-v0.4.5-macos-x86_64.tar.gz",
+            "sha256": "8a6a21e161a6bed21860b50489395bf95a850e4453513d3245b4fa8eed4732c7",
+            "bytes": 26358528,
+            "source_revision": "d170e73cb9d66bdcebf98834ac95c34b8964da65",
+            "version": "0.4.5",
+            "target": "macos-x86_64",
+            "complete_build_info_file_inventory_verified": true,
+            "all_static_bytes_match_linux_build": true,
+            "windows_text_line_ending_differences": [],
+            "all_other_static_bytes_match_linux_build": true,
+            "static_file_count": 118,
+            "spdx_sbom_verified": true,
+            "builder": {
+              "altgraph": "0.17.5",
+              "implementation": "CPython",
+              "machine": "x86_64",
+              "node": "v22.23.2",
+              "npm": "10.9.8",
+              "packaging": "26.3",
+              "pyinstaller": "6.22.3",
+              "pyinstaller-hooks-contrib": "2026.7",
+              "python": "3.13.15",
+              "system": "Darwin",
+              "uv": "uv 0.11.33 (fece32fc5 2026-07-28 x86_64-apple-darwin)"
+            }
+          }
+        ]
+      },
+      {
+        "artifact_id": 11503368955,
+        "name": "native-macos-arm64",
+        "zip_sha256": "e00c0a13e2c057668f0edae180d0bc00c625dc68d7bddb45daf0deda457d7de2",
+        "checksums_verified": true,
+        "inner_archives": [
+          {
+            "name": "lingshu-gate-v0.4.5-macos-arm64.tar.gz",
+            "sha256": "936be8eddc8e5a151fca658f5857a444af347485b53dd88537e659e1952d4831",
+            "bytes": 25152228,
+            "source_revision": "d170e73cb9d66bdcebf98834ac95c34b8964da65",
+            "version": "0.4.5",
+            "target": "macos-arm64",
+            "complete_build_info_file_inventory_verified": true,
+            "all_static_bytes_match_linux_build": true,
+            "windows_text_line_ending_differences": [],
+            "all_other_static_bytes_match_linux_build": true,
+            "static_file_count": 118,
+            "spdx_sbom_verified": true,
+            "builder": {
+              "altgraph": "0.17.5",
+              "implementation": "CPython",
+              "machine": "arm64",
+              "node": "v22.23.2",
+              "npm": "10.9.8",
+              "packaging": "26.3",
+              "pyinstaller": "6.22.3",
+              "pyinstaller-hooks-contrib": "2026.7",
+              "python": "3.13.15",
+              "system": "Darwin",
+              "uv": "uv 0.11.33 (fece32fc5 2026-07-28 aarch64-apple-darwin)"
+            }
+          }
+        ]
+      },
+      {
+        "artifact_id": 11503174249,
+        "name": "native-windows-x86_64",
+        "zip_sha256": "ccbe832a7e94c800ae0138e65806ef2cbf8c78a3342b704e9b3aedee7074c9e1",
+        "checksums_verified": true,
+        "inner_archives": [
+          {
+            "name": "lingshu-gate-v0.4.5-windows-x86_64.zip",
+            "sha256": "6f6cb0bcce60abad02d8907d32e74b0af32bd6c3240ebfa309ac9c416b6d6da7",
+            "bytes": 26040486,
+            "source_revision": "d170e73cb9d66bdcebf98834ac95c34b8964da65",
+            "version": "0.4.5",
+            "target": "windows-x86_64",
+            "complete_build_info_file_inventory_verified": true,
+            "all_static_bytes_match_linux_build": false,
+            "windows_text_line_ending_differences": [
+              "_internal/lingshu_gate/static/console/index.html",
+              "_internal/lingshu_gate/static/console/lingshu-gate-app-icon.svg",
+              "_internal/lingshu_gate/static/console/lingshu-gate-icon.svg",
+              "_internal/lingshu_gate/static/oauth/oauth.html"
+            ],
+            "all_other_static_bytes_match_linux_build": true,
+            "static_file_count": 118,
+            "spdx_sbom_verified": true,
+            "builder": {
+              "altgraph": "0.17.5",
+              "implementation": "CPython",
+              "machine": "AMD64",
+              "node": "v22.23.2",
+              "npm": "10.9.8",
+              "packaging": "26.3",
+              "pyinstaller": "6.22.3",
+              "pyinstaller-hooks-contrib": "2026.7",
+              "python": "3.13.15",
+              "system": "Windows",
+              "uv": "uv 0.11.33 (fece32fc5 2026-07-28 x86_64-pc-windows-msvc)"
+            }
+          }
+        ]
+      },
+      {
+        "artifact_id": 11502484798,
+        "name": "docker-compose",
+        "zip_sha256": "74311a6aedd00eb3611da66943d7f6590632d4765c73338d72f462fe2ba16a82",
+        "checksums_verified": true,
+        "inner_archives": [
+          {
+            "name": "lingshu-gate-v0.4.5-docker-compose.tar.gz",
+            "sha256": "acfa4afb1fde036fc111737f856e51bee14baf439819c1b948fd391984225085",
+            "bytes": 95918,
+            "source_revision": "d170e73cb9d66bdcebf98834ac95c34b8964da65",
+            "version": "0.4.5",
+            "target": "docker-compose",
+            "complete_build_info_file_inventory_verified": true
+          }
+        ],
+        "application_sbom_verified": true
+      }
+    ]
+  },
+  "ci_installation_diagnosis": {
+    "cloud_inrelease_probes": {
+      "captured_at_utc": "2026-10-07T19:10:49.023649+00:00",
+      "scope": "Read-only cloud-environment connectivity probes; they do not prove GitHub runner connectivity or APT signature trust. No source, package, system APT configuration or dependencies were changed.",
+      "results": [
+        {
+          "url": "http://azure.archive.ubuntu.com/ubuntu/dists/noble/InRelease",
+          "exit_code": 0,
+          "http_timing": [
+            "200",
+            "0.000920",
+            "0.053670"
+          ],
+          "wall_seconds": 0.078,
+          "stderr": "",
+          "bytes": 255850,
+          "sha256": "cdb2f31d809f589719a53c6ad15f255b27569c4059542ada282aaa21b8e164b0",
+          "signed_inrelease_envelope_present": true,
+          "apt_trust_signature_verification_performed": false
+        },
+        {
+          "url": "https://azure.archive.ubuntu.com/ubuntu/dists/noble/InRelease",
+          "exit_code": 22,
+          "http_timing": [
+            "503",
+            "0.001273",
+            "5.030221"
+          ],
+          "wall_seconds": 5.041,
+          "stderr": "curl: (22) The requested URL returned error: 503",
+          "bytes": 0,
+          "sha256": null,
+          "signed_inrelease_envelope_present": false,
+          "apt_trust_signature_verification_performed": false
+        },
+        {
+          "url": "https://archive.ubuntu.com/ubuntu/dists/noble/InRelease",
+          "exit_code": 0,
+          "http_timing": [
+            "200",
+            "0.000938",
+            "0.493136"
+          ],
+          "wall_seconds": 0.915,
+          "stderr": "",
+          "bytes": 255850,
+          "sha256": "cdb2f31d809f589719a53c6ad15f255b27569c4059542ada282aaa21b8e164b0",
+          "signed_inrelease_envelope_present": true,
+          "apt_trust_signature_verification_performed": false
+        },
+        {
+          "url": "https://security.ubuntu.com/ubuntu/dists/noble-security/InRelease",
+          "exit_code": 0,
+          "http_timing": [
+            "200",
+            "0.000569",
+            "3.472961"
+          ],
+          "wall_seconds": 3.748,
+          "stderr": "",
+          "bytes": 126127,
+          "sha256": "e845dfa589e4c4a0649ef6e672f9085eb23e3a1554017f926186a566259343e0",
+          "signed_inrelease_envelope_present": true,
+          "apt_trust_signature_verification_performed": false
+        }
+      ]
+    },
+    "cloud_index_probes": {
+      "captured_at_utc": "2026-10-07T19:15:10.396709+00:00",
+      "scope": "Read-only bounded cloud probes of affected package indexes, not a GitHub runner connection or trusted APT install. No system configuration changed.",
+      "results": [
+        {
+          "url": "http://azure.archive.ubuntu.com/ubuntu/dists/noble-updates/main/binary-amd64/Packages.xz",
+          "range_requested": "bytes=0-65535",
+          "exit_code": 0,
+          "http_timing": [
+            "206",
+            "0.000990",
+            "0.046322"
+          ],
+          "wall_seconds": 0.064,
+          "stderr": "",
+          "received_bytes": 65536,
+          "received_sha256": "9d90259ef18eaa42166ca002dde811d2ff713406132be345478ac668e7de4394",
+          "apt_signature_and_index_digest_verification_performed": false
+        },
+        {
+          "url": "https://archive.ubuntu.com/ubuntu/dists/noble-updates/main/binary-amd64/Packages.xz",
+          "range_requested": "bytes=0-65535",
+          "exit_code": 0,
+          "http_timing": [
+            "206",
+            "0.000925",
+            "0.524561"
+          ],
+          "wall_seconds": 0.748,
+          "stderr": "",
+          "received_bytes": 65536,
+          "received_sha256": "9d90259ef18eaa42166ca002dde811d2ff713406132be345478ac668e7de4394",
+          "apt_signature_and_index_digest_verification_performed": false
+        },
+        {
+          "url": "https://security.ubuntu.com/ubuntu/dists/noble-security/main/binary-amd64/Packages.xz",
+          "range_requested": "bytes=0-65535",
+          "exit_code": 0,
+          "http_timing": [
+            "206",
+            "0.000844",
+            "0.511726"
+          ],
+          "wall_seconds": 0.729,
+          "stderr": "",
+          "received_bytes": 65536,
+          "received_sha256": "9079fe8d196fb48ea2a2bb068b5d6977f5195b60cdadc76d974714d5e32b9b45",
+          "apt_signature_and_index_digest_verification_performed": false
+        }
+      ]
+    },
+    "playwright_core_version": "1.63.0",
+    "observed_pinned_dependency_installer": "Official Playwright invokes apt-get update then apt-get install -y --no-install-recommends with its complete requested library set; no per-request APT timeout/retry overrides are present in that call",
+    "primary_references": [
+      "https://playwright.dev/docs/browsers#install-system-dependencies",
+      "https://manpages.ubuntu.com/manpages/noble/man5/apt.conf.5.html",
+      "https://manpages.ubuntu.com/manpages/noble/man1/apt-transport-http.1.html"
+    ],
+    "ci_changed": false
+  },
+  "historical_attempts": [
+    {
+      "source_sha": "7c7e39f0f5b6a13f332ad20d1f6c6370a5e9c692",
+      "stage": "Installed-wheel environment preparation",
+      "result": "Offline frozen runtime installation refused because annotated-doc index metadata was absent in this new cache",
+      "reason": "Installed the same locked requirements with --require-hashes using the network, then installed the exact candidate offline with --no-deps",
+      "runs": [
+        {
+          "label": "isolated-venv",
+          "command": [
+            "<validation>/uv-bin/uv",
+            "venv",
+            "--python",
+            "<toolchain>/uv-python/cpython-3.13.15-linux-x86_64-gnu/bin/python3.13",
+            "<validation>/wheel-runtime/venv"
+          ],
+          "cwd": "<repo>",
+          "source_sha": "7c7e39f0f5b6a13f332ad20d1f6c6370a5e9c692",
+          "exit_code": 0,
+          "timed_out": false,
+          "wall_seconds": 0.064045,
+          "log": "wheel-runtime/isolated-venv.log",
+          "log_sha256": "5e0e4dbe47c48b59e95f1fdddb4018f252b97bd467d14fdd735ac273ff921280"
+        },
+        {
+          "label": "offline-hashed-runtime",
+          "command": [
+            "<validation>/uv-bin/uv",
+            "pip",
+            "install",
+            "--offline",
+            "--python",
+            "<validation>/wheel-runtime/venv/bin/python",
+            "--require-hashes",
+            "-r",
+            "<repo>/requirements.lock"
+          ],
+          "cwd": "<repo>",
+          "source_sha": "7c7e39f0f5b6a13f332ad20d1f6c6370a5e9c692",
+          "exit_code": 1,
+          "timed_out": false,
+          "wall_seconds": 0.114194,
+          "log": "wheel-runtime/offline-hashed-runtime.log",
+          "log_sha256": "d5284bad8f5b9e196d13065338cb9e1d225d0a42eb3890589151f893ba192850"
+        }
+      ]
+    },
+    {
+      "source_sha": "7c7e39f0f5b6a13f332ad20d1f6c6370a5e9c692",
+      "stage": "Installed-wheel HTTP driver",
+      "result": "Driver lacked development-only httpx before starting any service",
+      "reason": "Moved the HTTP driver to the existing development environment while still launching the isolated installed-wheel CLI; whole installed HTTP probe passed",
+      "runs": [
+        {
+          "label": "wheel-http-smoke",
+          "command": [
+            "<validation>/wheel-runtime/venv/bin/python",
+            "<validation>/check_installed_wheel_http.py"
+          ],
+          "cwd": "<validation>",
+          "source_sha": "7c7e39f0f5b6a13f332ad20d1f6c6370a5e9c692",
+          "exit_code": 1,
+          "timed_out": false,
+          "wall_seconds": 0.064066,
+          "log": "wheel-runtime/wheel-http-smoke-attempt-driver.log",
+          "log_sha256": "e6bbb490f18e6b887b2c09828d4555e8b47538b1c8153ce30e694b4059a4d8e9"
+        }
+      ]
+    },
+    {
+      "source_sha": "c029dadf3ade75e00e904a625fca57864850f62d",
+      "backend_exit_code": 2,
+      "reason": "Intentionally interrupted for the authorized UI omission adaptation; not a full-suite pass",
+      "log_sha256": "8bf0e299081db709fc5e1fa93d5085939fb785ed296b244e5fda908bd5d86da8"
+    },
+    {
+      "source_sha": "c029dadf3ade75e00e904a625fca57864850f62d",
+      "browser": "19 launch failures before product assertions",
+      "reason": "Chromium temporary SingletonSocket exceeded Unix path length; corrected with a short owned /tmp fixture"
+    },
+    {
+      "source_sha": "5c3d9aaa726b8bb048e09d90c151a8f680f7e367",
+      "browser": "26 passed / 1 failed",
+      "reason": "New test locator omitted the existing api icon prefix; fixed locator and reran the whole selected suite",
+      "log_sha256": "62d44433fe1812718e0fb19b14635f59af450e79c9c7fca773fc0b43d58ae364"
+    },
+    {
+      "source_sha": "8e77c3645d41c3d6fe8e1bb79c5010e16be7338a",
+      "packaging": "155 passed / 1 failed",
+      "reason": "Worktree umask produced 0700 for two scripts declared 100755 in Git; restored only those declared modes without byte/Git changes; rerun passed",
+      "normalization": {
+        "restored_declared_checkout_modes": [
+          {
+            "path": "packaging/native/start.sh",
+            "git_declared_mode": "100755",
+            "before": "0o700",
+            "after": "0o755",
+            "bytes_sha256_unchanged": "b2595eb4b2137b9647b52deb19f26ba6f39100fb9b78fa3559e797ca2666929a"
+          },
+          {
+            "path": "scripts/release/build_offline_images.sh",
+            "git_declared_mode": "100755",
+            "before": "0o700",
+            "after": "0o755",
+            "bytes_sha256_unchanged": "71d0b645537927d6e95e80fe8079b700e5f9c2d2464fb58af1a76ce2b4c63e25"
+          }
+        ],
+        "no_product_permission_change": true
+      }
+    },
+    {
+      "source_sha": "5c3d9aaa726b8bb048e09d90c151a8f680f7e367",
+      "backend": "2311 passed / 7 skipped / 134 subtests passed",
+      "reason": "Earlier complete local run; retained with its original SHA and not reused as this source's new gate"
+    },
+    {
+      "source_sha": "8e77c3645d41c3d6fe8e1bb79c5010e16be7338a",
+      "browser": "27 passed",
+      "reason": "Earlier source before localized role correction; historical packages/artifacts retain their original SHAs"
+    }
+  ],
+  "historical_browser_scope": {
+    "default": {
+      "passed": 418,
+      "skipped": 55,
+      "failed": 2,
+      "total": 475
+    },
+    "optional": {
+      "passed": 27,
+      "skipped": 3,
+      "failed": 7
+    },
+    "attribution": "unproven",
+    "whole_site_green_claimed": false
+  },
+  "not_executed": [
+    "nx5/SSH/service switch",
+    "real rootless Podman provisioning/readiness",
+    "real ChatGPT OAuth client",
+    "multi-machine integration",
+    "formal main merge/tag/release/11-asset publication"
+  ],
+  "evidence_boundary": "Historical reviewed-product checkpoint. The later 2ef739b CI-only repair and fresh package/CI evidence are recorded separately; this file never substitutes 7c7 results for a later head. The independent docs branch does not reset PR55 CI. Owner-controlled main/tag/formal publication remains separate."
+}
