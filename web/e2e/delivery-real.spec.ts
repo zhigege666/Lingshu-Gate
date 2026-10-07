@@ -155,10 +155,10 @@ test('E2E-007 @delivery real upload, build, configure, deploy and start', async 
   await serviceEditor.getByText('崩溃重启策略', { exact: true }).click()
   for (const viewport of [{ width: 1672, height: 941 }, { width: 1366, height: 768 }, { width: 390, height: 844 }]) {
     await page.setViewportSize(viewport)
-    const expectedWidth = Math.min(1200, viewport.width - (viewport.width <= 720 ? 32 : 96))
+    const expectedWidth = Math.min(1200, viewport.width - (viewport.width <= 600 ? 32 : 96))
     // The centered dialog keeps a single scrolling editor body and fixed actions.
     await expect.poll(() => serviceEditor.evaluate(element => ({ width: Math.round(element.getBoundingClientRect().width), left: Math.round(element.getBoundingClientRect().left) }))).toEqual({ width: expectedWidth, left: Math.round((viewport.width - expectedWidth) / 2) })
-    expect((await serviceEditor.boundingBox())!.height).toBeLessThanOrEqual(viewport.height - (viewport.width <= 720 ? 32 : 64))
+    await expect.poll(async () => (await serviceEditor.boundingBox())!.height).toBeLessThanOrEqual(viewport.height - (viewport.width <= 600 ? 32 : 64))
     await serviceEditor.locator('.manifest-editor-body').evaluate(element => { element.scrollTop = element.scrollHeight })
     await expectInViewportAndUnobscured(serviceEditor.getByLabel('失败阈值', { exact: true }))
     await expectInViewportAndUnobscured(serviceEditor.getByRole('button', { name: '保存配置', exact: true }))
