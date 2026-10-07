@@ -30,8 +30,12 @@ reference=$(docker image inspect --format '{{range .RepoDigests}}{{println .}}{{
 
 export COSIGN_PASSWORD=synthetic-fixture-password
 cosign generate-key-pair --output-key-prefix "$fixture_root/signing" >/dev/null
+# Keep Cosign 3's signing-config API, with no public CA/OIDC/tlog/TSA endpoints.
+cosign signing-config create --out "$fixture_root/signing-config.json" \
+  --no-default-fulcio --no-default-oidc --no-default-rekor --no-default-tsa
 COSIGN_PRIVATE_KEY=$(cat "$fixture_root/signing.key") \
-  cosign sign --yes --key env://COSIGN_PRIVATE_KEY --tlog-upload=false --allow-http-registry "$reference"
+  cosign sign --yes --key env://COSIGN_PRIVATE_KEY \
+    --signing-config "$fixture_root/signing-config.json" --allow-http-registry "$reference"
 cosign verify --key "$fixture_root/signing.pub" --insecure-ignore-tlog \
   --allow-http-registry "$reference" > "$fixture_root/verified.json"
 cosign generate-key-pair --output-key-prefix "$fixture_root/wrong" >/dev/null
