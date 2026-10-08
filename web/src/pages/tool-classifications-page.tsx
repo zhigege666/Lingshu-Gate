@@ -1,4 +1,5 @@
 import { FilterRadio } from "@/components/filter-radio"
+import { classificationChangeReason } from "@/features/classification-change"
 import "./tool-classifications-page.css"
 import { useRemainingViewport } from "@/components/use-remaining-viewport"
 import { ListPagination, ListViewport, useListPage } from "@/components/list-pagination"
@@ -593,10 +594,8 @@ function StatusBadge({ item, labels }: { item: ToolClassification; labels: Recor
   const status = classificationViewStatus(item)
   if (status === "published") return <Badge variant="success">{labels.published}</Badge>
   if (status === "stale") {
-    const lifecycle = item.evidence?.lifecycle as { reason?: string } | undefined
-    const invalidation = item.evidence?.invalidation as { reason?: string } | undefined
     const zh = labels.stale === "已失效"
-    const reason = lifecycle?.reason === "missing_from_latest_tools_list" ? (zh ? "最新目录中已移除" : "Removed from latest catalog") : lifecycle?.reason === "reappeared_in_tools_list" ? (zh ? "工具重新出现，需复核" : "Tool reappeared; review required") : invalidation?.reason === "tool_definition_changed" ? (zh ? "定义已变更，需重新审核" : "Definition changed; review required") : (zh ? "需重新审核，详见证据" : "Review required; inspect evidence")
+    const reason = classificationChangeReason(item, zh)
     return <div><Badge variant="danger">{labels.stale}</Badge><p className="mt-1 text-xs text-muted-foreground">{reason}</p></div>
   }
   if (status === "confirmed_pending") return <Badge variant="outline">{labels.confirmedPending}</Badge>
