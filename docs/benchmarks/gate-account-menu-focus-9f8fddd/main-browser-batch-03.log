@@ -1,0 +1,54 @@
+[WebServer] INFO:     Started server process [158733]
+[WebServer] INFO:     Waiting for application startup.
+[WebServer] INFO:     Application startup complete.
+[WebServer] INFO:     Uvicorn running on http://127.0.0.1:18763 (Press CTRL+C to quit)
+
+Running 42 tests using 1 worker
+
+(node:158741) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+  ✓   1 e2e/login-version.spec.ts:47:3 › runtime login/register version en-US-light-1600x900 (871ms)
+  ✓   2 e2e/login-version.spec.ts:72:3 › metadata failure keeps login/register usable en-US-light-1600x900 (514ms)
+  ✓   3 e2e/login-version.spec.ts:47:3 › runtime login/register version en-US-dark-1600x900 (803ms)
+  ✓   4 e2e/login-version.spec.ts:72:3 › metadata failure keeps login/register usable en-US-dark-1600x900 (540ms)
+  ✓   5 e2e/login-version.spec.ts:47:3 › runtime login/register version zh-CN-light-1600x900 (708ms)
+  ✓   6 e2e/login-version.spec.ts:72:3 › metadata failure keeps login/register usable zh-CN-light-1600x900 (503ms)
+  ✓   7 e2e/login-version.spec.ts:47:3 › runtime login/register version zh-CN-dark-1600x900 (713ms)
+  ✓   8 e2e/login-version.spec.ts:72:3 › metadata failure keeps login/register usable zh-CN-dark-1600x900 (570ms)
+  ✓   9 e2e/login-version.spec.ts:47:3 › runtime login/register version en-US-light-1920x1080 (886ms)
+  ✓  10 e2e/login-version.spec.ts:72:3 › metadata failure keeps login/register usable en-US-light-1920x1080 (561ms)
+  ✓  11 e2e/login-version.spec.ts:47:3 › runtime login/register version en-US-dark-1920x1080 (788ms)
+  ✓  12 e2e/login-version.spec.ts:72:3 › metadata failure keeps login/register usable en-US-dark-1920x1080 (592ms)
+  ✓  13 e2e/login-version.spec.ts:47:3 › runtime login/register version zh-CN-light-1920x1080 (889ms)
+  ✓  14 e2e/login-version.spec.ts:72:3 › metadata failure keeps login/register usable zh-CN-light-1920x1080 (630ms)
+  ✓  15 e2e/login-version.spec.ts:47:3 › runtime login/register version zh-CN-dark-1920x1080 (919ms)
+  ✓  16 e2e/login-version.spec.ts:72:3 › metadata failure keeps login/register usable zh-CN-dark-1920x1080 (643ms)
+  ✓  17 e2e/login-version.spec.ts:47:3 › runtime login/register version en-US-light-2560x1080 (850ms)
+  ✓  18 e2e/login-version.spec.ts:72:3 › metadata failure keeps login/register usable en-US-light-2560x1080 (644ms)
+  ✓  19 e2e/login-version.spec.ts:47:3 › runtime login/register version en-US-dark-2560x1080 (795ms)
+  ✓  20 e2e/login-version.spec.ts:72:3 › metadata failure keeps login/register usable en-US-dark-2560x1080 (560ms)
+  ✓  21 e2e/login-version.spec.ts:47:3 › runtime login/register version zh-CN-light-2560x1080 (836ms)
+  ✓  22 e2e/login-version.spec.ts:72:3 › metadata failure keeps login/register usable zh-CN-light-2560x1080 (598ms)
+  ✓  23 e2e/login-version.spec.ts:47:3 › runtime login/register version zh-CN-dark-2560x1080 (812ms)
+  ✓  24 e2e/login-version.spec.ts:72:3 › metadata failure keeps login/register usable zh-CN-dark-2560x1080 (666ms)
+  ✓  25 e2e/login-version.spec.ts:47:3 › runtime login/register version en-US-light-2560x1440 (880ms)
+  ✓  26 e2e/login-version.spec.ts:72:3 › metadata failure keeps login/register usable en-US-light-2560x1440 (544ms)
+  ✓  27 e2e/login-version.spec.ts:47:3 › runtime login/register version en-US-dark-2560x1440 (885ms)
+  ✓  28 e2e/login-version.spec.ts:72:3 › metadata failure keeps login/register usable en-US-dark-2560x1440 (547ms)
+  ✓  29 e2e/login-version.spec.ts:47:3 › runtime login/register version zh-CN-light-2560x1440 (739ms)
+  ✓  30 e2e/login-version.spec.ts:72:3 › metadata failure keeps login/register usable zh-CN-light-2560x1440 (498ms)
+  ✓  31 e2e/login-version.spec.ts:47:3 › runtime login/register version zh-CN-dark-2560x1440 (833ms)
+  ✓  32 e2e/login-version.spec.ts:72:3 › metadata failure keeps login/register usable zh-CN-dark-2560x1440 (580ms)
+  ✓  33 e2e/login-version.spec.ts:99:3 › pending version does not block real login and times out en-US light (5.5s)
+  ✓  34 e2e/login-version.spec.ts:99:3 › pending version does not block real login and times out en-US dark (5.4s)
+  ✓  35 e2e/login-version.spec.ts:99:3 › pending version does not block real login and times out zh-CN light (5.5s)
+  ✓  36 e2e/login-version.spec.ts:99:3 › pending version does not block real login and times out zh-CN dark (5.5s)
+  ✓  37 e2e/login-version.spec.ts:126:1 › backend version wins over the Console build version and long prereleases remain visible (710ms)
+  -  38 e2e/maintenance-nowrap.spec.ts:10:3 › E2E-520 @maintenance-nowrap Chinese short labels 1188x768
+  -  39 e2e/maintenance-nowrap.spec.ts:10:3 › E2E-521 @maintenance-nowrap Chinese short labels 1366x768
+  -  40 e2e/maintenance-nowrap.spec.ts:10:3 › E2E-522 @maintenance-nowrap Chinese short labels 390x844
+  ✓  41 e2e/mcp-client-mode.spec.ts:5:3 › MCP client on-demand mode en-US @smoke (2.1s)
+  ✓  42 e2e/mcp-client-mode.spec.ts:5:3 › MCP client on-demand mode zh-CN @smoke (2.0s)
+
+  3 skipped
+  39 passed (52.3s)

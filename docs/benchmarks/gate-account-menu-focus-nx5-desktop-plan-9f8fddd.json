@@ -1,0 +1,241 @@
+{
+  "schema_version": 2,
+  "recorded_at_utc": "2026-10-08T13:40:40.359155+00:00",
+  "status": "Revised short plan only. Await exact-head ordinary CI and parent scope review. No nx5 startup, cleanup, SSH or original-service switch performed.",
+  "source_sha": "9f8fddd9709e400517fc2e342ed9889a35751c96",
+  "source_tree": "1325f73c41200bf9d9511c230c61e959a05977ca",
+  "supersedes": "gate-account-menu-focus-nx5-plan-9f8fddd.json: its 1280/640/390 samples are existing regressions and do not close the four requested desktop targets.",
+  "desktop_closure_matrix": [
+    {
+      "viewport": {
+        "width": 1600,
+        "height": 900
+      },
+      "root_bookmark_login_reload": {
+        "locale": "zh-CN",
+        "entry": "/",
+        "identity": "fresh fixture viewer"
+      },
+      "legacy_bookmark_login_reload": {
+        "locale": "en-US",
+        "entry": "/console",
+        "identity": "fresh fixture viewer"
+      },
+      "account_early_close_and_reopen": {
+        "locale": "en-US",
+        "identity": "fresh fixture admin",
+        "open_frames_before_escape": 0,
+        "assertions": [
+          "Trusted Enter then Escape returns focus to trigger",
+          "Six queued old frames cannot steal focus while closed",
+          "Normal reopen autofocus after three frames and final Escape still work"
+        ]
+      }
+    },
+    {
+      "viewport": {
+        "width": 1920,
+        "height": 1080
+      },
+      "root_bookmark_login_reload": {
+        "locale": "zh-CN",
+        "entry": "/",
+        "identity": "fresh fixture viewer"
+      },
+      "legacy_bookmark_login_reload": {
+        "locale": "en-US",
+        "entry": "/console",
+        "identity": "fresh fixture viewer"
+      },
+      "account_early_close_and_reopen": {
+        "locale": "zh-CN",
+        "identity": "fresh fixture admin",
+        "open_frames_before_escape": 0,
+        "assertions": [
+          "Trusted Enter then Escape returns focus to trigger",
+          "Six queued old frames cannot steal focus while closed",
+          "Normal reopen autofocus after three frames and final Escape still work"
+        ]
+      }
+    },
+    {
+      "viewport": {
+        "width": 2560,
+        "height": 1080
+      },
+      "root_bookmark_login_reload": {
+        "locale": "zh-CN",
+        "entry": "/",
+        "identity": "fresh fixture viewer"
+      },
+      "legacy_bookmark_login_reload": {
+        "locale": "en-US",
+        "entry": "/console",
+        "identity": "fresh fixture viewer"
+      },
+      "account_early_close_and_reopen": {
+        "locale": "en-US",
+        "identity": "fresh fixture admin",
+        "open_frames_before_escape": 0,
+        "assertions": [
+          "Trusted Enter then Escape returns focus to trigger",
+          "Six queued old frames cannot steal focus while closed",
+          "Normal reopen autofocus after three frames and final Escape still work"
+        ]
+      }
+    },
+    {
+      "viewport": {
+        "width": 2560,
+        "height": 1440
+      },
+      "root_bookmark_login_reload": {
+        "locale": "zh-CN",
+        "entry": "/",
+        "identity": "fresh fixture viewer"
+      },
+      "legacy_bookmark_login_reload": {
+        "locale": "en-US",
+        "entry": "/console",
+        "identity": "fresh fixture viewer"
+      },
+      "account_early_close_and_reopen": {
+        "locale": "zh-CN",
+        "identity": "fresh fixture admin",
+        "open_frames_before_escape": 0,
+        "assertions": [
+          "Trusted Enter then Escape returns focus to trigger",
+          "Six queued old frames cannot steal focus while closed",
+          "Normal reopen autofocus after three frames and final Escape still work"
+        ]
+      }
+    }
+  ],
+  "required_sample_count": {
+    "desktop_bookmark_samples": 8,
+    "desktop_focus_samples": 4,
+    "permission_group_samples": 3,
+    "total": 15
+  },
+  "permission_group_once": {
+    "fixture": "Same exclusive temporary database as desktop samples; real auth and authorization responses",
+    "cases": [
+      "E2E-002: five management GETs 403, own token metadata GET 200",
+      "E2E-004: own service/invocation summaries 200 without management server/config requests",
+      "E2E-006: disabled synthetic scope draft 201, another principal GET/DELETE 404, cancel emits no delete, owner revokes only this draft"
+    ],
+    "viewport_scope": "Permission evidence only. E2E-006 retains its existing 1280x600 setting; that setting provides no four-desktop acceptance claim."
+  },
+  "optional_existing_regressions": {
+    "cases": [
+      "Existing controlled early-close samples at 1280/640",
+      "Existing E2E-005 phone viewport 390x844"
+    ],
+    "required_to_close_this_round": false,
+    "physical_device_claim": false
+  },
+  "test_adapter_plan": {
+    "product_head_moved": false,
+    "auth_me_or_permission_responses_mocked": false,
+    "root_flow": "Run the two existing root-entry cases in four projects with the exact target width and height; the existing cases do not override viewport.",
+    "account_flow": "Use a separately hashed run-owned adapter containing the reviewed RAF queue and unchanged close/reopen assertions from test blob 5bf42c874b8ad312e1e28687a143eb5ef992f380, with the four explicit target tuples.",
+    "reason_for_adapter": "Existing new account cases call setViewportSize at 1280/640 and height 720; a project setting alone would not establish target desktop coverage. Existing wide account tests mock identity presentation, so they are not substituted for this real-identity nx5 plan.",
+    "test_and_action_timeouts_changed": false,
+    "workers": 1,
+    "retries": 0,
+    "command_budget_seconds": 180,
+    "run_owned_adapter_prepared_or_executed": false
+  },
+  "fixture_lifecycle": {
+    "ownership": "One new exclusive 0700 run directory on the already scoped nx5 isolation disk; one new GATE_E2E_TEMP_ROOT and nested TemporaryDirectory. No original service database/config/user/credential path is reused.",
+    "creation": [
+      {
+        "source": "https://github.com/zhigege666/Lingshu-Gate/blob/9f8fddd9709e400517fc2e342ed9889a35751c96/scripts/e2e/serve.py#L11",
+        "effect": "Remove inherited LINGSHU_GATE_* settings and set data/config/allowed-root/auth to the nested temporary directory before importing create_app."
+      },
+      {
+        "source": "https://github.com/zhigege666/Lingshu-Gate/blob/9f8fddd9709e400517fc2e342ed9889a35751c96/src/lingshu_gate/config.py#L102",
+        "effect": "Default SQLite URL derives from that temporary data directory."
+      },
+      {
+        "source": "https://github.com/zhigege666/Lingshu-Gate/blob/9f8fddd9709e400517fc2e342ed9889a35751c96/scripts/e2e/serve.py#L29",
+        "effect": "Bootstrap fresh fixture admin, replace its bootstrap password, and create one fresh synthetic viewer in that exclusive database."
+      },
+      {
+        "source": "https://github.com/zhigege666/Lingshu-Gate/blob/9f8fddd9709e400517fc2e342ed9889a35751c96/scripts/e2e/serve.py#L34",
+        "effect": "Register one in-process read tool; publish its fixture-only classification and save one fixture viewer read grant. These are new temporary policy writes requiring nx5-specific scope review."
+      },
+      {
+        "source": "https://github.com/zhigege666/Lingshu-Gate/blob/9f8fddd9709e400517fc2e342ed9889a35751c96/scripts/e2e/serve.py#L53",
+        "effect": "Only Gate 127.0.0.1:18763 and the existing ephemeral loopback HTTP peer bind listeners."
+      }
+    ],
+    "credential_material": {
+      "scope": "Temporary fixture credential material only; do not claim zero generation.",
+      "items": [
+        "Random one-time initial admin credential file with mode 0600 during fresh bootstrap",
+        "PBKDF2 password hashes and fresh admin/viewer role rows in the fixture SQLite database",
+        "New console session tokens in browser contexts and their hashes in that database",
+        "One disabled personal scope-draft row for E2E-006, then fixture-owner revoke"
+      ],
+      "bootstrap_file_boundary": "https://github.com/zhigege666/Lingshu-Gate/blob/9f8fddd9709e400517fc2e342ed9889a35751c96/src/lingshu_gate/auth.py#L247",
+      "password_rotation_and_bootstrap_file_deletion": "https://github.com/zhigege666/Lingshu-Gate/blob/9f8fddd9709e400517fc2e342ed9889a35751c96/src/lingshu_gate/auth.py#L713",
+      "console_session_boundary": "https://github.com/zhigege666/Lingshu-Gate/blob/9f8fddd9709e400517fc2e342ed9889a35751c96/src/lingshu_gate/auth.py#L439",
+      "new_persistent_credentials_after_cleanup": false,
+      "api_token_or_downstream_credential_created": false,
+      "host_or_real_service_trust_modified": false,
+      "external_oauth_authorization_or_real_client_created": false,
+      "oauth_enablement_or_signing_key_creation_requested": false,
+      "scope_note": "Encryption and OAuth key stores are constructed with the same temporary data root; their key creation paths are lazy. These fifteen cases do not request downstream credential save, OAuth enablement or key rotation.",
+      "would_create_temporary_material": true,
+      "disabled_scope_draft_boundary": "https://github.com/zhigege666/Lingshu-Gate/blob/9f8fddd9709e400517fc2e342ed9889a35751c96/src/lingshu_gate/external_connection_store.py#L101",
+      "disabled_scope_route_boundary": "https://github.com/zhigege666/Lingshu-Gate/blob/9f8fddd9709e400517fc2e342ed9889a35751c96/src/lingshu_gate/interfaces/control_api/external_connection_routes.py#L222"
+    },
+    "destruction": [
+      {
+        "source": "https://github.com/zhigege666/Lingshu-Gate/blob/9f8fddd9709e400517fc2e342ed9889a35751c96/src/lingshu_gate/main.py#L280",
+        "effect": "Graceful app shutdown stops retention, safe executor, external configuration connections and MCP runtime."
+      },
+      {
+        "source": "https://github.com/zhigege666/Lingshu-Gate/blob/9f8fddd9709e400517fc2e342ed9889a35751c96/scripts/e2e/http_peer.py#L57",
+        "effect": "Peer context finally shuts down/closes its server and joins its thread."
+      },
+      {
+        "source": "https://github.com/zhigege666/Lingshu-Gate/blob/9f8fddd9709e400517fc2e342ed9889a35751c96/scripts/e2e/serve.py#L15",
+        "effect": "Normal fixture exit removes the nested application TemporaryDirectory, including users/session hashes/grants/database files."
+      },
+      {
+        "source": "https://github.com/zhigege666/Lingshu-Gate/blob/9f8fddd9709e400517fc2e342ed9889a35751c96/web/e2e/teardown.ts#L5",
+        "effect": "Repository teardown deletes only a prefix-checked root directly under tmpdir; by itself it is not proof that owned child processes were already reaped."
+      }
+    ],
+    "nx5_owned_cleanup_plan": "Use a separately hashed run-owned teardown that defers outer-root deletion. After Playwright fixture shutdown, verify the recorded owned PIDs/descendants and both loopback listeners are gone, then remove only the recorded run-owned root after parent/path/no-symlink checks. If shutdown is uncertain, retain that root and the error receipt; do not delete by prefix scan or broad command.",
+    "secret_receipts": "Keep cookies/password/key/database and traces private. Publish only sanitized assertions, exact source/adapter/static hashes, timestamps and process/port cleanup outcomes."
+  },
+  "nx5_scope_review": {
+    "review_required_before_any_execution": true,
+    "requested_temporary_writes": [
+      "Fresh admin/viewer plus console sessions in only this exclusive fixture database",
+      "Fixture-only classification publication and one viewer read grant",
+      "One disabled personal scope draft and its fixture-owner revoke"
+    ],
+    "nx4_admin_temporary_database_authorization_transferred": false,
+    "prior_nx5_source_wheel_http_rpc_receipts_rebranded_or_rerun": false,
+    "old_runtime_reused": false,
+    "original_service": "Keep 0.4.4/PID 117063, unit/ExecStart, data/config/credentials and protected directories untouched; fresh read-only preservation check before and after any later authorized run.",
+    "ssh_owner_error": "If the same SSH client-owner failure occurs, save its normal receipt and stop. Do not change system ownership/permissions or use an -F workaround."
+  },
+  "separate_real_prerequisites": [
+    "Authorized real external OAuth client/issuer/resource/redirect and consent, only for later OAuth acceptance",
+    "Authorized real downstream identity and bounded trust target, only for later credential acceptance",
+    "Approved nx5 host/executor security configuration and rootless Podman prerequisites, only for later host/executor acceptance"
+  ],
+  "publication_boundary": {
+    "source_pr_head_fixed": true,
+    "main_merged": false,
+    "tag_changed": false,
+    "formal_run_started": false,
+    "release_published": false,
+    "nx5_executed": false
+  }
+}

@@ -275,5 +275,7 @@
     "tag_changed": false,
     "release_published": false,
     "new_nx5_results_claimed": false
-  }
+  },
+  "superseded_by": "gate-account-menu-focus-nx5-desktop-plan-9f8fddd.json",
+  "desktop_scope_correction": "Original eight listed cases at 1280/640/390 do not close the four requested desktop targets. See the revised 15-sample desktop/permission plan and nx5-specific fixture scope review."
 }

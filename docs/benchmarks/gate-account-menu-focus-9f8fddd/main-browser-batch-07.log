@@ -1,0 +1,75 @@
+[WebServer] INFO:     Started server process [162272]
+[WebServer] INFO:     Waiting for application startup.
+[WebServer] INFO:     Application startup complete.
+[WebServer] INFO:     Uvicorn running on http://127.0.0.1:18763 (Press CTRL+C to quit)
+
+Running 63 tests using 1 worker
+
+(node:162310) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+  ✓   1 e2e/oauth-management-resource.spec.ts:98:3 › management resource confirmation and explicit client resource en-US-light-1600x900 (2.8s)
+  ✓   2 e2e/oauth-management-resource.spec.ts:129:3 › management targets retain the full 1000-target policy across pages en-US-light-1600x900 (2.5s)
+  ✓   3 e2e/oauth-management-resource.spec.ts:98:3 › management resource confirmation and explicit client resource en-US-dark-1600x900 (2.6s)
+  ✓   4 e2e/oauth-management-resource.spec.ts:129:3 › management targets retain the full 1000-target policy across pages en-US-dark-1600x900 (2.4s)
+  ✓   5 e2e/oauth-management-resource.spec.ts:98:3 › management resource confirmation and explicit client resource zh-CN-light-1600x900 (2.6s)
+  ✓   6 e2e/oauth-management-resource.spec.ts:129:3 › management targets retain the full 1000-target policy across pages zh-CN-light-1600x900 (2.3s)
+  ✓   7 e2e/oauth-management-resource.spec.ts:98:3 › management resource confirmation and explicit client resource zh-CN-dark-1600x900 (2.6s)
+  ✓   8 e2e/oauth-management-resource.spec.ts:129:3 › management targets retain the full 1000-target policy across pages zh-CN-dark-1600x900 (2.5s)
+  ✓   9 e2e/oauth-management-resource.spec.ts:98:3 › management resource confirmation and explicit client resource en-US-light-1920x1080 (2.5s)
+  ✓  10 e2e/oauth-management-resource.spec.ts:129:3 › management targets retain the full 1000-target policy across pages en-US-light-1920x1080 (2.5s)
+  ✓  11 e2e/oauth-management-resource.spec.ts:98:3 › management resource confirmation and explicit client resource en-US-dark-1920x1080 (2.6s)
+  ✓  12 e2e/oauth-management-resource.spec.ts:129:3 › management targets retain the full 1000-target policy across pages en-US-dark-1920x1080 (2.3s)
+  ✓  13 e2e/oauth-management-resource.spec.ts:98:3 › management resource confirmation and explicit client resource zh-CN-light-1920x1080 (3.1s)
+  ✓  14 e2e/oauth-management-resource.spec.ts:129:3 › management targets retain the full 1000-target policy across pages zh-CN-light-1920x1080 (2.4s)
+  ✓  15 e2e/oauth-management-resource.spec.ts:98:3 › management resource confirmation and explicit client resource zh-CN-dark-1920x1080 (2.5s)
+  ✓  16 e2e/oauth-management-resource.spec.ts:129:3 › management targets retain the full 1000-target policy across pages zh-CN-dark-1920x1080 (2.4s)
+  ✓  17 e2e/oauth-management-resource.spec.ts:98:3 › management resource confirmation and explicit client resource en-US-light-2560x1080 (2.7s)
+  ✓  18 e2e/oauth-management-resource.spec.ts:129:3 › management targets retain the full 1000-target policy across pages en-US-light-2560x1080 (2.4s)
+  ✓  19 e2e/oauth-management-resource.spec.ts:98:3 › management resource confirmation and explicit client resource en-US-dark-2560x1080 (2.7s)
+  ✓  20 e2e/oauth-management-resource.spec.ts:129:3 › management targets retain the full 1000-target policy across pages en-US-dark-2560x1080 (2.6s)
+  ✓  21 e2e/oauth-management-resource.spec.ts:98:3 › management resource confirmation and explicit client resource zh-CN-light-2560x1080 (3.0s)
+  ✓  22 e2e/oauth-management-resource.spec.ts:129:3 › management targets retain the full 1000-target policy across pages zh-CN-light-2560x1080 (2.4s)
+  ✓  23 e2e/oauth-management-resource.spec.ts:98:3 › management resource confirmation and explicit client resource zh-CN-dark-2560x1080 (2.8s)
+  ✓  24 e2e/oauth-management-resource.spec.ts:129:3 › management targets retain the full 1000-target policy across pages zh-CN-dark-2560x1080 (2.4s)
+  ✓  25 e2e/oauth-management-resource.spec.ts:98:3 › management resource confirmation and explicit client resource en-US-light-2560x1440 (2.7s)
+  ✓  26 e2e/oauth-management-resource.spec.ts:129:3 › management targets retain the full 1000-target policy across pages en-US-light-2560x1440 (2.6s)
+  ✓  27 e2e/oauth-management-resource.spec.ts:98:3 › management resource confirmation and explicit client resource en-US-dark-2560x1440 (3.0s)
+  ✓  28 e2e/oauth-management-resource.spec.ts:129:3 › management targets retain the full 1000-target policy across pages en-US-dark-2560x1440 (2.9s)
+  ✓  29 e2e/oauth-management-resource.spec.ts:98:3 › management resource confirmation and explicit client resource zh-CN-light-2560x1440 (3.4s)
+  ✓  30 e2e/oauth-management-resource.spec.ts:129:3 › management targets retain the full 1000-target policy across pages zh-CN-light-2560x1440 (3.0s)
+  ✓  31 e2e/oauth-management-resource.spec.ts:98:3 › management resource confirmation and explicit client resource zh-CN-dark-2560x1440 (3.1s)
+  ✓  32 e2e/oauth-management-resource.spec.ts:129:3 › management targets retain the full 1000-target policy across pages zh-CN-dark-2560x1440 (3.1s)
+  ✓  33 e2e/oauth-management-resource.spec.ts:166:3 › management unknown key state prevents enable but preserves explicit disable en-US (1.9s)
+  ✓  34 e2e/oauth-management-resource.spec.ts:182:3 › management target error and dirty keyboard close retain edits en-US (3.4s)
+  ✓  35 e2e/oauth-management-resource.spec.ts:209:3 › management pending read cannot be closed by keyboard en-US (1.4s)
+  ✓  36 e2e/oauth-management-resource.spec.ts:225:3 › management consent validates exact targets and keeps read-only scope en-US (861ms)
+  ✓  37 e2e/oauth-management-resource.spec.ts:166:3 › management unknown key state prevents enable but preserves explicit disable zh-CN (2.2s)
+  ✓  38 e2e/oauth-management-resource.spec.ts:182:3 › management target error and dirty keyboard close retain edits zh-CN (3.5s)
+  ✓  39 e2e/oauth-management-resource.spec.ts:209:3 › management pending read cannot be closed by keyboard zh-CN (1.5s)
+  ✓  40 e2e/oauth-management-resource.spec.ts:225:3 › management consent validates exact targets and keeps read-only scope zh-CN (1.0s)
+  ✓  41 e2e/oauth-management.spec.ts:41:3 › OAuth clients distinguish no records from filtered records en-US @large-data (1.2s)
+  ✓  42 e2e/oauth-management.spec.ts:53:5 › OAuth one-time secret X retains value unless saved en-US @permissions (2.6s)
+  ✓  43 e2e/oauth-management.spec.ts:53:5 › OAuth one-time secret Escape retains value unless saved en-US @permissions (2.8s)
+  ✓  44 e2e/oauth-management.spec.ts:41:3 › OAuth clients distinguish no records from filtered records zh-CN @large-data (1.2s)
+  ✓  45 e2e/oauth-management.spec.ts:53:5 › OAuth one-time secret X retains value unless saved zh-CN @permissions (2.9s)
+  ✓  46 e2e/oauth-management.spec.ts:53:5 › OAuth one-time secret Escape retains value unless saved zh-CN @permissions (3.0s)
+  -  47 e2e/oauth-paged-catalog.spec.ts:38:1 › OAuth entry avoids full definitions and the tool route still loads on navigation
+  -  48 e2e/oauth-paged-catalog.spec.ts:57:3 › real paged OAuth catalog fits en-US 1600x900
+  -  49 e2e/oauth-paged-catalog.spec.ts:57:3 › real paged OAuth catalog fits zh-CN 1600x900
+  -  50 e2e/oauth-paged-catalog.spec.ts:57:3 › real paged OAuth catalog fits en-US 1920x1080
+  -  51 e2e/oauth-paged-catalog.spec.ts:57:3 › real paged OAuth catalog fits zh-CN 1920x1080
+  -  52 e2e/oauth-paged-catalog.spec.ts:57:3 › real paged OAuth catalog fits en-US 2560x1080
+  -  53 e2e/oauth-paged-catalog.spec.ts:57:3 › real paged OAuth catalog fits zh-CN 2560x1080
+  -  54 e2e/oauth-paged-catalog.spec.ts:57:3 › real paged OAuth catalog fits en-US 2560x1440
+  -  55 e2e/oauth-paged-catalog.spec.ts:57:3 › real paged OAuth catalog fits zh-CN 2560x1440
+  -  56 e2e/oauth-paged-catalog.spec.ts:105:3 › real paging group selection limits refresh and save recovery en-US
+  -  57 e2e/oauth-paged-catalog.spec.ts:105:3 › real paging group selection limits refresh and save recovery zh-CN
+  -  58 e2e/oauth-paged-catalog.spec.ts:185:3 › remote MCP selector searches bounded groups and keeps draft across pages en-US
+  -  59 e2e/oauth-paged-catalog.spec.ts:211:3 › remote MCP selector keyboard loads retries and returns focus en-US
+  -  60 e2e/oauth-paged-catalog.spec.ts:299:3 › committed scope save with a lost response refreshes actual state en-US
+  -  61 e2e/oauth-paged-catalog.spec.ts:185:3 › remote MCP selector searches bounded groups and keeps draft across pages zh-CN
+  -  62 e2e/oauth-paged-catalog.spec.ts:211:3 › remote MCP selector keyboard loads retries and returns focus zh-CN
+  -  63 e2e/oauth-paged-catalog.spec.ts:299:3 › committed scope save with a lost response refreshes actual state zh-CN
+
+  17 skipped
+  46 passed (2.0m)
