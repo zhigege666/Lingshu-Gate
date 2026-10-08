@@ -6,6 +6,7 @@ import json
 import time
 import threading
 from pathlib import Path
+from types import SimpleNamespace
 from concurrent.futures import ThreadPoolExecutor
 from dataclasses import replace
 from unittest.mock import Mock, patch
@@ -327,8 +328,13 @@ def test_five_thousand_real_manifest_queries_reuse_metadata_snapshot(gate, recor
         print("GROUP_METADATA_MEASUREMENTS " + json.dumps(readings))
 
 
-def test_metadata_snapshot_invalidates_on_mutation_reload_refresh_and_ttl(gate):
+def test_metadata_snapshot_invalidates_on_mutation_reload_refresh_and_ttl(gate, monkeypatch):
     configs, client = gate["configs"], gate["client"]
+    # Build from an exact clock origin: arbitrary floats can make
+    # (built_at + 30) - built_at slightly less than the unchanged 30-second TTL.
+    # Replace only this module's clock; keep the HTTP event loop's clock real.
+    clock = Mock(return_value=240.0)
+    monkeypatch.setattr("lingshu_gate.mcp_config_store.time", SimpleNamespace(monotonic=clock))
     def names(**params):
         result = client.get("/v1/mcp/groups/instances", params=params)
         assert result.status_code == 200
@@ -350,9 +356,19 @@ def test_metadata_snapshot_invalidates_on_mutation_reload_refresh_and_ttl(gate):
     path.write_text(json.dumps({**manifest, "id": "instance-0", "name": "External reload"}))
     McpConfigurationService(configs, gate["runtime"], Mock(), group_store=gate["store"]).reload()
     assert names()["instance-0"] == "External reload"
-    with patch("lingshu_gate.mcp_config_store.time.monotonic", return_value=configs._metadata_built_at + 30):
+    built_at = configs._metadata_built_at
+    with patch.object(configs, "_read_instance_metadata", wraps=configs._read_instance_metadata) as reads:
         path.write_text(json.dumps({**manifest, "id": "instance-0", "name": "Expired snapshot"}))
+        clock.return_value = built_at + 29
+        assert names()["instance-0"] == "External reload"
+        assert reads.call_count == 0
+        clock.return_value = built_at + 30
         assert names()["instance-0"] == "Expired snapshot"
+        assert reads.call_count == 1
+        path.write_text(json.dumps({**manifest, "id": "instance-0", "name": "Beyond TTL snapshot"}))
+        clock.return_value = configs._metadata_built_at + 31
+        assert names()["instance-0"] == "Beyond TTL snapshot"
+        assert reads.call_count == 2
 
 
 def test_save_checks_current_files_even_when_read_snapshot_is_warm(gate):

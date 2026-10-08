@@ -1,0 +1,141 @@
+{
+  "schema_version": 1,
+  "repository": "zhigege666/Lingshu-Gate",
+  "recorded_at_utc": "2026-10-08T09:35:30Z",
+  "source_failure": {
+    "run_id": 37745321706,
+    "job_id": 113216144167,
+    "run_url": "https://github.com/zhigege666/Lingshu-Gate/actions/runs/37745321706",
+    "source_sha": "26f10f98762c57de46e05701b1a7be1864a65ec1",
+    "runner": "ubuntu-24.04",
+    "python": "3.11.17",
+    "dependency_install": "uv sync --frozen",
+    "command": "uv run --no-sync pytest -q",
+    "nodeid": "tests/test_mcp_groups.py::test_metadata_snapshot_invalidates_on_mutation_reload_refresh_and_ttl",
+    "expected": "Expired snapshot",
+    "actual": "External reload",
+    "pytest_result": "1 failed, 2329 passed, 7 skipped, 134 subtests passed in 1472.37s (0:24:32)",
+    "raw_log": {
+      "filename": "job-113216144167.log",
+      "bytes": 45497,
+      "sha256": "c2e1f48d35416a8557529e412cc8bf6311f1acef0e3b9c193d89cae674748b34"
+    }
+  },
+  "deterministic_reproduction": {
+    "local_environment": {
+      "python": "3.13.15",
+      "pytest": "9.1.1",
+      "platform": "linux"
+    },
+    "test_source_sha": "26f10f98762c57de46e05701b1a7be1864a65ec1",
+    "product_module_sha256": "585cd587fe4c4bce0aa855c1e2b729ad23feeaff7c40a19dd9433897c9d0000e",
+    "original_test_unchanged": true,
+    "method": "Run the original test with a controlled module-local monotonic clock; wrap metadata reads and publications without changing their outcomes.",
+    "cases": [
+      {
+        "case": "exact",
+        "initial_clock": 240.0,
+        "initial_clock_hex": "0x1.e000000000000p+7",
+        "final_read": {
+          "now": 270.0,
+          "built_at": 240.0,
+          "age": 30.0,
+          "now_hex": "0x1.0e00000000000p+8",
+          "built_at_hex": "0x1.e000000000000p+7",
+          "age_hex": "0x1.e000000000000p+4",
+          "built_at_after": 270.0,
+          "name": "Expired snapshot"
+        },
+        "metadata_reads": 7,
+        "metadata_publications": 7,
+        "exit_code": 0,
+        "pytest_result": "1 passed in 1.77s",
+        "raw_log": {
+          "filename": "exact.log",
+          "bytes": 98,
+          "sha256": "291395cfa7e2171a6532db4dea4d823d8119e8a6782d574808db9524c4661998"
+        }
+      },
+      {
+        "case": "rounding",
+        "initial_clock": 240.00000000000003,
+        "initial_clock_hex": "0x1.e000000000001p+7",
+        "final_read": {
+          "now": 270.0,
+          "built_at": 240.00000000000003,
+          "age": 29.99999999999997,
+          "now_hex": "0x1.0e00000000000p+8",
+          "built_at_hex": "0x1.e000000000001p+7",
+          "age_hex": "0x1.dfffffffffff8p+4",
+          "built_at_after": 240.00000000000003,
+          "name": "External reload"
+        },
+        "metadata_reads": 6,
+        "metadata_publications": 6,
+        "exit_code": 1,
+        "pytest_result": "1 failed in 1.07s",
+        "raw_log": {
+          "filename": "rounding.log",
+          "bytes": 725,
+          "sha256": "eb528a80937a54bd94f27a712078fb789cad214f1d2a416fc8f76ee3a6956159"
+        }
+      }
+    ],
+    "inference": "The original test constructs now as built_at + 30. With an arbitrary floating-point origin, subtracting built_at can produce an age below 30, which correctly retains the warm snapshot. The failing controlled case performs no expiry read or publication.",
+    "limit": "The original CI built_at timestamp was not logged. These deterministic cases demonstrate the test assumption; they do not recover that CI timestamp or identify the separate Ubuntu 22.04 formal Release failure nodes."
+  },
+  "repair": {
+    "validation_base_sha": "9816f696d513c340bbf8ba5fab7f3c9c94d84a08",
+    "scope": "Existing test and evidence only; product source, TTL constant, versions, workflows and collector are unchanged.",
+    "clock_origin": 240.0,
+    "module_local_clock": true,
+    "retained_assertions": "All original mutation, save, delete, refresh, reload and expiry assertions remain.",
+    "boundary_checks": [
+      {
+        "age_seconds": 29,
+        "expected_name": "External reload",
+        "expected_reads": 0
+      },
+      {
+        "age_seconds": 30,
+        "expected_name": "Expired snapshot",
+        "expected_reads": 1
+      },
+      {
+        "age_seconds": 31,
+        "relative_to": "Snapshot rebuilt at exact TTL",
+        "expected_name": "Beyond TTL snapshot",
+        "expected_reads": 2
+      }
+    ],
+    "sleep_or_skip_added": false,
+    "ttl_seconds": 30.0
+  },
+  "validation": [
+    {
+      "scope": "tests/test_mcp_groups.py::test_metadata_snapshot_invalidates_on_mutation_reload_refresh_and_ttl",
+      "exit_code": 0,
+      "pytest_result": "1 passed in 1.12s",
+      "raw_log": {
+        "filename": "controlled-boundary-fixed.log",
+        "bytes": 98,
+        "sha256": "8707f6d4c96754710bf0a62f35c31285b102588e841b88c1f9f5d0aae715dadd"
+      }
+    },
+    {
+      "scope": "tests/test_mcp_groups.py",
+      "exit_code": 0,
+      "pytest_result": "71 passed in 31.07s",
+      "raw_log": {
+        "filename": "mcp-groups-fixed.log",
+        "bytes": 100,
+        "sha256": "10058715d7fd69b58634c1ac9045a4eb81e6e40202fa9b889e2cbba31fcc6d30"
+      }
+    }
+  ],
+  "static_checks": {
+    "ruff": "All checks passed",
+    "mypy": "Success: no issues found in 158 source files"
+  },
+  "remaining_validation": "Normal pull-request CI is pending at the time this evidence file was recorded."
+}
