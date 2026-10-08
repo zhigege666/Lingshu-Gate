@@ -1,0 +1,275 @@
+{
+  "schema_version": 1,
+  "recorded_at_utc": "2026-10-08T12:36:53.857394+00:00",
+  "repository": "zhigege666/Lingshu-Gate",
+  "scope": "One reviewed branch diagnostic. Failure is not a formal release acceptance result.",
+  "workflow": {
+    "path": ".github/workflows/release-quality-diagnostic.yml",
+    "ref": "refs/heads/test/gate-formal-environment-diagnostic-20261008",
+    "sha": "31939e2701c39181b31ef79ffb51a7d43666cc60",
+    "workflow_file_sha256": "535995eb91a244566ee27ba847b1b8b68c90e188db8991459ab4990ad6b0afd0",
+    "permissions": {
+      "contents": "read"
+    },
+    "timeout_minutes": 40
+  },
+  "product": {
+    "sha": "c0ea7d04cd16ac01536d0c0f00edab0c5ffc349e",
+    "tree": "716da35e388aab6784d8b41d6ae4e79a4c17f948",
+    "tag": "v0.4.5",
+    "checkout_layout": "GITHUB_WORKSPACE root"
+  },
+  "dispatch": {
+    "requests_sent": 1,
+    "http_status": 200,
+    "ref": "test/gate-formal-environment-diagnostic-20261008",
+    "inputs": {},
+    "authorization": "Reviewed exact branch head; one controlled diagnostic only"
+  },
+  "run": {
+    "id": 37775045433,
+    "event": "workflow_dispatch",
+    "run_attempt": 1,
+    "head_sha": "31939e2701c39181b31ef79ffb51a7d43666cc60",
+    "head_branch": "test/gate-formal-environment-diagnostic-20261008",
+    "path": ".github/workflows/release-quality-diagnostic.yml",
+    "status": "completed",
+    "conclusion": "failure",
+    "created_at": "2026-10-08T12:10:46Z",
+    "updated_at": "2026-10-08T12:31:26Z",
+    "html_url": "https://github.com/zhigege666/Lingshu-Gate/actions/runs/37775045433"
+  },
+  "jobs": [
+    {
+      "id": 113303668870,
+      "name": "Diagnose fixed 0.4.5 release source",
+      "status": "completed",
+      "conclusion": "failure",
+      "started_at": "2026-10-08T12:10:50Z",
+      "completed_at": "2026-10-08T12:31:25Z",
+      "labels": [
+        "ubuntu-22.04"
+      ],
+      "steps": [
+        {
+          "number": 1,
+          "name": "Set up job",
+          "status": "completed",
+          "conclusion": "success",
+          "started_at": "2026-10-08T12:10:51Z",
+          "completed_at": "2026-10-08T12:10:52Z"
+        },
+        {
+          "number": 2,
+          "name": "Checkout exact diagnostic workflow revision",
+          "status": "completed",
+          "conclusion": "success",
+          "started_at": "2026-10-08T12:10:52Z",
+          "completed_at": "2026-10-08T12:10:54Z"
+        },
+        {
+          "number": 3,
+          "name": "Preserve actual platform workflow identity outside the product checkout",
+          "status": "completed",
+          "conclusion": "success",
+          "started_at": "2026-10-08T12:10:54Z",
+          "completed_at": "2026-10-08T12:10:54Z"
+        },
+        {
+          "number": 4,
+          "name": "Checkout fixed product source and history",
+          "status": "completed",
+          "conclusion": "success",
+          "started_at": "2026-10-08T12:10:54Z",
+          "completed_at": "2026-10-08T12:10:56Z"
+        },
+        {
+          "number": 5,
+          "name": "Set up release Python",
+          "status": "completed",
+          "conclusion": "success",
+          "started_at": "2026-10-08T12:10:56Z",
+          "completed_at": "2026-10-08T12:11:03Z"
+        },
+        {
+          "number": 6,
+          "name": "Verify source tag and separate workflow provenance",
+          "status": "completed",
+          "conclusion": "success",
+          "started_at": "2026-10-08T12:11:03Z",
+          "completed_at": "2026-10-08T12:11:36Z"
+        },
+        {
+          "number": 7,
+          "name": "Set up release Node.js",
+          "status": "completed",
+          "conclusion": "success",
+          "started_at": "2026-10-08T12:11:36Z",
+          "completed_at": "2026-10-08T12:11:43Z"
+        },
+        {
+          "number": 8,
+          "name": "Verify and build fixed-source Console",
+          "status": "completed",
+          "conclusion": "success",
+          "started_at": "2026-10-08T12:11:43Z",
+          "completed_at": "2026-10-08T12:12:19Z"
+        },
+        {
+          "number": 9,
+          "name": "Set up release uv",
+          "status": "completed",
+          "conclusion": "success",
+          "started_at": "2026-10-08T12:12:19Z",
+          "completed_at": "2026-10-08T12:12:22Z"
+        },
+        {
+          "number": 10,
+          "name": "Install frozen quality and release dependencies",
+          "status": "completed",
+          "conclusion": "success",
+          "started_at": "2026-10-08T12:12:22Z",
+          "completed_at": "2026-10-08T12:12:23Z"
+        },
+        {
+          "number": 11,
+          "name": "Verify fixed-source pip export",
+          "status": "completed",
+          "conclusion": "success",
+          "started_at": "2026-10-08T12:12:23Z",
+          "completed_at": "2026-10-08T12:12:23Z"
+        },
+        {
+          "number": 12,
+          "name": "Diagnose all original backend and release tests",
+          "status": "completed",
+          "conclusion": "failure",
+          "started_at": "2026-10-08T12:12:23Z",
+          "completed_at": "2026-10-08T12:31:20Z"
+        },
+        {
+          "number": 13,
+          "name": "Retain immediate failure and interrupted-session evidence",
+          "status": "completed",
+          "conclusion": "success",
+          "started_at": "2026-10-08T12:31:20Z",
+          "completed_at": "2026-10-08T12:31:21Z"
+        },
+        {
+          "number": 22,
+          "name": "Post Set up release uv",
+          "status": "completed",
+          "conclusion": "skipped",
+          "started_at": "2026-10-08T12:31:21Z",
+          "completed_at": "2026-10-08T12:31:21Z"
+        },
+        {
+          "number": 23,
+          "name": "Post Set up release Node.js",
+          "status": "completed",
+          "conclusion": "skipped",
+          "started_at": "2026-10-08T12:31:21Z",
+          "completed_at": "2026-10-08T12:31:21Z"
+        },
+        {
+          "number": 24,
+          "name": "Post Set up release Python",
+          "status": "completed",
+          "conclusion": "skipped",
+          "started_at": "2026-10-08T12:31:21Z",
+          "completed_at": "2026-10-08T12:31:21Z"
+        },
+        {
+          "number": 25,
+          "name": "Post Checkout fixed product source and history",
+          "status": "completed",
+          "conclusion": "success",
+          "started_at": "2026-10-08T12:31:21Z",
+          "completed_at": "2026-10-08T12:31:21Z"
+        },
+        {
+          "number": 26,
+          "name": "Post Checkout exact diagnostic workflow revision",
+          "status": "completed",
+          "conclusion": "success",
+          "started_at": "2026-10-08T12:31:21Z",
+          "completed_at": "2026-10-08T12:31:22Z"
+        },
+        {
+          "number": 27,
+          "name": "Complete job",
+          "status": "completed",
+          "conclusion": "success",
+          "started_at": "2026-10-08T12:31:22Z",
+          "completed_at": "2026-10-08T12:31:22Z"
+        }
+      ]
+    }
+  ],
+  "artifact_api_metadata": [
+    {
+      "id": 11551420227,
+      "name": "release-quality-diagnostic-37775045433-1",
+      "size_in_bytes": 26827,
+      "digest": "sha256:a6b54969e6f5ec755cfb764996698478d8f0d385adbd8b8f4c8e9cd09da22140",
+      "expired": false,
+      "created_at": "2026-10-08T12:31:21Z",
+      "workflow_run": {
+        "id": 37775045433,
+        "repository_id": 1351128499,
+        "head_repository_id": 1351128499,
+        "head_branch": "test/gate-formal-environment-diagnostic-20261008",
+        "head_sha": "31939e2701c39181b31ef79ffb51a7d43666cc60"
+      }
+    }
+  ],
+  "readback": {
+    "run_attempt_and_exact_workflow_head_verified": true,
+    "actual_platform_receipt_step_conclusion": "success",
+    "source_provenance_verification_step_conclusion": "success",
+    "actual_platform_receipt_json_read": false,
+    "source_provenance_json_read": false,
+    "raw_job_log_materialized": false,
+    "artifact_zip_materialized": false,
+    "standard_junit_read": false,
+    "command_result_json_read": false,
+    "first_failed_test_nodeid": null,
+    "traceback": null,
+    "check_annotation": {
+      "level": "failure",
+      "path": ".github",
+      "start_line": 100389,
+      "message": "Process completed with exit code 1."
+    },
+    "limitations": [
+      "The GitHub connector job-log read returned Transport closed.",
+      "The normal GitHub CLI job-log and artifact redirects returned Forbidden (403).",
+      "Downloads stopped after these 403 responses. No download retries, alternate endpoint, rerun, or permission change followed.",
+      "Terminal metadata does not identify which backend command failed or its first failing test. No test root cause is established by this record."
+    ]
+  },
+  "release_boundary": {
+    "formal_run_id": 37731721484,
+    "formal_attempt": 2,
+    "formal_conclusion": "cancelled",
+    "formal_attempt_3_started": false,
+    "diagnostic_rerun_started": false,
+    "formal_recovery_dispatch_started": false,
+    "release_yml_changed": false,
+    "release_created": false,
+    "tag_changed": false,
+    "formal_packages_produced_in_this_diagnostic": false,
+    "formal_package_hashes": null
+  },
+  "verification": {
+    "pre_dispatch_review_contract_tests": {
+      "passed": 115,
+      "duration_seconds": 8.19
+    },
+    "source_ruff": "passed before commit",
+    "source_mypy": "passed before commit",
+    "bash_syntax": "passed before commit",
+    "diff_check": "passed before commit",
+    "new_remote_run": "failure; exact failure details not materialized"
+  }
+}
