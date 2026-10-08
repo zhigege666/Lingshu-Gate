@@ -6,6 +6,15 @@ on:
 permissions:
   contents: read
 
+env:
+  LINGSHU_GATE_RELEASE_NODE_VERSION: 22.23.2
+  LINGSHU_GATE_RELEASE_PYTHON_VERSION: 3.13.15
+  LINGSHU_GATE_RELEASE_BUILDX_VERSION: v0.36.1
+  LINGSHU_GATE_RELEASE_BUILDKIT_IMAGE: moby/buildkit:v0.32.2@sha256:28a898719c18a33f4e8000685287fa36fd0dd9560c6440227d3a732d79bb41d8
+  LINGSHU_GATE_RELEASE_BINFMT_IMAGE: docker.io/tonistiigi/binfmt:qemu-v10.2.3-68@sha256:400a4873b838d1b89194d982c45e5fb3cda4593fbfd7e08a02e76b03b21166f0
+  LINGSHU_GATE_RELEASE_NODE_BASE_IMAGE: node:22-bookworm-slim@sha256:83f487e0a63425e5b4d146fb5e5be574bcbe1b7b843d3ebafdd95eaf7767a7e5
+  LINGSHU_GATE_RELEASE_PYTHON_BASE_IMAGE: python:3.12-slim-bookworm@sha256:0f5b26b9518d002b6173fd61daad821fa340635ebfec5bba471013f9ca114579
+
 jobs:
   quality:
     name: Diagnose fixed 0.4.5 release source
@@ -15,24 +24,44 @@ jobs:
       LINGSHU_GATE_DIAGNOSTIC_SOURCE_SHA: c0ea7d04cd16ac01536d0c0f00edab0c5ffc349e
       LINGSHU_GATE_DIAGNOSTIC_SOURCE_TREE: 716da35e388aab6784d8b41d6ae4e79a4c17f948
       LINGSHU_GATE_DIAGNOSTIC_SOURCE_TAG: v0.4.5
-      PYTHONUNBUFFERED: "1"
-    defaults:
-      run:
-        working-directory: source
     steps:
       - name: Checkout exact diagnostic workflow revision
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           ref: ${{ github.workflow_sha }}
-          path: diagnostic-tools
           fetch-depth: 1
           persist-credentials: false
+
+      - name: Preserve actual platform workflow identity outside the product checkout
+        run: |
+          python - <<'PY'
+          import hashlib
+          import json
+          import os
+          import subprocess
+          from pathlib import Path
+
+          tooling_sha = subprocess.check_output(["git", "rev-parse", "HEAD"], text=True).strip()
+          assert tooling_sha == os.environ["GITHUB_WORKFLOW_SHA"], "Unexpected diagnostic tooling SHA"
+          names = ("GITHUB_REPOSITORY", "GITHUB_EVENT_NAME", "GITHUB_SHA", "GITHUB_REF", "GITHUB_REF_NAME",
+                   "GITHUB_REF_TYPE", "GITHUB_WORKFLOW_SHA", "GITHUB_WORKFLOW_REF", "GITHUB_RUN_ID",
+                   "GITHUB_RUN_ATTEMPT", "RUNNER_OS", "RUNNER_ARCH", "ImageOS", "ImageVersion", "PYTHONUNBUFFERED")
+          evidence = {
+              "diagnostic_tooling_sha": tooling_sha,
+              "platform_context": {name: os.environ.get(name) for name in names},
+              "diagnostic_workflow_sha256": hashlib.sha256(
+                  Path(".github/workflows/release-quality-diagnostic.yml").read_bytes()).hexdigest(),
+          }
+          output = Path(os.environ["RUNNER_TEMP"]) / "gate-diagnostic-workflow.json"
+          with output.open("x") as stream:
+              json.dump(evidence, stream, indent=2)
+          print(json.dumps(evidence, sort_keys=True))
+          PY
 
       - name: Checkout fixed product source and history
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           ref: c0ea7d04cd16ac01536d0c0f00edab0c5ffc349e
-          path: source
           fetch-depth: 0
           persist-credentials: false
 
@@ -44,7 +73,6 @@ jobs:
       - name: Verify source tag and separate workflow provenance
         run: |
           python - <<'PY'
-          import hashlib
           import json
           import os
           import subprocess
@@ -62,18 +90,28 @@ jobs:
           assert git("cat-file", "-t", tag_ref) == "commit", "Expected the existing lightweight tag"
           assert git("rev-parse", tag_ref) == source_sha, "Existing tag no longer matches source"
           assert not git("status", "--porcelain"), "Source checkout is not clean"
+          assert Path.cwd().resolve() == Path(os.environ["GITHUB_WORKSPACE"]).resolve(), "Source must be at workspace root"
 
-          tools = Path(os.environ["GITHUB_WORKSPACE"]) / "diagnostic-tools"
-          tooling_sha = git("rev-parse", "HEAD", cwd=tools)
+          platform_evidence = json.loads((Path(os.environ["RUNNER_TEMP"]) / "gate-diagnostic-workflow.json").read_text())
+          tooling_sha = platform_evidence["diagnostic_tooling_sha"]
           assert tooling_sha == os.environ["GITHUB_WORKFLOW_SHA"], "Unexpected diagnostic tooling SHA"
-          helper = tools / "scripts/quality/pytest_evidence.py"
+          assert platform_evidence["platform_context"]["GITHUB_SHA"] == os.environ["GITHUB_SHA"], "Platform event SHA changed"
+          release_names = ("LINGSHU_GATE_RELEASE_NODE_VERSION", "LINGSHU_GATE_RELEASE_PYTHON_VERSION",
+                           "LINGSHU_GATE_RELEASE_BUILDX_VERSION", "LINGSHU_GATE_RELEASE_BUILDKIT_IMAGE",
+                           "LINGSHU_GATE_RELEASE_BINFMT_IMAGE", "LINGSHU_GATE_RELEASE_NODE_BASE_IMAGE",
+                           "LINGSHU_GATE_RELEASE_PYTHON_BASE_IMAGE")
           evidence = {
+              **platform_evidence,
               "tested_source_sha": source_sha, "tested_source_tree": source_tree,
               "existing_tag": source_tag, "existing_tag_sha": git("rev-parse", tag_ref),
               "diagnostic_tooling_sha": tooling_sha, "workflow_sha": os.environ["GITHUB_WORKFLOW_SHA"],
               "workflow_ref": os.environ["GITHUB_WORKFLOW_REF"],
               "workflow_event_sha": os.environ["GITHUB_SHA"],
-              "diagnostic_helper_sha256": hashlib.sha256(helper.read_bytes()).hexdigest(),
+              "product_at_workspace_root": True,
+              "release_environment": {name: os.environ[name] for name in release_names},
+              "controlled_product_context": {"GITHUB_SHA": source_sha, "GITHUB_REF": tag_ref,
+                  "GITHUB_REF_NAME": source_tag, "GITHUB_REF_TYPE": "tag"},
+              "identity_limit": "Product subprocess inputs model the original tag. Platform workflow identity remains the actual diagnostic workflow; no attestation is produced.",
           }
           output = Path(os.environ["RUNNER_TEMP"]) / "gate-release-quality-provenance.json"
           with output.open("x") as stream:
@@ -88,10 +126,10 @@ jobs:
         with:
           node-version: "22.23.2"
           cache: npm
-          cache-dependency-path: source/web/package-lock.json
+          cache-dependency-path: web/package-lock.json
 
       - name: Verify and build fixed-source Console
-        working-directory: source/web
+        working-directory: web
         run: |
           npm ci
           npm run check:ux
@@ -104,7 +142,7 @@ jobs:
           version: "0.11.33"
           prune-cache: true
           enable-cache: true
-          cache-dependency-glob: source/uv.lock
+          cache-dependency-glob: uv.lock
 
       - name: Install frozen quality and release dependencies
         run: uv sync --frozen --group release
@@ -116,13 +154,40 @@ jobs:
 
       - name: Diagnose all original backend and release tests
         run: |
+          set -euo pipefail
+          mkdir "$RUNNER_TEMP/gate-release-quality"
+          task_signal=""
+          task_phase=ruff
+          retain_result() {
+            task_exit=$?
+            trap - EXIT
+            GATE_DIAGNOSTIC_EXIT="$task_exit" GATE_DIAGNOSTIC_SIGNAL="$task_signal" GATE_DIAGNOSTIC_PHASE="$task_phase" python - <<'PY'
+          import json
+          import os
+          from pathlib import Path
+
+          output = Path(os.environ["RUNNER_TEMP"]) / "gate-release-quality" / "command-result.json"
+          with output.open("x") as stream:
+              json.dump({"exit_code": int(os.environ["GATE_DIAGNOSTIC_EXIT"]),
+                         "signal": os.environ["GATE_DIAGNOSTIC_SIGNAL"],
+                         "phase": os.environ["GATE_DIAGNOSTIC_PHASE"],
+                         "scope": "Original discovery and assertions; stop after the first failure. A nonzero exit is not a full pass."}, stream)
+          PY
+            exit "$task_exit"
+          }
+          trap retain_result EXIT
+          trap 'task_signal=INT; exit 130' INT
+          trap 'task_signal=TERM; exit 143' TERM
+          export GITHUB_SHA="$LINGSHU_GATE_DIAGNOSTIC_SOURCE_SHA"
+          export GITHUB_REF="refs/tags/$LINGSHU_GATE_DIAGNOSTIC_SOURCE_TAG"
+          export GITHUB_REF_NAME="$LINGSHU_GATE_DIAGNOSTIC_SOURCE_TAG"
+          export GITHUB_REF_TYPE=tag
           uv run --no-sync ruff check .
+          task_phase=mypy
           uv run --no-sync mypy
-          uv run --no-sync python "$GITHUB_WORKSPACE/diagnostic-tools/scripts/quality/pytest_evidence.py" \
-            -q -vv --tb=short --maxfail=1 \
-            --gate-evidence-dir="$RUNNER_TEMP/gate-release-quality" \
-            --junitxml="$RUNNER_TEMP/gate-release-quality/junit.xml" \
-            -o junit_family=legacy -o faulthandler_timeout=120
+          task_phase=pytest
+          uv run --no-sync pytest -q --maxfail=1 \
+            --junitxml="$RUNNER_TEMP/gate-release-quality/junit.xml"
 
       - name: Retain immediate failure and interrupted-session evidence
         if: always()
@@ -130,6 +195,7 @@ jobs:
         with:
           name: release-quality-diagnostic-${{ github.run_id }}-${{ github.run_attempt }}
           path: |
+            ${{ runner.temp }}/gate-diagnostic-workflow.json
             ${{ runner.temp }}/gate-release-quality-provenance.json
             ${{ runner.temp }}/gate-release-quality
           if-no-files-found: ignore

@@ -1,0 +1,294 @@
+{
+  "schema_version": 1,
+  "recorded_at_utc": "2026-10-08T11:59:32.040353+00:00",
+  "repository": "zhigege666/Lingshu-Gate",
+  "review_base_sha": "a14244caaf3459269546d97d3b3336b3964b380a",
+  "product_source": {
+    "tag": "v0.4.5",
+    "sha": "c0ea7d04cd16ac01536d0c0f00edab0c5ffc349e",
+    "tree": "716da35e388aab6784d8b41d6ae4e79a4c17f948"
+  },
+  "formal_attempt1": {
+    "run_id": 37731721484,
+    "job_id": 113162162630,
+    "attempt": 1,
+    "workflow_sha": "c0ea7d04cd16ac01536d0c0f00edab0c5ffc349e",
+    "workflow_ref": "zhigege666/Lingshu-Gate/.github/workflows/release.yml@refs/tags/v0.4.5",
+    "product_location": "workspace root",
+    "product_event_sha": "c0ea7d04cd16ac01536d0c0f00edab0c5ffc349e",
+    "product_ref": "refs/tags/v0.4.5",
+    "runner_image": "ubuntu-22.04/20261004.315.1",
+    "runner_provisioner": "20261002.596",
+    "pytest_entry": "uv run --no-sync pytest -q",
+    "python_unbuffered_declared": false,
+    "failure_markers": "Two F markers on the 46% line; last progress 83%; cancelled at the 40-minute deadline",
+    "raw_log": {
+      "bytes": 80604,
+      "sha256": "1613d08ca0bf646780e5d5182e0b71f5b678bc8659b6dea8d5f29824e0734a73"
+    }
+  },
+  "successful_diagnostic": {
+    "run_id": 37755829068,
+    "job_id": 113240011198,
+    "attempt": 1,
+    "workflow_sha": "9816f696d513c340bbf8ba5fab7f3c9c94d84a08",
+    "workflow_ref": "zhigege666/Lingshu-Gate/.github/workflows/release-quality-diagnostic.yml@refs/heads/main",
+    "product_location": "workspace/source",
+    "tooling_location": "workspace/diagnostic-tools",
+    "product_event_sha": "9816f696d513c340bbf8ba5fab7f3c9c94d84a08",
+    "product_ref": "refs/heads/main",
+    "runner_image": "ubuntu-22.04/20261004.315.1",
+    "runner_provisioner": "20261002.596",
+    "pytest_entry": "uv run --no-sync python <external evidence helper> -q -vv --tb=short --maxfail=1 --gate-evidence-dir=<runner temp> --junitxml=<runner temp> -o junit_family=legacy -o faulthandler_timeout=120",
+    "python_unbuffered": "1",
+    "release_env_declared": [],
+    "result": "2311 passed, 7 skipped, 134 subtests passed in 1361.54s",
+    "collected": 2318,
+    "raw_log": {
+      "bytes": 1259046,
+      "sha256": "e885fcf752864bc0b496ee6d490c5b558c1d351a690189badc63112e82134485"
+    }
+  },
+  "formal_attempt2": {
+    "run_id": 37731721484,
+    "attempt": 2,
+    "workflow_sha": "c0ea7d04cd16ac01536d0c0f00edab0c5ffc349e",
+    "workflow_ref": "zhigege666/Lingshu-Gate/.github/workflows/release.yml@refs/tags/v0.4.5",
+    "product_location": "workspace root",
+    "product_event_sha": "c0ea7d04cd16ac01536d0c0f00edab0c5ffc349e",
+    "product_ref": "refs/tags/v0.4.5",
+    "runner_image": "ubuntu-22.04/20260927.309.1",
+    "runner_provisioner": "20260901.588",
+    "pytest_entry": "uv run --no-sync pytest -q",
+    "rerun": {
+      "method": "POST",
+      "endpoint": "actions/runs/37731721484/rerun",
+      "http_status": 201,
+      "completed_at_utc": "2026-10-08T10:53:52.558451+00:00",
+      "calls_sent": 1,
+      "all_jobs": true
+    },
+    "terminal": {
+      "captured_at_utc": "2026-10-08T11:36:14.081693+00:00",
+      "status": "completed",
+      "conclusion": "cancelled",
+      "jobs": [
+        {
+          "id": 113275334014,
+          "name": "Validate release version",
+          "status": "completed",
+          "conclusion": "success",
+          "started_at": "2026-10-08T10:53:56Z",
+          "completed_at": "2026-10-08T10:54:04Z"
+        },
+        {
+          "id": 113275335519,
+          "name": "Cosign OCI env-key signing smoke",
+          "status": "completed",
+          "conclusion": "skipped",
+          "started_at": "2026-10-08T10:53:54Z",
+          "completed_at": "2026-10-08T10:53:54Z"
+        },
+        {
+          "id": 113275399376,
+          "name": "Release quality gate",
+          "status": "completed",
+          "conclusion": "cancelled",
+          "started_at": "2026-10-08T10:54:06Z",
+          "completed_at": "2026-10-08T11:34:22Z"
+        },
+        {
+          "id": 113290049729,
+          "name": "Docker Compose bundle",
+          "status": "completed",
+          "conclusion": "skipped",
+          "started_at": "2026-10-08T11:34:23Z",
+          "completed_at": "2026-10-08T11:34:22Z"
+        },
+        {
+          "id": 113290050272,
+          "name": "Native ${{ matrix.target }}",
+          "status": "completed",
+          "conclusion": "skipped",
+          "started_at": "2026-10-08T11:34:23Z",
+          "completed_at": "2026-10-08T11:34:22Z"
+        },
+        {
+          "id": 113290050636,
+          "name": "Build verified Core image candidate",
+          "status": "completed",
+          "conclusion": "skipped",
+          "started_at": "2026-10-08T11:34:23Z",
+          "completed_at": "2026-10-08T11:34:22Z"
+        },
+        {
+          "id": 113290051176,
+          "name": "Publish GitHub Release",
+          "status": "completed",
+          "conclusion": "skipped",
+          "started_at": "2026-10-08T11:34:23Z",
+          "completed_at": "2026-10-08T11:34:22Z"
+        },
+        {
+          "id": 113290051568,
+          "name": "Offline Core images",
+          "status": "completed",
+          "conclusion": "skipped",
+          "started_at": "2026-10-08T11:34:23Z",
+          "completed_at": "2026-10-08T11:34:22Z"
+        }
+      ]
+    },
+    "quality": {
+      "job_id": 113275399376,
+      "raw_log": {
+        "filename": "job-113275399376.log",
+        "bytes": 79778,
+        "sha256": "ede72aedf5d0ef150c8a1e06afa009e775e510096fefcfa1fd62473450b352c8"
+      },
+      "first_failure_progress_line": "2026-10-08T11:24:21.0031349Z ............................................................FF.......... [ 46%]",
+      "last_progress": "81% at 2026-10-08T11:34:08.2345460Z",
+      "cancelled_at": "2026-10-08T11:34:20.3226058Z",
+      "job_completed_at": "2026-10-08T11:34:22Z",
+      "frontend_result": "455 passed across 75 files; UX and Vite build succeeded",
+      "ruff": "All checks passed",
+      "mypy": "Success: no issues found in 158 source files",
+      "python": "3.13.15",
+      "node": "22.23.2",
+      "uv": "0.11.33",
+      "backend_command": "uv run --no-sync pytest -q",
+      "failure_nodes": "Unidentified: no failure summary or traceback before cancellation",
+      "interpretation": "Two test failure markers plus cancellation at the unchanged 40-minute job deadline; not timeout only and not fixed by a successful diagnostic."
+    },
+    "publication": {
+      "release_lookup": "HTTP 404 after terminal",
+      "tag_sha": "c0ea7d04cd16ac01536d0c0f00edab0c5ffc349e",
+      "run_artifact_count": 0,
+      "formal_package_hashes": "No formal packages produced; downstream native/Core/Compose/offline/publish jobs skipped.",
+      "asset_sbom_checksum_attestation_native_worker_acceptance": "Not executed for this formal attempt because no products were generated.",
+      "followup_actions": "Stopped; no new dispatch, rerun, PR 59 substitution, tag or manual publisher action."
+    }
+  },
+  "shared": {
+    "product_commit_and_tree": {
+      "tag": "v0.4.5",
+      "sha": "c0ea7d04cd16ac01536d0c0f00edab0c5ffc349e",
+      "tree": "716da35e388aab6784d8b41d6ae4e79a4c17f948"
+    },
+    "python": "3.13.15",
+    "node": "22.23.2",
+    "uv": "0.11.33",
+    "pytest": "9.1.1",
+    "dependency_install": "uv sync --frozen --group release",
+    "source_fetch_depth": 0,
+    "quality_timeout_minutes": 40
+  },
+  "original_release_environment": {
+    "LINGSHU_GATE_RELEASE_NODE_VERSION": "22.23.2",
+    "LINGSHU_GATE_RELEASE_PYTHON_VERSION": "3.13.15",
+    "LINGSHU_GATE_RELEASE_BUILDX_VERSION": "v0.36.1",
+    "LINGSHU_GATE_RELEASE_BUILDKIT_IMAGE": "moby/buildkit:v0.32.2@sha256:28a898719c18a33f4e8000685287fa36fd0dd9560c6440227d3a732d79bb41d8",
+    "LINGSHU_GATE_RELEASE_BINFMT_IMAGE": "docker.io/tonistiigi/binfmt:qemu-v10.2.3-68@sha256:400a4873b838d1b89194d982c45e5fb3cda4593fbfd7e08a02e76b03b21166f0",
+    "LINGSHU_GATE_RELEASE_NODE_BASE_IMAGE": "node:22-bookworm-slim@sha256:83f487e0a63425e5b4d146fb5e5be574bcbe1b7b843d3ebafdd95eaf7767a7e5",
+    "LINGSHU_GATE_RELEASE_PYTHON_BASE_IMAGE": "python:3.12-slim-bookworm@sha256:0f5b26b9518d002b6173fd61daad821fa340635ebfec5bba471013f9ca114579"
+  },
+  "differences": [
+    {
+      "dimension": "Product working directory",
+      "formal": "workspace root",
+      "successful_diagnostic": "workspace/source",
+      "prepared_diagnostic": "workspace root"
+    },
+    {
+      "dimension": "Pytest entry and reporting",
+      "formal": "pytest CLI -q",
+      "successful_diagnostic": "Python helper calls pytest.main with per-node events, -vv, short traceback, unbuffered output and faulthandler timer",
+      "prepared_diagnostic": "pytest CLI -q; only --maxfail=1 and standard --junitxml added; no external collector or verbosity override"
+    },
+    {
+      "dimension": "Seven workflow release environment values",
+      "formal": "All seven declared globally",
+      "successful_diagnostic": "Not declared by the diagnostic workflow",
+      "prepared_diagnostic": "Exact seven values copied from original c0 release workflow"
+    },
+    {
+      "dimension": "Product subprocess GitHub source context",
+      "formal": "c0 SHA and v0.4.5 tag ref",
+      "successful_diagnostic": "Main workflow event SHA/ref inherited by product subprocesses",
+      "prepared_diagnostic": "Explicitly recorded controlled source SHA/ref/name/type only in the backend step shell and its product children"
+    },
+    {
+      "dimension": "Actual platform workflow identity",
+      "formal": "Original release.yml at c0 tag",
+      "successful_diagnostic": "Diagnostic release-quality-diagnostic.yml at main/9816",
+      "prepared_diagnostic": "Actual reviewed diagnostic workflow SHA/ref recorded unchanged before product checkout; never represented as the original formal run"
+    },
+    {
+      "dimension": "Runner image",
+      "formal": "Attempt 1 uses 20261004.315.1; attempt 2 uses 20260927.309.1",
+      "successful_diagnostic": "20261004.315.1",
+      "prepared_diagnostic": "Record ImageOS/ImageVersion for the new run; no claim of a pinned or identical runner image"
+    }
+  ],
+  "interpretation": {
+    "not_equivalent": "The successful diagnostic differs in layout, environment, source context and pytest instrumentation; it does not replace a formal quality pass.",
+    "runner_image_limit": "Formal attempt 1 failed on the same image revision as the successful diagnostic; image revision is retained as evidence, not a sole-cause attribution.",
+    "actual_failure_nodes": "Still unidentified; progress-count catalog-scale mappings remain candidates only."
+  },
+  "prepared_diagnostic": {
+    "workflow": ".github/workflows/release-quality-diagnostic.yml",
+    "manual_only": true,
+    "permissions": {
+      "contents": "read"
+    },
+    "source": {
+      "tag": "v0.4.5",
+      "sha": "c0ea7d04cd16ac01536d0c0f00edab0c5ffc349e",
+      "tree": "716da35e388aab6784d8b41d6ae4e79a4c17f948"
+    },
+    "product_changes": false,
+    "test_discovery_and_assertions": "Original c0 tests and configuration unchanged; no selection, case skip or budget relaxation",
+    "first_failure": "Standard pytest stops after first failure and emits its actual nodeid/traceback; an early failure is not called a complete pass",
+    "retention": [
+      "Actual platform identity JSON",
+      "Source and controlled-input provenance JSON",
+      "Standard JUnit on normal pytest completion",
+      "Command exit/phase and INT/TERM receipt when the shell trap can run",
+      "Original GitHub job log"
+    ],
+    "interrupt_limit": "SIGKILL or abrupt runner loss can prevent a shell receipt or completed JUnit; retain available platform/source evidence and raw job log without claiming completeness.",
+    "dispatch_status": "Not dispatched; root review and explicit launch authorization required",
+    "remaining_identity_differences": [
+      "Actual diagnostic workflow name/SHA/ref",
+      "Actual event payload, run ID/attempt and GitHub job metadata",
+      "Unpinned hosted runner image and worker scheduling",
+      "Three existing diagnostic source-pin environment variables retained"
+    ],
+    "workflow_file_sha256": "535995eb91a244566ee27ba847b1b8b68c90e188db8991459ab4990ad6b0afd0"
+  },
+  "validation": {
+    "command": "pytest -q tests/test_release_quality_diagnostic_workflow.py tests/test_pytest_evidence.py tests/test_ci_workflows.py tests/test_auto_release.py",
+    "result": "115 passed in 8.19s",
+    "focused_result": "18 passed in 3.02s",
+    "python": "3.13.15",
+    "pytest": "9.1.1",
+    "raw_log": {
+      "filename": "diagnostic-contracts.log",
+      "bytes": 180,
+      "sha256": "779c752f9348c26181be3afc42b7e5dfe3cdffadff0e090ca3ef3da0f1f53851"
+    },
+    "actual_cli_cases": [
+      "First call failure prints standard nodeid and traceback, returns exit 1, prevents later node execution and retains standard JUnit",
+      "Passing synthetic session preserves exit 0",
+      "Setup failure preserves its standard traceback and exit 1",
+      "Ruff failure preserves exit 7 and prevents pytest from starting",
+      "Existing evidence directory is refused without overwriting data",
+      "Owned SIGTERM-interrupted pytest process retains phase, signal and exit 143 receipt"
+    ],
+    "provenance_cases": "Actual shell-step Python executes against new synthetic Git repositories; source SHA/tree/tag, annotated tag, dirty source, tooling SHA, workspace root and platform event SHA mismatches reject before source provenance output",
+    "limit": "Local synthetic contracts validate the diagnostic mechanism. No new real-source diagnostic was dispatched and neither unidentified formal failure node was observed locally.",
+    "ruff": "All checks passed",
+    "mypy": "Success: no issues found in 158 source files",
+    "diff_check": "passed"
+  }
+}

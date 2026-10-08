@@ -1,0 +1,241 @@
+{
+  "captured_at_utc": "2026-10-08T11:59:32.040353+00:00",
+  "pr_number": 59,
+  "draft": true,
+  "exact_head_sha": "b8150e878feffe1bd5b3784ae3050237e4db643d",
+  "actual_pr_checkout": {
+    "sha": "cdf0f530c52dc2e9f16e0b59e210ab9e59dd1fdb",
+    "tree": "7f0679c9fe2ccb26266f057baf26f0b7b2616fd0",
+    "parents": [
+      "a14244caaf3459269546d97d3b3336b3964b380a",
+      "b8150e878feffe1bd5b3784ae3050237e4db643d"
+    ],
+    "workflow_ref": "zhigege666/Lingshu-Gate/.github/workflows/release.yml@refs/pull/59/merge",
+    "source_sha": "cdf0f530c52dc2e9f16e0b59e210ab9e59dd1fdb",
+    "workflow_sha": "cdf0f530c52dc2e9f16e0b59e210ab9e59dd1fdb"
+  },
+  "release_pr_quality": {
+    "run_id": 37768076503,
+    "job_id": 113280609870,
+    "result": "194 passed in 44.75s",
+    "limit": "Normal PR release engineering checks; formal Core/offline/publish jobs are conditionally skipped."
+  },
+  "raw_logs": [
+    {
+      "job_id": 113280516304,
+      "filename": "job-113280516304.raw",
+      "bytes": 26482,
+      "sha256": "99901f083f931549c9b5855f66ba130ce8d35213c597deef68269772fbcd2949"
+    },
+    {
+      "job_id": 113280609870,
+      "filename": "job-113280609870.raw",
+      "bytes": 48037,
+      "sha256": "b4f56d0280649b03666c8d95e5b51879ed27a115cedc024bdedef4ddd64c426f"
+    }
+  ],
+  "normal_ci_state": "All normal PR runs reached terminal: release artifacts success (all five native targets, Compose, PR quality, version and signing smoke), CodeQL success, container contracts success; Source CI and aggregate failed on browser account-menu focus, compatibility jobs skipped.",
+  "original_formal_run": {
+    "run_id": 37731721484,
+    "attempt": 2,
+    "source_sha": "c0ea7d04cd16ac01536d0c0f00edab0c5ffc349e",
+    "relation": "Independent original workflow rerun; this draft entrypoint was not launched"
+  },
+  "source_ci": {
+    "run_id": 37768076425,
+    "job_id": 113280514473,
+    "conclusion": "failure",
+    "python": "3.12.15",
+    "backend_result": "2391 passed, 7 skipped, 134 subtests passed in 942.64s",
+    "frontend_result": "455 passed across 75 files",
+    "browser_result": "1 failed, 28 passed in 52.4s",
+    "browser_node": "e2e/account-menu.spec.ts:93:3 blank role lists use the localized primary role: en-US",
+    "assertion": "await expect(account).toBeFocused() after Escape",
+    "failure": "8000 ms timeout, received inactive",
+    "raw_log": {
+      "filename": "job-113280514473.raw",
+      "bytes": 115605,
+      "sha256": "6661f6f38cde6865ea385b5f9e4063f2e568aa233bc24c7f9a18cb4d076e3d94"
+    },
+    "artifact": {
+      "id": 11546608896,
+      "bytes": 4259616,
+      "digest": "sha256:6f4115492d0ce57b472345121928a3c082426003304983f727034307ef1d043d",
+      "zip_materialized_locally": false
+    },
+    "retry": "Not requested; no browser/product changes included in the immutable reentry repair."
+  },
+  "terminal_runs": [
+    {
+      "id": 37768076425,
+      "name": "Continuous integration",
+      "path": ".github/workflows/backend.yml",
+      "head_sha": "b8150e878feffe1bd5b3784ae3050237e4db643d",
+      "run_attempt": 1,
+      "status": "completed",
+      "conclusion": "failure",
+      "jobs": [
+        {
+          "id": 113280514473,
+          "name": "Source checks",
+          "status": "completed",
+          "conclusion": "failure"
+        },
+        {
+          "id": 113287024838,
+          "name": "CI result",
+          "status": "completed",
+          "conclusion": "failure"
+        },
+        {
+          "id": 113287026448,
+          "name": "Python ${{ matrix.python-version }}",
+          "status": "completed",
+          "conclusion": "skipped"
+        }
+      ]
+    },
+    {
+      "id": 37768076540,
+      "name": "Code scanning",
+      "path": ".github/workflows/codeql.yml",
+      "head_sha": "b8150e878feffe1bd5b3784ae3050237e4db643d",
+      "run_attempt": 1,
+      "status": "completed",
+      "conclusion": "success",
+      "jobs": [
+        {
+          "id": 113280515414,
+          "name": "Analyze python",
+          "status": "completed",
+          "conclusion": "success"
+        },
+        {
+          "id": 113280515714,
+          "name": "Analyze javascript-typescript",
+          "status": "completed",
+          "conclusion": "success"
+        }
+      ]
+    },
+    {
+      "id": 37768076503,
+      "name": "Release artifacts",
+      "path": ".github/workflows/release.yml",
+      "head_sha": "b8150e878feffe1bd5b3784ae3050237e4db643d",
+      "run_attempt": 1,
+      "status": "completed",
+      "conclusion": "success",
+      "jobs": [
+        {
+          "id": 113280516205,
+          "name": "Cosign OCI env-key signing smoke",
+          "status": "completed",
+          "conclusion": "success"
+        },
+        {
+          "id": 113280516304,
+          "name": "Validate release version",
+          "status": "completed",
+          "conclusion": "success"
+        },
+        {
+          "id": 113280609870,
+          "name": "Release quality gate",
+          "status": "completed",
+          "conclusion": "success"
+        },
+        {
+          "id": 113281112916,
+          "name": "Docker Compose bundle",
+          "status": "completed",
+          "conclusion": "success"
+        },
+        {
+          "id": 113281112920,
+          "name": "Native linux-aarch64",
+          "status": "completed",
+          "conclusion": "success"
+        },
+        {
+          "id": 113281112936,
+          "name": "Native macos-x86_64",
+          "status": "completed",
+          "conclusion": "success"
+        },
+        {
+          "id": 113281112955,
+          "name": "Native linux-x86_64",
+          "status": "completed",
+          "conclusion": "success"
+        },
+        {
+          "id": 113281112987,
+          "name": "Native macos-arm64",
+          "status": "completed",
+          "conclusion": "success"
+        },
+        {
+          "id": 113281112995,
+          "name": "Native windows-x86_64",
+          "status": "completed",
+          "conclusion": "success"
+        },
+        {
+          "id": 113281114718,
+          "name": "Build verified Core image candidate",
+          "status": "completed",
+          "conclusion": "skipped"
+        },
+        {
+          "id": 113281114814,
+          "name": "Offline Core images",
+          "status": "completed",
+          "conclusion": "skipped"
+        },
+        {
+          "id": 113289874089,
+          "name": "Publish GitHub Release",
+          "status": "completed",
+          "conclusion": "skipped"
+        }
+      ]
+    },
+    {
+      "id": 37768076435,
+      "name": "Container images",
+      "path": ".github/workflows/docker.yml",
+      "head_sha": "b8150e878feffe1bd5b3784ae3050237e4db643d",
+      "run_attempt": 1,
+      "status": "completed",
+      "conclusion": "success",
+      "jobs": [
+        {
+          "id": 113280514672,
+          "name": "Validate container contracts",
+          "status": "completed",
+          "conclusion": "success"
+        },
+        {
+          "id": 113280515060,
+          "name": "QEMU multi-architecture execution smoke",
+          "status": "completed",
+          "conclusion": "success"
+        },
+        {
+          "id": 113280833610,
+          "name": "Validate multi-architecture Core image",
+          "status": "completed",
+          "conclusion": "skipped"
+        }
+      ]
+    }
+  ],
+  "intel_macos_raw_log": {
+    "filename": "job-113281112936.raw",
+    "bytes": 1535390,
+    "sha256": "70e418f1f2f757b62bdc31fdee6d88bda5bc93632676a92db4e78d02026007ca"
+  },
+  "terminal_snapshot_utc": "2026-10-08T11:34:24.796431+00:00",
+  "review_status": "Draft PR 59 remains unmerged and undispatched; P2 correction and normal CI are separate from the unresolved original formal quality failures."
+}
