@@ -1,0 +1,182 @@
+{
+  "schema_version": 1,
+  "repository": "zhigege666/Lingshu-Gate",
+  "recorded_at_utc": "2026-10-08T11:07:26.603879+00:00",
+  "review_base_sha": "9816f696d513c340bbf8ba5fab7f3c9c94d84a08",
+  "product_source": {
+    "tag": "v0.4.5",
+    "commit": "c0ea7d04cd16ac01536d0c0f00edab0c5ffc349e",
+    "tree": "716da35e388aab6784d8b41d6ae4e79a4c17f948"
+  },
+  "entrypoint": {
+    "workflow": ".github/workflows/release.yml",
+    "event": "workflow_dispatch",
+    "ref": "main",
+    "inputs": {
+      "existing_tag": "v0.4.5"
+    },
+    "status": "Prepared for independent review; not dispatched"
+  },
+  "identity_contract": {
+    "recovery_whitelist": "Exact existing v0.4.5 commit and tree only, from main workflow dispatch",
+    "tooling": "Extract the identity helper from the exact GITHUB_WORKFLOW_SHA Git object; verify the workflow ref and commit separately from the product source",
+    "product_jobs": [
+      "version",
+      "quality",
+      "native",
+      "docker-compose",
+      "docker-publish",
+      "docker-offline",
+      "publish"
+    ],
+    "packaging_metadata": "The child command omits only the workflow event GITHUB_SHA so unchanged product helpers read their actual Git checkout; the workflow context and workflow SHA are preserved",
+    "attestation": "Retain strict default provenance verification for the exact reviewed workflow; additionally require a timestamped signed product-source predicate for the exact product commit/tree/tag, workflow revision and successful formal jobs on every asset. Fresh publication binds the current run/attempt. Verified immutable reentry preserves the signed original producer run/attempt and verifies its GitHub attempt record against that same workflow identity.",
+    "release_metadata": "Read immutability settings before publication; verify immutable title/body and exact asset set against source notes and local bytes"
+  },
+  "formal_assets": [
+    "SHA256SUMS",
+    "lingshu-gate-v0.4.5-application-sbom.spdx.json",
+    "lingshu-gate-v0.4.5-container-image.txt",
+    "lingshu-gate-v0.4.5-docker-compose.tar.gz",
+    "lingshu-gate-v0.4.5-docker-core-linux-amd64.tar.gz",
+    "lingshu-gate-v0.4.5-docker-core-linux-arm64.tar.gz",
+    "lingshu-gate-v0.4.5-linux-aarch64.tar.gz",
+    "lingshu-gate-v0.4.5-linux-x86_64.tar.gz",
+    "lingshu-gate-v0.4.5-macos-arm64.tar.gz",
+    "lingshu-gate-v0.4.5-macos-x86_64.tar.gz",
+    "lingshu-gate-v0.4.5-windows-x86_64.zip"
+  ],
+  "validation": {
+    "command": "pytest -q tests/test_release_recovery_identity.py tests/test_ci_workflows.py tests/test_auto_release.py tests/test_release_packaging.py tests/test_wheel_build.py",
+    "result": "274 passed in 43.33s",
+    "python": "3.13.15",
+    "pytest": "9.1.1",
+    "uv": "0.12.19",
+    "node": "24.19.0",
+    "dependency_install": "uv sync --frozen --group release; npm ci",
+    "snapshot": "Independent verification snapshot from the review base Git archive plus scoped candidate files, preserving the original Git executable modes. Source worktree permissions unchanged.",
+    "raw_log": {
+      "filename": "contracts-and-packaging-final.log",
+      "bytes": 341,
+      "sha256": "c227791b499817d6c5124795839c1662395ba877ad61e66b3febdd58475ba04d"
+    },
+    "ruff": "All checks passed",
+    "mypy": "Success: no issues found in 158 source files",
+    "diff_check": "passed",
+    "actual_c0_metadata_process": {
+      "source_revision": "c0ea7d04cd16ac01536d0c0f00edab0c5ffc349e",
+      "event_sha_present": false,
+      "workflow_sha": "9816f696d513c340bbf8ba5fab7f3c9c94d84a08"
+    }
+  },
+  "fixed_source_diagnostic": {
+    "run_id": 37755829068,
+    "job_id": 113240011198,
+    "attempt": 1,
+    "workflow_sha": "9816f696d513c340bbf8ba5fab7f3c9c94d84a08",
+    "source_sha": "c0ea7d04cd16ac01536d0c0f00edab0c5ffc349e",
+    "runner": "ubuntu-22.04",
+    "python": "3.13.15",
+    "result": "2311 passed, 7 skipped, 134 subtests passed in 1361.54s",
+    "original_collected_items": 2318,
+    "raw_log_bytes": 1259046,
+    "raw_log_sha256": "e885fcf752864bc0b496ee6d490c5b558c1d351a690189badc63112e82134485",
+    "artifact_id": 11540892867,
+    "artifact_bytes": 365213,
+    "artifact_api_sha256": "7c430590060bd9cbdfadbadd55ad0823aa6982ccad7e3ef51b9323596da8f5fd",
+    "limit": "This successful diagnostic is not a substitute for the formal quality gate and does not identify the earlier two failure nodes. Artifact API identity is recorded; independent ZIP verification belongs to the root reviewer."
+  },
+  "preserved_boundaries": [
+    "Product source, versions and workflow job permissions unchanged",
+    "Existing v0.4.5 tag unchanged; no tag creation, deletion or replacement",
+    "Original formal attempt-1 two failures and cancellation remain unidentified historical evidence",
+    "Ordinary main TTL failure evidence is preserved; its separate test-only repair PR 58 was merged by root",
+    "This draft entrypoint has not been merged or dispatched; original c0 run attempt 2 is a separately authorized full rerun",
+    "No SSH operation or publication of v0.4.4 assets"
+  ],
+  "remaining_validation": [
+    "Independent root review of this repair and terminal normal PR CI at the new exact head",
+    "Live signed immutable reentry was not exercised; existing-release CLI tests use read-only endpoint fixtures",
+    "Original c0 formal run 37731721484 attempt 2 must reach terminal; no PR 59 substitution or automatic rerun is authorized"
+  ],
+  "immutable_reentry_repair": {
+    "problem": "An immutable release created successfully before a readback failure skips fresh attestations on reentry, so requiring the current run/attempt rejects valid unchanged published bytes.",
+    "scope": "Only verified immutable reentry may differ in producer run_id/run_attempt; repository, product commit/tree/tag, workflow SHA/ref, verified-job set, timestamps and cryptographic signer/source constraints remain exact.",
+    "original_producer_verification": "Read the signed producer run/attempt from the verified predicate, fetch that exact GitHub attempt, and require matching repository, workflow path/SHA/ref branch, formal event and completed status. A post-publication failure or cancellation does not rewrite producer identity.",
+    "safe_reentry": "After existing immutability, exact title/body, all 11 asset names/bytes and both attestation types are verified, skip new attestations, version promotion, Docker Hub mirrors/latest, container signing and Release creation.",
+    "same_workflow_revision_required": true,
+    "cli_validation": {
+      "positive_cases": [
+        "Same original run, attempt 2 verifies producer attempt 1",
+        "Different current run verifies the genuine original run/attempt"
+      ],
+      "negative_cases": [
+        "Fresh publication cannot reuse an old producer",
+        "Wrong product commit",
+        "Wrong product tree",
+        "Wrong tag",
+        "Wrong workflow SHA",
+        "Missing trusted timestamp",
+        "Wrong producer run ID",
+        "Wrong producer attempt",
+        "Wrong producer workflow revision",
+        "Wrong producer workflow path",
+        "Wrong producer repository",
+        "Unsuccessful formal quality job"
+      ],
+      "method": "Actual identity-helper CLI subprocess, with read-only Git and GitHub API fixtures; outer cryptographic gh attestation verification remains unchanged. No signed live-release reentry was executed.",
+      "focused_result": "145 passed in 4.50s"
+    },
+    "validation": {
+      "command": "pytest -q tests/test_release_recovery_identity.py tests/test_ci_workflows.py tests/test_auto_release.py tests/test_release_packaging.py tests/test_wheel_build.py",
+      "result": "288 passed in 45.99s",
+      "python": "3.13.15",
+      "pytest": "9.1.1",
+      "uv": "0.12.19",
+      "node": "24.19.0",
+      "environment_limit": "Local contract and actual wheel/sdist packaging validation; these uv and Node versions are not the formal release runner toolchain.",
+      "raw_log": {
+        "filename": "contracts-and-packaging-reentry.log",
+        "bytes": 341,
+        "sha256": "ced5b8c9f75ee7a3778aa0dfaa0b114d82e0f584b701c99e6d5e4696a8a6179b"
+      },
+      "ruff": "All checks passed",
+      "diff_check": "passed"
+    }
+  },
+  "previous_head_ci": {
+    "head_sha": "b85e9d6de245181e56b4d3b5b506a5fb52b71216",
+    "merge_checkout_sha": "ca4a031f7a4d1117a85b57d3f58d168da8bc8eb0",
+    "release_run_id": 37763830215,
+    "release_result": "success: version, PR quality, five native targets, Compose and signing smoke; Core/offline/publish skipped by PR conditions",
+    "source_run_id": 37763830210,
+    "source_job_id": 113266487823,
+    "source_result": "failure in browser smoke after 2377 passed, 7 skipped, 134 subtests passed in 1777.52s and 455 frontend tests passed",
+    "browser_failure": {
+      "node": "e2e/account-menu.spec.ts:93:3 blank role lists use the localized primary role: zh-CN",
+      "assertion": "await expect(account).toBeFocused()",
+      "result": "1 failed, 28 passed; 8000 ms timeout, unexpected focus value inactive",
+      "artifact_id": 11544594390,
+      "artifact_bytes": 4133266,
+      "artifact_api_sha256": "8079d37150f51b5d3084e4ac0ec26e81212459a1e9cf8cb1a3ac9d6241902780"
+    },
+    "raw_log": {
+      "filename": "job-113266487823.raw",
+      "bytes": 112518,
+      "sha256": "e7e936d3ee6ecb44daa0919971b9daedad188accc9ba24c2a2fbb68c70076e33"
+    },
+    "other_runs": [
+      {
+        "id": 37763830214,
+        "name": "Container contracts",
+        "result": "success"
+      },
+      {
+        "id": 37763830222,
+        "name": "CodeQL",
+        "result": "success"
+      }
+    ],
+    "limit": "The old head is not fully green; its browser failure is preserved without a retry or a product change. New exact-head normal PR CI is required."
+  }
+}
