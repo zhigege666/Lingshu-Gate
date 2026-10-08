@@ -146,12 +146,13 @@
     "command_budget_seconds": 180,
     "run_owned_adapter_prepared_or_executed": {
       "prepared": true,
-      "pure_negative_tests_passed": 21,
+      "pure_negative_tests_passed": 35,
       "list_only_selected_cases": 15,
       "test_bodies_executed": false,
       "nx5_executed": false,
       "code_path": "docs/benchmarks/gate-account-menu-focus-9f8fddd/run_owned_e2e.py",
-      "code_sha256": "05c5b6ec7a11b600ba45ab0702c8fbbb6d5ad2347ca5b34eb50457e1495e6f42"
+      "code_sha256": "4205d97e5eb323e56234488da0c2c17015911aafe96d80a0f45c60c213778fd9",
+      "source_binding_evidence": "docs/benchmarks/gate-account-menu-focus-nx5-source-binding-9f8fddd.json"
     }
   },
   "fixture_lifecycle": {

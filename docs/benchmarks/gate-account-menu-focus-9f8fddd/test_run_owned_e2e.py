@@ -3,16 +3,19 @@
 from __future__ import annotations
 
 import json
+import hashlib
 import ctypes
 import os
 from pathlib import Path
 import signal
 import socket
+import shutil
 import subprocess
 import sys
 import tempfile
 import time
 import unittest
+from types import SimpleNamespace
 from unittest.mock import patch
 
 import run_owned_e2e as owned
@@ -139,6 +142,7 @@ class OwnedBoundaryTests(unittest.TestCase):
             "artifacts/results.json",
             "artifacts/html",
             "defer-cleanup.ts",
+            "verify-static.ts",
             "tests",
         ]:
             self.assertIn(str(self.root / relative), configuration)
@@ -150,6 +154,236 @@ class OwnedBoundaryTests(unittest.TestCase):
         self.assertIn("page.setViewportSize({ width, height })", focus)
         self.assertIn("const openFrames = 0", focus)
         self.assertIn("window.gateAccountFrameQueue.advance()", focus)
+
+    def fake_product(self) -> tuple[Path, dict[str, object]]:
+        source = self.parent / "fake-product"
+        package = source / "src/lingshu_gate"
+        package.mkdir(parents=True)
+        files = {}
+        for name in ["__init__.py", "main.py"]:
+            path = package / name
+            path.write_text("raise RuntimeError('synthetic module must never execute')\n")
+            files[str(path.relative_to(source))] = hashlib.sha256(path.read_bytes()).hexdigest()
+        return source, {"files": files}
+
+    def test_old_venv_origin_is_rejected_without_importing_product(self) -> None:
+        source, binding = self.fake_product()
+        old = self.parent / "old-venv/site-packages/lingshu_gate/__init__.py"
+        old.parent.mkdir(parents=True)
+        old.write_text("raise RuntimeError('old installation executed')\n")
+        with (
+            patch.object(owned.sys, "path", list(sys.path)),
+            patch.object(owned.importlib.util, "find_spec", return_value=SimpleNamespace(origin=str(old))),
+            patch.object(owned.importlib, "import_module") as product_import,
+            self.assertRaises(owned.BoundaryError),
+        ):
+            owned._bind_product_source(source, binding)
+        product_import.assert_not_called()
+
+    def test_preloaded_old_venv_module_blocks_source_binding(self) -> None:
+        source, binding = self.fake_product()
+        stale = SimpleNamespace(__file__=str(self.parent / "old-venv/lingshu_gate/main.py"))
+        with patch.dict(sys.modules, {"lingshu_gate.main": stale}), self.assertRaises(owned.BoundaryError):
+            owned._bind_product_source(source, binding)
+
+    def test_worker_pythonpath_is_generated_from_bound_source(self) -> None:
+        source, binding = self.fake_product()
+        binding["source_sha"] = owned.SOURCE_SHA
+        self.layout.update({"source": str(source), "source_binding": binding})
+        marker = self.root / "owner.json"
+        marker.unlink()
+        owned._json_write(marker, self.layout)
+        environment = self.environment({"PYTHONPATH": str(self.parent / "old-venv")})
+        self.assertEqual(environment["PYTHONPATH"], str(source / "src"))
+        result = subprocess.run(
+            [
+                str(self.python),
+                "-B",
+                "-c",
+                "import importlib.util;print(importlib.util.find_spec('lingshu_gate').origin)",
+            ],
+            env=environment,
+            cwd=self.root,
+            capture_output=True,
+            text=True,
+        )
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertEqual(result.stdout.strip(), str(source / "src/lingshu_gate/__init__.py"))
+
+    def test_inert_child_binds_current_source_ahead_of_actual_old_install(self) -> None:
+        source, binding = self.fake_product()
+        old = self.parent / "old-site-packages/lingshu_gate"
+        old.mkdir(parents=True)
+        (old / "__init__.py").write_text("raise RuntimeError('old installation must not execute')\n")
+        script = (
+            "import importlib.util,json,sys\n"
+            "sys.path.insert(0,sys.argv[1]);import run_owned_e2e as owned\n"
+            "sys.path.insert(0,sys.argv[2])\n"
+            "assert importlib.util.find_spec('lingshu_gate').origin==sys.argv[2]+'/lingshu_gate/__init__.py'\n"
+            "owned._bind_product_source(owned.Path(sys.argv[3]),json.loads(sys.argv[4]))\n"
+            "assert importlib.util.find_spec('lingshu_gate').origin==sys.argv[3]+'/src/lingshu_gate/__init__.py'\n"
+            "assert not any(name=='lingshu_gate' or name.startswith('lingshu_gate.') for name in sys.modules)\n"
+            "print('current source bound; no product code imported')\n"
+        )
+        result = subprocess.run(
+            [
+                str(self.python),
+                "-I",
+                "-B",
+                "-c",
+                script,
+                str(Path(__file__).parent),
+                str(old.parent),
+                str(source),
+                json.dumps(binding),
+            ],
+            env=self.environment({}),
+            capture_output=True,
+            text=True,
+        )
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertEqual(result.stdout.strip(), "current source bound; no product code imported")
+
+    def test_source_finder_ignores_old_venv_and_cached_bytecode_without_execution(self) -> None:
+        source, binding = self.fake_product()
+        package = source / "src/lingshu_gate"
+        (package / "__pycache__").mkdir()
+        (package / "__pycache__/main.pyc").write_bytes(b"stale bytecode")
+        finder = owned.ReviewedProductFinder(source, binding)
+        specification = finder.find_spec("lingshu_gate.main", [str(self.parent / "old-venv/lingshu_gate")])
+        self.assertEqual(specification.origin, str(package / "main.py"))
+        self.assertEqual(specification.loader.get_code("lingshu_gate.main").co_filename, str(package / "main.py"))
+        with self.assertRaises(owned.BoundaryError):
+            finder.find_spec("lingshu_gate.only_in_old_install", [str(self.parent / "old-venv/lingshu_gate")])
+        self.assertNotIn("lingshu_gate", sys.modules)
+
+    def test_changed_source_bytes_cannot_be_compiled_for_product(self) -> None:
+        source, binding = self.fake_product()
+        finder = owned.ReviewedProductFinder(source, binding)
+        specification = finder.find_spec("lingshu_gate.main")
+        (source / "src/lingshu_gate/main.py").write_text("raise RuntimeError('changed bytes')\n")
+        with self.assertRaises(owned.BoundaryError):
+            specification.loader.get_code("lingshu_gate.main")
+
+    def test_actual_module_file_and_spec_must_both_match_source(self) -> None:
+        source, binding = self.fake_product()
+        path = str(source / "src/lingshu_gate/main.py")
+        old = str(self.parent / "old-venv/lingshu_gate/main.py")
+        for module in [
+            SimpleNamespace(__file__=old, __spec__=SimpleNamespace(origin=path)),
+            SimpleNamespace(__file__=path, __spec__=SimpleNamespace(origin=old)),
+        ]:
+            with self.subTest(module=module), patch.dict(sys.modules, {"lingshu_gate.main": module}):
+                with self.assertRaises(owned.BoundaryError):
+                    owned._check_loaded_product(source, binding)
+
+    def test_git_blob_bytes_are_checked_even_when_status_says_clean(self) -> None:
+        source, _ = self.fake_product()
+        path = source / "src/lingshu_gate/main.py"
+        reviewed = path.read_bytes()
+        git_digest = hashlib.sha1(b"blob " + str(len(reviewed)).encode() + b"\0" + reviewed).hexdigest()
+        record = b"100644 blob " + git_digest.encode() + b"\tsrc/lingshu_gate/main.py\0"
+        path.write_text("raise RuntimeError('ignored dirty bytes')\n")
+        with (
+            patch.object(
+                owned.subprocess,
+                "check_output",
+                side_effect=[
+                    owned.SOURCE_SHA + "\n",
+                    "",
+                    owned.SOURCE_TREE + "\n" + owned.WEB_TREE + "\n",
+                    record,
+                ],
+            ),
+            self.assertRaises(owned.BoundaryError),
+        ):
+            owned._source_check(source)
+
+    def test_old_ignored_static_trees_cannot_become_the_baseline(self) -> None:
+        source = self.parent / "old-static"
+        for directory, entry in [("console", "index.html"), ("oauth", "oauth.html")]:
+            root = source / "src/lingshu_gate/static" / directory
+            root.mkdir(parents=True)
+            (root / entry).write_text("old installed UI")
+        self.assertEqual(set(owned._inventory(source)), {"console", "oauth"})
+        with self.assertRaises(owned.BoundaryError):
+            owned._verified_static(source)
+
+    def test_pinned_static_proof_cannot_be_replaced_by_a_new_baseline(self) -> None:
+        with patch.object(owned, "STATIC_MANIFEST_SHA256", "0" * 64), self.assertRaises(owned.BoundaryError):
+            owned._verified_static(self.parent)
+
+    def test_each_static_directory_and_file_set_must_match_pinned_build(self) -> None:
+        source_input = Path(os.environ.get("GATE_OWNED_STATIC_TEST_SOURCE", str(Path(__file__).resolve().parents[3])))
+        owned._source_check(source_input)
+        actual = source_input / "src/lingshu_gate/static"
+        # Only copy immutable build inputs into this negative test's fresh root.
+        # No Gate import, server or application state is needed.
+        for label, relative, operation in [
+            ("console-old", "console/index.html", "change"),
+            ("oauth-old", "oauth/oauth.html", "change"),
+            ("unexpected", "oauth/old-extra.js", "extra"),
+            ("missing", "oauth/oauth.html", "remove"),
+        ]:
+            with self.subTest(case=label):
+                source = self.parent / label
+                static = source / "src/lingshu_gate/static"
+                shutil.copytree(actual, static)
+                owned._verified_static(source)
+                path = static / relative
+                if operation == "remove":
+                    path.unlink()
+                else:
+                    path.write_text("old static bytes")
+                with self.assertRaises(owned.BoundaryError):
+                    owned._verified_static(source)
+
+    def test_wrong_actual_console_or_oauth_route_directory_is_rejected(self) -> None:
+        source, _ = self.fake_product()
+
+        def endpoint_for(static):
+            def endpoint():
+                return static
+
+            return endpoint
+
+        expected = source / "src/lingshu_gate/static"
+        meta = SimpleNamespace(STATIC_DIR=expected)
+        app = SimpleNamespace(
+            routes=[
+                SimpleNamespace(path=path, endpoint=endpoint_for(expected / "oauth"))
+                for path in ["/oauth/consent", "/oauth/assets/{asset_path:path}"]
+            ]
+        )
+        with patch.dict(sys.modules, {"lingshu_gate.interfaces.control_api.meta_routes": meta}):
+            owned._check_app_static_routes(app, source)
+            app.routes[0].endpoint = endpoint_for(self.parent / "old-static/oauth")
+            with self.assertRaises(owned.BoundaryError):
+                owned._check_app_static_routes(app, source)
+            meta.STATIC_DIR = self.parent / "old-static"
+            with self.assertRaises(owned.BoundaryError):
+                owned._check_app_static_routes(app, source)
+
+    def test_wrong_served_console_bytes_or_enabled_oauth_blocks_acceptance(self) -> None:
+        raw = b"reviewed synthetic static bytes"
+        digest = hashlib.sha256(raw).hexdigest()
+        inventory = {"console": {"index.html": digest}, "oauth": {"oauth.html": digest}}
+
+        def approved_disabled(path):
+            return (200, raw) if path == "/" else (404, b'{"error":"oauth_disabled"}')
+
+        receipt = owned._check_served_inventory(inventory, approved_disabled)
+        self.assertTrue(receipt["oauth_routes_disabled"])
+        self.assertFalse(receipt["oauth_ui_served_bytes_verified"])
+        with self.assertRaises(owned.BoundaryError):
+            owned._check_served_inventory(inventory, lambda _: (200, b"old served UI"))
+        with self.assertRaises(owned.BoundaryError):
+            owned._check_served_inventory(inventory, lambda _: (200, raw))
+
+    def test_served_verification_without_approval_starts_no_http_probe(self) -> None:
+        with patch.object(owned, "_check_served_inventory") as probe, self.assertRaises(owned.BoundaryError):
+            owned.verify_served(self.root)
+        probe.assert_not_called()
 
     def test_missing_oauth_entry_blocks_preparation_inventory(self) -> None:
         source = self.parent / "fake-source"

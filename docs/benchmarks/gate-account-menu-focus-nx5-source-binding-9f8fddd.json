@@ -2,8 +2,7 @@
   "schema_version": 1,
   "source_sha": "9f8fddd9709e400517fc2e342ed9889a35751c96",
   "status": "Source/static binding repair prepared; independent adapter review and explicit nx5 state approval still pending",
-  "test_scope": "Pure boundary regressions only, including an inert child environment and harmless detached process/ephemeral TCP probe. No Gate import/service, real SQLite users, credentials, classifications, grants, OAuth client or browser test body started.",
-  "tests_passed": 35,
+  "preserved_previous_evidence_sha": "0bb96f4b9c702511e514dc35363de109078f1064",
   "adapter": {
     "path": "docs/benchmarks/gate-account-menu-focus-9f8fddd/run_owned_e2e.py",
     "sha256": "4205d97e5eb323e56234488da0c2c17015911aafe96d80a0f45c60c213778fd9"
@@ -12,6 +11,7 @@
     "path": "docs/benchmarks/gate-account-menu-focus-9f8fddd/test_run_owned_e2e.py",
     "sha256": "021ac706d145c7d6ee920ccb1284c9f65be238b6517a607ac2a68b482ab6c1d4"
   },
+  "tests_passed": 35,
   "checks": [
     {
       "check": "ruff",
@@ -32,6 +32,43 @@
       "sha256": "f6e9525933a5ca1067e451c94939be077ed5b54349e6a70d5a2d37444d540de1"
     }
   ],
+  "negative_test_static_input": "GATE_OWNED_STATIC_TEST_SOURCE points to a read-only clean exact-head source checkout with its pinned build output",
+  "controlled_pure_web_build": {
+    "started_at_utc": "2026-10-08T15:23:16.434882+00:00",
+    "completed_at_utc": "2026-10-08T15:23:23.503369+00:00",
+    "source_sha": "9f8fddd9709e400517fc2e342ed9889a35751c96",
+    "source_tree": "1325f73c41200bf9d9511c230c61e959a05977ca",
+    "web_tree": "11cc8d5aeaf7b14da0b5568f4a34c73a8c61d176",
+    "command": [
+      "npm",
+      "--prefix",
+      "web",
+      "run",
+      "build"
+    ],
+    "exit_code": 0,
+    "tracked_source_bytes_verified_before_and_after": true,
+    "tracked_source_file_count": 515,
+    "static_manifest_sha256": "3197ccc8400ec64b8a350db4f406fb7d3d28f72311b0181a47c39e347e0f9058",
+    "gate_import_or_start_requested": false,
+    "nx5_executed": false,
+    "fixture_root_empty": true,
+    "static_directories": {
+      "console": {
+        "file_count": 115,
+        "inventory_sha256": "baf88d329570f5692c456145539dc4d574ece88a998568170c483cd8cd58062a"
+      },
+      "oauth": {
+        "file_count": 3,
+        "inventory_sha256": "c33f85521c868ae08eb4aa4ef042c98a9ec2844153147b923e87f5fc9049820c"
+      }
+    },
+    "log": {
+      "path": "docs/benchmarks/gate-account-menu-focus-9f8fddd/adapter-source-binding-web-build.log",
+      "bytes": 14340,
+      "sha256": "4f6a3aa02543559fa21a84ae2268c713b88250bb57e3dbc742a4b6820fd20a8c"
+    }
+  },
   "prepare_and_list_only": {
     "started_at_utc": "2026-10-08T15:34:13.004811+00:00",
     "completed_at_utc": "2026-10-08T15:34:17.115867+00:00",
@@ -116,24 +153,36 @@
     "global_setup_executed": false,
     "json_report_parsed_from_registered_owned_output": true
   },
-  "execution_boundaries": [
-    "Build a fresh environment dictionary for outer E2E and fixture children; reject every unapproved GATE_E2E_* flag, including catalog scale even with empty/zero values.",
-    "HOME/TMP/XDG/npm caches, copied browser cache, all test output/JSON/HTML/trace/screenshots and browser temporary files are scoped to the registered run directory.",
-    "Generated test/config files have an explicit ESM boundary, preserve the source assertions and timeouts, and enumerate only the four target desktops plus one permission group.",
-    "The fixture cannot import Gate until a separate per-run approval marker exists. A run-owned wrapper replaces only serve module TemporaryDirectory lifetime, holding the application DB until owned reap and listener checks.",
-    "PID identity/start-time, zombies, reuse and unreadable identity are fail-closed. Original-service PID is never signalled. Only the exact validated root may be removed after reaping and both listeners close.",
-    "On uncertain cleanup, the owned root remains private; its DB/password/session/policy/draft state must be treated as still present until verified destruction.",
-    "Only product-related sanitized receipts are exported. Detailed runtime identities, environment, namespace, database, cookies, keys and traces remain private."
-  ],
+  "source_binding": {
+    "tree_sha": "1325f73c41200bf9d9511c230c61e959a05977ca",
+    "web_tree_sha": "11cc8d5aeaf7b14da0b5568f4a34c73a8c61d176",
+    "tracked_source_files_checked_against_git_blobs": 515,
+    "static_manifest_path": "docs/benchmarks/gate-account-menu-focus-main-static-9f8fddd.json",
+    "static_manifest_sha256": "3197ccc8400ec64b8a350db4f406fb7d3d28f72311b0181a47c39e347e0f9058",
+    "rules": [
+      "Exact HEAD/tree/web tree and actual tracked product, fixture and web bytes must match Git blobs.",
+      "Before product initialization, source/src is first, installed/preloaded module origins are rejected, and product file/spec origins are checked.",
+      "Product and fixture entry source loaders compile verified source bytes instead of reading ignored cached bytecode.",
+      "Product Python workers inherit only a generated source/src PYTHONPATH, never the ambient old installation path.",
+      "Both ignored static directories must match the SHA-pinned published exact-head build manifest; current contents cannot become a new baseline.",
+      "Later approved initialization checks the actual Console static constant and OAuth route closure directories.",
+      "Later approved browser global setup hashes actual Console responses and requires OAuth routes to remain disabled before any test body."
+    ]
+  },
   "scope_limits": {
     "nx5_executed": false,
-    "gate_fixture_or_identity_grant_started": false,
+    "gate_import_or_fixture_started": false,
+    "new_identity_classification_grant_or_oauth_state_started": false,
+    "actual_http_served_asset_verification_executed": false,
+    "oauth_enabled_or_external_flow_started": false,
+    "oauth_ui_served_bytes_verified": false,
     "fifteen_sample_positive_run_executed": false,
     "entire_gate7_gate9_tickets_closed": false,
-    "original_service_preservation_live_check_here": false,
-    "original_service_readonly_identity_unit_execstart_directory_checks": "Mandatory separate root-operator pre/post condition before any later approved nx5 execution; not claimed to have been run in cloud."
+    "pr60_source_head_changed": false,
+    "pr60_ready_or_merge_retried": false
   },
-  "previous_receipt_exact_commit": "0bb96f4b9c702511e514dc35363de109078f1064",
-  "source_binding_followup_evidence": "docs/benchmarks/gate-account-menu-focus-nx5-source-binding-9f8fddd.json",
-  "actual_served_asset_verification_executed": false
+  "preserved_receipts": [
+    "Original 0bb adapter, 21-test receipt and earlier preparation failures remain at the immutable previous evidence commit.",
+    "An intermediate list wrapper attempted JSON decoding of plain listing stdout; its raw private receipts are retained. Final parsing uses the registered JSON output file."
+  ]
 }

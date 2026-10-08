@@ -9,6 +9,8 @@ from __future__ import annotations
 import argparse
 import ctypes
 import hashlib
+import importlib.abc
+import importlib.machinery
 import importlib.util
 import json
 import os
@@ -23,10 +25,16 @@ import sys
 import tempfile
 import time
 from types import SimpleNamespace
+from urllib.error import HTTPError
+from urllib.request import HTTPRedirectHandler, ProxyHandler, Request, build_opener
 from urllib.parse import urlsplit
 import uuid
 
 SOURCE_SHA = "9f8fddd9709e400517fc2e342ed9889a35751c96"
+SOURCE_TREE = "1325f73c41200bf9d9511c230c61e959a05977ca"
+WEB_TREE = "11cc8d5aeaf7b14da0b5568f4a34c73a8c61d176"
+STATIC_MANIFEST_SHA256 = "3197ccc8400ec64b8a350db4f406fb7d3d28f72311b0181a47c39e347e0f9058"
+STATIC_MANIFEST_NAME = "gate-account-menu-focus-main-static-9f8fddd.json"
 ACCOUNT_TEST_SHA256 = "e438b49735506590b5b7d503b97caba97acc2887b0b0238a88594f46c0e97797"
 DESKTOPS = [(1600, 900, "en-US"), (1920, 1080, "zh-CN"), (2560, 1080, "en-US"), (2560, 1440, "zh-CN")]
 PROTECTED_PID = 117063
@@ -149,6 +157,13 @@ def clean_environment(
         "npm_config_fund": "false",
         "npm_config_update_notifier": "false",
     }
+    if "source_binding" in layout:
+        source_path = Path(str(layout["source"])) / "src"
+        if layout["source_binding"]["source_sha"] != SOURCE_SHA or source_path.resolve(strict=True) != source_path:
+            raise BoundaryError("Worker source import boundary is unavailable")
+        # Product-created Python workers inherit this generated value. The
+        # parent's PYTHONPATH is never accepted, including an old wheel/venv.
+        environment["PYTHONPATH"] = str(source_path)
     assert "GATE_E2E_OAUTH_CATALOG_SCALE" not in environment
     return environment
 
@@ -157,7 +172,7 @@ def _inventory(source: Path) -> dict[str, dict[str, str]]:
     inventory = {}
     for directory in ["console", "oauth"]:
         root = source / "src" / "lingshu_gate" / "static" / directory
-        if not root.is_dir() or root.is_symlink():
+        if not root.is_dir() or root.is_symlink() or root.resolve(strict=True) != root:
             raise BoundaryError("Built static directory missing")
         files = {}
         for path in sorted(root.rglob("*")):
@@ -171,7 +186,33 @@ def _inventory(source: Path) -> dict[str, dict[str, str]]:
     return inventory
 
 
-def _source_check(source: Path) -> None:
+def _verified_static(source: Path) -> dict[str, dict[str, str]]:
+    # This is the already-published exact-head build receipt, not a new baseline
+    # captured from whichever ignored static directory happens to be present.
+    proof = Path(__file__).resolve().parents[1] / STATIC_MANIFEST_NAME
+    if proof.is_symlink() or not proof.is_file():
+        raise BoundaryError("Pinned static build evidence is unavailable")
+    raw = proof.read_bytes()
+    if hashlib.sha256(raw).hexdigest() != STATIC_MANIFEST_SHA256:
+        raise BoundaryError("Pinned static build evidence changed")
+    receipt = json.loads(raw)
+    if receipt["source_sha"] != SOURCE_SHA or receipt["build_command"] != "npm --prefix web run build":
+        raise BoundaryError("Static build evidence is not bound to the reviewed head")
+    expected = {}
+    if set(receipt["directories"]) != {"console", "oauth"}:
+        raise BoundaryError("Static build evidence is incomplete")
+    for name, record in receipt["directories"].items():
+        files = record["files"]
+        digest = hashlib.sha256(json.dumps(files, sort_keys=True, separators=(",", ":")).encode()).hexdigest()
+        if len(files) != record["file_count"] or digest != record["inventory_sha256"]:
+            raise BoundaryError("Static build evidence inventory is inconsistent")
+        expected[name] = files
+    if _inventory(source) != expected:
+        raise BoundaryError("Static files differ from the pinned exact-head build")
+    return expected
+
+
+def _source_check(source: Path) -> dict[str, object]:
     safe_git_env = {
         "PATH": "/usr/bin:/bin",
         "LANG": "C.UTF-8",
@@ -189,6 +230,122 @@ def _source_check(source: Path) -> None:
     )
     if head != SOURCE_SHA or dirty:
         raise BoundaryError("The reviewed source head is not a clean exact checkout")
+    tree = subprocess.check_output(
+        ["/usr/bin/git", "-C", str(source), "rev-parse", "HEAD^{tree}", "HEAD:web"],
+        env=safe_git_env,
+        text=True,
+    ).splitlines()
+    if tree != [SOURCE_TREE, WEB_TREE]:
+        raise BoundaryError("Reviewed source tree identity differs")
+    entries = subprocess.check_output(
+        ["/usr/bin/git", "-C", str(source), "ls-tree", "-rz", "HEAD", "--", "src/lingshu_gate", "scripts/e2e", "web"],
+        env=safe_git_env,
+    )
+    files = {}
+    for entry in entries.split(b"\0"):
+        if not entry:
+            continue
+        metadata, relative_raw = entry.split(b"\t", 1)
+        mode, kind, object_id = metadata.decode().split()
+        relative = relative_raw.decode()
+        path = source / relative
+        if mode not in {"100644", "100755"} or kind != "blob" or not path.is_file():
+            raise BoundaryError("Reviewed input is not a regular source file")
+        for ancestor in [path, *path.parents]:
+            if ancestor == source:
+                break
+            if ancestor.is_symlink():
+                raise BoundaryError("Reviewed input has a symlink boundary")
+        raw = path.read_bytes()
+        git_digest = hashlib.sha1(b"blob " + str(len(raw)).encode() + b"\0" + raw).hexdigest()
+        if git_digest != object_id:
+            raise BoundaryError("Working input bytes differ from the exact Git blob")
+        files[relative] = hashlib.sha256(raw).hexdigest()
+    return {"source_sha": head, "tree_sha": tree[0], "web_tree_sha": tree[1], "files": files}
+
+
+def _product_location(source: Path, binding: dict[str, object], name: str) -> tuple[Path, str, bool]:
+    if name != "lingshu_gate" and not name.startswith("lingshu_gate."):
+        raise BoundaryError("Unexpected product module name")
+    stem = "src/" + name.replace(".", "/")
+    for relative, package in [(stem + "/__init__.py", True), (stem + ".py", False)]:
+        if relative in binding["files"]:
+            return source / relative, binding["files"][relative], package
+    raise BoundaryError("Product module is absent from the reviewed Git tree")
+
+
+def _check_module_origin(source: Path, binding: dict[str, object], name: str, origin: str | None) -> None:
+    expected, digest, _ = _product_location(source, binding, name)
+    if origin is None or Path(origin) != expected or expected.is_symlink() or expected.resolve(strict=True) != expected:
+        raise BoundaryError("Product module resolved outside the exact source tree")
+    if hashlib.sha256(expected.read_bytes()).hexdigest() != digest:
+        raise BoundaryError("Product module bytes changed")
+
+
+class ReviewedSourceLoader(importlib.machinery.SourceFileLoader):
+    def __init__(self, name: str, path: Path, digest: str) -> None:
+        super().__init__(name, str(path))
+        self.digest = digest
+
+    def get_code(self, fullname: str):
+        # Never execute an ignored/stale __pycache__ with matching mtime/size.
+        raw = Path(self.path).read_bytes()
+        if hashlib.sha256(raw).hexdigest() != self.digest:
+            raise BoundaryError("Product import bytes changed")
+        return self.source_to_code(raw, self.path)
+
+
+class ReviewedProductFinder(importlib.abc.MetaPathFinder):
+    def __init__(self, source: Path, binding: dict[str, object]) -> None:
+        self.source, self.binding = source, binding
+
+    def find_spec(self, fullname: str, path=None, target=None):
+        if fullname != "lingshu_gate" and not fullname.startswith("lingshu_gate."):
+            return None
+        location, digest, package = _product_location(self.source, self.binding, fullname)
+        _check_module_origin(self.source, self.binding, fullname, str(location))
+        return importlib.util.spec_from_file_location(
+            fullname,
+            location,
+            loader=ReviewedSourceLoader(fullname, location, digest),
+            submodule_search_locations=[str(location.parent)] if package else None,
+        )
+
+
+def _bind_product_source(source: Path, binding: dict[str, object]) -> None:
+    if any(name == "lingshu_gate" or name.startswith("lingshu_gate.") for name in sys.modules):
+        raise BoundaryError("Product modules were loaded before the source boundary")
+    sys.path.insert(0, str(source / "src"))
+    specification = importlib.util.find_spec("lingshu_gate")
+    _check_module_origin(source, binding, "lingshu_gate", None if specification is None else specification.origin)
+    sys.meta_path.insert(0, ReviewedProductFinder(source, binding))
+    sys.path.insert(1, str(source / "scripts/e2e"))
+
+
+def _check_loaded_product(source: Path, binding: dict[str, object]) -> None:
+    for name, module in list(sys.modules.items()):
+        if name == "lingshu_gate" or name.startswith("lingshu_gate."):
+            _check_module_origin(source, binding, name, getattr(module, "__file__", None))
+            _check_module_origin(source, binding, name, getattr(getattr(module, "__spec__", None), "origin", None))
+
+
+def _prepared_inputs(layout: dict[str, object]) -> Path:
+    source = Path(str(layout["source"]))
+    if _source_check(source) != layout["source_binding"]:
+        raise BoundaryError("Prepared source binding changed")
+    if (
+        layout["static_manifest_sha256"] != STATIC_MANIFEST_SHA256
+        or _verified_static(source) != layout["static_inventory"]
+    ):
+        raise BoundaryError("Prepared exact-head static binding changed")
+    if hashlib.sha256(Path(__file__).read_bytes()).hexdigest() != layout["adapter_sha256"]:
+        raise BoundaryError("Prepared launcher changed")
+    root = validate_owner(layout, str(layout["token"]))
+    for name, digest in layout["prepared_files"].items():
+        path = root / name
+        if path.is_symlink() or not path.is_file() or hashlib.sha256(path.read_bytes()).hexdigest() != digest:
+            raise BoundaryError("Prepared test/report configuration changed")
+    return source
 
 
 def _write_config(layout: dict[str, object], source: Path, python: Path) -> None:
@@ -215,6 +372,14 @@ def _write_config(layout: dict[str, object], source: Path, python: Path) -> None
     focus += "for (const [width, height, locale] of targets) {\nconst openFrames = 0\n" + body + "}\n"
     (root / "tests" / "account-focus-targets.spec.ts").write_text(focus)
     (root / "defer-cleanup.ts").write_text("export default async function () {}\n")
+    (root / "verify-static.ts").write_text(
+        "import { execFileSync } from 'node:child_process'\n"
+        + "export default async function () { execFileSync("
+        + json.dumps(str(python))
+        + ", "
+        + json.dumps([str(Path(__file__).resolve()), "verify-served", "--root", str(root)])
+        + ", { env: process.env, timeout: 30000, stdio: 'pipe' }) }\n"
+    )
     projects = []
     for width, height, _ in DESKTOPS:
         project = {
@@ -243,7 +408,9 @@ def _write_config(layout: dict[str, object], source: Path, python: Path) -> None
         "use": {"viewport": {"width": 1600, "height": 900}},
     }
     projects.append(json.dumps(project)[:-1] + ', "grep": new RegExp("E2E-00[246] ")}')
-    fixture_command = shlex.join([str(python), str(Path(__file__).resolve()), "fixture", "--root", str(root)])
+    fixture_command = shlex.join(
+        [str(python), "-I", "-B", str(Path(__file__).resolve()), "fixture", "--root", str(root)]
+    )
     config = (
         "import { defineConfig } from " + json.dumps(str(source / "web/node_modules/@playwright/test/index.mjs")) + "\n"
     )
@@ -252,6 +419,7 @@ def _write_config(layout: dict[str, object], source: Path, python: Path) -> None
         str(root / "defer-cleanup.ts")
     )
     config += ", outputDir: " + json.dumps(str(root / "artifacts/test-results"))
+    config += ", globalSetup: " + json.dumps(str(root / "verify-static.ts"))
     config += (
         ", reporter: [['list'], ['json', { outputFile: "
         + json.dumps(str(root / "artifacts/results.json"))
@@ -279,12 +447,12 @@ def prepare(
 ) -> dict[str, object]:
     reject_injected_flags(ambient)
     source = source.resolve(strict=True)
-    _source_check(source)
+    binding = _source_check(source)
     # Keep the venv executable's lexical path; resolving its symlink loses venv discovery.
     python, node, browsers = [Path(os.path.abspath(p)) for p in [python, node, browsers]]
     if not all(path.is_file() and os.access(path, os.X_OK) for path in [python, node]) or not browsers.is_dir():
         raise BoundaryError("Explicit runtime paths are not usable")
-    inventory = _inventory(source)
+    inventory = _verified_static(source)
     # Browser binaries are input material. Copy them into this run's cache so
     # even browser-registry writes cannot touch the previous shared cache.
     for path in browsers.rglob("*"):
@@ -300,6 +468,8 @@ def prepare(
             "node": str(node),
             "browsers": str(owned_browsers),
             "static_inventory": inventory,
+            "static_manifest_sha256": STATIC_MANIFEST_SHA256,
+            "source_binding": binding,
             "adapter_sha256": hashlib.sha256(Path(__file__).read_bytes()).hexdigest(),
         }
     )
@@ -314,6 +484,7 @@ def prepare(
             "defer-cleanup.ts",
             "tests/account-focus-targets.spec.ts",
             "package.json",
+            "verify-static.ts",
         ]
     }
     marker.unlink()
@@ -489,11 +660,90 @@ class HeldAppDirectory:
         return None
 
 
+def _check_app_static_routes(app, source: Path) -> None:
+    meta = sys.modules.get("lingshu_gate.interfaces.control_api.meta_routes")
+    if getattr(meta, "STATIC_DIR", None) != source / "src/lingshu_gate/static":
+        raise BoundaryError("Actual Console route static directory differs")
+    expected = source / "src/lingshu_gate/static/oauth"
+    paths = {"/oauth/consent", "/oauth/assets/{asset_path:path}"}
+    found = set()
+    for route in app.routes:
+        if getattr(route, "path", None) in paths:
+            endpoint = route.endpoint
+            cells = dict(zip(endpoint.__code__.co_freevars, endpoint.__closure__ or ()))
+            if "static" not in cells or cells["static"].cell_contents != expected:
+                raise BoundaryError("Actual OAuth route static directory differs")
+            found.add(route.path)
+    if found != paths:
+        raise BoundaryError("Expected OAuth static routes are missing")
+
+
+class RejectRedirect(HTTPRedirectHandler):
+    def redirect_request(self, request, file_pointer, code, message, headers, new_url):
+        raise BoundaryError("Static verification cannot follow redirects")
+
+
+def _http_bytes(path: str) -> tuple[int, bytes]:
+    if not path.startswith("/") or ".." in path.split("/") or "\\" in path or "?" in path or "#" in path:
+        raise BoundaryError("Unexpected served asset path")
+    opener = build_opener(ProxyHandler({}), RejectRedirect())
+    request = Request("http://127.0.0.1:18763" + path, headers={"Accept": "text/html", "Accept-Encoding": "identity"})
+    try:
+        with opener.open(request, timeout=3) as response:
+            return response.status, response.read()
+    except HTTPError as error:
+        return error.code, error.read()
+
+
+def _check_served_inventory(inventory: dict[str, dict[str, str]], fetch=_http_bytes) -> dict[str, object]:
+    for relative, digest in inventory["console"].items():
+        path = "/" if relative == "index.html" else "/" + relative
+        status_code, raw = fetch(path)
+        if status_code != 200 or hashlib.sha256(raw).hexdigest() != digest:
+            raise BoundaryError("Actual served Console bytes differ from the exact-head build")
+    for relative in inventory["oauth"]:
+        path = "/oauth/consent" if relative == "oauth.html" else "/oauth/" + relative
+        status_code, raw = fetch(path)
+        # This scope does not enable OAuth or mint its owner/config/keys. Its
+        # real disabled routes must remain closed; do not pretend these bytes
+        # were served successfully or bypass ready_config for a hash check.
+        if status_code != 404 or json.loads(raw) != {"error": "oauth_disabled"}:
+            raise BoundaryError("OAuth routes are not in the approved disabled state")
+    return {
+        "source_sha": SOURCE_SHA,
+        "static_manifest_sha256": STATIC_MANIFEST_SHA256,
+        "console_served_assets_verified": len(inventory["console"]),
+        "oauth_disk_assets_verified": len(inventory["oauth"]),
+        "oauth_routes_disabled": True,
+        "oauth_ui_served_bytes_verified": False,
+    }
+
+
+def verify_served(root: Path) -> dict[str, object]:
+    layout = read_layout(root)
+    _require_execution_approval(root, layout)
+    _prepared_inputs(layout)
+    product = root / "artifacts/product-binding.private.json"
+    if product.is_symlink() or not product.is_file():
+        raise BoundaryError("Actual fixture product binding is unavailable")
+    if json.loads(product.read_text()) != {
+        "source_sha": SOURCE_SHA,
+        "product_modules_bound_before_initialization": True,
+        "actual_console_and_oauth_route_directories_bound": True,
+        "static_manifest_sha256": STATIC_MANIFEST_SHA256,
+    }:
+        raise BoundaryError("Actual fixture product binding differs")
+    receipt = _check_served_inventory(layout["static_inventory"])
+    _json_write(root / "artifacts/served-static.json", receipt)
+    return receipt
+
+
 def fixture(root: Path, ambient: dict[str, str], *, entry: bool = False) -> None:
     # Reject catalog/other injected flags before any Gate import or initialization.
     reject_injected_flags(ambient, root / "tmp" / ("gate-e2e-" + read_layout(root)["token"]))
     layout = read_layout(root)
     _require_execution_approval(root, layout)
+    source = _prepared_inputs(layout)
     environment = clean_environment(
         layout,
         ambient,
@@ -504,16 +754,45 @@ def fixture(root: Path, ambient: dict[str, str], *, entry: bool = False) -> None
     )
     python = str(layout["python"])
     if not entry:
-        command = [python, str(Path(__file__).resolve()), "fixture-entry", "--root", str(root)]
+        command = [python, "-I", "-B", str(Path(__file__).resolve()), "fixture-entry", "--root", str(root)]
         os.execve(python, command, environment)
     # Only a clean child can reach the real reviewed fixture. This path is
     # intentionally unexecuted by the pure negative tests.
     os.environ.clear()
     os.environ.update(environment)
+    _bind_product_source(source, layout["source_binding"])
     _json_write(root / "fixture-launch-intent.json", {"fixture_start_requested": True})
-    source = Path(str(layout["source"]))
-    sys.path.insert(0, str(source / "scripts/e2e"))
-    specification = importlib.util.spec_from_file_location("owned_reviewed_fixture", source / "scripts/e2e/serve.py")
+    gate_main = importlib.import_module("lingshu_gate.main")
+    _check_loaded_product(source, layout["source_binding"])
+    original_create_app = gate_main.create_app
+
+    def checked_create_app():
+        _prepared_inputs(layout)
+        _check_loaded_product(source, layout["source_binding"])
+        app = original_create_app()
+        _check_loaded_product(source, layout["source_binding"])
+        _check_app_static_routes(app, source)
+        _json_write(
+            root / "artifacts/product-binding.private.json",
+            {
+                "source_sha": SOURCE_SHA,
+                "product_modules_bound_before_initialization": True,
+                "actual_console_and_oauth_route_directories_bound": True,
+                "static_manifest_sha256": STATIC_MANIFEST_SHA256,
+            },
+        )
+        return app
+
+    gate_main.create_app = checked_create_app
+    specification = importlib.util.spec_from_file_location(
+        "owned_reviewed_fixture",
+        source / "scripts/e2e/serve.py",
+        loader=ReviewedSourceLoader(
+            "owned_reviewed_fixture",
+            source / "scripts/e2e/serve.py",
+            layout["source_binding"]["files"]["scripts/e2e/serve.py"],
+        ),
+    )
     if specification is None or specification.loader is None:
         raise BoundaryError("Reviewed fixture cannot be loaded")
     module = importlib.util.module_from_spec(specification)
@@ -530,14 +809,7 @@ def run(layout: dict[str, object], ambient: dict[str, str], *, fixture_scope_app
     environment = clean_environment(
         layout, ambient, Path(str(layout["python"])), Path(str(layout["node"])), Path(str(layout["browsers"]))
     )
-    _source_check(Path(str(layout["source"])))
-    if _inventory(Path(str(layout["source"]))) != layout["static_inventory"]:
-        raise BoundaryError("Prepared source static inventory changed")
-    if hashlib.sha256(Path(__file__).read_bytes()).hexdigest() != layout["adapter_sha256"]:
-        raise BoundaryError("Prepared launcher changed")
-    for name, digest in layout["prepared_files"].items():
-        if hashlib.sha256((root / name).read_bytes()).hexdigest() != digest:
-            raise BoundaryError("Prepared test/report configuration changed")
+    _prepared_inputs(layout)
     if not listener_closed(18763):
         raise BoundaryError("Existing listener must not be reused or stopped")
     _json_write(
@@ -614,7 +886,11 @@ def run(layout: dict[str, object], ambient: dict[str, str], *, fixture_scope_app
             and results["stats"]["skipped"] == 0
             and results["stats"]["unexpected"] == 0
             and results["stats"]["flaky"] == 0
+            and (root / "artifacts/served-static.json").is_file()
         )
+    served = root / "artifacts/served-static.json"
+    if served.is_file() and not served.is_symlink():
+        receipt["static_source_and_serving_binding"] = json.loads(served.read_text())
     receipt["entire_gate7_gate9_tickets_closed"] = False
     try:
         port = peer_port(layout)
@@ -633,7 +909,7 @@ def run(layout: dict[str, object], ambient: dict[str, str], *, fixture_scope_app
 
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("mode", choices=["prepare", "fixture", "fixture-entry", "run"])
+    parser.add_argument("mode", choices=["prepare", "fixture", "fixture-entry", "verify-served", "run"])
     parser.add_argument("--parent", type=Path)
     parser.add_argument("--source", type=Path)
     parser.add_argument("--python", type=Path)
@@ -651,6 +927,8 @@ def main() -> int:
             print(json.dumps({"prepared_only": True, "owned_root": layout["root"], "source_sha": SOURCE_SHA}))
         elif args.mode in {"fixture", "fixture-entry"}:
             fixture(args.root, dict(os.environ), entry=args.mode == "fixture-entry")
+        elif args.mode == "verify-served":
+            print(json.dumps(verify_served(args.root)))
         else:
             print(
                 json.dumps(
