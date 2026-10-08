@@ -1,0 +1,145 @@
+{
+  "schema_version": 1,
+  "source_sha": "9f8fddd9709e400517fc2e342ed9889a35751c96",
+  "status": "Run-owned code prepared; adapter review and explicit nx5 temporary-persistent-state approval remain pending",
+  "test_scope": "Pure boundary regressions only, including an inert child environment and harmless detached process/ephemeral TCP probe. No Gate import/service, real SQLite users, credentials, classifications, grants, OAuth client or browser test body started.",
+  "tests_passed": 21,
+  "adapter": {
+    "path": "docs/benchmarks/gate-account-menu-focus-9f8fddd/run_owned_e2e.py",
+    "sha256": "05c5b6ec7a11b600ba45ab0702c8fbbb6d5ad2347ca5b34eb50457e1495e6f42"
+  },
+  "tests": {
+    "path": "docs/benchmarks/gate-account-menu-focus-9f8fddd/test_run_owned_e2e.py",
+    "sha256": "eaaf418f60a9e4c338a2be01c933b13462def92d9ceee27363b3139ec41e6702"
+  },
+  "checks": [
+    {
+      "started_at_utc": "2026-10-08T14:56:45.478415+00:00",
+      "completed_at_utc": "2026-10-08T14:56:45.489527+00:00",
+      "command": [
+        "ruff",
+        "check",
+        "run_owned_e2e.py",
+        "test_run_owned_e2e.py"
+      ],
+      "exit_code": 0,
+      "repository_stdout": "docs/benchmarks/gate-account-menu-focus-9f8fddd/adapter-ruff.log",
+      "bytes": 19,
+      "sha256": "82b3e6a6c090a57601d22943bd23fca9218d1031dbe5a7b754092f9a156b4f18"
+    },
+    {
+      "started_at_utc": "2026-10-08T14:56:45.489727+00:00",
+      "completed_at_utc": "2026-10-08T14:56:46.395950+00:00",
+      "command": [
+        "python",
+        "-m",
+        "unittest",
+        "-v",
+        "test_run_owned_e2e"
+      ],
+      "exit_code": 0,
+      "repository_stdout": "docs/benchmarks/gate-account-menu-focus-9f8fddd/adapter-negative-tests.log",
+      "bytes": 3228,
+      "sha256": "c4e8b5dcdb479d265ef622b9143b6a28d4d89e5299c87213a61b24ba7e8fced2"
+    }
+  ],
+  "prepare_and_list_only": {
+    "started_at_utc": "2026-10-08T14:52:42.671658+00:00",
+    "completed_at_utc": "2026-10-08T14:52:43.449290+00:00",
+    "source_sha": "9f8fddd9709e400517fc2e342ed9889a35751c96",
+    "adapter_sha256": "05c5b6ec7a11b600ba45ab0702c8fbbb6d5ad2347ca5b34eb50457e1495e6f42",
+    "prepare_exit_code": 0,
+    "list_exit_code": 0,
+    "selected_case_count": 15,
+    "selected_cases": [
+      {
+        "title": "@smoke root entry en-US /console preserves bookmark through login and reload",
+        "project": "desktop-1600x900"
+      },
+      {
+        "title": "@smoke root entry zh-CN / preserves bookmark through login and reload",
+        "project": "desktop-1600x900"
+      },
+      {
+        "title": "@smoke root entry en-US /console preserves bookmark through login and reload",
+        "project": "desktop-1920x1080"
+      },
+      {
+        "title": "@smoke root entry zh-CN / preserves bookmark through login and reload",
+        "project": "desktop-1920x1080"
+      },
+      {
+        "title": "@smoke root entry en-US /console preserves bookmark through login and reload",
+        "project": "desktop-2560x1080"
+      },
+      {
+        "title": "@smoke root entry zh-CN / preserves bookmark through login and reload",
+        "project": "desktop-2560x1080"
+      },
+      {
+        "title": "@smoke root entry en-US /console preserves bookmark through login and reload",
+        "project": "desktop-2560x1440"
+      },
+      {
+        "title": "@smoke root entry zh-CN / preserves bookmark through login and reload",
+        "project": "desktop-2560x1440"
+      },
+      {
+        "title": "@smoke @full @account-menu close before autofocus preserves focus: en-US 1600px frame 0",
+        "project": "desktop-account-focus"
+      },
+      {
+        "title": "@smoke @full @account-menu close before autofocus preserves focus: zh-CN 1920px frame 0",
+        "project": "desktop-account-focus"
+      },
+      {
+        "title": "@smoke @full @account-menu close before autofocus preserves focus: en-US 2560px frame 0",
+        "project": "desktop-account-focus"
+      },
+      {
+        "title": "@smoke @full @account-menu close before autofocus preserves focus: zh-CN 2560px frame 0",
+        "project": "desktop-account-focus"
+      },
+      {
+        "title": "E2E-002 @smoke @permissions viewer is denied real control-plane APIs",
+        "project": "permissions-once"
+      },
+      {
+        "title": "E2E-004 @permissions personal routes use authorized summaries and self records",
+        "project": "permissions-once"
+      },
+      {
+        "title": "E2E-006 @permissions real disabled scope draft save, ownership deny and revoke",
+        "project": "permissions-once"
+      }
+    ],
+    "fixture_root_empty": true,
+    "fixture_execution_approval_absent": true,
+    "gate_import_or_start_requested": false,
+    "nx5_executed": false,
+    "test_bodies_executed": false,
+    "owned_preparation_retained_privately_for_review": true,
+    "preparation_failures_corrected": [
+      "OAuth entry is oauth.html, not index.html",
+      "Owned TS directory requires its own ESM package.json"
+    ],
+    "preparation_cache_reused_only_after_exact_owner_validation_and_absent_execution_approval": true
+  },
+  "execution_boundaries": [
+    "Build a fresh environment dictionary for outer E2E and fixture children; reject every unapproved GATE_E2E_* flag, including catalog scale even with empty/zero values.",
+    "HOME/TMP/XDG/npm caches, copied browser cache, all test output/JSON/HTML/trace/screenshots and browser temporary files are scoped to the registered run directory.",
+    "Generated test/config files have an explicit ESM boundary, preserve the source assertions and timeouts, and enumerate only the four target desktops plus one permission group.",
+    "The fixture cannot import Gate until a separate per-run approval marker exists. A run-owned wrapper replaces only serve module TemporaryDirectory lifetime, holding the application DB until owned reap and listener checks.",
+    "PID identity/start-time, zombies, reuse and unreadable identity are fail-closed. Original-service PID is never signalled. Only the exact validated root may be removed after reaping and both listeners close.",
+    "On uncertain cleanup, the owned root remains private; its DB/password/session/policy/draft state must be treated as still present until verified destruction.",
+    "Only product-related sanitized receipts are exported. Detailed runtime identities, environment, namespace, database, cookies, keys and traces remain private."
+  ],
+  "scope_limits": {
+    "nx5_executed": false,
+    "gate_fixture_or_identity_grant_started": false,
+    "fifteen_sample_positive_run_executed": false,
+    "entire_gate7_gate9_tickets_closed": false,
+    "original_service_preservation_live_check_here": false,
+    "original_service_readonly_identity_unit_execstart_directory_checks": "Mandatory separate root-operator pre/post condition before any later approved nx5 execution; not claimed to have been run in cloud."
+  }
+}

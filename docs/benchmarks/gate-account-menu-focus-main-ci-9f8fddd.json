@@ -1,0 +1,632 @@
+{
+  "schema_version": 1,
+  "recorded_at_utc": "2026-10-08T14:56:46.397502+00:00",
+  "source_binding": {
+    "head_sha": "9f8fddd9709e400517fc2e342ed9889a35751c96",
+    "main_base_sha": "a14244caaf3459269546d97d3b3336b3964b380a",
+    "synthetic_merge_sha": "63a3e3b06c359f98b29181ebb8826c9e5cf64079",
+    "merge_parents": [
+      "a14244caaf3459269546d97d3b3336b3964b380a",
+      "9f8fddd9709e400517fc2e342ed9889a35751c96"
+    ],
+    "head_and_merge_tree": "1325f73c41200bf9d9511c230c61e959a05977ca",
+    "component_blob": "787a1de807a654fd2b82a51323a976a9e0e12442",
+    "test_blob": "5bf42c874b8ad312e1e28687a143eb5ef992f380"
+  },
+  "ordinary_pr_ci_terminal": {
+    "captured_at_utc": "2026-10-08T14:27:40.674433+00:00",
+    "head_sha": "9f8fddd9709e400517fc2e342ed9889a35751c96",
+    "runs": [
+      {
+        "id": 37783634714,
+        "name": "Continuous integration",
+        "url": "https://github.com/zhigege666/Lingshu-Gate/actions/runs/37783634714",
+        "head_sha": "9f8fddd9709e400517fc2e342ed9889a35751c96",
+        "status": "completed",
+        "conclusion": "success",
+        "jobs": [
+          {
+            "id": 113332710388,
+            "name": "Source checks",
+            "status": "completed",
+            "conclusion": "success",
+            "started_at": "2026-10-08T13:20:58Z",
+            "completed_at": "2026-10-08T13:47:43Z",
+            "steps": [
+              {
+                "name": "Set up job",
+                "status": "completed",
+                "conclusion": "success"
+              },
+              {
+                "name": "Checkout complete history",
+                "status": "completed",
+                "conclusion": "success"
+              },
+              {
+                "name": "Validate repository identity and version",
+                "status": "completed",
+                "conclusion": "success"
+              },
+              {
+                "name": "Set up Node.js",
+                "status": "completed",
+                "conclusion": "success"
+              },
+              {
+                "name": "Verify and build Console once",
+                "status": "completed",
+                "conclusion": "success"
+              },
+              {
+                "name": "Set up Python",
+                "status": "completed",
+                "conclusion": "success"
+              },
+              {
+                "name": "Set up uv",
+                "status": "completed",
+                "conclusion": "success"
+              },
+              {
+                "name": "Install frozen dependencies",
+                "status": "completed",
+                "conclusion": "success"
+              },
+              {
+                "name": "Verify pip export is synchronized",
+                "status": "completed",
+                "conclusion": "success"
+              },
+              {
+                "name": "Install browser for isolated smoke",
+                "status": "completed",
+                "conclusion": "success"
+              },
+              {
+                "name": "Verify backend on Python 3.12",
+                "status": "completed",
+                "conclusion": "success"
+              },
+              {
+                "name": "Test Console against isolated real backend",
+                "status": "completed",
+                "conclusion": "success"
+              },
+              {
+                "name": "Retain synthetic browser failure evidence",
+                "status": "completed",
+                "conclusion": "skipped"
+              },
+              {
+                "name": "Share tested Console with compatibility jobs",
+                "status": "completed",
+                "conclusion": "success"
+              },
+              {
+                "name": "Share built OAuth assets with compatibility jobs",
+                "status": "completed",
+                "conclusion": "success"
+              },
+              {
+                "name": "Post Set up uv",
+                "status": "completed",
+                "conclusion": "success"
+              },
+              {
+                "name": "Post Set up Python",
+                "status": "completed",
+                "conclusion": "success"
+              },
+              {
+                "name": "Post Set up Node.js",
+                "status": "completed",
+                "conclusion": "success"
+              },
+              {
+                "name": "Post Checkout complete history",
+                "status": "completed",
+                "conclusion": "success"
+              },
+              {
+                "name": "Complete job",
+                "status": "completed",
+                "conclusion": "success"
+              }
+            ]
+          },
+          {
+            "id": 113344853853,
+            "name": "Python 3.13",
+            "status": "completed",
+            "conclusion": "success",
+            "started_at": "2026-10-08T13:47:46Z",
+            "completed_at": "2026-10-08T14:09:32Z",
+            "steps": [
+              {
+                "name": "Set up job",
+                "status": "completed",
+                "conclusion": "success"
+              },
+              {
+                "name": "Checkout",
+                "status": "completed",
+                "conclusion": "success"
+              },
+              {
+                "name": "Download Console from this workflow run",
+                "status": "completed",
+                "conclusion": "success"
+              },
+              {
+                "name": "Download OAuth assets from this workflow run",
+                "status": "completed",
+                "conclusion": "success"
+              },
+              {
+                "name": "Set up Node.js for packaging script tests",
+                "status": "completed",
+                "conclusion": "success"
+              },
+              {
+                "name": "Install Console dependencies for license tests",
+                "status": "completed",
+                "conclusion": "success"
+              },
+              {
+                "name": "Set up Python",
+                "status": "completed",
+                "conclusion": "success"
+              },
+              {
+                "name": "Set up uv",
+                "status": "completed",
+                "conclusion": "success"
+              },
+              {
+                "name": "Install frozen dependencies",
+                "status": "completed",
+                "conclusion": "success"
+              },
+              {
+                "name": "Test",
+                "status": "completed",
+                "conclusion": "success"
+              },
+              {
+                "name": "Post Set up uv",
+                "status": "completed",
+                "conclusion": "success"
+              },
+              {
+                "name": "Post Set up Python",
+                "status": "completed",
+                "conclusion": "success"
+              },
+              {
+                "name": "Post Set up Node.js for packaging script tests",
+                "status": "completed",
+                "conclusion": "success"
+              },
+              {
+                "name": "Post Checkout",
+                "status": "completed",
+                "conclusion": "success"
+              },
+              {
+                "name": "Complete job",
+                "status": "completed",
+                "conclusion": "success"
+              }
+            ]
+          },
+          {
+            "id": 113344853959,
+            "name": "Python 3.11",
+            "status": "completed",
+            "conclusion": "success",
+            "started_at": "2026-10-08T13:47:46Z",
+            "completed_at": "2026-10-08T14:12:22Z",
+            "steps": [
+              {
+                "name": "Set up job",
+                "status": "completed",
+                "conclusion": "success"
+              },
+              {
+                "name": "Checkout",
+                "status": "completed",
+                "conclusion": "success"
+              },
+              {
+                "name": "Download Console from this workflow run",
+                "status": "completed",
+                "conclusion": "success"
+              },
+              {
+                "name": "Download OAuth assets from this workflow run",
+                "status": "completed",
+                "conclusion": "success"
+              },
+              {
+                "name": "Set up Node.js for packaging script tests",
+                "status": "completed",
+                "conclusion": "success"
+              },
+              {
+                "name": "Install Console dependencies for license tests",
+                "status": "completed",
+                "conclusion": "success"
+              },
+              {
+                "name": "Set up Python",
+                "status": "completed",
+                "conclusion": "success"
+              },
+              {
+                "name": "Set up uv",
+                "status": "completed",
+                "conclusion": "success"
+              },
+              {
+                "name": "Install frozen dependencies",
+                "status": "completed",
+                "conclusion": "success"
+              },
+              {
+                "name": "Test",
+                "status": "completed",
+                "conclusion": "success"
+              },
+              {
+                "name": "Post Set up uv",
+                "status": "completed",
+                "conclusion": "success"
+              },
+              {
+                "name": "Post Set up Python",
+                "status": "completed",
+                "conclusion": "success"
+              },
+              {
+                "name": "Post Set up Node.js for packaging script tests",
+                "status": "completed",
+                "conclusion": "success"
+              },
+              {
+                "name": "Post Checkout",
+                "status": "completed",
+                "conclusion": "success"
+              },
+              {
+                "name": "Complete job",
+                "status": "completed",
+                "conclusion": "success"
+              }
+            ]
+          },
+          {
+            "id": 113356480520,
+            "name": "CI result",
+            "status": "completed",
+            "conclusion": "success",
+            "started_at": "2026-10-08T14:12:24Z",
+            "completed_at": "2026-10-08T14:12:27Z",
+            "steps": [
+              {
+                "name": "Set up job",
+                "status": "completed",
+                "conclusion": "success"
+              },
+              {
+                "name": "Require every source and compatibility check",
+                "status": "completed",
+                "conclusion": "success"
+              },
+              {
+                "name": "Complete job",
+                "status": "completed",
+                "conclusion": "success"
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "id": 37783634682,
+        "name": "Code scanning",
+        "url": "https://github.com/zhigege666/Lingshu-Gate/actions/runs/37783634682",
+        "head_sha": "9f8fddd9709e400517fc2e342ed9889a35751c96",
+        "status": "completed",
+        "conclusion": "success",
+        "jobs": [
+          {
+            "id": 113332702514,
+            "name": "Analyze javascript-typescript",
+            "status": "completed",
+            "conclusion": "success",
+            "started_at": "2026-10-08T13:20:56Z",
+            "completed_at": "2026-10-08T13:21:59Z",
+            "steps": [
+              {
+                "name": "Set up job",
+                "status": "completed",
+                "conclusion": "success"
+              },
+              {
+                "name": "Checkout",
+                "status": "completed",
+                "conclusion": "success"
+              },
+              {
+                "name": "Initialize CodeQL",
+                "status": "completed",
+                "conclusion": "success"
+              },
+              {
+                "name": "Analyze",
+                "status": "completed",
+                "conclusion": "success"
+              },
+              {
+                "name": "Post Analyze",
+                "status": "completed",
+                "conclusion": "success"
+              },
+              {
+                "name": "Post Initialize CodeQL",
+                "status": "completed",
+                "conclusion": "success"
+              },
+              {
+                "name": "Post Checkout",
+                "status": "completed",
+                "conclusion": "success"
+              },
+              {
+                "name": "Complete job",
+                "status": "completed",
+                "conclusion": "success"
+              }
+            ]
+          },
+          {
+            "id": 113332702912,
+            "name": "Analyze python",
+            "status": "completed",
+            "conclusion": "success",
+            "started_at": "2026-10-08T13:20:56Z",
+            "completed_at": "2026-10-08T13:22:01Z",
+            "steps": [
+              {
+                "name": "Set up job",
+                "status": "completed",
+                "conclusion": "success"
+              },
+              {
+                "name": "Checkout",
+                "status": "completed",
+                "conclusion": "success"
+              },
+              {
+                "name": "Initialize CodeQL",
+                "status": "completed",
+                "conclusion": "success"
+              },
+              {
+                "name": "Analyze",
+                "status": "completed",
+                "conclusion": "success"
+              },
+              {
+                "name": "Post Analyze",
+                "status": "completed",
+                "conclusion": "success"
+              },
+              {
+                "name": "Post Initialize CodeQL",
+                "status": "completed",
+                "conclusion": "success"
+              },
+              {
+                "name": "Post Checkout",
+                "status": "completed",
+                "conclusion": "success"
+              },
+              {
+                "name": "Complete job",
+                "status": "completed",
+                "conclusion": "success"
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "id": 37783634854,
+        "name": "Container images",
+        "url": "https://github.com/zhigege666/Lingshu-Gate/actions/runs/37783634854",
+        "head_sha": "9f8fddd9709e400517fc2e342ed9889a35751c96",
+        "status": "completed",
+        "conclusion": "success",
+        "jobs": [
+          {
+            "id": 113332703309,
+            "name": "QEMU multi-architecture execution smoke",
+            "status": "completed",
+            "conclusion": "success",
+            "started_at": "2026-10-08T13:20:57Z",
+            "completed_at": "2026-10-08T13:21:32Z",
+            "steps": [
+              {
+                "name": "Set up job",
+                "status": "completed",
+                "conclusion": "success"
+              },
+              {
+                "name": "Checkout",
+                "status": "completed",
+                "conclusion": "success"
+              },
+              {
+                "name": "Install pinned QEMU binfmt handlers",
+                "status": "completed",
+                "conclusion": "success"
+              },
+              {
+                "name": "Set up pinned Buildx and BuildKit",
+                "status": "completed",
+                "conclusion": "success"
+              },
+              {
+                "name": "Verify host binfmt registration and direct emulated execution",
+                "status": "completed",
+                "conclusion": "success"
+              },
+              {
+                "name": "Execute native and emulated Python without publishing",
+                "status": "completed",
+                "conclusion": "success"
+              },
+              {
+                "name": "Post Set up pinned Buildx and BuildKit",
+                "status": "completed",
+                "conclusion": "success"
+              },
+              {
+                "name": "Post Install pinned QEMU binfmt handlers",
+                "status": "completed",
+                "conclusion": "success"
+              },
+              {
+                "name": "Post Checkout",
+                "status": "completed",
+                "conclusion": "success"
+              },
+              {
+                "name": "Complete job",
+                "status": "completed",
+                "conclusion": "success"
+              }
+            ]
+          },
+          {
+            "id": 113332703640,
+            "name": "Validate container contracts",
+            "status": "completed",
+            "conclusion": "success",
+            "started_at": "2026-10-08T13:20:57Z",
+            "completed_at": "2026-10-08T13:21:53Z",
+            "steps": [
+              {
+                "name": "Set up job",
+                "status": "completed",
+                "conclusion": "success"
+              },
+              {
+                "name": "Checkout",
+                "status": "completed",
+                "conclusion": "success"
+              },
+              {
+                "name": "Validate local Compose",
+                "status": "completed",
+                "conclusion": "success"
+              },
+              {
+                "name": "Validate production Compose",
+                "status": "completed",
+                "conclusion": "success"
+              },
+              {
+                "name": "Build and inspect secure Core image",
+                "status": "completed",
+                "conclusion": "success"
+              },
+              {
+                "name": "Run Core readiness smoke test",
+                "status": "completed",
+                "conclusion": "success"
+              },
+              {
+                "name": "Scan Core image for critical vulnerabilities",
+                "status": "completed",
+                "conclusion": "success"
+              },
+              {
+                "name": "Post Scan Core image for critical vulnerabilities",
+                "status": "completed",
+                "conclusion": "success"
+              },
+              {
+                "name": "Post Checkout",
+                "status": "completed",
+                "conclusion": "success"
+              },
+              {
+                "name": "Complete job",
+                "status": "completed",
+                "conclusion": "success"
+              }
+            ]
+          },
+          {
+            "id": 113333128794,
+            "name": "Validate multi-architecture Core image",
+            "status": "completed",
+            "conclusion": "skipped",
+            "started_at": "2026-10-08T13:21:53Z",
+            "completed_at": "2026-10-08T13:21:53Z",
+            "steps": []
+          }
+        ]
+      }
+    ]
+  },
+  "artifact_name_binding": {
+    "captured_at_utc": "2026-10-08T13:50:26.782755+00:00",
+    "run_id": 37783634714,
+    "source_job_id": 113332710388,
+    "source_job_conclusion": "success",
+    "head_sha": "9f8fddd9709e400517fc2e342ed9889a35751c96",
+    "synthetic_merge": "63a3e3b06c359f98b29181ebb8826c9e5cf64079",
+    "artifact_names_bind_workflow_github_sha": true,
+    "artifacts": [
+      {
+        "id": 11554971323,
+        "name": "ci-oauth-63a3e3b06c359f98b29181ebb8826c9e5cf64079",
+        "size_in_bytes": 426028,
+        "digest": "sha256:b5c77c29c82128ccf97f256b83839bd8d5e9dc317791f7b10b57978e0f536350",
+        "expired": false,
+        "created_at": "2026-10-08T13:47:39Z",
+        "actual_bytes_downloaded": false
+      },
+      {
+        "id": 11554089324,
+        "name": "ci-console-63a3e3b06c359f98b29181ebb8826c9e5cf64079",
+        "size_in_bytes": 993332,
+        "digest": "sha256:d609fca92283fdf1075b63157026485ba47cae3b7b03a04fd9786906732872fe",
+        "expired": false,
+        "created_at": "2026-10-08T13:47:38Z",
+        "actual_bytes_downloaded": false
+      }
+    ],
+    "downloaded_artifact_archives": false
+  },
+  "raw_new_ci_job_logs_downloaded": false,
+  "artifact_bytes_downloaded": false,
+  "claim_scope": "Terminal API job/step conclusions and upload names bind exact PR source and merge; API ZIP digests are metadata only, not local package hashes.",
+  "independent_review": "Parent confirmed no established new P1/P2 for the minimal source change and no PR59 ancestor chain.",
+  "publication_boundary": {
+    "candidate_source_head_moved": false,
+    "pr_ready_or_merge_attempted_by_this_task": false,
+    "parent_ready_request": "Parent reported automatic approval rejection; explicit Ready/merge confirmation remains pending. No bypass or further status attempt here.",
+    "main_merged_by_this_task": false,
+    "known_403_items_read_or_retried": false,
+    "new_formal_run_started": false,
+    "formal_diagnostic_first_failure_nodeid": "unknown; protected raw evidence remains unavailable",
+    "new_focus_candidate_wheel_or_native_package_built": false,
+    "new_package_hashes": null,
+    "nx5_executed": false
+  }
+}

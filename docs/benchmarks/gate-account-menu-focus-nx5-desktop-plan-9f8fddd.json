@@ -1,7 +1,7 @@
 {
   "schema_version": 2,
   "recorded_at_utc": "2026-10-08T13:40:40.359155+00:00",
-  "status": "Revised short plan only. Await exact-head ordinary CI and parent scope review. No nx5 startup, cleanup, SSH or original-service switch performed.",
+  "status": "Code prepared and pure negative/list-only checks passed; await independent adapter review and explicit nx5 temporary-persistent-state confirmation. No nx5 execution.",
   "source_sha": "9f8fddd9709e400517fc2e342ed9889a35751c96",
   "source_tree": "1325f73c41200bf9d9511c230c61e959a05977ca",
   "supersedes": "gate-account-menu-focus-nx5-plan-9f8fddd.json: its 1280/640/390 samples are existing regressions and do not close the four requested desktop targets.",
@@ -144,7 +144,15 @@
     "workers": 1,
     "retries": 0,
     "command_budget_seconds": 180,
-    "run_owned_adapter_prepared_or_executed": false
+    "run_owned_adapter_prepared_or_executed": {
+      "prepared": true,
+      "pure_negative_tests_passed": 21,
+      "list_only_selected_cases": 15,
+      "test_bodies_executed": false,
+      "nx5_executed": false,
+      "code_path": "docs/benchmarks/gate-account-menu-focus-9f8fddd/run_owned_e2e.py",
+      "code_sha256": "05c5b6ec7a11b600ba45ab0702c8fbbb6d5ad2347ca5b34eb50457e1495e6f42"
+    }
   },
   "fixture_lifecycle": {
     "ownership": "One new exclusive 0700 run directory on the already scoped nx5 isolation disk; one new GATE_E2E_TEMP_ROOT and nested TemporaryDirectory. No original service database/config/user/credential path is reused.",
@@ -181,7 +189,7 @@
       "bootstrap_file_boundary": "https://github.com/zhigege666/Lingshu-Gate/blob/9f8fddd9709e400517fc2e342ed9889a35751c96/src/lingshu_gate/auth.py#L247",
       "password_rotation_and_bootstrap_file_deletion": "https://github.com/zhigege666/Lingshu-Gate/blob/9f8fddd9709e400517fc2e342ed9889a35751c96/src/lingshu_gate/auth.py#L713",
       "console_session_boundary": "https://github.com/zhigege666/Lingshu-Gate/blob/9f8fddd9709e400517fc2e342ed9889a35751c96/src/lingshu_gate/auth.py#L439",
-      "new_persistent_credentials_after_cleanup": false,
+      "new_persistent_credentials_after_cleanup": "Expected none only after verified exact DB/root destruction; no such nx5 run or destruction has occurred.",
       "api_token_or_downstream_credential_created": false,
       "host_or_real_service_trust_modified": false,
       "external_oauth_authorization_or_real_client_created": false,
@@ -189,7 +197,9 @@
       "scope_note": "Encryption and OAuth key stores are constructed with the same temporary data root; their key creation paths are lazy. These fifteen cases do not request downstream credential save, OAuth enablement or key rotation.",
       "would_create_temporary_material": true,
       "disabled_scope_draft_boundary": "https://github.com/zhigege666/Lingshu-Gate/blob/9f8fddd9709e400517fc2e342ed9889a35751c96/src/lingshu_gate/external_connection_store.py#L101",
-      "disabled_scope_route_boundary": "https://github.com/zhigege666/Lingshu-Gate/blob/9f8fddd9709e400517fc2e342ed9889a35751c96/src/lingshu_gate/interfaces/control_api/external_connection_routes.py#L222"
+      "disabled_scope_route_boundary": "https://github.com/zhigege666/Lingshu-Gate/blob/9f8fddd9709e400517fc2e342ed9889a35751c96/src/lingshu_gate/interfaces/control_api/external_connection_routes.py#L222",
+      "storage_lifetime": "Temporary persistent SQLite/file state in the exclusive run directory. Password/role/session/read-grant/draft rows survive browser closure and reopening the same database; only verified destruction of that database/root destroys them.",
+      "draft_revoke_semantics": "E2E-006 DELETE sets revoked_at; a subsequent owner GET remains 200. Closing browser contexts does not remove server-side session rows."
     },
     "destruction": [
       {
@@ -202,14 +212,14 @@
       },
       {
         "source": "https://github.com/zhigege666/Lingshu-Gate/blob/9f8fddd9709e400517fc2e342ed9889a35751c96/scripts/e2e/serve.py#L15",
-        "effect": "Normal fixture exit removes the nested application TemporaryDirectory, including users/session hashes/grants/database files."
+        "effect": "Stock serve.py uses a TemporaryDirectory. The reviewed run-owned code narrowly replaces only that module reference with HeldAppDirectory, retaining app DB until the controller verifies owned reaping and listeners before exact-root removal. Product source remains unchanged."
       },
       {
         "source": "https://github.com/zhigege666/Lingshu-Gate/blob/9f8fddd9709e400517fc2e342ed9889a35751c96/web/e2e/teardown.ts#L5",
         "effect": "Repository teardown deletes only a prefix-checked root directly under tmpdir; by itself it is not proof that owned child processes were already reaped."
       }
     ],
-    "nx5_owned_cleanup_plan": "Use a separately hashed run-owned teardown that defers outer-root deletion. After Playwright fixture shutdown, verify the recorded owned PIDs/descendants and both loopback listeners are gone, then remove only the recorded run-owned root after parent/path/no-symlink checks. If shutdown is uncertain, retain that root and the error receipt; do not delete by prefix scan or broad command.",
+    "nx5_owned_cleanup_plan": "Executable controller plus no-op stock global teardown; registered HOME/TMP/cache/all report paths; subreaped descendants and start-tick identity checks; both recorded loopback listeners must be closed before exact-root deletion. Uncertainty retains private DB/session/policy state and receipts.",
     "secret_receipts": "Keep cookies/password/key/database and traces private. Publish only sanitized assertions, exact source/adapter/static hashes, timestamps and process/port cleanup outcomes."
   },
   "nx5_scope_review": {
@@ -237,5 +247,13 @@
     "formal_run_started": false,
     "release_published": false,
     "nx5_executed": false
-  }
+  },
+  "scope": "Independent 15-sample subphase within GATE7/GATE9; successful completion would not close either whole ticket.",
+  "execution_preconditions": [
+    "Independent review of this exact startup/cleanup adapter and its negative/list-only receipts",
+    "Explicit nx5 confirmation for fresh temporary persistent admin/viewer, sessions, classification publication/read grant and disabled draft/revoke; no nx4 permission reuse",
+    "Root operator read-only checks of original 0.4.4 identity/unit/ExecStart/protected-directory hashes before and after; never print secret arguments/configuration",
+    "Keep host/executor and real external OAuth/credential acceptance separate"
+  ],
+  "environment_guard": "Adapter rebuilds the full E2E and fixture environment from a whitelist and rejects catalog/other unexpected E2E switches before Gate import; original CI receipts are not rewritten."
 }
