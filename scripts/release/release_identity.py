@@ -86,10 +86,20 @@ def source_predicate(environment: Mapping[str, str], jobs: Mapping[str, dict]) -
             "verified_jobs": sorted(REQUIRED_JOBS)}
 
 
-def verify_source_attestations(results: object, expected: dict) -> None:
+def _producer_run(run_id: str, attempt: str) -> dict:
+    result = subprocess.run(
+        ["gh", "api", f"repos/{REPOSITORY}/actions/runs/{run_id}/attempts/{attempt}"],
+        capture_output=True, text=True, check=False, timeout=30,
+    )
+    if result.returncode:
+        raise ValueError("Cannot verify original publication producer")
+    return json.loads(result.stdout)
+
+
+def verify_source_attestations(results: object, expected: dict, *, existing_release: bool = False) -> dict:
     if not isinstance(results, list) or not results:
         raise ValueError("No verified product source attestation")
-    matched = False
+    matched = None
     for result in results:
         if not isinstance(result, dict):
             raise ValueError("Invalid verified product source attestation")
@@ -98,9 +108,32 @@ def verify_source_attestations(results: object, expected: dict) -> None:
         timestamps = verification.get("verifiedTimestamps")
         if not isinstance(timestamps, list) or not timestamps or statement.get("predicateType") != PREDICATE_TYPE:
             raise ValueError("Product source attestation does not match this verified release run")
-        matched |= statement.get("predicate") == expected
-    if not matched:
+        predicate = statement.get("predicate")
+        if predicate == expected:
+            matched = predicate
+        elif existing_release and isinstance(predicate, dict):
+            # Keep the exact signed source/tooling contract. Only the genuine
+            # original producer's run/attempt may differ during immutable reentry.
+            original = {**expected, "run_id": predicate.get("run_id"), "run_attempt": predicate.get("run_attempt")}
+            if predicate == original:
+                matched = predicate
+    if matched is None:
         raise ValueError("Product source attestation does not match this verified release run")
+    if existing_release:
+        run_id, attempt = matched["run_id"], matched["run_attempt"]
+        if not isinstance(run_id, str) or not re.fullmatch(r"[1-9][0-9]{0,19}", run_id) or not isinstance(attempt, str) or not re.fullmatch(r"[1-9][0-9]{0,9}", attempt):
+            raise ValueError("Invalid original publication producer")
+        run = _producer_run(run_id, attempt)
+        ref = expected["workflow_ref"].split("@", 1)[1]
+        branch = ref.removeprefix("refs/heads/").removeprefix("refs/tags/")
+        if (run.get("id") != int(run_id) or run.get("run_attempt") != int(attempt)
+                or run.get("head_sha") != expected["workflow_sha"] or run.get("head_branch") != branch
+                or run.get("repository", {}).get("full_name") != REPOSITORY
+                or run.get("path") != ".github/workflows/release.yml"
+                or run.get("event") not in ({"workflow_dispatch"} if ref == "refs/heads/main" else {"push", "workflow_dispatch"})
+                or run.get("status") != "completed" or run.get("conclusion") not in {"success", "failure", "cancelled"}):
+            raise ValueError("Original publication producer does not match the signed workflow identity")
+    return matched
 
 
 def verify_release_text(metadata: dict, tag: str, notes: str) -> None:
@@ -131,6 +164,7 @@ def main() -> None:
     predicate.add_argument("--output", type=Path, required=True)
     check = subparsers.add_parser("verify-attestation")
     check.add_argument("--results", type=Path, required=True)
+    check.add_argument("--existing-release", action="store_true")
     text = subparsers.add_parser("verify-text")
     text.add_argument("--release-json", type=Path, required=True)
     text.add_argument("--notes", type=Path, required=True)
@@ -148,7 +182,9 @@ def main() -> None:
             if arguments.operation == "predicate":
                 arguments.output.write_text(json.dumps(value, sort_keys=True) + "\n", encoding="utf-8")
             else:
-                verify_source_attestations(json.loads(arguments.results.read_text(encoding="utf-8")), value)
+                producer = verify_source_attestations(json.loads(arguments.results.read_text(encoding="utf-8")), value,
+                                                      existing_release=arguments.existing_release)
+                print(json.dumps(producer, sort_keys=True))
         else:
             value = identity(os.environ)
             for variable, entries in (

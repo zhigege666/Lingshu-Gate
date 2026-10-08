@@ -1,7 +1,11 @@
 from __future__ import annotations
 
 from copy import deepcopy
+import json
+import os
 from pathlib import Path
+import subprocess
+import sys
 from types import SimpleNamespace
 
 import pytest
@@ -140,6 +144,82 @@ def test_source_attestation_requires_current_run_and_preserves_timestamp_gate(re
         release.verify_source_attestations([wrong_source], expected)
 
 
+@pytest.mark.parametrize("current_run,current_attempt", [("123", "2"), ("456", "1")])
+def test_immutable_reentry_cli_preserves_real_original_producer(tmp_path, current_run, current_attempt):
+    result, calls = _reentry_cli(tmp_path, current_run=current_run, current_attempt=current_attempt)
+    assert result.returncode == 0, result.stderr
+    producer = json.loads(result.stdout)
+    assert producer["run_id"] == "123" and producer["run_attempt"] == "1"
+    assert producer["workflow_sha"] == TOOLING_SHA and producer["source_sha"] == release.RECOVERY_SHA
+    assert f"repos/{release.REPOSITORY}/actions/runs/123/attempts/1" in calls
+
+
+@pytest.mark.parametrize("fault", ["fresh-publication", "source", "tree", "tag", "workflow", "timestamp", "producer-id", "producer-attempt", "producer-workflow", "producer-path", "producer-repository", "quality"])
+def test_immutable_reentry_cli_rejects_unverified_source_or_producer(tmp_path, fault):
+    result, _ = _reentry_cli(tmp_path, current_run="456", current_attempt="2", fault=fault)
+    assert result.returncode != 0
+    assert "Release identity verification failed" in result.stderr
+
+
+def _reentry_cli(tmp_path, *, current_run, current_attempt, fault=""):
+    """Run the actual parser and verifier; only read-only Git/GitHub endpoints are fixtures."""
+    predicate = {"repository": release.REPOSITORY, "source_sha": release.RECOVERY_SHA,
+                 "source_tree": release.RECOVERY_TREE, "tag": release.RECOVERY_TAG,
+                 "workflow_sha": TOOLING_SHA,
+                 "workflow_ref": f"{release.REPOSITORY}/.github/workflows/release.yml@refs/heads/main",
+                 "run_id": "123", "run_attempt": "1", "verified_jobs": sorted(release.REQUIRED_JOBS)}
+    if fault in {"source", "tree", "workflow"}:
+        predicate[{"source": "source_sha", "tree": "source_tree", "workflow": "workflow_sha"}[fault]] = "2" * 40
+    if fault == "tag":
+        predicate["tag"] = "v0.4.4"
+    results = [{"verificationResult": {"verifiedTimestamps": [] if fault == "timestamp" else [{"type": "tlog"}],
+                "statement": {"predicateType": release.PREDICATE_TYPE, "predicate": predicate}}}]
+    results_file = tmp_path / "verified-results.json"
+    results_file.write_text(json.dumps(results))
+    producer = {"id": 123, "run_attempt": 1, "head_sha": TOOLING_SHA, "head_branch": "main",
+                "path": ".github/workflows/release.yml", "repository": {"full_name": release.REPOSITORY},
+                "event": "workflow_dispatch", "status": "completed", "conclusion": "failure"}
+    if fault == "producer-id":
+        producer["id"] = 999
+    if fault == "producer-attempt":
+        producer["run_attempt"] = 2
+    if fault == "producer-workflow":
+        producer["head_sha"] = "2" * 40
+    if fault == "producer-path":
+        producer["path"] = ".github/workflows/release-quality-diagnostic.yml"
+    if fault == "producer-repository":
+        producer["repository"] = {"full_name": "example/other"}
+    fixture = tmp_path / "producer-api.json"
+    fixture.write_text(json.dumps(producer))
+    calls_file = tmp_path / "gh-calls.jsonl"
+    binaries = tmp_path / "bin"
+    binaries.mkdir()
+    git = binaries / "git"
+    git.write_text(f"#!{sys.executable}\nimport sys\nvalues={{'HEAD':'{release.RECOVERY_SHA}','HEAD^{{tree}}':'{release.RECOVERY_TREE}','{TOOLING_SHA}^{{commit}}':'{TOOLING_SHA}'}}\nassert sys.argv[1]=='rev-parse'\nprint(values[sys.argv[2]])\n")
+    gh = binaries / "gh"
+    gh.write_text(f"#!{sys.executable}\nimport json,os,sys\nfrom pathlib import Path\np=sys.argv[2]\nwith Path(os.environ['FIXTURE_GH_CALLS']).open('a') as f: f.write(json.dumps(p)+'\\n')\nassert sys.argv[1]=='api'\nif p=='repos/{release.REPOSITORY}/git/ref/tags/v0.4.5': print(json.dumps({{'object':{{'type':'commit','sha':'{release.RECOVERY_SHA}'}}}}))\nelif p=='repos/{release.REPOSITORY}/actions/runs/123/attempts/1': print(Path(os.environ['FIXTURE_PRODUCER_API']).read_text())\nelse: raise SystemExit(3)\n")
+    git.chmod(0o755)
+    gh.chmod(0o755)
+    jobs = {name: {"result": "success"} for name in release.REQUIRED_JOBS}
+    if fault == "quality":
+        jobs["quality"]["result"] = "failure"
+    environment = {**os.environ, "PATH": str(binaries) + os.pathsep + os.environ["PATH"],
+                   "GITHUB_REPOSITORY": release.REPOSITORY, "GITHUB_EVENT_NAME": "workflow_dispatch",
+                   "GITHUB_REF": "refs/heads/main", "GITHUB_SHA": TOOLING_SHA,
+                   "GITHUB_WORKFLOW_SHA": TOOLING_SHA, "GITHUB_WORKFLOW_REF": predicate["workflow_ref"],
+                   "GITHUB_RUN_ID": current_run, "GITHUB_RUN_ATTEMPT": current_attempt,
+                   "LINGSHU_GATE_RELEASE_EXISTING_TAG": release.RECOVERY_TAG,
+                   "LINGSHU_GATE_RELEASE_JOB_RESULTS": json.dumps(jobs),
+                   "FIXTURE_GH_CALLS": str(calls_file), "FIXTURE_PRODUCER_API": str(fixture)}
+    command = [sys.executable, str(ROOT / "scripts/release/release_identity.py"), "verify-attestation",
+               "--results", str(results_file)]
+    if fault != "fresh-publication":
+        command.append("--existing-release")
+    result = subprocess.run(command, env=environment, capture_output=True, text=True, timeout=10, check=False)
+    calls = [json.loads(line) for line in calls_file.read_text().splitlines()] if calls_file.exists() else []
+    return result, calls
+
+
 def test_immutable_title_and_body_match_the_verified_source_notes():
     notes = "# Lingshu Gate v0.4.5\n\nRelease notes.\n"
     valid = {"name": "Lingshu Gate v0.4.5", "body": notes}
@@ -179,6 +259,14 @@ def test_recovery_workflow_keeps_source_pins_and_all_formal_gates():
         assert verification.count(flag) == 2
     assert 'test "${#attested_assets[@]}" -eq 11' in verification
     assert "verify-attestation" in verification
+    assert "producer_options=(--existing-release)" in verification
+    steps = {step["name"]: step for step in publish}
+    assert steps["Verify every release asset attestation"]["env"]["EXISTING_IMMUTABLE_RELEASE"] == "${{ steps.existing-release.outputs.immutable }}"
+    for name in ["Set up pinned Docker Buildx for promotion", "Log in to GitHub Container Registry for promotion",
+                 "Verify release tag still targets source revision before promotion", "Promote version tag without replacing an existing digest",
+                 "Log in to Docker Hub", "Mirror verified version to Docker Hub", "Create release"]:
+        assert steps[name]["if"] == "steps.existing-release.outputs.exists != 'true'"
+    assert "steps.existing-release.outputs.exists != 'true'" in steps["Update Docker Hub latest after verified stable publication"]["if"]
     core = next(step for step in jobs["docker-publish"]["steps"] if step.get("id") == "build")
     assert "org.opencontainers.image.revision=${{ needs.version.outputs.source_sha }}" in core["with"]["labels"]
     for name in ["docker-publish", "docker-offline", "publish"]:

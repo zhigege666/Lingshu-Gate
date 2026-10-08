@@ -933,6 +933,7 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
           LINGSHU_GATE_RELEASE_JOB_RESULTS: ${{ toJSON(needs) }}
+          EXISTING_IMMUTABLE_RELEASE: ${{ steps.existing-release.outputs.immutable }}
         run: |
           set -euo pipefail
           cert_identity="https://github.com/${GITHUB_REPOSITORY}/.github/workflows/release.yml@${GITHUB_REF}"
@@ -942,6 +943,10 @@ jobs:
             > /tmp/lingshu-gate-attested-assets.nul
           mapfile -d '' -t attested_assets < /tmp/lingshu-gate-attested-assets.nul
           test "${#attested_assets[@]}" -eq 11
+          producer_options=()
+          if [[ "$EXISTING_IMMUTABLE_RELEASE" == "true" ]]; then
+            producer_options=(--existing-release)
+          fi
           for attested_asset in "${attested_assets[@]}"; do
             verification_result=$(mktemp)
             gh attestation verify "$attested_asset" \
@@ -973,16 +978,18 @@ jobs:
               --deny-self-hosted-runners \
               --format json > "$verification_result"
             python "$RUNNER_TEMP/lingshu-gate-release-identity.py" verify-attestation \
-              --results "$verification_result"
+              --results "$verification_result" "${producer_options[@]}"
           done
 
       - name: Set up pinned Docker Buildx for promotion
+        if: steps.existing-release.outputs.exists != 'true'
         uses: docker/setup-buildx-action@37fe631027851001ddb9b187196cc803df7f5f0e # v4
         with:
           version: ${{ env.LINGSHU_GATE_RELEASE_BUILDX_VERSION }}
           driver-opts: image=${{ env.LINGSHU_GATE_RELEASE_BUILDKIT_IMAGE }}
 
       - name: Log in to GitHub Container Registry for promotion
+        if: steps.existing-release.outputs.exists != 'true'
         uses: docker/login-action@dbcb813823bdd20940b903addbd779551569679f # v4
         with:
           registry: ghcr.io
@@ -990,6 +997,7 @@ jobs:
           password: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Verify release tag still targets source revision before promotion
+        if: steps.existing-release.outputs.exists != 'true'
         env:
           GH_TOKEN: ${{ github.token }}
           RELEASE_TAG: ${{ needs.version.outputs.tag }}
@@ -1010,6 +1018,7 @@ jobs:
             }
 
       - name: Promote version tag without replacing an existing digest
+        if: steps.existing-release.outputs.exists != 'true'
         id: container
         env:
           IMAGE: ${{ needs.docker-publish.outputs.image }}
@@ -1059,6 +1068,7 @@ jobs:
           echo "digest=$final_digest" >> "$GITHUB_OUTPUT"
 
       - name: Log in to Docker Hub
+        if: steps.existing-release.outputs.exists != 'true'
         uses: docker/login-action@dbcb813823bdd20940b903addbd779551569679f # v4
         with:
           registry: docker.io
@@ -1066,6 +1076,7 @@ jobs:
           password: ${{ secrets.DOCKERHUB_TOKEN }}
 
       - name: Mirror verified version to Docker Hub
+        if: steps.existing-release.outputs.exists != 'true'
         env:
           DOCKERHUB_USERNAME: ${{ vars.DOCKERHUB_USERNAME || secrets.DOCKERHUB_USERNAME }}
           SOURCE_IMAGE: ${{ needs.docker-publish.outputs.image }}@${{ needs.docker-publish.outputs.digest }}
@@ -1229,7 +1240,7 @@ jobs:
           done
 
       - name: Update Docker Hub latest after verified stable publication
-        if: needs.version.outputs.prerelease == 'false'
+        if: needs.version.outputs.prerelease == 'false' && steps.existing-release.outputs.exists != 'true'
         env:
           GH_TOKEN: ${{ github.token }}
           DOCKERHUB_USERNAME: ${{ vars.DOCKERHUB_USERNAME || secrets.DOCKERHUB_USERNAME }}
