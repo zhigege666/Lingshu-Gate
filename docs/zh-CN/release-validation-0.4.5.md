@@ -82,7 +82,33 @@ JSON 逐项记录条件跳过：PR 中 tag-only Core 镜像候选/离线镜像/�
 
 任何当前必需源码、浏览器、包/静态/RECORD、worker/回收或 CI 失败均阻断验收。main 合并/tag/release 由发行负责人控制；版本变化推入 main 会自动创建 tag 并派发发行。正式验收仍要求全部必需任务、11 项准确资产、总/内层校验和、SBOM、准确源码/工作流来源证明及发行标题/正文回读。PR artifact 仅为候选。
 
-未执行 SSH、nx5 服务读取/切换、真实 Podman 准备/readiness、真实 ChatGPT OAuth 客户端或多机器联调，Native 执行与 OAuth 默认状态不变。父任务报告 PR49 更广浏览器仍属历史失败：默认 475 项中 418 通过/55 跳过/2 失败；optional 27 通过/3 跳过/7 失败。归因未证，不声称全站或 optional 全绿。早期 launcher 路径/locator/checkout mode 准备失败及修正均保留准确源码 SHA；追加 wheel 探针也保留初次缺离线索引元数据及 development driver 缺 `httpx` 的准备失败，修正前均未运行对应产品断言。
+下述已授权隔离宿主检查增加了真实临时源码/wheel HTTP 及 MCP fixture，并保留原 active 服务。未执行原服务切换、真实 Podman 准备/readiness、真实 ChatGPT OAuth 客户端或多机器联调，Native 执行与 OAuth 默认状态不变。父任务报告 PR49 更广浏览器仍属历史失败：默认 475 项中 418 通过/55 跳过/2 失败；optional 27 通过/3 跳过/7 失败。归因未证，不声称全站或 optional 全绿。早期 launcher 路径/locator/checkout mode 准备失败及修正均保留准确源码 SHA；追加 wheel 探针也保留初次缺离线索引元数据及 development driver 缺 `httpx` 的准备失败，修正前均未运行对应产品断言。
+
+## 已授权隔离宿主检查，2026-10-08
+
+[宿主证据](../benchmarks/gate-release-0.4.5-host-isolation-2ef739b.json) 记录通过 HTTPS Git 新拉取准确 `2ef739b5a9f72e8a7a01c7044f20b5d766de415c` 与 tree `716da35e388aab6784d8b41d6ae4e79a4c17f948`，沿用已授权测试身份，新建私有目录、venv/cache 及空 fixture。未复用原服务目录、凭据或业务数据库。实际宿主工具为 Python 3.14.4、Node 22.22.1、npm 9.2.0、uv 0.11.33；生产/release 依赖冻结，pytest/HTTP driver 按 uv.lock 准确摘要安装。这是追加宿主 smoke，不扩大发布的 Python 兼容矩阵。
+
+| 已执行检查 | 准确结果 |
+|---|---|
+| 两份 Vite 构建 | 04:26:24 UTC 通过；Console 115 + OAuth 3；静态规范 SHA 仍为 `95bf75f824b5d0770931666340a1b4a3156fc660eba46e81154176d566b60902` |
+| 打包及 schema 回归 | 143 + 13 通过，零失败/error/skip；含真实两轮 A→B wheel、两个静态根、缺失/额外/路径/RECORD 边界及 native 打包合同 |
+| 合成 D01/D02 | 2 通过；真实本地 stdio 交付/reapply、失败构建保留及制品替换/回滚均限于可删除 fixture |
+| 直接 wheel 与 sdist→wheel | 通过；宿主两个 wheel 字节相同，完整静态清单及每项 RECORD 验证通过 |
+| 源码及已安装 wheel HTTP | 各通过 261 请求/114 对当前与旧 Console 文件，health 0.4.5；根协商、跳转、未授权 API/MCP、OAuth 关闭及路径穿越拒绝通过 |
+| 已安装 wheel schema worker | 9 项通过；deadline/cancel 终止并回收本次子进程，槽位复用通过；worker 入口未创建服务 runtime |
+| 已安装 wheel TCP MCP | 36 次真实 loopback RPC、6 个按需入口；initialize/discover/list → search/describe/invoke → 分块上传/plan/build/deploy/start/refresh/status → 真实下游 stdio 调用；过期 schema 与错误参数拒绝通过 |
+| 清理及原服务 | 临时服务/peer 全部回收、监听关闭；04:46:43 UTC 按固定且受保护的清单清理生成目录，保留 tracked 源码/Git 与证据。04:48:30 UTC 原服务仍 active/running、health 200/版本 0.4.4，PID、unit/启动摘要及保护目录身份/属主/权限均相同 |
+
+新增合成工具正确保持 `needs_review=1`、`effective_permissions_expanded=false`，未发布分类或新增授权。已明确授权的管理员 fixture 调用验证 runtime dispatch，不代表用户发布或 OAuth 验收。**Deployment and process startup succeeded; delivery acceptance remains incomplete.** 随后已删除该临时 fixture。
+
+| 新宿主制品 | 字节 | SHA-256 |
+|---|---:|---|
+| 直接及 sdist 派生 wheel | 1923055 | `a9234933cce5cbb1f8553fbf9c0a2540ff5641700aac19fde3fd6ffa0ea672c8` |
+| sdist | 2137280 | `2c4e0a72b2ddc99701727a845547e6259e36dc071acb470f16ac77798ad406c8` |
+
+wheel 的全部 283 个成员内容（含 RECORD）与此前 cloud wheel 相同。归档摘要差异仅来自 281 个 ZIP external-attribute 字段继承的 checkout 文件模式（样本为 0600 与 0644）。仅在内存归一化这些属性即可得到 cloud wheel 的准确 `099aea2d…5353c` 摘要；实际宿主候选未修改。仅比较元数据，未转传原 handoff 包。
+
+保留准备历史：最初 uv pip 传输达到 600 秒 deadline；从同一官方文件有界续传并验证 PyPI SHA 后本地安装。未使用的全开发工具下载主动停止，随后完成聚焦的冻结准备。首次 installed-runtime requirements 解析达到 180 秒 deadline，未到产品运行；改在同一拥有的 venv 按冻结 uv.lock 安装后成功，并核对适用的 committed requirements 版本。额外 help 诊断尝试读取非本次配置路径并被权限拒绝；已停止该诊断，未改变权限或配置例外。未重试 Library 403。未执行宿主 native 重建、Podman 准备、宿主产品全集、真实 OAuth 客户端、多机器联调、main 合并、tag 或正式发布；此前 cloud/CI 保留各自溯源。
 
 ## 升级边界
 

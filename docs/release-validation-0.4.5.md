@@ -82,7 +82,33 @@ Conditional skips are explicit in the JSON: PR tag-only Core-image candidate/off
 
 Required current source, browser, package/static/RECORD, worker/cleanup or CI failures block acceptance. Main merge/tag/release remains owner-controlled. A version change pushed to main automatically creates a tag and dispatches release workflows; formal acceptance still requires every mandatory job, all 11 exact assets, aggregate/inner checksums, SBOM, exact source/workflow provenance and published title/body readback. PR artifacts are candidates.
 
-No SSH, nx5 service read/switch, real Podman provisioning/readiness, real ChatGPT OAuth client or multi-machine integration was executed. Native execution and OAuth defaults remain unchanged. The parent-reported PR49 broader browser results remain historical failures: default 418 passed/55 skipped/2 failed of 475; optional 27 passed/3 skipped/7 failed. Attribution remains unproven; this record does not claim whole-site or optional-browser green. Earlier launcher-path/locator/checkout-mode preparation failures are retained in the JSON with their corrections and exact source SHAs. The extra installed-wheel probe also retains its initial missing offline index metadata and development-driver `httpx` failures; neither reached product assertions before correction.
+The authorized isolated-host check below adds real temporary source/wheel HTTP and MCP fixtures, with the original active service preserved. No existing-service switch, real Podman provisioning/readiness, real ChatGPT OAuth client or multi-machine integration was executed. Native execution and OAuth defaults remain unchanged. The parent-reported PR49 broader browser results remain historical failures: default 418 passed/55 skipped/2 failed of 475; optional 27 passed/3 skipped/7 failed. Attribution remains unproven; this record does not claim whole-site or optional-browser green. Earlier launcher-path/locator/checkout-mode preparation failures are retained in the JSON with their corrections and exact source SHAs. The extra installed-wheel probe also retains its initial missing offline index metadata and development-driver `httpx` failures; neither reached product assertions before correction.
+
+## Authorized isolated-host check, 2026-10-08
+
+[Host evidence](benchmarks/gate-release-0.4.5-host-isolation-2ef739b.json) records a fresh HTTPS Git fetch of exact `2ef739b5a9f72e8a7a01c7044f20b5d766de415c` and tree `716da35e388aab6784d8b41d6ae4e79a4c17f948`, using the existing authorized test identity, a new private directory, new venvs/caches and empty fixtures. No original service directory, credential or business database was reused. The actual host tools were Python 3.14.4, Node 22.22.1, npm 9.2.0 and uv 0.11.33; production/release dependencies were frozen, and pytest/HTTP-driver dependencies used exact uv.lock hashes. This is an additional host smoke, not an extension of the published Python compatibility matrix.
+
+| Executed check | Actual result |
+|---|---|
+| Both Vite builds | Passed at 04:26:24 UTC; Console 115 + OAuth 3; canonical static SHA remains `95bf75f824b5d0770931666340a1b4a3156fc660eba46e81154176d566b60902` |
+| Packaging and schema regressions | 143 + 13 passed, zero failures/errors/skips; includes real two-round A→B wheels, both static roots, missing/extra/path/RECORD boundaries and native packaging contracts |
+| Synthetic D01/D02 | 2 passed; real local stdio delivery/reapply, failed build preservation and artifact replacement/rollback inside disposable fixtures |
+| Direct wheel and sdist→wheel | Passed; both host wheels byte-identical, complete static inventories and every RECORD entry verified |
+| Source and installed-wheel HTTP | Each passed 261 requests / 114 current-legacy Console pairs, health 0.4.5, root negotiation, redirects, unauthorized API/MCP, OAuth-off and traversal refusal |
+| Installed-wheel schema worker | 9 probes passed; deadline/cancellation killed and reaped owned children, slot reuse passed, worker entry created no service runtime |
+| Installed-wheel TCP MCP | 36 real loopback RPCs, six on-demand entries; initialize/discover/list → search/describe/invoke → chunk upload/plan/build/deploy/start/refresh/status → actual downstream stdio call; stale schema and invalid arguments refused |
+| Cleanup and original service | All temporary services/peers reaped and listeners closed; fixed, guarded allowlist removed generated directories at 04:46:43 UTC; tracked source/Git and evidence retained. At 04:48:30 UTC the original service remained active/running, health 200/version 0.4.4, with the same PID, unit/start digests and protected-directory identities/owners/modes |
+
+The new synthetic tool correctly remained `needs_review=1`, with `effective_permissions_expanded=false`, no classification publication and no new grants. The explicitly authorized administrator fixture call verifies runtime dispatch without establishing user publication or OAuth acceptance. **Deployment and process startup succeeded; delivery acceptance remains incomplete.** The disposable fixture was then removed.
+
+| New host artifact | Bytes | SHA-256 |
+|---|---:|---|
+| Direct and sdist-derived wheel | 1923055 | `a9234933cce5cbb1f8553fbf9c0a2540ff5641700aac19fde3fd6ffa0ea672c8` |
+| sdist | 2137280 | `2c4e0a72b2ddc99701727a845547e6259e36dc071acb470f16ac77798ad406c8` |
+
+All 283 wheel member payloads, including RECORD, match the earlier cloud wheel. Its different archive digest comes solely from 281 ZIP external-attribute fields inherited from checkout file modes (sample 0600 versus 0644). An in-memory attribute normalization reproduces the cloud wheel's exact `099aea2d…5353c` digest; the actual host candidate was left unchanged. Only metadata was compared; the original handoff package was not transferred.
+
+Preparation history is retained: initial uv pip transfer reached its 600-second deadline; bounded continuation of the same official file verified its PyPI SHA before local installation. The unused full-development download was deliberately stopped before the focused frozen setup. The first installed-runtime requirement resolution reached a 180-second deadline before product execution; frozen uv.lock installation into that same owned venv then succeeded, and all applicable committed requirement versions were checked. An extra help diagnostic attempted an unowned configuration path and received permission denied; that diagnostic stopped without a permission/configuration override. Library 403 was not retried. No host native rebuild, Podman provisioning, full host product suites, real OAuth client, multi-machine integration, main merge, tag or formal release ran. Earlier cloud/CI results retain their own provenance.
 
 ## Upgrade boundary
 
