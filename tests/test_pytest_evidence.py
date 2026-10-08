@@ -124,3 +124,58 @@ def test_external_diagnostic_launcher_imports_only_fixed_source_product_modules(
     first = json.loads((destination / "events.jsonl").read_text().splitlines()[0])
     assert first["tested_source_sha"] == "1" * 40
     assert first["workflow_event_sha"] == "2" * 40 and first["workflow_sha"] == "3" * 40
+
+
+@pytest.mark.parametrize("failing", [False, True], ids=["passing-session", "first-failure"])
+def test_shared_json_monkeypatch_does_not_interrupt_live_evidence(tmp_path, failing):
+    (tmp_path / "conftest.py").write_text(
+        "import json\nimport pytest\n"
+        "patch = pytest.MonkeyPatch()\n"
+        "@pytest.fixture(scope='session', autouse=True)\n"
+        "def guarded_shared_json():\n"
+        "    original_dumps, original_dump = json.dumps, json.dump\n"
+        "    def bounded_dumps(value, **kwargs):\n"
+        "        assert not isinstance(value, (dict, list)), 'shared-json-guard'\n"
+        "        return original_dumps(value, **kwargs)\n"
+        "    def bounded_dump(value, stream, **kwargs):\n"
+        "        assert not isinstance(value, (dict, list)), 'shared-json-guard'\n"
+        "        return original_dump(value, stream, **kwargs)\n"
+        "    patch.setattr(json, 'dumps', bounded_dumps)\n"
+        "    patch.setattr(json, 'dump', bounded_dump)\n"
+        "    yield\n"
+        "    # Keep the guard through session_finish; unconfigure restores it.\n"
+        "def pytest_unconfigure(config):\n"
+        "    patch.undo()\n", encoding="utf-8")
+    outcome = "assert False, 'shared-json-failure-marker'" if failing else "assert True"
+    source = ("import io\nimport json\nimport pytest\n"
+              "def test_guard_is_active():\n"
+              "    with pytest.raises(AssertionError, match='shared-json-guard'):\n"
+              "        json.dumps({'synthetic': True})\n"
+              "    with pytest.raises(AssertionError, match='shared-json-guard'):\n"
+              "        json.dump({'synthetic': True}, io.StringIO())\n"
+              f"def test_outcome():\n    {outcome}\n"
+              "def test_remaining():\n    assert True\n")
+    args, env, destination = command(tmp_path, source)
+    # This fixture deliberately keeps the shared patch through session_finish.
+    # Exclude pytest's own JSON cache writer from this isolated child process.
+    args += ["--maxfail=1", "-p", "no:cacheprovider"]
+    result = subprocess.run(args, cwd=tmp_path, env=env, capture_output=True, text=True, timeout=30)
+    assert result.returncode == int(failing), result.stdout + result.stderr
+    assert "INTERNALERROR" not in result.stdout + result.stderr
+    events = [json.loads(line) for line in (destination / "events.jsonl").read_text().splitlines()]
+    finish = events[-1]
+    assert finish["event"] == "session_finish" and finish["exit_code"] == int(failing)
+    assert finish["collected"] == 3 and finish["finished"] == (2 if failing else 3)
+    assert finish["complete"] is not failing
+    failures = [event for event in events if event["event"] == "test_report" and event.get("outcome") == "failed"]
+    assert len(failures) == int(failing)
+    suite = ET.parse(destination / "partial-junit.xml").getroot().find("testsuite")
+    assert int(suite.attrib["failures"]) == int(failing) and suite.attrib["errors"] == "0"
+    properties = {item.attrib["name"]: item.attrib["value"] for item in suite.find("properties")}
+    assert properties["complete"] == str(not failing).lower()
+    assert (destination / "junit.xml").is_file()
+    if failing:
+        assert failures[0]["nodeid"] == "test_synthetic.py::test_outcome"
+        assert "shared-json-failure-marker" in failures[0]["detail"]
+        assert "GATE_TEST_FAILURE test_synthetic.py::test_outcome [call]" in result.stdout
+        assert "shared-json-failure-marker" in suite.find("testcase/failure").text
