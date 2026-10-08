@@ -1,0 +1,158 @@
+{
+  "schema_version": 1,
+  "source_sha": "c0ea7d04cd16ac01536d0c0f00edab0c5ffc349e",
+  "source_tree": "716da35e388aab6784d8b41d6ae4e79a4c17f948",
+  "existing_tag": "v0.4.5",
+  "existing_tag_sha": "c0ea7d04cd16ac01536d0c0f00edab0c5ffc349e",
+  "original_release": {
+    "run_id": 37731721484,
+    "attempt": 1,
+    "job_id": 113162162630,
+    "job_url": "https://github.com/zhigege666/Lingshu-Gate/actions/runs/37731721484/job/113162162630",
+    "conclusion": "cancelled",
+    "job_started_at_utc": "2026-10-08T05:18:45Z",
+    "job_completed_at_utc": "2026-10-08T05:59:01Z",
+    "job_timeout_minutes": 40,
+    "raw_log_bytes": 80604,
+    "raw_log_sha256": "1613d08ca0bf646780e5d5182e0b71f5b678bc8659b6dea8d5f29824e0734a73",
+    "observed_progress": [
+      {
+        "utc": "2026-10-08T05:27:26.4226909Z",
+        "percent": 43,
+        "failures_in_line": 0
+      },
+      {
+        "utc": "2026-10-08T05:48:45.8256875Z",
+        "percent": 46,
+        "failures_in_line": 2
+      },
+      {
+        "utc": "2026-10-08T05:49:18.6157540Z",
+        "percent": 49,
+        "failures_in_line": 0
+      }
+    ],
+    "original_failure_nodeids_available": false,
+    "original_tracebacks_available": false,
+    "final_pytest_summary_available": false,
+    "interpretation": "Two tests failed before cancellation; this is not established as a pure timeout.",
+    "environment": {
+      "os": "Ubuntu 22.04",
+      "python": "3.13.15",
+      "uv": "0.11.33",
+      "node": "22.23.2",
+      "dependency_command": "uv sync --frozen --group release"
+    }
+  },
+  "main_comparison": {
+    "run_id": 37731697340,
+    "source_sha": "c0ea7d04cd16ac01536d0c0f00edab0c5ffc349e",
+    "verification_source": "Parent independent read-only review; not re-monitored by diagnostic agent",
+    "os": "Ubuntu 24.04",
+    "dependency_command": "uv sync --frozen",
+    "python_versions": [
+      "3.11.16",
+      "3.12.15",
+      "3.13.16"
+    ],
+    "each_backend_result": {
+      "passed": 2311,
+      "skipped": 7,
+      "subtests": 134
+    },
+    "does_not_establish_formal_release_success": true
+  },
+  "candidate_mapping": {
+    "status": "Provisional inference only, not confirmed original failed nodeids",
+    "basis": "Default same-source collection of 2318 tests and progress-symbol ordinals; needs actual same-release-environment traceback to confirm",
+    "ordinal_1_based": [
+      1059,
+      1060
+    ]
+  },
+  "local_candidate_runs": [
+    {
+      "candidate": "maximum_single_group",
+      "nodeid": "tests/test_mcp_group_catalog_scale.py::test_full_directory_5000_instances_50000_tools[maximum_single_group]",
+      "environment": {
+        "os": "Debian 13",
+        "python": "3.13.15",
+        "pytest": "9.1.1",
+        "interpreter_distribution": "python-build-standalone; not the Ubuntu GitHub setup-python interpreter"
+      },
+      "started_at_utc": "2026-10-08T06:05:55.374456+00:00",
+      "ended_at_utc": "2026-10-08T06:07:49.710143+00:00",
+      "exit_code": 0,
+      "passed": 1,
+      "failed": 0,
+      "skipped": 0,
+      "log_sha256": "02b4890ac1be7a56cf335fb51ba5e4ba8701bcecf8b1ac41b6bfdc59ea965d90",
+      "junit_sha256": "459c7ba4435fbc8f7d8eb20c96279ff81e1d2cfc841a473119be84f7b49b934f"
+    },
+    {
+      "candidate": "over_cache_bytes",
+      "nodeid": "tests/test_mcp_group_catalog_scale.py::test_full_directory_5000_instances_50000_tools[over_cache_bytes]",
+      "environment": {
+        "os": "Debian 13",
+        "python": "3.13.15",
+        "pytest": "9.1.1",
+        "interpreter_distribution": "python-build-standalone; not the Ubuntu GitHub setup-python interpreter"
+      },
+      "started_at_utc": "2026-10-08T06:08:59.256388+00:00",
+      "ended_at_utc": "2026-10-08T06:11:37.756754+00:00",
+      "exit_code": 0,
+      "passed": 1,
+      "failed": 0,
+      "skipped": 0,
+      "log_sha256": "b169a471d5b50a63f6f8c21dc914e7ed90e6074a358ba883e23bc0088fe015ea",
+      "junit_sha256": "d7eea73295f2e9d387025713865476ca1627e3f74497742b1f4ae62c7d58da20"
+    }
+  ],
+  "product_failure_reproduced": false,
+  "ubuntu22_candidate_test_execution_completed": false,
+  "diagnostic_workflow": {
+    "path": ".github/workflows/release-quality-diagnostic.yml",
+    "trigger": "workflow_dispatch only",
+    "permissions": {
+      "contents": "read"
+    },
+    "tested_source_sha": "c0ea7d04cd16ac01536d0c0f00edab0c5ffc349e",
+    "tested_source_tree": "716da35e388aab6784d8b41d6ae4e79a4c17f948",
+    "tooling_ref": "github.workflow_sha",
+    "run_authorization": "Await parent review before any diagnostic workflow dispatch",
+    "publication_capability": false,
+    "changes_existing_release_workflow": false,
+    "changes_existing_tag": false
+  },
+  "remaining_blocker": "Original failed assertions remain unidentified. Existing release cannot be declared successful or safely recovered from current evidence.",
+  "local_contract_validation": {
+    "command": "python -m pytest -q tests/test_release_quality_diagnostic_workflow.py tests/test_pytest_evidence.py tests/test_ci_workflows.py",
+    "passed": 54,
+    "failed": 0,
+    "skipped": 0,
+    "seconds": 3.91,
+    "junit_sha256": "31d1ca83b29821acd01e0e1952c8a306787ab7c60d5bf136a31f5e533851a451",
+    "covers": [
+      "exact fixed-source checkout and separate workflow revision",
+      "unchanged original release toolchain and dependency groups",
+      "no publication or write permissions",
+      "actual source/tree/tag/tooling mismatch rejection",
+      "immediate failure traceback and partial JUnit after process kill",
+      "external diagnostic helper cannot shadow fixed-source product modules"
+    ]
+  },
+  "local_preparation_boundary": {
+    "ubuntu22_runtime_tests_not_executed": true,
+    "ubuntu22_preparation_blockers": [
+      "Container APT endpoints on port 80 refused connections",
+      "Host gpgv was unavailable, so alternate signed package verification was stopped"
+    ],
+    "global_settings_or_credentials_changed": false,
+    "local_packaging_exploratory_results": {
+      "first_invocation": "41 failures / 161 passes: 40 uv builds could not write default cache; 1 checkout umask removed committed group/other execute bits",
+      "second_invocation": "40 failures / 162 passes: new owned offline uv cache lacked setuptools 84.0.0",
+      "attribution": "Local harness/cache preparation failures, not a reproduction of the original two release failures",
+      "no_passing_packaging_claim_made": true
+    }
+  }
+}
