@@ -1,0 +1,13 @@
+
+> check
+> npm run typecheck && npm run check:ux
+
+
+> typecheck
+> node node_modules/typescript/bin/tsc --noEmit -p tsconfig.app.json && node node_modules/typescript/bin/tsc --noEmit -p tsconfig.node.json
+
+
+> check:ux
+> node scripts/check-ux-contract.mjs
+
+静态 UI 契约通过：19 个页面，11 个可搜索页面，2 个阶段式工作流。仅验证源码约定；未执行浏览器交互、视觉或可访问性验收。

@@ -1,0 +1,842 @@
+{
+  "schema_version": 1,
+  "recorded_at_utc": "2026-10-08T13:25:48.585436+00:00",
+  "repository": "zhigege666/Lingshu-Gate",
+  "status": "Initial main delivery receipt; ordinary CI and remaining nonvisual browser batches are running. This source head will remain fixed.",
+  "source_binding": {
+    "main_base_sha": "a14244caaf3459269546d97d3b3336b3964b380a",
+    "candidate_sha": "9f8fddd9709e400517fc2e342ed9889a35751c96",
+    "candidate_tree": "1325f73c41200bf9d9511c230c61e959a05977ca",
+    "web_subtree": "11cc8d5aeaf7b14da0b5568f4a34c73a8c61d176",
+    "component": {
+      "path": "web/src/components/console-shell.tsx",
+      "git_blob": "787a1de807a654fd2b82a51323a976a9e0e12442",
+      "sha256": "fa1223582429170f7fca9baeae60e81f9c49bbbd6513f51a2b3cdd12b131e094"
+    },
+    "test": {
+      "path": "web/e2e/account-menu.spec.ts",
+      "git_blob": "5bf42c874b8ad312e1e28687a143eb5ef992f380",
+      "sha256": "e438b49735506590b5b7d503b97caba97acc2887b0b0238a88594f46c0e97797"
+    },
+    "validated_reproduction_sha": "9f90dead000db20ed069ea3e720912a552b75fa3",
+    "reproduction_base_sha": "cdf0f530c52dc2e9f16e0b59e210ab9e59dd1fdb",
+    "complete_web_subtree_identical_between_reproduction_and_main_candidate": true,
+    "backend_subtree_unchanged": "4fab0e28e5f91f3035214145a5afef32569a68e0"
+  },
+  "isolation": {
+    "captured_at_utc": "2026-10-08T13:01:57.278131+00:00",
+    "base_sha": "a14244caaf3459269546d97d3b3336b3964b380a",
+    "source_commit": "9f8fddd9709e400517fc2e342ed9889a35751c96",
+    "reproduction_commit": "9f90dead000db20ed069ea3e720912a552b75fa3",
+    "reproduction_base": "cdf0f530c52dc2e9f16e0b59e210ab9e59dd1fdb",
+    "changed_files": [
+      "docs/benchmarks/gate-account-menu-focus-cdf0f53.json",
+      "web/e2e/account-menu.spec.ts",
+      "web/src/components/console-shell.tsx"
+    ],
+    "pr59_not_ancestor": true,
+    "release_sensitive_files": {
+      ".github/workflows/release.yml": "byte-identical to main",
+      "scripts/release/release_identity.py": "absent from both main and candidate",
+      "tests/test_release_recovery_identity.py": "absent from both main and candidate",
+      "tests/test_release_packaging.py": "byte-identical to main"
+    },
+    "changed_file_bytes_identical_to_validated_reproduction_branch": true,
+    "backend_source_tree": "4fab0e28e5f91f3035214145a5afef32569a68e0",
+    "tag_v045_unchanged": "c0ea7d04cd16ac01536d0c0f00edab0c5ffc349e"
+  },
+  "pull_request_binding": {
+    "captured_at_utc": "2026-10-08T13:22:14.964701+00:00",
+    "pr": 60,
+    "pr_url": "https://github.com/zhigege666/Lingshu-Gate/pull/60",
+    "head": "9f8fddd9709e400517fc2e342ed9889a35751c96",
+    "base": "a14244caaf3459269546d97d3b3336b3964b380a",
+    "synthetic_merge": "63a3e3b06c359f98b29181ebb8826c9e5cf64079",
+    "merge_parents": [
+      "a14244caaf3459269546d97d3b3336b3964b380a",
+      "9f8fddd9709e400517fc2e342ed9889a35751c96"
+    ],
+    "merge_tree": "1325f73c41200bf9d9511c230c61e959a05977ca",
+    "head_tree": "1325f73c41200bf9d9511c230c61e959a05977ca",
+    "component_blob": "787a1de807a654fd2b82a51323a976a9e0e12442",
+    "test_blob": "5bf42c874b8ad312e1e28687a143eb5ef992f380",
+    "github_pr_merge_commit_sha": "63a3e3b06c359f98b29181ebb8826c9e5cf64079",
+    "runs": [
+      {
+        "id": 37783634714,
+        "name": "Continuous integration",
+        "workflow_id": 345717289,
+        "event": "pull_request",
+        "head_sha": "9f8fddd9709e400517fc2e342ed9889a35751c96",
+        "status": "in_progress",
+        "conclusion": null,
+        "url": "https://github.com/zhigege666/Lingshu-Gate/actions/runs/37783634714",
+        "created_at": "2026-10-08T13:20:54Z"
+      },
+      {
+        "id": 37783634682,
+        "name": "Code scanning",
+        "workflow_id": 345717290,
+        "event": "pull_request",
+        "head_sha": "9f8fddd9709e400517fc2e342ed9889a35751c96",
+        "status": "completed",
+        "conclusion": "success",
+        "url": "https://github.com/zhigege666/Lingshu-Gate/actions/runs/37783634682",
+        "created_at": "2026-10-08T13:20:54Z"
+      },
+      {
+        "id": 37783634854,
+        "name": "Container images",
+        "workflow_id": 345717292,
+        "event": "pull_request",
+        "head_sha": "9f8fddd9709e400517fc2e342ed9889a35751c96",
+        "status": "completed",
+        "conclusion": "success",
+        "url": "https://github.com/zhigege666/Lingshu-Gate/actions/runs/37783634854",
+        "created_at": "2026-10-08T13:20:54Z"
+      }
+    ]
+  },
+  "completed_local_validation": {
+    "original_product_new_regressions": {
+      "exit_code": 1,
+      "stats": {
+        "startTime": "2026-10-08T12:31:41.647Z",
+        "duration": 116252.341,
+        "expected": 0,
+        "skipped": 0,
+        "unexpected": 12,
+        "flaky": 0
+      },
+      "raw_results": {
+        "file_name": "regression-before-results.json",
+        "bytes": 83244,
+        "sha256": "a37556e9e94584f6b65c9d872478b9a249bfae4bf5619c6d73fb8ca13de96a24"
+      }
+    },
+    "reproduction_candidate_smoke": {
+      "exit_code": 0,
+      "stats": {
+        "startTime": "2026-10-08T12:40:27.922Z",
+        "duration": 69090.738,
+        "expected": 41,
+        "skipped": 0,
+        "unexpected": 0,
+        "flaky": 0
+      },
+      "raw_results": {
+        "file_name": "current-state-smoke-results.json",
+        "bytes": 49373,
+        "sha256": "7f1f60e934f6ff4bb5604c112915e24653fc48b1aa7a693de275c3bc92dccd60"
+      }
+    },
+    "main_frontend": {
+      "web-build": {
+        "name": "web-build",
+        "started_at_utc": "2026-10-08T13:01:57.498964+00:00",
+        "completed_at_utc": "2026-10-08T13:02:01.523385+00:00",
+        "command": [
+          "npm",
+          "--prefix",
+          "web",
+          "run",
+          "build"
+        ],
+        "exit_code": 0,
+        "bytes": 14340,
+        "sha256": "1cd23183c029322d2e74cc4f64d279cdad7cc7b4cf2f626a3db5fea9600968cb"
+      },
+      "web-check": {
+        "name": "web-check",
+        "started_at_utc": "2026-10-08T13:02:01.523758+00:00",
+        "completed_at_utc": "2026-10-08T13:02:03.905029+00:00",
+        "command": [
+          "npm",
+          "--prefix",
+          "web",
+          "run",
+          "check"
+        ],
+        "exit_code": 0,
+        "bytes": 426,
+        "sha256": "d1c0aeac257790ad20a5343d2b92c91489739ce07d0de1b9f85682bba923f5da"
+      },
+      "web-unit": {
+        "name": "web-unit",
+        "started_at_utc": "2026-10-08T13:02:03.905308+00:00",
+        "completed_at_utc": "2026-10-08T13:02:19.714686+00:00",
+        "command": [
+          "npm",
+          "--prefix",
+          "web",
+          "test"
+        ],
+        "exit_code": 0,
+        "bytes": 863,
+        "sha256": "e43b928a973b185ee8547d89edcaedccacca91713508d8696985f4ac4c78ece7"
+      }
+    },
+    "main_real_api_permissions": {
+      "source_commit": "9f8fddd9709e400517fc2e342ed9889a35751c96",
+      "command": [
+        ".venv/bin/python",
+        "-m",
+        "pytest",
+        "-q",
+        "tests/test_console_root_entry.py",
+        "tests/test_personal_access_contract.py",
+        "tests/test_viewer_permissions.py",
+        "tests/test_user_downstream_credentials.py",
+        "tests/test_delegated_access_scope.py"
+      ],
+      "exit_code": 0,
+      "passed": 110,
+      "subtests_passed": 58,
+      "duration_seconds": 36.81,
+      "log": {
+        "basename": "real-api-permission-regressions.log",
+        "bytes": 223,
+        "sha256": "72ed2888aa9b0f3c21200f9f5cba737d7916b98d47fe6e6afc6e0f7d2ef81d68"
+      },
+      "receipt_scope": "exit code collected from exec session 32202; actual terminal counts; not full backend"
+    },
+    "main_identity": {
+      "source_commit": "9f8fddd9709e400517fc2e342ed9889a35751c96",
+      "started_at_utc": "2026-10-08T13:19:52.185247+00:00",
+      "completed_at_utc": "2026-10-08T13:20:20.576573+00:00",
+      "command": [
+        ".venv/bin/python",
+        "scripts/quality/check_repository_identity.py",
+        "--history"
+      ],
+      "exit_code": 0,
+      "log": {
+        "file_name": "main-identity-history.log",
+        "bytes": 163,
+        "sha256": "a7507cd98b517cd1ff693675a6ebe556e776e33478c24de417fffb05f215ce73"
+      }
+    },
+    "main_version": {
+      "source_commit": "9f8fddd9709e400517fc2e342ed9889a35751c96",
+      "started_at_utc": "2026-10-08T13:20:20.577290+00:00",
+      "completed_at_utc": "2026-10-08T13:20:20.630247+00:00",
+      "command": [
+        ".venv/bin/python",
+        "-m",
+        "scripts.release.check_version"
+      ],
+      "exit_code": 0,
+      "log": {
+        "file_name": "main-version.log",
+        "bytes": 6,
+        "sha256": "345a551b61a5dc33388b9bf40df339c9a0d9446ced7eeaeb576e3dbf4321918e"
+      }
+    },
+    "main_nonvisual_completed_batches": [
+      {
+        "source_commit": "9f8fddd9709e400517fc2e342ed9889a35751c96",
+        "batch": 1,
+        "listed_tests": 65,
+        "started_at_utc": "2026-10-08T13:19:14.499087+00:00",
+        "command": [
+          "timeout",
+          "--kill-after=5",
+          "300",
+          "node",
+          "node_modules/playwright/cli.js",
+          "test",
+          "account-menu.spec.ts",
+          "build-ownership.spec.ts",
+          "classification-actions.spec.ts",
+          "classification-change.spec.ts",
+          "config-interaction.spec.ts",
+          "delivery-real.spec.ts",
+          "delivery-recovery.spec.ts",
+          "desktop-quality.spec.ts",
+          "external-config-csrf.spec.ts",
+          "external-identity-layout.spec.ts",
+          "--grep-invert",
+          "@visual",
+          "--reporter=list,json",
+          "--output=<owned-evidence>/browser-batch-01-test-results"
+        ],
+        "temporary_root_basename": "gate-e2e-92rsye3j",
+        "completed_at_utc": "2026-10-08T13:21:19.156996+00:00",
+        "exit_code": 0,
+        "log": {
+          "file_name": "browser-batch-01.log",
+          "bytes": 9536,
+          "sha256": "bb81aa37045f6ef4300c0af01cae4dcc88c5b98763eb2d6027b027509771c7ea"
+        },
+        "fixture_temporary_root_removed_by_global_teardown": true,
+        "results": {
+          "file_name": "browser-batch-01-results.json",
+          "bytes": 82266,
+          "sha256": "8ca7d4f9c1c9b9725b0686405e0d0fb5b91ed9ea2347c0ff9e9056e33e3c242c"
+        },
+        "stats": {
+          "startTime": "2026-10-08T13:19:14.960Z",
+          "duration": 124182.467,
+          "expected": 59,
+          "skipped": 6,
+          "unexpected": 0,
+          "flaky": 0
+        },
+        "fixture_port_closed": true
+      },
+      {
+        "source_commit": "9f8fddd9709e400517fc2e342ed9889a35751c96",
+        "batch": 2,
+        "listed_tests": 60,
+        "started_at_utc": "2026-10-08T13:21:19.158609+00:00",
+        "command": [
+          "timeout",
+          "--kill-after=5",
+          "300",
+          "node",
+          "node_modules/playwright/cli.js",
+          "test",
+          "filter-reset.spec.ts",
+          "git-network-settings.spec.ts",
+          "http-trust.spec.ts",
+          "large-data.spec.ts",
+          "layout-audit.spec.ts",
+          "list-context.spec.ts",
+          "log-tool-scope.spec.ts",
+          "--grep-invert",
+          "@visual",
+          "--reporter=list,json",
+          "--output=<owned-evidence>/browser-batch-02-test-results"
+        ],
+        "temporary_root_basename": "gate-e2e-jitkxw34",
+        "completed_at_utc": "2026-10-08T13:22:37.038744+00:00",
+        "exit_code": 0,
+        "log": {
+          "file_name": "browser-batch-02.log",
+          "bytes": 8084,
+          "sha256": "b863e50f1c287301fb9b24534372da6e6a066606082b1c651e29d861d9630d48"
+        },
+        "fixture_temporary_root_removed_by_global_teardown": true,
+        "results": {
+          "file_name": "browser-batch-02-results.json",
+          "bytes": 74249,
+          "sha256": "3dbdabf7a69bf684375024bfad37b5f0c443ae2f31833d8ba3536cd312c912f1"
+        },
+        "stats": {
+          "startTime": "2026-10-08T13:21:19.609Z",
+          "duration": 77410.256,
+          "expected": 54,
+          "skipped": 6,
+          "unexpected": 0,
+          "flaky": 0
+        },
+        "fixture_port_closed": true
+      },
+      {
+        "source_commit": "9f8fddd9709e400517fc2e342ed9889a35751c96",
+        "batch": 3,
+        "listed_tests": 42,
+        "started_at_utc": "2026-10-08T13:22:37.040180+00:00",
+        "command": [
+          "timeout",
+          "--kill-after=5",
+          "300",
+          "node",
+          "node_modules/playwright/cli.js",
+          "test",
+          "login-version.spec.ts",
+          "maintenance-nowrap.spec.ts",
+          "mcp-client-mode.spec.ts",
+          "--grep-invert",
+          "@visual",
+          "--reporter=list,json",
+          "--output=<owned-evidence>/browser-batch-03-test-results"
+        ],
+        "temporary_root_basename": "gate-e2e-1f4a9kzm",
+        "completed_at_utc": "2026-10-08T13:23:29.815249+00:00",
+        "exit_code": 0,
+        "log": {
+          "file_name": "browser-batch-03.log",
+          "bytes": 5193,
+          "sha256": "cf61937b4129adfaa02903a505edfe8c3fb477718cd1f9b2ddb26852a1deba49"
+        },
+        "fixture_temporary_root_removed_by_global_teardown": true,
+        "results": {
+          "file_name": "browser-batch-03-results.json",
+          "bytes": 49430,
+          "sha256": "3ae3523adf9c0d245788bd3a7027f031f4cbf321ca3a55c4c5bb8f902b14426c"
+        },
+        "stats": {
+          "startTime": "2026-10-08T13:22:37.532Z",
+          "duration": 52269.208,
+          "expected": 39,
+          "skipped": 3,
+          "unexpected": 0,
+          "flaky": 0
+        },
+        "fixture_port_closed": true
+      },
+      {
+        "source_commit": "9f8fddd9709e400517fc2e342ed9889a35751c96",
+        "batch": 4,
+        "listed_tests": 68,
+        "started_at_utc": "2026-10-08T13:23:29.816748+00:00",
+        "command": [
+          "timeout",
+          "--kill-after=5",
+          "300",
+          "node",
+          "node_modules/playwright/cli.js",
+          "test",
+          "mcp-groups.spec.ts",
+          "navigation-interaction.spec.ts",
+          "new-mcp-defaults.spec.ts",
+          "oauth-consent.spec.ts",
+          "--grep-invert",
+          "@visual",
+          "--reporter=list,json",
+          "--output=<owned-evidence>/browser-batch-04-test-results"
+        ],
+        "temporary_root_basename": "gate-e2e-oiv8pjxx",
+        "completed_at_utc": "2026-10-08T13:25:37.055022+00:00",
+        "exit_code": 0,
+        "log": {
+          "file_name": "browser-batch-04.log",
+          "bytes": 8063,
+          "sha256": "65ad5e27fdbfd38af8c34acb7adbf0d66e87507ee2e0e3538a5e830044b6f863"
+        },
+        "fixture_temporary_root_removed_by_global_teardown": true,
+        "results": {
+          "file_name": "browser-batch-04-results.json",
+          "bytes": 74723,
+          "sha256": "1f558f52a9a97f749ef159c28002d60a805965fc6ab36f22d89fcc7cb0c27ebe"
+        },
+        "stats": {
+          "startTime": "2026-10-08T13:23:30.325Z",
+          "duration": 126714.524,
+          "expected": 68,
+          "skipped": 0,
+          "unexpected": 0,
+          "flaky": 0
+        },
+        "fixture_port_closed": true
+      }
+    ]
+  },
+  "full_browser_budget_boundary": {
+    "unbatched_command": {
+      "started_at_utc": "2026-10-08T13:04:47.622245+00:00",
+      "completed_at_utc": "2026-10-08T13:09:47.697330+00:00",
+      "source_head": "9f8fddd9709e400517fc2e342ed9889a35751c96",
+      "command": [
+        "timeout",
+        "--kill-after=5",
+        "300",
+        "node",
+        "node_modules/playwright/cli.js",
+        "test",
+        "--grep-invert",
+        "@visual",
+        "--reporter=list,json",
+        "--output=<owned-evidence>/browser-full-test-results"
+      ],
+      "exit_code": 124,
+      "bytes": 22991,
+      "sha256": "9120e590beecb86bf8795972561db80e4972866b3129b39198d9ff7124fc67db"
+    },
+    "status": "partial, wrapper exit 124; not counted as a passed full suite",
+    "cleanup": {
+      "pids": [
+        149792,
+        149793
+      ],
+      "command_and_start_time_verified": true,
+      "stopped": true,
+      "temporary_directory_cleanup": "not performed: sandbox forbids reading the owned process environment; no unverified directory deleted",
+      "cause": "300-second wrapper stopped Playwright before normal teardown"
+    },
+    "batches": {
+      "source_commit": "9f8fddd9709e400517fc2e342ed9889a35751c96",
+      "all_listed_tests": 486,
+      "batches": [
+        {
+          "files": [
+            "account-menu.spec.ts",
+            "build-ownership.spec.ts",
+            "classification-actions.spec.ts",
+            "classification-change.spec.ts",
+            "config-interaction.spec.ts",
+            "delivery-real.spec.ts",
+            "delivery-recovery.spec.ts",
+            "desktop-quality.spec.ts",
+            "external-config-csrf.spec.ts",
+            "external-identity-layout.spec.ts"
+          ],
+          "listed_tests": 65
+        },
+        {
+          "files": [
+            "filter-reset.spec.ts",
+            "git-network-settings.spec.ts",
+            "http-trust.spec.ts",
+            "large-data.spec.ts",
+            "layout-audit.spec.ts",
+            "list-context.spec.ts",
+            "log-tool-scope.spec.ts"
+          ],
+          "listed_tests": 60
+        },
+        {
+          "files": [
+            "login-version.spec.ts",
+            "maintenance-nowrap.spec.ts",
+            "mcp-client-mode.spec.ts"
+          ],
+          "listed_tests": 42
+        },
+        {
+          "files": [
+            "mcp-groups.spec.ts",
+            "navigation-interaction.spec.ts",
+            "new-mcp-defaults.spec.ts",
+            "oauth-consent.spec.ts"
+          ],
+          "listed_tests": 68
+        },
+        {
+          "files": [
+            "oauth-density.spec.ts"
+          ],
+          "listed_tests": 26
+        },
+        {
+          "files": [
+            "oauth-grants.spec.ts"
+          ],
+          "listed_tests": 70
+        },
+        {
+          "files": [
+            "oauth-management-resource.spec.ts",
+            "oauth-management.spec.ts",
+            "oauth-paged-catalog.spec.ts"
+          ],
+          "listed_tests": 63
+        },
+        {
+          "files": [
+            "oauth-setup.spec.ts",
+            "operations-interaction.spec.ts",
+            "personal-layout.spec.ts",
+            "personal-payload.spec.ts",
+            "preview-adapter.spec.ts",
+            "real-backend.spec.ts",
+            "remaining-panels.spec.ts",
+            "remote-real.spec.ts",
+            "retention-ui.spec.ts",
+            "review-usability.spec.ts",
+            "root-entry.spec.ts"
+          ],
+          "listed_tests": 72
+        },
+        {
+          "files": [
+            "tool-origin.spec.ts",
+            "tool-review-origin.spec.ts"
+          ],
+          "listed_tests": 20
+        }
+      ],
+      "per_batch_command_budget_seconds": 300,
+      "unchanged_playwright_test_timeout": 30000,
+      "unchanged_retries": 0,
+      "unchanged_workers": 1
+    }
+  },
+  "bounded_tab_comparison": {
+    "probe": "close, run stale old autofocus, reopen, then Tab before new autofocus frames",
+    "before_commit": "cdf0f530c52dc2e9f16e0b59e210ab9e59dd1fdb",
+    "after_commit": "9f8fddd9709e400517fc2e342ed9889a35751c96",
+    "cases": {
+      "before": {
+        "exit_code": 0,
+        "phases": [
+          {
+            "phase": "reopened-before-tab",
+            "state": {
+              "active_tag": "BUTTON",
+              "active_text": "Aadmin",
+              "active_name": "Account menu",
+              "trigger_expanded": "true",
+              "queued_frames": 2
+            }
+          },
+          {
+            "phase": "after-tab-before-new-autofocus",
+            "state": {
+              "active_tag": "LI",
+              "active_text": "OpenAPI",
+              "active_name": null,
+              "trigger_expanded": "true",
+              "queued_frames": 2
+            }
+          }
+        ],
+        "focus_calls": [
+          {
+            "frame": 0,
+            "tag": "BUTTON",
+            "text": "Aadmin"
+          },
+          {
+            "frame": 3,
+            "tag": "LI",
+            "text": "OpenAPI"
+          },
+          {
+            "frame": 3,
+            "tag": "LI",
+            "text": "OpenAPI"
+          }
+        ],
+        "final": {
+          "active_tag": "LI",
+          "active_text": "OpenAPI",
+          "active_name": null,
+          "trigger_expanded": "true",
+          "queued_frames": 2
+        },
+        "observation_receipt": {
+          "file_name": "tab-before-test-results/tab-window.json",
+          "bytes": 67546,
+          "sha256": "88910827a614ef8057cfd1ad7a52fd424e903d77bbc9c3e5c7608931b039dbf4"
+        }
+      },
+      "after": {
+        "exit_code": 0,
+        "phases": [
+          {
+            "phase": "reopened-before-tab",
+            "state": {
+              "active_tag": "BUTTON",
+              "active_text": "Aadmin",
+              "active_name": "Account menu",
+              "trigger_expanded": "true",
+              "queued_frames": 2
+            }
+          },
+          {
+            "phase": "after-tab-before-new-autofocus",
+            "state": {
+              "active_tag": "LI",
+              "active_text": "OpenAPI",
+              "active_name": null,
+              "trigger_expanded": "true",
+              "queued_frames": 2
+            }
+          }
+        ],
+        "focus_calls": [
+          {
+            "frame": 0,
+            "tag": "BUTTON",
+            "text": "Aadmin"
+          },
+          {
+            "frame": 3,
+            "tag": "LI",
+            "text": "OpenAPI"
+          }
+        ],
+        "final": {
+          "active_tag": "LI",
+          "active_text": "OpenAPI",
+          "active_name": null,
+          "trigger_expanded": "true",
+          "queued_frames": 2
+        },
+        "observation_receipt": {
+          "file_name": "tab-after-test-results/tab-window.json",
+          "bytes": 57789,
+          "sha256": "4ad40b3f2ca089751c86787fc806c7a89e39019dd536bc5318b999d66400715d"
+        }
+      }
+    },
+    "product_change_required_for_this_window": false,
+    "limits": "One controlled English 1280px ordering comparison, not a claim of exhaustive Tab interaction coverage.",
+    "after_tab_focus_and_visibility_equal": true,
+    "observed_result": "In both versions, Tab before new autofocus keeps the reopened menu expanded and focuses the OpenAPI menu item."
+  },
+  "raw_stdout_exports": [
+    {
+      "original_receipt": {
+        "file_name": "regression-before.log",
+        "bytes": 42185,
+        "sha256": "e2c8385cd8b994fb620ceca0c94e6105e48ebb68b77f9f38368b91cf5439847f"
+      },
+      "repository_export": {
+        "path": "docs/benchmarks/gate-account-menu-focus-9f8fddd/before-12-regressions.log",
+        "file_name": "before-12-regressions.log",
+        "bytes": 41873,
+        "sha256": "a183e09f43dc4135ef08d043cf5f3d49d7ab220b5c3506c595f24dbc50b7d55d"
+      },
+      "transformation": "Replace owned local absolute path prefixes with labeled placeholders only; unchanged test output otherwise."
+    },
+    {
+      "original_receipt": {
+        "file_name": "current-state-smoke.log",
+        "bytes": 5822,
+        "sha256": "4630a02d769b0fe45ad664c82a4594bfa0638b8bd3336c7fdfb96cb581886b6a"
+      },
+      "repository_export": {
+        "path": "docs/benchmarks/gate-account-menu-focus-9f8fddd/reproduction-after-41-smoke.log",
+        "file_name": "reproduction-after-41-smoke.log",
+        "bytes": 5822,
+        "sha256": "4630a02d769b0fe45ad664c82a4594bfa0638b8bd3336c7fdfb96cb581886b6a"
+      },
+      "transformation": "Replace owned local absolute path prefixes with labeled placeholders only; unchanged test output otherwise."
+    },
+    {
+      "original_receipt": {
+        "file_name": "browser-batch-01.log",
+        "bytes": 9536,
+        "sha256": "bb81aa37045f6ef4300c0af01cae4dcc88c5b98763eb2d6027b027509771c7ea"
+      },
+      "repository_export": {
+        "path": "docs/benchmarks/gate-account-menu-focus-9f8fddd/main-browser-batch-01.log",
+        "file_name": "main-browser-batch-01.log",
+        "bytes": 9536,
+        "sha256": "bb81aa37045f6ef4300c0af01cae4dcc88c5b98763eb2d6027b027509771c7ea"
+      },
+      "transformation": "Replace owned local absolute path prefixes with labeled placeholders only; unchanged test output otherwise."
+    },
+    {
+      "original_receipt": {
+        "file_name": "browser-batch-02.log",
+        "bytes": 8084,
+        "sha256": "b863e50f1c287301fb9b24534372da6e6a066606082b1c651e29d861d9630d48"
+      },
+      "repository_export": {
+        "path": "docs/benchmarks/gate-account-menu-focus-9f8fddd/main-browser-batch-02.log",
+        "file_name": "main-browser-batch-02.log",
+        "bytes": 8084,
+        "sha256": "b863e50f1c287301fb9b24534372da6e6a066606082b1c651e29d861d9630d48"
+      },
+      "transformation": "Replace owned local absolute path prefixes with labeled placeholders only; unchanged test output otherwise."
+    },
+    {
+      "original_receipt": {
+        "file_name": "web-check.log",
+        "bytes": 426,
+        "sha256": "d1c0aeac257790ad20a5343d2b92c91489739ce07d0de1b9f85682bba923f5da"
+      },
+      "repository_export": {
+        "path": "docs/benchmarks/gate-account-menu-focus-9f8fddd/main-web-check.log",
+        "file_name": "main-web-check.log",
+        "bytes": 426,
+        "sha256": "d1c0aeac257790ad20a5343d2b92c91489739ce07d0de1b9f85682bba923f5da"
+      },
+      "transformation": "Replace owned local absolute path prefixes with labeled placeholders only; unchanged test output otherwise."
+    },
+    {
+      "original_receipt": {
+        "file_name": "web-unit.log",
+        "bytes": 863,
+        "sha256": "e43b928a973b185ee8547d89edcaedccacca91713508d8696985f4ac4c78ece7"
+      },
+      "repository_export": {
+        "path": "docs/benchmarks/gate-account-menu-focus-9f8fddd/main-web-unit.log",
+        "file_name": "main-web-unit.log",
+        "bytes": 835,
+        "sha256": "f497ae67ddd1ffe8a0f232dbd4959b120b19797dc6b51c49af4b91835aebc674"
+      },
+      "transformation": "Replace owned local absolute path prefixes with labeled placeholders only; unchanged test output otherwise."
+    },
+    {
+      "original_receipt": {
+        "file_name": "web-build.log",
+        "bytes": 14340,
+        "sha256": "1cd23183c029322d2e74cc4f64d279cdad7cc7b4cf2f626a3db5fea9600968cb"
+      },
+      "repository_export": {
+        "path": "docs/benchmarks/gate-account-menu-focus-9f8fddd/main-web-build.log",
+        "file_name": "main-web-build.log",
+        "bytes": 14340,
+        "sha256": "1cd23183c029322d2e74cc4f64d279cdad7cc7b4cf2f626a3db5fea9600968cb"
+      },
+      "transformation": "Replace owned local absolute path prefixes with labeled placeholders only; unchanged test output otherwise."
+    },
+    {
+      "original_receipt": {
+        "file_name": "real-api-permission-regressions.log",
+        "bytes": 223,
+        "sha256": "72ed2888aa9b0f3c21200f9f5cba737d7916b98d47fe6e6afc6e0f7d2ef81d68"
+      },
+      "repository_export": {
+        "path": "docs/benchmarks/gate-account-menu-focus-9f8fddd/main-real-api-permissions.log",
+        "file_name": "main-real-api-permissions.log",
+        "bytes": 223,
+        "sha256": "72ed2888aa9b0f3c21200f9f5cba737d7916b98d47fe6e6afc6e0f7d2ef81d68"
+      },
+      "transformation": "Replace owned local absolute path prefixes with labeled placeholders only; unchanged test output otherwise."
+    },
+    {
+      "original_receipt": {
+        "file_name": "tab-before.log",
+        "bytes": 575,
+        "sha256": "b504d503a2ba5ec012079ac4b09e326fb5cae235050ee770a11b0213fc1161a7"
+      },
+      "repository_export": {
+        "path": "docs/benchmarks/gate-account-menu-focus-9f8fddd/tab-before.log",
+        "file_name": "tab-before.log",
+        "bytes": 575,
+        "sha256": "b504d503a2ba5ec012079ac4b09e326fb5cae235050ee770a11b0213fc1161a7"
+      },
+      "transformation": "Replace owned local absolute path prefixes with labeled placeholders only; unchanged test output otherwise."
+    },
+    {
+      "original_receipt": {
+        "file_name": "tab-after.log",
+        "bytes": 575,
+        "sha256": "fa75136bb948ce668b6a4fb3071d71f29623ff4bc82f8ffc0434b54be23d25bb"
+      },
+      "repository_export": {
+        "path": "docs/benchmarks/gate-account-menu-focus-9f8fddd/tab-after.log",
+        "file_name": "tab-after.log",
+        "bytes": 575,
+        "sha256": "fa75136bb948ce668b6a4fb3071d71f29623ff4bc82f8ffc0434b54be23d25bb"
+      },
+      "transformation": "Replace owned local absolute path prefixes with labeled placeholders only; unchanged test output otherwise."
+    }
+  ],
+  "environment_limits": {
+    "local_os": "Debian GNU/Linux 13.6",
+    "python": "3.12.14",
+    "node": "22.23.3",
+    "npm": "10.9.9",
+    "chromium": "153.0.8010.12",
+    "playwright_revision": "1243",
+    "playwright": "1.63.0",
+    "local_uv": "0.12.19",
+    "hosted_runner_image_reproduced": false,
+    "original_hosted_python": "3.12.15",
+    "original_hosted_uv": "0.11.33"
+  },
+  "proof_limits": [
+    "Controlled early-Escape reproduces a defect and its repair, but unavailable original hosted failure trace prevents a unique diagnosis of that prior CI failure.",
+    "Tab probe is one controlled English 1280px comparison. In both versions the reopened menu stays open and Tab focuses OpenAPI.",
+    "Raw browser traces and screenshots are retained privately because traces can include synthetic session cookies.",
+    "The initial nx5 plan has eight selected test bodies; only test listing was performed locally. No nx5 execution is represented here.",
+    "Only current ordinary pull-request CI is observed. Known 403 logs/artifacts are not read or retried."
+  ],
+  "publication_boundary": {
+    "product_tag_unchanged": "c0ea7d04cd16ac01536d0c0f00edab0c5ffc349e",
+    "main_merged": false,
+    "tag_changed": false,
+    "release_published": false,
+    "new_formal_runs": 0,
+    "new_wheel_or_native_packages_built_for_this_focus_candidate": false,
+    "new_package_hashes": null,
+    "original_nx5_service_switched": false
+  }
+}

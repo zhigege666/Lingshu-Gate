@@ -1,0 +1,79 @@
+[WebServer] INFO:     Started server process [153539]
+[WebServer] INFO:     Waiting for application startup.
+[WebServer] INFO:     Application startup complete.
+[WebServer] INFO:     Uvicorn running on http://127.0.0.1:18763 (Press CTRL+C to quit)
+
+Running 65 tests using 1 worker
+
+(node:153547) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+  ✓   1 e2e/account-menu.spec.ts:44:5 › @smoke @full @account-menu controlled close and keyboard focus: zh-CN light (6.5s)
+  ✓   2 e2e/account-menu.spec.ts:44:5 › @smoke @full @account-menu controlled close and keyboard focus: zh-CN dark (6.6s)
+  ✓   3 e2e/account-menu.spec.ts:44:5 › @smoke @full @account-menu controlled close and keyboard focus: en-US light (6.8s)
+  ✓   4 e2e/account-menu.spec.ts:44:5 › @smoke @full @account-menu controlled close and keyboard focus: en-US dark (6.9s)
+  ✓   5 e2e/account-menu.spec.ts:93:1 › @smoke @full @account-menu an account action closes the menu and restores its trigger (1.1s)
+  ✓   6 e2e/account-menu.spec.ts:111:1 › @smoke @full @account-menu disabled authentication does not offer sign out (726ms)
+  ✓   7 e2e/account-menu.spec.ts:128:3 › @smoke @full @account-menu blank role lists use the localized primary role: en-US (703ms)
+  ✓   8 e2e/account-menu.spec.ts:128:3 › @smoke @full @account-menu blank role lists use the localized primary role: zh-CN (722ms)
+  ✓   9 e2e/account-menu.spec.ts:148:7 › @smoke @full @account-menu close before autofocus preserves focus: en-US 1280px frame 0 (833ms)
+  ✓  10 e2e/account-menu.spec.ts:148:7 › @smoke @full @account-menu close before autofocus preserves focus: en-US 1280px frame 1 (777ms)
+  ✓  11 e2e/account-menu.spec.ts:148:7 › @smoke @full @account-menu close before autofocus preserves focus: en-US 1280px frame 2 (786ms)
+  ✓  12 e2e/account-menu.spec.ts:148:7 › @smoke @full @account-menu close before autofocus preserves focus: en-US 640px frame 0 (729ms)
+  ✓  13 e2e/account-menu.spec.ts:148:7 › @smoke @full @account-menu close before autofocus preserves focus: en-US 640px frame 1 (755ms)
+  ✓  14 e2e/account-menu.spec.ts:148:7 › @smoke @full @account-menu close before autofocus preserves focus: en-US 640px frame 2 (833ms)
+  ✓  15 e2e/account-menu.spec.ts:148:7 › @smoke @full @account-menu close before autofocus preserves focus: zh-CN 1280px frame 0 (846ms)
+  ✓  16 e2e/account-menu.spec.ts:148:7 › @smoke @full @account-menu close before autofocus preserves focus: zh-CN 1280px frame 1 (861ms)
+  ✓  17 e2e/account-menu.spec.ts:148:7 › @smoke @full @account-menu close before autofocus preserves focus: zh-CN 1280px frame 2 (807ms)
+  ✓  18 e2e/account-menu.spec.ts:148:7 › @smoke @full @account-menu close before autofocus preserves focus: zh-CN 640px frame 0 (828ms)
+  ✓  19 e2e/account-menu.spec.ts:148:7 › @smoke @full @account-menu close before autofocus preserves focus: zh-CN 640px frame 1 (843ms)
+  ✓  20 e2e/account-menu.spec.ts:148:7 › @smoke @full @account-menu close before autofocus preserves focus: zh-CN 640px frame 2 (961ms)
+  ✓  21 e2e/build-ownership.spec.ts:64:1 › E2E-501 @build-ownership delayed refresh preserves a newly selected upload without a build (1.2s)
+  ✓  22 e2e/build-ownership.spec.ts:77:1 › E2E-502 @build-ownership deleting a noncurrent build does not select its upload (2.1s)
+  ✓  23 e2e/build-ownership.spec.ts:92:1 › E2E-503 @build-ownership cross-upload target switch respects dirty cancel then saved draft (2.6s)
+  ✓  24 e2e/build-ownership.spec.ts:107:1 › E2E-504 @build-ownership pending preflight blocks real navigation and does not leak after switching (2.4s)
+  ✓  25 e2e/build-ownership.spec.ts:124:1 › E2E-505 @build-ownership rollback on another deployment does not inherit start (1.5s)
+  ✓  26 e2e/build-ownership.spec.ts:138:1 › E2E-506 @build-ownership rollback option belongs to the selected deployment even within one build (2.1s)
+  ✓  27 e2e/build-ownership.spec.ts:169:1 › E2E-508 @build-ownership create persists fresh options before build and links with next revision (1.4s)
+  ✓  28 e2e/build-ownership.spec.ts:185:1 › E2E-509 @build-ownership conflicting option save preserves input and creates no build (1.4s)
+  ✓  29 e2e/build-ownership.spec.ts:201:1 › E2E-510 @build-ownership cross-upload retry keeps destination draft despite late older revision (1.4s)
+  ✓  30 e2e/build-ownership.spec.ts:223:1 › E2E-511 @build-ownership post-build draft conflict retains created build and fresh options without retry (1.4s)
+  ✓  31 e2e/build-ownership.spec.ts:239:1 › E2E-512 @build-ownership history deployment opens its owner before requiring a loaded draft (1.7s)
+  ✓  32 e2e/classification-actions.spec.ts:19:5 › classification review actions fit and remain reachable en-US 1600x900 (1.7s)
+  ✓  33 e2e/classification-actions.spec.ts:19:5 › classification review actions fit and remain reachable zh-CN 1600x900 (1.7s)
+  ✓  34 e2e/classification-actions.spec.ts:19:5 › classification review actions fit and remain reachable en-US 1920x1080 (1.6s)
+  ✓  35 e2e/classification-actions.spec.ts:19:5 › classification review actions fit and remain reachable zh-CN 1920x1080 (1.5s)
+  ✓  36 e2e/classification-actions.spec.ts:19:5 › classification review actions fit and remain reachable en-US 2560x1080 (1.5s)
+  ✓  37 e2e/classification-actions.spec.ts:19:5 › classification review actions fit and remain reachable zh-CN 2560x1080 (1.8s)
+  ✓  38 e2e/classification-actions.spec.ts:19:5 › classification review actions fit and remain reachable en-US 2560x1440 (1.8s)
+  ✓  39 e2e/classification-actions.spec.ts:19:5 › classification review actions fit and remain reachable zh-CN 2560x1440 (1.6s)
+  ✓  40 e2e/classification-change.spec.ts:6:3 › @smoke @full @classification-change field and legacy drift reasons: en-US (759ms)
+  ✓  41 e2e/classification-change.spec.ts:6:3 › @smoke @full @classification-change field and legacy drift reasons: zh-CN (657ms)
+  ✓  42 e2e/config-interaction.spec.ts:29:1 › E2E-201 @full cancelling save-only confirmation sends no mutation (1.8s)
+  ✓  43 e2e/config-interaction.spec.ts:50:1 › E2E-202 @full HTTP200 failed activation retains editor and blocks duplicate save (1.8s)
+  ✓  44 e2e/config-interaction.spec.ts:74:1 › E2E-205 @full form and JSON share enabled state, preserve draft fields and keep invalid JSON invalid (1.7s)
+  ✓  45 e2e/config-interaction.spec.ts:98:1 › E2E-206 @full one precheck status, visible error location and edited drafts clear prior results (1.7s)
+  ✓  46 e2e/config-interaction.spec.ts:126:1 › E2E-207 @full saving a disabled draft alone does not apply or start, reopening retains the enabled state (1.9s)
+  ✓  47 e2e/config-interaction.spec.ts:153:1 › E2E-216 @full saved-config conflict retains the draft and does not auto-overwrite or replace its edit digest (2.4s)
+  ✓  48 e2e/config-interaction.spec.ts:179:3 › E2E-217 @full managed startup policy changes only after an explicit switch edit (1.9s)
+  ✓  49 e2e/config-interaction.spec.ts:179:3 › E2E-217 @full external startup policy changes only after an explicit switch edit (1.9s)
+  ✓  50 e2e/config-interaction.spec.ts:201:1 › E2E-208 @full dirty escape retains the draft until discard and clean closure restores trigger focus (2.2s)
+  ✓  51 e2e/config-interaction.spec.ts:265:1 › E2E-210 @full private HTTP trust confirms the exact draft target, invalidates edits and never saves configuration (1.9s)
+  ✓  52 e2e/config-interaction.spec.ts:320:1 › E2E-204 @full cancelled Back and Forward preserve dirty service configuration (2.4s)
+
+  ✓  53 e2e/delivery-real.spec.ts:11:1 › E2E-007 @delivery real upload, build, configure, deploy and start (12.4s)
+
+  ✓  54 e2e/delivery-recovery.spec.ts:6:1 › E2E-008 @delivery real failed build can be retried successfully (7.8s)
+  ✓  55 e2e/desktop-quality.spec.ts:5:2 › desktop acceptance 1600x900: focused dashboard fits viewport (1.0s)
+  ✓  56 e2e/desktop-quality.spec.ts:5:2 › desktop acceptance 1920x1080: focused dashboard fits viewport (1.1s)
+  ✓  57 e2e/desktop-quality.spec.ts:5:2 › desktop acceptance 2560x1080: focused dashboard fits viewport (809ms)
+  ✓  58 e2e/desktop-quality.spec.ts:5:2 › desktop acceptance 2560x1440: focused dashboard fits viewport (834ms)
+  ✓  59 e2e/external-config-csrf.spec.ts:4:1 › @full same-origin browser POST obtains a request-bound configuration ticket (718ms)
+  -  60 e2e/external-identity-layout.spec.ts:20:3 › E2E-560 @external-identity-layout configuration modal columns, final field and dirty cancellation 2048
+  -  61 e2e/external-identity-layout.spec.ts:20:3 › E2E-561 @external-identity-layout configuration modal columns, final field and dirty cancellation 1366
+  -  62 e2e/external-identity-layout.spec.ts:20:3 › E2E-562 @external-identity-layout configuration modal columns, final field and dirty cancellation 390
+  -  63 e2e/external-identity-layout.spec.ts:91:3 › E2E-563 @external-identity-layout names, copied ID and authorized searchable picker 1366
+  -  64 e2e/external-identity-layout.spec.ts:91:3 › E2E-564 @external-identity-layout names, copied ID and authorized searchable picker 390
+  -  65 e2e/external-identity-layout.spec.ts:161:1 › E2E-565 @external-identity-layout no external management UI or directory request without capability
+
+  6 skipped
+  59 passed (2.1m)

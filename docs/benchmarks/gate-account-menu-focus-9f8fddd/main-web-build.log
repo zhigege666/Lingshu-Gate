@@ -1,0 +1,147 @@
+
+> build
+> npm run typecheck && vite build && vite build --config vite.oauth.config.ts
+
+
+> typecheck
+> node node_modules/typescript/bin/tsc --noEmit -p tsconfig.app.json && node node_modules/typescript/bin/tsc --noEmit -p tsconfig.node.json
+
+vite v8.3.2 building client environment for production...
+transforming...
+✓ 5372 modules transformed.
+rendering chunks...
+computing gzip size...
+../src/lingshu_gate/static/console/index.html                                         2.07 kB │ gzip:   0.64 kB
+../src/lingshu_gate/static/console/assets/invocation-audit-page-Bt20jPN4.css          0.35 kB │ gzip:   0.22 kB
+../src/lingshu_gate/static/console/assets/logs-events-page-By2wPKjp.css               0.39 kB │ gzip:   0.18 kB
+../src/lingshu_gate/static/console/assets/personal-tokens-page-CgKMttU8.css           0.59 kB │ gzip:   0.25 kB
+../src/lingshu_gate/static/console/assets/list-pagination-CFUjdCU4.css                0.87 kB │ gzip:   0.39 kB
+../src/lingshu_gate/static/console/assets/tool-classifications-page-BGhDXg7K.css      0.94 kB │ gzip:   0.30 kB
+../src/lingshu_gate/static/console/assets/filter-radio-By-vwnXz.css                   0.98 kB │ gzip:   0.43 kB
+../src/lingshu_gate/static/console/assets/network-settings-panel-ChV9eh_J.css         1.26 kB │ gzip:   0.43 kB
+../src/lingshu_gate/static/console/assets/personal-workspace-page-Bxtrfd6J.css        1.41 kB │ gzip:   0.36 kB
+../src/lingshu_gate/static/console/assets/downstream-credentials-page-BlB0jakO.css    2.27 kB │ gzip:   0.59 kB
+../src/lingshu_gate/static/console/assets/servers-page-DepLcCbk.css                   2.68 kB │ gzip:   0.88 kB
+../src/lingshu_gate/static/console/assets/builds-page-DPSeElhz.css                    2.69 kB │ gzip:   0.79 kB
+../src/lingshu_gate/static/console/assets/maintenance-lists-Db-gJatN.css              3.83 kB │ gzip:   0.85 kB
+../src/lingshu_gate/static/console/assets/mcp-config-editor-BAkFRdpf.css              4.30 kB │ gzip:   1.07 kB
+../src/lingshu_gate/static/console/assets/tools-page-lFlOsfiq.css                     4.84 kB │ gzip:   1.33 kB
+../src/lingshu_gate/static/console/assets/access-roles-page-BO8bIVSD.css              6.77 kB │ gzip:   1.61 kB
+../src/lingshu_gate/static/console/assets/dashboard-page-C5QTwuKt.css                 7.69 kB │ gzip:   1.86 kB
+../src/lingshu_gate/static/console/assets/invoke-page-BTA55JBX.css                   10.06 kB │ gzip:   2.17 kB
+../src/lingshu_gate/static/console/assets/external-connections-page-mT9jXUKm.css     13.41 kB │ gzip:   2.72 kB
+../src/lingshu_gate/static/console/assets/index-C_hPtwDh.css                         82.88 kB │ gzip:  15.47 kB
+../src/lingshu_gate/static/console/assets/validateMessagesContext-Ym1bDdgu.js         0.19 kB │ gzip:   0.15 kB
+../src/lingshu_gate/static/console/assets/chevron-down-C1KIKeCa.js                    0.23 kB │ gzip:   0.18 kB
+../src/lingshu_gate/static/console/assets/chevron-left-Y2wo7Xec.js                    0.23 kB │ gzip:   0.19 kB
+../src/lingshu_gate/static/console/assets/chevron-right-CfbPxlQa.js                   0.23 kB │ gzip:   0.19 kB
+../src/lingshu_gate/static/console/assets/plus-D_pyY9nN.js                            0.24 kB │ gzip:   0.19 kB
+../src/lingshu_gate/static/console/assets/search-DhTkXi8A.js                          0.26 kB │ gzip:   0.21 kB
+../src/lingshu_gate/static/console/assets/info-Bx3wqeIY.js                            0.29 kB │ gzip:   0.22 kB
+../src/lingshu_gate/static/console/assets/copy-DgBQnHsw.js                            0.32 kB │ gzip:   0.25 kB
+../src/lingshu_gate/static/console/assets/activity-C6Wjubl2.js                        0.33 kB │ gzip:   0.24 kB
+../src/lingshu_gate/static/console/assets/tool-access-CtKHIheZ.js                     0.40 kB │ gzip:   0.24 kB
+../src/lingshu_gate/static/console/assets/user-plus-BTAxZYVC.js                       0.40 kB │ gzip:   0.28 kB
+../src/lingshu_gate/static/console/assets/shield-check-BJ1vOIKV.js                    0.42 kB │ gzip:   0.30 kB
+../src/lingshu_gate/static/console/assets/shield-alert-Cp4L2uk_.js                    0.45 kB │ gzip:   0.31 kB
+../src/lingshu_gate/static/console/assets/collapse-BgX--bqA.js                        0.51 kB │ gzip:   0.25 kB
+../src/lingshu_gate/static/console/assets/skeleton-C6I4ewAl.js                        0.53 kB │ gzip:   0.34 kB
+../src/lingshu_gate/static/console/assets/textarea-tJL5OFBK.js                        0.64 kB │ gzip:   0.37 kB
+../src/lingshu_gate/static/console/assets/filter-radio-omTQlyWe.js                    0.82 kB │ gzip:   0.39 kB
+../src/lingshu_gate/static/console/assets/use-draft-close-guard-D2-uOUhL.js           0.84 kB │ gzip:   0.55 kB
+../src/lingshu_gate/static/console/assets/query-status-BnfV0vtj.js                    0.86 kB │ gzip:   0.45 kB
+../src/lingshu_gate/static/console/assets/validation-D6vjtMIC.js                      0.86 kB │ gzip:   0.59 kB
+../src/lingshu_gate/static/console/assets/PlusOutlined-DVH659TE.js                    0.88 kB │ gzip:   0.53 kB
+../src/lingshu_gate/static/console/assets/dist-BVyVd9XC.js                            0.89 kB │ gzip:   0.46 kB
+../src/lingshu_gate/static/console/assets/badge-OW3g16Oh.js                           1.00 kB │ gzip:   0.51 kB
+../src/lingshu_gate/static/console/assets/dist-DKZ8D-UA.js                            1.04 kB │ gzip:   0.51 kB
+../src/lingshu_gate/static/console/assets/InfoCircleOutlined-BMOKeI_z.js              1.08 kB │ gzip:   0.63 kB
+../src/lingshu_gate/static/console/assets/system-settings-page-BvHgDV0d.js            1.09 kB │ gzip:   0.67 kB
+../src/lingshu_gate/static/console/assets/http-CTk34Y6z.js                            1.21 kB │ gzip:   0.61 kB
+../src/lingshu_gate/static/console/assets/validation-errors-CGzfaoDV.js               1.39 kB │ gzip:   0.70 kB
+../src/lingshu_gate/static/console/assets/use-remaining-viewport-DbWVprg9.js          1.56 kB │ gzip:   0.69 kB
+../src/lingshu_gate/static/console/assets/RightOutlined-CuMeqWz4.js                   1.70 kB │ gzip:   0.73 kB
+../src/lingshu_gate/static/console/assets/tool-origin-mXy-TKr4.js                     1.75 kB │ gzip:   0.70 kB
+../src/lingshu_gate/static/console/assets/network-CPko-rSJ.js                         1.78 kB │ gzip:   0.59 kB
+../src/lingshu_gate/static/console/assets/ExclamationCircleFilled-Dt3xfINN.js         1.88 kB │ gzip:   0.77 kB
+../src/lingshu_gate/static/console/assets/form-dialog-BeilMHBi.js                     2.24 kB │ gzip:   0.91 kB
+../src/lingshu_gate/static/console/assets/useClosable-DPAx9KaY.js                     3.17 kB │ gzip:   0.97 kB
+../src/lingshu_gate/static/console/assets/style-CaSOBl_y.js                           3.21 kB │ gzip:   1.00 kB
+../src/lingshu_gate/static/console/assets/builds-BhcPewqH.js                          3.30 kB │ gzip:   0.97 kB
+../src/lingshu_gate/static/console/assets/invocation-payload-panel-MkU7VMKX.js        3.68 kB │ gzip:   1.79 kB
+../src/lingshu_gate/static/console/assets/page-utils-DD4d3K4s.js                      5.19 kB │ gzip:   1.52 kB
+../src/lingshu_gate/static/console/assets/action-menu-Dv0KA1Up.js                     5.26 kB │ gzip:   1.92 kB
+../src/lingshu_gate/static/console/assets/list-pagination-DFBrXFNJ.js                 5.27 kB │ gzip:   1.84 kB
+../src/lingshu_gate/static/console/assets/table-tools-Cfo408TU.js                     5.54 kB │ gzip:   2.06 kB
+../src/lingshu_gate/static/console/assets/switch-CXyDLd3S.js                          6.90 kB │ gzip:   2.16 kB
+../src/lingshu_gate/static/console/assets/diagnostics-page-D1lFGHoK.js                8.48 kB │ gzip:   2.33 kB
+../src/lingshu_gate/static/console/assets/config-provider-DWHTOUEA.js                10.75 kB │ gzip:   3.19 kB
+../src/lingshu_gate/static/console/assets/alert-BWyCcnRa.js                          11.24 kB │ gzip:   3.68 kB
+../src/lingshu_gate/static/console/assets/switch--lFydxs1.js                         11.79 kB │ gzip:   3.06 kB
+../src/lingshu_gate/static/console/assets/personal-workspace-page-DkQQbHfX.js        12.29 kB │ gzip:   3.92 kB
+../src/lingshu_gate/static/console/assets/runtime-cache-page-C2dxzzqm.js             12.51 kB │ gzip:   4.07 kB
+../src/lingshu_gate/static/console/assets/tools-page-Bue409wT.js                     12.97 kB │ gzip:   3.74 kB
+../src/lingshu_gate/static/console/assets/credentials-page-DIpuwg2G.js               14.04 kB │ gzip:   4.06 kB
+../src/lingshu_gate/static/console/assets/segmented-CwwCg9eA.js                      14.95 kB │ gzip:   4.43 kB
+../src/lingshu_gate/static/console/assets/command-CfsS4uDk.js                        15.47 kB │ gzip:   5.46 kB
+../src/lingshu_gate/static/console/assets/downstream-credentials-page-TMs6zDGR.js    16.32 kB │ gzip:   5.28 kB
+../src/lingshu_gate/static/console/assets/context-CgYzR2b9.js                        17.35 kB │ gzip:   4.18 kB
+../src/lingshu_gate/static/console/assets/deployment-options-1tQhbdwC.js             19.01 kB │ gzip:   7.35 kB
+../src/lingshu_gate/static/console/assets/access-grants-page-CLku0hso.js             20.24 kB │ gzip:   5.72 kB
+../src/lingshu_gate/static/console/assets/access-users-page-CZ234AsI.js              21.69 kB │ gzip:   5.81 kB
+../src/lingshu_gate/static/console/assets/invocation-audit-page-CnMaa1LH.js          21.79 kB │ gzip:   6.76 kB
+../src/lingshu_gate/static/console/assets/configs-page-DOJHdXhV.js                   21.87 kB │ gzip:   7.99 kB
+../src/lingshu_gate/static/console/assets/personal-tokens-page-BCu4_LWU.js           23.96 kB │ gzip:   8.07 kB
+../src/lingshu_gate/static/console/assets/radio-CwpO4NvB.js                          24.16 kB │ gzip:   7.03 kB
+../src/lingshu_gate/static/console/assets/json-panel-BQduC3Ep.js                     25.54 kB │ gzip:   5.64 kB
+../src/lingshu_gate/static/console/assets/tag-B_MAFVrO.js                            25.71 kB │ gzip:   7.07 kB
+../src/lingshu_gate/static/console/assets/dashboard-page-CcE4FHes.js                 25.85 kB │ gzip:   6.33 kB
+../src/lingshu_gate/static/console/assets/card-BhqefgbM.js                           30.89 kB │ gzip:  11.43 kB
+../src/lingshu_gate/static/console/assets/network-settings-panel-CrWXS2Cf.js         33.46 kB │ gzip:   9.60 kB
+../src/lingshu_gate/static/console/assets/input-number-BKcfprjf.js                   34.39 kB │ gzip:   9.48 kB
+../src/lingshu_gate/static/console/assets/pagination-IVGuxch9.js                     35.99 kB │ gzip:   8.47 kB
+../src/lingshu_gate/static/console/assets/tool-classifications-page-Cvake2E1.js      37.77 kB │ gzip:  10.60 kB
+../src/lingshu_gate/static/console/assets/context-C482taiw.js                        40.27 kB │ gzip:  10.71 kB
+../src/lingshu_gate/static/console/assets/form-5DWEzj3M.js                           40.55 kB │ gzip:  10.92 kB
+../src/lingshu_gate/static/console/assets/es-BlfxCsxF.js                             41.00 kB │ gzip:  10.20 kB
+../src/lingshu_gate/static/console/assets/useModal-DmoF0W0g.js                       42.00 kB │ gzip:  10.83 kB
+../src/lingshu_gate/static/console/assets/access-roles-page-BP8asfkB.js              44.81 kB │ gzip:  11.58 kB
+../src/lingshu_gate/static/console/assets/logs-events-page-DLFdSAjy.js               45.43 kB │ gzip:  12.35 kB
+../src/lingshu_gate/static/console/assets/mcp-config-editor-CMHGorCb.js              46.45 kB │ gzip:  14.20 kB
+../src/lingshu_gate/static/console/assets/tabs-kBGfCh4r.js                           54.33 kB │ gzip:  13.00 kB
+../src/lingshu_gate/static/console/assets/uploads-page-BAIghWWK.js                   59.25 kB │ gzip:  15.49 kB
+../src/lingshu_gate/static/console/assets/dialog-Cu6KYnmi.js                         64.78 kB │ gzip:  16.23 kB
+../src/lingshu_gate/static/console/assets/space-Ddo43wfB.js                          71.81 kB │ gzip:  18.79 kB
+../src/lingshu_gate/static/console/assets/dist-wTiNGevj.js                           77.04 kB │ gzip:  19.94 kB
+../src/lingshu_gate/static/console/assets/builds-page-Dk5IcKFY.js                    85.69 kB │ gzip:  18.42 kB
+../src/lingshu_gate/static/console/assets/select-1f_zeaWe.js                         94.67 kB │ gzip:  22.95 kB
+../src/lingshu_gate/static/console/assets/page-shell-DoCOfY_C.js                    120.48 kB │ gzip:  26.41 kB
+../src/lingshu_gate/static/console/assets/servers-page-wGpcDHkv.js                  125.31 kB │ gzip:  32.96 kB
+../src/lingshu_gate/static/console/assets/select-BXj1UITW.js                        132.76 kB │ gzip:  34.35 kB
+../src/lingshu_gate/static/console/assets/index-wPmZbLUa.js                         233.02 kB │ gzip:  61.99 kB
+../src/lingshu_gate/static/console/assets/external-connections-page-CqlVAejF.js     236.55 kB │ gzip:  62.25 kB
+../src/lingshu_gate/static/console/assets/table-CpgrSVIz.js                         243.96 kB │ gzip:  58.50 kB
+../src/lingshu_gate/static/console/assets/invoke-page-BBmrAk1p.js                   284.05 kB │ gzip:  69.10 kB
+../src/lingshu_gate/static/console/assets/tooltip-C2ZjJ2UH.js                       740.20 kB │ gzip: 171.73 kB
+
+[plugin builtin:vite-reporter] 
+(!) Some chunks are larger than 500 kB after minification. Consider:
+- Using dynamic import() to code-split the application
+- Use build.rolldownOptions.output.codeSplitting to improve chunking: https://rolldown.rs/reference/OutputOptions.codeSplitting
+- Adjust chunk size limit for this warning via build.chunkSizeWarningLimit.
+✓ built in 910ms
+vite v8.3.2 building client environment for production...
+transforming...
+✓ 5042 modules transformed.
+rendering chunks...
+computing gzip size...
+../src/lingshu_gate/static/oauth/oauth.html                     0.38 kB │ gzip:   0.27 kB
+../src/lingshu_gate/static/oauth/assets/oauth-BH4S-ygD.css     73.72 kB │ gzip:  13.57 kB
+../src/lingshu_gate/static/oauth/assets/oauth-B0Q7W4g8.js   1,745.92 kB │ gzip: 414.81 kB
+
+[plugin builtin:vite-reporter] 
+(!) Some chunks are larger than 500 kB after minification. Consider:
+- Using dynamic import() to code-split the application
+- Use build.rolldownOptions.output.codeSplitting to improve chunking: https://rolldown.rs/reference/OutputOptions.codeSplitting
+- Adjust chunk size limit for this warning via build.chunkSizeWarningLimit.
+✓ built in 677ms

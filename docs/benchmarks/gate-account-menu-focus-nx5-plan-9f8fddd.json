@@ -1,0 +1,279 @@
+{
+  "schema_version": 1,
+  "recorded_at_utc": "2026-10-08T13:10:01.101479+00:00",
+  "status": "Plan only; no new nx5 browser execution",
+  "candidate": {
+    "source_sha": "9f8fddd9709e400517fc2e342ed9889a35751c96",
+    "base_sha": "a14244caaf3459269546d97d3b3336b3964b380a",
+    "component_blob": "787a1de807a654fd2b82a51323a976a9e0e12442",
+    "test_blob": "5bf42c874b8ad312e1e28687a143eb5ef992f380",
+    "pr59_included": false,
+    "tag_v045_source_remains": "c0ea7d04cd16ac01536d0c0f00edab0c5ffc349e"
+  },
+  "reusable_host_scope": {
+    "host_label": "nx5",
+    "reuse": "Already authorized temporary isolated workspace and source/fixture definitions",
+    "fresh_runtime_required": true,
+    "reason": "Prior HTTP/RPC runtime directories, their services and listeners were cleaned up; no old session or credential may be assumed still active",
+    "existing_browser_fixture": "scripts/e2e/serve.py",
+    "fixture_data": "Fresh synthetic administrator/viewer, one in-process synthetic tool and its existing fixture-only read classification/grant",
+    "original_service": {
+      "version": "0.4.4",
+      "expected_pid": "117063",
+      "switch_authorized": false,
+      "paths_or_credentials_reused": false
+    },
+    "latest_saved_original_preservation_check": "2026-10-08T04:48:30.650371+00:00",
+    "live_current_preflight_performed_here": false
+  },
+  "inherited_evidence": {
+    "receipt_source_sha": "2ef739b5a9f72e8a7a01c7044f20b5d766de415c",
+    "receipt_tree": "716da35e388aab6784d8b41d6ae4e79a4c17f948",
+    "tree_equals_tag_c0": true,
+    "http_source_requests": 261,
+    "http_wheel_requests": 261,
+    "synthetic_rpc_requests": 36,
+    "wheel_sha256": "a9234933cce5cbb1f8553fbf9c0a2540ff5641700aac19fde3fd6ffa0ea672c8",
+    "backend_git_subtree_unchanged": "4fab0e28e5f91f3035214145a5afef32569a68e0",
+    "rerun_old_build_http_or_rpc_for_this_plan": false,
+    "claim_as_new_candidate_execution": false
+  },
+  "minimum_cases": [
+    {
+      "id": "GATE9-ROOT-ZH",
+      "existing_test": "root entry zh-CN / preserves bookmark through login and reload",
+      "fixture": "real synthetic-viewer login",
+      "viewport": "1280x720",
+      "assertions": [
+        "Root serves HTML with Vary: Accept and no-store",
+        "Repeated query values and encoded bookmark/hash survive sign-in and reload",
+        "Viewer personal-service route remains current",
+        "Real configuration API remains 403"
+      ]
+    },
+    {
+      "id": "GATE9-LEGACY-EN",
+      "existing_test": "root entry en-US /console preserves bookmark through login and reload",
+      "fixture": "real synthetic-viewer login",
+      "viewport": "1280x720",
+      "assertions": [
+        "Legacy /console redirects 307 to the root",
+        "Query/hash remain intact",
+        "Viewer login and reload retain personal navigation"
+      ]
+    },
+    {
+      "id": "GATE7-VIEWER-DENIAL",
+      "existing_test": "E2E-002",
+      "fixture": "existing real synthetic-viewer session",
+      "assertions": [
+        "Five management endpoints return 403",
+        "Own token metadata returns 200",
+        "No mocked auth/me or permission response"
+      ]
+    },
+    {
+      "id": "GATE7-SELF-READ",
+      "existing_test": "E2E-004",
+      "fixture": "same existing synthetic-viewer",
+      "assertions": [
+        "Personal services and own invocation metadata return real 200 responses",
+        "Journey makes no management servers/configs request",
+        "Personal external-grant editor entry remains available without enabling OAuth"
+      ]
+    },
+    {
+      "id": "GATE7-SELF-OWNERSHIP",
+      "existing_test": "E2E-006",
+      "fixture": "existing synthetic-viewer and synthetic administrator in the fresh fixture database",
+      "assertions": [
+        "Disabled personal scope draft saves with 201",
+        "Enable switch remains disabled without trust/identity setup",
+        "Another principal cannot GET or DELETE that draft: 404",
+        "Cancel sends no delete; owner-confirmed revoke affects only the synthetic draft"
+      ],
+      "writes": "Create/revoke one disabled synthetic draft inside the owned fixture; no trust, OAuth authorization, grants expansion or live external client"
+    },
+    {
+      "id": "GATE7-PHONE-LOGIN",
+      "existing_test": "E2E-005",
+      "fixture": "existing synthetic administrator",
+      "viewport": "390x844",
+      "assertions": [
+        "Keyboard submission works",
+        "Sign-in action is visible and unobscured",
+        "No horizontal document overflow"
+      ],
+      "scope_limit": "Viewport emulation, not physical phone acceptance"
+    },
+    {
+      "id": "GATE7-ACCOUNT-ZH",
+      "existing_test": "close before autofocus preserves focus: zh-CN 1280px frame 0",
+      "fixture": "existing real synthetic administrator",
+      "viewport": "1280x720",
+      "assertions": [
+        "Trusted Enter then early Escape returns focus",
+        "Running stale queued frames does not steal focus",
+        "Reopen retains normal autofocus"
+      ]
+    },
+    {
+      "id": "GATE7-ACCOUNT-EN",
+      "existing_test": "close before autofocus preserves focus: en-US 640px frame 0",
+      "fixture": "existing real synthetic administrator",
+      "viewport": "640x720",
+      "assertions": [
+        "Same close/reopen focus contract at a compact width"
+      ]
+    }
+  ],
+  "prepared_invocation": {
+    "working_directory": "Candidate repository root",
+    "argv": [
+      "timeout",
+      "--kill-after=5",
+      "180",
+      "npm",
+      "--prefix",
+      "web",
+      "run",
+      "e2e:full",
+      "--",
+      "root-entry.spec.ts",
+      "real-backend.spec.ts",
+      "account-menu.spec.ts",
+      "--grep",
+      "root entry zh-CN / preserves|root entry en-US /console preserves|E2E-00[2456] |close before autofocus preserves focus: (zh-CN 1280px|en-US 640px) frame 0",
+      "--reporter=list,json"
+    ],
+    "expected_case_count": 8,
+    "workers": 1,
+    "retries": 0,
+    "browser_port": "127.0.0.1:18763",
+    "port_collision": "Fail; never reuse an unknown service",
+    "data_location": "A new run-owned directory on the existing isolated disk workspace, using TMPDIR and the fixture-created GATE_E2E_TEMP_ROOT",
+    "receipts": [
+      "Exact source/tree/component/test blob, Python and browser versions",
+      "Console and OAuth static inventory SHA-256 before serving",
+      "Original-service PID/version/unit/ExecStart hashes and protected-directory metadata before and after",
+      "Per-case real API status, browser outcome, timestamp and assertion",
+      "Owned child reaping and closed listener after cleanup"
+    ],
+    "selection_verified_by_local_list_only": {
+      "source_sha": "9f8fddd9709e400517fc2e342ed9889a35751c96",
+      "selected_cases": [
+        {
+          "file": "account-menu.spec.ts",
+          "line": 148,
+          "title": "@smoke @full @account-menu close before autofocus preserves focus: en-US 640px frame 0",
+          "test_count": 1
+        },
+        {
+          "file": "account-menu.spec.ts",
+          "line": 148,
+          "title": "@smoke @full @account-menu close before autofocus preserves focus: zh-CN 1280px frame 0",
+          "test_count": 1
+        },
+        {
+          "file": "real-backend.spec.ts",
+          "line": 19,
+          "title": "E2E-002 @smoke @permissions viewer is denied real control-plane APIs",
+          "test_count": 1
+        },
+        {
+          "file": "real-backend.spec.ts",
+          "line": 42,
+          "title": "E2E-004 @permissions personal routes use authorized summaries and self records",
+          "test_count": 1
+        },
+        {
+          "file": "real-backend.spec.ts",
+          "line": 61,
+          "title": "E2E-005 @smoke narrow-screen login action is visible and keyboard usable",
+          "test_count": 1
+        },
+        {
+          "file": "real-backend.spec.ts",
+          "line": 75,
+          "title": "E2E-006 @permissions real disabled scope draft save, ownership deny and revoke",
+          "test_count": 1
+        },
+        {
+          "file": "root-entry.spec.ts",
+          "line": 6,
+          "title": "@smoke root entry en-US /console preserves bookmark through login and reload",
+          "test_count": 1
+        },
+        {
+          "file": "root-entry.spec.ts",
+          "line": 6,
+          "title": "@smoke root entry zh-CN / preserves bookmark through login and reload",
+          "test_count": 1
+        }
+      ],
+      "raw_manifest_sha256": "468f28484a5c2bafd6bf86b2766977747537efdb38cf37d33e8ebdb1e0db0609",
+      "ran_test_bodies": false,
+      "nx5_executed": false
+    }
+  },
+  "ready_after_existing_boundary_checks": [
+    "Independently review the new main-based exact source head and its ordinary PR CI",
+    "Check the original service still matches its protected 0.4.4/PID baseline",
+    "Use a separate candidate checkout; keep the retained old source/wheel evidence intact",
+    "Build the new candidate web once and bind static inventory to its new SHA; do not claim it is c0 or rebuild the old c0 wheel/native candidates",
+    "Start only the existing loopback fixture and its synthetic identities under the owned temporary root",
+    "Run the eight selected existing tests with no auth or authorization-response mocking",
+    "Retain sanitized result/manifest hashes and remove only this owned fixture after all children are reaped"
+  ],
+  "additional_without_real_credentials": [
+    {
+      "scenario": "E2E-009 real configuration/connect/reconnect/invoke against the existing synthetic loopback HTTP peer",
+      "status": "Can run separately in the same fresh isolated fixture",
+      "limits": "Credential-free loopback peer only; no claim of OAuth, public-network MCP or real downstream identity acceptance"
+    },
+    {
+      "scenario": "Operator/custom-capability or synthetic API-token scope matrix",
+      "status": "Existing real API fixtures can seed these inside a separate owned temporary database; browser serve.py currently seeds only admin/viewer",
+      "limits": "Additional fixture seeding and targeted browser adapter are needed, but no real credentials or global permission changes are necessary"
+    }
+  ],
+  "separate_missing_prerequisites": [
+    {
+      "scenario": "Real ChatGPT/external OAuth consent, callback and management scopes",
+      "missing": [
+        "Authorized real client and issuer/resource configuration",
+        "Client-owner consent, reviewed redirect/TLS and explicit management-scope enablement if applicable"
+      ],
+      "affects_minimum_eight_cases": false
+    },
+    {
+      "scenario": "Actual downstream credential/identity/trust workflows",
+      "missing": [
+        "Owner-supplied authorized downstream identity and its bounded target/trust policy"
+      ],
+      "affects_minimum_eight_cases": false
+    },
+    {
+      "scenario": "Rootless Podman/native executor host acceptance",
+      "missing": [
+        "Separate approved host security configuration and host prerequisites"
+      ],
+      "affects_minimum_eight_cases": false
+    },
+    {
+      "scenario": "Physical-device, broad visual and full permission coverage",
+      "missing": [
+        "Additional real device or environment-specific visual review and extended identities"
+      ],
+      "affects_minimum_eight_cases": false
+    }
+  ],
+  "publication_boundary": {
+    "new_formal_run": false,
+    "known_403_log_or_artifact_read_retried": false,
+    "original_service_switched": false,
+    "tag_changed": false,
+    "release_published": false,
+    "new_nx5_results_claimed": false
+  }
+}

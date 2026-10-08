@@ -1,0 +1,526 @@
+[WebServer] INFO:     Started server process [137418]
+[WebServer] INFO:     Waiting for application startup.
+[WebServer] INFO:     Application startup complete.
+[WebServer] INFO:     Uvicorn running on http://127.0.0.1:18763 (Press CTRL+C to quit)
+
+Running 12 tests using 1 worker
+
+(node:137434) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+  ✘   1 e2e/account-menu.spec.ts:148:7 › @smoke @full @account-menu close before autofocus preserves focus: en-US 1280px frame 0 (8.9s)
+(node:137534) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+  ✘   2 e2e/account-menu.spec.ts:148:7 › @smoke @full @account-menu close before autofocus preserves focus: en-US 1280px frame 1 (8.8s)
+(node:137606) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+  ✘   3 e2e/account-menu.spec.ts:148:7 › @smoke @full @account-menu close before autofocus preserves focus: en-US 1280px frame 2 (8.8s)
+(node:137681) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+  ✘   4 e2e/account-menu.spec.ts:148:7 › @smoke @full @account-menu close before autofocus preserves focus: en-US 640px frame 0 (8.8s)
+(node:137773) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+  ✘   5 e2e/account-menu.spec.ts:148:7 › @smoke @full @account-menu close before autofocus preserves focus: en-US 640px frame 1 (8.8s)
+(node:137846) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+  ✘   6 e2e/account-menu.spec.ts:148:7 › @smoke @full @account-menu close before autofocus preserves focus: en-US 640px frame 2 (8.7s)
+(node:137937) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+  ✘   7 e2e/account-menu.spec.ts:148:7 › @smoke @full @account-menu close before autofocus preserves focus: zh-CN 1280px frame 0 (8.8s)
+(node:138012) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+  ✘   8 e2e/account-menu.spec.ts:148:7 › @smoke @full @account-menu close before autofocus preserves focus: zh-CN 1280px frame 1 (8.8s)
+(node:138089) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+  ✘   9 e2e/account-menu.spec.ts:148:7 › @smoke @full @account-menu close before autofocus preserves focus: zh-CN 1280px frame 2 (8.8s)
+(node:138199) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+  ✘  10 e2e/account-menu.spec.ts:148:7 › @smoke @full @account-menu close before autofocus preserves focus: zh-CN 640px frame 0 (8.8s)
+(node:138275) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+  ✘  11 e2e/account-menu.spec.ts:148:7 › @smoke @full @account-menu close before autofocus preserves focus: zh-CN 640px frame 1 (8.8s)
+(node:138353) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+  ✘  12 e2e/account-menu.spec.ts:148:7 › @smoke @full @account-menu close before autofocus preserves focus: zh-CN 640px frame 2 (8.8s)
+
+
+  1) e2e/account-menu.spec.ts:148:7 › @smoke @full @account-menu close before autofocus preserves focus: en-US 1280px frame 0 
+
+    Error: expect(locator).toBeFocused() failed
+
+    Locator:  getByRole('button', { name: 'Account menu', exact: true })
+    Expected: focused
+    Received: inactive
+    Timeout:  8000ms
+
+    Call log:
+      - Expect "toBeFocused" getByRole('button', { name: 'Account menu', exact: true }) with timeout 8000ms
+      - waiting for getByRole('button', { name: 'Account menu', exact: true })
+        20 × locator resolved to <button type="button" aria-haspopup="menu" aria-expanded="false" aria-label="Account menu" class="ant-btn css-oc1rc0 css-var-_r_0_ ant-btn-text ant-btn-color-default ant-btn-variant-text ant-dropdown-trigger console-account">…</button>
+           - unexpected value "inactive"
+
+
+      169 |           await page.evaluate(() => window.gateAccountFrameQueue.advance())
+      170 |         }
+    > 171 |         await expect(account).toBeFocused()
+          |                               ^
+      172 |         // Normal open autofocus still works once its scheduled frames run.
+      173 |         await page.keyboard.press('Enter')
+      174 |         await expect(account).toHaveAttribute('aria-expanded', 'true')
+        at <reproduction-checkout>/web/e2e/account-menu.spec.ts:171:31
+
+    attachment #1: screenshot (image/png) ──────────────────────────────────────────────────────────
+    ../../gate-account-focus-evidence-20261008/regression-before-test-results/account-menu--smoke-full-a-245db--focus-en-US-1280px-frame-0/test-failed-1.png
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    Error Context: ../../gate-account-focus-evidence-20261008/regression-before-test-results/account-menu--smoke-full-a-245db--focus-en-US-1280px-frame-0/error-context.md
+
+    attachment #3: trace (application/zip) ─────────────────────────────────────────────────────────
+    ../../gate-account-focus-evidence-20261008/regression-before-test-results/account-menu--smoke-full-a-245db--focus-en-US-1280px-frame-0/trace.zip
+    Usage:
+
+        npx playwright show-trace ../../gate-account-focus-evidence-20261008/regression-before-test-results/account-menu--smoke-full-a-245db--focus-en-US-1280px-frame-0/trace.zip
+
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+  2) e2e/account-menu.spec.ts:148:7 › @smoke @full @account-menu close before autofocus preserves focus: en-US 1280px frame 1 
+
+    Error: expect(locator).toBeFocused() failed
+
+    Locator:  getByRole('button', { name: 'Account menu', exact: true })
+    Expected: focused
+    Received: inactive
+    Timeout:  8000ms
+
+    Call log:
+      - Expect "toBeFocused" getByRole('button', { name: 'Account menu', exact: true }) with timeout 8000ms
+      - waiting for getByRole('button', { name: 'Account menu', exact: true })
+        20 × locator resolved to <button type="button" aria-haspopup="menu" aria-expanded="false" aria-label="Account menu" class="ant-btn css-oc1rc0 css-var-_r_0_ ant-btn-text ant-btn-color-default ant-btn-variant-text ant-dropdown-trigger console-account">…</button>
+           - unexpected value "inactive"
+
+
+      169 |           await page.evaluate(() => window.gateAccountFrameQueue.advance())
+      170 |         }
+    > 171 |         await expect(account).toBeFocused()
+          |                               ^
+      172 |         // Normal open autofocus still works once its scheduled frames run.
+      173 |         await page.keyboard.press('Enter')
+      174 |         await expect(account).toHaveAttribute('aria-expanded', 'true')
+        at <reproduction-checkout>/web/e2e/account-menu.spec.ts:171:31
+
+    attachment #1: screenshot (image/png) ──────────────────────────────────────────────────────────
+    ../../gate-account-focus-evidence-20261008/regression-before-test-results/account-menu--smoke-full-a-22405--focus-en-US-1280px-frame-1/test-failed-1.png
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    Error Context: ../../gate-account-focus-evidence-20261008/regression-before-test-results/account-menu--smoke-full-a-22405--focus-en-US-1280px-frame-1/error-context.md
+
+    attachment #3: trace (application/zip) ─────────────────────────────────────────────────────────
+    ../../gate-account-focus-evidence-20261008/regression-before-test-results/account-menu--smoke-full-a-22405--focus-en-US-1280px-frame-1/trace.zip
+    Usage:
+
+        npx playwright show-trace ../../gate-account-focus-evidence-20261008/regression-before-test-results/account-menu--smoke-full-a-22405--focus-en-US-1280px-frame-1/trace.zip
+
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+  3) e2e/account-menu.spec.ts:148:7 › @smoke @full @account-menu close before autofocus preserves focus: en-US 1280px frame 2 
+
+    Error: expect(locator).toBeFocused() failed
+
+    Locator:  getByRole('button', { name: 'Account menu', exact: true })
+    Expected: focused
+    Received: inactive
+    Timeout:  8000ms
+
+    Call log:
+      - Expect "toBeFocused" getByRole('button', { name: 'Account menu', exact: true }) with timeout 8000ms
+      - waiting for getByRole('button', { name: 'Account menu', exact: true })
+        20 × locator resolved to <button type="button" aria-haspopup="menu" aria-expanded="false" aria-label="Account menu" class="ant-btn css-oc1rc0 css-var-_r_0_ ant-btn-text ant-btn-color-default ant-btn-variant-text ant-dropdown-trigger console-account">…</button>
+           - unexpected value "inactive"
+
+
+      169 |           await page.evaluate(() => window.gateAccountFrameQueue.advance())
+      170 |         }
+    > 171 |         await expect(account).toBeFocused()
+          |                               ^
+      172 |         // Normal open autofocus still works once its scheduled frames run.
+      173 |         await page.keyboard.press('Enter')
+      174 |         await expect(account).toHaveAttribute('aria-expanded', 'true')
+        at <reproduction-checkout>/web/e2e/account-menu.spec.ts:171:31
+
+    attachment #1: screenshot (image/png) ──────────────────────────────────────────────────────────
+    ../../gate-account-focus-evidence-20261008/regression-before-test-results/account-menu--smoke-full-a-d0ecd--focus-en-US-1280px-frame-2/test-failed-1.png
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    Error Context: ../../gate-account-focus-evidence-20261008/regression-before-test-results/account-menu--smoke-full-a-d0ecd--focus-en-US-1280px-frame-2/error-context.md
+
+    attachment #3: trace (application/zip) ─────────────────────────────────────────────────────────
+    ../../gate-account-focus-evidence-20261008/regression-before-test-results/account-menu--smoke-full-a-d0ecd--focus-en-US-1280px-frame-2/trace.zip
+    Usage:
+
+        npx playwright show-trace ../../gate-account-focus-evidence-20261008/regression-before-test-results/account-menu--smoke-full-a-d0ecd--focus-en-US-1280px-frame-2/trace.zip
+
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+  4) e2e/account-menu.spec.ts:148:7 › @smoke @full @account-menu close before autofocus preserves focus: en-US 640px frame 0 
+
+    Error: expect(locator).toBeFocused() failed
+
+    Locator:  getByRole('button', { name: 'Account menu', exact: true })
+    Expected: focused
+    Received: inactive
+    Timeout:  8000ms
+
+    Call log:
+      - Expect "toBeFocused" getByRole('button', { name: 'Account menu', exact: true }) with timeout 8000ms
+      - waiting for getByRole('button', { name: 'Account menu', exact: true })
+        20 × locator resolved to <button type="button" aria-haspopup="menu" aria-expanded="false" aria-label="Account menu" class="ant-btn css-oc1rc0 css-var-_r_0_ ant-btn-text ant-btn-color-default ant-btn-variant-text ant-dropdown-trigger console-account">…</button>
+           - unexpected value "inactive"
+
+
+      169 |           await page.evaluate(() => window.gateAccountFrameQueue.advance())
+      170 |         }
+    > 171 |         await expect(account).toBeFocused()
+          |                               ^
+      172 |         // Normal open autofocus still works once its scheduled frames run.
+      173 |         await page.keyboard.press('Enter')
+      174 |         await expect(account).toHaveAttribute('aria-expanded', 'true')
+        at <reproduction-checkout>/web/e2e/account-menu.spec.ts:171:31
+
+    attachment #1: screenshot (image/png) ──────────────────────────────────────────────────────────
+    ../../gate-account-focus-evidence-20261008/regression-before-test-results/account-menu--smoke-full-a-75346-s-focus-en-US-640px-frame-0/test-failed-1.png
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    Error Context: ../../gate-account-focus-evidence-20261008/regression-before-test-results/account-menu--smoke-full-a-75346-s-focus-en-US-640px-frame-0/error-context.md
+
+    attachment #3: trace (application/zip) ─────────────────────────────────────────────────────────
+    ../../gate-account-focus-evidence-20261008/regression-before-test-results/account-menu--smoke-full-a-75346-s-focus-en-US-640px-frame-0/trace.zip
+    Usage:
+
+        npx playwright show-trace ../../gate-account-focus-evidence-20261008/regression-before-test-results/account-menu--smoke-full-a-75346-s-focus-en-US-640px-frame-0/trace.zip
+
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+  5) e2e/account-menu.spec.ts:148:7 › @smoke @full @account-menu close before autofocus preserves focus: en-US 640px frame 1 
+
+    Error: expect(locator).toBeFocused() failed
+
+    Locator:  getByRole('button', { name: 'Account menu', exact: true })
+    Expected: focused
+    Received: inactive
+    Timeout:  8000ms
+
+    Call log:
+      - Expect "toBeFocused" getByRole('button', { name: 'Account menu', exact: true }) with timeout 8000ms
+      - waiting for getByRole('button', { name: 'Account menu', exact: true })
+        20 × locator resolved to <button type="button" aria-haspopup="menu" aria-expanded="false" aria-label="Account menu" class="ant-btn css-oc1rc0 css-var-_r_0_ ant-btn-text ant-btn-color-default ant-btn-variant-text ant-dropdown-trigger console-account">…</button>
+           - unexpected value "inactive"
+
+
+      169 |           await page.evaluate(() => window.gateAccountFrameQueue.advance())
+      170 |         }
+    > 171 |         await expect(account).toBeFocused()
+          |                               ^
+      172 |         // Normal open autofocus still works once its scheduled frames run.
+      173 |         await page.keyboard.press('Enter')
+      174 |         await expect(account).toHaveAttribute('aria-expanded', 'true')
+        at <reproduction-checkout>/web/e2e/account-menu.spec.ts:171:31
+
+    attachment #1: screenshot (image/png) ──────────────────────────────────────────────────────────
+    ../../gate-account-focus-evidence-20261008/regression-before-test-results/account-menu--smoke-full-a-fe5af-s-focus-en-US-640px-frame-1/test-failed-1.png
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    Error Context: ../../gate-account-focus-evidence-20261008/regression-before-test-results/account-menu--smoke-full-a-fe5af-s-focus-en-US-640px-frame-1/error-context.md
+
+    attachment #3: trace (application/zip) ─────────────────────────────────────────────────────────
+    ../../gate-account-focus-evidence-20261008/regression-before-test-results/account-menu--smoke-full-a-fe5af-s-focus-en-US-640px-frame-1/trace.zip
+    Usage:
+
+        npx playwright show-trace ../../gate-account-focus-evidence-20261008/regression-before-test-results/account-menu--smoke-full-a-fe5af-s-focus-en-US-640px-frame-1/trace.zip
+
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+  6) e2e/account-menu.spec.ts:148:7 › @smoke @full @account-menu close before autofocus preserves focus: en-US 640px frame 2 
+
+    Error: expect(locator).toBeFocused() failed
+
+    Locator:  getByRole('button', { name: 'Account menu', exact: true })
+    Expected: focused
+    Received: inactive
+    Timeout:  8000ms
+
+    Call log:
+      - Expect "toBeFocused" getByRole('button', { name: 'Account menu', exact: true }) with timeout 8000ms
+      - waiting for getByRole('button', { name: 'Account menu', exact: true })
+        20 × locator resolved to <button type="button" aria-haspopup="menu" aria-expanded="false" aria-label="Account menu" class="ant-btn css-oc1rc0 css-var-_r_0_ ant-btn-text ant-btn-color-default ant-btn-variant-text ant-dropdown-trigger console-account">…</button>
+           - unexpected value "inactive"
+
+
+      169 |           await page.evaluate(() => window.gateAccountFrameQueue.advance())
+      170 |         }
+    > 171 |         await expect(account).toBeFocused()
+          |                               ^
+      172 |         // Normal open autofocus still works once its scheduled frames run.
+      173 |         await page.keyboard.press('Enter')
+      174 |         await expect(account).toHaveAttribute('aria-expanded', 'true')
+        at <reproduction-checkout>/web/e2e/account-menu.spec.ts:171:31
+
+    attachment #1: screenshot (image/png) ──────────────────────────────────────────────────────────
+    ../../gate-account-focus-evidence-20261008/regression-before-test-results/account-menu--smoke-full-a-e5acb-s-focus-en-US-640px-frame-2/test-failed-1.png
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    Error Context: ../../gate-account-focus-evidence-20261008/regression-before-test-results/account-menu--smoke-full-a-e5acb-s-focus-en-US-640px-frame-2/error-context.md
+
+    attachment #3: trace (application/zip) ─────────────────────────────────────────────────────────
+    ../../gate-account-focus-evidence-20261008/regression-before-test-results/account-menu--smoke-full-a-e5acb-s-focus-en-US-640px-frame-2/trace.zip
+    Usage:
+
+        npx playwright show-trace ../../gate-account-focus-evidence-20261008/regression-before-test-results/account-menu--smoke-full-a-e5acb-s-focus-en-US-640px-frame-2/trace.zip
+
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+  7) e2e/account-menu.spec.ts:148:7 › @smoke @full @account-menu close before autofocus preserves focus: zh-CN 1280px frame 0 
+
+    Error: expect(locator).toBeFocused() failed
+
+    Locator:  getByRole('button', { name: '账号菜单', exact: true })
+    Expected: focused
+    Received: inactive
+    Timeout:  8000ms
+
+    Call log:
+      - Expect "toBeFocused" getByRole('button', { name: '账号菜单', exact: true }) with timeout 8000ms
+      - waiting for getByRole('button', { name: '账号菜单', exact: true })
+        20 × locator resolved to <button type="button" aria-label="账号菜单" aria-haspopup="menu" aria-expanded="false" class="ant-btn css-oc1rc0 css-var-_r_0_ ant-btn-text ant-btn-color-default ant-btn-variant-text ant-dropdown-trigger console-account">…</button>
+           - unexpected value "inactive"
+
+
+      169 |           await page.evaluate(() => window.gateAccountFrameQueue.advance())
+      170 |         }
+    > 171 |         await expect(account).toBeFocused()
+          |                               ^
+      172 |         // Normal open autofocus still works once its scheduled frames run.
+      173 |         await page.keyboard.press('Enter')
+      174 |         await expect(account).toHaveAttribute('aria-expanded', 'true')
+        at <reproduction-checkout>/web/e2e/account-menu.spec.ts:171:31
+
+    attachment #1: screenshot (image/png) ──────────────────────────────────────────────────────────
+    ../../gate-account-focus-evidence-20261008/regression-before-test-results/account-menu--smoke-full-a-34949--focus-zh-CN-1280px-frame-0/test-failed-1.png
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    Error Context: ../../gate-account-focus-evidence-20261008/regression-before-test-results/account-menu--smoke-full-a-34949--focus-zh-CN-1280px-frame-0/error-context.md
+
+    attachment #3: trace (application/zip) ─────────────────────────────────────────────────────────
+    ../../gate-account-focus-evidence-20261008/regression-before-test-results/account-menu--smoke-full-a-34949--focus-zh-CN-1280px-frame-0/trace.zip
+    Usage:
+
+        npx playwright show-trace ../../gate-account-focus-evidence-20261008/regression-before-test-results/account-menu--smoke-full-a-34949--focus-zh-CN-1280px-frame-0/trace.zip
+
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+  8) e2e/account-menu.spec.ts:148:7 › @smoke @full @account-menu close before autofocus preserves focus: zh-CN 1280px frame 1 
+
+    Error: expect(locator).toBeFocused() failed
+
+    Locator:  getByRole('button', { name: '账号菜单', exact: true })
+    Expected: focused
+    Received: inactive
+    Timeout:  8000ms
+
+    Call log:
+      - Expect "toBeFocused" getByRole('button', { name: '账号菜单', exact: true }) with timeout 8000ms
+      - waiting for getByRole('button', { name: '账号菜单', exact: true })
+        20 × locator resolved to <button type="button" aria-label="账号菜单" aria-haspopup="menu" aria-expanded="false" class="ant-btn css-oc1rc0 css-var-_r_0_ ant-btn-text ant-btn-color-default ant-btn-variant-text ant-dropdown-trigger console-account">…</button>
+           - unexpected value "inactive"
+
+
+      169 |           await page.evaluate(() => window.gateAccountFrameQueue.advance())
+      170 |         }
+    > 171 |         await expect(account).toBeFocused()
+          |                               ^
+      172 |         // Normal open autofocus still works once its scheduled frames run.
+      173 |         await page.keyboard.press('Enter')
+      174 |         await expect(account).toHaveAttribute('aria-expanded', 'true')
+        at <reproduction-checkout>/web/e2e/account-menu.spec.ts:171:31
+
+    attachment #1: screenshot (image/png) ──────────────────────────────────────────────────────────
+    ../../gate-account-focus-evidence-20261008/regression-before-test-results/account-menu--smoke-full-a-0d39e--focus-zh-CN-1280px-frame-1/test-failed-1.png
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    Error Context: ../../gate-account-focus-evidence-20261008/regression-before-test-results/account-menu--smoke-full-a-0d39e--focus-zh-CN-1280px-frame-1/error-context.md
+
+    attachment #3: trace (application/zip) ─────────────────────────────────────────────────────────
+    ../../gate-account-focus-evidence-20261008/regression-before-test-results/account-menu--smoke-full-a-0d39e--focus-zh-CN-1280px-frame-1/trace.zip
+    Usage:
+
+        npx playwright show-trace ../../gate-account-focus-evidence-20261008/regression-before-test-results/account-menu--smoke-full-a-0d39e--focus-zh-CN-1280px-frame-1/trace.zip
+
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+  9) e2e/account-menu.spec.ts:148:7 › @smoke @full @account-menu close before autofocus preserves focus: zh-CN 1280px frame 2 
+
+    Error: expect(locator).toBeFocused() failed
+
+    Locator:  getByRole('button', { name: '账号菜单', exact: true })
+    Expected: focused
+    Received: inactive
+    Timeout:  8000ms
+
+    Call log:
+      - Expect "toBeFocused" getByRole('button', { name: '账号菜单', exact: true }) with timeout 8000ms
+      - waiting for getByRole('button', { name: '账号菜单', exact: true })
+        20 × locator resolved to <button type="button" aria-label="账号菜单" aria-haspopup="menu" aria-expanded="false" class="ant-btn css-oc1rc0 css-var-_r_0_ ant-btn-text ant-btn-color-default ant-btn-variant-text ant-dropdown-trigger console-account">…</button>
+           - unexpected value "inactive"
+
+
+      169 |           await page.evaluate(() => window.gateAccountFrameQueue.advance())
+      170 |         }
+    > 171 |         await expect(account).toBeFocused()
+          |                               ^
+      172 |         // Normal open autofocus still works once its scheduled frames run.
+      173 |         await page.keyboard.press('Enter')
+      174 |         await expect(account).toHaveAttribute('aria-expanded', 'true')
+        at <reproduction-checkout>/web/e2e/account-menu.spec.ts:171:31
+
+    attachment #1: screenshot (image/png) ──────────────────────────────────────────────────────────
+    ../../gate-account-focus-evidence-20261008/regression-before-test-results/account-menu--smoke-full-a-27525--focus-zh-CN-1280px-frame-2/test-failed-1.png
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    Error Context: ../../gate-account-focus-evidence-20261008/regression-before-test-results/account-menu--smoke-full-a-27525--focus-zh-CN-1280px-frame-2/error-context.md
+
+    attachment #3: trace (application/zip) ─────────────────────────────────────────────────────────
+    ../../gate-account-focus-evidence-20261008/regression-before-test-results/account-menu--smoke-full-a-27525--focus-zh-CN-1280px-frame-2/trace.zip
+    Usage:
+
+        npx playwright show-trace ../../gate-account-focus-evidence-20261008/regression-before-test-results/account-menu--smoke-full-a-27525--focus-zh-CN-1280px-frame-2/trace.zip
+
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+  10) e2e/account-menu.spec.ts:148:7 › @smoke @full @account-menu close before autofocus preserves focus: zh-CN 640px frame 0 
+
+    Error: expect(locator).toBeFocused() failed
+
+    Locator:  getByRole('button', { name: '账号菜单', exact: true })
+    Expected: focused
+    Received: inactive
+    Timeout:  8000ms
+
+    Call log:
+      - Expect "toBeFocused" getByRole('button', { name: '账号菜单', exact: true }) with timeout 8000ms
+      - waiting for getByRole('button', { name: '账号菜单', exact: true })
+        20 × locator resolved to <button type="button" aria-label="账号菜单" aria-haspopup="menu" aria-expanded="false" class="ant-btn css-oc1rc0 css-var-_r_0_ ant-btn-text ant-btn-color-default ant-btn-variant-text ant-dropdown-trigger console-account">…</button>
+           - unexpected value "inactive"
+
+
+      169 |           await page.evaluate(() => window.gateAccountFrameQueue.advance())
+      170 |         }
+    > 171 |         await expect(account).toBeFocused()
+          |                               ^
+      172 |         // Normal open autofocus still works once its scheduled frames run.
+      173 |         await page.keyboard.press('Enter')
+      174 |         await expect(account).toHaveAttribute('aria-expanded', 'true')
+        at <reproduction-checkout>/web/e2e/account-menu.spec.ts:171:31
+
+    attachment #1: screenshot (image/png) ──────────────────────────────────────────────────────────
+    ../../gate-account-focus-evidence-20261008/regression-before-test-results/account-menu--smoke-full-a-751ef-s-focus-zh-CN-640px-frame-0/test-failed-1.png
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    Error Context: ../../gate-account-focus-evidence-20261008/regression-before-test-results/account-menu--smoke-full-a-751ef-s-focus-zh-CN-640px-frame-0/error-context.md
+
+    attachment #3: trace (application/zip) ─────────────────────────────────────────────────────────
+    ../../gate-account-focus-evidence-20261008/regression-before-test-results/account-menu--smoke-full-a-751ef-s-focus-zh-CN-640px-frame-0/trace.zip
+    Usage:
+
+        npx playwright show-trace ../../gate-account-focus-evidence-20261008/regression-before-test-results/account-menu--smoke-full-a-751ef-s-focus-zh-CN-640px-frame-0/trace.zip
+
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+  11) e2e/account-menu.spec.ts:148:7 › @smoke @full @account-menu close before autofocus preserves focus: zh-CN 640px frame 1 
+
+    Error: expect(locator).toBeFocused() failed
+
+    Locator:  getByRole('button', { name: '账号菜单', exact: true })
+    Expected: focused
+    Received: inactive
+    Timeout:  8000ms
+
+    Call log:
+      - Expect "toBeFocused" getByRole('button', { name: '账号菜单', exact: true }) with timeout 8000ms
+      - waiting for getByRole('button', { name: '账号菜单', exact: true })
+        20 × locator resolved to <button type="button" aria-label="账号菜单" aria-haspopup="menu" aria-expanded="false" class="ant-btn css-oc1rc0 css-var-_r_0_ ant-btn-text ant-btn-color-default ant-btn-variant-text ant-dropdown-trigger console-account">…</button>
+           - unexpected value "inactive"
+
+
+      169 |           await page.evaluate(() => window.gateAccountFrameQueue.advance())
+      170 |         }
+    > 171 |         await expect(account).toBeFocused()
+          |                               ^
+      172 |         // Normal open autofocus still works once its scheduled frames run.
+      173 |         await page.keyboard.press('Enter')
+      174 |         await expect(account).toHaveAttribute('aria-expanded', 'true')
+        at <reproduction-checkout>/web/e2e/account-menu.spec.ts:171:31
+
+    attachment #1: screenshot (image/png) ──────────────────────────────────────────────────────────
+    ../../gate-account-focus-evidence-20261008/regression-before-test-results/account-menu--smoke-full-a-48948-s-focus-zh-CN-640px-frame-1/test-failed-1.png
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    Error Context: ../../gate-account-focus-evidence-20261008/regression-before-test-results/account-menu--smoke-full-a-48948-s-focus-zh-CN-640px-frame-1/error-context.md
+
+    attachment #3: trace (application/zip) ─────────────────────────────────────────────────────────
+    ../../gate-account-focus-evidence-20261008/regression-before-test-results/account-menu--smoke-full-a-48948-s-focus-zh-CN-640px-frame-1/trace.zip
+    Usage:
+
+        npx playwright show-trace ../../gate-account-focus-evidence-20261008/regression-before-test-results/account-menu--smoke-full-a-48948-s-focus-zh-CN-640px-frame-1/trace.zip
+
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+  12) e2e/account-menu.spec.ts:148:7 › @smoke @full @account-menu close before autofocus preserves focus: zh-CN 640px frame 2 
+
+    Error: expect(locator).toBeFocused() failed
+
+    Locator:  getByRole('button', { name: '账号菜单', exact: true })
+    Expected: focused
+    Received: inactive
+    Timeout:  8000ms
+
+    Call log:
+      - Expect "toBeFocused" getByRole('button', { name: '账号菜单', exact: true }) with timeout 8000ms
+      - waiting for getByRole('button', { name: '账号菜单', exact: true })
+        20 × locator resolved to <button type="button" aria-label="账号菜单" aria-haspopup="menu" aria-expanded="false" class="ant-btn css-oc1rc0 css-var-_r_0_ ant-btn-text ant-btn-color-default ant-btn-variant-text ant-dropdown-trigger console-account">…</button>
+           - unexpected value "inactive"
+
+
+      169 |           await page.evaluate(() => window.gateAccountFrameQueue.advance())
+      170 |         }
+    > 171 |         await expect(account).toBeFocused()
+          |                               ^
+      172 |         // Normal open autofocus still works once its scheduled frames run.
+      173 |         await page.keyboard.press('Enter')
+      174 |         await expect(account).toHaveAttribute('aria-expanded', 'true')
+        at <reproduction-checkout>/web/e2e/account-menu.spec.ts:171:31
+
+    attachment #1: screenshot (image/png) ──────────────────────────────────────────────────────────
+    ../../gate-account-focus-evidence-20261008/regression-before-test-results/account-menu--smoke-full-a-84d46-s-focus-zh-CN-640px-frame-2/test-failed-1.png
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    Error Context: ../../gate-account-focus-evidence-20261008/regression-before-test-results/account-menu--smoke-full-a-84d46-s-focus-zh-CN-640px-frame-2/error-context.md
+
+    attachment #3: trace (application/zip) ─────────────────────────────────────────────────────────
+    ../../gate-account-focus-evidence-20261008/regression-before-test-results/account-menu--smoke-full-a-84d46-s-focus-zh-CN-640px-frame-2/trace.zip
+    Usage:
+
+        npx playwright show-trace ../../gate-account-focus-evidence-20261008/regression-before-test-results/account-menu--smoke-full-a-84d46-s-focus-zh-CN-640px-frame-2/trace.zip
+
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+  12 failed
+    e2e/account-menu.spec.ts:148:7 › @smoke @full @account-menu close before autofocus preserves focus: en-US 1280px frame 0 
+    e2e/account-menu.spec.ts:148:7 › @smoke @full @account-menu close before autofocus preserves focus: en-US 1280px frame 1 
+    e2e/account-menu.spec.ts:148:7 › @smoke @full @account-menu close before autofocus preserves focus: en-US 1280px frame 2 
+    e2e/account-menu.spec.ts:148:7 › @smoke @full @account-menu close before autofocus preserves focus: en-US 640px frame 0 
+    e2e/account-menu.spec.ts:148:7 › @smoke @full @account-menu close before autofocus preserves focus: en-US 640px frame 1 
+    e2e/account-menu.spec.ts:148:7 › @smoke @full @account-menu close before autofocus preserves focus: en-US 640px frame 2 
+    e2e/account-menu.spec.ts:148:7 › @smoke @full @account-menu close before autofocus preserves focus: zh-CN 1280px frame 0 
+    e2e/account-menu.spec.ts:148:7 › @smoke @full @account-menu close before autofocus preserves focus: zh-CN 1280px frame 1 
+    e2e/account-menu.spec.ts:148:7 › @smoke @full @account-menu close before autofocus preserves focus: zh-CN 1280px frame 2 
+    e2e/account-menu.spec.ts:148:7 › @smoke @full @account-menu close before autofocus preserves focus: zh-CN 640px frame 0 
+    e2e/account-menu.spec.ts:148:7 › @smoke @full @account-menu close before autofocus preserves focus: zh-CN 640px frame 1 
+    e2e/account-menu.spec.ts:148:7 › @smoke @full @account-menu close before autofocus preserves focus: zh-CN 640px frame 2 
