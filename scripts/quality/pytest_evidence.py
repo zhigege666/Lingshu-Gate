@@ -1,7 +1,6 @@
 """Opt-in release diagnostics that survive cancellation without changing tests."""
 from __future__ import annotations
 
-import json
 import os
 import platform
 import re
@@ -9,10 +8,14 @@ import sys
 import tempfile
 import time
 from datetime import datetime, timezone
+from json import dump as _json_dump, dumps as _json_dumps
 from pathlib import Path
 from xml.etree import ElementTree as ET
 
 import pytest
+
+# Product tests patch functions on the shared json module. Capture the real
+# serializers before tests run so their patches cannot interrupt reporting.
 
 
 def pytest_addoption(parser):
@@ -49,7 +52,7 @@ class Evidence:
         self._snapshot(complete=False)
 
     def _event(self, event, **values):
-        self.journal.write(json.dumps({"utc": datetime.now(timezone.utc).isoformat(),
+        self.journal.write(_json_dumps({"utc": datetime.now(timezone.utc).isoformat(),
                                        "event": event, **values}, ensure_ascii=False) + "\n")
         self.journal.flush()
 
@@ -62,7 +65,7 @@ class Evidence:
     def pytest_collection_finish(self, session):
         self.collected = [item.nodeid for item in session.items]
         with (self.destination / "collection.json").open("x", encoding="utf-8") as stream:
-            json.dump(self.collected, stream, ensure_ascii=False)
+            _json_dump(self.collected, stream, ensure_ascii=False)
         self._event("collection", count=len(self.collected))
         self._line(f"GATE_TEST_COLLECTION {len(self.collected)} items")
 
