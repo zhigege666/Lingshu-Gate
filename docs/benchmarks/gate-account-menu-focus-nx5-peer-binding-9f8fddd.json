@@ -1,0 +1,83 @@
+{
+  "schema_version": 1,
+  "source_sha": "9f8fddd9709e400517fc2e342ed9889a35751c96",
+  "status": "Peer helper source-binding repair is prepared and pure negative checks passed; independent review remains pending. No Gate or nx5 execution.",
+  "preserved_previous_evidence_sha": "2ce9078464e54d5e9dc6b66741c846f5815efb58",
+  "preserved_previous_tests_passed": 35,
+  "adapter": {
+    "path": "docs/benchmarks/gate-account-menu-focus-9f8fddd/run_owned_e2e.py",
+    "sha256": "1255ffc0721b1e6fcfd487b18884e6db51f3a50af019762f4599d2c70cf8261f"
+  },
+  "tests": {
+    "path": "docs/benchmarks/gate-account-menu-focus-9f8fddd/test_run_owned_e2e.py",
+    "sha256": "3df6de15d0ec4ca6f38f85a35be151755b4f6f3a5dcf6793fc7690d41ddc912d"
+  },
+  "tests_passed": 40,
+  "checks": [
+    {
+      "check": "ruff",
+      "started_at_utc": "2026-10-08T15:47:19.849790+00:00",
+      "completed_at_utc": "2026-10-08T15:47:19.858402+00:00",
+      "exit_code": 0,
+      "output_path": "docs/benchmarks/gate-account-menu-focus-9f8fddd/adapter-peer-binding-ruff.log",
+      "bytes": 19,
+      "sha256": "82b3e6a6c090a57601d22943bd23fca9218d1031dbe5a7b754092f9a156b4f18"
+    },
+    {
+      "check": "negative-tests",
+      "started_at_utc": "2026-10-08T15:47:19.858524+00:00",
+      "completed_at_utc": "2026-10-08T15:47:21.024269+00:00",
+      "exit_code": 0,
+      "output_path": "docs/benchmarks/gate-account-menu-focus-9f8fddd/adapter-peer-binding-negative-tests.log",
+      "bytes": 6475,
+      "sha256": "d8358ba7ef08db42066132dc9984225178f42bde55c21d4735875fbb1c4cc6cc"
+    }
+  ],
+  "helper_source_binding": {
+    "module": "http_peer",
+    "relative_path": "scripts/e2e/http_peer.py",
+    "git_blob": "ce891142144ae5173cab8d30ae0596a7d414a368",
+    "sha256": "220bc3b812208b959a112875458b027a0d873bb32dbeae69834e09a46cb8fc53",
+    "source_tree_sha": "1325f73c41200bf9d9511c230c61e959a05977ca",
+    "source_files_verified_against_git_blobs": 515,
+    "rules": [
+      "Reject any preloaded http_peer before resolving or importing product modules.",
+      "The existing source finder also intercepts only this exact fixture helper and resolves its origin from the HEAD-verified file binding.",
+      "Require the helper blob digest and real regular-file boundary; a missing bound helper cannot fall back to a venv or installed module.",
+      "Compile verified helper source bytes directly; a matching timestamp/size old pyc is never read or removed.",
+      "In a later separately approved fixture, import and validate actual helper file/spec origins before Gate application initialization; serve.py then reuses that verified helper."
+    ]
+  },
+  "new_negative_cases": [
+    "Preloaded old helper rejects before module resolution.",
+    "A real timestamp/size-valid old pyc is selected by the ordinary loader but ignored by the verified helper loader.",
+    "Changed helper source digest rejects before compilation.",
+    "Missing helper binding cannot fall back to an installed helper.",
+    "Actual helper file and spec origins must both match the Git-bound source."
+  ],
+  "scope_limits": {
+    "gate_import_or_fixture_started": false,
+    "actual_http_peer_imported_or_called": false,
+    "nx5_executed": false,
+    "new_identity_classification_grant_or_oauth_state_started": false,
+    "latest_adapter_prepare_or_list_executed": false,
+    "actual_served_asset_verification_executed": false,
+    "product_or_pr60_head_changed": false,
+    "pr60_ready_or_merge_retried": false,
+    "other_cancelled_work_resumed": false
+  },
+  "preserved_previous_receipts": {
+    "exact_commit": "2ce9078464e54d5e9dc6b66741c846f5815efb58",
+    "negative_log": "docs/benchmarks/gate-account-menu-focus-9f8fddd/adapter-source-binding-negative-tests.log",
+    "source_binding_receipt": "docs/benchmarks/gate-account-menu-focus-nx5-source-binding-9f8fddd.json",
+    "previous_15_case_list_applies_to_adapter_sha256": "4205d97e5eb323e56234488da0c2c17015911aafe96d80a0f45c60c213778fd9"
+  },
+  "source_diff": {
+    "base_commit": "2ce9078464e54d5e9dc6b66741c846f5815efb58",
+    "path": "docs/benchmarks/gate-account-menu-focus-9f8fddd/adapter-peer-binding-source.patch",
+    "bytes": 7241,
+    "sha256": "da92c08ffa913e464c7f63a625d605e62fa275e2960576d8572c7553b987596e",
+    "scope": "Only the authorized http_peer import binding and pure helper regressions",
+    "format": "git diff --binary --full-index --unified=0; exact source changes without whitespace context lines"
+  }
+}

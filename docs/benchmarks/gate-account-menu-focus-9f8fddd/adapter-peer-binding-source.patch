@@ -1,0 +1,113 @@
+diff --git a/docs/benchmarks/gate-account-menu-focus-9f8fddd/run_owned_e2e.py b/docs/benchmarks/gate-account-menu-focus-9f8fddd/run_owned_e2e.py
+index fd989addba76d90cd44ced6990d517947939f08a..2415ebd7834ad2b699919870165550be076f56fd 100644
+--- a/docs/benchmarks/gate-account-menu-focus-9f8fddd/run_owned_e2e.py
++++ b/docs/benchmarks/gate-account-menu-focus-9f8fddd/run_owned_e2e.py
+@@ -267,0 +268,5 @@ def _product_location(source: Path, binding: dict[str, object], name: str) -> tu
++    if name == "http_peer":
++        relative = "scripts/e2e/http_peer.py"
++        if relative not in binding["files"]:
++            raise BoundaryError("Reviewed peer helper is absent from the Git source binding")
++        return source / relative, binding["files"][relative], False
+@@ -276,0 +282,5 @@ def _product_location(source: Path, binding: dict[str, object], name: str) -> tu
++def _is_reviewed_module(name: str) -> bool:
++    # Only the product package and this exact fixture dependency are intercepted.
++    return name == "http_peer" or name == "lingshu_gate" or name.startswith("lingshu_gate.")
++
++
+@@ -303 +313 @@ class ReviewedProductFinder(importlib.abc.MetaPathFinder):
+-        if fullname != "lingshu_gate" and not fullname.startswith("lingshu_gate."):
++        if not _is_reviewed_module(fullname):
+@@ -316,2 +326,2 @@ def _bind_product_source(source: Path, binding: dict[str, object]) -> None:
+-    if any(name == "lingshu_gate" or name.startswith("lingshu_gate.") for name in sys.modules):
+-        raise BoundaryError("Product modules were loaded before the source boundary")
++    if any(_is_reviewed_module(name) for name in sys.modules):
++        raise BoundaryError("Product or peer helper was loaded before the source boundary")
+@@ -322,0 +333,2 @@ def _bind_product_source(source: Path, binding: dict[str, object]) -> None:
++    specification = importlib.util.find_spec("http_peer")
++    _check_module_origin(source, binding, "http_peer", None if specification is None else specification.origin)
+@@ -327 +339 @@ def _check_loaded_product(source: Path, binding: dict[str, object]) -> None:
+-        if name == "lingshu_gate" or name.startswith("lingshu_gate."):
++        if _is_reviewed_module(name):
+@@ -764,0 +777,4 @@ def fixture(root: Path, ambient: dict[str, str], *, entry: bool = False) -> None
++    # Validate the actual helper before create_app can initialize any state.
++    # serve.main's normal import then reuses this exact source-loaded module.
++    importlib.import_module("http_peer")
++    _check_loaded_product(source, layout["source_binding"])
+diff --git a/docs/benchmarks/gate-account-menu-focus-9f8fddd/test_run_owned_e2e.py b/docs/benchmarks/gate-account-menu-focus-9f8fddd/test_run_owned_e2e.py
+index ef2d4fed7a5457fd2a774c578bdc3d86959f66c6..5c9dd7a38194951173662d0750e47e683cee6c27 100644
+--- a/docs/benchmarks/gate-account-menu-focus-9f8fddd/test_run_owned_e2e.py
++++ b/docs/benchmarks/gate-account-menu-focus-9f8fddd/test_run_owned_e2e.py
+@@ -6,0 +7 @@ import hashlib
++import importlib.util
+@@ -8,0 +10 @@ import os
++import py_compile
+@@ -166,0 +169,4 @@ class OwnedBoundaryTests(unittest.TestCase):
++        peer = source / "scripts/e2e/http_peer.py"
++        peer.parent.mkdir(parents=True)
++        peer.write_text("raise RuntimeError('synthetic helper must never execute')\n")
++        files[str(peer.relative_to(source))] = hashlib.sha256(peer.read_bytes()).hexdigest()
+@@ -168,0 +175,64 @@ class OwnedBoundaryTests(unittest.TestCase):
++    def test_preloaded_peer_is_rejected_before_resolving_or_importing_product(self) -> None:
++        source, binding = self.fake_product()
++        old = SimpleNamespace(__file__=str(self.parent / "old-install/http_peer.py"))
++        original_path = list(sys.path)
++        with patch.dict(sys.modules, {"http_peer": old}), patch.object(owned.importlib.util, "find_spec") as resolve:
++            with self.assertRaises(owned.BoundaryError):
++                owned._bind_product_source(source, binding)
++            resolve.assert_not_called()
++        self.assertEqual(sys.path, original_path)
++
++    def test_peer_matching_timestamp_and_size_cache_cannot_supply_old_code(self) -> None:
++        source, binding = self.fake_product()
++        path = source / "scripts/e2e/http_peer.py"
++        stale = b"PEER_IMPLEMENTATION = 'stale---peer'\n"
++        current = b"PEER_IMPLEMENTATION = 'current-peer'\n"
++        self.assertEqual(len(stale), len(current))
++        path.write_bytes(stale)
++        timestamp = int(path.stat().st_mtime)
++        cache = Path(importlib.util.cache_from_source(str(path)))
++        cache.parent.mkdir()
++        py_compile.compile(
++            str(path), cfile=str(cache), doraise=True, invalidation_mode=py_compile.PycInvalidationMode.TIMESTAMP
++        )
++        cached_bytes = cache.read_bytes()
++        path.write_bytes(current)
++        os.utime(path, (timestamp, timestamp))
++        binding["files"]["scripts/e2e/http_peer.py"] = hashlib.sha256(current).hexdigest()
++        # The standard loader demonstrably chooses the still-valid old pyc.
++        ordinary = owned.importlib.machinery.SourceFileLoader("ordinary_peer_probe", str(path))
++        self.assertIn("stale---peer", ordinary.get_code("ordinary_peer_probe").co_consts)
++        finder = owned.ReviewedProductFinder(source, binding)
++        specification = finder.find_spec("http_peer", [str(self.parent / "old-install")])
++        self.assertEqual(specification.origin, str(path))
++        code = specification.loader.get_code("http_peer")
++        self.assertIn("current-peer", code.co_consts)
++        self.assertNotIn("stale---peer", code.co_consts)
++        self.assertEqual(cache.read_bytes(), cached_bytes)
++        self.assertNotIn("http_peer", sys.modules)
++
++    def test_peer_changed_blob_is_rejected_before_compilation(self) -> None:
++        source, binding = self.fake_product()
++        specification = owned.ReviewedProductFinder(source, binding).find_spec("http_peer")
++        (source / "scripts/e2e/http_peer.py").write_text("raise RuntimeError('changed helper bytes')\n")
++        with self.assertRaises(owned.BoundaryError):
++            specification.loader.get_code("http_peer")
++
++    def test_peer_absent_from_binding_cannot_fall_back_to_installed_helper(self) -> None:
++        source, binding = self.fake_product()
++        del binding["files"]["scripts/e2e/http_peer.py"]
++        with self.assertRaises(owned.BoundaryError):
++            owned.ReviewedProductFinder(source, binding).find_spec("http_peer", [str(self.parent / "old-install")])
++
++    def test_actual_peer_file_and_spec_must_both_match_git_bound_source(self) -> None:
++        source, binding = self.fake_product()
++        path = str(source / "scripts/e2e/http_peer.py")
++        old = str(self.parent / "old-install/http_peer.py")
++        for module in [
++            SimpleNamespace(__file__=old, __spec__=SimpleNamespace(origin=path)),
++            SimpleNamespace(__file__=path, __spec__=SimpleNamespace(origin=old)),
++        ]:
++            with self.subTest(module=module), patch.dict(sys.modules, {"http_peer": module}):
++                with self.assertRaises(owned.BoundaryError):
++                    owned._check_loaded_product(source, binding)
++

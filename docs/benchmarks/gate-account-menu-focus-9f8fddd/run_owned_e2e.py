@@ -265,6 +265,11 @@ def _source_check(source: Path) -> dict[str, object]:
 
 
 def _product_location(source: Path, binding: dict[str, object], name: str) -> tuple[Path, str, bool]:
+    if name == "http_peer":
+        relative = "scripts/e2e/http_peer.py"
+        if relative not in binding["files"]:
+            raise BoundaryError("Reviewed peer helper is absent from the Git source binding")
+        return source / relative, binding["files"][relative], False
     if name != "lingshu_gate" and not name.startswith("lingshu_gate."):
         raise BoundaryError("Unexpected product module name")
     stem = "src/" + name.replace(".", "/")
@@ -272,6 +277,11 @@ def _product_location(source: Path, binding: dict[str, object], name: str) -> tu
         if relative in binding["files"]:
             return source / relative, binding["files"][relative], package
     raise BoundaryError("Product module is absent from the reviewed Git tree")
+
+
+def _is_reviewed_module(name: str) -> bool:
+    # Only the product package and this exact fixture dependency are intercepted.
+    return name == "http_peer" or name == "lingshu_gate" or name.startswith("lingshu_gate.")
 
 
 def _check_module_origin(source: Path, binding: dict[str, object], name: str, origin: str | None) -> None:
@@ -300,7 +310,7 @@ class ReviewedProductFinder(importlib.abc.MetaPathFinder):
         self.source, self.binding = source, binding
 
     def find_spec(self, fullname: str, path=None, target=None):
-        if fullname != "lingshu_gate" and not fullname.startswith("lingshu_gate."):
+        if not _is_reviewed_module(fullname):
             return None
         location, digest, package = _product_location(self.source, self.binding, fullname)
         _check_module_origin(self.source, self.binding, fullname, str(location))
@@ -313,18 +323,20 @@ class ReviewedProductFinder(importlib.abc.MetaPathFinder):
 
 
 def _bind_product_source(source: Path, binding: dict[str, object]) -> None:
-    if any(name == "lingshu_gate" or name.startswith("lingshu_gate.") for name in sys.modules):
-        raise BoundaryError("Product modules were loaded before the source boundary")
+    if any(_is_reviewed_module(name) for name in sys.modules):
+        raise BoundaryError("Product or peer helper was loaded before the source boundary")
     sys.path.insert(0, str(source / "src"))
     specification = importlib.util.find_spec("lingshu_gate")
     _check_module_origin(source, binding, "lingshu_gate", None if specification is None else specification.origin)
     sys.meta_path.insert(0, ReviewedProductFinder(source, binding))
     sys.path.insert(1, str(source / "scripts/e2e"))
+    specification = importlib.util.find_spec("http_peer")
+    _check_module_origin(source, binding, "http_peer", None if specification is None else specification.origin)
 
 
 def _check_loaded_product(source: Path, binding: dict[str, object]) -> None:
     for name, module in list(sys.modules.items()):
-        if name == "lingshu_gate" or name.startswith("lingshu_gate."):
+        if _is_reviewed_module(name):
             _check_module_origin(source, binding, name, getattr(module, "__file__", None))
             _check_module_origin(source, binding, name, getattr(getattr(module, "__spec__", None), "origin", None))
 
@@ -762,6 +774,10 @@ def fixture(root: Path, ambient: dict[str, str], *, entry: bool = False) -> None
     os.environ.update(environment)
     _bind_product_source(source, layout["source_binding"])
     _json_write(root / "fixture-launch-intent.json", {"fixture_start_requested": True})
+    # Validate the actual helper before create_app can initialize any state.
+    # serve.main's normal import then reuses this exact source-loaded module.
+    importlib.import_module("http_peer")
+    _check_loaded_product(source, layout["source_binding"])
     gate_main = importlib.import_module("lingshu_gate.main")
     _check_loaded_product(source, layout["source_binding"])
     original_create_app = gate_main.create_app

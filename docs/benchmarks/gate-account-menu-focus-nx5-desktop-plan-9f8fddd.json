@@ -1,7 +1,7 @@
 {
   "schema_version": 2,
   "recorded_at_utc": "2026-10-08T13:40:40.359155+00:00",
-  "status": "Code prepared and pure negative/list-only checks passed; await independent adapter review and explicit nx5 temporary-persistent-state confirmation. No nx5 execution.",
+  "status": "Latest peer-helper repair has pure negative evidence only. Prior preparation and 15-case listing remain bound to exact evidence commit 2ce9078464e54d5e9dc6b66741c846f5815efb58. Independent review and explicit nx5 state approval pending; no nx5 execution.",
   "source_sha": "9f8fddd9709e400517fc2e342ed9889a35751c96",
   "source_tree": "1325f73c41200bf9d9511c230c61e959a05977ca",
   "supersedes": "gate-account-menu-focus-nx5-plan-9f8fddd.json: its 1280/640/390 samples are existing regressions and do not close the four requested desktop targets.",
@@ -145,14 +145,23 @@
     "retries": 0,
     "command_budget_seconds": 180,
     "run_owned_adapter_prepared_or_executed": {
-      "prepared": true,
-      "pure_negative_tests_passed": 35,
+      "prepared": false,
+      "pure_negative_tests_passed": 40,
       "list_only_selected_cases": 15,
       "test_bodies_executed": false,
       "nx5_executed": false,
       "code_path": "docs/benchmarks/gate-account-menu-focus-9f8fddd/run_owned_e2e.py",
-      "code_sha256": "4205d97e5eb323e56234488da0c2c17015911aafe96d80a0f45c60c213778fd9",
-      "source_binding_evidence": "docs/benchmarks/gate-account-menu-focus-nx5-source-binding-9f8fddd.json"
+      "code_sha256": "1255ffc0721b1e6fcfd487b18884e6db51f3a50af019762f4599d2c70cf8261f",
+      "source_binding_evidence": "docs/benchmarks/gate-account-menu-focus-nx5-source-binding-9f8fddd.json",
+      "previous_prepared_adapter": {
+        "prepared": true,
+        "pure_negative_tests_passed": 35,
+        "list_only_selected_cases": 15,
+        "code_sha256": "4205d97e5eb323e56234488da0c2c17015911aafe96d80a0f45c60c213778fd9",
+        "exact_evidence_commit": "2ce9078464e54d5e9dc6b66741c846f5815efb58"
+      },
+      "latest_adapter_prepare_or_list_executed": false,
+      "peer_binding_evidence": "docs/benchmarks/gate-account-menu-focus-nx5-peer-binding-9f8fddd.json"
     }
   },
   "fixture_lifecycle": {

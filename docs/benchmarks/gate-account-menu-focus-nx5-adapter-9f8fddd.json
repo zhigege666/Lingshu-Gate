@@ -1,35 +1,35 @@
 {
   "schema_version": 1,
   "source_sha": "9f8fddd9709e400517fc2e342ed9889a35751c96",
-  "status": "Source/static binding repair prepared; independent adapter review and explicit nx5 state approval still pending",
+  "status": "Peer helper source-binding repair is prepared and pure negative checks passed; independent review remains pending. No Gate or nx5 execution.",
   "test_scope": "Pure boundary regressions only, including an inert child environment and harmless detached process/ephemeral TCP probe. No Gate import/service, real SQLite users, credentials, classifications, grants, OAuth client or browser test body started.",
-  "tests_passed": 35,
+  "tests_passed": 40,
   "adapter": {
     "path": "docs/benchmarks/gate-account-menu-focus-9f8fddd/run_owned_e2e.py",
-    "sha256": "4205d97e5eb323e56234488da0c2c17015911aafe96d80a0f45c60c213778fd9"
+    "sha256": "1255ffc0721b1e6fcfd487b18884e6db51f3a50af019762f4599d2c70cf8261f"
   },
   "tests": {
     "path": "docs/benchmarks/gate-account-menu-focus-9f8fddd/test_run_owned_e2e.py",
-    "sha256": "021ac706d145c7d6ee920ccb1284c9f65be238b6517a607ac2a68b482ab6c1d4"
+    "sha256": "3df6de15d0ec4ca6f38f85a35be151755b4f6f3a5dcf6793fc7690d41ddc912d"
   },
   "checks": [
     {
       "check": "ruff",
-      "started_at_utc": "2026-10-08T15:34:11.748054+00:00",
-      "completed_at_utc": "2026-10-08T15:34:11.757330+00:00",
+      "started_at_utc": "2026-10-08T15:47:19.849790+00:00",
+      "completed_at_utc": "2026-10-08T15:47:19.858402+00:00",
       "exit_code": 0,
-      "output_path": "docs/benchmarks/gate-account-menu-focus-9f8fddd/adapter-source-binding-ruff.log",
+      "output_path": "docs/benchmarks/gate-account-menu-focus-9f8fddd/adapter-peer-binding-ruff.log",
       "bytes": 19,
       "sha256": "82b3e6a6c090a57601d22943bd23fca9218d1031dbe5a7b754092f9a156b4f18"
     },
     {
       "check": "negative-tests",
-      "started_at_utc": "2026-10-08T15:34:11.757514+00:00",
-      "completed_at_utc": "2026-10-08T15:34:13.004391+00:00",
+      "started_at_utc": "2026-10-08T15:47:19.858524+00:00",
+      "completed_at_utc": "2026-10-08T15:47:21.024269+00:00",
       "exit_code": 0,
-      "output_path": "docs/benchmarks/gate-account-menu-focus-9f8fddd/adapter-source-binding-negative-tests.log",
-      "bytes": 5596,
-      "sha256": "f6e9525933a5ca1067e451c94939be077ed5b54349e6a70d5a2d37444d540de1"
+      "output_path": "docs/benchmarks/gate-account-menu-focus-9f8fddd/adapter-peer-binding-negative-tests.log",
+      "bytes": 6475,
+      "sha256": "d8358ba7ef08db42066132dc9984225178f42bde55c21d4735875fbb1c4cc6cc"
     }
   ],
   "prepare_and_list_only": {
@@ -133,7 +133,10 @@
     "original_service_preservation_live_check_here": false,
     "original_service_readonly_identity_unit_execstart_directory_checks": "Mandatory separate root-operator pre/post condition before any later approved nx5 execution; not claimed to have been run in cloud."
   },
-  "previous_receipt_exact_commit": "0bb96f4b9c702511e514dc35363de109078f1064",
+  "previous_receipt_exact_commit": "2ce9078464e54d5e9dc6b66741c846f5815efb58",
   "source_binding_followup_evidence": "docs/benchmarks/gate-account-menu-focus-nx5-source-binding-9f8fddd.json",
-  "actual_served_asset_verification_executed": false
+  "actual_served_asset_verification_executed": false,
+  "peer_binding_followup_evidence": "docs/benchmarks/gate-account-menu-focus-nx5-peer-binding-9f8fddd.json",
+  "latest_adapter_prepare_or_list_executed": false,
+  "previous_prepare_and_list_only_exact_commit": "2ce9078464e54d5e9dc6b66741c846f5815efb58"
 }

@@ -4,8 +4,10 @@ from __future__ import annotations
 
 import json
 import hashlib
+import importlib.util
 import ctypes
 import os
+import py_compile
 from pathlib import Path
 import signal
 import socket
@@ -164,7 +166,75 @@ class OwnedBoundaryTests(unittest.TestCase):
             path = package / name
             path.write_text("raise RuntimeError('synthetic module must never execute')\n")
             files[str(path.relative_to(source))] = hashlib.sha256(path.read_bytes()).hexdigest()
+        peer = source / "scripts/e2e/http_peer.py"
+        peer.parent.mkdir(parents=True)
+        peer.write_text("raise RuntimeError('synthetic helper must never execute')\n")
+        files[str(peer.relative_to(source))] = hashlib.sha256(peer.read_bytes()).hexdigest()
         return source, {"files": files}
+
+    def test_preloaded_peer_is_rejected_before_resolving_or_importing_product(self) -> None:
+        source, binding = self.fake_product()
+        old = SimpleNamespace(__file__=str(self.parent / "old-install/http_peer.py"))
+        original_path = list(sys.path)
+        with patch.dict(sys.modules, {"http_peer": old}), patch.object(owned.importlib.util, "find_spec") as resolve:
+            with self.assertRaises(owned.BoundaryError):
+                owned._bind_product_source(source, binding)
+            resolve.assert_not_called()
+        self.assertEqual(sys.path, original_path)
+
+    def test_peer_matching_timestamp_and_size_cache_cannot_supply_old_code(self) -> None:
+        source, binding = self.fake_product()
+        path = source / "scripts/e2e/http_peer.py"
+        stale = b"PEER_IMPLEMENTATION = 'stale---peer'\n"
+        current = b"PEER_IMPLEMENTATION = 'current-peer'\n"
+        self.assertEqual(len(stale), len(current))
+        path.write_bytes(stale)
+        timestamp = int(path.stat().st_mtime)
+        cache = Path(importlib.util.cache_from_source(str(path)))
+        cache.parent.mkdir()
+        py_compile.compile(
+            str(path), cfile=str(cache), doraise=True, invalidation_mode=py_compile.PycInvalidationMode.TIMESTAMP
+        )
+        cached_bytes = cache.read_bytes()
+        path.write_bytes(current)
+        os.utime(path, (timestamp, timestamp))
+        binding["files"]["scripts/e2e/http_peer.py"] = hashlib.sha256(current).hexdigest()
+        # The standard loader demonstrably chooses the still-valid old pyc.
+        ordinary = owned.importlib.machinery.SourceFileLoader("ordinary_peer_probe", str(path))
+        self.assertIn("stale---peer", ordinary.get_code("ordinary_peer_probe").co_consts)
+        finder = owned.ReviewedProductFinder(source, binding)
+        specification = finder.find_spec("http_peer", [str(self.parent / "old-install")])
+        self.assertEqual(specification.origin, str(path))
+        code = specification.loader.get_code("http_peer")
+        self.assertIn("current-peer", code.co_consts)
+        self.assertNotIn("stale---peer", code.co_consts)
+        self.assertEqual(cache.read_bytes(), cached_bytes)
+        self.assertNotIn("http_peer", sys.modules)
+
+    def test_peer_changed_blob_is_rejected_before_compilation(self) -> None:
+        source, binding = self.fake_product()
+        specification = owned.ReviewedProductFinder(source, binding).find_spec("http_peer")
+        (source / "scripts/e2e/http_peer.py").write_text("raise RuntimeError('changed helper bytes')\n")
+        with self.assertRaises(owned.BoundaryError):
+            specification.loader.get_code("http_peer")
+
+    def test_peer_absent_from_binding_cannot_fall_back_to_installed_helper(self) -> None:
+        source, binding = self.fake_product()
+        del binding["files"]["scripts/e2e/http_peer.py"]
+        with self.assertRaises(owned.BoundaryError):
+            owned.ReviewedProductFinder(source, binding).find_spec("http_peer", [str(self.parent / "old-install")])
+
+    def test_actual_peer_file_and_spec_must_both_match_git_bound_source(self) -> None:
+        source, binding = self.fake_product()
+        path = str(source / "scripts/e2e/http_peer.py")
+        old = str(self.parent / "old-install/http_peer.py")
+        for module in [
+            SimpleNamespace(__file__=old, __spec__=SimpleNamespace(origin=path)),
+            SimpleNamespace(__file__=path, __spec__=SimpleNamespace(origin=old)),
+        ]:
+            with self.subTest(module=module), patch.dict(sys.modules, {"http_peer": module}):
+                with self.assertRaises(owned.BoundaryError):
+                    owned._check_loaded_product(source, binding)
 
     def test_old_venv_origin_is_rejected_without_importing_product(self) -> None:
         source, binding = self.fake_product()
