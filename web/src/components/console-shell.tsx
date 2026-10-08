@@ -1,4 +1,7 @@
-import { useEffect, useRef, useState, type ReactNode } from "react"
+import {
+  cloneElement, forwardRef, isValidElement, useEffect, useImperativeHandle, useLayoutEffect, useRef, useState,
+  type ComponentPropsWithRef, type ComponentRef, type ReactNode, type RefObject,
+} from "react"
 import {
   ApiOutlined, DownOutlined, GlobalOutlined, LogoutOutlined, MenuOutlined, MoonOutlined,
   ReloadOutlined, SearchOutlined, SunOutlined,
@@ -25,12 +28,31 @@ type Props = {
   children: ReactNode
 }
 
+// The dropdown can finish deferred autofocus during its closing animation.
+// Keep the original AntD menu's focus behavior scoped to the current open state.
+const AccountMenuPopup = forwardRef<{ focus: (options?: FocusOptions) => void }, { open: RefObject<boolean>; children: ReactNode }>(function AccountMenuPopup({ open, children }, ref) {
+  const menu = useRef<ComponentRef<typeof Menu>>(null)
+  useImperativeHandle(ref, () => ({ focus: (options?: FocusOptions) => {
+    if (open.current) menu.current?.focus(options)
+  } }), [open])
+  return isValidElement<ComponentPropsWithRef<typeof Menu>>(children)
+    ? cloneElement(children, { ref: menu })
+    : children
+})
+
 export function ConsoleShell({ view, title, user, version, groups, items, busy, onNavigate, onSearch, onRefresh, onLogout, children }: Props) {
   const { theme, setTheme, locale, setLocale } = useConsoleDesign()
   const [mobileOpen, setMobileOpen] = useState(false)
   const [accountOpen, setAccountOpen] = useState(false)
+  const accountMenuOpen = useRef(false)
   const accountTrigger = useRef<HTMLButtonElement>(null)
   const activeNavItem = useRef<HTMLAnchorElement>(null)
+  // Popup content is cached while closing, so its props can retain open=true.
+  // The owner commits current visibility before any deferred focus callback.
+  useLayoutEffect(() => {
+    accountMenuOpen.current = accountOpen
+    return () => { accountMenuOpen.current = false }
+  }, [accountOpen])
   useEffect(() => {
     setAccountOpen(false)
     activeNavItem.current?.scrollIntoView({ block: "nearest" })
@@ -92,7 +114,7 @@ export function ConsoleShell({ view, title, user, version, groups, items, busy, 
         </Tooltip>
         <Button className="console-header-secondary" type="text" icon={<ApiOutlined />} onClick={() => window.open("/docs", "_blank", "noreferrer")}>OpenAPI</Button>
         {user.auth_type !== "disabled" && <Button className="console-header-secondary" type="text" icon={<LogoutOutlined />} onClick={onLogout}>{zh ? "退出登录" : "Sign out"}</Button>}
-        <Dropdown trigger={["click"]} placement="bottomRight" autoFocus destroyOnHidden open={accountOpen} onOpenChange={setAccountOpen} classNames={{ root: "console-account-menu" }} menu={{ onClick: () => {
+        <Dropdown trigger={["click"]} placement="bottomRight" autoFocus destroyOnHidden open={accountOpen} onOpenChange={setAccountOpen} popupRender={menu => <AccountMenuPopup open={accountMenuOpen}>{menu}</AccountMenuPopup>} classNames={{ root: "console-account-menu" }} menu={{ onClick: () => {
           setAccountOpen(false)
           accountTrigger.current?.focus()
         }, items: [

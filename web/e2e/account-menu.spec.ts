@@ -1,7 +1,42 @@
-import { test, expect } from '@playwright/test'
+import { test, expect, type Page } from '@playwright/test'
 import { expectInViewportAndUnobscured, login } from './helpers'
 
 const sizes = [[1600, 900], [1920, 1080], [2560, 1080], [2560, 1440]] as const
+
+type AccountFrameQueue = { hold: () => void; advance: () => void }
+declare global {
+  interface Window { gateAccountFrameQueue: AccountFrameQueue }
+}
+
+// Hold and advance the browser frame queue to exercise close before deferred
+// autofocus. This controls ordering without sleeping or changing dependencies.
+async function controlAccountFrames(page: Page) {
+  await page.addInitScript(() => {
+    const requestFrame = window.requestAnimationFrame.bind(window)
+    const cancelFrame = window.cancelAnimationFrame.bind(window)
+    const pending = new Map<number, FrameRequestCallback>()
+    let held = false
+    let nextId = 0
+    window.requestAnimationFrame = callback => {
+      if (!held) return requestFrame(callback)
+      const id = --nextId
+      pending.set(id, callback)
+      return id
+    }
+    window.cancelAnimationFrame = id => {
+      if (id < 0) pending.delete(id)
+      else cancelFrame(id)
+    }
+    window.gateAccountFrameQueue = {
+      hold: () => { held = true },
+      advance: () => {
+        const callbacks = [...pending.values()]
+        pending.clear()
+        callbacks.forEach(callback => callback(performance.now()))
+      },
+    }
+  })
+}
 
 // Actual isolated sign-in; synthetic identity presentation does not grant access.
 for (const locale of ['zh-CN', 'en-US'] as const) {
@@ -105,4 +140,45 @@ for (const locale of ['en-US', 'zh-CN'] as const) {
     await page.keyboard.press('Escape')
     await expect(account).toBeFocused()
   })
+}
+
+for (const locale of ['en-US', 'zh-CN'] as const) {
+  for (const width of [1280, 640]) {
+    for (const openFrames of [0, 1, 2]) {
+      test(`@smoke @full @account-menu close before autofocus preserves focus: ${locale} ${width}px frame ${openFrames}`, async ({ page }) => {
+        await login(page)
+        await page.addInitScript(value => localStorage.setItem('lingshu-gate-console-locale', value), locale)
+        await controlAccountFrames(page)
+        await page.setViewportSize({ width, height: 720 })
+        await page.goto('/#/servers')
+        const account = page.getByRole('button', { name: locale === 'zh-CN' ? '账号菜单' : 'Account menu', exact: true })
+        const menu = page.locator('.console-account-menu')
+        await expect(account).toHaveAttribute('aria-expanded', 'false')
+        await page.evaluate(() => window.gateAccountFrameQueue.hold())
+        await account.focus()
+        await page.keyboard.press('Enter')
+        await expect(menu.getByRole('menuitem', { name: /(?:^| )OpenAPI$/ })).toHaveCount(1)
+        await expect(account).toHaveAttribute('aria-expanded', 'true')
+        for (let frame = 0; frame < openFrames; frame++) {
+          await page.evaluate(() => window.gateAccountFrameQueue.advance())
+        }
+        await page.keyboard.press('Escape')
+        await expect(account).toHaveAttribute('aria-expanded', 'false')
+        await expect(account).toBeFocused()
+        for (let frame = 0; frame < 6; frame++) {
+          await page.evaluate(() => window.gateAccountFrameQueue.advance())
+        }
+        await expect(account).toBeFocused()
+        // Normal open autofocus still works once its scheduled frames run.
+        await page.keyboard.press('Enter')
+        await expect(account).toHaveAttribute('aria-expanded', 'true')
+        for (let frame = 0; frame < 3; frame++) {
+          await page.evaluate(() => window.gateAccountFrameQueue.advance())
+        }
+        await expect(menu.getByRole('menuitem', { name: /(?:^| )OpenAPI$/ })).toBeFocused()
+        await page.keyboard.press('Escape')
+        await expect(account).toBeFocused()
+      })
+    }
+  }
 }

@@ -1,0 +1,429 @@
+{
+  "schema_version": 1,
+  "recorded_at_utc": "2026-10-08T12:44:41.696669+00:00",
+  "repository": "zhigege666/Lingshu-Gate",
+  "scope": "A candidate repair of an independently reproduced account-menu deferred-focus defect. This is not a unique diagnosis of the prior hosted Source CI failure or the formal release backend failure.",
+  "source_boundary": {
+    "source_ci_run_id": 37768076425,
+    "source_ci_job_id": 113280514473,
+    "source_ci_checkout": "cdf0f530c52dc2e9f16e0b59e210ab9e59dd1fdb",
+    "source_ci_parent_shas": [
+      "a14244caaf3459269546d97d3b3336b3964b380a",
+      "b8150e878feffe1bd5b3784ae3050237e4db643d"
+    ],
+    "source_ci_tree": "7f0679c9fe2ccb26266f057baf26f0b7b2616fd0",
+    "original_ci_log": {
+      "bytes": 115605,
+      "sha256": "6661f6f38cde6865ea385b5f9e4063f2e568aa233bc24c7f9a18cb4d076e3d94"
+    },
+    "original_ci_failed_assertion": "web/e2e/account-menu.spec.ts:106 expect(account).toBeFocused()"
+  },
+  "original_ci_artifact": {
+    "id": 11546608896,
+    "zip_materialized": false,
+    "download_stopped_after_403": true,
+    "retried_for_this_investigation": false
+  },
+  "environment": {
+    "original_host": "GitHub-hosted Ubuntu 24.04",
+    "local_host": "Debian GNU/Linux 13.6",
+    "node": "22.23.3",
+    "npm": "10.9.9",
+    "local_python": "3.12.14",
+    "original_python": "3.12.15",
+    "chromium": "153.0.8010.12",
+    "playwright_chromium_revision": "1243",
+    "dependencies": {
+      "@rc-component/dropdown": "1.0.3",
+      "@rc-component/menu": "1.5.0",
+      "@rc-component/util": "1.13.0",
+      "@playwright/test": "1.63.0",
+      "react": "19.3.0",
+      "react-dom": "19.3.0",
+      "antd": "6.6.5"
+    },
+    "package_lock_sha256": "62b5b7f7e177f9c2016831908f4cf18a2a0d0242a3d70a1d129fe2c983b47e48",
+    "frozen_install": true,
+    "original_1280x720_viewport_reproduced": true,
+    "hosted_runner_image_reproduced": false,
+    "original_failed_trace_available": false,
+    "node_distribution_sha256": "df450af89261115ef9f9e3830c3eeb2cc9213b63c720b1af623cb5dcbe2e02de",
+    "local_uv": "uv 0.12.19 (x86_64-unknown-linux-gnu)",
+    "original_ci_uv": "uv 0.11.33"
+  },
+  "observations": {
+    "original_unmodified_blank_role_cases": {
+      "exit_code": 0,
+      "stats": {
+        "startTime": "2026-10-08T12:23:19.512Z",
+        "duration": 23329.581,
+        "expected": 20,
+        "skipped": 0,
+        "unexpected": 0,
+        "flaky": 0
+      },
+      "raw_receipt": {
+        "file_name": "baseline-natural-results.json",
+        "bytes": 25382,
+        "sha256": "4e58bfa0d436d17f6e573222be7b98080ed9f3c43e69eea48bce46d20d7541f7"
+      }
+    },
+    "controlled_dom_click_before_change": {
+      "exit_code": 1,
+      "stats": {
+        "startTime": "2026-10-08T12:25:36.363Z",
+        "duration": 123827.499,
+        "expected": 8,
+        "skipped": 0,
+        "unexpected": 12,
+        "flaky": 0
+      },
+      "raw_receipt": {
+        "file_name": "controlled-results.json",
+        "bytes": 95045,
+        "sha256": "4cf1e8413391082a31289c3ca44f859812484cefa4ba0b31225b32393b673d9e"
+      }
+    },
+    "controlled_trusted_enter_before_change": {
+      "exit_code": 1,
+      "stats": {
+        "startTime": "2026-10-08T12:28:46.354Z",
+        "duration": 44345.594,
+        "expected": 4,
+        "skipped": 0,
+        "unexpected": 4,
+        "flaky": 0
+      },
+      "raw_receipt": {
+        "file_name": "keyboard-controlled-results.json",
+        "bytes": 35569,
+        "sha256": "94ae70ecf71db26e40bf2afa80f03f7188e2415efd3e06160b407a900238bf4f"
+      }
+    },
+    "regression_before_change": {
+      "exit_code": 1,
+      "stats": {
+        "startTime": "2026-10-08T12:31:41.647Z",
+        "duration": 116252.341,
+        "expected": 0,
+        "skipped": 0,
+        "unexpected": 12,
+        "flaky": 0
+      },
+      "raw_receipt": {
+        "file_name": "regression-before-results.json",
+        "bytes": 83244,
+        "sha256": "a37556e9e94584f6b65c9d872478b9a249bfae4bf5619c6d73fb8ca13de96a24"
+      }
+    },
+    "original_source_preserved_for_before_change": true,
+    "computed_menu_style_before_change": {
+      "viewport": {
+        "width": 1280,
+        "height": 720,
+        "mobileMedia": false
+      },
+      "openapi_item_display": "flex",
+      "note": "The source min-width CSS intended to hide mobile-only actions did not establish their rendered invisibility. In the controlled 1280px experiment, the OpenAPI menu item was visible and focusable. The exact CSS cascade winner was not investigated."
+    },
+    "trusted_enter_example": {
+      "locale": "en-US",
+      "viewport": {
+        "width": 1280,
+        "height": 720
+      },
+      "open_frames_before_escape": 0,
+      "before": {
+        "raw_observation_bytes": 67933,
+        "raw_observation_sha256": "de6bda6b6c9cfce7264d697f5851460ccdea2ce71664fe351f34f6f14a406c88",
+        "focus_calls": [
+          {
+            "frame": 0,
+            "time_milliseconds": 577.2,
+            "target_tag": "BUTTON",
+            "target_text": "SSynthetic roles",
+            "target_display": "flex",
+            "previous_active_tag": "BUTTON",
+            "previous_active_expanded": "true",
+            "stack": [
+              "    at HTMLDocument.closeOnEscape (http://127.0.0.1:18763/assets/index-BblcVoBI.js:42:59149)"
+            ]
+          },
+          {
+            "frame": 3,
+            "time_milliseconds": 619.6,
+            "target_tag": "LI",
+            "target_text": "OpenAPI",
+            "target_display": "flex",
+            "previous_active_tag": "BUTTON",
+            "previous_active_expanded": "false",
+            "stack": [
+              "    at Object.focus (http://127.0.0.1:18763/assets/es-BlfxCsxF.js:1:36844)",
+              "    at Object.focus (http://127.0.0.1:18763/assets/index-BblcVoBI.js:14:12513)",
+              "    at focusMenu (http://127.0.0.1:18763/assets/es-BlfxCsxF.js:1:817)",
+              "    at callRef (http://127.0.0.1:18763/assets/tooltip-C2ZjJ2UH.js:9:116825)"
+            ]
+          }
+        ],
+        "states": [
+          {
+            "phase": "before-escape",
+            "active_tag": "BUTTON",
+            "active_text": "SSynthetic roles",
+            "trigger_expanded": "true"
+          },
+          {
+            "phase": "after-escape",
+            "active_tag": "BUTTON",
+            "active_text": "SSynthetic roles",
+            "trigger_expanded": "false"
+          },
+          {
+            "phase": "controlled frame",
+            "active_tag": "BUTTON",
+            "active_text": "SSynthetic roles",
+            "trigger_expanded": "false"
+          },
+          {
+            "phase": "controlled frame",
+            "active_tag": "BUTTON",
+            "active_text": "SSynthetic roles",
+            "trigger_expanded": "false"
+          },
+          {
+            "phase": "controlled frame",
+            "active_tag": "LI",
+            "active_text": "OpenAPI",
+            "trigger_expanded": "false"
+          },
+          {
+            "phase": "controlled frame",
+            "active_tag": "LI",
+            "active_text": "OpenAPI",
+            "trigger_expanded": "false"
+          },
+          {
+            "phase": "controlled frame",
+            "active_tag": "LI",
+            "active_text": "OpenAPI",
+            "trigger_expanded": "false"
+          },
+          {
+            "phase": "controlled frame",
+            "active_tag": "LI",
+            "active_text": "OpenAPI",
+            "trigger_expanded": "false"
+          }
+        ],
+        "final_active_tag": "BODY",
+        "final_trigger_expanded": "false"
+      },
+      "after": {
+        "raw_observation_bytes": 61714,
+        "raw_observation_sha256": "a08d2af83ec2e6430c4a5cb1a4f176d62aba435051604e1be88add83c6fea93d",
+        "focus_calls": [
+          {
+            "frame": 0,
+            "time_milliseconds": 585.8,
+            "target_tag": "BUTTON",
+            "target_text": "SSynthetic roles",
+            "target_display": "flex",
+            "previous_active_tag": "BUTTON",
+            "previous_active_expanded": "true",
+            "stack": [
+              "    at HTMLDocument.closeOnEscape (http://127.0.0.1:18763/assets/index-wPmZbLUa.js:42:59669)"
+            ]
+          }
+        ],
+        "states": [
+          {
+            "phase": "before-escape",
+            "active_tag": "BUTTON",
+            "active_text": "SSynthetic roles",
+            "trigger_expanded": "true"
+          },
+          {
+            "phase": "after-escape",
+            "active_tag": "BUTTON",
+            "active_text": "SSynthetic roles",
+            "trigger_expanded": "false"
+          },
+          {
+            "phase": "controlled frame",
+            "active_tag": "BUTTON",
+            "active_text": "SSynthetic roles",
+            "trigger_expanded": "false"
+          },
+          {
+            "phase": "controlled frame",
+            "active_tag": "BUTTON",
+            "active_text": "SSynthetic roles",
+            "trigger_expanded": "false"
+          },
+          {
+            "phase": "controlled frame",
+            "active_tag": "BUTTON",
+            "active_text": "SSynthetic roles",
+            "trigger_expanded": "false"
+          },
+          {
+            "phase": "controlled frame",
+            "active_tag": "BUTTON",
+            "active_text": "SSynthetic roles",
+            "trigger_expanded": "false"
+          },
+          {
+            "phase": "controlled frame",
+            "active_tag": "BUTTON",
+            "active_text": "SSynthetic roles",
+            "trigger_expanded": "false"
+          },
+          {
+            "phase": "controlled frame",
+            "active_tag": "BUTTON",
+            "active_text": "SSynthetic roles",
+            "trigger_expanded": "false"
+          }
+        ],
+        "final_active_tag": "BUTTON",
+        "final_trigger_expanded": "false"
+      }
+    }
+  },
+  "proven_defect": {
+    "trigger": "Escape before the three queued dropdown autofocus frames have run.",
+    "sequence": [
+      "The Console capture listener closes the menu and focuses its trigger.",
+      "The stale dropdown autofocus subsequently calls the Menu focus API while the trigger reports aria-expanded=false.",
+      "The visible OpenAPI menu item becomes active; after its menu unmounts, activeElement is BODY."
+    ],
+    "locked_dependency_evidence": {
+      "dropdown": "@rc-component/dropdown@1.0.3 es/hooks/useAccessibility.js schedules raf(focusMenu, 3) without cancellation in its close cleanup.",
+      "popup_cache": "@rc-component/trigger PopupContent memoizes children while closing, so a boolean open prop on the popup can remain true."
+    },
+    "limits": [
+      "The unmodified original two cases passed all 20 local natural observations. This does not invalidate the prior real CI failure.",
+      "The controlled local experiment establishes a defect and a before/after regression, but cannot prove that it uniquely caused the original hosted CI failure without that original trace."
+    ]
+  },
+  "candidate_repair": {
+    "files": [
+      "web/src/components/console-shell.tsx",
+      "web/e2e/account-menu.spec.ts"
+    ],
+    "behavior": "Forward the existing AntD menu focus API only while the owning ConsoleShell is currently open. Read owner visibility from a stable ref committed in a layout effect, outside cached popup props.",
+    "keeps_initial_autofocus": true,
+    "adds_dom_wrapper": false,
+    "changes_dependencies": false,
+    "changes_styles": false,
+    "changes_version": false,
+    "changes_permissions": false,
+    "changes_pr59_or_frozen_product_commit": false,
+    "test_changes": "Add twelve trusted-Enter early-Escape cases across en-US/zh-CN, 1280px/640px, and open frame 0/1/2. Assert immediate focus return and sustained focus after six queued frames, then verify normal reopen autofocus. Keep all original assertions and timeouts.",
+    "adds_sleeps_or_retries": false,
+    "rejected_intermediate_experiment": {
+      "behavior": "A guard that read the popup boolean open prop was insufficient because closing popup content retains cached open=true.",
+      "result": {
+        "exit_code": 1,
+        "stats": {
+          "startTime": "2026-10-08T12:35:30.397Z",
+          "duration": 178157.788,
+          "expected": 29,
+          "skipped": 0,
+          "unexpected": 12,
+          "flaky": 0
+        },
+        "raw_receipt": {
+          "file_name": "fixed-smoke-results.json",
+          "bytes": 116150,
+          "sha256": "d73b3b1a513945208eac14693516d68ba7e8ddc26e5c98254e02fd3d2f143d15"
+        }
+      },
+      "final_candidate_uses_this_rejected_approach": false
+    }
+  },
+  "validation": {
+    "current_state_guard_browser_smoke": {
+      "exit_code": 0,
+      "stats": {
+        "startTime": "2026-10-08T12:40:27.922Z",
+        "duration": 69090.738,
+        "expected": 41,
+        "skipped": 0,
+        "unexpected": 0,
+        "flaky": 0
+      },
+      "raw_receipt": {
+        "file_name": "current-state-smoke-results.json",
+        "bytes": 49373,
+        "sha256": "7f1f60e934f6ff4bb5604c112915e24653fc48b1aa7a693de275c3bc92dccd60"
+      }
+    },
+    "same_instrumented_trusted_enter_observations_after_change": {
+      "exit_code": 0,
+      "stats": {
+        "startTime": "2026-10-08T12:42:17.351Z",
+        "duration": 11640.37,
+        "expected": 8,
+        "skipped": 0,
+        "unexpected": 0,
+        "flaky": 0
+      },
+      "raw_receipt": {
+        "file_name": "current-state-observation-results.json",
+        "bytes": 13663,
+        "sha256": "291f3bc3bebd4167209e0072aebcaa3515af3c849b3ebcba650de097e1cdd7bd"
+      }
+    },
+    "frontend_tests": {
+      "files_passed": 75,
+      "tests_passed": 455,
+      "duration_seconds": 19.93,
+      "raw_log": {
+        "file_name": "current-state-web-test.log",
+        "bytes": 773,
+        "sha256": "ee40ee33dbb57ac3cc0fe15e1caef8a4120bfa04c93f848d44550c4730c15267"
+      }
+    },
+    "typecheck_and_ux_source_contract": {
+      "exit_code": 0,
+      "raw_log": {
+        "file_name": "current-state-web-check.log",
+        "bytes": 426,
+        "sha256": "d1c0aeac257790ad20a5343d2b92c91489739ce07d0de1b9f85682bba923f5da"
+      }
+    },
+    "web_build": {
+      "exit_code": 0,
+      "raw_log": {
+        "file_name": "current-state-web-build.log",
+        "bytes": 14340,
+        "sha256": "234ed491f4798860725941c769aec2359f742d3133a1f3d32d3c19f3325f0511"
+      }
+    },
+    "browser_smoke_raw_log": {
+      "file_name": "current-state-smoke.log",
+      "bytes": 5822,
+      "sha256": "4630a02d769b0fe45ad664c82a4594bfa0638b8bd3336c7fdfb96cb581886b6a"
+    },
+    "git_diff_check": "passed",
+    "hosted_ci": "not run for this branch",
+    "independent_review": "pending",
+    "repository_identity_and_history": "passed",
+    "release_version_consistency": "passed"
+  },
+  "publication_boundary": {
+    "formal_diagnostic_workflow_head": "31939e2701c39181b31ef79ffb51a7d43666cc60",
+    "pr59_head": "b8150e878feffe1bd5b3784ae3050237e4db643d",
+    "product_tag_sha": "c0ea7d04cd16ac01536d0c0f00edab0c5ffc349e",
+    "formal_diagnostic_failure_nodeid": "unknown; raw downloads blocked",
+    "new_formal_runs_started": 0,
+    "existing_ci_reruns_started": 0,
+    "pull_request_opened": false,
+    "main_merged": false,
+    "tag_changed": false,
+    "release_published": false,
+    "wheel_or_native_packages_built_for_this_focus_candidate": false,
+    "formal_package_hashes": null
+  }
+}
