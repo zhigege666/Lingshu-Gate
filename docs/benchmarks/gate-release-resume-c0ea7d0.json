@@ -1,0 +1,100 @@
+{
+  "schema_version": 1,
+  "repository": "zhigege666/Lingshu-Gate",
+  "recorded_at_utc": "2026-10-08T10:26:38.014968+00:00",
+  "review_base_sha": "9816f696d513c340bbf8ba5fab7f3c9c94d84a08",
+  "product_source": {
+    "tag": "v0.4.5",
+    "commit": "c0ea7d04cd16ac01536d0c0f00edab0c5ffc349e",
+    "tree": "716da35e388aab6784d8b41d6ae4e79a4c17f948"
+  },
+  "entrypoint": {
+    "workflow": ".github/workflows/release.yml",
+    "event": "workflow_dispatch",
+    "ref": "main",
+    "inputs": {
+      "existing_tag": "v0.4.5"
+    },
+    "status": "Prepared for independent review; not dispatched"
+  },
+  "identity_contract": {
+    "recovery_whitelist": "Exact existing v0.4.5 commit and tree only, from main workflow dispatch",
+    "tooling": "Extract the identity helper from the exact GITHUB_WORKFLOW_SHA Git object; verify the workflow ref and commit separately from the product source",
+    "product_jobs": [
+      "version",
+      "quality",
+      "native",
+      "docker-compose",
+      "docker-publish",
+      "docker-offline",
+      "publish"
+    ],
+    "packaging_metadata": "The child command omits only the workflow event GITHUB_SHA so unchanged product helpers read their actual Git checkout; the workflow context and workflow SHA are preserved",
+    "attestation": "Retain strict default provenance verification for the reviewed workflow; additionally require a timestamped signed product-source predicate for the exact product commit/tree/tag, workflow revision, current run/attempt and successful formal jobs, on every asset, before promotion or publication",
+    "release_metadata": "Read immutability settings before publication; verify immutable title/body and exact asset set against source notes and local bytes"
+  },
+  "formal_assets": [
+    "SHA256SUMS",
+    "lingshu-gate-v0.4.5-application-sbom.spdx.json",
+    "lingshu-gate-v0.4.5-container-image.txt",
+    "lingshu-gate-v0.4.5-docker-compose.tar.gz",
+    "lingshu-gate-v0.4.5-docker-core-linux-amd64.tar.gz",
+    "lingshu-gate-v0.4.5-docker-core-linux-arm64.tar.gz",
+    "lingshu-gate-v0.4.5-linux-aarch64.tar.gz",
+    "lingshu-gate-v0.4.5-linux-x86_64.tar.gz",
+    "lingshu-gate-v0.4.5-macos-arm64.tar.gz",
+    "lingshu-gate-v0.4.5-macos-x86_64.tar.gz",
+    "lingshu-gate-v0.4.5-windows-x86_64.zip"
+  ],
+  "validation": {
+    "command": "pytest -q tests/test_release_recovery_identity.py tests/test_ci_workflows.py tests/test_auto_release.py tests/test_release_packaging.py tests/test_wheel_build.py",
+    "result": "274 passed in 43.33s",
+    "python": "3.13.15",
+    "pytest": "9.1.1",
+    "uv": "0.12.19",
+    "node": "24.19.0",
+    "dependency_install": "uv sync --frozen --group release; npm ci",
+    "snapshot": "Independent verification snapshot from the review base Git archive plus scoped candidate files, preserving the original Git executable modes. Source worktree permissions unchanged.",
+    "raw_log": {
+      "filename": "contracts-and-packaging-final.log",
+      "bytes": 341,
+      "sha256": "c227791b499817d6c5124795839c1662395ba877ad61e66b3febdd58475ba04d"
+    },
+    "ruff": "All checks passed",
+    "mypy": "Success: no issues found in 158 source files",
+    "diff_check": "passed",
+    "actual_c0_metadata_process": {
+      "source_revision": "c0ea7d04cd16ac01536d0c0f00edab0c5ffc349e",
+      "event_sha_present": false,
+      "workflow_sha": "9816f696d513c340bbf8ba5fab7f3c9c94d84a08"
+    }
+  },
+  "fixed_source_diagnostic": {
+    "run_id": 37755829068,
+    "job_id": 113240011198,
+    "attempt": 1,
+    "workflow_sha": "9816f696d513c340bbf8ba5fab7f3c9c94d84a08",
+    "source_sha": "c0ea7d04cd16ac01536d0c0f00edab0c5ffc349e",
+    "runner": "ubuntu-22.04",
+    "python": "3.13.15",
+    "result": "2311 passed, 7 skipped, 134 subtests passed in 1361.54s",
+    "original_collected_items": 2318,
+    "raw_log_bytes": 1259046,
+    "raw_log_sha256": "e885fcf752864bc0b496ee6d490c5b558c1d351a690189badc63112e82134485",
+    "artifact_id": 11540892867,
+    "artifact_bytes": 365213,
+    "artifact_api_sha256": "7c430590060bd9cbdfadbadd55ad0823aa6982ccad7e3ef51b9323596da8f5fd",
+    "limit": "This successful diagnostic is not a substitute for the formal quality gate and does not identify the earlier two failure nodes. Artifact API identity is recorded; independent ZIP verification belongs to the root reviewer."
+  },
+  "preserved_boundaries": [
+    "Product source, versions and workflow job permissions unchanged",
+    "Existing v0.4.5 tag unchanged; no tag creation, deletion or replacement",
+    "Original formal Release failure and ordinary main TTL failure evidence remain open",
+    "TTL test repair is separate in draft PR 58",
+    "No formal dispatch, publisher action, asset publication or SSH operation"
+  ],
+  "remaining_validation": [
+    "Independent root review and normal pull-request CI",
+    "Formal Ubuntu 22 quality, five native targets, Compose, Core candidate, offline images and immutable publication gates must actually succeed after explicit launch authorization"
+  ]
+}
