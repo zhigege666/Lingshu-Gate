@@ -1,0 +1,239 @@
+{
+  "schema_version": 1,
+  "captured_at_utc": "2026-10-09 16:25:24 UTC",
+  "source_revision": "7a38dca72351a58b59ee7712f3296764848333be",
+  "base_revision": "3e0f101ed858c94841a1f75b3ef23ee4d52e2e1b",
+  "ci_checkout_revision": "171d98a66b962cbbcadb5f382c06a97781353820",
+  "ci_checkout_tree": "b6d33c23ea90174da2d8ab1d9aa0364599f6437c",
+  "ci_checkout_tree_matches_candidate": true,
+  "ordinary_ci": {
+    "run_id": 37952409071,
+    "url": "https://github.com/zhigege666/Lingshu-Gate/actions/runs/37952409071",
+    "status": "completed",
+    "conclusion": "success"
+  },
+  "release_pr_ci": {
+    "run_id": 37952409061,
+    "url": "https://github.com/zhigege666/Lingshu-Gate/actions/runs/37952409061",
+    "status": "completed",
+    "conclusion": "success"
+  },
+  "source_checks": {
+    "job_id": 113894281737,
+    "backend": {
+      "passed": 2332,
+      "skipped": 7,
+      "subtests_passed": 134,
+      "elapsed_seconds": 1232.09
+    },
+    "frontend": {
+      "passed": 455,
+      "files": 75
+    },
+    "isolated_real_backend_browser_smoke": {
+      "passed": 41,
+      "elapsed_seconds": 58.5
+    },
+    "ruff": "passed",
+    "mypy": {
+      "result": "passed",
+      "source_files": 158
+    }
+  },
+  "checks": [
+    {
+      "name": "CI result",
+      "job_id": 113914848427,
+      "status": "completed",
+      "conclusion": "success",
+      "url": "https://github.com/zhigege666/Lingshu-Gate/actions/runs/37952409071/job/113914848427",
+      "completed_at_utc": "2026-10-09T16:20:56Z"
+    },
+    {
+      "name": "Publish GitHub Release",
+      "job_id": 113904932751,
+      "status": "completed",
+      "conclusion": "skipped",
+      "url": "https://github.com/zhigege666/Lingshu-Gate/actions/runs/37952409061/job/113904932751",
+      "completed_at_utc": "2026-10-09T15:57:12Z"
+    },
+    {
+      "name": "Python 3.11",
+      "job_id": 113904030524,
+      "status": "completed",
+      "conclusion": "success",
+      "url": "https://github.com/zhigege666/Lingshu-Gate/actions/runs/37952409071/job/113904030524",
+      "completed_at_utc": "2026-10-09T16:18:16Z"
+    },
+    {
+      "name": "Python 3.13",
+      "job_id": 113904030136,
+      "status": "completed",
+      "conclusion": "success",
+      "url": "https://github.com/zhigege666/Lingshu-Gate/actions/runs/37952409071/job/113904030136",
+      "completed_at_utc": "2026-10-09T16:20:51Z"
+    },
+    {
+      "name": "Offline Core images",
+      "job_id": 113894952192,
+      "status": "completed",
+      "conclusion": "skipped",
+      "url": "https://github.com/zhigege666/Lingshu-Gate/actions/runs/37952409061/job/113894952192",
+      "completed_at_utc": "2026-10-09T15:33:19Z"
+    },
+    {
+      "name": "Build verified Core image candidate",
+      "job_id": 113894951544,
+      "status": "completed",
+      "conclusion": "skipped",
+      "url": "https://github.com/zhigege666/Lingshu-Gate/actions/runs/37952409061/job/113894951544",
+      "completed_at_utc": "2026-10-09T15:33:18Z"
+    },
+    {
+      "name": "Native linux-x86_64",
+      "job_id": 113894948858,
+      "status": "completed",
+      "conclusion": "success",
+      "url": "https://github.com/zhigege666/Lingshu-Gate/actions/runs/37952409061/job/113894948858",
+      "completed_at_utc": "2026-10-09T15:35:18Z"
+    },
+    {
+      "name": "Native macos-arm64",
+      "job_id": 113894948833,
+      "status": "completed",
+      "conclusion": "success",
+      "url": "https://github.com/zhigege666/Lingshu-Gate/actions/runs/37952409061/job/113894948833",
+      "completed_at_utc": "2026-10-09T15:34:42Z"
+    },
+    {
+      "name": "Docker Compose bundle",
+      "job_id": 113894948822,
+      "status": "completed",
+      "conclusion": "success",
+      "url": "https://github.com/zhigege666/Lingshu-Gate/actions/runs/37952409061/job/113894948822",
+      "completed_at_utc": "2026-10-09T15:33:57Z"
+    },
+    {
+      "name": "Native windows-x86_64",
+      "job_id": 113894948820,
+      "status": "completed",
+      "conclusion": "success",
+      "url": "https://github.com/zhigege666/Lingshu-Gate/actions/runs/37952409061/job/113894948820",
+      "completed_at_utc": "2026-10-09T15:35:13Z"
+    },
+    {
+      "name": "Native macos-x86_64",
+      "job_id": 113894948815,
+      "status": "completed",
+      "conclusion": "success",
+      "url": "https://github.com/zhigege666/Lingshu-Gate/actions/runs/37952409061/job/113894948815",
+      "completed_at_utc": "2026-10-09T15:57:12Z"
+    },
+    {
+      "name": "Native linux-aarch64",
+      "job_id": 113894948759,
+      "status": "completed",
+      "conclusion": "success",
+      "url": "https://github.com/zhigege666/Lingshu-Gate/actions/runs/37952409061/job/113894948759",
+      "completed_at_utc": "2026-10-09T15:34:52Z"
+    },
+    {
+      "name": "CodeQL",
+      "job_id": 113894659992,
+      "status": "completed",
+      "conclusion": "success",
+      "url": "https://github.com/zhigege666/Lingshu-Gate/runs/113894659992",
+      "completed_at_utc": "2026-10-09T15:32:43Z"
+    },
+    {
+      "name": "Validate multi-architecture Core image",
+      "job_id": 113894652035,
+      "status": "completed",
+      "conclusion": "skipped",
+      "url": "https://github.com/zhigege666/Lingshu-Gate/actions/runs/37952409122/job/113894652035",
+      "completed_at_utc": "2026-10-09T15:32:37Z"
+    },
+    {
+      "name": "Release quality gate",
+      "job_id": 113894344329,
+      "status": "completed",
+      "conclusion": "success",
+      "url": "https://github.com/zhigege666/Lingshu-Gate/actions/runs/37952409061/job/113894344329",
+      "completed_at_utc": "2026-10-09T15:33:18Z"
+    },
+    {
+      "name": "Analyze javascript-typescript",
+      "job_id": 113894283184,
+      "status": "completed",
+      "conclusion": "success",
+      "url": "https://github.com/zhigege666/Lingshu-Gate/actions/runs/37952409296/job/113894283184",
+      "completed_at_utc": "2026-10-09T15:32:58Z"
+    },
+    {
+      "name": "Analyze python",
+      "job_id": 113894282778,
+      "status": "completed",
+      "conclusion": "success",
+      "url": "https://github.com/zhigege666/Lingshu-Gate/actions/runs/37952409296/job/113894282778",
+      "completed_at_utc": "2026-10-09T15:32:53Z"
+    },
+    {
+      "name": "Validate release version",
+      "job_id": 113894281876,
+      "status": "completed",
+      "conclusion": "success",
+      "url": "https://github.com/zhigege666/Lingshu-Gate/actions/runs/37952409061/job/113894281876",
+      "completed_at_utc": "2026-10-09T15:31:54Z"
+    },
+    {
+      "name": "Source checks",
+      "job_id": 113894281737,
+      "status": "completed",
+      "conclusion": "success",
+      "url": "https://github.com/zhigege666/Lingshu-Gate/actions/runs/37952409071/job/113894281737",
+      "completed_at_utc": "2026-10-09T15:55:02Z"
+    },
+    {
+      "name": "Cosign OCI env-key signing smoke",
+      "job_id": 113894281665,
+      "status": "completed",
+      "conclusion": "success",
+      "url": "https://github.com/zhigege666/Lingshu-Gate/actions/runs/37952409061/job/113894281665",
+      "completed_at_utc": "2026-10-09T15:32:12Z"
+    },
+    {
+      "name": "Validate container contracts",
+      "job_id": 113894281571,
+      "status": "completed",
+      "conclusion": "success",
+      "url": "https://github.com/zhigege666/Lingshu-Gate/actions/runs/37952409122/job/113894281571",
+      "completed_at_utc": "2026-10-09T15:32:37Z"
+    },
+    {
+      "name": "QEMU multi-architecture execution smoke",
+      "job_id": 113894281354,
+      "status": "completed",
+      "conclusion": "success",
+      "url": "https://github.com/zhigege666/Lingshu-Gate/actions/runs/37952409122/job/113894281354",
+      "completed_at_utc": "2026-10-09T15:32:31Z"
+    }
+  ],
+  "review": {
+    "automatic_security_review": {
+      "status": "completed",
+      "source_revision": "7a38dca72351a58b59ee7712f3296764848333be",
+      "completed_at_utc": "2026-10-09T15:35:32.650305Z"
+    },
+    "ordinary_automatic_code_review": {
+      "status": "not-executed",
+      "reason": "usage allowance exhausted"
+    },
+    "independent_code_review": "pending"
+  },
+  "formal_publication": {
+    "status": "not-started",
+    "verified_downloadable_assets": 0,
+    "expected_assets": 11
+  },
+  "scope": "Exact PR source/checkout and completed ordinary/PR packaging gates. PR-skipped formal jobs are not passed formal gates. Independent code review and actual publication remain separate."
+}
