@@ -1,5 +1,5 @@
 {
-  "recorded_utc": "2026-10-09T17:45:48.531703+00:00",
+  "recorded_utc": "2026-10-09T18:04:27.417185+00:00",
   "formal_source_revision": "d228cf7ad27f2688cc6e04e5210c8aa2ea88b646",
   "formal_source_tree": "b6d33c23ea90174da2d8ab1d9aa0364599f6437c",
   "immutable_tag": "v0.4.6",
@@ -114,7 +114,7 @@
         "bytes": 4137,
         "sha256": "c647f979c7dd35584668645d4301feee7e136e1a6d81516eae6612d15bdf1f4e"
       },
-      "controller_exit_code": null,
+      "controller_exit_code": 0,
       "controller_receipt_limitation": "The executor session handle was lost during reconnection. The complete pytest summary and JUnit were retained, but the controller exited without persisting its final pytest exit-code row.",
       "owned_controller_running_at_observation": false,
       "observed_utc": "2026-10-09T17:41:27.697526Z",
@@ -141,7 +141,15 @@
         }
       ],
       "session_started_utc": "2026-10-09T17:12:36.407866+00:00",
-      "junit_completed_file_utc": "2026-10-09T17:32:35.242468+00:00"
+      "junit_completed_file_utc": "2026-10-09T17:32:35.242468+00:00",
+      "controller_exit_provenance": {
+        "observed_utc": "2026-10-09T18:02:58.195904+00:00",
+        "saved_owned_start_ticks_match": true,
+        "kernel_wait_status": 0,
+        "controller_state": "exited; retained as a zombie by its executor parent",
+        "original_pytest_process_present": false,
+        "scope": "This recovers the reproduction controller exit code. The separate pytest child exit code was not retained after the executor session handle was lost; the original completed test summary and JUnit remain unchanged."
+      }
     },
     "operating_system_observation_after_tests": {
       "observed_utc": "2026-10-09T17:45:48.531703+00:00",
