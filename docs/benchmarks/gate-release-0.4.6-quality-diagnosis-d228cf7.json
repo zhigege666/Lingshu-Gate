@@ -1,0 +1,210 @@
+{
+  "recorded_utc": "2026-10-09T17:45:48.531703+00:00",
+  "formal_source_revision": "d228cf7ad27f2688cc6e04e5210c8aa2ea88b646",
+  "formal_source_tree": "b6d33c23ea90174da2d8ab1d9aa0364599f6437c",
+  "immutable_tag": "v0.4.6",
+  "scope": "Failure correlation and complete local quality reproduction. This receipt does not establish the formal failure cause or publication success.",
+  "formal_release": {
+    "run_id": 37959237474,
+    "url": "https://github.com/zhigege666/Lingshu-Gate/actions/runs/37959237474",
+    "status": "completed",
+    "conclusion": "failure",
+    "failed_job_id": 113917608167,
+    "failed_job_name": "Release quality gate",
+    "job_started_utc": "2026-10-09T16:27:36Z",
+    "job_completed_utc": "2026-10-09T17:02:25Z",
+    "job_timeout_minutes": 40,
+    "failed_step_number": 10,
+    "failed_step_name": "Verify backend and release engineering",
+    "commands": [
+      "uv run --no-sync ruff check .",
+      "uv run --no-sync mypy",
+      "uv run --no-sync pytest -q"
+    ],
+    "first_failure_test": null,
+    "traceback": null,
+    "cause": null,
+    "reason_not_determined": "The normal approved job-log tool returned Transport closed. Step metadata gives no command-specific failure or traceback.",
+    "downstream_jobs": [
+      {
+        "name": "Native ${{ matrix.target }}",
+        "conclusion": "skipped"
+      },
+      {
+        "name": "Build verified Core image candidate",
+        "conclusion": "skipped"
+      },
+      {
+        "name": "Docker Compose bundle",
+        "conclusion": "skipped"
+      },
+      {
+        "name": "Offline Core images",
+        "conclusion": "skipped"
+      },
+      {
+        "name": "Publish GitHub Release",
+        "conclusion": "skipped"
+      }
+    ],
+    "formal_assets_generated": false
+  },
+  "same_commit_ordinary_ci": {
+    "run_id": 37959194625,
+    "url": "https://github.com/zhigege666/Lingshu-Gate/actions/runs/37959194625",
+    "source_revision": "d228cf7ad27f2688cc6e04e5210c8aa2ea88b646",
+    "conclusion": "success",
+    "completed_utc": "2026-10-09T17:21:02Z",
+    "checks": [
+      {
+        "name": "Source checks",
+        "conclusion": "success"
+      },
+      {
+        "name": "Python 3.11",
+        "conclusion": "success"
+      },
+      {
+        "name": "Python 3.13",
+        "conclusion": "success"
+      },
+      {
+        "name": "CI result",
+        "conclusion": "success"
+      }
+    ]
+  },
+  "local_reproduction": {
+    "local_source_revision": "7a38dca72351a58b59ee7712f3296764848333be",
+    "local_source_tree": "b6d33c23ea90174da2d8ab1d9aa0364599f6437c",
+    "source_matches_formal_tree": true,
+    "source_worktree_clean": true,
+    "dependency_selection": "uv sync --frozen --group release",
+    "python_version": "3.13.15",
+    "uv_version": "0.12.19",
+    "node_version": "22.23.3",
+    "ruff": {
+      "exit_code": 0,
+      "timed_out": false,
+      "elapsed_seconds": 0.064
+    },
+    "mypy": {
+      "exit_code": 0,
+      "timed_out": false,
+      "elapsed_seconds": 7.596
+    },
+    "pytest": {
+      "command": "python -m pytest -q --basetemp=<fresh-owned-directory> --junitxml=<owned-checks-directory>/full-release-quality.xml",
+      "completed_log_utc": "2026-10-09T17:32:35.842479Z",
+      "result": "2332 passed, 7 skipped, 5 warnings, 134 subtests passed in 1198.87s (0:19:58)",
+      "passed": 2332,
+      "skipped": 7,
+      "subtests_passed": 134,
+      "elapsed_seconds": 1198.87,
+      "junit": {
+        "reported_tests": 2473,
+        "testcase_elements": 2339,
+        "failures": 0,
+        "errors": 0,
+        "skipped": 7,
+        "time_seconds": 1198.831,
+        "sha256": "acff8f0913c6ec1c7a78acdb2f11c13bf33c0369809bd844aa85edb6932c1159"
+      },
+      "log": {
+        "bytes": 4137,
+        "sha256": "c647f979c7dd35584668645d4301feee7e136e1a6d81516eae6612d15bdf1f4e"
+      },
+      "controller_exit_code": null,
+      "controller_receipt_limitation": "The executor session handle was lost during reconnection. The complete pytest summary and JUnit were retained, but the controller exited without persisting its final pytest exit-code row.",
+      "owned_controller_running_at_observation": false,
+      "observed_utc": "2026-10-09T17:41:27.697526Z",
+      "slowest_testcases": [
+        {
+          "nodeid": "tests.test_mcp_group_catalog_scale::test_full_directory_5000_instances_50000_tools[over_cache_bytes]",
+          "seconds": 158.859
+        },
+        {
+          "nodeid": "tests.test_mcp_group_catalog_scale::test_full_directory_5000_instances_50000_tools[maximum_single_group]",
+          "seconds": 113.28
+        },
+        {
+          "nodeid": "tests.test_oauth_paged_catalog::test_real_5000_service_50000_tool_pages_search_selection_and_atomic_limits",
+          "seconds": 72.224
+        },
+        {
+          "nodeid": "tests.test_mcp_group_catalog_scale::test_full_directory_5000_instances_50000_tools[five_groups]",
+          "seconds": 42.888
+        },
+        {
+          "nodeid": "tests.test_oauth_catalog_scaling::test_5000_services_50000_tools_verify_refresh_and_call_only_saved_targets[5000]",
+          "seconds": 22.424
+        }
+      ],
+      "session_started_utc": "2026-10-09T17:12:36.407866+00:00",
+      "junit_completed_file_utc": "2026-10-09T17:32:35.242468+00:00"
+    },
+    "operating_system_observation_after_tests": {
+      "observed_utc": "2026-10-09T17:45:48.531703+00:00",
+      "system": "Debian GNU/Linux 13 (trixie)",
+      "machine": "x86_64",
+      "libc": [
+        "glibc",
+        "2.41"
+      ],
+      "scope": "This is a new actual command after the test completion and executor reconnection. The reproduction runner did not capture OS metadata at test start."
+    }
+  },
+  "environmental_differences": {
+    "formal": {
+      "runner": "ubuntu-22.04",
+      "python": "3.13.15",
+      "uv": "0.11.33",
+      "node": "22.23.2",
+      "dependency_groups": "frozen default groups plus release"
+    },
+    "ordinary_ci": {
+      "runner": "ubuntu-24.04",
+      "python": [
+        "3.12",
+        "3.11",
+        "3.13"
+      ],
+      "uv": "0.11.33",
+      "dependency_groups": "frozen default groups"
+    },
+    "local": {
+      "runner": "saved cloud execution environment; current post-test observation is Debian 13 with glibc 2.41",
+      "python": "3.13.15",
+      "uv": "0.12.19",
+      "node": "22.23.3",
+      "dependency_groups": "frozen default groups plus release"
+    },
+    "conclusion": "These are observations, not proven causes. The first formal failure is still required."
+  },
+  "next_required_evidence": "First failed command/test and traceback from new formal job 113917608167, using its normal approved channel.",
+  "changes_after_failure": {
+    "corrective_product_change": false,
+    "quality_gate_weakened": false,
+    "existing_tag_moved": false,
+    "formal_blind_rerun": false
+  },
+  "deferred_acceptance": [
+    "real nx5 host",
+    "root-approved Podman configuration",
+    "live external OAuth consent"
+  ],
+  "download_verification": "Not run for v0.4.6: the formal publication job was skipped and no new formal assets were generated.",
+  "executor_actual_recovery_receipt": {
+    "executed_utc": "2026-10-09T17:45:48.531703+00:00",
+    "command_exit_code": 0,
+    "workspace_present": true,
+    "source_revision": "7a38dca72351a58b59ee7712f3296764848333be",
+    "source_tree": "b6d33c23ea90174da2d8ab1d9aa0364599f6437c",
+    "source_worktree_clean": true,
+    "formal_tree_verified_by": "Fresh GitHub Git Commit API readback for exact d228cf7ad27f2688cc6e04e5210c8aa2ea88b646",
+    "owned_quality_controller_running": false,
+    "pytest_log_exists": true,
+    "pytest_junit_exists": true,
+    "scope": "Successful execution in the original selected saved cloud environment; no production host access or environment switch."
+  }
+}
