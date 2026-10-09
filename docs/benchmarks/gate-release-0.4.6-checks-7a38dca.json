@@ -1,0 +1,1198 @@
+{
+  "build_commands": [
+    "uv build --wheel --offline --python <candidate-python> --out-dir <owned-direct-wheel-dir>",
+    "uv build --sdist --offline --python <candidate-python> --out-dir <owned-sdist-dir>",
+    "uv build <owned-sdist-dir>/lingshu_gate-0.4.6.tar.gz --wheel --offline --python <candidate-python> --out-dir <owned-sdist-wheel-dir>",
+    "python -m scripts.release.build_native --target linux-x86_64 --output-dir <owned-native-dir>"
+  ],
+  "build_steps": [
+    {
+      "completed_utc": "2026-10-09T15:37:36.426397+00:00",
+      "elapsed_seconds": 1.121,
+      "exit_code": 0,
+      "name": "wheel-direct",
+      "timed_out": false
+    },
+    {
+      "completed_utc": "2026-10-09T15:37:37.745414+00:00",
+      "elapsed_seconds": 1.319,
+      "exit_code": 0,
+      "name": "sdist",
+      "timed_out": false
+    },
+    {
+      "completed_utc": "2026-10-09T15:37:38.966488+00:00",
+      "elapsed_seconds": 1.221,
+      "exit_code": 0,
+      "name": "wheel-from-sdist",
+      "timed_out": false
+    },
+    {
+      "completed_utc": "2026-10-09T15:38:31.159050+00:00",
+      "elapsed_seconds": 52.192,
+      "exit_code": 0,
+      "name": "native-build",
+      "timed_out": false
+    }
+  ],
+  "frozen_setup_and_web": [
+    {
+      "argv": [
+        "uv",
+        "sync",
+        "--frozen",
+        "--group",
+        "release",
+        "--python",
+        "<existing-CPython-3.13.15-executable>"
+      ],
+      "duration_seconds": 1.575,
+      "exit_code": 0
+    },
+    {
+      "argv": [
+        "npm",
+        "--prefix",
+        "web",
+        "ci"
+      ],
+      "duration_seconds": 7.864,
+      "exit_code": 0
+    },
+    {
+      "argv": [
+        "npm",
+        "--prefix",
+        "web",
+        "run",
+        "check"
+      ],
+      "duration_seconds": 2.538,
+      "exit_code": 0
+    },
+    {
+      "argv": [
+        "npm",
+        "--prefix",
+        "web",
+        "run",
+        "build"
+      ],
+      "duration_seconds": 4.345,
+      "exit_code": 0
+    }
+  ],
+  "installed_production_wheel": {
+    "dependencies": "frozen production-only lock export with required hashes",
+    "environment": "fresh owned Python 3.13.15 virtual environment",
+    "receipts": [
+      {
+        "completed_utc": "2026-10-09T15:39:59.511481+00:00",
+        "elapsed_seconds": 0.616,
+        "exit_code": 0,
+        "name": "wheel-runtime-dependencies-network",
+        "timed_out": false
+      },
+      {
+        "completed_utc": "2026-10-09T15:39:59.576121+00:00",
+        "elapsed_seconds": 0.064,
+        "exit_code": 0,
+        "name": "wheel-runtime-install",
+        "timed_out": false
+      }
+    ],
+    "wheel_install": "offline --no-deps, using the actual fresh direct wheel"
+  },
+  "limits": [
+    "Local Linux native validation is a cloud candidate, not real nx5 validation.",
+    "No new browser result; Chromium sandbox capability remains unavailable locally.",
+    "No production identities, grants, sessions, OAuth clients or host provisioning were created.",
+    "Formal Core/offline jobs are separate tag gates and are not counted as local passes.",
+    "Formal tag, GitHub release and downloadable assets were not yet created at this capture."
+  ],
+  "observed_setup_failures_and_resolution": [
+    {
+      "failure": "UnknownIssuer after over-sanitizing existing managed CA environment keys",
+      "resolution": "Retained only the already configured network transport and CA environment keys and used UV_SYSTEM_CERTS=true. TLS verification remained enabled; no trust-store or proxy policy was changed.",
+      "step": "initial frozen dependency setup"
+    },
+    {
+      "failure": "Missing registry metadata for an already locked dependency",
+      "resolution": "Installed the same exported production requirements with hashes using the already enabled network. No package version, lock, requirement set or integrity requirement changed.",
+      "step": "initial production-only offline dependency installation"
+    }
+  ],
+  "package_report": {
+    "file": "gate-release-0.4.6-packages-7a38dca.json",
+    "sha256": "3313a281f4e95dde83046871a51a9e3f82d89bd33f270ab8e3e6617ee89e1415"
+  },
+  "packaging_schema_release_regressions": {
+    "cases": [
+      {
+        "classname": "tests.test_wheel_build",
+        "name": "test_standard_repeated_build_does_not_reuse_or_delete_old_build_lib",
+        "time": "1.353"
+      },
+      {
+        "classname": "tests.test_wheel_build",
+        "name": "test_current_hash_wins_even_when_cache_file_is_newer",
+        "time": "0.655"
+      },
+      {
+        "classname": "tests.test_wheel_build",
+        "name": "test_sdist_keeps_build_hook_and_rebuilds_fresh_wheel",
+        "time": "1.360"
+      },
+      {
+        "classname": "tests.test_wheel_build",
+        "name": "test_source_symlink_refuses_build_without_reading_target",
+        "time": "0.699"
+      },
+      {
+        "classname": "tests.test_wheel_build",
+        "name": "test_source_ancestor_symlink_refuses_build[src]",
+        "time": "0.653"
+      },
+      {
+        "classname": "tests.test_wheel_build",
+        "name": "test_source_ancestor_symlink_refuses_build[src/lingshu_gate]",
+        "time": "0.638"
+      },
+      {
+        "classname": "tests.test_wheel_build",
+        "name": "test_source_ancestor_symlink_refuses_build[src/lingshu_gate/static]",
+        "time": "0.656"
+      },
+      {
+        "classname": "tests.test_wheel_build",
+        "name": "test_staging_parent_symlink_refuses_build_and_preserves_target",
+        "time": "0.652"
+      },
+      {
+        "classname": "tests.test_wheel_build",
+        "name": "test_missing_frontend_refuses_noneditable_wheel[console/index.html]",
+        "time": "0.645"
+      },
+      {
+        "classname": "tests.test_wheel_build",
+        "name": "test_missing_frontend_refuses_noneditable_wheel[oauth/oauth.html]",
+        "time": "0.644"
+      },
+      {
+        "classname": "tests.test_wheel_build",
+        "name": "test_standard_editable_install_works_before_frontend_build",
+        "time": "0.733"
+      },
+      {
+        "classname": "tests.test_wheel_build",
+        "name": "test_static_snapshot_validation_rejects_backend_copy_faults[console-missing]",
+        "time": "0.661"
+      },
+      {
+        "classname": "tests.test_wheel_build",
+        "name": "test_static_snapshot_validation_rejects_backend_copy_faults[console-extra]",
+        "time": "0.685"
+      },
+      {
+        "classname": "tests.test_wheel_build",
+        "name": "test_static_snapshot_validation_rejects_backend_copy_faults[console-changed]",
+        "time": "0.686"
+      },
+      {
+        "classname": "tests.test_wheel_build",
+        "name": "test_static_snapshot_validation_rejects_backend_copy_faults[oauth-missing]",
+        "time": "0.672"
+      },
+      {
+        "classname": "tests.test_wheel_build",
+        "name": "test_static_snapshot_validation_rejects_backend_copy_faults[oauth-extra]",
+        "time": "0.708"
+      },
+      {
+        "classname": "tests.test_wheel_build",
+        "name": "test_static_snapshot_validation_rejects_backend_copy_faults[oauth-changed]",
+        "time": "0.684"
+      },
+      {
+        "classname": "tests.test_wheel_build",
+        "name": "test_source_mutation_during_build_refuses_wheel",
+        "time": "0.702"
+      },
+      {
+        "classname": "tests.test_wheel_build",
+        "name": "test_wheel_ignores_and_preserves_previous_install_tree[False]",
+        "time": "0.796"
+      },
+      {
+        "classname": "tests.test_wheel_build",
+        "name": "test_wheel_ignores_and_preserves_previous_install_tree[True]",
+        "time": "0.736"
+      },
+      {
+        "classname": "tests.test_wheel_build",
+        "name": "test_skip_build_cannot_bypass_clean_staging_checks",
+        "time": "0.683"
+      },
+      {
+        "classname": "tests.test_wheel_build",
+        "name": "test_installed_payload_is_checked_before_wheel_archive[missing-console]",
+        "time": "0.691"
+      },
+      {
+        "classname": "tests.test_wheel_build",
+        "name": "test_installed_payload_is_checked_before_wheel_archive[missing-oauth]",
+        "time": "0.755"
+      },
+      {
+        "classname": "tests.test_wheel_build",
+        "name": "test_installed_payload_is_checked_before_wheel_archive[extra-console]",
+        "time": "0.668"
+      },
+      {
+        "classname": "tests.test_wheel_build",
+        "name": "test_installed_payload_is_checked_before_wheel_archive[extra-oauth]",
+        "time": "0.694"
+      },
+      {
+        "classname": "tests.test_wheel_build",
+        "name": "test_installed_payload_is_checked_before_wheel_archive[changed-console]",
+        "time": "0.684"
+      },
+      {
+        "classname": "tests.test_wheel_build",
+        "name": "test_installed_payload_is_checked_before_wheel_archive[changed-oauth]",
+        "time": "0.693"
+      },
+      {
+        "classname": "tests.test_wheel_build",
+        "name": "test_unknown_static_scope_refuses_build",
+        "time": "0.680"
+      },
+      {
+        "classname": "tests.test_wheel_build",
+        "name": "test_staging_parent_file_is_preserved",
+        "time": "0.707"
+      },
+      {
+        "classname": "tests.test_wheel_build",
+        "name": "test_static_fifo_refuses_build_without_opening_it",
+        "time": "0.661"
+      },
+      {
+        "classname": "tests.test_wheel_build",
+        "name": "test_final_archive_validation_rejects_corruption[missing]",
+        "time": "0.717"
+      },
+      {
+        "classname": "tests.test_wheel_build",
+        "name": "test_final_archive_validation_rejects_corruption[extra]",
+        "time": "0.694"
+      },
+      {
+        "classname": "tests.test_wheel_build",
+        "name": "test_final_archive_validation_rejects_corruption[changed]",
+        "time": "0.700"
+      },
+      {
+        "classname": "tests.test_wheel_build",
+        "name": "test_final_archive_validation_rejects_corruption[record]",
+        "time": "0.736"
+      },
+      {
+        "classname": "tests.test_wheel_build",
+        "name": "test_final_archive_validation_rejects_corruption[record_hash]",
+        "time": "0.677"
+      },
+      {
+        "classname": "tests.test_wheel_build",
+        "name": "test_final_archive_validation_rejects_corruption[record_size]",
+        "time": "0.703"
+      },
+      {
+        "classname": "tests.test_wheel_build",
+        "name": "test_final_archive_validation_rejects_corruption[path]",
+        "time": "0.729"
+      },
+      {
+        "classname": "tests.test_wheel_build",
+        "name": "test_failed_archive_then_retry_has_no_old_resources",
+        "time": "1.427"
+      },
+      {
+        "classname": "tests.test_wheel_build",
+        "name": "test_concurrent_wheel_builds_have_private_copy_install_and_archive_trees",
+        "time": "1.002"
+      },
+      {
+        "classname": "tests.test_wheel_build",
+        "name": "test_output_replacement_preserves_a_symlinks_user_data_target",
+        "time": "0.689"
+      },
+      {
+        "classname": "tests.test_release_packaging",
+        "name": "test_windows_native_smoke_uses_cwd_relative_batch_launcher",
+        "time": "0.001"
+      },
+      {
+        "classname": "tests.test_release_packaging",
+        "name": "test_windows_native_smoke_rejects_missing_launcher",
+        "time": "0.001"
+      },
+      {
+        "classname": "tests.test_release_packaging",
+        "name": "test_native_smoke_checks_root_negotiation_redirects_and_every_js_css_asset",
+        "time": "0.552"
+      },
+      {
+        "classname": "tests.test_release_packaging",
+        "name": "test_native_smoke_accepts_standard_javascript_media_types[text/javascript]",
+        "time": "0.538"
+      },
+      {
+        "classname": "tests.test_release_packaging",
+        "name": "test_native_smoke_accepts_standard_javascript_media_types[application/javascript]",
+        "time": "0.536"
+      },
+      {
+        "classname": "tests.test_release_packaging",
+        "name": "test_native_smoke_rejects_invalid_root_metadata[metadata-value0]",
+        "time": "0.516"
+      },
+      {
+        "classname": "tests.test_release_packaging",
+        "name": "test_native_smoke_rejects_invalid_root_metadata[metadata_type-text/html]",
+        "time": "0.503"
+      },
+      {
+        "classname": "tests.test_release_packaging",
+        "name": "test_native_smoke_rejects_non_html_console_response[application/json]",
+        "time": "0.510"
+      },
+      {
+        "classname": "tests.test_release_packaging",
+        "name": "test_native_smoke_rejects_non_html_console_response[text/plain]",
+        "time": "0.509"
+      },
+      {
+        "classname": "tests.test_release_packaging",
+        "name": "test_native_smoke_rejects_wrong_redirect_before_following_it[302-None]",
+        "time": "0.519"
+      },
+      {
+        "classname": "tests.test_release_packaging",
+        "name": "test_native_smoke_rejects_wrong_redirect_before_following_it[303-None]",
+        "time": "0.517"
+      },
+      {
+        "classname": "tests.test_release_packaging",
+        "name": "test_native_smoke_rejects_wrong_redirect_before_following_it[307-/unexpected]",
+        "time": "0.514"
+      },
+      {
+        "classname": "tests.test_release_packaging",
+        "name": "test_native_smoke_rejects_wrong_redirect_before_following_it[307-http://127.0.0.1:1/outside]",
+        "time": "0.515"
+      },
+      {
+        "classname": "tests.test_release_packaging",
+        "name": "test_native_smoke_rejects_wrong_final_legacy_response[legacy_type-application/json-Frozen Console entry point is unavailable]",
+        "time": "0.515"
+      },
+      {
+        "classname": "tests.test_release_packaging",
+        "name": "test_native_smoke_rejects_wrong_final_legacy_response[legacy_html-<title>Other entry</title>-Frozen legacy Console entry does not match]",
+        "time": "0.516"
+      },
+      {
+        "classname": "tests.test_release_packaging",
+        "name": "test_native_smoke_requires_both_root_js_and_css_references[<link href=\"/assets/main.css\">-JavaScript asset]",
+        "time": "0.529"
+      },
+      {
+        "classname": "tests.test_release_packaging",
+        "name": "test_native_smoke_requires_both_root_js_and_css_references[<script src=\"/assets/main.js\"></script>-CSS asset]",
+        "time": "0.529"
+      },
+      {
+        "classname": "tests.test_release_packaging",
+        "name": "test_native_smoke_requires_both_root_js_and_css_references[<script src=\"/console/assets/main.js\"></script><link href=\"/console/assets/main.css\">-JavaScript asset]",
+        "time": "0.533"
+      },
+      {
+        "classname": "tests.test_release_packaging",
+        "name": "test_native_smoke_rejects_each_missing_empty_or_wrong_type_asset[missing-/assets/main.js]",
+        "time": "0.572"
+      },
+      {
+        "classname": "tests.test_release_packaging",
+        "name": "test_native_smoke_rejects_each_missing_empty_or_wrong_type_asset[missing-/assets/main.css]",
+        "time": "0.533"
+      },
+      {
+        "classname": "tests.test_release_packaging",
+        "name": "test_native_smoke_rejects_each_missing_empty_or_wrong_type_asset[missing-/assets/preload.js]",
+        "time": "0.533"
+      },
+      {
+        "classname": "tests.test_release_packaging",
+        "name": "test_native_smoke_rejects_each_missing_empty_or_wrong_type_asset[empty-/assets/main.js]",
+        "time": "0.531"
+      },
+      {
+        "classname": "tests.test_release_packaging",
+        "name": "test_native_smoke_rejects_each_missing_empty_or_wrong_type_asset[empty-/assets/main.css]",
+        "time": "0.529"
+      },
+      {
+        "classname": "tests.test_release_packaging",
+        "name": "test_native_smoke_rejects_each_missing_empty_or_wrong_type_asset[empty-/assets/preload.js]",
+        "time": "0.532"
+      },
+      {
+        "classname": "tests.test_release_packaging",
+        "name": "test_native_smoke_rejects_each_missing_empty_or_wrong_type_asset[html-/assets/main.js]",
+        "time": "0.537"
+      },
+      {
+        "classname": "tests.test_release_packaging",
+        "name": "test_native_smoke_rejects_each_missing_empty_or_wrong_type_asset[html-/assets/main.css]",
+        "time": "0.575"
+      },
+      {
+        "classname": "tests.test_release_packaging",
+        "name": "test_native_smoke_rejects_each_missing_empty_or_wrong_type_asset[html-/assets/preload.js]",
+        "time": "0.538"
+      },
+      {
+        "classname": "tests.test_release_packaging",
+        "name": "test_native_smoke_verifies_legacy_asset_availability_and_identical_bytes[missing-/assets/main.js]",
+        "time": "0.533"
+      },
+      {
+        "classname": "tests.test_release_packaging",
+        "name": "test_native_smoke_verifies_legacy_asset_availability_and_identical_bytes[missing-/assets/main.css]",
+        "time": "0.533"
+      },
+      {
+        "classname": "tests.test_release_packaging",
+        "name": "test_native_smoke_verifies_legacy_asset_availability_and_identical_bytes[different-/assets/main.js]",
+        "time": "0.533"
+      },
+      {
+        "classname": "tests.test_release_packaging",
+        "name": "test_native_smoke_verifies_legacy_asset_availability_and_identical_bytes[different-/assets/main.css]",
+        "time": "0.530"
+      },
+      {
+        "classname": "tests.test_release_packaging",
+        "name": "test_archives_are_deterministic[tar.gz]",
+        "time": "0.003"
+      },
+      {
+        "classname": "tests.test_release_packaging",
+        "name": "test_archives_are_deterministic[zip]",
+        "time": "0.002"
+      },
+      {
+        "classname": "tests.test_release_packaging",
+        "name": "test_publishable_native_archive_is_validated_and_extracted[linux-x86_64-tar.gz]",
+        "time": "0.003"
+      },
+      {
+        "classname": "tests.test_release_packaging",
+        "name": "test_publishable_native_archive_is_validated_and_extracted[windows-x86_64-zip]",
+        "time": "0.002"
+      },
+      {
+        "classname": "tests.test_release_packaging",
+        "name": "test_tar_extractor_rejects_file_beneath_symlink_alias",
+        "time": "0.002"
+      },
+      {
+        "classname": "tests.test_release_packaging",
+        "name": "test_zip_extractor_rejects_windows_path_aliases[START.CMD]",
+        "time": "0.001"
+      },
+      {
+        "classname": "tests.test_release_packaging",
+        "name": "test_zip_extractor_rejects_windows_path_aliases[start.cmd.]",
+        "time": "0.001"
+      },
+      {
+        "classname": "tests.test_release_packaging",
+        "name": "test_zip_extractor_rejects_member_over_resource_budget",
+        "time": "0.001"
+      },
+      {
+        "classname": "tests.test_release_packaging",
+        "name": "test_native_builder_recreates_console_from_lockfile",
+        "time": "0.000"
+      },
+      {
+        "classname": "tests.test_release_packaging",
+        "name": "test_docker_save_outer_archive_normalization_is_deterministic",
+        "time": "0.002"
+      },
+      {
+        "classname": "tests.test_release_packaging",
+        "name": "test_reset_directory_rejects_its_boundary",
+        "time": "0.001"
+      },
+      {
+        "classname": "tests.test_release_packaging",
+        "name": "test_archive_rejects_an_escaping_symlink",
+        "time": "0.001"
+      },
+      {
+        "classname": "tests.test_release_packaging",
+        "name": "test_zip_rejects_even_an_internal_symlink",
+        "time": "0.001"
+      },
+      {
+        "classname": "tests.test_release_packaging",
+        "name": "test_artifact_collection_validates_and_combines_checksums",
+        "time": "0.004"
+      },
+      {
+        "classname": "tests.test_release_packaging",
+        "name": "test_artifact_collection_rejects_symlink_input",
+        "time": "0.001"
+      },
+      {
+        "classname": "tests.test_release_packaging",
+        "name": "test_artifact_collection_rechecks_digest_after_copy",
+        "time": "0.002"
+      },
+      {
+        "classname": "tests.test_release_packaging",
+        "name": "test_artifact_collection_rejects_foreign_asset_names",
+        "time": "0.001"
+      },
+      {
+        "classname": "tests.test_release_packaging",
+        "name": "test_artifact_collection_cannot_delete_an_arbitrary_output",
+        "time": "0.001"
+      },
+      {
+        "classname": "tests.test_release_packaging",
+        "name": "test_release_asset_reconciliation_removes_only_stale_names",
+        "time": "0.000"
+      },
+      {
+        "classname": "tests.test_release_packaging",
+        "name": "test_release_asset_reconciliation_rejects_duplicate_or_unsafe_names",
+        "time": "0.000"
+      },
+      {
+        "classname": "tests.test_release_packaging",
+        "name": "test_native_target_matrix_covers_supported_downloads",
+        "time": "0.000"
+      },
+      {
+        "classname": "tests.test_release_packaging",
+        "name": "test_release_linux_builds_share_ubuntu_22_04_glibc_baseline",
+        "time": "0.000"
+      },
+      {
+        "classname": "tests.test_release_packaging",
+        "name": "test_release_smokes_the_extracted_publishable_native_archive",
+        "time": "0.000"
+      },
+      {
+        "classname": "tests.test_release_packaging",
+        "name": "test_release_artifacts_receive_identity_validation_after_build",
+        "time": "0.000"
+      },
+      {
+        "classname": "tests.test_release_packaging",
+        "name": "test_release_examples_cover_browser_origin_policy",
+        "time": "0.000"
+      },
+      {
+        "classname": "tests.test_release_packaging",
+        "name": "test_offline_compose_template_is_a_source_and_delivery_input",
+        "time": "0.000"
+      },
+      {
+        "classname": "tests.test_release_packaging",
+        "name": "test_docker_context_excludes_local_python_build_metadata",
+        "time": "0.000"
+      },
+      {
+        "classname": "tests.test_release_packaging",
+        "name": "test_docker_base_images_are_digest_pinned_and_release_values_match",
+        "time": "0.000"
+      },
+      {
+        "classname": "tests.test_release_packaging",
+        "name": "test_container_identity_is_gate_specific_without_aliases",
+        "time": "0.023"
+      },
+      {
+        "classname": "tests.test_release_packaging",
+        "name": "test_release_toolchains_and_image_timestamps_are_pinned",
+        "time": "0.001"
+      },
+      {
+        "classname": "tests.test_release_packaging",
+        "name": "test_release_quality_uses_pinned_python_for_identity_validation",
+        "time": "0.000"
+      },
+      {
+        "classname": "tests.test_release_packaging",
+        "name": "test_release_windows_matrix_smokes_delivery_skill_packager",
+        "time": "0.000"
+      },
+      {
+        "classname": "tests.test_release_packaging",
+        "name": "test_release_build_backend_and_packager_are_exactly_pinned",
+        "time": "0.000"
+      },
+      {
+        "classname": "tests.test_release_packaging",
+        "name": "test_publishable_bundles_exclude_development_dependencies",
+        "time": "0.000"
+      },
+      {
+        "classname": "tests.test_release_packaging",
+        "name": "test_release_is_the_only_container_publisher",
+        "time": "0.000"
+      },
+      {
+        "classname": "tests.test_release_packaging",
+        "name": "test_release_publication_is_version_checked_and_fail_closed",
+        "time": "0.000"
+      },
+      {
+        "classname": "tests.test_release_packaging",
+        "name": "test_release_reconciliation_propagates_validation_failures",
+        "time": "0.001"
+      },
+      {
+        "classname": "tests.test_release_packaging",
+        "name": "test_release_verifies_all_asset_attestations_with_strict_identity",
+        "time": "0.000"
+      },
+      {
+        "classname": "tests.test_release_packaging",
+        "name": "test_release_asset_enumeration_rejects_non_regular_or_incomplete_sets",
+        "time": "0.002"
+      },
+      {
+        "classname": "tests.test_release_packaging",
+        "name": "test_oci_index_comparison_validates_attestations_and_platform_payloads",
+        "time": "0.001"
+      },
+      {
+        "classname": "tests.test_release_packaging",
+        "name": "test_oci_index_rejects_unexpected_platform_or_malformed_attestation",
+        "time": "0.000"
+      },
+      {
+        "classname": "tests.test_release_packaging",
+        "name": "test_release_validates_new_candidate_oci_index_before_promotion",
+        "time": "0.000"
+      },
+      {
+        "classname": "tests.test_release_packaging",
+        "name": "test_frozen_inventory_maps_every_site_packages_source",
+        "time": "0.001"
+      },
+      {
+        "classname": "tests.test_release_packaging",
+        "name": "test_third_party_license_inventory_covers_production_console_closure",
+        "time": "0.158"
+      },
+      {
+        "classname": "tests.test_release_packaging",
+        "name": "test_container_and_bundles_stage_complete_license_inventories",
+        "time": "0.000"
+      },
+      {
+        "classname": "tests.test_release_packaging",
+        "name": "test_container_ci_tracks_release_script_changes",
+        "time": "0.000"
+      },
+      {
+        "classname": "tests.test_release_packaging",
+        "name": "test_npm_license_staging_creates_missing_output_parents",
+        "time": "0.039"
+      },
+      {
+        "classname": "tests.test_release_packaging",
+        "name": "test_npm_license_staging_rejects_visible_directory_without_metadata",
+        "time": "0.035"
+      },
+      {
+        "classname": "tests.test_release_packaging",
+        "name": "test_privileged_qemu_and_buildkit_images_are_immutable",
+        "time": "0.002"
+      },
+      {
+        "classname": "tests.test_release_packaging",
+        "name": "test_all_github_actions_are_allowlisted_immutable_commit_pins",
+        "time": "0.001"
+      },
+      {
+        "classname": "tests.test_release_packaging",
+        "name": "test_release_version_is_safe_for_oci_tags_and_marks_prereleases",
+        "time": "0.000"
+      },
+      {
+        "classname": "tests.test_release_packaging",
+        "name": "test_glibc_version_parser_orders_numerically",
+        "time": "0.000"
+      },
+      {
+        "classname": "tests.test_release_packaging",
+        "name": "test_release_launchers_are_executable_in_source_tree",
+        "time": "0.000"
+      },
+      {
+        "classname": "tests.test_release_packaging",
+        "name": "test_spdx_includes_npm_production_closure",
+        "time": "0.001"
+      },
+      {
+        "classname": "tests.test_release_packaging",
+        "name": "test_build_host_mismatch_fails_closed",
+        "time": "0.000"
+      },
+      {
+        "classname": "tests.test_release_packaging",
+        "name": "test_dockerhub_mirror_preserves_verified_payloads[missing]",
+        "time": "0.002"
+      },
+      {
+        "classname": "tests.test_release_packaging",
+        "name": "test_dockerhub_mirror_preserves_verified_payloads[matching]",
+        "time": "0.000"
+      },
+      {
+        "classname": "tests.test_release_packaging",
+        "name": "test_dockerhub_mirror_preserves_verified_payloads[conflicting]",
+        "time": "0.000"
+      },
+      {
+        "classname": "tests.test_release_packaging",
+        "name": "test_dockerhub_mirror_preserves_verified_payloads[copy-failed]",
+        "time": "0.000"
+      },
+      {
+        "classname": "tests.test_release_packaging",
+        "name": "test_dockerhub_mirror_preserves_verified_payloads[corrupted]",
+        "time": "0.000"
+      },
+      {
+        "classname": "tests.test_release_packaging",
+        "name": "test_dockerhub_inspect_fails_closed[manifest unknown-True]",
+        "time": "0.000"
+      },
+      {
+        "classname": "tests.test_release_packaging",
+        "name": "test_dockerhub_inspect_fails_closed[unauthorized: manifest unknown-False]",
+        "time": "0.000"
+      },
+      {
+        "classname": "tests.test_release_packaging",
+        "name": "test_dockerhub_inspect_fails_closed[denied-False]",
+        "time": "0.000"
+      },
+      {
+        "classname": "tests.test_release_packaging",
+        "name": "test_dockerhub_inspect_fails_closed[429 too many requests-False]",
+        "time": "0.000"
+      },
+      {
+        "classname": "tests.test_release_packaging",
+        "name": "test_dockerhub_inspect_fails_closed[connection timed out-False]",
+        "time": "0.000"
+      },
+      {
+        "classname": "tests.test_release_packaging",
+        "name": "test_dockerhub_latest_requires_verified_stable_version",
+        "time": "0.000"
+      },
+      {
+        "classname": "tests.test_release_packaging",
+        "name": "test_dockerhub_workflow_publication_order",
+        "time": "0.000"
+      },
+      {
+        "classname": "tests.test_release_packaging",
+        "name": "test_tag_only_release_jobs_set_up_python_before_scripts[docker-offline]",
+        "time": "0.001"
+      },
+      {
+        "classname": "tests.test_release_packaging",
+        "name": "test_tag_only_release_jobs_set_up_python_before_scripts[docker-publish]",
+        "time": "0.000"
+      },
+      {
+        "classname": "tests.test_release_packaging",
+        "name": "test_tag_only_release_jobs_set_up_python_before_scripts[publish]",
+        "time": "0.000"
+      },
+      {
+        "classname": "tests.test_release_packaging",
+        "name": "test_trivy_cache_stays_outside_release_source[release.yml]",
+        "time": "0.000"
+      },
+      {
+        "classname": "tests.test_release_packaging",
+        "name": "test_trivy_cache_stays_outside_release_source[docker.yml]",
+        "time": "0.000"
+      },
+      {
+        "classname": "tests.test_schema_validation_budget",
+        "name": "test_typical_finite_local_dag_is_validated[0]",
+        "time": "0.434"
+      },
+      {
+        "classname": "tests.test_schema_validation_budget",
+        "name": "test_typical_finite_local_dag_is_validated[2]",
+        "time": "0.485"
+      },
+      {
+        "classname": "tests.test_schema_validation_budget",
+        "name": "test_typical_finite_local_dag_is_validated[5]",
+        "time": "0.486"
+      },
+      {
+        "classname": "tests.test_schema_validation_budget",
+        "name": "test_compact_exponential_dag_is_rejected_before_process_evaluation[12]",
+        "time": "0.001"
+      },
+      {
+        "classname": "tests.test_schema_validation_budget",
+        "name": "test_compact_exponential_dag_is_rejected_before_process_evaluation[20]",
+        "time": "0.001"
+      },
+      {
+        "classname": "tests.test_schema_validation_budget",
+        "name": "test_compact_exponential_dag_is_rejected_before_process_evaluation[30]",
+        "time": "0.001"
+      },
+      {
+        "classname": "tests.test_schema_validation_budget",
+        "name": "test_cycle_and_expanded_depth_are_rejected",
+        "time": "0.000"
+      },
+      {
+        "classname": "tests.test_schema_validation_budget",
+        "name": "test_schema_under_a_property_named_defs_cannot_bypass_expansion_budget",
+        "time": "0.000"
+      },
+      {
+        "classname": "tests.test_schema_validation_budget",
+        "name": "test_catastrophic_regex_is_killed_on_deadline_and_worker_slot_is_reusable",
+        "time": "0.989"
+      },
+      {
+        "classname": "tests.test_schema_validation_budget",
+        "name": "test_cancelled_validation_starts_no_worker",
+        "time": "0.000"
+      },
+      {
+        "classname": "tests.test_schema_validation_budget",
+        "name": "test_cancellation_during_evaluation_terminates_child",
+        "time": "0.797"
+      },
+      {
+        "classname": "tests.test_schema_validation_budget",
+        "name": "test_frozen_worker_command_uses_native_entry_flag",
+        "time": "0.001"
+      },
+      {
+        "classname": "tests.test_schema_validation_budget",
+        "name": "test_native_entry_worker_bypasses_service_settings_and_never_echoes_values",
+        "time": "1.252"
+      },
+      {
+        "classname": "tests.test_auto_release",
+        "name": "test_single_commit_version_change_selects_exact_tag[0.2.0]",
+        "time": "0.043"
+      },
+      {
+        "classname": "tests.test_auto_release",
+        "name": "test_single_commit_version_change_selects_exact_tag[0.2.0-rc.1]",
+        "time": "0.036"
+      },
+      {
+        "classname": "tests.test_auto_release",
+        "name": "test_multi_commit_push_compares_before_not_last_commit_parent",
+        "time": "0.046"
+      },
+      {
+        "classname": "tests.test_auto_release",
+        "name": "test_version_bump_reverted_within_same_push_does_not_publish",
+        "time": "0.046"
+      },
+      {
+        "classname": "tests.test_auto_release",
+        "name": "test_unchanged_version_does_not_publish[ordinary]",
+        "time": "0.034"
+      },
+      {
+        "classname": "tests.test_auto_release",
+        "name": "test_unchanged_version_does_not_publish[comment]",
+        "time": "0.035"
+      },
+      {
+        "classname": "tests.test_auto_release",
+        "name": "test_manual_release_requires_exact_tag_without_push_baseline[v0.2.0]",
+        "time": "0.026"
+      },
+      {
+        "classname": "tests.test_auto_release",
+        "name": "test_manual_release_requires_exact_tag_without_push_baseline[]",
+        "time": "0.027"
+      },
+      {
+        "classname": "tests.test_auto_release",
+        "name": "test_manual_release_requires_exact_tag_without_push_baseline[v0.2.1]",
+        "time": "0.031"
+      },
+      {
+        "classname": "tests.test_auto_release",
+        "name": "test_manual_release_requires_exact_tag_without_push_baseline[0.2.0]",
+        "time": "0.030"
+      },
+      {
+        "classname": "tests.test_auto_release",
+        "name": "test_manual_release_requires_exact_tag_without_push_baseline[v0.2.0\\npublish=true]",
+        "time": "0.033"
+      },
+      {
+        "classname": "tests.test_auto_release",
+        "name": "test_push_rejects_missing_invalid_or_unavailable_baseline[]",
+        "time": "0.039"
+      },
+      {
+        "classname": "tests.test_auto_release",
+        "name": "test_push_rejects_missing_invalid_or_unavailable_baseline[0000000000000000000000000000000000000000]",
+        "time": "0.026"
+      },
+      {
+        "classname": "tests.test_auto_release",
+        "name": "test_push_rejects_missing_invalid_or_unavailable_baseline[1234567]",
+        "time": "0.025"
+      },
+      {
+        "classname": "tests.test_auto_release",
+        "name": "test_push_rejects_missing_invalid_or_unavailable_baseline[--all]",
+        "time": "0.023"
+      },
+      {
+        "classname": "tests.test_auto_release",
+        "name": "test_push_rejects_missing_invalid_or_unavailable_baseline[ffffffffffffffffffffffffffffffffffffffff]",
+        "time": "0.037"
+      },
+      {
+        "classname": "tests.test_auto_release",
+        "name": "test_release_rejects_invalid_or_unverified_source_revision[]",
+        "time": "0.033"
+      },
+      {
+        "classname": "tests.test_auto_release",
+        "name": "test_release_rejects_invalid_or_unverified_source_revision[0000000000000000000000000000000000000000]",
+        "time": "0.029"
+      },
+      {
+        "classname": "tests.test_auto_release",
+        "name": "test_release_rejects_invalid_or_unverified_source_revision[1234567]",
+        "time": "0.028"
+      },
+      {
+        "classname": "tests.test_auto_release",
+        "name": "test_release_rejects_invalid_or_unverified_source_revision[--all]",
+        "time": "0.031"
+      },
+      {
+        "classname": "tests.test_auto_release",
+        "name": "test_release_rejects_invalid_or_unverified_source_revision[ffffffffffffffffffffffffffffffffffffffff]",
+        "time": "0.028"
+      },
+      {
+        "classname": "tests.test_auto_release",
+        "name": "test_checked_out_revision_must_match_even_if_requested_commit_exists",
+        "time": "0.033"
+      },
+      {
+        "classname": "tests.test_auto_release",
+        "name": "test_nonancestor_push_baseline_fails_closed",
+        "time": "0.045"
+      },
+      {
+        "classname": "tests.test_auto_release",
+        "name": "test_baseline_without_version_file_fails_closed",
+        "time": "0.033"
+      },
+      {
+        "classname": "tests.test_auto_release",
+        "name": "test_current_revision_without_version_file_fails_closed",
+        "time": "0.028"
+      },
+      {
+        "classname": "tests.test_auto_release",
+        "name": "test_invalid_or_ambiguous_version_at_either_boundary_fails_closed[invalid-semver-before]",
+        "time": "0.035"
+      },
+      {
+        "classname": "tests.test_auto_release",
+        "name": "test_invalid_or_ambiguous_version_at_either_boundary_fails_closed[invalid-semver-current]",
+        "time": "0.032"
+      },
+      {
+        "classname": "tests.test_auto_release",
+        "name": "test_invalid_or_ambiguous_version_at_either_boundary_fails_closed[duplicate-same-before]",
+        "time": "0.034"
+      },
+      {
+        "classname": "tests.test_auto_release",
+        "name": "test_invalid_or_ambiguous_version_at_either_boundary_fails_closed[duplicate-same-current]",
+        "time": "0.035"
+      },
+      {
+        "classname": "tests.test_auto_release",
+        "name": "test_invalid_or_ambiguous_version_at_either_boundary_fails_closed[duplicate-different-before]",
+        "time": "0.031"
+      },
+      {
+        "classname": "tests.test_auto_release",
+        "name": "test_invalid_or_ambiguous_version_at_either_boundary_fails_closed[duplicate-different-current]",
+        "time": "0.029"
+      },
+      {
+        "classname": "tests.test_auto_release",
+        "name": "test_invalid_or_ambiguous_version_at_either_boundary_fails_closed[nonliteral-reassignment-before]",
+        "time": "0.031"
+      },
+      {
+        "classname": "tests.test_auto_release",
+        "name": "test_invalid_or_ambiguous_version_at_either_boundary_fails_closed[nonliteral-reassignment-current]",
+        "time": "0.031"
+      },
+      {
+        "classname": "tests.test_auto_release",
+        "name": "test_invalid_or_ambiguous_version_at_either_boundary_fails_closed[leading-indent-before]",
+        "time": "0.030"
+      },
+      {
+        "classname": "tests.test_auto_release",
+        "name": "test_invalid_or_ambiguous_version_at_either_boundary_fails_closed[leading-indent-current]",
+        "time": "0.025"
+      },
+      {
+        "classname": "tests.test_auto_release",
+        "name": "test_invalid_or_ambiguous_version_at_either_boundary_fails_closed[mismatched-quotes-before]",
+        "time": "0.031"
+      },
+      {
+        "classname": "tests.test_auto_release",
+        "name": "test_invalid_or_ambiguous_version_at_either_boundary_fails_closed[mismatched-quotes-current]",
+        "time": "0.028"
+      },
+      {
+        "classname": "tests.test_auto_release",
+        "name": "test_version_parser_never_executes_version_expression",
+        "time": "0.003"
+      },
+      {
+        "classname": "tests.test_auto_release",
+        "name": "test_version_parser_accepts_documented_constant_without_executing_statements",
+        "time": "0.000"
+      },
+      {
+        "classname": "tests.test_auto_release",
+        "name": "test_version_mentioned_only_in_docstring_is_not_a_release_version",
+        "time": "0.000"
+      },
+      {
+        "classname": "tests.test_auto_release",
+        "name": "test_only_main_push_or_manual_main_can_select_publication[push-refs/heads/feature]",
+        "time": "0.020"
+      },
+      {
+        "classname": "tests.test_auto_release",
+        "name": "test_only_main_push_or_manual_main_can_select_publication[workflow_dispatch-refs/heads/feature]",
+        "time": "0.016"
+      },
+      {
+        "classname": "tests.test_auto_release",
+        "name": "test_only_main_push_or_manual_main_can_select_publication[push-refs/tags/v0.2.0]",
+        "time": "0.017"
+      },
+      {
+        "classname": "tests.test_auto_release",
+        "name": "test_only_main_push_or_manual_main_can_select_publication[pull_request-refs/heads/main]",
+        "time": "0.016"
+      },
+      {
+        "classname": "tests.test_auto_release",
+        "name": "test_only_main_push_or_manual_main_can_select_publication[pull_request_target-refs/heads/main]",
+        "time": "0.015"
+      },
+      {
+        "classname": "tests.test_auto_release",
+        "name": "test_only_main_push_or_manual_main_can_select_publication[schedule-refs/heads/main]",
+        "time": "0.016"
+      },
+      {
+        "classname": "tests.test_auto_release",
+        "name": "test_cli_outputs_are_usable_by_actions_and_fail_closed[publish]",
+        "time": "0.084"
+      },
+      {
+        "classname": "tests.test_auto_release",
+        "name": "test_cli_outputs_are_usable_by_actions_and_fail_closed[skip]",
+        "time": "0.079"
+      },
+      {
+        "classname": "tests.test_auto_release",
+        "name": "test_cli_outputs_are_usable_by_actions_and_fail_closed[error]",
+        "time": "0.080"
+      },
+      {
+        "classname": "tests.test_auto_release",
+        "name": "test_workflow_limits_automatic_trigger_and_gates_write_permissions",
+        "time": "0.011"
+      },
+      {
+        "classname": "tests.test_auto_release",
+        "name": "test_registry_publication_keeps_queued_releases_instead_of_replacing_pending",
+        "time": "0.036"
+      }
+    ],
+    "command": [
+      "python",
+      "-m",
+      "pytest",
+      "-q",
+      "tests/test_wheel_build.py",
+      "tests/test_release_packaging.py",
+      "tests/test_schema_validation_budget.py",
+      "tests/test_auto_release.py",
+      "--basetemp=<owned-pytest-dir>",
+      "--junitxml=<owned-junit-receipt>"
+    ],
+    "coverage": "Actual PEP517 wheel and sdist-to-wheel builds, repeated A-to-B static replacement for both static directories, missing/unexpected files, path and staging boundaries, wheel RECORD, native packaging, schema budgets and release orchestration regressions. These are author-run tests and do not constitute independent review.",
+    "execution": {
+      "completed_utc": "2026-10-09T15:40:53.239971+00:00",
+      "elapsed_seconds": 53.104,
+      "exit_code": 0,
+      "name": "patch-release-regressions",
+      "timed_out": false
+    },
+    "pytest_elapsed_seconds": 52.368,
+    "result": {
+      "errors": 0,
+      "failures": 0,
+      "skipped": 0,
+      "tests": 207
+    }
+  },
+  "schema_version": 1,
+  "source_revision": "7a38dca72351a58b59ee7712f3296764848333be",
+  "version": "0.4.6"
+}

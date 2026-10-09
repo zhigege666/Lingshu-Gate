@@ -1,0 +1,469 @@
+{
+  "base_revision": "3e0f101ed858c94841a1f75b3ef23ee4d52e2e1b",
+  "captured_at_utc": "2026-10-09T15:40:09.437320+00:00",
+  "direct_and_sdist_wheel_byte_identical": true,
+  "entry_smokes": [
+    {
+      "case": "version",
+      "exit_code": 0,
+      "package": "wheel",
+      "result": "pass"
+    },
+    {
+      "case": "valid",
+      "elapsed_seconds": 0.3563,
+      "exit_code": 0,
+      "package": "wheel",
+      "result": "pass",
+      "worker_reaped": true
+    },
+    {
+      "case": "invalid",
+      "elapsed_seconds": 0.278,
+      "exit_code": 1,
+      "package": "wheel",
+      "result": "pass",
+      "worker_reaped": true
+    },
+    {
+      "case": "malformed-json",
+      "elapsed_seconds": 0.2545,
+      "exit_code": 1,
+      "package": "wheel",
+      "result": "pass",
+      "worker_reaped": true
+    },
+    {
+      "case": "remote-reference",
+      "elapsed_seconds": 0.2727,
+      "exit_code": 1,
+      "package": "wheel",
+      "result": "pass",
+      "worker_reaped": true
+    },
+    {
+      "case": "unsupported-dialect",
+      "elapsed_seconds": 0.2742,
+      "exit_code": 1,
+      "package": "wheel",
+      "result": "pass",
+      "worker_reaped": true
+    },
+    {
+      "case": "version",
+      "exit_code": 0,
+      "package": "native",
+      "result": "pass"
+    },
+    {
+      "case": "valid",
+      "elapsed_seconds": 0.3686,
+      "exit_code": 0,
+      "package": "native",
+      "result": "pass",
+      "worker_reaped": true
+    },
+    {
+      "case": "invalid",
+      "elapsed_seconds": 0.3767,
+      "exit_code": 1,
+      "package": "native",
+      "result": "pass",
+      "worker_reaped": true
+    },
+    {
+      "case": "malformed-json",
+      "elapsed_seconds": 0.3782,
+      "exit_code": 1,
+      "package": "native",
+      "result": "pass",
+      "worker_reaped": true
+    },
+    {
+      "case": "remote-reference",
+      "elapsed_seconds": 0.3711,
+      "exit_code": 1,
+      "package": "native",
+      "result": "pass",
+      "worker_reaped": true
+    },
+    {
+      "case": "unsupported-dialect",
+      "elapsed_seconds": 0.3652,
+      "exit_code": 1,
+      "package": "native",
+      "result": "pass",
+      "worker_reaped": true
+    }
+  ],
+  "installed_wheel_static_matches_source": true,
+  "native": {
+    "build_info_manifest_entries_verified": 467,
+    "build_info_source_revision": "7a38dca72351a58b59ee7712f3296764848333be",
+    "builder": {
+      "altgraph": "0.17.5",
+      "implementation": "CPython",
+      "machine": "x86_64",
+      "node": "v22.23.3",
+      "npm": "10.9.9",
+      "packaging": "26.3",
+      "pyinstaller": "6.22.3",
+      "pyinstaller-hooks-contrib": "2026.7",
+      "python": "3.13.15",
+      "system": "Linux",
+      "uv": "uv 0.12.19 (x86_64-unknown-linux-gnu)"
+    },
+    "checksums_verified": true,
+    "extracted_archive_validated": true,
+    "file": "lingshu-gate-v0.4.6-linux-x86_64.tar.gz",
+    "glibc_baseline": {
+      "exit_code": 0,
+      "highest_required": "2.35",
+      "maximum_allowed": "2.35",
+      "status": "passed"
+    },
+    "sbom_packages": 200,
+    "sha256": "3ff3fe53b3c35d79d24589ed4ce8b1205a44787f2ff3a5aed15d77e0a6751df4",
+    "size_bytes": 36314462,
+    "static_files_verified": 118,
+    "static_matches_source": true
+  },
+  "native_scaffold_directories_contain_only_keep_files": true,
+  "native_service_readiness": {
+    "command": [
+      "python",
+      "-m",
+      "scripts.release.smoke_native",
+      "--bundle-dir",
+      "<verified-candidate-bundle>",
+      "--target",
+      "linux-x86_64",
+      "--timeout",
+      "45"
+    ],
+    "execution": {
+      "completed_utc": "2026-10-09T15:42:18.313750+00:00",
+      "elapsed_seconds": 1.87,
+      "exit_code": 0,
+      "name": "native-readiness-smoke",
+      "timed_out": false
+    },
+    "output": "native readiness smoke test passed",
+    "scope": "Actual frozen main-service start, readiness and HTTP/static smoke using the official repository harness and regenerable owned loopback data. This run bootstraps temporary local fixture data and is distinct from the identity-free schema-worker subset. It does not exercise nx5, Podman provisioning, cross-machine OAuth, or browser navigation."
+  },
+  "parent_worker_lifecycle": [
+    {
+      "all_workers_reaped": true,
+      "cases": [
+        {
+          "all_workers_reaped": true,
+          "case": "valid",
+          "elapsed_seconds": 0.2516,
+          "error_code": null,
+          "result": "pass",
+          "workers_started": 1
+        },
+        {
+          "all_workers_reaped": true,
+          "case": "invalid",
+          "elapsed_seconds": 0.2166,
+          "error_code": "catalog_arguments_invalid",
+          "result": "pass",
+          "workers_started": 1
+        },
+        {
+          "all_workers_reaped": true,
+          "case": "deadline",
+          "elapsed_seconds": 0.5013,
+          "error_code": "catalog_validation_timeout",
+          "result": "pass",
+          "workers_started": 1
+        },
+        {
+          "all_workers_reaped": true,
+          "case": "slot-reusable-after-deadline",
+          "elapsed_seconds": 0.2012,
+          "error_code": null,
+          "result": "pass",
+          "workers_started": 1
+        },
+        {
+          "all_workers_reaped": true,
+          "case": "cancel",
+          "elapsed_seconds": 0.307,
+          "error_code": "catalog_validation_cancelled",
+          "result": "pass",
+          "workers_started": 1
+        },
+        {
+          "all_workers_reaped": true,
+          "case": "slot-reusable-after-cancel",
+          "elapsed_seconds": 0.2165,
+          "error_code": null,
+          "result": "pass",
+          "workers_started": 1
+        }
+      ],
+      "mode": "wheel",
+      "workers_started": 6
+    },
+    {
+      "all_workers_reaped": true,
+      "cases": [
+        {
+          "all_workers_reaped": true,
+          "case": "valid",
+          "elapsed_seconds": 0.3834,
+          "error_code": null,
+          "result": "pass",
+          "workers_started": 1
+        },
+        {
+          "all_workers_reaped": true,
+          "case": "invalid",
+          "elapsed_seconds": 0.4019,
+          "error_code": "catalog_arguments_invalid",
+          "result": "pass",
+          "workers_started": 1
+        },
+        {
+          "all_workers_reaped": true,
+          "case": "deadline",
+          "elapsed_seconds": 0.5018,
+          "error_code": "catalog_validation_timeout",
+          "result": "pass",
+          "workers_started": 1
+        },
+        {
+          "all_workers_reaped": true,
+          "case": "slot-reusable-after-deadline",
+          "elapsed_seconds": 0.4016,
+          "error_code": null,
+          "result": "pass",
+          "workers_started": 1
+        },
+        {
+          "all_workers_reaped": true,
+          "case": "cancel",
+          "elapsed_seconds": 0.3059,
+          "error_code": "catalog_validation_cancelled",
+          "result": "pass",
+          "workers_started": 1
+        },
+        {
+          "all_workers_reaped": true,
+          "case": "slot-reusable-after-cancel",
+          "elapsed_seconds": 0.3831,
+          "error_code": null,
+          "result": "pass",
+          "workers_started": 1
+        }
+      ],
+      "mode": "native",
+      "workers_started": 6
+    }
+  ],
+  "persistent_identity_created": false,
+  "publication": {
+    "expected_asset_count": 11,
+    "formal_release_assets_verified": 0,
+    "independent_review": "pending-at-evidence-capture",
+    "ordinary_ci": "pending-at-evidence-capture",
+    "required": [
+      "ordinary source and compatibility CI",
+      "independent patch review",
+      "publish-release credential and immutable-release prechecks",
+      "formal quality gate",
+      "five native targets",
+      "Compose bundle",
+      "two Core architectures and offline images",
+      "eleven exact downloadable assets",
+      "SHA256SUMS",
+      "internal inventories",
+      "SPDX SBOM",
+      "source/workflow attestations"
+    ],
+    "status": "pending-formal-gates"
+  },
+  "schema_version": 1,
+  "scope": "Fresh 0.4.6 patch-branch candidates in the preserved cloud environment. The following entry and worker lifecycle subset creates no persistent identity and does not bootstrap the service. Actual native service readiness is recorded separately below. These candidates are not formal published assets.",
+  "sdist": {
+    "file": "lingshu_gate-0.4.6.tar.gz",
+    "fresh_build_hook_present": true,
+    "sha256": "02c3d08d7a6143e69f4514df9a56cef1d6d60cfdee4994066a61e01c7ba69838",
+    "size_bytes": 2141951,
+    "static_files_verified": 118,
+    "static_matches_source": true,
+    "unique_safe_paths": true
+  },
+  "service_bootstrap_run": false,
+  "source_pull_request": "https://github.com/zhigege666/Lingshu-Gate/pull/63",
+  "source_revision": "7a38dca72351a58b59ee7712f3296764848333be",
+  "source_tree": "b6d33c23ea90174da2d8ab1d9aa0364599f6437c",
+  "static": {
+    "console": {
+      "file_count": 115,
+      "files": {
+        "assets/ExclamationCircleFilled-Dt3xfINN.js": "e4205cf20e33f17437d2540e075f98a21f7d144ff97b6a4629d9422a297886ae",
+        "assets/InfoCircleOutlined-BMOKeI_z.js": "03e7c80aaf0eb01de24864fce4bcbd18f77acafb97b37c6cc498cda289ff8ff9",
+        "assets/PlusOutlined-DVH659TE.js": "f381b6853a5cfb24007cba1a9c9d76de82ffa2e4f345ec1b6499178ecffac708",
+        "assets/RightOutlined-CuMeqWz4.js": "ed4174640866ed9c55b794e8dfa45daa883d3cbcdcf859a482d6e1380566b400",
+        "assets/access-grants-page-CLku0hso.js": "4c4aff7e26b4c78b2cbb04009179ec7f57c788d4676c82990db4a4327008335e",
+        "assets/access-roles-page-BO8bIVSD.css": "7e90bb626c48971dd5d0834bdb9e16106a78a9d856b1730ab5a35cc8613c2896",
+        "assets/access-roles-page-BP8asfkB.js": "7ee58b93ed1e1d13b3610f2dae6b0a6983c51ddc609fef3b13bd1c1b1440f06c",
+        "assets/access-users-page-CZ234AsI.js": "39b984fc02b75c9c791ddfb71cf98a5af25b211ad348753e1d37e2d3d2440cba",
+        "assets/action-menu-Dv0KA1Up.js": "0cb2a9af3d08c4149901b701f62a83cea60242cf2a31d15ab03cfed654d57d1a",
+        "assets/activity-C6Wjubl2.js": "fdb38a168a903fdcf11281d7669082ec85b08579ac1c09d35a7d9bc586d08de4",
+        "assets/alert-BWyCcnRa.js": "c48fd68950eaeb637becbd19766372df1080f219eaf22dd18597a003c0a4ae16",
+        "assets/badge-OW3g16Oh.js": "a5c0689f69ab5c8511bd3bf186fecbacbcdbb6dd03755c8c11ad1e98faea3378",
+        "assets/builds-BhcPewqH.js": "251d33e5c081784f81ea9894b863b27c6ea7f9abd1dcc11de57afd77b71e1371",
+        "assets/builds-page-DPSeElhz.css": "8c81d348d2854a8c2fbc19b9a971881784e746f62c94a7656e10f61cfee77151",
+        "assets/builds-page-Dk5IcKFY.js": "ee4ed275935d5ecc36ec1daa370351fa2e6338d4a901df2d9ef711950023cbf0",
+        "assets/card-BhqefgbM.js": "fa33fd519c3b167d77defd1c1e424043a2159fb77b917f5d120ed9538704fd13",
+        "assets/chevron-down-C1KIKeCa.js": "c80bfdaab48cbb01b915191cb21bebb77a382efa2a72f9034b0848312f481558",
+        "assets/chevron-left-Y2wo7Xec.js": "25c43c9375a59d212586dbe4359240c6b1c598bbf8ff6151985eeef242a346c2",
+        "assets/chevron-right-CfbPxlQa.js": "7244bf177379dad25b5400a92b9bbdbc97ae1820188569a8e35d0ab2a6cfdab0",
+        "assets/collapse-BgX--bqA.js": "4fa3cd0bae0587be44288a852deabc65dd95413609fa6927ad80e206d651e9b8",
+        "assets/command-CfsS4uDk.js": "b43cd93c2824a3b3d02ba82fe5c5f098a8995ea18d46ae176cf6ad879d2adc0c",
+        "assets/config-provider-DWHTOUEA.js": "11d096478b64bbe6e3cf9e9e8e272f150aa15739ff489c14d005d5b379e6dc74",
+        "assets/configs-page-DOJHdXhV.js": "4593d976fb259b64f6043513c4d583dd53820a1cb824fe3fc04167fb3a240e70",
+        "assets/context-C482taiw.js": "a0a1f7b63905be4fc845768e7a32d4d551277929f6ec6eae8ef47e8b8be601b5",
+        "assets/context-CgYzR2b9.js": "6e5e0382add7d84832850b3265190a6e9947026c73ded48856e0f3c35ad2da82",
+        "assets/copy-DgBQnHsw.js": "358ee91c815c69edb0a22facdbab0b806466fe2f9497dafb3b2e30ce94f77051",
+        "assets/credentials-page-DIpuwg2G.js": "dee8ee9f962728aec59c66eb16666a810b09cdc17357a37b8bb3f2fabeea9cde",
+        "assets/dashboard-page-C5QTwuKt.css": "a3967235e50df8b195f7c391f03fdf47682e7b0b891dc3dbe6cab6e0ff3e52cc",
+        "assets/dashboard-page-CcE4FHes.js": "f8a84de3478dc5c7d98bfacc7b6a57682c851b26b67bee9759708612acb30057",
+        "assets/deployment-options-1tQhbdwC.js": "ff4b17eb9fc64a4d0124c1695f2b959aab29173f8e01c909251b8bd670019bcf",
+        "assets/diagnostics-page-D1lFGHoK.js": "41f70a9f4c5e9b176590a2c722fb9cda8529a8c6781b5cf7074243efae9e5bf7",
+        "assets/dialog-Cu6KYnmi.js": "e2f251cb35e69d81230bbe27ec741ecefe6988063a7bf2576ec4ce5cf139d8f6",
+        "assets/dist-BVyVd9XC.js": "3048de973f6c3435e3ce6ffda9d34fdefd2863e3ae6eba7c0560e61d84c2a8c0",
+        "assets/dist-DKZ8D-UA.js": "d1a68745cc4f27acac96b5471c6cc612a1e1cd2f219b3b0f7701d56fa340c756",
+        "assets/dist-wTiNGevj.js": "b6bb4caaac81c42fe8b78bcf53026a55d0431b8c022f44bc1452399ed28f32c7",
+        "assets/downstream-credentials-page-BlB0jakO.css": "b1a9454ce4122286292b97fcc65fb62e2c4e3f279f26a8eec723be79dfc5e478",
+        "assets/downstream-credentials-page-TMs6zDGR.js": "36eabb87c46f7b7910609172644ee6145b0d8bc87e78d4f33c5a8eacdf29d5db",
+        "assets/es-BlfxCsxF.js": "39eb0b372425560960aecb900a4cadbb1d6484ffa62d334160a7fabff08cfc09",
+        "assets/external-connections-page-CqlVAejF.js": "07f0e797f9ac11598ee2fe91aa4cf7c542ac9061b8414f80322823ad732183c0",
+        "assets/external-connections-page-mT9jXUKm.css": "e99b366c4860fb91a821cf251b41c979dc497a4f1781c7c400f4957654740cb1",
+        "assets/filter-radio-By-vwnXz.css": "85b1dafc4d1b7dfeb5e5a242c75291efa14910adc661253d216e0463af7237ef",
+        "assets/filter-radio-omTQlyWe.js": "2a78848996743e7b821c27d7a819c3afee2754ddb863ff22276e449b4f2ea8fc",
+        "assets/form-5DWEzj3M.js": "9b7b34c6a14f07bd56f7bc96961a32b66b7e901e95b4850731da5c7ed13252d4",
+        "assets/form-dialog-BeilMHBi.js": "25a0cd774420b2a263f558b84627f8ab1d211b6d27402dce37969f04b9c62f71",
+        "assets/http-CTk34Y6z.js": "3227217b895813dd2e5e1aa2515c2d84d2be91a9c38b8e6ed269b42b64f54ad8",
+        "assets/index-C_hPtwDh.css": "8971a2afe0796265416dd0d769df794c4975d994e0de6b439996c9380dc96973",
+        "assets/index-wPmZbLUa.js": "a56ff01d759c6554cf5e573eccf76d3ad1c0734a0f097f5e578ba9ae50f59392",
+        "assets/info-Bx3wqeIY.js": "4ad157e8b688725b8f74f99c2ce96ebde2c294ff620b150319ed1e3ee6b0e157",
+        "assets/input-number-BKcfprjf.js": "9d03a24f786e1483ed0896fbd203d5341e2553dcdddd5b7966ba50e0e4f55fc3",
+        "assets/invocation-audit-page-Bt20jPN4.css": "c13e6369eef5ac0553c3cffe8a0ebe0c74bbf7fe276df932d678d374ff707df3",
+        "assets/invocation-audit-page-CnMaa1LH.js": "2fe32054306cf4c804a76221d19da979cd896fee7ed8ca04be777a39f54b192c",
+        "assets/invocation-payload-panel-MkU7VMKX.js": "5680d74dc85238cf1c0a4f5621e384744ce871f9ac7de16c63bffb7b08e4e1ad",
+        "assets/invoke-page-BBmrAk1p.js": "df3266e7613ae7b3a755109a8d849b56f1c97bcd3a858a9ac973cfa3a10e06b5",
+        "assets/invoke-page-BTA55JBX.css": "5a4b2c2a9cea05850f39948d6dfe30d55687325143a4da86bf8a38c9a2d7888c",
+        "assets/json-panel-BQduC3Ep.js": "330e0860b4899de65ecc2725ed1625f08a4f0d221c148c427b92501c3e0da20c",
+        "assets/list-pagination-CFUjdCU4.css": "65fcfbb43d329877165709b6d8b9f0a1575cc74f6735be64a1faab6ecf27c896",
+        "assets/list-pagination-DFBrXFNJ.js": "fb44a5dd71bfeb65244e6a3dbb158e1d0eb1d6ac91ccda02fe86919a7c3977fe",
+        "assets/logs-events-page-By2wPKjp.css": "f71b383d7d8eb23115842a3b37ac76730d2aa76e5fe2c2bfa93b567c3f7d9871",
+        "assets/logs-events-page-DLFdSAjy.js": "79996e44b503ac2bff20c2ca57fbc8ca55551bc0a75ea4aa72ef55a637cca9ad",
+        "assets/maintenance-lists-Db-gJatN.css": "f631cc5b3dd80f648a9d868128884c87ccfe4c7be8a2972026bf720307e20ad4",
+        "assets/mcp-config-editor-BAkFRdpf.css": "9b6c90c600e363d762767cf77960dbfa562b508b159122cf5c1ac58197d350f6",
+        "assets/mcp-config-editor-CMHGorCb.js": "10fd3c7ca7d7c7f7cea38bcf8d5a9122a704c145e9e48d32c6fc9f5c6b1a484b",
+        "assets/network-CPko-rSJ.js": "717d812260ef5779f9a597e3f26c10acfef0b3f9df24930d0d219cb3e590f404",
+        "assets/network-settings-panel-ChV9eh_J.css": "0457547d832c9e3d5f17f8d61a9444eb2994c6274869a1e2a4cecec471198153",
+        "assets/network-settings-panel-CrWXS2Cf.js": "a62f2a5aac0047c6d5ae38bb7f636bce0f5f1e9fe066adef342326fbc18a66f8",
+        "assets/page-shell-DoCOfY_C.js": "3a7d620a9473a97eff51191d096676bdc95c637659912bb08dd37c5bd37b5c30",
+        "assets/page-utils-DD4d3K4s.js": "9055765a80879fc4448f65aec0804a884939b28d3795feaac3957a09c629d94b",
+        "assets/pagination-IVGuxch9.js": "6610507d550092fd3e8e8835491aa10d21160fc630c63944a1b3978dd815e73a",
+        "assets/personal-tokens-page-BCu4_LWU.js": "b05c28b080b5e5e3b4d146b23dccfa4279759d57c6d5f9859fe02e4f1d1b1222",
+        "assets/personal-tokens-page-CgKMttU8.css": "673d2c020c8194961989b2dc6cf390d5283799927e3ec8be44c747069c17c1c3",
+        "assets/personal-workspace-page-Bxtrfd6J.css": "de0b6b8a09fb0e934c1d58ddfbc5716815d3c3621a4161ce1c24edbbe296898f",
+        "assets/personal-workspace-page-DkQQbHfX.js": "bb9e78255412829911d71a263754b3b974ac63429c6632a1550c5557592d85d0",
+        "assets/plus-D_pyY9nN.js": "ccc51dccb0c2e212e60e5c43f47ecadf27d1999fd352e19b8ef1d1e868ed7ac3",
+        "assets/query-status-BnfV0vtj.js": "24f03d95032116a326e975bdd8b3846f3c4ef8a03f1fda35581cbca7c450b9a3",
+        "assets/radio-CwpO4NvB.js": "a5d516166d2eb11461d1b1bd28180daa0f767a9bbd76b071210bb1a70861a932",
+        "assets/runtime-cache-page-C2dxzzqm.js": "2ebab9beb41a4dfb3ffa41a5fdd044cd2c0a6c65e6cda6d48d27e9eb9fbf5cb7",
+        "assets/search-DhTkXi8A.js": "3ef9717683ea0c720afa9ec22efddfdb9a1e44021ea5ccca80aa835fcc952fc9",
+        "assets/segmented-CwwCg9eA.js": "2bf1031f0eb3c54750c3e47b4a0abc63da565cff840ef2d78cf346efcee1efce",
+        "assets/select-1f_zeaWe.js": "a98a57195ae3f14dce37a777150b7c25f013b1e408e0d54bb68290dfe00bee3a",
+        "assets/select-BXj1UITW.js": "327fbff112b5ceccd59408f82c8b78e0c170effc3029d45c86590db7a5c108ce",
+        "assets/servers-page-DepLcCbk.css": "cd1bd12618dc743a1918de30cee1881b631db87c75fdca274efe9d0bf4cff8bf",
+        "assets/servers-page-wGpcDHkv.js": "34f3b70f7957442c6fd8c0524b3bb359b5263ba463ba9134293111b3eafed851",
+        "assets/shield-alert-Cp4L2uk_.js": "93cd533bb4c7d475ab9051efc93305ff8242437483546d371e6237b24ff7957b",
+        "assets/shield-check-BJ1vOIKV.js": "8b1a2fd93118d90affd24441956c895f7951534113c67f4deb9b65ba3ba59099",
+        "assets/skeleton-C6I4ewAl.js": "b64279b245492e73298b1e8afed228fc60b6bfbe24c0d64d99c2c5e51ddaf59f",
+        "assets/space-Ddo43wfB.js": "9c1ab54f8bf31f6cae89f2e2b662000b655ad15a23b91dd01d87f0e6cc7133a3",
+        "assets/style-CaSOBl_y.js": "c201b0a5795b1053265dd63d70df028c46aef1ae484bf982540b66d8cc9a3652",
+        "assets/switch--lFydxs1.js": "e1975dd98e0ba9454a758f6d8a0fdbab4dfb3636060493bfdebe245cca8d30d1",
+        "assets/switch-CXyDLd3S.js": "10dae2c5c1393afc771b0d3a4dc32a2e4b207539b6d8a29f48e2371b1ff2b8be",
+        "assets/system-settings-page-BvHgDV0d.js": "cd6aedec656ebccd32a68270515759ff52702c96cabf02672b09a9ea291dbf2c",
+        "assets/table-CpgrSVIz.js": "655a30816fd8ff7c3f747fc5d0c421a37dc90daf405b51dde4cc9c9699bba407",
+        "assets/table-tools-Cfo408TU.js": "3604d5f65b2315c900d1750a223ae8694379e95b65ecd2bb0f7af595f04b488e",
+        "assets/tabs-kBGfCh4r.js": "48252f459e8ee64a690a4fb84dde7ecd52146d42ab2f53b1e67ad4b0822d36ed",
+        "assets/tag-B_MAFVrO.js": "2266adfbe858871f56dfde0d8016ab950c726b7b366bc74aeecbd14c01ee02ed",
+        "assets/textarea-tJL5OFBK.js": "8766ee9d6c156bf53ed63e7fd419c4ed51b8c00d9a06b22c1f9e7287a114ba5c",
+        "assets/tool-access-CtKHIheZ.js": "d70110e04846000bbd16374fd7f327e502ee2b4e63b4b3b704643ae6113fc098",
+        "assets/tool-classifications-page-BGhDXg7K.css": "4866f15166af03fa998b939894fd0ec770ec09897afc2e87c7253ae5f26858ab",
+        "assets/tool-classifications-page-Cvake2E1.js": "0d1e670eb29cb06481cc895634e2d019bb887ed7c08c4f8842835e2a54e279a6",
+        "assets/tool-origin-mXy-TKr4.js": "b3145e27d0d77dbbf070c4c7919c289c2728212acb682908806107b5e48525e9",
+        "assets/tools-page-Bue409wT.js": "8d785e5287eedcf818707db205b5c54661441e35fae0d016d6bfc66fb5c1a90d",
+        "assets/tools-page-lFlOsfiq.css": "fab74284501cf41d22fb3ab2ffa0a519464b2defa44e7d79719920d3bd421389",
+        "assets/tooltip-C2ZjJ2UH.js": "e79cba541344f92be30e75601a03dfcebfefdf34e8352297ae269e2228c980ae",
+        "assets/uploads-page-BAIghWWK.js": "b95cc6be44f97b714aa488098c0f8c08d2f3ba37854b7c7340ab2b3e11bad6b6",
+        "assets/use-draft-close-guard-D2-uOUhL.js": "61ce868245106318f9ca66a39f66e3cb1e3ca153d623351a282adf115f1a5c02",
+        "assets/use-remaining-viewport-DbWVprg9.js": "e0d82d83997ff7291b8e083d3713b4768e7099502f03a8f5ea45f426c7deb283",
+        "assets/useClosable-DPAx9KaY.js": "4bb67298a982567dd9c02744b2d676aa180805897e8e41d99f8be69a5c887248",
+        "assets/useModal-DmoF0W0g.js": "09a8776b9f20049d2050c71903dba5218b4460114684f38871c6bfa0348c2861",
+        "assets/user-plus-BTAxZYVC.js": "7255a76bb5970c9dc8c4b6b310ed226ad3fdc872f19f2b34c29d4b229c054c2c",
+        "assets/validateMessagesContext-Ym1bDdgu.js": "68bf5c649164e70889ea7be8afa465fb870672080789b2e87451e9014e601342",
+        "assets/validation-D6vjtMIC.js": "48ec206505a65e79236ddea209010ccb845d72f63a0012ca4f4fbce711bcc37d",
+        "assets/validation-errors-CGzfaoDV.js": "7a29bce1feb55d071fb4c5ceda4d32ab33084eb5e0726db237dca7f43fc74999",
+        "index.html": "dc899f0c4237e290a7c7553d8b4d446c7c4fd18cf411e7f3b89d84229b46611f",
+        "lingshu-gate-app-icon.svg": "d71eaa8f740ee28d91c2e76f989b1974f1383d4dfe333779f1162054bbb6f276",
+        "lingshu-gate-icon-512.png": "322c8f0cc9d4498946a5dd1309458a594c08cbb201bd87310d2b0c076ddd61a4",
+        "lingshu-gate-icon.svg": "fa3b2ea6a4dc577f15678f9530eaab11cdcbe6a80b88f32a24eaf6501d4815c4"
+      },
+      "matches_previous_reviewed_tree": true,
+      "reviewed_inventory_sha256": "baf88d329570f5692c456145539dc4d574ece88a998568170c483cd8cd58062a"
+    },
+    "oauth": {
+      "file_count": 3,
+      "files": {
+        "assets/oauth-B0Q7W4g8.js": "13678c5b1d4ac16ec49221d2954b03478e47348eadda81944012384df7f98ade",
+        "assets/oauth-BH4S-ygD.css": "8ddefa5e7a21069fccc6fd669f32770aec14165a38cb99aa4df169fc0222b6b0",
+        "oauth.html": "34473eb45be680d3a041da6b24297df4defeda4cadea641ebfd8ba066802b769"
+      },
+      "matches_previous_reviewed_tree": true,
+      "reviewed_inventory_sha256": "c33f85521c868ae08eb4aa4ef042c98a9ec2844153147b923e87f5fc9049820c"
+    }
+  },
+  "verification_command": {
+    "completed_utc": "2026-10-09T15:40:09.483774+00:00",
+    "elapsed_seconds": 9.907,
+    "exit_code": 0,
+    "name": "candidate-verification",
+    "timed_out": false
+  },
+  "version": "0.4.6",
+  "wheels": {
+    "direct": {
+      "archive_entries": 283,
+      "file": "lingshu_gate-0.4.6-py3-none-any.whl",
+      "record_entries_verified": 283,
+      "sha256": "d226e5724b9f9b661437371722eb3d45a6c185d13f19389dc5caed9000a4ab7a",
+      "size_bytes": 1923242,
+      "static_files_verified": 118,
+      "static_matches_source": true,
+      "unique_safe_paths": true
+    },
+    "from_sdist": {
+      "archive_entries": 283,
+      "file": "lingshu_gate-0.4.6-py3-none-any.whl",
+      "record_entries_verified": 283,
+      "sha256": "d226e5724b9f9b661437371722eb3d45a6c185d13f19389dc5caed9000a4ab7a",
+      "size_bytes": 1923242,
+      "static_files_verified": 118,
+      "static_matches_source": true,
+      "unique_safe_paths": true
+    }
+  },
+  "worker_lifecycle_limit": "Both lifecycle parents run the production-installed wheel Python. The native mode dispatches the actual frozen schema-worker entry; it is not the complete native main-service call chain.",
+  "worker_runtime_directory_unchanged_and_empty": true
+}
