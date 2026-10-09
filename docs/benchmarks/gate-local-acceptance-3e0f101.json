@@ -1,0 +1,332 @@
+{
+  "created_at_utc": "2026-10-09T15:12:51Z",
+  "scope": "Authorized regenerable local acceptance; no production or nx5 acceptance claim",
+  "product_source_sha": "3e0f101ed858c94841a1f75b3ef23ee4d52e2e1b",
+  "product_tree_sha": "d3d6bef164400732b18ea19be3f8a942b8d00815",
+  "tested_adapter_commit": "f1e89121c265e6aa9d335b087fe133e3aaf44118",
+  "original_adapter_commit": "5f0148750ff9f66ab2b3feb14a97dd81332db76f",
+  "original_adapter_sha256": "1255ffc0721b1e6fcfd487b18884e6db51f3a50af019762f4599d2c70cf8261f",
+  "adapter_sha256": "c68c95aeee3a7a8fbc85b6cbeb81c87d3c60dd4dd0d518d632aa3c25542f6e54",
+  "test_inputs_sha256": {
+    "run_owned_e2e.py": "c68c95aeee3a7a8fbc85b6cbeb81c87d3c60dd4dd0d518d632aa3c25542f6e54",
+    "test_run_owned_e2e.py": "9bf02fecde5b76d2eaa932fba862dd5ac3b6286a5699d83afb6a71b83d921767",
+    "local_http_acceptance.py": "d81477d30cc3676f3cf7f45ca51ead4d5812325b30f3e098c0b40ce489514dbb"
+  },
+  "root_causes": [
+    "KeyboardInterrupt from SIGINT is outside Exception and escaped run before owned reap.",
+    "connect_ex returned nonzero for timeout/unreachable/permission/other errors; these were incorrectly accepted as proof of listener closure."
+  ],
+  "repairs": [
+    "Owned execution always reaps in finally; first interruption switches immediately to deferred-signal cleanup, including execution unwind. Original signal handlers are restored.",
+    "Only ECONNREFUSED proves a closed loopback listener. Successful connection stays open; all other outcomes fail closed and retain owned state.",
+    "Private logs and preflight evidence are retained outside the owned data root before exact owned-root deletion; no existing data/cache/source root is deleted."
+  ],
+  "pre_fix_regression": {
+    "tests_run": 2,
+    "failures": 7,
+    "errors": 0,
+    "expected_pre_fix_failures_reproduced": true,
+    "real_signal_probe": {
+      "listener_started": true,
+      "interruption_sent": true,
+      "manager_exit_code": -2,
+      "outer_owned_reap_complete": true,
+      "outer_owned_processes_gone": true,
+      "unowned_sentinel_preserved": true
+    }
+  },
+  "post_fix_regression": {
+    "adapter_commit": "f1e89121c265e6aa9d335b087fe133e3aaf44118",
+    "tests_run": 48,
+    "failures": 0,
+    "errors": 0,
+    "passed": true,
+    "inputs_sha256": {
+      "run_owned_e2e.py": "c68c95aeee3a7a8fbc85b6cbeb81c87d3c60dd4dd0d518d632aa3c25542f6e54",
+      "test_run_owned_e2e.py": "9bf02fecde5b76d2eaa932fba862dd5ac3b6286a5699d83afb6a71b83d921767",
+      "local_http_acceptance.py": "d81477d30cc3676f3cf7f45ca51ead4d5812325b30f3e098c0b40ce489514dbb"
+    }
+  },
+  "real_http_stdio_acceptance": {
+    "source_sha": "3e0f101ed858c94841a1f75b3ef23ee4d52e2e1b",
+    "adapter_sha256": "c68c95aeee3a7a8fbc85b6cbeb81c87d3c60dd4dd0d518d632aa3c25542f6e54",
+    "desktop_targets": [
+      [
+        1600,
+        900,
+        "en-US"
+      ],
+      [
+        1920,
+        1080,
+        "zh-CN"
+      ],
+      [
+        2560,
+        1080,
+        "en-US"
+      ],
+      [
+        2560,
+        1440,
+        "zh-CN"
+      ]
+    ],
+    "temporary_persistent_state": "destroyed_with_exact_owned_root",
+    "acceptance_kind": "http",
+    "command_exit_code": 0,
+    "static_source_and_serving_binding": {
+      "source_sha": "3e0f101ed858c94841a1f75b3ef23ee4d52e2e1b",
+      "static_manifest_sha256": "dd3f5e2d2a236100963f3109d4355812fbdaff58a2f6a5af65fa2726b557c7fa",
+      "console_served_assets_verified": 115,
+      "oauth_disk_assets_verified": 3,
+      "oauth_routes_disabled": true,
+      "oauth_ui_served_bytes_verified": false
+    },
+    "http_acceptance": {
+      "source_sha": "3e0f101ed858c94841a1f75b3ef23ee4d52e2e1b",
+      "transport": "actual loopback HTTP and actual stdio child",
+      "fixture": "regenerable local synthetic accounts and data",
+      "browser_executed": false,
+      "nx5_executed": false,
+      "oauth_enabled": false,
+      "cases": [
+        {
+          "name": "actual fixture health and running backend version",
+          "passed": true
+        },
+        {
+          "name": "all 115 Console assets served with exact SHA and OAuth routes disabled",
+          "passed": true
+        },
+        {
+          "name": "root negotiation, no-store and all legacy redirect query bytes",
+          "passed": true
+        },
+        {
+          "name": "actual root and legacy asset parity, missing assets and traversal rejection",
+          "passed": true
+        },
+        {
+          "name": "actual anonymous denial, viewer login, personal reads and five management denials",
+          "passed": true
+        },
+        {
+          "name": "actual upload, preflight and dependency-free copy-tree plan",
+          "passed": true
+        },
+        {
+          "name": "actual build terminal success with artifact inside owned root",
+          "passed": true
+        },
+        {
+          "name": "actual wrong-digest deployment rejected without target creation",
+          "passed": true
+        },
+        {
+          "name": "actual deployed stdio process, discovery and marker invocation",
+          "passed": true
+        },
+        {
+          "name": "new discovered tool remains unavailable to viewer without new grant",
+          "passed": true
+        }
+      ],
+      "passed": true,
+      "running_version": "0.4.5",
+      "static_binding": {
+        "source_sha": "3e0f101ed858c94841a1f75b3ef23ee4d52e2e1b",
+        "static_manifest_sha256": "dd3f5e2d2a236100963f3109d4355812fbdaff58a2f6a5af65fa2726b557c7fa",
+        "console_served_assets_verified": 115,
+        "oauth_disk_assets_verified": 3,
+        "oauth_routes_disabled": true,
+        "oauth_ui_served_bytes_verified": false
+      },
+      "legacy_hashed_assets_verified": 111,
+      "bundle": {
+        "included_files": [
+          "pyproject.toml",
+          "server.py"
+        ],
+        "size_bytes": 1299,
+        "sha256": "a9859193946ce85a89d3cee8a2598bdfe4ab754c86df63530cff53f46006f1b9",
+        "source": "Git-bound reviewed synthetic standard-library fixture"
+      },
+      "build": {
+        "runtime": "python",
+        "steps": [],
+        "run_install": false,
+        "run_build": false,
+        "preflight_status": "warning",
+        "operation": "copy_tree artifact packaging",
+        "status": "success"
+      },
+      "delivery": {
+        "status": "success",
+        "runtime_started": true,
+        "runtime_status": "running",
+        "tool_count": 1,
+        "stdio_invocation_verified": true,
+        "artifact_cwd_verified": true,
+        "classification_publication": "not performed",
+        "new_permissions_granted": false,
+        "full_skill_acceptance": false
+      }
+    },
+    "local_http_subphase_passed": true,
+    "entire_gate7_gate9_tickets_closed": false,
+    "two_listeners_closed": true,
+    "owned_descendants_reaped": true,
+    "adapter_commit": "f1e89121c265e6aa9d335b087fe133e3aaf44118"
+  },
+  "preflight_observation": {
+    "status": "warning",
+    "warnings": [
+      {
+        "id": "tool.pnpm",
+        "status": "warning",
+        "message": "pnpm missing"
+      },
+      {
+        "id": "tool.yarn",
+        "status": "warning",
+        "message": "yarn missing"
+      },
+      {
+        "id": "tool.pip",
+        "status": "warning",
+        "message": "pip missing"
+      },
+      {
+        "id": "tool.pip3",
+        "status": "warning",
+        "message": "pip3 missing"
+      }
+    ],
+    "python_available": true,
+    "continuation_reason": "The confirmed synthetic Python source has no dependencies or install/build scripts. Exact plan steps were empty and copy_tree packaging plus the available Python interpreter did not use pip, pip3, pnpm or yarn."
+  },
+  "browser_capability": {
+    "exit_code": 1,
+    "launched": false,
+    "chromiumSandbox": true,
+    "sandbox_kernel_denial": false,
+    "failure": "Chromium sandboxing failed: No usable sandbox",
+    "source": "Actual Chromium launch with chromiumSandbox=true and the existing reviewed browser input.",
+    "browser_policy_changed": false,
+    "sandbox_disabled": false,
+    "acceptance_browser_cases_executed": 0
+  },
+  "not_run": [
+    "Browser-rendered four-desktop Console/focus/layout checks, fragment/login/reload and native back/forward navigation.",
+    "PowerShell bundle skill script (pwsh unavailable); this acceptance used the Git-bound two-file synthetic fixture archive.",
+    "Dependency installation or compilation (copy_tree plan had no commands).",
+    "Classification publication and new downstream grants; full Project Delivery Skill acceptance is incomplete.",
+    "nx5, cross-machine delivery, real OAuth clients, Native/Linux host provisioning or Podman isolation.",
+    "Formal failed workflows, old denied artifacts/Library objects, tags/releases and x16."
+  ],
+  "review": {
+    "author_checks": "48 real/pure boundary regressions, 10 actual HTTP/stdio groups, focused Ruff and diff check.",
+    "independent_implementation_review": "Pending root-task independent review; no self-review is labelled independent.",
+    "whole_gate7_gate9_acceptance_closed": false
+  },
+  "commands": [
+    {
+      "name": "pre-fix reproduction",
+      "method": "Load original adapter from exact 5f014875 and run the two new regression cases; outer owned subreaper reaps demonstrated leftovers."
+    },
+    {
+      "name": "final boundary regressions",
+      "argv": [
+        "<source-python>",
+        "-B",
+        "-m",
+        "unittest",
+        "-v",
+        "test_run_owned_e2e"
+      ],
+      "source_environment": "GATE_OWNED_STATIC_TEST_SOURCE=<clean exact 3e0f101 source>",
+      "exit_code": 0
+    },
+    {
+      "name": "real HTTP/stdio acceptance",
+      "argv": [
+        "<source-python>",
+        "-I",
+        "-B",
+        "run_owned_e2e.py",
+        "run",
+        "--root",
+        "<prepared owned root>",
+        "--fixture-scope-approved",
+        "--acceptance-kind",
+        "http"
+      ],
+      "exit_code": 0
+    },
+    {
+      "name": "focused source lint",
+      "argv": [
+        "ruff",
+        "check",
+        "--no-cache",
+        "docs/benchmarks/gate-local-acceptance-3e0f101"
+      ],
+      "exit_code": 0
+    },
+    {
+      "name": "whitespace",
+      "argv": [
+        "git",
+        "diff",
+        "--check"
+      ],
+      "exit_code": 0
+    }
+  ],
+  "supporting_files": {
+    "docs/benchmarks/gate-local-acceptance-3e0f101/adapter-changes.patch": {
+      "bytes": 8655,
+      "sha256": "ffcce4354e0a59761a8d049b3601d2e4558e406e552f3deaf0a018a354843f0f"
+    },
+    "docs/benchmarks/gate-local-acceptance-3e0f101/cleanup-before.log": {
+      "bytes": 6024,
+      "sha256": "dbccfd2471b8e58ebf9d538865577c975b578f028c9aa2d76c353718795eaf25"
+    },
+    "docs/benchmarks/gate-local-acceptance-3e0f101/cleanup-final.log": {
+      "bytes": 7655,
+      "sha256": "96ac65fe362cec2dfc959f7c84b11b2d895fafdcd6dc1e3d1480f60c49dc92d4"
+    },
+    "docs/benchmarks/gate-local-acceptance-static-3e0f101.json": {
+      "bytes": 13940,
+      "sha256": "dd3f5e2d2a236100963f3109d4355812fbdaff58a2f6a5af65fa2726b557c7fa"
+    }
+  },
+  "cleanup_after_manager_exit_author_readback": {
+    "tracked_process_count": 8,
+    "recorded_owned_reap_complete": true,
+    "all_tracked_processes_absent_after_manager_exit": true,
+    "exact_owned_data_root_absent": true,
+    "private_logs_and_preflight_preserved": true,
+    "prior_sources_and_candidates_retained": true,
+    "limits": "Tracked manager descendants observed in /proc; arbitrary unobserved descendants are not certified. No original service is signalled.",
+    "prior_candidate_sha256_unchanged": {
+      "wheel": "d59d42dffbeecdcd3930560cbd5195ea0efed7dcd2f00bbab97c81054a444d75",
+      "sdist": "927fd44a8083817d5402fcdfb542331427e1fe1195a83eff41d73407a340e93b",
+      "linux_native": "541f6372154dc493d8f0900e841e13e958417e0ca52552ba41309b00a7f7ec41"
+    },
+    "exact_original_source_worktree_clean": true
+  },
+  "evidence_formatting": {
+    "initial_check": "Trailing whitespace found in unified-diff blank context and raw unittest log formatting.",
+    "correction": "Replaced with a valid zero-context diff and removed log-line trailing whitespace; empirical results and code bytes are unchanged."
+  },
+  "ci_observation": {
+    "first_run": 37950574682,
+    "first_source_job": 113887969846,
+    "first_head": "326bbb96ab9323d2befba8f69a71b3089474e21e",
+    "failure": "TXT-045 in the evidence scope wording, also retained by two unmerged evidence snapshots.",
+    "repair": "Corrected the wording and regenerated only the two owned evidence commits after preserving their complete history in a verified private Git bundle. Identity policy and its exceptions are unchanged.",
+    "formal_release_run_retried": false
+  }
+}

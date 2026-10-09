@@ -1,0 +1,77 @@
+test_uncertain_connect_results_retain_owned_state (cleanup_reproduction.OwnedBoundaryTests.test_uncertain_connect_results_retain_owned_state) ...
+  test_uncertain_connect_results_retain_owned_state (cleanup_reproduction.OwnedBoundaryTests.test_uncertain_connect_results_retain_owned_state) (result=110) ... FAIL
+  test_uncertain_connect_results_retain_owned_state (cleanup_reproduction.OwnedBoundaryTests.test_uncertain_connect_results_retain_owned_state) (result=113) ... FAIL
+  test_uncertain_connect_results_retain_owned_state (cleanup_reproduction.OwnedBoundaryTests.test_uncertain_connect_results_retain_owned_state) (result=101) ... FAIL
+  test_uncertain_connect_results_retain_owned_state (cleanup_reproduction.OwnedBoundaryTests.test_uncertain_connect_results_retain_owned_state) (result=13) ... FAIL
+  test_uncertain_connect_results_retain_owned_state (cleanup_reproduction.OwnedBoundaryTests.test_uncertain_connect_results_retain_owned_state) (result=4) ... FAIL
+  test_uncertain_connect_results_retain_owned_state (cleanup_reproduction.OwnedBoundaryTests.test_uncertain_connect_results_retain_owned_state) (result=99) ... FAIL
+test_real_sigint_reaps_detached_listener_and_preserves_unowned_state (cleanup_reproduction.OwnedBoundaryTests.test_real_sigint_reaps_detached_listener_and_preserves_unowned_state) ... FAIL
+
+======================================================================
+FAIL: test_uncertain_connect_results_retain_owned_state (cleanup_reproduction.OwnedBoundaryTests.test_uncertain_connect_results_retain_owned_state) (result=110)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "<reviewed-input>/docs/benchmarks/gate-local-acceptance-3e0f101/test_run_owned_e2e.py", line 528, in test_uncertain_connect_results_retain_owned_state
+    with self.assertRaises(owned.BoundaryError):
+         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError: BoundaryError not raised
+
+======================================================================
+FAIL: test_uncertain_connect_results_retain_owned_state (cleanup_reproduction.OwnedBoundaryTests.test_uncertain_connect_results_retain_owned_state) (result=113)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "<reviewed-input>/docs/benchmarks/gate-local-acceptance-3e0f101/test_run_owned_e2e.py", line 528, in test_uncertain_connect_results_retain_owned_state
+    with self.assertRaises(owned.BoundaryError):
+         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError: BoundaryError not raised
+
+======================================================================
+FAIL: test_uncertain_connect_results_retain_owned_state (cleanup_reproduction.OwnedBoundaryTests.test_uncertain_connect_results_retain_owned_state) (result=101)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "<reviewed-input>/docs/benchmarks/gate-local-acceptance-3e0f101/test_run_owned_e2e.py", line 528, in test_uncertain_connect_results_retain_owned_state
+    with self.assertRaises(owned.BoundaryError):
+         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError: BoundaryError not raised
+
+======================================================================
+FAIL: test_uncertain_connect_results_retain_owned_state (cleanup_reproduction.OwnedBoundaryTests.test_uncertain_connect_results_retain_owned_state) (result=13)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "<reviewed-input>/docs/benchmarks/gate-local-acceptance-3e0f101/test_run_owned_e2e.py", line 528, in test_uncertain_connect_results_retain_owned_state
+    with self.assertRaises(owned.BoundaryError):
+         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError: BoundaryError not raised
+
+======================================================================
+FAIL: test_uncertain_connect_results_retain_owned_state (cleanup_reproduction.OwnedBoundaryTests.test_uncertain_connect_results_retain_owned_state) (result=4)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "<reviewed-input>/docs/benchmarks/gate-local-acceptance-3e0f101/test_run_owned_e2e.py", line 528, in test_uncertain_connect_results_retain_owned_state
+    with self.assertRaises(owned.BoundaryError):
+         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError: BoundaryError not raised
+
+======================================================================
+FAIL: test_uncertain_connect_results_retain_owned_state (cleanup_reproduction.OwnedBoundaryTests.test_uncertain_connect_results_retain_owned_state) (result=99)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "<reviewed-input>/docs/benchmarks/gate-local-acceptance-3e0f101/test_run_owned_e2e.py", line 528, in test_uncertain_connect_results_retain_owned_state
+    with self.assertRaises(owned.BoundaryError):
+         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError: BoundaryError not raised
+
+======================================================================
+FAIL: test_real_sigint_reaps_detached_listener_and_preserves_unowned_state (cleanup_reproduction.OwnedBoundaryTests.test_real_sigint_reaps_detached_listener_and_preserves_unowned_state)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "<reviewed-input>/docs/benchmarks/gate-local-acceptance-3e0f101/test_run_owned_e2e.py", line 547, in test_real_sigint_reaps_detached_listener_and_preserves_unowned_state
+    self.interrupted_owned_run(signal.SIGINT)
+  File "<reviewed-input>/docs/benchmarks/gate-local-acceptance-3e0f101/test_run_owned_e2e.py", line 634, in interrupted_owned_run
+    self.assertEqual(exit_code, 0)
+AssertionError: -2 != 0
+
+----------------------------------------------------------------------
+Ran 2 tests in 0.434s
+
+FAILED (failures=7)
