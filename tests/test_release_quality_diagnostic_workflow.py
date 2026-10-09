@@ -12,8 +12,8 @@ import yaml
 
 
 ROOT = Path(__file__).resolve().parents[1]
-SOURCE_SHA = "c0ea7d04cd16ac01536d0c0f00edab0c5ffc349e"
-SOURCE_TREE = "716da35e388aab6784d8b41d6ae4e79a4c17f948"
+SOURCE_SHA = "d228cf7ad27f2688cc6e04e5210c8aa2ea88b646"
+SOURCE_TREE = "b6d33c23ea90174da2d8ab1d9aa0364599f6437c"
 
 
 def workflow():
@@ -46,7 +46,7 @@ def test_product_and_diagnostic_revisions_are_separate_and_checkout_is_exact():
     job = workflow()["jobs"]["quality"]
     assert job["env"]["LINGSHU_GATE_DIAGNOSTIC_SOURCE_SHA"] == SOURCE_SHA
     assert job["env"]["LINGSHU_GATE_DIAGNOSTIC_SOURCE_TREE"] == SOURCE_TREE
-    assert job["env"]["LINGSHU_GATE_DIAGNOSTIC_SOURCE_TAG"] == "v0.4.5"
+    assert job["env"]["LINGSHU_GATE_DIAGNOSTIC_SOURCE_TAG"] == "v0.4.6"
     assert job["defaults"]["run"]["working-directory"] == "source"
     product = steps()["Checkout fixed product source and history"]["with"]
     tools = steps()["Checkout exact diagnostic workflow revision"]["with"]
@@ -98,7 +98,7 @@ def test_provenance_step_executes_and_rejects_each_mismatch(tmp_path, fault):
     source = tmp_path / "source"
     sha = _repository(source)
     tree = _git(source, "rev-parse", "HEAD^{tree}")
-    _git(source, "tag", "v0.4.5")
+    _git(source, "tag", "v0.4.6")
     tools = tmp_path / "diagnostic-tools"
     tools_sha = _repository(tools)
     helper = tools / "scripts/quality/pytest_evidence.py"
@@ -111,7 +111,7 @@ def test_provenance_step_executes_and_rejects_each_mismatch(tmp_path, fault):
     output.mkdir()
     env = {**os.environ, "GITHUB_WORKSPACE": str(tmp_path), "RUNNER_TEMP": str(output),
            "LINGSHU_GATE_DIAGNOSTIC_SOURCE_SHA": sha, "LINGSHU_GATE_DIAGNOSTIC_SOURCE_TREE": tree,
-           "LINGSHU_GATE_DIAGNOSTIC_SOURCE_TAG": "v0.4.5", "GITHUB_WORKFLOW_SHA": tools_sha,
+           "LINGSHU_GATE_DIAGNOSTIC_SOURCE_TAG": "v0.4.6", "GITHUB_WORKFLOW_SHA": tools_sha,
            "GITHUB_WORKFLOW_REF": "synthetic/repository/diagnostic.yml@refs/heads/fixture", "GITHUB_SHA": tools_sha}
     if fault in ("source_sha", "source_tree", "tooling_sha"):
         key = {"source_sha": "LINGSHU_GATE_DIAGNOSTIC_SOURCE_SHA", "source_tree": "LINGSHU_GATE_DIAGNOSTIC_SOURCE_TREE",
@@ -122,9 +122,9 @@ def test_provenance_step_executes_and_rejects_each_mismatch(tmp_path, fault):
              "commit", "--allow-empty", "-qm", "other synthetic source")
         env["LINGSHU_GATE_DIAGNOSTIC_SOURCE_SHA"] = _git(source, "rev-parse", "HEAD")
     elif fault == "annotated_tag":
-        _git(source, "tag", "-d", "v0.4.5")
+        _git(source, "tag", "-d", "v0.4.6")
         _git(source, "-c", "user.name=Synthetic Fixture", "-c", "user.email=fixture@example.test",
-             "tag", "-am", "synthetic annotated tag", "v0.4.5")
+             "tag", "-am", "synthetic annotated tag", "v0.4.6")
     elif fault == "dirty_source":
         (source / "fixture.txt").write_text("synthetic changed source\n")
     shell = steps()["Verify source tag and separate workflow provenance"]["run"]

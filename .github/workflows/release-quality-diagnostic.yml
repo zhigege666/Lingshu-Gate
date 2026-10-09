@@ -8,13 +8,13 @@ permissions:
 
 jobs:
   quality:
-    name: Diagnose fixed 0.4.5 release source
+    name: Diagnose fixed 0.4.6 release source
     runs-on: ubuntu-22.04
     timeout-minutes: 40
     env:
-      LINGSHU_GATE_DIAGNOSTIC_SOURCE_SHA: c0ea7d04cd16ac01536d0c0f00edab0c5ffc349e
-      LINGSHU_GATE_DIAGNOSTIC_SOURCE_TREE: 716da35e388aab6784d8b41d6ae4e79a4c17f948
-      LINGSHU_GATE_DIAGNOSTIC_SOURCE_TAG: v0.4.5
+      LINGSHU_GATE_DIAGNOSTIC_SOURCE_SHA: d228cf7ad27f2688cc6e04e5210c8aa2ea88b646
+      LINGSHU_GATE_DIAGNOSTIC_SOURCE_TREE: b6d33c23ea90174da2d8ab1d9aa0364599f6437c
+      LINGSHU_GATE_DIAGNOSTIC_SOURCE_TAG: v0.4.6
       PYTHONUNBUFFERED: "1"
     defaults:
       run:
@@ -31,7 +31,7 @@ jobs:
       - name: Checkout fixed product source and history
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
-          ref: c0ea7d04cd16ac01536d0c0f00edab0c5ffc349e
+          ref: d228cf7ad27f2688cc6e04e5210c8aa2ea88b646
           path: source
           fetch-depth: 0
           persist-credentials: false
