@@ -784,7 +784,7 @@ def test_release_is_the_only_container_publisher() -> None:
     assert "platforms: linux/amd64,linux/arm64" in release_workflow
     assert "sbom: true" in release_workflow
     assert "provenance: mode=max" in release_workflow
-    assert "release-candidate-${{ github.sha }}" in release_workflow
+    assert "release-candidate-${{ needs.version.outputs.source_sha }}" in release_workflow
     assert "Promote version tag without replacing an existing digest" in release_workflow
     assert "Refusing to replace existing version tag" in release_workflow
     assert "Scan amd64 candidate payload for critical vulnerabilities" in release_workflow
