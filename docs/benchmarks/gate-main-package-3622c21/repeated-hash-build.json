@@ -1,0 +1,39 @@
+{
+  "complete_product_build_rounds": false,
+  "existing_build_lib_and_failed_install_cache_preserved": true,
+  "fixture_only": true,
+  "independent_review_scope": "The independent reviewer checked this source-bound evidence receipt; the reviewer did not download or rebuild these fixture wheels.",
+  "outside_project_sentinel_preserved": true,
+  "remaining_private_wheel_staging_directories": 0,
+  "round_B_contains_no_round_A_static_names": true,
+  "rounds": [
+    {
+      "both_static_directories_match_current_source": true,
+      "record_verified": true,
+      "round": "A",
+      "static": {
+        "lingshu_gate/static/console/assets/bundle-b4f32f8abd0b.js": "b4f32f8abd0bc3702de6d1aca201b0a5186d19e70ac5779ccee4a64a1642dbcb",
+        "lingshu_gate/static/console/index.html": "0feb543e32e324fa8b900fc9233d2a00782fe377fd60262bbf2674667c754b76",
+        "lingshu_gate/static/oauth/assets/bundle-8d4bc446303a.js": "8d4bc446303a195053309b8cfe3921d3271fa8e0abd9f7f807bf5fa13fbf1f92",
+        "lingshu_gate/static/oauth/oauth.html": "ae8805b04b1d4fdd6b4c44011240e18e15646fc92099b37d844a619cb437a94a"
+      },
+      "wheel_sha256": "bc6d22bbaf0a623f79ef53755f12bda559932a9ec45cd68e7fa9d9b315759112",
+      "wheel_size_bytes": 2212
+    },
+    {
+      "both_static_directories_match_current_source": true,
+      "record_verified": true,
+      "round": "B",
+      "static": {
+        "lingshu_gate/static/console/assets/bundle-e950e5b9ef4c.js": "e950e5b9ef4cc033ffbe8a444f78c36e6bff6368135ccc990dae08493518d240",
+        "lingshu_gate/static/console/index.html": "0c75c0e2a701ceed34670a34a8f5affb8ca49a8b43c4b2288288c2c62e23ba6b",
+        "lingshu_gate/static/oauth/assets/bundle-34c755e5517a.js": "34c755e5517abf7ad36beafb4035d0e3a455f468f8bef151e3b92f507310e871",
+        "lingshu_gate/static/oauth/oauth.html": "fa578cdd305e861a863d047528cb5216832b81cabdc8107b4ab9613000da2bc6"
+      },
+      "wheel_sha256": "25ec43d7d6c3a69fa6dcb3c70492b2ddfea988e5e36fef1fef47abb78fb73b0a",
+      "wheel_size_bytes": 2213
+    }
+  ],
+  "scope": "Synthetic PEP517 fixture using the exact current-main build hook. Round A is a 2212-byte wheel and round B is a 2213-byte wheel. These are two small fixture wheels, not two complete product package builds or product/release candidates.",
+  "source_revision": "3622c21ae6da34341d2b0aea93a5e3b1b9ad464f"
+}
