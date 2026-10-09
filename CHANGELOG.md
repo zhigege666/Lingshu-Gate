@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.4.6
+
+- Prevent a cached, closed account menu from reclaiming keyboard focus during a queued animation frame; keep controlled closing and focus recovery for the current menu.
+- Deliver the integrated root Console, explicit groups/instance sessions, bounded on-demand directory, OAuth editor improvements and fresh wheel staging under a new patch version. Existing authorization and optional host/client boundaries stay unchanged.
+- Bind candidate checks to exact source and package hashes. Actual local HTTP/stdio acceptance and owned-process cleanup are separate from browser, remote-host and OAuth acceptance.
+- Keep the occupied v0.4.5 tag immutable. Formal publication of v0.4.6 requires all existing quality, five-platform native, Compose, dual-architecture Core/offline, checksum, SBOM and provenance gates.
+- See the paired [0.4.6 validation record](docs/release-validation-0.4.6.md) for executed checks and remaining boundaries.
+
 ## 0.4.5
 
 - Move the browser Console to the root with content-negotiated JSON discovery, stable /v1/meta, compatible old links, confined assets and verified native entry smoke.
