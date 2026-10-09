@@ -28,12 +28,46 @@
     "wheel_from_sdist": "uv build <candidate-output>/sdist/lingshu_gate-0.4.5.tar.gz --wheel --offline --python CPython-3.13.15 --out-dir <candidate-output>/wheel-from-sdist",
     "worker_parent": "<installed-wheel-python> -I worker_probe.py [--native <extracted-native-executable>]"
   },
+  "coverage_boundaries": {
+    "entry_smokes": {
+      "native": 6,
+      "scope": "Direct packaged --version and schema-worker entry cases. No main-service startup, HTTP acceptance or persistent identity setup.",
+      "total": 12,
+      "wheel": 6
+    },
+    "execution_environment": {
+      "location": "cloud",
+      "machine": "x86_64",
+      "nx5_executed": false,
+      "python": "3.13.15",
+      "system": "Linux"
+    },
+    "glibc": "GLIBC_2.35 is the highest referenced symbol version found in the cloud-built Linux bundle. The symbol scan does not prove execution or compatibility acceptance on nx5.",
+    "parent_worker_lifecycle": {
+      "native": 6,
+      "native_child_runtime": "Native executable invoked with --gate-schema-validation-worker by the installed-wheel Python parent.",
+      "parent_runtime": "Installed wheel Python on CPython 3.13.15 for both groups.",
+      "reaping_scope": "Only directly tracked Popen subprocesses were checked as returned/reaped; arbitrary descendants were not verified.",
+      "scope": "Valid/invalid arguments, deadline/cancellation and worker-slot reuse. The native group does not exercise the native main-service lifecycle.",
+      "total": 12,
+      "wheel": 6
+    },
+    "synthetic_repeat_build": {
+      "complete_product_build_rounds": false,
+      "fixture_only": true,
+      "round_A_wheel_size_bytes": 2212,
+      "round_B_wheel_size_bytes": 2213,
+      "scope": "Two small synthetic PEP517 wheels exercise both static directories and the current-main staging hook. They do not represent two complete product package builds."
+    }
+  },
   "delivery": {
     "branch": "test/gate-main-package-evidence-20261009",
     "candidate_binaries_retained_privately": true,
     "formal_release_published": false,
+    "original_evidence_commit": "d909573126a0e68d03ffe2b5c92606e1608c6666",
     "product_permissions_changed": false,
     "source_main_rechecked": "3622c21ae6da34341d2b0aea93a5e3b1b9ad464f",
+    "supplement_scope": "Evidence wording and review-scope clarification only; original empirical receipts and commit history are preserved.",
     "version_changed": false
   },
   "direct_and_sdist_wheel_byte_identical": true,
@@ -131,6 +165,24 @@
       "worker_reaped": true
     }
   ],
+  "independent_review": {
+    "SBOM_recomputed": false,
+    "binary_candidates_downloaded": false,
+    "first_npm_failure_cause_independently_reproduced": false,
+    "focused_lint_independently_verified": false,
+    "reviewed_commit": "d909573126a0e68d03ffe2b5c92606e1608c6666",
+    "scope": "Independent source/evidence review of d909 only. Runtime/RECORD/SBOM and failure-cause statements remain attributed to author execution receipts. Supplemental edits clarify wording without changing recorded empirical values.",
+    "source": "Parent-provided independent read-only review on 2026-10-09.",
+    "tests_rerun": false,
+    "verified": [
+      "Parent commit equals main 3622c21ae6da34341d2b0aea93a5e3b1b9ad464f.",
+      "Five changed files are confined to evidence and its validation helper.",
+      "Four supporting file hashes match the primary record.",
+      "Author receipt and case report record 156 passing tests."
+    ],
+    "version_consistency_independently_verified": false,
+    "wheel_RECORD_recomputed": false
+  },
   "installed_wheel_static_matches_source": true,
   "native": {
     "build_info_manifest_entries_verified": 467,
@@ -152,6 +204,7 @@
     "extracted_archive_validated": true,
     "file": "lingshu-gate-v0.4.5-linux-x86_64.tar.gz",
     "glibc_baseline": {
+      "acceptance_scope": "Cloud bundle ELF symbol-version scan only; no nx5 execution.",
       "exit_code": 0,
       "highest_required": "2.35",
       "maximum_allowed": "2.35",
@@ -218,6 +271,9 @@
         }
       ],
       "mode": "wheel",
+      "parent_runtime": "installed-wheel Python 3.13.15",
+      "reaping_scope": "tracked direct subprocesses only; arbitrary descendants not verified",
+      "worker_runtime": "installed-wheel Python schema worker module",
       "workers_started": 6
     },
     {
@@ -273,6 +329,9 @@
         }
       ],
       "mode": "native",
+      "parent_runtime": "installed-wheel Python 3.13.15",
+      "reaping_scope": "tracked direct subprocesses only; arbitrary descendants not verified",
+      "worker_runtime": "native executable schema-worker flag",
       "workers_started": 6
     }
   ],
@@ -294,7 +353,7 @@
         "stage": "offline dependency preparation"
       },
       {
-        "result": "Failed: isolated environment omitted managed network transport configuration. The bounded second local attempt preserved only required network transport keys and succeeded.",
+        "result": "Author diagnosis: the isolated environment omitted managed network transport configuration. After preserving only required transport keys, the bounded second local attempt succeeded. The independent reviewer did not reproduce or establish the first failure cause.",
         "stage": "first npm ci"
       },
       {
@@ -306,6 +365,7 @@
         "stage": "verification harness first import"
       }
     ],
+    "listed_command_review_scope": "focused_lint and version_consistency list author commands without original file-bound execution receipts; neither is claimed independently verified as passed.",
     "receipts": "gate-main-package-3622c21/build-and-test-receipts.json",
     "repeat_hash_probe": "gate-main-package-3622c21/repeated-hash-build.json",
     "worker_probe": "gate-main-package-3622c21/worker_probe.py",
@@ -460,9 +520,9 @@
     }
   },
   "supporting_files": {
-    "build-and-test-receipts.json": "0928b17a717852032e68241b849b961c25bc3d5ca05ee82d85a7b18074ac20d1",
+    "build-and-test-receipts.json": "52d0a6f397d8a92637a9e1029c0c11b3d15ac203b9f8e52c2493e8592f76c805",
     "regressions.json": "de492f16ccfcd4e940900acb5a1b6abdb6a2bfeeff264b69ede6aa44e21459ef",
-    "repeated-hash-build.json": "362bf50d4641cc519e87455aa61ea2eee875ae814dfd207874be94161185bf04",
+    "repeated-hash-build.json": "574341a9e6969530e099c97b6936580de4b36b7d9df12a09a3fe90dd2054af2e",
     "worker_probe.py": "c6bdaeebebd396be491b35c3ae9395fc241abf7cc5cf1aa5ef2b54048e3ceb02"
   },
   "unchanged_source_inputs": {

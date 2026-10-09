@@ -1,4 +1,14 @@
 {
+  "claim_scope": {
+    "listed_commands_independently_reviewed_as_passed": false,
+    "listed_commands_without_original_file_bound_receipts": [
+      "focused_lint",
+      "version_consistency"
+    ],
+    "producer": "Author execution receipts from cloud Linux x86_64 / CPython 3.13.15.",
+    "reviewer": "Independent review checked source/receipt consistency and supporting file hashes; it did not execute the commands, download candidates, recompute wheel RECORD or SBOM, or independently reproduce the first npm failure.",
+    "worker_reaping": "all_workers_reaped and worker_reaped mean only tracked direct subprocesses returned/reaped; arbitrary descendants and native main-service lifecycle were not verified."
+  },
   "private_log_receipts": [
     {
       "log": "identity-final-artifacts.log",

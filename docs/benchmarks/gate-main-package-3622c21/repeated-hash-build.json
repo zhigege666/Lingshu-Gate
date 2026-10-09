@@ -1,5 +1,8 @@
 {
+  "complete_product_build_rounds": false,
   "existing_build_lib_and_failed_install_cache_preserved": true,
+  "fixture_only": true,
+  "independent_review_scope": "The independent reviewer checked this source-bound evidence receipt; the reviewer did not download or rebuild these fixture wheels.",
   "outside_project_sentinel_preserved": true,
   "remaining_private_wheel_staging_directories": 0,
   "round_B_contains_no_round_A_static_names": true,
@@ -31,6 +34,6 @@
       "wheel_size_bytes": 2213
     }
   ],
-  "scope": "Synthetic two-round fixture using the exact current-main build hook and isolated PEP517 entry; not a product/release candidate.",
+  "scope": "Synthetic PEP517 fixture using the exact current-main build hook. Round A is a 2212-byte wheel and round B is a 2213-byte wheel. These are two small fixture wheels, not two complete product package builds or product/release candidates.",
   "source_revision": "3622c21ae6da34341d2b0aea93a5e3b1b9ad464f"
 }
