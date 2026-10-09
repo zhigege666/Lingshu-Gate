@@ -134,6 +134,7 @@ def main() -> int:
             options = {"upload_id": uploaded["id"], "runtime_override": "python", "project_root": ".",
                        "run_install": False, "run_build": False}
             preflight = json_response(admin, "POST", "/v1/builds/preflight", json={"upload_id": uploaded["id"], "runtime_override": "python"})
+            owned._json_write(root / "artifacts/preflight.private.json", preflight)
             require(preflight["status"] in {"ok", "warning"}, "Preflight blocked")
             planned = json_response(admin, "POST", "/v1/builds/plan", json=options)
             require(planned["validation"]["ok"] and planned["plan"]["buildable"] and planned["plan"]["steps"] == [], "Exact copy-tree plan")

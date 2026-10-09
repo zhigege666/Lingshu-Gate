@@ -976,8 +976,10 @@ def finish_owned_run(layout, known, receipt, reaped: bool) -> dict[str, object]:
     _json_write(root / "lifecycle.private.json", {"owned_identities": list(known.values()), "reaped": reaped})
     private_receipts = root.parent / (root.name + "-private")
     private_receipts.mkdir(mode=0o700)
-    for name in ["run.log", "lifecycle.private.json"]:
-        source = root / ("artifacts" if name == "run.log" else "") / name
+    for name in ["run.log", "lifecycle.private.json", "preflight.private.json"]:
+        source = root / ("" if name == "lifecycle.private.json" else "artifacts") / name
+        if name == "preflight.private.json" and not source.exists() and not source.is_symlink():
+            continue
         if source.is_symlink() or not source.is_file():
             raise BoundaryError("Owned private receipt is not a regular file")
         target = private_receipts / name
