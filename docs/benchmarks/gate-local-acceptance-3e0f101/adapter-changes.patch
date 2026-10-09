@@ -1,0 +1,180 @@
+--- original-adapter-5f014875.py
++++ local-adapter-f1e89121.py
+@@ -3 +3 @@
+-The explicit run switch is for a later, separately approved nx5 fixture scope.
++The explicit run switch requires authorization for a regenerable local fixture.
+@@ -10,0 +11 @@
++import errno
+@@ -33,2 +34,2 @@
+-SOURCE_SHA = "9f8fddd9709e400517fc2e342ed9889a35751c96"
+-SOURCE_TREE = "1325f73c41200bf9d9511c230c61e959a05977ca"
++SOURCE_SHA = "3e0f101ed858c94841a1f75b3ef23ee4d52e2e1b"
++SOURCE_TREE = "d3d6bef164400732b18ea19be3f8a942b8d00815"
+@@ -36,2 +37,2 @@
+-STATIC_MANIFEST_SHA256 = "3197ccc8400ec64b8a350db4f406fb7d3d28f72311b0181a47c39e347e0f9058"
+-STATIC_MANIFEST_NAME = "gate-account-menu-focus-main-static-9f8fddd.json"
++STATIC_MANIFEST_SHA256 = "dd3f5e2d2a236100963f3109d4355812fbdaff58a2f6a5af65fa2726b557c7fa"
++STATIC_MANIFEST_NAME = "gate-local-acceptance-static-3e0f101.json"
+@@ -241 +242 @@
+-        ["/usr/bin/git", "-C", str(source), "ls-tree", "-rz", "HEAD", "--", "src/lingshu_gate", "scripts/e2e", "web"],
++        ["/usr/bin/git", "-C", str(source), "ls-tree", "-rz", "HEAD", "--", "src/lingshu_gate", "scripts/e2e", "web", "tests/test_real_delivery_journey.py"],
+@@ -364,0 +366,4 @@
++    helper = Path(__file__).with_name("local_http_acceptance.py")
++    if helper.is_symlink() or not helper.is_file():
++        raise BoundaryError("Reviewed HTTP acceptance helper unavailable")
++    (root / "local_http_acceptance.py").write_bytes(helper.read_bytes())
+@@ -405 +410 @@
+-            + ', "grep": new RegExp("root entry zh-CN / preserves|root entry en-US /console preserves")}'
++            + "}"
+@@ -422,0 +428,6 @@
++    projects.append(json.dumps({
++        "name": "local-delivery",
++        "testDir": str(source / "web/e2e"),
++        "testMatch": "delivery-real.spec.ts",
++        "use": {"viewport": {"width": 1600, "height": 900}},
++    }))
+@@ -443 +454,2 @@
+-        " use: { ...base.use, trace: 'retain-on-failure', screenshot: 'only-on-failure' }, projects: ["
++        " use: { ...base.use, launchOptions: { ...base.use.launchOptions, chromiumSandbox: true }, "
++        "trace: 'retain-on-failure', screenshot: 'only-on-failure' }, projects: ["
+@@ -499,0 +512 @@
++            "local_http_acceptance.py",
+@@ -606,0 +620,2 @@
++    if isinstance(port, bool) or not isinstance(port, int) or not 1 <= port <= 65535:
++        raise BoundaryError("Invalid loopback listener port")
+@@ -609 +624,38 @@
+-        return sock.connect_ex(("127.0.0.1", port)) != 0
++        try:
++            result = sock.connect_ex(("127.0.0.1", port))
++        except OSError as error:
++            raise BoundaryError("Loopback listener state is uncertain") from error
++    if result == 0:
++        return False
++    if result == errno.ECONNREFUSED:
++        return True
++    raise BoundaryError("Loopback listener state is uncertain")
++
++
++class OwnedRunSignals:
++    """Interrupt execution once, then defer further signals through owned reap."""
++
++    def __init__(self, receipt: dict[str, object]) -> None:
++        self.receipt = receipt
++        self.cleaning = False
++        self.previous: dict[int, object] = {}
++
++    def interrupt(self, signum: int, _frame: object) -> None:
++        self.receipt.setdefault("interrupted_signal", signum)
++        if self.cleaning:
++            self.receipt["signal_deferred_during_cleanup"] = True
++        else:
++            # Defer a second signal even while unwinding execution's finally
++            # block, before run() reaches its cleanup clause.
++            self.cleaning = True
++            raise KeyboardInterrupt
++
++    def __enter__(self):
++        for signum in [signal.SIGINT, signal.SIGTERM]:
++            self.previous[signum] = signal.getsignal(signum)
++            signal.signal(signum, self.interrupt)
++        return self
++
++    def __exit__(self, *_args: object) -> None:
++        for signum, handler in self.previous.items():
++            signal.signal(signum, handler)
+@@ -821 +873,2 @@
+-def run(layout: dict[str, object], ambient: dict[str, str], *, fixture_scope_approved: bool) -> dict[str, object]:
++def run(layout: dict[str, object], ambient: dict[str, str], *, fixture_scope_approved: bool,
++        acceptance_kind: str = "browser") -> dict[str, object]:
+@@ -823 +876,3 @@
+-        raise BoundaryError("Separate nx5 temporary identity/policy scope approval is required")
++        raise BoundaryError("Regenerable local fixture scope approval is required")
++    if acceptance_kind not in {"browser", "http"}:
++        raise BoundaryError("Unknown acceptance kind")
+@@ -844,0 +900,3 @@
++    if acceptance_kind == "http":
++        command = [str(layout["python"]), "-I", "-B", str(root / "local_http_acceptance.py"),
++                   str(Path(__file__).resolve().parent), str(root)]
+@@ -850,0 +909 @@
++        "acceptance_kind": acceptance_kind,
+@@ -857,0 +917,20 @@
++    with OwnedRunSignals(receipt) as signals:
++        try:
++            execute_owned_command(layout, environment, command, known, receipt)
++        except KeyboardInterrupt:
++            receipt["execution_interrupted"] = True
++            receipt["command_exit_code"] = 128 + int(receipt.get("interrupted_signal", signal.SIGINT))
++        except Exception as error:
++            receipt["execution_error"] = type(error).__name__
++        finally:
++            signals.cleaning = True
++            try:
++                reaped = reap_owned(known)
++            except (BoundaryError, OSError):
++                reaped = False
++                receipt["cleanup_uncertain"] = True
++        return finish_owned_run(layout, known, receipt, reaped)
++
++
++def execute_owned_command(layout, environment, command, known, receipt) -> None:
++    root = Path(str(layout["root"]))
+@@ -887,7 +966,9 @@
+-    except Exception as error:
+-        receipt["execution_error"] = type(error).__name__
+-    try:
+-        reaped = reap_owned(known)
+-    except BoundaryError:
+-        reaped = False
+-        receipt["cleanup_uncertain"] = True
++    finally:
++        # Discover an owned child even if interruption landed immediately after
++        # Popen returned, before its leader identity was recorded.
++        observe_owned(known, os.getpid())
++
++
++def finish_owned_run(layout, known, receipt, reaped: bool) -> dict[str, object]:
++    root = Path(str(layout["root"]))
++    result_path = root / "artifacts/results.json"
+@@ -895,0 +977,12 @@
++    private_receipts = root.parent / (root.name + "-private")
++    private_receipts.mkdir(mode=0o700)
++    for name in ["run.log", "lifecycle.private.json", "preflight.private.json"]:
++        source = root / ("" if name == "lifecycle.private.json" else "artifacts") / name
++        if name == "preflight.private.json" and not source.exists() and not source.is_symlink():
++            continue
++        if source.is_symlink() or not source.is_file():
++            raise BoundaryError("Owned private receipt is not a regular file")
++        target = private_receipts / name
++        with target.open("xb") as handle:
++            os.chmod(target, 0o600)
++            handle.write(source.read_bytes())
+@@ -899 +992 @@
+-        receipt["fifteen_sample_subphase_passed"] = (
++        receipt["local_browser_subphase_passed"] = (
+@@ -901 +994 @@
+-            and results["stats"]["expected"] == 15
++            and results["stats"]["expected"] == 48
+@@ -909,0 +1003,6 @@
++    http_result = root / "artifacts/http-acceptance.json"
++    if receipt.get("acceptance_kind") == "http" and http_result.is_file() and not http_result.is_symlink():
++        receipt["http_acceptance"] = json.loads(http_result.read_text())
++        receipt["local_http_subphase_passed"] = (
++            receipt.get("command_exit_code") == 0 and receipt["http_acceptance"].get("passed") is True
++        )
+@@ -935,0 +1035 @@
++    parser.add_argument("--acceptance-kind", choices=["browser", "http"], default="browser")
+@@ -949,5 +1049,9 @@
+-            print(
+-                json.dumps(
+-                    run(read_layout(args.root), dict(os.environ), fixture_scope_approved=args.fixture_scope_approved)
+-                )
+-            )
++            receipt = run(read_layout(args.root), dict(os.environ), fixture_scope_approved=args.fixture_scope_approved,
++                          acceptance_kind=args.acceptance_kind)
++            print(json.dumps(receipt))
++            if receipt.get("execution_interrupted"):
++                return int(receipt["command_exit_code"])
++            if not (receipt.get("local_http_subphase_passed") or receipt.get("local_browser_subphase_passed")):
++                return 1
++            if receipt.get("temporary_persistent_state") != "destroyed_with_exact_owned_root":
++                return 2
