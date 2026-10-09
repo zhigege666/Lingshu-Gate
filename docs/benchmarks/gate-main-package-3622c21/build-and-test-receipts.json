@@ -1,0 +1,271 @@
+{
+  "private_log_receipts": [
+    {
+      "log": "identity-final-artifacts.log",
+      "raw_sha256": "c2abe4b85441da546d672d41b520819e0f611660fce7d205b7529bffc9036ceb",
+      "raw_size_bytes": 33,
+      "sanitized_tail": "repository identity check passed"
+    },
+    {
+      "log": "identity-source-attempt-2.log",
+      "raw_sha256": "c2abe4b85441da546d672d41b520819e0f611660fce7d205b7529bffc9036ceb",
+      "raw_size_bytes": 33,
+      "sanitized_tail": "repository identity check passed"
+    },
+    {
+      "log": "native-build-attempt-2.log",
+      "raw_sha256": "21549351b31cdce7f1359f824b4a2562db1fd49e4989c2ae3e45dab23f50d581",
+      "raw_size_bytes": 28084,
+      "sanitized_tail": "23326 INFO: Building EXE because EXE-00.toc is non existent\n23326 INFO: Building EXE from EXE-00.toc\n23326 INFO: Copying bootloader EXE to <source-root>/build/release/linux-x86_64/pyinstaller-work/lingshu-gate/lingshu-gate\n23326 INFO: Appending PKG archive to custom ELF section in EXE\n23340 INFO: Building EXE from EXE-00.toc completed successfully.\n23342 INFO: checking COLLECT\n23342 INFO: Building COLLECT because COLLECT-00.toc is non existent\n23342 INFO: Building COLLECT COLLECT-00.toc\n23406 INFO: Building COLLECT COLLECT-00.toc completed successfully.\n23409 INFO: Build complete! The results are available in: <source-root>/build/release/linux-x86_64/pyinstaller-dist\nlingshu-gate 0.4.5\n<validation-root>/artifacts/native/lingshu-gate-v0.4.5-linux-x86_64.tar.gz"
+    },
+    {
+      "log": "native-glibc-baseline.log",
+      "raw_sha256": "694281cf812d0ac3c3752e4ef46f1e6ff5744dc36c5a65356cff7a7482feb2d0",
+      "raw_size_bytes": 29,
+      "sanitized_tail": "maximum required glibc: 2.35"
+    },
+    {
+      "log": "npm-ci-attempt-2.log",
+      "raw_sha256": "1bc5fda83afe880af3e4988d97955f9795fa71581f02fc59533777d2ed3d9e44",
+      "raw_size_bytes": 26,
+      "sanitized_tail": "\nadded 220 packages in 7s"
+    },
+    {
+      "log": "npm-ci.log",
+      "raw_sha256": "82571a6ec3ddc887c1d0a76e4effd9de29e94a7416227a47a1c19992135c43d5",
+      "raw_size_bytes": 284,
+      "sanitized_tail": "npm error Exit handler never called!\nnpm error This is an error with npm itself. Please report this error at:\nnpm error   <https://github.com/npm/cli/issues>\nnpm error A complete log of this run can be found in: <npm-cache>/_logs/2026-10-09T10_28_31_185Z-debug-0.log"
+    },
+    {
+      "log": "packaged-worker-native-confirmed.log",
+      "raw_sha256": "ce11fc3d103fd3ceb7b475d47e3a77d0a8118eb2e3fb2ff0b5e76e9589cac95d",
+      "raw_size_bytes": 1006,
+      "sanitized_tail": "{\"all_workers_reaped\": true, \"cases\": [{\"all_workers_reaped\": true, \"case\": \"valid\", \"elapsed_seconds\": 0.4173, \"error_code\": null, \"result\": \"pass\", \"workers_started\": 1}, {\"all_workers_reaped\": true, \"case\": \"invalid\", \"elapsed_seconds\": 0.3831, \"error_code\": \"catalog_arguments_invalid\", \"result\": \"pass\", \"workers_started\": 1}, {\"all_workers_reaped\": true, \"case\": \"deadline\", \"elapsed_seconds\": 0.5019, \"error_code\": \"catalog_validation_timeout\", \"result\": \"pass\", \"workers_started\": 1}, {\"all_workers_reaped\": true, \"case\": \"slot-reusable-after-deadline\", \"elapsed_seconds\": 0.3833, \"error_code\": null, \"result\": \"pass\", \"workers_started\": 1}, {\"all_workers_reaped\": true, \"case\": \"cancel\", \"elapsed_seconds\": 0.3055, \"error_code\": \"catalog_validation_cancelled\", \"result\": \"pass\", \"workers_started\": 1}, {\"all_workers_reaped\": true, \"case\": \"slot-reusable-after-cancel\", \"elapsed_seconds\": 0.402, \"error_code\": null, \"result\": \"pass\", \"workers_started\": 1}], \"mode\": \"native\", \"workers_started\": 6}"
+    },
+    {
+      "log": "packaged-worker-native.log",
+      "raw_sha256": "077e60533f2cf7a433ff520514ad6f8be3156036f42a8e1b1b311947205ee4e9",
+      "raw_size_bytes": 1005,
+      "sanitized_tail": "{\"all_workers_reaped\": true, \"cases\": [{\"all_workers_reaped\": true, \"case\": \"valid\", \"elapsed_seconds\": 0.402, \"error_code\": null, \"result\": \"pass\", \"workers_started\": 1}, {\"all_workers_reaped\": true, \"case\": \"invalid\", \"elapsed_seconds\": 0.4595, \"error_code\": \"catalog_arguments_invalid\", \"result\": \"pass\", \"workers_started\": 1}, {\"all_workers_reaped\": true, \"case\": \"deadline\", \"elapsed_seconds\": 0.5024, \"error_code\": \"catalog_validation_timeout\", \"result\": \"pass\", \"workers_started\": 1}, {\"all_workers_reaped\": true, \"case\": \"slot-reusable-after-deadline\", \"elapsed_seconds\": 0.484, \"error_code\": null, \"result\": \"pass\", \"workers_started\": 1}, {\"all_workers_reaped\": true, \"case\": \"cancel\", \"elapsed_seconds\": 0.3058, \"error_code\": \"catalog_validation_cancelled\", \"result\": \"pass\", \"workers_started\": 1}, {\"all_workers_reaped\": true, \"case\": \"slot-reusable-after-cancel\", \"elapsed_seconds\": 0.4836, \"error_code\": null, \"result\": \"pass\", \"workers_started\": 1}], \"mode\": \"native\", \"workers_started\": 6}"
+    },
+    {
+      "log": "packaged-worker-wheel-confirmed.log",
+      "raw_sha256": "90b681dc39ab34ba69ab21d067f974db7e39c5152f1e5387ea49f7fb35600f8c",
+      "raw_size_bytes": 1005,
+      "sanitized_tail": "{\"all_workers_reaped\": true, \"cases\": [{\"all_workers_reaped\": true, \"case\": \"valid\", \"elapsed_seconds\": 0.217, \"error_code\": null, \"result\": \"pass\", \"workers_started\": 1}, {\"all_workers_reaped\": true, \"case\": \"invalid\", \"elapsed_seconds\": 0.2169, \"error_code\": \"catalog_arguments_invalid\", \"result\": \"pass\", \"workers_started\": 1}, {\"all_workers_reaped\": true, \"case\": \"deadline\", \"elapsed_seconds\": 0.5014, \"error_code\": \"catalog_validation_timeout\", \"result\": \"pass\", \"workers_started\": 1}, {\"all_workers_reaped\": true, \"case\": \"slot-reusable-after-deadline\", \"elapsed_seconds\": 0.2087, \"error_code\": null, \"result\": \"pass\", \"workers_started\": 1}, {\"all_workers_reaped\": true, \"case\": \"cancel\", \"elapsed_seconds\": 0.3055, \"error_code\": \"catalog_validation_cancelled\", \"result\": \"pass\", \"workers_started\": 1}, {\"all_workers_reaped\": true, \"case\": \"slot-reusable-after-cancel\", \"elapsed_seconds\": 0.2023, \"error_code\": null, \"result\": \"pass\", \"workers_started\": 1}], \"mode\": \"wheel\", \"workers_started\": 6}"
+    },
+    {
+      "log": "packaged-worker-wheel.log",
+      "raw_sha256": "ec813f624f0d03fc25f556af9aed386bd8c012b69b26cf5677377c659686e40c",
+      "raw_size_bytes": 1005,
+      "sanitized_tail": "{\"all_workers_reaped\": true, \"cases\": [{\"all_workers_reaped\": true, \"case\": \"valid\", \"elapsed_seconds\": 0.2336, \"error_code\": null, \"result\": \"pass\", \"workers_started\": 1}, {\"all_workers_reaped\": true, \"case\": \"invalid\", \"elapsed_seconds\": 0.2515, \"error_code\": \"catalog_arguments_invalid\", \"result\": \"pass\", \"workers_started\": 1}, {\"all_workers_reaped\": true, \"case\": \"deadline\", \"elapsed_seconds\": 0.5018, \"error_code\": \"catalog_validation_timeout\", \"result\": \"pass\", \"workers_started\": 1}, {\"all_workers_reaped\": true, \"case\": \"slot-reusable-after-deadline\", \"elapsed_seconds\": 0.3093, \"error_code\": null, \"result\": \"pass\", \"workers_started\": 1}, {\"all_workers_reaped\": true, \"case\": \"cancel\", \"elapsed_seconds\": 0.308, \"error_code\": \"catalog_validation_cancelled\", \"result\": \"pass\", \"workers_started\": 1}, {\"all_workers_reaped\": true, \"case\": \"slot-reusable-after-cancel\", \"elapsed_seconds\": 0.2168, \"error_code\": null, \"result\": \"pass\", \"workers_started\": 1}], \"mode\": \"wheel\", \"workers_started\": 6}"
+    },
+    {
+      "log": "packaging-schema-tests-attempt-2.log",
+      "raw_sha256": "3cd333c48068a9573f646ab76c6faba8a92ca1fa2368db64e6df535329afa930",
+      "raw_size_bytes": 261,
+      "sanitized_tail": "........................................................................ [ 46%]\n........................................................................ [ 92%]\n............                                                             [100%]\n156 passed in 50.18s"
+    },
+    {
+      "log": "packaging-schema-tests.log",
+      "raw_sha256": "fd1f7ae02284de303877d047b68b2e143369fd12b193eb4fb7ee780df8083345",
+      "raw_size_bytes": 3958,
+      "sanitized_tail": "        if os.name != \"posix\":\n            pytest.skip(\"POSIX executable mode is validated on the Linux CI runner\")\n        for relative_path in (\"packaging/native/start.sh\", \"scripts/release/build_offline_images.sh\"):\n            mode = stat.S_IMODE((REPOSITORY_ROOT / relative_path).stat().st_mode)\n>           assert mode & 0o111 == 0o111\nE           assert (448 & 73) == 73\n\ntests/test_release_packaging.py:1254: AssertionError\n=========================== short test summary info ============================\nFAILED tests/test_release_packaging.py::test_third_party_license_inventory_covers_production_console_closure\nFAILED tests/test_release_packaging.py::test_release_launchers_are_executable_in_source_tree\n2 failed, 154 passed in 52.72s"
+    },
+    {
+      "log": "sdist-attempt-2.log",
+      "raw_sha256": "9d9fb6e57d4359865df30cd95a687d778062216b458202cfbf7093896c17ff95",
+      "raw_size_bytes": 42837,
+      "sanitized_tail": "copying tests/test_tool_authority.py -> lingshu_gate-0.4.5/tests\ncopying tests/test_tool_catalog.py -> lingshu_gate-0.4.5/tests\ncopying tests/test_tool_classification_mcp.py -> lingshu_gate-0.4.5/tests\ncopying tests/test_tool_classification_routes.py -> lingshu_gate-0.4.5/tests\ncopying tests/test_tool_files.py -> lingshu_gate-0.4.5/tests\ncopying tests/test_user_downstream_credentials.py -> lingshu_gate-0.4.5/tests\ncopying tests/test_viewer_permissions.py -> lingshu_gate-0.4.5/tests\ncopying tests/test_wheel_build.py -> lingshu_gate-0.4.5/tests\nWriting lingshu_gate-0.4.5/setup.cfg\nCreating tar archive\nremoving 'lingshu_gate-0.4.5' (and everything under it)\nSuccessfully built <validation-root>/artifacts/sdist/lingshu_gate-0.4.5.tar.gz"
+    },
+    {
+      "log": "web-build-attempt-2.log",
+      "raw_sha256": "b5ccec4002861858cbd76d48609b91168d52458cb4ddb7eb3650946fc7d53304",
+      "raw_size_bytes": 14340,
+      "sanitized_tail": "rendering chunks...\ncomputing gzip size...\n../src/lingshu_gate/static/oauth/oauth.html                     0.38 kB \u2502 gzip:   0.27 kB\n../src/lingshu_gate/static/oauth/assets/oauth-BH4S-ygD.css     73.72 kB \u2502 gzip:  13.57 kB\n../src/lingshu_gate/static/oauth/assets/oauth-B0Q7W4g8.js   1,745.92 kB \u2502 gzip: 414.81 kB\n\n[plugin builtin:vite-reporter] \n(!) Some chunks are larger than 500 kB after minification. Consider:\n- Using dynamic import() to code-split the application\n- Use build.rolldownOptions.output.codeSplitting to improve chunking: https://rolldown.rs/reference/OutputOptions.codeSplitting\n- Adjust chunk size limit for this warning via build.chunkSizeWarningLimit.\n\u2713 built in 738ms"
+    },
+    {
+      "log": "web-check-attempt-2.log",
+      "raw_sha256": "d1c0aeac257790ad20a5343d2b92c91489739ce07d0de1b9f85682bba923f5da",
+      "raw_size_bytes": 426,
+      "sanitized_tail": "> check\n> npm run typecheck && npm run check:ux\n\n\n> typecheck\n> node node_modules/typescript/bin/tsc --noEmit -p tsconfig.app.json && node node_modules/typescript/bin/tsc --noEmit -p tsconfig.node.json\n\n\n> check:ux\n> node scripts/check-ux-contract.mjs\n\n\u9759\u6001 UI \u5951\u7ea6\u901a\u8fc7\uff1a19 \u4e2a\u9875\u9762\uff0c11 \u4e2a\u53ef\u641c\u7d22\u9875\u9762\uff0c2 \u4e2a\u9636\u6bb5\u5f0f\u5de5\u4f5c\u6d41\u3002\u4ec5\u9a8c\u8bc1\u6e90\u7801\u7ea6\u5b9a\uff1b\u672a\u6267\u884c\u6d4f\u89c8\u5668\u4ea4\u4e92\u3001\u89c6\u89c9\u6216\u53ef\u8bbf\u95ee\u6027\u9a8c\u6536\u3002"
+    },
+    {
+      "log": "wheel-direct-attempt-2.log",
+      "raw_sha256": "417dfc807b7b3a5c4241cffd9995a6f564a69c4438a4a326e9084fdf6aa92540",
+      "raw_size_bytes": 134646,
+      "sanitized_tail": "adding 'lingshu_gate/transports/__init__.py'\nadding 'lingshu_gate/transports/http.py'\nadding 'lingshu_gate/transports/oauth.py'\nadding 'lingshu_gate-0.4.5.dist-info/licenses/LICENSE'\nadding 'lingshu_gate-0.4.5.dist-info/licenses/NOTICE'\nadding 'lingshu_gate-0.4.5.dist-info/METADATA'\nadding 'lingshu_gate-0.4.5.dist-info/WHEEL'\nadding 'lingshu_gate-0.4.5.dist-info/entry_points.txt'\nadding 'lingshu_gate-0.4.5.dist-info/top_level.txt'\nadding 'lingshu_gate-0.4.5.dist-info/RECORD'\nremoving <source-root>/build/lingshu-gate-wheel-npzl1884/wheel\nSuccessfully built <validation-root>/artifacts/wheel-direct/lingshu_gate-0.4.5-py3-none-any.whl"
+    },
+    {
+      "log": "wheel-from-sdist-attempt-2.log",
+      "raw_sha256": "d9219af23d17354f8c3f2cd43a2175da6227c24f33ebea29bafa221b0b149a21",
+      "raw_size_bytes": 193563,
+      "sanitized_tail": "adding 'lingshu_gate/transports/__init__.py'\nadding 'lingshu_gate/transports/http.py'\nadding 'lingshu_gate/transports/oauth.py'\nadding 'lingshu_gate-0.4.5.dist-info/licenses/LICENSE'\nadding 'lingshu_gate-0.4.5.dist-info/licenses/NOTICE'\nadding 'lingshu_gate-0.4.5.dist-info/METADATA'\nadding 'lingshu_gate-0.4.5.dist-info/WHEEL'\nadding 'lingshu_gate-0.4.5.dist-info/entry_points.txt'\nadding 'lingshu_gate-0.4.5.dist-info/top_level.txt'\nadding 'lingshu_gate-0.4.5.dist-info/RECORD'\nremoving <validation-root>/artifacts/wheel-from-sdist/.tmpQJVRR8/lingshu_gate-0.4.5/build/lingshu-gate-wheel-5wwb3llq/wheel\nSuccessfully built <validation-root>/artifacts/wheel-from-sdist/lingshu_gate-0.4.5-py3-none-any.whl"
+    },
+    {
+      "log": "wheel-runtime-dependencies.log",
+      "raw_sha256": "551bf3873318bb4a1d3c26b19e641531f7ff2c2be78f5b071225ee67e5d300a2",
+      "raw_size_bytes": 928,
+      "sanitized_tail": " + pyyaml==6.0.3\n + referencing==0.37.0\n + rpds-py==2026.6.3\n + sse-starlette==3.4.8\n + starlette==1.6.0\n + truststore==0.10.4\n + typing-extensions==4.16.0\n + typing-inspection==0.4.4\n + uvicorn==0.52.4\n + uvloop==0.22.1\n + watchfiles==1.2.0\n + websockets==15.0.1"
+    },
+    {
+      "log": "wheel-runtime-export.log",
+      "raw_sha256": "67ecd49c8b9ddce36ba7ca838bf4e149dd7f499cd4789bbbc3b3a3badf579014",
+      "raw_size_bytes": 58015,
+      "sanitized_tail": "    --hash=sha256:8dd8327c795b3e3f219760fa603dcae1dcc148172290a8ab15158cf85a953413 \\\n    --hash=sha256:8fdc51055e6ff4adeb88d58a11042ec9a5eae317a0a53d12c062c8a8865909e8 \\\n    --hash=sha256:ba9e56e8ceeeedb2e080147ba85ffcd5cd0711b89576b83784d8605a7df455fa \\\n    --hash=sha256:c338ffa0520bdb12fbc527265235639fb76e7bc7faafbb93f6ba80d9c06578a9 \\\n    --hash=sha256:d50fd1ee42388dcfb2b3676132c78116490976f1300da28eb629272d5d93e905 \\\n    --hash=sha256:d5f6b181bb38171a8ad1d6aa58a67a6aa9d4b38d0f8c5f496b9e42561dfc62fe \\\n    --hash=sha256:d99e5546bf73dbad5bf3547174cd6cb8ba7273062a23808ffea025ecb1cf8562 \\\n    --hash=sha256:e09473f095a819042ecb2ab9465aee615bd9c2028e4ef7d933600a8401c79561 \\\n    --hash=sha256:e8b56bdcdb4505c8078cb6c7157d9811a85790f2f2b3632c7d1462ab5783d215 \\\n    --hash=sha256:ee443ef070bb3b6ed74514f5efaa37a252af57c90eb33b956d35c8e9c10a1931 \\\n    --hash=sha256:f7a866fbc1e97b5c617ee4116daaa09b722101d4a3c170c787450ba409f9736f \\\n    --hash=sha256:fcd5cf9e305d7b8338754470cf69cf81f420459dbae8a3b40cee57417f4614a7"
+    },
+    {
+      "log": "wheel-runtime-install.log",
+      "raw_sha256": "052ca8fe59fd5bae3664a83b2bcf56e97a8cb9cc104d090d4d19099b17234b94",
+      "raw_size_bytes": 328,
+      "sanitized_tail": "Using Python 3.13.15 environment at: <validation-root>/checks/wheel-env\nResolved 1 package in 1ms\nPrepared 1 package in 14ms\nInstalled 1 package in 5ms\n + lingshu-gate==0.4.5 (from file://<validation-root>/artifacts/wheel-direct/lingshu_gate-0.4.5-py3-none-any.whl)"
+    },
+    {
+      "log": "wheel-runtime-venv.log",
+      "raw_sha256": "2b8071c80f9e689bb1b21ae0c6a1b460933fbc080784fc4091417595cf8fd910",
+      "raw_size_bytes": 154,
+      "sanitized_tail": "Using CPython 3.13.15 interpreter at: .venv/bin/python\nCreating virtual environment at: <validation-root>/checks/wheel-env"
+    }
+  ],
+  "sanitization": "Only relative receipt names, SHA-256 digests, sizes and reviewed sanitized tails are saved; transport environment values and machine identifiers are omitted.",
+  "steps": {
+    "artifact-identity.json": {
+      "completed_utc": "2026-10-09T10:35:58.171443+00:00",
+      "elapsed_seconds": 8.185,
+      "exit_code": 0,
+      "log": "logs/identity-final-artifacts.log",
+      "name": "identity-final-artifacts",
+      "timed_out": false
+    },
+    "build-steps-attempt-2.json": [
+      {
+        "completed_utc": "2026-10-09T10:31:20.768012+00:00",
+        "elapsed_seconds": 7.045,
+        "exit_code": 0,
+        "log": "logs/npm-ci-attempt-2.log",
+        "name": "npm-ci-attempt-2",
+        "timed_out": false
+      },
+      {
+        "completed_utc": "2026-10-09T10:31:23.597292+00:00",
+        "elapsed_seconds": 2.829,
+        "exit_code": 0,
+        "log": "logs/web-check-attempt-2.log",
+        "name": "web-check-attempt-2",
+        "timed_out": false
+      },
+      {
+        "completed_utc": "2026-10-09T10:31:27.686406+00:00",
+        "elapsed_seconds": 4.089,
+        "exit_code": 0,
+        "log": "logs/web-build-attempt-2.log",
+        "name": "web-build-attempt-2",
+        "timed_out": false
+      },
+      {
+        "completed_utc": "2026-10-09T10:31:28.854627+00:00",
+        "elapsed_seconds": 1.168,
+        "exit_code": 0,
+        "log": "logs/wheel-direct-attempt-2.log",
+        "name": "wheel-direct-attempt-2",
+        "timed_out": false
+      },
+      {
+        "completed_utc": "2026-10-09T10:31:30.121779+00:00",
+        "elapsed_seconds": 1.267,
+        "exit_code": 0,
+        "log": "logs/sdist-attempt-2.log",
+        "name": "sdist-attempt-2",
+        "timed_out": false
+      },
+      {
+        "completed_utc": "2026-10-09T10:31:31.439648+00:00",
+        "elapsed_seconds": 1.317,
+        "exit_code": 0,
+        "log": "logs/wheel-from-sdist-attempt-2.log",
+        "name": "wheel-from-sdist-attempt-2",
+        "timed_out": false
+      },
+      {
+        "completed_utc": "2026-10-09T10:32:20.825794+00:00",
+        "elapsed_seconds": 49.386,
+        "exit_code": 0,
+        "log": "logs/native-build-attempt-2.log",
+        "name": "native-build-attempt-2",
+        "timed_out": false
+      }
+    ],
+    "build-steps.json": [
+      {
+        "completed_utc": "2026-10-09T10:29:53.123035+00:00",
+        "elapsed_seconds": 82.077,
+        "exit_code": 1,
+        "log": "logs/npm-ci.log",
+        "name": "npm-ci",
+        "timed_out": false
+      }
+    ],
+    "runtime-preparation.json": [
+      {
+        "completed_utc": "2026-10-09T10:32:28.664965+00:00",
+        "elapsed_seconds": 0.016,
+        "exit_code": 0,
+        "log": "logs/wheel-runtime-export.log",
+        "name": "wheel-runtime-export",
+        "timed_out": false
+      },
+      {
+        "completed_utc": "2026-10-09T10:32:28.680946+00:00",
+        "elapsed_seconds": 0.016,
+        "exit_code": 0,
+        "log": "logs/wheel-runtime-venv.log",
+        "name": "wheel-runtime-venv",
+        "timed_out": false
+      },
+      {
+        "completed_utc": "2026-10-09T10:32:28.799800+00:00",
+        "elapsed_seconds": 0.119,
+        "exit_code": 0,
+        "log": "logs/wheel-runtime-dependencies.log",
+        "name": "wheel-runtime-dependencies",
+        "timed_out": false
+      },
+      {
+        "completed_utc": "2026-10-09T10:32:28.864252+00:00",
+        "elapsed_seconds": 0.064,
+        "exit_code": 0,
+        "log": "logs/wheel-runtime-install.log",
+        "name": "wheel-runtime-install",
+        "timed_out": false
+      }
+    ],
+    "tests-steps-attempt-2.json": [
+      {
+        "completed_utc": "2026-10-09T10:33:17.844061+00:00",
+        "elapsed_seconds": 50.806,
+        "exit_code": 0,
+        "log": "logs/packaging-schema-tests-attempt-2.log",
+        "name": "packaging-schema-tests-attempt-2",
+        "timed_out": false
+      },
+      {
+        "completed_utc": "2026-10-09T10:33:23.523818+00:00",
+        "elapsed_seconds": 5.679,
+        "exit_code": 0,
+        "log": "logs/identity-source-attempt-2.log",
+        "name": "identity-source-attempt-2",
+        "timed_out": false
+      }
+    ],
+    "tests-steps.json": [
+      {
+        "completed_utc": "2026-10-09T10:29:24.634306+00:00",
+        "elapsed_seconds": 53.591,
+        "exit_code": 1,
+        "log": "logs/packaging-schema-tests.log",
+        "name": "packaging-schema-tests",
+        "timed_out": false
+      }
+    ]
+  }
+}

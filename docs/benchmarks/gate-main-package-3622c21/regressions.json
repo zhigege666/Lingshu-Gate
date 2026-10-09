@@ -1,0 +1,945 @@
+{
+  "cases": [
+    {
+      "class": "tests.test_wheel_build",
+      "elapsed_seconds": 1.417,
+      "name": "test_standard_repeated_build_does_not_reuse_or_delete_old_build_lib",
+      "result": "passed"
+    },
+    {
+      "class": "tests.test_wheel_build",
+      "elapsed_seconds": 0.665,
+      "name": "test_current_hash_wins_even_when_cache_file_is_newer",
+      "result": "passed"
+    },
+    {
+      "class": "tests.test_wheel_build",
+      "elapsed_seconds": 1.409,
+      "name": "test_sdist_keeps_build_hook_and_rebuilds_fresh_wheel",
+      "result": "passed"
+    },
+    {
+      "class": "tests.test_wheel_build",
+      "elapsed_seconds": 0.65,
+      "name": "test_source_symlink_refuses_build_without_reading_target",
+      "result": "passed"
+    },
+    {
+      "class": "tests.test_wheel_build",
+      "elapsed_seconds": 0.649,
+      "name": "test_source_ancestor_symlink_refuses_build[src]",
+      "result": "passed"
+    },
+    {
+      "class": "tests.test_wheel_build",
+      "elapsed_seconds": 0.69,
+      "name": "test_source_ancestor_symlink_refuses_build[src/lingshu_gate]",
+      "result": "passed"
+    },
+    {
+      "class": "tests.test_wheel_build",
+      "elapsed_seconds": 0.681,
+      "name": "test_source_ancestor_symlink_refuses_build[src/lingshu_gate/static]",
+      "result": "passed"
+    },
+    {
+      "class": "tests.test_wheel_build",
+      "elapsed_seconds": 0.674,
+      "name": "test_staging_parent_symlink_refuses_build_and_preserves_target",
+      "result": "passed"
+    },
+    {
+      "class": "tests.test_wheel_build",
+      "elapsed_seconds": 0.67,
+      "name": "test_missing_frontend_refuses_noneditable_wheel[console/index.html]",
+      "result": "passed"
+    },
+    {
+      "class": "tests.test_wheel_build",
+      "elapsed_seconds": 0.65,
+      "name": "test_missing_frontend_refuses_noneditable_wheel[oauth/oauth.html]",
+      "result": "passed"
+    },
+    {
+      "class": "tests.test_wheel_build",
+      "elapsed_seconds": 0.793,
+      "name": "test_standard_editable_install_works_before_frontend_build",
+      "result": "passed"
+    },
+    {
+      "class": "tests.test_wheel_build",
+      "elapsed_seconds": 0.701,
+      "name": "test_static_snapshot_validation_rejects_backend_copy_faults[console-missing]",
+      "result": "passed"
+    },
+    {
+      "class": "tests.test_wheel_build",
+      "elapsed_seconds": 0.749,
+      "name": "test_static_snapshot_validation_rejects_backend_copy_faults[console-extra]",
+      "result": "passed"
+    },
+    {
+      "class": "tests.test_wheel_build",
+      "elapsed_seconds": 0.631,
+      "name": "test_static_snapshot_validation_rejects_backend_copy_faults[console-changed]",
+      "result": "passed"
+    },
+    {
+      "class": "tests.test_wheel_build",
+      "elapsed_seconds": 0.617,
+      "name": "test_static_snapshot_validation_rejects_backend_copy_faults[oauth-missing]",
+      "result": "passed"
+    },
+    {
+      "class": "tests.test_wheel_build",
+      "elapsed_seconds": 0.699,
+      "name": "test_static_snapshot_validation_rejects_backend_copy_faults[oauth-extra]",
+      "result": "passed"
+    },
+    {
+      "class": "tests.test_wheel_build",
+      "elapsed_seconds": 0.724,
+      "name": "test_static_snapshot_validation_rejects_backend_copy_faults[oauth-changed]",
+      "result": "passed"
+    },
+    {
+      "class": "tests.test_wheel_build",
+      "elapsed_seconds": 0.721,
+      "name": "test_source_mutation_during_build_refuses_wheel",
+      "result": "passed"
+    },
+    {
+      "class": "tests.test_wheel_build",
+      "elapsed_seconds": 0.697,
+      "name": "test_wheel_ignores_and_preserves_previous_install_tree[False]",
+      "result": "passed"
+    },
+    {
+      "class": "tests.test_wheel_build",
+      "elapsed_seconds": 0.708,
+      "name": "test_wheel_ignores_and_preserves_previous_install_tree[True]",
+      "result": "passed"
+    },
+    {
+      "class": "tests.test_wheel_build",
+      "elapsed_seconds": 0.616,
+      "name": "test_skip_build_cannot_bypass_clean_staging_checks",
+      "result": "passed"
+    },
+    {
+      "class": "tests.test_wheel_build",
+      "elapsed_seconds": 0.645,
+      "name": "test_installed_payload_is_checked_before_wheel_archive[missing-console]",
+      "result": "passed"
+    },
+    {
+      "class": "tests.test_wheel_build",
+      "elapsed_seconds": 0.662,
+      "name": "test_installed_payload_is_checked_before_wheel_archive[missing-oauth]",
+      "result": "passed"
+    },
+    {
+      "class": "tests.test_wheel_build",
+      "elapsed_seconds": 0.666,
+      "name": "test_installed_payload_is_checked_before_wheel_archive[extra-console]",
+      "result": "passed"
+    },
+    {
+      "class": "tests.test_wheel_build",
+      "elapsed_seconds": 0.674,
+      "name": "test_installed_payload_is_checked_before_wheel_archive[extra-oauth]",
+      "result": "passed"
+    },
+    {
+      "class": "tests.test_wheel_build",
+      "elapsed_seconds": 0.646,
+      "name": "test_installed_payload_is_checked_before_wheel_archive[changed-console]",
+      "result": "passed"
+    },
+    {
+      "class": "tests.test_wheel_build",
+      "elapsed_seconds": 0.67,
+      "name": "test_installed_payload_is_checked_before_wheel_archive[changed-oauth]",
+      "result": "passed"
+    },
+    {
+      "class": "tests.test_wheel_build",
+      "elapsed_seconds": 0.66,
+      "name": "test_unknown_static_scope_refuses_build",
+      "result": "passed"
+    },
+    {
+      "class": "tests.test_wheel_build",
+      "elapsed_seconds": 0.649,
+      "name": "test_staging_parent_file_is_preserved",
+      "result": "passed"
+    },
+    {
+      "class": "tests.test_wheel_build",
+      "elapsed_seconds": 0.652,
+      "name": "test_static_fifo_refuses_build_without_opening_it",
+      "result": "passed"
+    },
+    {
+      "class": "tests.test_wheel_build",
+      "elapsed_seconds": 0.686,
+      "name": "test_final_archive_validation_rejects_corruption[missing]",
+      "result": "passed"
+    },
+    {
+      "class": "tests.test_wheel_build",
+      "elapsed_seconds": 0.693,
+      "name": "test_final_archive_validation_rejects_corruption[extra]",
+      "result": "passed"
+    },
+    {
+      "class": "tests.test_wheel_build",
+      "elapsed_seconds": 0.654,
+      "name": "test_final_archive_validation_rejects_corruption[changed]",
+      "result": "passed"
+    },
+    {
+      "class": "tests.test_wheel_build",
+      "elapsed_seconds": 0.714,
+      "name": "test_final_archive_validation_rejects_corruption[record]",
+      "result": "passed"
+    },
+    {
+      "class": "tests.test_wheel_build",
+      "elapsed_seconds": 0.673,
+      "name": "test_final_archive_validation_rejects_corruption[record_hash]",
+      "result": "passed"
+    },
+    {
+      "class": "tests.test_wheel_build",
+      "elapsed_seconds": 0.719,
+      "name": "test_final_archive_validation_rejects_corruption[record_size]",
+      "result": "passed"
+    },
+    {
+      "class": "tests.test_wheel_build",
+      "elapsed_seconds": 0.67,
+      "name": "test_final_archive_validation_rejects_corruption[path]",
+      "result": "passed"
+    },
+    {
+      "class": "tests.test_wheel_build",
+      "elapsed_seconds": 1.37,
+      "name": "test_failed_archive_then_retry_has_no_old_resources",
+      "result": "passed"
+    },
+    {
+      "class": "tests.test_wheel_build",
+      "elapsed_seconds": 1.108,
+      "name": "test_concurrent_wheel_builds_have_private_copy_install_and_archive_trees",
+      "result": "passed"
+    },
+    {
+      "class": "tests.test_wheel_build",
+      "elapsed_seconds": 0.706,
+      "name": "test_output_replacement_preserves_a_symlinks_user_data_target",
+      "result": "passed"
+    },
+    {
+      "class": "tests.test_release_packaging",
+      "elapsed_seconds": 0.001,
+      "name": "test_windows_native_smoke_uses_cwd_relative_batch_launcher",
+      "result": "passed"
+    },
+    {
+      "class": "tests.test_release_packaging",
+      "elapsed_seconds": 0.004,
+      "name": "test_windows_native_smoke_rejects_missing_launcher",
+      "result": "passed"
+    },
+    {
+      "class": "tests.test_release_packaging",
+      "elapsed_seconds": 0.545,
+      "name": "test_native_smoke_checks_root_negotiation_redirects_and_every_js_css_asset",
+      "result": "passed"
+    },
+    {
+      "class": "tests.test_release_packaging",
+      "elapsed_seconds": 0.539,
+      "name": "test_native_smoke_accepts_standard_javascript_media_types[text/javascript]",
+      "result": "passed"
+    },
+    {
+      "class": "tests.test_release_packaging",
+      "elapsed_seconds": 0.534,
+      "name": "test_native_smoke_accepts_standard_javascript_media_types[application/javascript]",
+      "result": "passed"
+    },
+    {
+      "class": "tests.test_release_packaging",
+      "elapsed_seconds": 0.503,
+      "name": "test_native_smoke_rejects_invalid_root_metadata[metadata-value0]",
+      "result": "passed"
+    },
+    {
+      "class": "tests.test_release_packaging",
+      "elapsed_seconds": 0.503,
+      "name": "test_native_smoke_rejects_invalid_root_metadata[metadata_type-text/html]",
+      "result": "passed"
+    },
+    {
+      "class": "tests.test_release_packaging",
+      "elapsed_seconds": 0.512,
+      "name": "test_native_smoke_rejects_non_html_console_response[application/json]",
+      "result": "passed"
+    },
+    {
+      "class": "tests.test_release_packaging",
+      "elapsed_seconds": 0.509,
+      "name": "test_native_smoke_rejects_non_html_console_response[text/plain]",
+      "result": "passed"
+    },
+    {
+      "class": "tests.test_release_packaging",
+      "elapsed_seconds": 0.516,
+      "name": "test_native_smoke_rejects_wrong_redirect_before_following_it[302-None]",
+      "result": "passed"
+    },
+    {
+      "class": "tests.test_release_packaging",
+      "elapsed_seconds": 0.517,
+      "name": "test_native_smoke_rejects_wrong_redirect_before_following_it[303-None]",
+      "result": "passed"
+    },
+    {
+      "class": "tests.test_release_packaging",
+      "elapsed_seconds": 0.517,
+      "name": "test_native_smoke_rejects_wrong_redirect_before_following_it[307-/unexpected]",
+      "result": "passed"
+    },
+    {
+      "class": "tests.test_release_packaging",
+      "elapsed_seconds": 0.517,
+      "name": "test_native_smoke_rejects_wrong_redirect_before_following_it[307-http://127.0.0.1:1/outside]",
+      "result": "passed"
+    },
+    {
+      "class": "tests.test_release_packaging",
+      "elapsed_seconds": 0.52,
+      "name": "test_native_smoke_rejects_wrong_final_legacy_response[legacy_type-application/json-Frozen Console entry point is unavailable]",
+      "result": "passed"
+    },
+    {
+      "class": "tests.test_release_packaging",
+      "elapsed_seconds": 0.517,
+      "name": "test_native_smoke_rejects_wrong_final_legacy_response[legacy_html-<title>Other entry</title>-Frozen legacy Console entry does not match]",
+      "result": "passed"
+    },
+    {
+      "class": "tests.test_release_packaging",
+      "elapsed_seconds": 0.54,
+      "name": "test_native_smoke_requires_both_root_js_and_css_references[<link href=\"/assets/main.css\">-JavaScript asset]",
+      "result": "passed"
+    },
+    {
+      "class": "tests.test_release_packaging",
+      "elapsed_seconds": 0.568,
+      "name": "test_native_smoke_requires_both_root_js_and_css_references[<script src=\"/assets/main.js\"></script>-CSS asset]",
+      "result": "passed"
+    },
+    {
+      "class": "tests.test_release_packaging",
+      "elapsed_seconds": 0.529,
+      "name": "test_native_smoke_requires_both_root_js_and_css_references[<script src=\"/console/assets/main.js\"></script><link href=\"/console/assets/main.css\">-JavaScript asset]",
+      "result": "passed"
+    },
+    {
+      "class": "tests.test_release_packaging",
+      "elapsed_seconds": 0.533,
+      "name": "test_native_smoke_rejects_each_missing_empty_or_wrong_type_asset[missing-/assets/main.js]",
+      "result": "passed"
+    },
+    {
+      "class": "tests.test_release_packaging",
+      "elapsed_seconds": 0.536,
+      "name": "test_native_smoke_rejects_each_missing_empty_or_wrong_type_asset[missing-/assets/main.css]",
+      "result": "passed"
+    },
+    {
+      "class": "tests.test_release_packaging",
+      "elapsed_seconds": 0.533,
+      "name": "test_native_smoke_rejects_each_missing_empty_or_wrong_type_asset[missing-/assets/preload.js]",
+      "result": "passed"
+    },
+    {
+      "class": "tests.test_release_packaging",
+      "elapsed_seconds": 0.532,
+      "name": "test_native_smoke_rejects_each_missing_empty_or_wrong_type_asset[empty-/assets/main.js]",
+      "result": "passed"
+    },
+    {
+      "class": "tests.test_release_packaging",
+      "elapsed_seconds": 0.532,
+      "name": "test_native_smoke_rejects_each_missing_empty_or_wrong_type_asset[empty-/assets/main.css]",
+      "result": "passed"
+    },
+    {
+      "class": "tests.test_release_packaging",
+      "elapsed_seconds": 0.536,
+      "name": "test_native_smoke_rejects_each_missing_empty_or_wrong_type_asset[empty-/assets/preload.js]",
+      "result": "passed"
+    },
+    {
+      "class": "tests.test_release_packaging",
+      "elapsed_seconds": 0.576,
+      "name": "test_native_smoke_rejects_each_missing_empty_or_wrong_type_asset[html-/assets/main.js]",
+      "result": "passed"
+    },
+    {
+      "class": "tests.test_release_packaging",
+      "elapsed_seconds": 0.532,
+      "name": "test_native_smoke_rejects_each_missing_empty_or_wrong_type_asset[html-/assets/main.css]",
+      "result": "passed"
+    },
+    {
+      "class": "tests.test_release_packaging",
+      "elapsed_seconds": 0.534,
+      "name": "test_native_smoke_rejects_each_missing_empty_or_wrong_type_asset[html-/assets/preload.js]",
+      "result": "passed"
+    },
+    {
+      "class": "tests.test_release_packaging",
+      "elapsed_seconds": 0.543,
+      "name": "test_native_smoke_verifies_legacy_asset_availability_and_identical_bytes[missing-/assets/main.js]",
+      "result": "passed"
+    },
+    {
+      "class": "tests.test_release_packaging",
+      "elapsed_seconds": 0.531,
+      "name": "test_native_smoke_verifies_legacy_asset_availability_and_identical_bytes[missing-/assets/main.css]",
+      "result": "passed"
+    },
+    {
+      "class": "tests.test_release_packaging",
+      "elapsed_seconds": 0.536,
+      "name": "test_native_smoke_verifies_legacy_asset_availability_and_identical_bytes[different-/assets/main.js]",
+      "result": "passed"
+    },
+    {
+      "class": "tests.test_release_packaging",
+      "elapsed_seconds": 0.546,
+      "name": "test_native_smoke_verifies_legacy_asset_availability_and_identical_bytes[different-/assets/main.css]",
+      "result": "passed"
+    },
+    {
+      "class": "tests.test_release_packaging",
+      "elapsed_seconds": 0.004,
+      "name": "test_archives_are_deterministic[tar.gz]",
+      "result": "passed"
+    },
+    {
+      "class": "tests.test_release_packaging",
+      "elapsed_seconds": 0.003,
+      "name": "test_archives_are_deterministic[zip]",
+      "result": "passed"
+    },
+    {
+      "class": "tests.test_release_packaging",
+      "elapsed_seconds": 0.004,
+      "name": "test_publishable_native_archive_is_validated_and_extracted[linux-x86_64-tar.gz]",
+      "result": "passed"
+    },
+    {
+      "class": "tests.test_release_packaging",
+      "elapsed_seconds": 0.003,
+      "name": "test_publishable_native_archive_is_validated_and_extracted[windows-x86_64-zip]",
+      "result": "passed"
+    },
+    {
+      "class": "tests.test_release_packaging",
+      "elapsed_seconds": 0.002,
+      "name": "test_tar_extractor_rejects_file_beneath_symlink_alias",
+      "result": "passed"
+    },
+    {
+      "class": "tests.test_release_packaging",
+      "elapsed_seconds": 0.002,
+      "name": "test_zip_extractor_rejects_windows_path_aliases[START.CMD]",
+      "result": "passed"
+    },
+    {
+      "class": "tests.test_release_packaging",
+      "elapsed_seconds": 0.001,
+      "name": "test_zip_extractor_rejects_windows_path_aliases[start.cmd.]",
+      "result": "passed"
+    },
+    {
+      "class": "tests.test_release_packaging",
+      "elapsed_seconds": 0.001,
+      "name": "test_zip_extractor_rejects_member_over_resource_budget",
+      "result": "passed"
+    },
+    {
+      "class": "tests.test_release_packaging",
+      "elapsed_seconds": 0.0,
+      "name": "test_native_builder_recreates_console_from_lockfile",
+      "result": "passed"
+    },
+    {
+      "class": "tests.test_release_packaging",
+      "elapsed_seconds": 0.002,
+      "name": "test_docker_save_outer_archive_normalization_is_deterministic",
+      "result": "passed"
+    },
+    {
+      "class": "tests.test_release_packaging",
+      "elapsed_seconds": 0.001,
+      "name": "test_reset_directory_rejects_its_boundary",
+      "result": "passed"
+    },
+    {
+      "class": "tests.test_release_packaging",
+      "elapsed_seconds": 0.001,
+      "name": "test_archive_rejects_an_escaping_symlink",
+      "result": "passed"
+    },
+    {
+      "class": "tests.test_release_packaging",
+      "elapsed_seconds": 0.001,
+      "name": "test_zip_rejects_even_an_internal_symlink",
+      "result": "passed"
+    },
+    {
+      "class": "tests.test_release_packaging",
+      "elapsed_seconds": 0.046,
+      "name": "test_artifact_collection_validates_and_combines_checksums",
+      "result": "passed"
+    },
+    {
+      "class": "tests.test_release_packaging",
+      "elapsed_seconds": 0.002,
+      "name": "test_artifact_collection_rejects_symlink_input",
+      "result": "passed"
+    },
+    {
+      "class": "tests.test_release_packaging",
+      "elapsed_seconds": 0.004,
+      "name": "test_artifact_collection_rechecks_digest_after_copy",
+      "result": "passed"
+    },
+    {
+      "class": "tests.test_release_packaging",
+      "elapsed_seconds": 0.002,
+      "name": "test_artifact_collection_rejects_foreign_asset_names",
+      "result": "passed"
+    },
+    {
+      "class": "tests.test_release_packaging",
+      "elapsed_seconds": 0.002,
+      "name": "test_artifact_collection_cannot_delete_an_arbitrary_output",
+      "result": "passed"
+    },
+    {
+      "class": "tests.test_release_packaging",
+      "elapsed_seconds": 0.0,
+      "name": "test_release_asset_reconciliation_removes_only_stale_names",
+      "result": "passed"
+    },
+    {
+      "class": "tests.test_release_packaging",
+      "elapsed_seconds": 0.0,
+      "name": "test_release_asset_reconciliation_rejects_duplicate_or_unsafe_names",
+      "result": "passed"
+    },
+    {
+      "class": "tests.test_release_packaging",
+      "elapsed_seconds": 0.0,
+      "name": "test_native_target_matrix_covers_supported_downloads",
+      "result": "passed"
+    },
+    {
+      "class": "tests.test_release_packaging",
+      "elapsed_seconds": 0.0,
+      "name": "test_release_linux_builds_share_ubuntu_22_04_glibc_baseline",
+      "result": "passed"
+    },
+    {
+      "class": "tests.test_release_packaging",
+      "elapsed_seconds": 0.0,
+      "name": "test_release_smokes_the_extracted_publishable_native_archive",
+      "result": "passed"
+    },
+    {
+      "class": "tests.test_release_packaging",
+      "elapsed_seconds": 0.0,
+      "name": "test_release_artifacts_receive_identity_validation_after_build",
+      "result": "passed"
+    },
+    {
+      "class": "tests.test_release_packaging",
+      "elapsed_seconds": 0.0,
+      "name": "test_release_examples_cover_browser_origin_policy",
+      "result": "passed"
+    },
+    {
+      "class": "tests.test_release_packaging",
+      "elapsed_seconds": 0.0,
+      "name": "test_offline_compose_template_is_a_source_and_delivery_input",
+      "result": "passed"
+    },
+    {
+      "class": "tests.test_release_packaging",
+      "elapsed_seconds": 0.0,
+      "name": "test_docker_context_excludes_local_python_build_metadata",
+      "result": "passed"
+    },
+    {
+      "class": "tests.test_release_packaging",
+      "elapsed_seconds": 0.001,
+      "name": "test_docker_base_images_are_digest_pinned_and_release_values_match",
+      "result": "passed"
+    },
+    {
+      "class": "tests.test_release_packaging",
+      "elapsed_seconds": 0.0,
+      "name": "test_container_identity_is_gate_specific_without_aliases",
+      "result": "passed"
+    },
+    {
+      "class": "tests.test_release_packaging",
+      "elapsed_seconds": 0.001,
+      "name": "test_release_toolchains_and_image_timestamps_are_pinned",
+      "result": "passed"
+    },
+    {
+      "class": "tests.test_release_packaging",
+      "elapsed_seconds": 0.0,
+      "name": "test_release_quality_uses_pinned_python_for_identity_validation",
+      "result": "passed"
+    },
+    {
+      "class": "tests.test_release_packaging",
+      "elapsed_seconds": 0.0,
+      "name": "test_release_windows_matrix_smokes_delivery_skill_packager",
+      "result": "passed"
+    },
+    {
+      "class": "tests.test_release_packaging",
+      "elapsed_seconds": 0.0,
+      "name": "test_release_build_backend_and_packager_are_exactly_pinned",
+      "result": "passed"
+    },
+    {
+      "class": "tests.test_release_packaging",
+      "elapsed_seconds": 0.0,
+      "name": "test_publishable_bundles_exclude_development_dependencies",
+      "result": "passed"
+    },
+    {
+      "class": "tests.test_release_packaging",
+      "elapsed_seconds": 0.001,
+      "name": "test_release_is_the_only_container_publisher",
+      "result": "passed"
+    },
+    {
+      "class": "tests.test_release_packaging",
+      "elapsed_seconds": 0.001,
+      "name": "test_release_publication_is_version_checked_and_fail_closed",
+      "result": "passed"
+    },
+    {
+      "class": "tests.test_release_packaging",
+      "elapsed_seconds": 0.001,
+      "name": "test_release_reconciliation_propagates_validation_failures",
+      "result": "passed"
+    },
+    {
+      "class": "tests.test_release_packaging",
+      "elapsed_seconds": 0.0,
+      "name": "test_release_verifies_all_asset_attestations_with_strict_identity",
+      "result": "passed"
+    },
+    {
+      "class": "tests.test_release_packaging",
+      "elapsed_seconds": 0.003,
+      "name": "test_release_asset_enumeration_rejects_non_regular_or_incomplete_sets",
+      "result": "passed"
+    },
+    {
+      "class": "tests.test_release_packaging",
+      "elapsed_seconds": 0.001,
+      "name": "test_oci_index_comparison_validates_attestations_and_platform_payloads",
+      "result": "passed"
+    },
+    {
+      "class": "tests.test_release_packaging",
+      "elapsed_seconds": 0.001,
+      "name": "test_oci_index_rejects_unexpected_platform_or_malformed_attestation",
+      "result": "passed"
+    },
+    {
+      "class": "tests.test_release_packaging",
+      "elapsed_seconds": 0.001,
+      "name": "test_release_validates_new_candidate_oci_index_before_promotion",
+      "result": "passed"
+    },
+    {
+      "class": "tests.test_release_packaging",
+      "elapsed_seconds": 0.002,
+      "name": "test_frozen_inventory_maps_every_site_packages_source",
+      "result": "passed"
+    },
+    {
+      "class": "tests.test_release_packaging",
+      "elapsed_seconds": 0.212,
+      "name": "test_third_party_license_inventory_covers_production_console_closure",
+      "result": "passed"
+    },
+    {
+      "class": "tests.test_release_packaging",
+      "elapsed_seconds": 0.0,
+      "name": "test_container_and_bundles_stage_complete_license_inventories",
+      "result": "passed"
+    },
+    {
+      "class": "tests.test_release_packaging",
+      "elapsed_seconds": 0.0,
+      "name": "test_container_ci_tracks_release_script_changes",
+      "result": "passed"
+    },
+    {
+      "class": "tests.test_release_packaging",
+      "elapsed_seconds": 0.036,
+      "name": "test_npm_license_staging_creates_missing_output_parents",
+      "result": "passed"
+    },
+    {
+      "class": "tests.test_release_packaging",
+      "elapsed_seconds": 0.029,
+      "name": "test_npm_license_staging_rejects_visible_directory_without_metadata",
+      "result": "passed"
+    },
+    {
+      "class": "tests.test_release_packaging",
+      "elapsed_seconds": 0.001,
+      "name": "test_privileged_qemu_and_buildkit_images_are_immutable",
+      "result": "passed"
+    },
+    {
+      "class": "tests.test_release_packaging",
+      "elapsed_seconds": 0.001,
+      "name": "test_all_github_actions_are_allowlisted_immutable_commit_pins",
+      "result": "passed"
+    },
+    {
+      "class": "tests.test_release_packaging",
+      "elapsed_seconds": 0.0,
+      "name": "test_release_version_is_safe_for_oci_tags_and_marks_prereleases",
+      "result": "passed"
+    },
+    {
+      "class": "tests.test_release_packaging",
+      "elapsed_seconds": 0.0,
+      "name": "test_glibc_version_parser_orders_numerically",
+      "result": "passed"
+    },
+    {
+      "class": "tests.test_release_packaging",
+      "elapsed_seconds": 0.0,
+      "name": "test_release_launchers_are_executable_in_source_tree",
+      "result": "passed"
+    },
+    {
+      "class": "tests.test_release_packaging",
+      "elapsed_seconds": 0.001,
+      "name": "test_spdx_includes_npm_production_closure",
+      "result": "passed"
+    },
+    {
+      "class": "tests.test_release_packaging",
+      "elapsed_seconds": 0.0,
+      "name": "test_build_host_mismatch_fails_closed",
+      "result": "passed"
+    },
+    {
+      "class": "tests.test_release_packaging",
+      "elapsed_seconds": 0.001,
+      "name": "test_dockerhub_mirror_preserves_verified_payloads[missing]",
+      "result": "passed"
+    },
+    {
+      "class": "tests.test_release_packaging",
+      "elapsed_seconds": 0.0,
+      "name": "test_dockerhub_mirror_preserves_verified_payloads[matching]",
+      "result": "passed"
+    },
+    {
+      "class": "tests.test_release_packaging",
+      "elapsed_seconds": 0.001,
+      "name": "test_dockerhub_mirror_preserves_verified_payloads[conflicting]",
+      "result": "passed"
+    },
+    {
+      "class": "tests.test_release_packaging",
+      "elapsed_seconds": 0.0,
+      "name": "test_dockerhub_mirror_preserves_verified_payloads[copy-failed]",
+      "result": "passed"
+    },
+    {
+      "class": "tests.test_release_packaging",
+      "elapsed_seconds": 0.0,
+      "name": "test_dockerhub_mirror_preserves_verified_payloads[corrupted]",
+      "result": "passed"
+    },
+    {
+      "class": "tests.test_release_packaging",
+      "elapsed_seconds": 0.0,
+      "name": "test_dockerhub_inspect_fails_closed[manifest unknown-True]",
+      "result": "passed"
+    },
+    {
+      "class": "tests.test_release_packaging",
+      "elapsed_seconds": 0.0,
+      "name": "test_dockerhub_inspect_fails_closed[unauthorized: manifest unknown-False]",
+      "result": "passed"
+    },
+    {
+      "class": "tests.test_release_packaging",
+      "elapsed_seconds": 0.0,
+      "name": "test_dockerhub_inspect_fails_closed[denied-False]",
+      "result": "passed"
+    },
+    {
+      "class": "tests.test_release_packaging",
+      "elapsed_seconds": 0.0,
+      "name": "test_dockerhub_inspect_fails_closed[429 too many requests-False]",
+      "result": "passed"
+    },
+    {
+      "class": "tests.test_release_packaging",
+      "elapsed_seconds": 0.0,
+      "name": "test_dockerhub_inspect_fails_closed[connection timed out-False]",
+      "result": "passed"
+    },
+    {
+      "class": "tests.test_release_packaging",
+      "elapsed_seconds": 0.0,
+      "name": "test_dockerhub_latest_requires_verified_stable_version",
+      "result": "passed"
+    },
+    {
+      "class": "tests.test_release_packaging",
+      "elapsed_seconds": 0.0,
+      "name": "test_dockerhub_workflow_publication_order",
+      "result": "passed"
+    },
+    {
+      "class": "tests.test_release_packaging",
+      "elapsed_seconds": 0.0,
+      "name": "test_tag_only_release_jobs_set_up_python_before_scripts[docker-offline]",
+      "result": "passed"
+    },
+    {
+      "class": "tests.test_release_packaging",
+      "elapsed_seconds": 0.0,
+      "name": "test_tag_only_release_jobs_set_up_python_before_scripts[docker-publish]",
+      "result": "passed"
+    },
+    {
+      "class": "tests.test_release_packaging",
+      "elapsed_seconds": 0.001,
+      "name": "test_tag_only_release_jobs_set_up_python_before_scripts[publish]",
+      "result": "passed"
+    },
+    {
+      "class": "tests.test_release_packaging",
+      "elapsed_seconds": 0.0,
+      "name": "test_trivy_cache_stays_outside_release_source[release.yml]",
+      "result": "passed"
+    },
+    {
+      "class": "tests.test_release_packaging",
+      "elapsed_seconds": 0.0,
+      "name": "test_trivy_cache_stays_outside_release_source[docker.yml]",
+      "result": "passed"
+    },
+    {
+      "class": "tests.test_schema_validation_budget",
+      "elapsed_seconds": 0.434,
+      "name": "test_typical_finite_local_dag_is_validated[0]",
+      "result": "passed"
+    },
+    {
+      "class": "tests.test_schema_validation_budget",
+      "elapsed_seconds": 0.41,
+      "name": "test_typical_finite_local_dag_is_validated[2]",
+      "result": "passed"
+    },
+    {
+      "class": "tests.test_schema_validation_budget",
+      "elapsed_seconds": 0.418,
+      "name": "test_typical_finite_local_dag_is_validated[5]",
+      "result": "passed"
+    },
+    {
+      "class": "tests.test_schema_validation_budget",
+      "elapsed_seconds": 0.001,
+      "name": "test_compact_exponential_dag_is_rejected_before_process_evaluation[12]",
+      "result": "passed"
+    },
+    {
+      "class": "tests.test_schema_validation_budget",
+      "elapsed_seconds": 0.001,
+      "name": "test_compact_exponential_dag_is_rejected_before_process_evaluation[20]",
+      "result": "passed"
+    },
+    {
+      "class": "tests.test_schema_validation_budget",
+      "elapsed_seconds": 0.001,
+      "name": "test_compact_exponential_dag_is_rejected_before_process_evaluation[30]",
+      "result": "passed"
+    },
+    {
+      "class": "tests.test_schema_validation_budget",
+      "elapsed_seconds": 0.0,
+      "name": "test_cycle_and_expanded_depth_are_rejected",
+      "result": "passed"
+    },
+    {
+      "class": "tests.test_schema_validation_budget",
+      "elapsed_seconds": 0.0,
+      "name": "test_schema_under_a_property_named_defs_cannot_bypass_expansion_budget",
+      "result": "passed"
+    },
+    {
+      "class": "tests.test_schema_validation_budget",
+      "elapsed_seconds": 0.977,
+      "name": "test_catastrophic_regex_is_killed_on_deadline_and_worker_slot_is_reusable",
+      "result": "passed"
+    },
+    {
+      "class": "tests.test_schema_validation_budget",
+      "elapsed_seconds": 0.0,
+      "name": "test_cancelled_validation_starts_no_worker",
+      "result": "passed"
+    },
+    {
+      "class": "tests.test_schema_validation_budget",
+      "elapsed_seconds": 0.739,
+      "name": "test_cancellation_during_evaluation_terminates_child",
+      "result": "passed"
+    },
+    {
+      "class": "tests.test_schema_validation_budget",
+      "elapsed_seconds": 0.0,
+      "name": "test_frozen_worker_command_uses_native_entry_flag",
+      "result": "passed"
+    },
+    {
+      "class": "tests.test_schema_validation_budget",
+      "elapsed_seconds": 1.116,
+      "name": "test_native_entry_worker_bypasses_service_settings_and_never_echoes_values",
+      "result": "passed"
+    }
+  ],
+  "elapsed_seconds": 50.175,
+  "errors": 0,
+  "failed": 0,
+  "skipped": 0,
+  "tests": 156
+}
