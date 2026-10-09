@@ -1,0 +1,82 @@
+{
+  "recorded_utc": "2026-10-09T17:52:02Z",
+  "scope": "One new manual read-only diagnostic, instrumented to retain the first failure on the exact failed v0.4.6 source. It is separate from the formal release and does not publish assets.",
+  "formal_failed_run_id": 37959237474,
+  "tested_source": {
+    "sha": "d228cf7ad27f2688cc6e04e5210c8aa2ea88b646",
+    "tree": "b6d33c23ea90174da2d8ab1d9aa0364599f6437c",
+    "tag": "v0.4.6"
+  },
+  "diagnostic_tooling": {
+    "sha": "0cd74320cecbb2b2c8aeb3f941590fef42a14ce4",
+    "branch": "test/gate-release-quality-d228-20261009",
+    "base_sha": "d228cf7ad27f2688cc6e04e5210c8aa2ea88b646",
+    "changed_files": [
+      ".github/workflows/release-quality-diagnostic.yml",
+      "tests/test_release_quality_diagnostic_workflow.py"
+    ],
+    "workflow_blob": "08bd4741041ab4981946197091e7761157f994e8",
+    "test_blob": "43346843e36f3374b93eb1fb5f77a0684bb98199",
+    "remote_head_and_blobs_readback_verified": true
+  },
+  "diagnostic_run": {
+    "id": 37969279114,
+    "job_id": 113951458179,
+    "url": "https://github.com/zhigege666/Lingshu-Gate/actions/runs/37969279114",
+    "event": "workflow_dispatch",
+    "created_utc": "2026-10-09T17:52:02Z",
+    "head_sha": "0cd74320cecbb2b2c8aeb3f941590fef42a14ce4",
+    "status_at_initial_read": "in_progress",
+    "final_conclusion": null,
+    "source_tag_tree_and_tooling_provenance_step": "success",
+    "first_failed_test": null
+  },
+  "environment": {
+    "runner": "ubuntu-22.04",
+    "python": "3.13.15",
+    "node": "22.23.2",
+    "uv": "0.11.33",
+    "install": "uv sync --frozen --group release"
+  },
+  "evidence_behavior": {
+    "all_original_tests_selected": true,
+    "stop_after_first_failure": true,
+    "verbose_test_start_and_failure_output": true,
+    "live_events_jsonl": true,
+    "partial_junit_snapshots": true,
+    "faulthandler_seconds": 120,
+    "always_upload_retained_new_artifact": true,
+    "retention_days": 3
+  },
+  "local_validation": {
+    "tests": [
+      "tests/test_release_quality_diagnostic_workflow.py",
+      "tests/test_pytest_evidence.py"
+    ],
+    "passed": 21,
+    "elapsed_seconds": 6.58,
+    "exit_code": 0,
+    "timed_out": false,
+    "log_sha256": "c10d3aaf688e4d3577c7ac07d8bb67d610372e5a3e2b0a856146ebcb600d3b42",
+    "junit_sha256": "61c4f15394a9fa5e270458bc5f94ab2170d47edd9c44f820e26e4be61237ccd7",
+    "ruff_exit_code": 0,
+    "repository_identity_history": "passed",
+    "git_diff_check": "passed",
+    "complete_local_product_suite_repeated": false
+  },
+  "boundaries": {
+    "permissions": {
+      "contents": "read"
+    },
+    "product_code_unchanged": true,
+    "version_unchanged": true,
+    "formal_release_workflows_unchanged": true,
+    "quality_gate_unchanged": true,
+    "existing_tag_unchanged": true,
+    "no_main_merge": true,
+    "no_credentials_created_or_exposed": true,
+    "no_production_host_access": true,
+    "old_denied_log_and_artifact_objects_not_accessed": true
+  },
+  "current_limitation": "The new diagnostic is in progress. No formal failure cause is established by this initial dispatch receipt; wait for its actual first-failure and provenance evidence."
+}
