@@ -645,6 +645,9 @@ class OwnedRunSignals:
         if self.cleaning:
             self.receipt["signal_deferred_during_cleanup"] = True
         else:
+            # Defer a second signal even while unwinding execution's finally
+            # block, before run() reaches its cleanup clause.
+            self.cleaning = True
             raise KeyboardInterrupt
 
     def __enter__(self):

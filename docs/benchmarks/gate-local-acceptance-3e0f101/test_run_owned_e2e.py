@@ -546,6 +546,15 @@ class OwnedBoundaryTests(unittest.TestCase):
     def test_real_sigint_reaps_detached_listener_and_preserves_unowned_state(self) -> None:
         self.interrupted_owned_run(signal.SIGINT)
 
+    def test_second_signal_is_deferred_while_execution_unwinds(self) -> None:
+        receipt = {}
+        guard = owned.OwnedRunSignals(receipt)
+        with self.assertRaises(KeyboardInterrupt):
+            guard.interrupt(signal.SIGINT, None)
+        self.assertTrue(guard.cleaning)
+        guard.interrupt(signal.SIGINT, None)
+        self.assertTrue(receipt["signal_deferred_during_cleanup"])
+
     def test_second_sigint_during_reap_is_deferred(self) -> None:
         self.interrupted_owned_run(signal.SIGINT, repeat=True)
 
