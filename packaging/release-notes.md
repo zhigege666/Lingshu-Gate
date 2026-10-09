@@ -1,8 +1,8 @@
-# Lingshu Gate 0.4.5
+# Lingshu Gate 0.4.6
 
 ## English — release overview
 
-0.4.5 consolidates the source changes since the immutable v0.4.4 release: explicit MCP groups and instance sessions, a bounded on-demand tool directory, private OAuth catalog/editor improvements, account-menu recovery, classification change explanations, the root Console entry and fresh package staging. The runtime, CLI, package metadata and archive names use the single version source; the Console reads the running version from /healthz.
+0.4.6 adds the queued-frame account-menu focus fix and consolidates the source changes since the immutable v0.4.4 release: explicit MCP groups and instance sessions, a bounded on-demand tool directory, private OAuth catalog/editor improvements, account-menu recovery, classification change explanations, the root Console entry and fresh package staging. The runtime, CLI, package metadata and archive names use the single version source; the Console reads the running version from /healthz.
 
 - The browser Console opens at /; /console, /console/ and /console/index.html keep compatible same-origin 307 redirects with query and browser-fragment behavior. Explicit JSON discovery remains available at / and stable metadata at /v1/meta. Root and old asset aliases retain identical bytes, confined paths and appropriate cache rules.
 - Groups reference existing configurations without copying credentials or granting access. Matching complete contracts share logical entries; differing schemas/safety/version contracts remain separate. Explicit connection-bound sessions pin instances and reject changed authority, configuration/runtime drift, close/expiry and cross-instance reuse.
@@ -15,13 +15,13 @@ The optional Native/Linux rootless Podman executor is disabled by default. Its s
 
 Upgrading from the published v0.4.4 also includes the existing tool-directory/group migrations. Preserve configuration, data, credential/signing keys and the single-writer SQLite deployment, take a consistent backup and retain the prior package. The earlier “no new migration” root-entry comparison applied only to its already integrated source checkpoints.
 
-The [0.4.5 validation record](../docs/release-validation-0.4.5.md) identifies the candidate source, isolated checks, newly built package hashes, CI checkout SHAs and release gates. Historical browser checkpoints are not reported as green: the parent-reported PR49 default run was 418 passed / 55 skipped / 2 failed out of 475; its optional run was 27 passed / 3 skipped / 7 failed. Failure attribution remains unproven. Required candidate failures block acceptance; residual browser scope and real-host/client limits remain explicit for owner review.
+The [0.4.6 validation record](../docs/release-validation-0.4.6.md) separates inherited exact-source checks, fresh patch candidates and formal publication. PR60/PR61 and ordinary main CI passed at their recorded SHAs. New candidate and formal quality failures still block publication; real-host/client and sandboxed-browser limits stay explicit. The occupied v0.4.5 tag is not moved or reused.
 
 Pushing a version change to main automatically starts tag creation and the formal release workflow. The owner must first accept the candidate gate. Formal publication requires five native targets (Linux x86_64/ARM64, Windows x86_64, macOS x86_64/ARM64), Compose, two offline Core images, application SPDX SBOM, image reference and SHA256SUMS: 11 exact assets with provenance. Read back all mandatory jobs, checksums, inner inventories, SBOM, source/workflow attestations and the published title/body. PR artifacts and local candidates do not establish publication. Historical tags and artifacts stay immutable.
 
 ## 简体中文 — 版本概述
 
-0.4.5 整合不可变 v0.4.4 发行后的源码变化：显式 MCP 分组与实例会话、有界按需工具目录、私有 OAuth 目录/编辑改进、账户菜单恢复、分类变化原因、根路径 Console 入口及干净打包 staging。运行时、CLI、包元数据和归档名称使用唯一版本源；Console 从 /healthz 读取实际运行版本。
+0.4.6 补齐排队动画帧中的账户菜单焦点修复，并整合不可变 v0.4.4 发行后的源码变化：显式 MCP 分组与实例会话、有界按需工具目录、私有 OAuth 目录/编辑改进、账户菜单恢复、分类变化原因、根路径 Console 入口及干净打包 staging。运行时、CLI、包元数据和归档名称使用唯一版本源；Console 从 /healthz 读取实际运行版本。
 
 - 浏览器 Console 从 / 打开；/console、/console/、/console/index.html 保留同源 307 兼容跳转、查询串及浏览器片段行为。/ 保留显式 JSON 发现，/v1/meta 提供稳定元信息。根资源与旧别名保留相同字节、路径边界及适当缓存规则。
 - 分组引用已有配置，不复制凭据、不自动授权。完整合同相同的工具共用逻辑条目；schema/安全声明/版本不同则保留独立分区。显式连接绑定会话固定实例，拒绝权限变化、配置/runtime 漂移、关闭/过期及跨实例复用。
@@ -34,6 +34,6 @@ Pushing a version change to main automatically starts tag creation and the forma
 
 从正式 v0.4.4 升级另包含已有工具目录/分组迁移。保留配置、数据、凭据/签名密钥及 SQLite 单写实例，做好一致备份并保留旧包。根入口此前“无新增迁移”的比较只适用于其已整合源码检查点。
 
-[0.4.5 验证记录](../docs/zh-CN/release-validation-0.4.5.md) 区分候选源码、隔离检查、新包摘要、CI checkout SHA 与发行门禁。历史浏览器检查点不计为全绿：父任务报告 PR49 默认运行 475 项中 418 通过/55 跳过/2 失败，optional 为 27 通过/3 跳过/7 失败；失败归因仍未证。必需候选检查失败会阻断验收；剩余浏览器范围及真实宿主/客户端限制保留供本人复核。
+[0.4.6 验证记录](../docs/zh-CN/release-validation-0.4.6.md) 区分继承的精确源码检查、新 patch 候选与正式发布；PR60/PR61 和 main 普通 CI 已在各自记录的 SHA 通过。新候选与正式 quality 失败仍阻断发布，真实宿主/客户端及 sandbox 浏览器限制明确保留；已占用的 v0.4.5 标签不移动、不复用。
 
 版本变化推入 main 会自动启动创建 tag 和正式发行工作流，须先由本人核验候选门禁。正式发行要求五种 native 目标（Linux x86_64/ARM64、Windows x86_64、macOS x86_64/ARM64）、Compose、两个离线 Core 镜像、应用 SPDX SBOM、镜像引用及 SHA256SUMS，共 11 项准确资产及来源证明。须回读全部必需任务、校验和、包内清单、SBOM、源码/工作流来源证明及发行标题/正文。PR artifact 和本地候选不代表正式发布；历史 tag 与制品保持不可变。
