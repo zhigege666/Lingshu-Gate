@@ -153,3 +153,15 @@ Optional environment-key OCI signing was unconfigured and skipped; mandatory
 asset attestations are recorded separately. Published title/bilingual notes
 match the source. Real nx5/x16, Podman provisioning and real OAuth-client
 acceptance remain outside these cloud receipts.
+
+## Integrated branch cleanup
+
+At 2026-10-10 06:59:59 UTC, eight branch heads whose exact remote SHAs were
+ancestors of the released main were deleted in one atomic operation with
+separate expected-SHA leases. Their commits remain reachable from main.
+Ten branches with unique content, including release evidence and the isolated
+UI alignment change, were preserved. All other remote refs, main and
+v0.4.5/v0.4.6/v0.4.7 tags matched the preflight snapshot exactly; no release
+assets changed. [Cleanup receipt](benchmarks/gate-integrated-branch-cleanup-45cec40.json)
+lists every deleted and preserved head. The UI change is separate from these
+immutable assets and still awaits independent design review.
