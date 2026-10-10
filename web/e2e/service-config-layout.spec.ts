@@ -45,7 +45,7 @@ async function geometry(dialog: Locator) {
       const index = pair ? Array.from(field.parentElement!.children).indexOf(field) : 0
       const columns = pair ? getComputedStyle(field.parentElement!).gridTemplateColumns.trim().split(/\s+/).length : 1
       const switchControl = control.querySelector('.manifest-switch')
-      const switchHelp = control.querySelector('.manifest-switch-group > p')
+      const switchHelp = control.querySelector('[id$="-help"]')
       return {
         label: label.textContent, label_bounds: bounds(label), control_bounds: bounds(control),
         label_overflow: label.scrollWidth > label.clientWidth + 1,
@@ -75,7 +75,8 @@ async function capture(page: Page, dialog: Locator, name: string, testInfo: { ou
     expect(metrics.rows.filter(r => r.label_overflow)).toEqual([])
     for (const row of metrics.rows) {
       if (row.switch_bounds && row.switch_help_bounds) {
-        expect(row.switch_help_bounds.x - row.switch_bounds.right).toBeGreaterThanOrEqual(8)
+        expect(row.switch_help_bounds.y - row.switch_bounds.bottom).toBeGreaterThanOrEqual(4)
+        expect(Math.abs(row.switch_help_bounds.x - row.switch_bounds.x)).toBeLessThanOrEqual(1.25)
         expect(row.switch_help_bounds.width).toBeGreaterThanOrEqual(200)
       }
     }
@@ -137,13 +138,15 @@ test('service edit modes, long help/errors and keyboard at 1600x900 @full @visua
   await expect(page.getByRole('button', { name: '编辑', exact: true })).toBeFocused()
 })
 
-test('service edit English startup labels and help remain readable @full @visual', async ({ page }, testInfo) => {
-  test.skip(phase === 'before', 'Additional language coverage follows the layout change.')
-  await page.setViewportSize({ width: 1600, height: 900 })
-  const editor = await openEditor(page, 'en-US')
-  await capture(page, editor, 'external-en-1600x900', testInfo)
-  await expectInViewportAndUnobscured(editor.getByRole('button', { name: 'Save Config', exact: true }))
-})
+for (const [width, height] of viewports) {
+  test(`service edit English startup labels and help ${width}x${height} @full @visual`, async ({ page }, testInfo) => {
+    test.skip(phase === 'before', 'Additional language coverage follows the layout change.')
+    await page.setViewportSize({ width, height })
+    const editor = await openEditor(page, 'en-US')
+    await capture(page, editor, `external-en-${width}x${height}`, testInfo)
+    await expectInViewportAndUnobscured(editor.getByRole('button', { name: 'Save Config', exact: true }))
+  })
+}
 
 test('service config dirty discard returns keyboard focus to its edit trigger @full', async ({ page }) => {
   await page.setViewportSize({ width: 1600, height: 900 })
@@ -155,3 +158,107 @@ test('service config dirty discard returns keyboard focus to its edit trigger @f
   await expect(editor).not.toBeVisible()
   await expect(page.getByRole('button', { name: '编辑', exact: true })).toBeFocused()
 })
+
+test('new service config discard returns focus to New Config @full', async ({ page }) => {
+  const initial = await openEditor(page)
+  await initial.getByRole('button', { name: '取消', exact: true }).click()
+  const trigger = page.getByRole('button', { name: '新建配置', exact: true })
+  await trigger.click()
+  const editor = page.getByRole('dialog', { name: '新建 MCP 配置', exact: true })
+  await editor.getByLabel('名称', { exact: true }).fill('Synthetic new draft')
+  await editor.getByRole('button', { name: '取消', exact: true }).click()
+  await page.getByRole('alertdialog', { name: '放弃未保存的配置？', exact: true }).getByRole('button', { name: '放弃修改', exact: true }).click()
+  await expect(editor).not.toBeVisible()
+  await expect(trigger).toBeFocused()
+})
+
+test('service config Keep editing preserves its draft and editor focus @full', async ({ page }) => {
+  const editor = await openEditor(page)
+  const name = editor.getByLabel('名称', { exact: true })
+  await name.fill('Synthetic retained draft')
+  const cancel = editor.getByRole('button', { name: '取消', exact: true })
+  await cancel.click()
+  await page.getByRole('alertdialog', { name: '放弃未保存的配置？', exact: true }).getByRole('button', { name: '继续编辑', exact: true }).click()
+  await expect(editor).toBeVisible()
+  await expect(name).toHaveValue('Synthetic retained draft')
+  await expect(cancel).toBeFocused()
+})
+
+for (const invalid of ['removed', 'disabled'] as const) {
+  test(`service config trigger ${invalid} returns focus to the available New Config action @full`, async ({ page }) => {
+    const errors: string[] = []
+    page.on('pageerror', error => errors.push(error.message))
+    const editor = await openEditor(page)
+    await page.getByRole('button', { name: '编辑', exact: true, includeHidden: true }).evaluate((element, kind) => {
+      if (kind === 'removed') element.remove()
+      else (element as HTMLButtonElement).disabled = true
+    }, invalid)
+    await editor.getByRole('button', { name: '取消', exact: true }).click()
+    await expect(editor).not.toBeVisible()
+    await expect(page.getByRole('button', { name: '新建配置', exact: true })).toBeFocused()
+    expect(errors).toEqual([])
+  })
+}
+
+async function openDeliveryEditor(page: Page, locale: 'zh-CN' | 'en-US') {
+  await login(page)
+  await page.addInitScript(locale => {
+    localStorage.setItem('lingshu-gate-console-locale', locale)
+    localStorage.setItem('lingshu-gate-console-theme', 'light')
+  }, locale)
+  const time = '2026-01-01T00:00:00Z'
+  const upload = { id: 'synthetic-layout-upload', filename: 'synthetic-layout.zip', status: 'uploaded', detected_runtime: 'python', root_dir: '/synthetic/layout', analysis: {}, created_at: time, updated_at: time }
+  const build = { id: 'synthetic-layout-build', upload_id: upload.id, status: 'success', runtime: 'python', source_dir: '/synthetic/layout', artifact_dir: '/synthetic/layout-artifact', commands: [], logs: [], manifest: { ...external, name: 'Synthetic delivery', enabled: false, transport: { type: 'streamable_http', endpoint: 'https://synthetic.example.test/delivery/mcp' } }, created_at: time, updated_at: time }
+  let draft = { upload_id: upload.id, revision: 1, manifest_patch: {}, server_id: null, build_id: build.id, deployment_id: null, start: false, overwrite: false, project_root: '.', runtime_override: null }
+  const writes: Array<{ path: string; method: string; body: Record<string, unknown> }> = []
+  await page.route('**/v1/**', async route => {
+    const request = route.request(), path = new URL(request.url()).pathname, method = request.method()
+    if (method !== 'GET') {
+      writes.push({ path, method, body: request.postDataJSON() })
+      if (method === 'PUT' && path === `/v1/delivery-drafts/${upload.id}`) {
+        draft = { ...draft, ...request.postDataJSON(), revision: draft.revision + 1 }
+        return route.fulfill({ json: draft })
+      }
+      return route.fulfill({ status: 400, json: { detail: 'Unexpected synthetic layout fixture write' } })
+    }
+    if (path === '/v1/projects/uploads') return route.fulfill({ json: { uploads: [upload] } })
+    if (path === '/v1/builds') return route.fulfill({ json: { builds: [build] } })
+    if (path === '/v1/deployments') return route.fulfill({ json: { deployments: [] } })
+    if (path === `/v1/builds/${build.id}/logs`) return route.fulfill({ json: { logs: [] } })
+    if (path === `/v1/delivery-drafts/${upload.id}`) return route.fulfill({ json: draft })
+    return route.continue()
+  })
+  await page.goto(`/console/#/builds/${build.id}`)
+  await page.getByRole('button', { name: locale === 'zh-CN' ? '编辑 · Manifest' : 'Edit · Manifest', exact: true }).click()
+  return { editor: page.getByRole('dialog', { name: locale === 'zh-CN' ? '交付运行配置' : 'Delivery runtime configuration', exact: true }), writes, upload }
+}
+
+for (const [width, height] of viewports) for (const locale of ['zh-CN', 'en-US'] as const) {
+  test(`delivery configuration shared layout ${width}x${height} ${locale} @full @visual`, async ({ page }, testInfo) => {
+    test.skip(phase === 'before', 'Additional consumer coverage follows independent review.')
+    await page.setViewportSize({ width, height })
+    const { editor, writes, upload } = await openDeliveryEditor(page, locale)
+    const zh = locale === 'zh-CN'
+    const save = editor.getByRole('button', { name: zh ? '保存交付草稿' : 'Save delivery draft', exact: true })
+    await expectInViewportAndUnobscured(save)
+    await capture(page, editor, `delivery-external-${zh ? 'zh' : 'en'}-${width}x${height}`, testInfo)
+    if (width === 1600) {
+      for (const mode of ['stdio', 'http'] as const) {
+        await editor.getByRole('radio', { name: zh ? (mode === 'stdio' ? '受管 Stdio' : '受管 HTTP') : (mode === 'stdio' ? 'Managed Stdio' : 'Managed HTTP'), exact: true }).check()
+        await expectInViewportAndUnobscured(save)
+        await capture(page, editor, `delivery-managed-${mode}-${zh ? 'zh' : 'en'}-${width}x${height}`, testInfo)
+      }
+      await editor.getByRole('radio', { name: zh ? '外部 HTTP' : 'External HTTP', exact: true }).check()
+    }
+    await editor.getByLabel(zh ? '名称' : 'Name', { exact: true }).fill('Synthetic edited delivery')
+    await editor.getByRole('button', { name: zh ? '取消' : 'Cancel', exact: true }).click()
+    await page.getByRole('alertdialog', { name: zh ? '放弃尚未保存的修改？' : 'Discard unsaved changes?', exact: true }).getByRole('button', { name: zh ? '继续编辑' : 'Continue editing', exact: true }).click()
+    await expect(editor.getByLabel(zh ? '名称' : 'Name', { exact: true })).toHaveValue('Synthetic edited delivery')
+    expect(writes).toEqual([])
+    await expectInViewportAndUnobscured(save)
+    await save.click()
+    await expect(editor).not.toBeVisible()
+    expect(writes).toHaveLength(1)
+    expect(writes[0]).toMatchObject({ path: `/v1/delivery-drafts/${upload.id}`, method: 'PUT', body: { expected_revision: 1, start: false, overwrite: false, manifest_patch: { name: 'Synthetic edited delivery' } } })
+  })
+}

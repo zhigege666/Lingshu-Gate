@@ -11,9 +11,8 @@
 .manifest-field { display: grid; grid-template-columns: var(--manifest-label-width) minmax(0, 1fr); align-items: start; gap: .75rem; min-width: 0; }
 .manifest-field > label { white-space: nowrap; min-height: 2.25rem; display: flex; align-items: center; }
 .manifest-field-control { min-width: 0; display: flex; flex-direction: column; align-items: stretch; gap: .375rem; }
-.manifest-switch-group { display: flex; align-items: flex-start; gap: .75rem; min-height: 2.25rem; }
-.manifest-switch-group > .manifest-switch { flex-shrink: 0; margin-block-start: .5rem; }
-.manifest-switch-group > p { min-width: 0; margin: 0; padding-block-start: .5rem; overflow-wrap: anywhere; }
+.manifest-field-control > .manifest-switch { margin-block-start: .5rem; align-self: flex-start; }
+.manifest-field-control > .manifest-switch ~ p { overflow-wrap: anywhere; }
 .manifest-toggle { display: flex; align-items: center; justify-content: space-between; gap: 1rem; }
 .manifest-map, .manifest-array { min-width: 0; display: flex; flex-direction: column; gap: .5rem; }
 .manifest-map-row { display: grid; grid-template-columns: minmax(100px, .65fr) minmax(0, 1fr) auto; align-items: center; gap: .5rem; }

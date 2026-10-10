@@ -393,11 +393,8 @@ export function McpConfigEditor({ locale, selectedConfigId, value, onChange, onS
     const pointer = `/${path.join("/")}`
     const id = fieldId(pointer)
     if (current !== undefined && typeof current !== "boolean") return <Field id={id} label={label}>{unsupported(label)}</Field>
-    return <Field id={id} label={label} error={fieldError(pointer)}>
-      <div className="manifest-switch-group">
-        <Switch className="manifest-switch" id={id} data-manifest-path={pointer} checked={typeof current === "boolean" ? current : fallback} disabled={locked} aria-invalid={Boolean(fieldError(pointer))} aria-describedby={desc ? `${id}-help` : undefined} onCheckedChange={(checked) => { touch(pointer); if (pointer === "/auto_start" && manifest) write(changeStartupPolicy(manifest, checked)); else set(path, checked) }} />
-        {desc && <p id={`${id}-help`} className="text-xs text-muted-foreground">{desc}</p>}
-      </div>
+    return <Field id={id} label={label} desc={desc} error={fieldError(pointer)}>
+      <Switch className="manifest-switch" id={id} data-manifest-path={pointer} checked={typeof current === "boolean" ? current : fallback} disabled={locked} aria-invalid={Boolean(fieldError(pointer))} aria-describedby={desc ? `${id}-help` : undefined} onCheckedChange={(checked) => { touch(pointer); if (pointer === "/auto_start" && manifest) write(changeStartupPolicy(manifest, checked)); else set(path, checked) }} />
     </Field>
   }
   function mapField(path: string[], label: string, current: unknown, withCredentials = false) {
