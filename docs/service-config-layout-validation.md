@@ -1,5 +1,21 @@
 # Service configuration layout validation
 
+## Delivery candidate and focus regressions
+
+The tested product and browser sources are `a0cc7925f02718e44cb0216e82581eff9b7644fc`. The candidate incorporates main `2cbbe0673ce221a490af55d7d45abb5171552ec6`; both README files are byte-identical to that main revision. The sections below describe earlier, source-bound stages and retain their original evidence.
+
+Delivery configuration now restores the original action after saving. Service configuration remembers the portaled footer control before asynchronous precheck disables it, so cancelling confirmation preserves both the draft and focus. When a successful save refreshes and replaces the original Edit button, closing the dialog finds the current visible Edit action. A removed, disabled or hidden trigger, or a BODY/HTML focus snapshot from the asynchronous **Edit and enable** entry, uses the current configuration action or active service entry.
+
+Fresh type/UX checks, 75 frontend test files containing **455 tests**, Console/OAuth builds, version consistency and whitespace checks passed. The complete original two-file browser scope plus ten permanent focus regressions passed **59/59**, with no retries, skips or flaky cases. This includes the existing English/Chinese, light/dark, desktop Form/JSON matrix. The eight additional refresh, invalid-trigger and asynchronous-entry cases assert the actual focused element after 250ms; all returned to a button. Save checks retain exactly one PUT, the configuration digest, and false apply/start intent.
+
+The first six-case attempt failed during background-button lookup and is retained as a harness failure. After correcting only that lookup, unchanged product `281d3a7` failed six focus assertions with BODY active. The identical test file then passed on `762caac`. Two further asynchronous-entry cases failed with BODY active on unchanged product `762caac`; the identical expanded test file passed on `a0cc792`. These are two separately bound red/green comparisons, not one combined same-file claim.
+
+Independent code review at exact `a0cc792` closed both additional P2 findings and found no unhandled P1/P2 within the reviewed focus scope. It independently verified the 59/455 execution records, eight raw focus attachments and red/green test bytes; the reviewer did not rerun those suites. The earlier independent visual review viewed all 34 final captures from `281d3a7` in its covered layout and original focus scope; it does not constitute a new screenshot review of `a0cc792`. New screenshots and raw browser records remain in the original cloud executor. No new image content is committed or transferred.
+
+**The candidate is not merge-ready.** The unchanged repository identity checker, run with `--history` against all 17 current published heads, all 17 tags and the candidate, fails two `TXT-045` findings in historical commit `e0766101fa344db399122884aadbb08ac4b8f439`. They are in the earlier release-evidence branch, outside this candidate's ancestry. The initial worker scan has the same findings; a fresh remote inventory corrected a stale local remote-tracking assumption. Identity policy and frozen evidence are unchanged, and the unique evidence branch is preserved. Hosted CI, merge and a subsequent release remain gated by this failure.
+
+[Text-only delivery evidence](benchmarks/gate-service-modal-delivery-a0cc792.json) records exact product/test blobs, raw-log and report hashes, actual red/green results and the identity failure. Backend suites, packaging, a new release and real nx5/Podman acceptance have not been rerun for this candidate. API permissions, version and release workflows are unchanged.
+
 ## Contract follow-up after independent code review
 
 The comparison images and 70e3b08 implementation below are retained as historical evidence. Current implementation `77b1a8d348764528742fefa53e78117631de381a` supersedes the inline switch-help placement: it uses the existing Field description **below** the switch, as required by the unchanged UI contract.
