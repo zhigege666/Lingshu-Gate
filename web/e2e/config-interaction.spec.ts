@@ -44,6 +44,7 @@ test('E2E-201 @full cancelling save-only confirmation sends no mutation', async 
   await confirm.getByRole('button', { name: 'Cancel', exact: true }).click()
   await expect(confirm).toHaveCount(0)
   await expect(save).toBeEnabled()
+  await expect(save).toBeFocused()
   expect(writes).toEqual([])
 })
 
@@ -207,6 +208,7 @@ test('E2E-208 @full dirty escape retains the draft until discard and clean closu
   await expect(guard).toBeVisible()
   await guard.getByRole('button', { name: 'Continue editing', exact: true }).click()
   await expect(editor.getByLabel('Name', { exact: true })).toHaveValue('Synthetic dirty edit')
+  await expect(editor.getByLabel('Name', { exact: true })).toBeFocused()
   await editor.getByRole('button', { name: 'Cancel', exact: true }).click()
   await page.getByRole('alertdialog').getByRole('button', { name: 'Discard changes', exact: true }).click()
   await expect(editor).toHaveCount(0)

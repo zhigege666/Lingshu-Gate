@@ -254,11 +254,32 @@ for (const [width, height] of viewports) for (const locale of ['zh-CN', 'en-US']
     await editor.getByRole('button', { name: zh ? '取消' : 'Cancel', exact: true }).click()
     await page.getByRole('alertdialog', { name: zh ? '放弃尚未保存的修改？' : 'Discard unsaved changes?', exact: true }).getByRole('button', { name: zh ? '继续编辑' : 'Continue editing', exact: true }).click()
     await expect(editor.getByLabel(zh ? '名称' : 'Name', { exact: true })).toHaveValue('Synthetic edited delivery')
+    await expect(editor.getByRole('button', { name: zh ? '取消' : 'Cancel', exact: true })).toBeFocused()
     expect(writes).toEqual([])
     await expectInViewportAndUnobscured(save)
     await save.click()
     await expect(editor).not.toBeVisible()
     expect(writes).toHaveLength(1)
     expect(writes[0]).toMatchObject({ path: `/v1/delivery-drafts/${upload.id}`, method: 'PUT', body: { expected_revision: 1, start: false, overwrite: false, manifest_patch: { name: 'Synthetic edited delivery' } } })
+    await expect(page.getByRole('button', { name: zh ? '编辑 · Manifest' : 'Edit · Manifest', exact: true })).toBeFocused()
+  })
+}
+
+for (const locale of ['zh-CN', 'en-US'] as const) {
+  test(`delivery successful save returns keyboard focus ${locale} @full`, async ({ page }) => {
+    await page.setViewportSize({ width: 1600, height: 900 })
+    const { editor, writes, upload } = await openDeliveryEditor(page, locale)
+    const zh = locale === 'zh-CN'
+    await editor.getByLabel(zh ? '名称' : 'Name', { exact: true }).fill('Synthetic focus return draft')
+    await editor.getByRole('button', { name: zh ? '保存交付草稿' : 'Save delivery draft', exact: true }).click()
+    await expect(editor).not.toBeVisible()
+    expect(writes).toHaveLength(1)
+    expect(writes[0]).toMatchObject({ path: `/v1/delivery-drafts/${upload.id}`, method: 'PUT', body: { expected_revision: 1, start: false, overwrite: false } })
+    const trigger = page.getByRole('button', { name: zh ? '编辑 · Manifest' : 'Edit · Manifest', exact: true })
+    await expect(trigger).toBeFocused()
+    await page.keyboard.press('Tab')
+    await expect(page.locator('.console-brand')).not.toBeFocused()
+    await page.keyboard.press('Shift+Tab')
+    await expect(trigger).toBeFocused()
   })
 }

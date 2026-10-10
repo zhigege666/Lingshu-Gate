@@ -23,7 +23,7 @@ export function ServiceConfigDrawer({ server, manifest, configDigest, canManageH
   const [footer, setFooter] = useState<HTMLDivElement | null>(null)
   const [returnFocus] = useState(() => document.activeElement instanceof HTMLElement ? document.activeElement : null)
   const saving = useRef(false)
-  const { confirm, confirmDialog } = useConfirm(t)
+  const { confirm, confirmDialog } = useConfirm(t, true)
   const dirty = entryDirty || value !== initial
   const close = useDraftCloseGuard({ dirty, pending, locale, confirm, onClose })
   const action = apply ? server.launch_type === "external"
