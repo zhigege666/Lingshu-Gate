@@ -48,6 +48,62 @@ test('E2E-201 @full cancelling save-only confirmation sends no mutation', async 
   expect(writes).toEqual([])
 })
 
+for (const locale of ['en-US', 'zh-CN'] as const) {
+  test(`services successful save restores the refreshed trigger ${locale} @full`, async ({ page }) => {
+    const digest = 'c'.repeat(64)
+    const editor = await openEditor(page, false, { locale, viewport: { width: 1600, height: 900 }, configDigest: digest })
+    const zh = locale === 'zh-CN'
+    const trigger = page.getByRole('button', { name: zh ? '修改配置' : 'Edit configuration', exact: true, includeHidden: true })
+    const previousTrigger = await trigger.elementHandle()
+    let saved = { ...manifest }
+    const writes: unknown[] = []
+    await page.route('**/v1/mcp/servers/*/detail?*', async route => {
+      await new Promise(resolve => setTimeout(resolve, 100))
+      await route.fulfill({ json: { server, manifest: saved, config_digest: digest, tools: [] } })
+    })
+    await page.route('**/v1/mcp/configs/*', async route => {
+      if (route.request().method() !== 'PUT') return route.fallback()
+      const body = route.request().postDataJSON()
+      writes.push(body)
+      saved = body.manifest
+      await route.fulfill({ json: { config: { id: server.id, manifest: saved }, server: null, message: 'Saved without applying' } })
+    })
+    await editor.getByLabel(zh ? '名称' : 'Name', { exact: true }).fill('Synthetic refreshed focus draft')
+    await editor.getByRole('button', { name: zh ? '保存配置' : 'Save configuration', exact: true }).click()
+    await page.getByRole('alertdialog').getByRole('button', { name: zh ? '仅保存（未生效）' : 'Save only (not applied)', exact: true }).click()
+    await expect(editor).toHaveCount(0)
+    expect(await previousTrigger!.evaluate(element => element.isConnected)).toBe(false)
+    expect(writes).toEqual([expect.objectContaining({ apply: false, start: false, expected_config_digest: digest, manifest: expect.objectContaining({ name: 'Synthetic refreshed focus draft' }) })])
+    await page.waitForTimeout(250)
+    await test.info().attach('focus-at-close', { contentType: 'application/json', body: Buffer.from(JSON.stringify(await page.evaluate(() => ({ tag: document.activeElement?.tagName, text: document.activeElement?.textContent?.trim().slice(0, 80) })))) })
+    await expect(trigger).toBeFocused()
+    await page.keyboard.press('Tab')
+    await expect(page.locator('.console-brand')).not.toBeFocused()
+    await page.keyboard.press('Shift+Tab')
+    await expect(trigger).toBeFocused()
+  })
+  for (const unavailable of ['removed', 'disabled'] as const) {
+    test(`services clean close retains context with ${unavailable} trigger ${locale} @full`, async ({ page }) => {
+      const editor = await openEditor(page, false, { locale, viewport: { width: 1600, height: 900 } })
+      const writes: string[] = []
+      await page.route('**/v1/mcp/configs/*', route => {
+        if (route.request().method() === 'PUT') writes.push(route.request().url())
+        return route.fallback()
+      })
+      await page.getByRole('button', { name: locale === 'zh-CN' ? '修改配置' : 'Edit configuration', exact: true, includeHidden: true }).evaluate((element, unavailable) => {
+        if (unavailable === 'removed') element.remove()
+        else (element as HTMLButtonElement).disabled = true
+      }, unavailable)
+      await page.keyboard.press('Escape')
+      await expect(editor).toHaveCount(0)
+      await page.waitForTimeout(250)
+      await test.info().attach('focus-at-close', { contentType: 'application/json', body: Buffer.from(JSON.stringify(await page.evaluate(() => ({ tag: document.activeElement?.tagName, text: document.activeElement?.textContent?.trim().slice(0, 80) })))) })
+      await expect(page.locator('.service-entry[data-active="true"]')).toBeFocused()
+      expect(writes).toEqual([])
+    })
+  }
+}
+
 test('E2E-202 @full HTTP200 failed activation retains editor and blocks duplicate save', async ({ page }) => {
   const editor = await openEditor(page)
   let writes = 0

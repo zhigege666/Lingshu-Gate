@@ -9,10 +9,11 @@ import { configurationResultError } from "./configuration-result"
 import type { Locale, TFunction } from "@/i18n"
 
 /** Service-owned edit session. Snapshot is never replaced by background refresh. */
-export function ServiceConfigDrawer({ server, manifest, configDigest, canManageHttpTrust = false, locale, t, onClose, onSaved }: {
+export function ServiceConfigDrawer({ server, manifest, configDigest, canManageHttpTrust = false, locale, t, onClose, onSaved, returnFocusFallback }: {
   server: McpServer; manifest: Record<string, unknown>; locale: Locale; t: TFunction
   configDigest?: string; canManageHttpTrust?: boolean
   onClose: () => void; onSaved: () => Promise<void>
+  returnFocusFallback?: () => void
 }) {
   const zh = locale === "zh-CN"
   const [initial] = useState(() => JSON.stringify(manifest, null, 2))
@@ -70,7 +71,11 @@ export function ServiceConfigDrawer({ server, manifest, configDigest, canManageH
     <FormDialog className="service-config-dialog" bodyClassName="service-config-dialog-body" open
       title={`${zh ? "修改配置" : "Edit configuration"} · ${server.id}`} closeLabel={t("close")}
       onClose={() => void close()} dirty={dirty} pending={pending}
-      onCloseAutoFocus={event => { event.preventDefault(); if (returnFocus?.isConnected) returnFocus.focus() }}
+      onCloseAutoFocus={event => {
+        event.preventDefault()
+        if (returnFocus?.isConnected && !returnFocus.matches(":disabled")) returnFocus.focus()
+        else returnFocusFallback?.()
+      }}
       footer={<div ref={setFooter} className="w-full" />}>
       <div className="service-config-save-intent">
         <Radio.Group aria-label={zh ? "保存方式" : "Save behavior"} value={apply} onChange={event => setApply(event.target.value as boolean)} disabled={pending} options={[
