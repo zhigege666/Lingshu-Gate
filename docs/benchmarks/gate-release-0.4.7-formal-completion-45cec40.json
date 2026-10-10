@@ -1,0 +1,3018 @@
+{
+  "asset_verification_command": {
+    "completed_at_utc": "2026-10-10T06:17:18.628255+00:00",
+    "continuation": "reuse downloaded bytes after validating API digest and SHA256SUMS; all-five native extracted to a fresh owned directory",
+    "download_attempts_per_asset": 1,
+    "elapsed_seconds": 10.004451,
+    "exit_code": 0,
+    "initial_failure": "cross-platform static SHA reference did not model Windows CRLF checkout; preserved in initial-command receipt and log",
+    "new_release_id": 408704164,
+    "source_revision": "45cec40c1e57d7290ab249e620b5a50fa939e115",
+    "started_at_utc": "2026-10-10T06:17:08.623833+00:00",
+    "verification_attempts": 2
+  },
+  "attestations": {
+    "asset_count": 11,
+    "certificate_identity": "https://github.com/zhigege666/Lingshu-Gate/.github/workflows/release.yml@refs/tags/v0.4.7",
+    "formal_verification_step_conclusion": "success",
+    "scope": "Verified by the formal workflow; downloaded bytes independently checked on the saved cloud executor.",
+    "self_hosted_runners_denied": true,
+    "source_digest": "45cec40c1e57d7290ab249e620b5a50fa939e115",
+    "source_ref": "refs/tags/v0.4.7",
+    "trusted_timestamp_required_for_every_asset": true,
+    "verification_receipt_job": 114146242360,
+    "verification_receipt_run": 38022781421
+  },
+  "captured_at_utc": "2026-10-10T06:25:05.343668+00:00",
+  "catalog_repair_source_sha256": "dc631c1952d810aa8ad8f77a827cbe2dbf03753c8848fbcd3ac2a60c9ccdfe2c",
+  "controlled_retry_github_actor_readback": {
+    "actor": "github-actions[bot]",
+    "attempt": 2,
+    "conclusion": null,
+    "event": "workflow_dispatch",
+    "head": "45cec40c1e57d7290ab249e620b5a50fa939e115",
+    "observed_at_utc": "2026-10-10 05:05:05 UTC",
+    "run_id": 38022781421,
+    "run_started_at": "2026-10-10T04:57:51Z",
+    "status": "in_progress",
+    "triggering_actor": "zhigege666"
+  },
+  "controlled_retry_request": {
+    "decision_owner": "The execution agent judged a bounded retry appropriate after confirmed job timeout and successful current-source tests. No transient runner cause was established.",
+    "maximum_requests": 1,
+    "request_count": 1,
+    "requested_at_utc": "2026-10-10 04:57:51 UTC",
+    "requesting_execution_agent": "Codex /root in the saved cloud workspace",
+    "source_job_id": 114127192702,
+    "source_run_id": 38022781421,
+    "tool": "github_rerun_workflow_job"
+  },
+  "downloaded_asset_verification": {
+    "aggregate_checksums_verified": true,
+    "assets": [
+      {
+        "downloaded_bytes_verified": true,
+        "name": "lingshu-gate-v0.4.7-application-sbom.spdx.json",
+        "sha256": "826e362da752a3234da3fc8a1ded19bfc31768ef24742fdf7dec282c87d975da",
+        "size_bytes": 329663
+      },
+      {
+        "downloaded_bytes_verified": true,
+        "name": "lingshu-gate-v0.4.7-container-image.txt",
+        "sha256": "164524d78f003c61a65e1b59d1fd783fac4f9afbee80c2e50994cc3c3eb0235e",
+        "size_bytes": 104
+      },
+      {
+        "downloaded_bytes_verified": true,
+        "name": "lingshu-gate-v0.4.7-docker-compose.tar.gz",
+        "sha256": "805c6df68dfe60134a1b08d82d707183d44cd5d10f3a73cb1c601a9e56fb3e30",
+        "size_bytes": 95961
+      },
+      {
+        "downloaded_bytes_verified": true,
+        "name": "lingshu-gate-v0.4.7-docker-core-linux-amd64.tar.gz",
+        "sha256": "859531a477c33439408341156e19c747bf0354cf9a6ea9f35b6b805dfc3d8eec",
+        "size_bytes": 68906636
+      },
+      {
+        "downloaded_bytes_verified": true,
+        "name": "lingshu-gate-v0.4.7-docker-core-linux-arm64.tar.gz",
+        "sha256": "11125504090ee0d547eb9d32970d22804abe9a6531f4063bb41c5dfb442dbb08",
+        "size_bytes": 68203540
+      },
+      {
+        "downloaded_bytes_verified": true,
+        "name": "lingshu-gate-v0.4.7-linux-aarch64.tar.gz",
+        "sha256": "4433add1c66da0eb6d4c749a5abeec3972b6d3f3b51effe3736542be8776a37b",
+        "size_bytes": 46455373
+      },
+      {
+        "downloaded_bytes_verified": true,
+        "name": "lingshu-gate-v0.4.7-linux-x86_64.tar.gz",
+        "sha256": "be4d4b52c4074da76f49bb2b8fe52d66a2853ad2fd6172c508ba454991adee80",
+        "size_bytes": 47711362
+      },
+      {
+        "downloaded_bytes_verified": true,
+        "name": "lingshu-gate-v0.4.7-macos-arm64.tar.gz",
+        "sha256": "e6d248ad4a6f1a2550391673bb17564f79e663f6e679196bbdf6afa857cb133c",
+        "size_bytes": 25152739
+      },
+      {
+        "downloaded_bytes_verified": true,
+        "name": "lingshu-gate-v0.4.7-macos-x86_64.tar.gz",
+        "sha256": "d8d2127cd26479e269e202b2eb40c7bea50a6a335eca0c0c5ec086b7446a47b5",
+        "size_bytes": 26359231
+      },
+      {
+        "downloaded_bytes_verified": true,
+        "name": "lingshu-gate-v0.4.7-windows-x86_64.zip",
+        "sha256": "158a4a5b4cd9a87d46e214939047002e760c560692d0ceda0a2b358c562cc57b",
+        "size_bytes": 26041144
+      },
+      {
+        "downloaded_bytes_verified": true,
+        "name": "SHA256SUMS",
+        "sha256": "e696cf340cdac21fec1c5b8d41351df29c8b2eae275b0c6c45c17af3f4f66bdc",
+        "size_bytes": 1090
+      }
+    ],
+    "attestations": "requires separate successful formal workflow verification receipt",
+    "captured_at_utc": "2026-10-10T06:17:18.611329+00:00",
+    "compose": {
+      "inner_sbom_sha256": "826e362da752a3234da3fc8a1ded19bfc31768ef24742fdf7dec282c87d975da",
+      "inventory_entries_verified": 225,
+      "sbom_packages": 193,
+      "source_revision": "45cec40c1e57d7290ab249e620b5a50fa939e115"
+    },
+    "container_image": "ghcr.io/zhigege666/lingshu-gate@sha256:9db2cd21863fc3c512cf01f1087f5fce414aa0c8b578b93258a9e7537326bac1",
+    "downloaded_asset_count": 11,
+    "immutable": true,
+    "native": {
+      "linux-aarch64": {
+        "all_static_paths_and_sha_match_reference": true,
+        "console_static_files_verified": 115,
+        "inventory_entries_verified": 528,
+        "oauth_static_files_verified": 3,
+        "sbom_packages": 198,
+        "source_revision": "45cec40c1e57d7290ab249e620b5a50fa939e115",
+        "static_files_verified": 118,
+        "static_reference": "fresh Linux checkout and Vite build on saved cloud"
+      },
+      "linux-x86_64": {
+        "all_static_paths_and_sha_match_reference": true,
+        "console_static_files_verified": 115,
+        "inventory_entries_verified": 528,
+        "oauth_static_files_verified": 3,
+        "sbom_packages": 198,
+        "source_revision": "45cec40c1e57d7290ab249e620b5a50fa939e115",
+        "static_files_verified": 118,
+        "static_reference": "fresh Linux checkout and Vite build on saved cloud"
+      },
+      "macos-arm64": {
+        "all_static_paths_and_sha_match_reference": true,
+        "console_static_files_verified": 115,
+        "inventory_entries_verified": 525,
+        "oauth_static_files_verified": 3,
+        "sbom_packages": 198,
+        "source_revision": "45cec40c1e57d7290ab249e620b5a50fa939e115",
+        "static_files_verified": 118,
+        "static_reference": "fresh Linux checkout and Vite build on saved cloud"
+      },
+      "macos-x86_64": {
+        "all_static_paths_and_sha_match_reference": true,
+        "console_static_files_verified": 115,
+        "inventory_entries_verified": 525,
+        "oauth_static_files_verified": 3,
+        "sbom_packages": 198,
+        "source_revision": "45cec40c1e57d7290ab249e620b5a50fa939e115",
+        "static_files_verified": 118,
+        "static_reference": "fresh Linux checkout and Vite build on saved cloud"
+      },
+      "windows-x86_64": {
+        "all_static_paths_and_sha_match_reference": true,
+        "console_static_files_verified": 115,
+        "inventory_entries_verified": 548,
+        "oauth_static_files_verified": 3,
+        "sbom_packages": 198,
+        "source_revision": "45cec40c1e57d7290ab249e620b5a50fa939e115",
+        "static_files_verified": 118,
+        "static_reference": "fresh core.autocrlf=true checkout and Vite build on saved Linux cloud"
+      }
+    },
+    "offline": {
+      "amd64": {
+        "architecture": "amd64",
+        "content_addressed_blobs_verified": 30,
+        "core_user_and_role_verified": true,
+        "live_container_smoke": "verified by the formal workflow, not repeated on this executor"
+      },
+      "arm64": {
+        "architecture": "arm64",
+        "content_addressed_blobs_verified": 30,
+        "core_user_and_role_verified": true,
+        "live_container_smoke": "verified by the formal workflow, not repeated on this executor"
+      }
+    },
+    "release_title_and_bilingual_notes_match": true,
+    "release_url": "https://github.com/zhigege666/Lingshu-Gate/releases/tag/v0.4.7",
+    "source_revision": "45cec40c1e57d7290ab249e620b5a50fa939e115",
+    "version": "0.4.7",
+    "windows_static_difference_from_linux": {
+      "cause": "Git CRLF checkout and Vite HTML whitespace handling; exact SHA match against fresh CRLF-checkout build",
+      "cross_platform_all_static_sha_identical": false,
+      "paths": [
+        "console/index.html",
+        "console/lingshu-gate-app-icon.svg",
+        "console/lingshu-gate-icon.svg",
+        "oauth/oauth.html"
+      ],
+      "reference_runtime": "Linux, not an actual Windows runtime"
+    }
+  },
+  "downloaded_linux_native_worker_smoke": {
+    "archive_sha256": "be4d4b52c4074da76f49bb2b8fe52d66a2853ad2fd6172c508ba454991adee80",
+    "captured_at_utc": "2026-10-10T06:23:26.052345+00:00",
+    "database_and_identity_bootstrap_not_needed": true,
+    "entry_smokes": [
+      {
+        "case": "version",
+        "exit_code": 0,
+        "result": "pass"
+      },
+      {
+        "case": "valid",
+        "elapsed_seconds": 0.3975,
+        "exit_code": 0,
+        "result": "pass",
+        "worker_reaped": true
+      },
+      {
+        "case": "invalid",
+        "elapsed_seconds": 0.4366,
+        "exit_code": 1,
+        "result": "pass",
+        "worker_reaped": true
+      },
+      {
+        "case": "malformed-json",
+        "elapsed_seconds": 0.417,
+        "exit_code": 1,
+        "result": "pass",
+        "worker_reaped": true
+      },
+      {
+        "case": "remote-reference",
+        "elapsed_seconds": 0.4334,
+        "exit_code": 1,
+        "result": "pass",
+        "worker_reaped": true
+      },
+      {
+        "case": "unsupported-dialect",
+        "elapsed_seconds": 0.4393,
+        "exit_code": 1,
+        "result": "pass",
+        "worker_reaped": true
+      }
+    ],
+    "native_worker_lifecycle": {
+      "all_workers_reaped": true,
+      "cases": [
+        {
+          "all_workers_reaped": true,
+          "case": "valid",
+          "elapsed_seconds": 0.4177,
+          "error_code": null,
+          "result": "pass",
+          "workers_started": 1
+        },
+        {
+          "all_workers_reaped": true,
+          "case": "invalid",
+          "elapsed_seconds": 0.4557,
+          "error_code": "catalog_arguments_invalid",
+          "result": "pass",
+          "workers_started": 1
+        },
+        {
+          "all_workers_reaped": true,
+          "case": "deadline",
+          "elapsed_seconds": 0.5032,
+          "error_code": "catalog_validation_timeout",
+          "result": "pass",
+          "workers_started": 1
+        },
+        {
+          "all_workers_reaped": true,
+          "case": "slot-reusable-after-deadline",
+          "elapsed_seconds": 0.4336,
+          "error_code": null,
+          "result": "pass",
+          "workers_started": 1
+        },
+        {
+          "all_workers_reaped": true,
+          "case": "cancel",
+          "elapsed_seconds": 0.3053,
+          "error_code": "catalog_validation_cancelled",
+          "result": "pass",
+          "workers_started": 1
+        },
+        {
+          "all_workers_reaped": true,
+          "case": "slot-reusable-after-cancel",
+          "elapsed_seconds": 0.4019,
+          "error_code": null,
+          "result": "pass",
+          "workers_started": 1
+        }
+      ],
+      "mode": "native",
+      "workers_started": 6
+    },
+    "parent_runtime_scope": "Installed candidate wheel Python parent launches the downloaded formal frozen worker; this is not the entire frozen application SchemaWorker parent chain.",
+    "real_remote_service_acceptance": false,
+    "source_revision": "45cec40c1e57d7290ab249e620b5a50fa939e115",
+    "version": "0.4.7"
+  },
+  "downloaded_static_platform_reference": {
+    "cause": "Git CRLF checkout and Vite HTML whitespace handling; exact SHA match against fresh CRLF-checkout build",
+    "cross_platform_all_static_sha_identical": false,
+    "paths": [
+      "console/index.html",
+      "console/lingshu-gate-app-icon.svg",
+      "console/lingshu-gate-icon.svg",
+      "oauth/oauth.html"
+    ],
+    "reference_runtime": "Linux, not an actual Windows runtime"
+  },
+  "formal_pinned_quality_success": {
+    "all_original_assertions_and_budgets_unchanged": true,
+    "attempt": 2,
+    "captured_at_utc": "2026-10-10T05:33:56.965345+00:00",
+    "conclusion": "success",
+    "job_id": 114136482509,
+    "log_bytes": 84735,
+    "log_fetch_count": 1,
+    "log_lines": 848,
+    "log_sha256": "f84c42d8a73f2fe52676163373fd6298ee880155382d50523f55a1125fedc8cd",
+    "old_hosted_20_second_unique_cause_not_established": true,
+    "pytest_passed": 2336,
+    "pytest_seconds": 1967.56,
+    "pytest_skipped": 7,
+    "pytest_subtests_passed": 134,
+    "python": "3.13.15",
+    "run_id": 38022781421,
+    "runner": "ubuntu-22.04",
+    "source_revision": "45cec40c1e57d7290ab249e620b5a50fa939e115"
+  },
+  "formal_workflows": [
+    {
+      "conclusion": "success",
+      "created_at": "2026-10-10T04:04:31Z",
+      "event": "workflow_dispatch",
+      "head_sha": "45cec40c1e57d7290ab249e620b5a50fa939e115",
+      "jobs": [
+        {
+          "conclusion": "success",
+          "id": 114136482509,
+          "name": "Release quality gate",
+          "status": "completed",
+          "steps": [
+            {
+              "conclusion": "success",
+              "name": "Set up job",
+              "number": 1,
+              "status": "completed"
+            },
+            {
+              "conclusion": "success",
+              "name": "Checkout",
+              "number": 2,
+              "status": "completed"
+            },
+            {
+              "conclusion": "success",
+              "name": "Set up Python",
+              "number": 3,
+              "status": "completed"
+            },
+            {
+              "conclusion": "success",
+              "name": "Validate repository identity",
+              "number": 4,
+              "status": "completed"
+            },
+            {
+              "conclusion": "success",
+              "name": "Set up Node.js",
+              "number": 5,
+              "status": "completed"
+            },
+            {
+              "conclusion": "success",
+              "name": "Verify and build Console",
+              "number": 6,
+              "status": "completed"
+            },
+            {
+              "conclusion": "success",
+              "name": "Set up uv",
+              "number": 7,
+              "status": "completed"
+            },
+            {
+              "conclusion": "success",
+              "name": "Install frozen quality and release dependencies",
+              "number": 8,
+              "status": "completed"
+            },
+            {
+              "conclusion": "success",
+              "name": "Verify pip export is synchronized",
+              "number": 9,
+              "status": "completed"
+            },
+            {
+              "conclusion": "success",
+              "name": "Verify backend and release engineering",
+              "number": 10,
+              "status": "completed"
+            },
+            {
+              "conclusion": "skipped",
+              "name": "Install Console dependencies for release tests",
+              "number": 11,
+              "status": "completed"
+            },
+            {
+              "conclusion": "skipped",
+              "name": "Verify release engineering on pull requests",
+              "number": 12,
+              "status": "completed"
+            },
+            {
+              "conclusion": "success",
+              "name": "Post Set up uv",
+              "number": 21,
+              "status": "completed"
+            },
+            {
+              "conclusion": "success",
+              "name": "Post Set up Node.js",
+              "number": 22,
+              "status": "completed"
+            },
+            {
+              "conclusion": "success",
+              "name": "Post Set up Python",
+              "number": 23,
+              "status": "completed"
+            },
+            {
+              "conclusion": "success",
+              "name": "Post Checkout",
+              "number": 24,
+              "status": "completed"
+            },
+            {
+              "conclusion": "success",
+              "name": "Complete job",
+              "number": 25,
+              "status": "completed"
+            }
+          ]
+        },
+        {
+          "conclusion": "success",
+          "id": 114136506936,
+          "name": "Validate release version",
+          "status": "completed",
+          "steps": [
+            {
+              "conclusion": "success",
+              "name": "Set up job",
+              "number": 1,
+              "status": "completed"
+            },
+            {
+              "conclusion": "success",
+              "name": "Checkout",
+              "number": 2,
+              "status": "completed"
+            },
+            {
+              "conclusion": "success",
+              "name": "Read and validate version",
+              "number": 3,
+              "status": "completed"
+            },
+            {
+              "conclusion": "success",
+              "name": "Read source timestamp",
+              "number": 4,
+              "status": "completed"
+            },
+            {
+              "conclusion": "success",
+              "name": "Post Checkout",
+              "number": 8,
+              "status": "completed"
+            },
+            {
+              "conclusion": "success",
+              "name": "Complete job",
+              "number": 9,
+              "status": "completed"
+            }
+          ]
+        },
+        {
+          "conclusion": "skipped",
+          "id": 114136510901,
+          "name": "Cosign OCI env-key signing smoke",
+          "status": "completed",
+          "steps": []
+        },
+        {
+          "conclusion": "success",
+          "id": 114142373624,
+          "name": "Native linux-x86_64",
+          "status": "completed",
+          "steps": [
+            {
+              "conclusion": "success",
+              "name": "Set up job",
+              "number": 1,
+              "status": "completed"
+            },
+            {
+              "conclusion": "success",
+              "name": "Checkout",
+              "number": 2,
+              "status": "completed"
+            },
+            {
+              "conclusion": "skipped",
+              "name": "Parse and smoke-test the Delivery Skill packager",
+              "number": 3,
+              "status": "completed"
+            },
+            {
+              "conclusion": "success",
+              "name": "Set up Node.js",
+              "number": 4,
+              "status": "completed"
+            },
+            {
+              "conclusion": "success",
+              "name": "Set up Python",
+              "number": 5,
+              "status": "completed"
+            },
+            {
+              "conclusion": "success",
+              "name": "Set up uv",
+              "number": 6,
+              "status": "completed"
+            },
+            {
+              "conclusion": "skipped",
+              "name": "Prepare static OpenSSL for Intel macOS cryptography",
+              "number": 7,
+              "status": "completed"
+            },
+            {
+              "conclusion": "success",
+              "name": "Install frozen runtime and release toolchain",
+              "number": 8,
+              "status": "completed"
+            },
+            {
+              "conclusion": "skipped",
+              "name": "Verify Intel macOS cryptography is independent of OpenSSL dylibs",
+              "number": 9,
+              "status": "completed"
+            },
+            {
+              "conclusion": "success",
+              "name": "Build native archive",
+              "number": 10,
+              "status": "completed"
+            },
+            {
+              "conclusion": "success",
+              "name": "Validate native archive identity",
+              "number": 11,
+              "status": "completed"
+            },
+            {
+              "conclusion": "success",
+              "name": "Validate and extract the publishable native archive",
+              "number": 12,
+              "status": "completed"
+            },
+            {
+              "conclusion": "success",
+              "name": "Enforce Linux glibc compatibility baseline",
+              "number": 13,
+              "status": "completed"
+            },
+            {
+              "conclusion": "success",
+              "name": "Run native readiness smoke test",
+              "number": 14,
+              "status": "completed"
+            },
+            {
+              "conclusion": "success",
+              "name": "Upload native archive",
+              "number": 15,
+              "status": "completed"
+            },
+            {
+              "conclusion": "success",
+              "name": "Post Set up uv",
+              "number": 27,
+              "status": "completed"
+            },
+            {
+              "conclusion": "success",
+              "name": "Post Set up Python",
+              "number": 28,
+              "status": "completed"
+            },
+            {
+              "conclusion": "success",
+              "name": "Post Set up Node.js",
+              "number": 29,
+              "status": "completed"
+            },
+            {
+              "conclusion": "success",
+              "name": "Post Checkout",
+              "number": 30,
+              "status": "completed"
+            },
+            {
+              "conclusion": "success",
+              "name": "Complete job",
+              "number": 31,
+              "status": "completed"
+            }
+          ]
+        },
+        {
+          "conclusion": "success",
+          "id": 114142373626,
+          "name": "Build verified Core image candidate",
+          "status": "completed",
+          "steps": [
+            {
+              "conclusion": "success",
+              "name": "Set up job",
+              "number": 1,
+              "status": "completed"
+            },
+            {
+              "conclusion": "success",
+              "name": "Checkout",
+              "number": 2,
+              "status": "completed"
+            },
+            {
+              "conclusion": "success",
+              "name": "Set up Python",
+              "number": 3,
+              "status": "completed"
+            },
+            {
+              "conclusion": "success",
+              "name": "Set up QEMU",
+              "number": 4,
+              "status": "completed"
+            },
+            {
+              "conclusion": "success",
+              "name": "Set up Docker Buildx",
+              "number": 5,
+              "status": "completed"
+            },
+            {
+              "conclusion": "success",
+              "name": "Select versioned image",
+              "number": 6,
+              "status": "completed"
+            },
+            {
+              "conclusion": "success",
+              "name": "Log in to GitHub Container Registry",
+              "number": 7,
+              "status": "completed"
+            },
+            {
+              "conclusion": "success",
+              "name": "Build and publish exact multi-architecture image",
+              "number": 8,
+              "status": "completed"
+            },
+            {
+              "conclusion": "success",
+              "name": "Verify and select candidate platform payloads",
+              "number": 9,
+              "status": "completed"
+            },
+            {
+              "conclusion": "success",
+              "name": "Scan amd64 candidate payload for critical vulnerabilities",
+              "number": 10,
+              "status": "completed"
+            },
+            {
+              "conclusion": "success",
+              "name": "Scan arm64 candidate payload for critical vulnerabilities",
+              "number": 11,
+              "status": "completed"
+            },
+            {
+              "conclusion": "success",
+              "name": "Resolve stable version digest from platform payloads",
+              "number": 12,
+              "status": "completed"
+            },
+            {
+              "conclusion": "success",
+              "name": "Record candidate digest as a checksummed release asset",
+              "number": 13,
+              "status": "completed"
+            },
+            {
+              "conclusion": "success",
+              "name": "Validate container metadata identity",
+              "number": 14,
+              "status": "completed"
+            },
+            {
+              "conclusion": "success",
+              "name": "Upload verified container metadata",
+              "number": 15,
+              "status": "completed"
+            },
+            {
+              "conclusion": "success",
+              "name": "Post Scan arm64 candidate payload for critical vulnerabilities",
+              "number": 23,
+              "status": "completed"
+            },
+            {
+              "conclusion": "success",
+              "name": "Post Scan amd64 candidate payload for critical vulnerabilities",
+              "number": 24,
+              "status": "completed"
+            },
+            {
+              "conclusion": "success",
+              "name": "Post Build and publish exact multi-architecture image",
+              "number": 25,
+              "status": "completed"
+            },
+            {
+              "conclusion": "success",
+              "name": "Post Log in to GitHub Container Registry",
+              "number": 26,
+              "status": "completed"
+            },
+            {
+              "conclusion": "success",
+              "name": "Post Set up Docker Buildx",
+              "number": 27,
+              "status": "completed"
+            },
+            {
+              "conclusion": "success",
+              "name": "Post Set up QEMU",
+              "number": 28,
+              "status": "completed"
+            },
+            {
+              "conclusion": "success",
+              "name": "Post Set up Python",
+              "number": 29,
+              "status": "completed"
+            },
+            {
+              "conclusion": "success",
+              "name": "Post Checkout",
+              "number": 30,
+              "status": "completed"
+            },
+            {
+              "conclusion": "success",
+              "name": "Complete job",
+              "number": 31,
+              "status": "completed"
+            }
+          ]
+        },
+        {
+          "conclusion": "success",
+          "id": 114142373634,
+          "name": "Docker Compose bundle",
+          "status": "completed",
+          "steps": [
+            {
+              "conclusion": "success",
+              "name": "Set up job",
+              "number": 1,
+              "status": "completed"
+            },
+            {
+              "conclusion": "success",
+              "name": "Checkout",
+              "number": 2,
+              "status": "completed"
+            },
+            {
+              "conclusion": "success",
+              "name": "Set up Node.js",
+              "number": 3,
+              "status": "completed"
+            },
+            {
+              "conclusion": "success",
+              "name": "Install Console dependency metadata",
+              "number": 4,
+              "status": "completed"
+            },
+            {
+              "conclusion": "success",
+              "name": "Set up Python",
+              "number": 5,
+              "status": "completed"
+            },
+            {
+              "conclusion": "success",
+              "name": "Set up uv",
+              "number": 6,
+              "status": "completed"
+            },
+            {
+              "conclusion": "success",
+              "name": "Install frozen runtime",
+              "number": 7,
+              "status": "completed"
+            },
+            {
+              "conclusion": "success",
+              "name": "Build deployment bundle",
+              "number": 8,
+              "status": "completed"
+            },
+            {
+              "conclusion": "success",
+              "name": "Validate deployment artifacts identity",
+              "number": 9,
+              "status": "completed"
+            },
+            {
+              "conclusion": "success",
+              "name": "Validate bundled Compose model",
+              "number": 10,
+              "status": "completed"
+            },
+            {
+              "conclusion": "success",
+              "name": "Upload Docker Compose bundle",
+              "number": 11,
+              "status": "completed"
+            },
+            {
+              "conclusion": "success",
+              "name": "Post Set up uv",
+              "number": 19,
+              "status": "completed"
+            },
+            {
+              "conclusion": "success",
+              "name": "Post Set up Python",
+              "number": 20,
+              "status": "completed"
+            },
+            {
+              "conclusion": "success",
+              "name": "Post Set up Node.js",
+              "number": 21,
+              "status": "completed"
+            },
+            {
+              "conclusion": "success",
+              "name": "Post Checkout",
+              "number": 22,
+              "status": "completed"
+            },
+            {
+              "conclusion": "success",
+              "name": "Complete job",
+              "number": 23,
+              "status": "completed"
+            }
+          ]
+        },
+        {
+          "conclusion": "success",
+          "id": 114142373652,
+          "name": "Native macos-x86_64",
+          "status": "completed",
+          "steps": [
+            {
+              "conclusion": "success",
+              "name": "Set up job",
+              "number": 1,
+              "status": "completed"
+            },
+            {
+              "conclusion": "success",
+              "name": "Checkout",
+              "number": 2,
+              "status": "completed"
+            },
+            {
+              "conclusion": "skipped",
+              "name": "Parse and smoke-test the Delivery Skill packager",
+              "number": 3,
+              "status": "completed"
+            },
+            {
+              "conclusion": "success",
+              "name": "Set up Node.js",
+              "number": 4,
+              "status": "completed"
+            },
+            {
+              "conclusion": "success",
+              "name": "Set up Python",
+              "number": 5,
+              "status": "completed"
+            },
+            {
+              "conclusion": "success",
+              "name": "Set up uv",
+              "number": 6,
+              "status": "completed"
+            },
+            {
+              "conclusion": "success",
+              "name": "Prepare static OpenSSL for Intel macOS cryptography",
+              "number": 7,
+              "status": "completed"
+            },
+            {
+              "conclusion": "success",
+              "name": "Install frozen runtime and release toolchain",
+              "number": 8,
+              "status": "completed"
+            },
+            {
+              "conclusion": "success",
+              "name": "Verify Intel macOS cryptography is independent of OpenSSL dylibs",
+              "number": 9,
+              "status": "completed"
+            },
+            {
+              "conclusion": "success",
+              "name": "Build native archive",
+              "number": 10,
+              "status": "completed"
+            },
+            {
+              "conclusion": "success",
+              "name": "Validate native archive identity",
+              "number": 11,
+              "status": "completed"
+            },
+            {
+              "conclusion": "success",
+              "name": "Validate and extract the publishable native archive",
+              "number": 12,
+              "status": "completed"
+            },
+            {
+              "conclusion": "skipped",
+              "name": "Enforce Linux glibc compatibility baseline",
+              "number": 13,
+              "status": "completed"
+            },
+            {
+              "conclusion": "success",
+              "name": "Run native readiness smoke test",
+              "number": 14,
+              "status": "completed"
+            },
+            {
+              "conclusion": "success",
+              "name": "Upload native archive",
+              "number": 15,
+              "status": "completed"
+            },
+            {
+              "conclusion": "success",
+              "name": "Post Set up uv",
+              "number": 27,
+              "status": "completed"
+            },
+            {
+              "conclusion": "success",
+              "name": "Post Set up Python",
+              "number": 28,
+              "status": "completed"
+            },
+            {
+              "conclusion": "success",
+              "name": "Post Set up Node.js",
+              "number": 29,
+              "status": "completed"
+            },
+            {
+              "conclusion": "success",
+              "name": "Post Checkout",
+              "number": 30,
+              "status": "completed"
+            },
+            {
+              "conclusion": "success",
+              "name": "Complete job",
+              "number": 31,
+              "status": "completed"
+            }
+          ]
+        },
+        {
+          "conclusion": "success",
+          "id": 114142373689,
+          "name": "Native linux-aarch64",
+          "status": "completed",
+          "steps": [
+            {
+              "conclusion": "success",
+              "name": "Set up job",
+              "number": 1,
+              "status": "completed"
+            },
+            {
+              "conclusion": "success",
+              "name": "Checkout",
+              "number": 2,
+              "status": "completed"
+            },
+            {
+              "conclusion": "skipped",
+              "name": "Parse and smoke-test the Delivery Skill packager",
+              "number": 3,
+              "status": "completed"
+            },
+            {
+              "conclusion": "success",
+              "name": "Set up Node.js",
+              "number": 4,
+              "status": "completed"
+            },
+            {
+              "conclusion": "success",
+              "name": "Set up Python",
+              "number": 5,
+              "status": "completed"
+            },
+            {
+              "conclusion": "success",
+              "name": "Set up uv",
+              "number": 6,
+              "status": "completed"
+            },
+            {
+              "conclusion": "skipped",
+              "name": "Prepare static OpenSSL for Intel macOS cryptography",
+              "number": 7,
+              "status": "completed"
+            },
+            {
+              "conclusion": "success",
+              "name": "Install frozen runtime and release toolchain",
+              "number": 8,
+              "status": "completed"
+            },
+            {
+              "conclusion": "skipped",
+              "name": "Verify Intel macOS cryptography is independent of OpenSSL dylibs",
+              "number": 9,
+              "status": "completed"
+            },
+            {
+              "conclusion": "success",
+              "name": "Build native archive",
+              "number": 10,
+              "status": "completed"
+            },
+            {
+              "conclusion": "success",
+              "name": "Validate native archive identity",
+              "number": 11,
+              "status": "completed"
+            },
+            {
+              "conclusion": "success",
+              "name": "Validate and extract the publishable native archive",
+              "number": 12,
+              "status": "completed"
+            },
+            {
+              "conclusion": "success",
+              "name": "Enforce Linux glibc compatibility baseline",
+              "number": 13,
+              "status": "completed"
+            },
+            {
+              "conclusion": "success",
+              "name": "Run native readiness smoke test",
+              "number": 14,
+              "status": "completed"
+            },
+            {
+              "conclusion": "success",
+              "name": "Upload native archive",
+              "number": 15,
+              "status": "completed"
+            },
+            {
+              "conclusion": "success",
+              "name": "Post Set up uv",
+              "number": 27,
+              "status": "completed"
+            },
+            {
+              "conclusion": "success",
+              "name": "Post Set up Python",
+              "number": 28,
+              "status": "completed"
+            },
+            {
+              "conclusion": "success",
+              "name": "Post Set up Node.js",
+              "number": 29,
+              "status": "completed"
+            },
+            {
+              "conclusion": "success",
+              "name": "Post Checkout",
+              "number": 30,
+              "status": "completed"
+            },
+            {
+              "conclusion": "success",
+              "name": "Complete job",
+              "number": 31,
+              "status": "completed"
+            }
+          ]
+        },
+        {
+          "conclusion": "success",
+          "id": 114142373691,
+          "name": "Native windows-x86_64",
+          "status": "completed",
+          "steps": [
+            {
+              "conclusion": "success",
+              "name": "Set up job",
+              "number": 1,
+              "status": "completed"
+            },
+            {
+              "conclusion": "success",
+              "name": "Checkout",
+              "number": 2,
+              "status": "completed"
+            },
+            {
+              "conclusion": "success",
+              "name": "Parse and smoke-test the Delivery Skill packager",
+              "number": 3,
+              "status": "completed"
+            },
+            {
+              "conclusion": "success",
+              "name": "Set up Node.js",
+              "number": 4,
+              "status": "completed"
+            },
+            {
+              "conclusion": "success",
+              "name": "Set up Python",
+              "number": 5,
+              "status": "completed"
+            },
+            {
+              "conclusion": "success",
+              "name": "Set up uv",
+              "number": 6,
+              "status": "completed"
+            },
+            {
+              "conclusion": "skipped",
+              "name": "Prepare static OpenSSL for Intel macOS cryptography",
+              "number": 7,
+              "status": "completed"
+            },
+            {
+              "conclusion": "success",
+              "name": "Install frozen runtime and release toolchain",
+              "number": 8,
+              "status": "completed"
+            },
+            {
+              "conclusion": "skipped",
+              "name": "Verify Intel macOS cryptography is independent of OpenSSL dylibs",
+              "number": 9,
+              "status": "completed"
+            },
+            {
+              "conclusion": "success",
+              "name": "Build native archive",
+              "number": 10,
+              "status": "completed"
+            },
+            {
+              "conclusion": "success",
+              "name": "Validate native archive identity",
+              "number": 11,
+              "status": "completed"
+            },
+            {
+              "conclusion": "success",
+              "name": "Validate and extract the publishable native archive",
+              "number": 12,
+              "status": "completed"
+            },
+            {
+              "conclusion": "skipped",
+              "name": "Enforce Linux glibc compatibility baseline",
+              "number": 13,
+              "status": "completed"
+            },
+            {
+              "conclusion": "success",
+              "name": "Run native readiness smoke test",
+              "number": 14,
+              "status": "completed"
+            },
+            {
+              "conclusion": "success",
+              "name": "Upload native archive",
+              "number": 15,
+              "status": "completed"
+            },
+            {
+              "conclusion": "success",
+              "name": "Post Set up uv",
+              "number": 27,
+              "status": "completed"
+            },
+            {
+              "conclusion": "success",
+              "name": "Post Set up Python",
+              "number": 28,
+              "status": "completed"
+            },
+            {
+              "conclusion": "success",
+              "name": "Post Set up Node.js",
+              "number": 29,
+              "status": "completed"
+            },
+            {
+              "conclusion": "success",
+              "name": "Post Checkout",
+              "number": 30,
+              "status": "completed"
+            },
+            {
+              "conclusion": "success",
+              "name": "Complete job",
+              "number": 31,
+              "status": "completed"
+            }
+          ]
+        },
+        {
+          "conclusion": "success",
+          "id": 114142373861,
+          "name": "Native macos-arm64",
+          "status": "completed",
+          "steps": [
+            {
+              "conclusion": "success",
+              "name": "Set up job",
+              "number": 1,
+              "status": "completed"
+            },
+            {
+              "conclusion": "success",
+              "name": "Checkout",
+              "number": 2,
+              "status": "completed"
+            },
+            {
+              "conclusion": "skipped",
+              "name": "Parse and smoke-test the Delivery Skill packager",
+              "number": 3,
+              "status": "completed"
+            },
+            {
+              "conclusion": "success",
+              "name": "Set up Node.js",
+              "number": 4,
+              "status": "completed"
+            },
+            {
+              "conclusion": "success",
+              "name": "Set up Python",
+              "number": 5,
+              "status": "completed"
+            },
+            {
+              "conclusion": "success",
+              "name": "Set up uv",
+              "number": 6,
+              "status": "completed"
+            },
+            {
+              "conclusion": "skipped",
+              "name": "Prepare static OpenSSL for Intel macOS cryptography",
+              "number": 7,
+              "status": "completed"
+            },
+            {
+              "conclusion": "success",
+              "name": "Install frozen runtime and release toolchain",
+              "number": 8,
+              "status": "completed"
+            },
+            {
+              "conclusion": "skipped",
+              "name": "Verify Intel macOS cryptography is independent of OpenSSL dylibs",
+              "number": 9,
+              "status": "completed"
+            },
+            {
+              "conclusion": "success",
+              "name": "Build native archive",
+              "number": 10,
+              "status": "completed"
+            },
+            {
+              "conclusion": "success",
+              "name": "Validate native archive identity",
+              "number": 11,
+              "status": "completed"
+            },
+            {
+              "conclusion": "success",
+              "name": "Validate and extract the publishable native archive",
+              "number": 12,
+              "status": "completed"
+            },
+            {
+              "conclusion": "skipped",
+              "name": "Enforce Linux glibc compatibility baseline",
+              "number": 13,
+              "status": "completed"
+            },
+            {
+              "conclusion": "success",
+              "name": "Run native readiness smoke test",
+              "number": 14,
+              "status": "completed"
+            },
+            {
+              "conclusion": "success",
+              "name": "Upload native archive",
+              "number": 15,
+              "status": "completed"
+            },
+            {
+              "conclusion": "success",
+              "name": "Post Set up uv",
+              "number": 27,
+              "status": "completed"
+            },
+            {
+              "conclusion": "success",
+              "name": "Post Set up Python",
+              "number": 28,
+              "status": "completed"
+            },
+            {
+              "conclusion": "success",
+              "name": "Post Set up Node.js",
+              "number": 29,
+              "status": "completed"
+            },
+            {
+              "conclusion": "success",
+              "name": "Post Checkout",
+              "number": 30,
+              "status": "completed"
+            },
+            {
+              "conclusion": "success",
+              "name": "Complete job",
+              "number": 31,
+              "status": "completed"
+            }
+          ]
+        },
+        {
+          "conclusion": "success",
+          "id": 114143278794,
+          "name": "Offline Core images",
+          "status": "completed",
+          "steps": [
+            {
+              "conclusion": "success",
+              "name": "Set up job",
+              "number": 1,
+              "status": "completed"
+            },
+            {
+              "conclusion": "success",
+              "name": "Checkout",
+              "number": 2,
+              "status": "completed"
+            },
+            {
+              "conclusion": "success",
+              "name": "Set up Python",
+              "number": 3,
+              "status": "completed"
+            },
+            {
+              "conclusion": "success",
+              "name": "Set up QEMU",
+              "number": 4,
+              "status": "completed"
+            },
+            {
+              "conclusion": "success",
+              "name": "Set up Docker Buildx",
+              "number": 5,
+              "status": "completed"
+            },
+            {
+              "conclusion": "success",
+              "name": "Log in to GitHub Container Registry",
+              "number": 6,
+              "status": "completed"
+            },
+            {
+              "conclusion": "success",
+              "name": "Export verified Core payloads as loadable archives",
+              "number": 7,
+              "status": "completed"
+            },
+            {
+              "conclusion": "success",
+              "name": "Validate offline image archives identity",
+              "number": 8,
+              "status": "completed"
+            },
+            {
+              "conclusion": "success",
+              "name": "Inspect and smoke-test offline Core images",
+              "number": 9,
+              "status": "completed"
+            },
+            {
+              "conclusion": "success",
+              "name": "Upload offline Core images",
+              "number": 10,
+              "status": "completed"
+            },
+            {
+              "conclusion": "success",
+              "name": "Post Log in to GitHub Container Registry",
+              "number": 16,
+              "status": "completed"
+            },
+            {
+              "conclusion": "success",
+              "name": "Post Set up Docker Buildx",
+              "number": 17,
+              "status": "completed"
+            },
+            {
+              "conclusion": "success",
+              "name": "Post Set up QEMU",
+              "number": 18,
+              "status": "completed"
+            },
+            {
+              "conclusion": "success",
+              "name": "Post Set up Python",
+              "number": 19,
+              "status": "completed"
+            },
+            {
+              "conclusion": "success",
+              "name": "Post Checkout",
+              "number": 20,
+              "status": "completed"
+            },
+            {
+              "conclusion": "success",
+              "name": "Complete job",
+              "number": 21,
+              "status": "completed"
+            }
+          ]
+        },
+        {
+          "conclusion": "success",
+          "id": 114146242360,
+          "name": "Publish GitHub Release",
+          "status": "completed",
+          "steps": [
+            {
+              "conclusion": "success",
+              "name": "Set up job",
+              "number": 1,
+              "status": "completed"
+            },
+            {
+              "conclusion": "success",
+              "name": "Checkout",
+              "number": 2,
+              "status": "completed"
+            },
+            {
+              "conclusion": "success",
+              "name": "Set up Python",
+              "number": 3,
+              "status": "completed"
+            },
+            {
+              "conclusion": "success",
+              "name": "Download verified job artifacts",
+              "number": 4,
+              "status": "completed"
+            },
+            {
+              "conclusion": "success",
+              "name": "Validate and assemble release assets",
+              "number": 5,
+              "status": "completed"
+            },
+            {
+              "conclusion": "success",
+              "name": "Validate final release identity",
+              "number": 6,
+              "status": "completed"
+            },
+            {
+              "conclusion": "success",
+              "name": "Validate any existing release without mutation",
+              "number": 7,
+              "status": "completed"
+            },
+            {
+              "conclusion": "success",
+              "name": "Set up pinned Docker Buildx for promotion",
+              "number": 8,
+              "status": "completed"
+            },
+            {
+              "conclusion": "success",
+              "name": "Log in to GitHub Container Registry for promotion",
+              "number": 9,
+              "status": "completed"
+            },
+            {
+              "conclusion": "success",
+              "name": "Verify release tag still targets source revision before promotion",
+              "number": 10,
+              "status": "completed"
+            },
+            {
+              "conclusion": "success",
+              "name": "Promote version tag without replacing an existing digest",
+              "number": 11,
+              "status": "completed"
+            },
+            {
+              "conclusion": "success",
+              "name": "Log in to Docker Hub",
+              "number": 12,
+              "status": "completed"
+            },
+            {
+              "conclusion": "success",
+              "name": "Mirror verified version to Docker Hub",
+              "number": 13,
+              "status": "completed"
+            },
+            {
+              "conclusion": "success",
+              "name": "Detect container signing configuration",
+              "number": 14,
+              "status": "completed"
+            },
+            {
+              "conclusion": "skipped",
+              "name": "Install Cosign",
+              "number": 15,
+              "status": "completed"
+            },
+            {
+              "conclusion": "skipped",
+              "name": "Sign promoted container digest",
+              "number": 16,
+              "status": "completed"
+            },
+            {
+              "conclusion": "success",
+              "name": "Attest release assets",
+              "number": 17,
+              "status": "completed"
+            },
+            {
+              "conclusion": "success",
+              "name": "Verify release tag still targets source revision before publication",
+              "number": 18,
+              "status": "completed"
+            },
+            {
+              "conclusion": "success",
+              "name": "Create release",
+              "number": 19,
+              "status": "completed"
+            },
+            {
+              "conclusion": "success",
+              "name": "Verify newly published immutable release",
+              "number": 20,
+              "status": "completed"
+            },
+            {
+              "conclusion": "success",
+              "name": "Verify every release asset attestation",
+              "number": 21,
+              "status": "completed"
+            },
+            {
+              "conclusion": "success",
+              "name": "Update Docker Hub latest after verified stable publication",
+              "number": 22,
+              "status": "completed"
+            },
+            {
+              "conclusion": "success",
+              "name": "Post Log in to Docker Hub",
+              "number": 40,
+              "status": "completed"
+            },
+            {
+              "conclusion": "success",
+              "name": "Post Log in to GitHub Container Registry for promotion",
+              "number": 41,
+              "status": "completed"
+            },
+            {
+              "conclusion": "success",
+              "name": "Post Set up pinned Docker Buildx for promotion",
+              "number": 42,
+              "status": "completed"
+            },
+            {
+              "conclusion": "success",
+              "name": "Post Set up Python",
+              "number": 43,
+              "status": "completed"
+            },
+            {
+              "conclusion": "success",
+              "name": "Post Checkout",
+              "number": 44,
+              "status": "completed"
+            },
+            {
+              "conclusion": "success",
+              "name": "Complete job",
+              "number": 45,
+              "status": "completed"
+            }
+          ]
+        }
+      ],
+      "name": "Release artifacts",
+      "run_attempt": 2,
+      "run_id": 38022781421,
+      "status": "completed",
+      "updated_at": "2026-10-10T05:57:46Z",
+      "url": "https://github.com/zhigege666/Lingshu-Gate/actions/runs/38022781421"
+    },
+    {
+      "conclusion": "success",
+      "created_at": "2026-10-10T04:04:16Z",
+      "event": "push",
+      "head_sha": "45cec40c1e57d7290ab249e620b5a50fa939e115",
+      "jobs": [
+        {
+          "conclusion": "success",
+          "id": 114127112502,
+          "name": "Source checks",
+          "status": "completed",
+          "steps": [
+            {
+              "conclusion": "success",
+              "name": "Set up job",
+              "number": 1,
+              "status": "completed"
+            },
+            {
+              "conclusion": "success",
+              "name": "Checkout complete history",
+              "number": 2,
+              "status": "completed"
+            },
+            {
+              "conclusion": "success",
+              "name": "Validate repository identity and version",
+              "number": 3,
+              "status": "completed"
+            },
+            {
+              "conclusion": "success",
+              "name": "Set up Node.js",
+              "number": 4,
+              "status": "completed"
+            },
+            {
+              "conclusion": "success",
+              "name": "Verify and build Console once",
+              "number": 5,
+              "status": "completed"
+            },
+            {
+              "conclusion": "success",
+              "name": "Set up Python",
+              "number": 6,
+              "status": "completed"
+            },
+            {
+              "conclusion": "success",
+              "name": "Set up uv",
+              "number": 7,
+              "status": "completed"
+            },
+            {
+              "conclusion": "success",
+              "name": "Install frozen dependencies",
+              "number": 8,
+              "status": "completed"
+            },
+            {
+              "conclusion": "success",
+              "name": "Verify pip export is synchronized",
+              "number": 9,
+              "status": "completed"
+            },
+            {
+              "conclusion": "success",
+              "name": "Install browser for isolated smoke",
+              "number": 10,
+              "status": "completed"
+            },
+            {
+              "conclusion": "success",
+              "name": "Verify backend on Python 3.12",
+              "number": 11,
+              "status": "completed"
+            },
+            {
+              "conclusion": "success",
+              "name": "Test Console against isolated real backend",
+              "number": 12,
+              "status": "completed"
+            },
+            {
+              "conclusion": "skipped",
+              "name": "Retain synthetic browser failure evidence",
+              "number": 13,
+              "status": "completed"
+            },
+            {
+              "conclusion": "success",
+              "name": "Share tested Console with compatibility jobs",
+              "number": 14,
+              "status": "completed"
+            },
+            {
+              "conclusion": "success",
+              "name": "Share built OAuth assets with compatibility jobs",
+              "number": 15,
+              "status": "completed"
+            },
+            {
+              "conclusion": "success",
+              "name": "Post Set up uv",
+              "number": 27,
+              "status": "completed"
+            },
+            {
+              "conclusion": "success",
+              "name": "Post Set up Python",
+              "number": 28,
+              "status": "completed"
+            },
+            {
+              "conclusion": "success",
+              "name": "Post Set up Node.js",
+              "number": 29,
+              "status": "completed"
+            },
+            {
+              "conclusion": "success",
+              "name": "Post Checkout complete history",
+              "number": 30,
+              "status": "completed"
+            },
+            {
+              "conclusion": "success",
+              "name": "Complete job",
+              "number": 31,
+              "status": "completed"
+            }
+          ]
+        },
+        {
+          "conclusion": "success",
+          "id": 114131081511,
+          "name": "Python 3.13",
+          "status": "completed",
+          "steps": [
+            {
+              "conclusion": "success",
+              "name": "Set up job",
+              "number": 1,
+              "status": "completed"
+            },
+            {
+              "conclusion": "success",
+              "name": "Checkout",
+              "number": 2,
+              "status": "completed"
+            },
+            {
+              "conclusion": "success",
+              "name": "Download Console from this workflow run",
+              "number": 3,
+              "status": "completed"
+            },
+            {
+              "conclusion": "success",
+              "name": "Download OAuth assets from this workflow run",
+              "number": 4,
+              "status": "completed"
+            },
+            {
+              "conclusion": "success",
+              "name": "Set up Node.js for packaging script tests",
+              "number": 5,
+              "status": "completed"
+            },
+            {
+              "conclusion": "success",
+              "name": "Install Console dependencies for license tests",
+              "number": 6,
+              "status": "completed"
+            },
+            {
+              "conclusion": "success",
+              "name": "Set up Python",
+              "number": 7,
+              "status": "completed"
+            },
+            {
+              "conclusion": "success",
+              "name": "Set up uv",
+              "number": 8,
+              "status": "completed"
+            },
+            {
+              "conclusion": "success",
+              "name": "Install frozen dependencies",
+              "number": 9,
+              "status": "completed"
+            },
+            {
+              "conclusion": "success",
+              "name": "Test",
+              "number": 10,
+              "status": "completed"
+            },
+            {
+              "conclusion": "success",
+              "name": "Post Set up uv",
+              "number": 17,
+              "status": "completed"
+            },
+            {
+              "conclusion": "success",
+              "name": "Post Set up Python",
+              "number": 18,
+              "status": "completed"
+            },
+            {
+              "conclusion": "success",
+              "name": "Post Set up Node.js for packaging script tests",
+              "number": 19,
+              "status": "completed"
+            },
+            {
+              "conclusion": "success",
+              "name": "Post Checkout",
+              "number": 20,
+              "status": "completed"
+            },
+            {
+              "conclusion": "success",
+              "name": "Complete job",
+              "number": 21,
+              "status": "completed"
+            }
+          ]
+        },
+        {
+          "conclusion": "success",
+          "id": 114131081563,
+          "name": "Python 3.11",
+          "status": "completed",
+          "steps": [
+            {
+              "conclusion": "success",
+              "name": "Set up job",
+              "number": 1,
+              "status": "completed"
+            },
+            {
+              "conclusion": "success",
+              "name": "Checkout",
+              "number": 2,
+              "status": "completed"
+            },
+            {
+              "conclusion": "success",
+              "name": "Download Console from this workflow run",
+              "number": 3,
+              "status": "completed"
+            },
+            {
+              "conclusion": "success",
+              "name": "Download OAuth assets from this workflow run",
+              "number": 4,
+              "status": "completed"
+            },
+            {
+              "conclusion": "success",
+              "name": "Set up Node.js for packaging script tests",
+              "number": 5,
+              "status": "completed"
+            },
+            {
+              "conclusion": "success",
+              "name": "Install Console dependencies for license tests",
+              "number": 6,
+              "status": "completed"
+            },
+            {
+              "conclusion": "success",
+              "name": "Set up Python",
+              "number": 7,
+              "status": "completed"
+            },
+            {
+              "conclusion": "success",
+              "name": "Set up uv",
+              "number": 8,
+              "status": "completed"
+            },
+            {
+              "conclusion": "success",
+              "name": "Install frozen dependencies",
+              "number": 9,
+              "status": "completed"
+            },
+            {
+              "conclusion": "success",
+              "name": "Test",
+              "number": 10,
+              "status": "completed"
+            },
+            {
+              "conclusion": "success",
+              "name": "Post Set up uv",
+              "number": 17,
+              "status": "completed"
+            },
+            {
+              "conclusion": "success",
+              "name": "Post Set up Python",
+              "number": 18,
+              "status": "completed"
+            },
+            {
+              "conclusion": "success",
+              "name": "Post Set up Node.js for packaging script tests",
+              "number": 19,
+              "status": "completed"
+            },
+            {
+              "conclusion": "success",
+              "name": "Post Checkout",
+              "number": 20,
+              "status": "completed"
+            },
+            {
+              "conclusion": "success",
+              "name": "Complete job",
+              "number": 21,
+              "status": "completed"
+            }
+          ]
+        },
+        {
+          "conclusion": "success",
+          "id": 114135602421,
+          "name": "CI result",
+          "status": "completed",
+          "steps": [
+            {
+              "conclusion": "success",
+              "name": "Set up job",
+              "number": 1,
+              "status": "completed"
+            },
+            {
+              "conclusion": "success",
+              "name": "Require every source and compatibility check",
+              "number": 2,
+              "status": "completed"
+            },
+            {
+              "conclusion": "success",
+              "name": "Complete job",
+              "number": 3,
+              "status": "completed"
+            }
+          ]
+        }
+      ],
+      "name": "Continuous integration",
+      "run_attempt": 1,
+      "run_id": 38022767244,
+      "status": "completed",
+      "updated_at": "2026-10-10T04:52:43Z",
+      "url": "https://github.com/zhigege666/Lingshu-Gate/actions/runs/38022767244"
+    },
+    {
+      "conclusion": "success",
+      "created_at": "2026-10-10T04:04:16Z",
+      "event": "push",
+      "head_sha": "45cec40c1e57d7290ab249e620b5a50fa939e115",
+      "jobs": [
+        {
+          "conclusion": "success",
+          "id": 114127113071,
+          "name": "QEMU multi-architecture execution smoke",
+          "status": "completed",
+          "steps": [
+            {
+              "conclusion": "success",
+              "name": "Set up job",
+              "number": 1,
+              "status": "completed"
+            },
+            {
+              "conclusion": "success",
+              "name": "Checkout",
+              "number": 2,
+              "status": "completed"
+            },
+            {
+              "conclusion": "success",
+              "name": "Install pinned QEMU binfmt handlers",
+              "number": 3,
+              "status": "completed"
+            },
+            {
+              "conclusion": "success",
+              "name": "Set up pinned Buildx and BuildKit",
+              "number": 4,
+              "status": "completed"
+            },
+            {
+              "conclusion": "success",
+              "name": "Verify host binfmt registration and direct emulated execution",
+              "number": 5,
+              "status": "completed"
+            },
+            {
+              "conclusion": "success",
+              "name": "Execute native and emulated Python without publishing",
+              "number": 6,
+              "status": "completed"
+            },
+            {
+              "conclusion": "success",
+              "name": "Post Set up pinned Buildx and BuildKit",
+              "number": 10,
+              "status": "completed"
+            },
+            {
+              "conclusion": "success",
+              "name": "Post Install pinned QEMU binfmt handlers",
+              "number": 11,
+              "status": "completed"
+            },
+            {
+              "conclusion": "success",
+              "name": "Post Checkout",
+              "number": 12,
+              "status": "completed"
+            },
+            {
+              "conclusion": "success",
+              "name": "Complete job",
+              "number": 13,
+              "status": "completed"
+            }
+          ]
+        },
+        {
+          "conclusion": "success",
+          "id": 114127113234,
+          "name": "Validate container contracts",
+          "status": "completed",
+          "steps": [
+            {
+              "conclusion": "success",
+              "name": "Set up job",
+              "number": 1,
+              "status": "completed"
+            },
+            {
+              "conclusion": "success",
+              "name": "Checkout",
+              "number": 2,
+              "status": "completed"
+            },
+            {
+              "conclusion": "success",
+              "name": "Validate local Compose",
+              "number": 3,
+              "status": "completed"
+            },
+            {
+              "conclusion": "success",
+              "name": "Validate production Compose",
+              "number": 4,
+              "status": "completed"
+            },
+            {
+              "conclusion": "success",
+              "name": "Build and inspect secure Core image",
+              "number": 5,
+              "status": "completed"
+            },
+            {
+              "conclusion": "success",
+              "name": "Run Core readiness smoke test",
+              "number": 6,
+              "status": "completed"
+            },
+            {
+              "conclusion": "success",
+              "name": "Scan Core image for critical vulnerabilities",
+              "number": 7,
+              "status": "completed"
+            },
+            {
+              "conclusion": "success",
+              "name": "Post Scan Core image for critical vulnerabilities",
+              "number": 13,
+              "status": "completed"
+            },
+            {
+              "conclusion": "success",
+              "name": "Post Checkout",
+              "number": 14,
+              "status": "completed"
+            },
+            {
+              "conclusion": "success",
+              "name": "Complete job",
+              "number": 15,
+              "status": "completed"
+            }
+          ]
+        },
+        {
+          "conclusion": "success",
+          "id": 114127263265,
+          "name": "Validate multi-architecture Core image",
+          "status": "completed",
+          "steps": [
+            {
+              "conclusion": "success",
+              "name": "Set up job",
+              "number": 1,
+              "status": "completed"
+            },
+            {
+              "conclusion": "success",
+              "name": "Checkout",
+              "number": 2,
+              "status": "completed"
+            },
+            {
+              "conclusion": "success",
+              "name": "Set up QEMU",
+              "number": 3,
+              "status": "completed"
+            },
+            {
+              "conclusion": "success",
+              "name": "Set up Docker Buildx",
+              "number": 4,
+              "status": "completed"
+            },
+            {
+              "conclusion": "success",
+              "name": "Validate multi-architecture image build without publishing",
+              "number": 5,
+              "status": "completed"
+            },
+            {
+              "conclusion": "success",
+              "name": "Post Validate multi-architecture image build without publishing",
+              "number": 7,
+              "status": "completed"
+            },
+            {
+              "conclusion": "success",
+              "name": "Post Set up Docker Buildx",
+              "number": 8,
+              "status": "completed"
+            },
+            {
+              "conclusion": "success",
+              "name": "Post Set up QEMU",
+              "number": 9,
+              "status": "completed"
+            },
+            {
+              "conclusion": "success",
+              "name": "Post Checkout",
+              "number": 10,
+              "status": "completed"
+            },
+            {
+              "conclusion": "success",
+              "name": "Complete job",
+              "number": 11,
+              "status": "completed"
+            }
+          ]
+        }
+      ],
+      "name": "Container images",
+      "run_attempt": 1,
+      "run_id": 38022767372,
+      "status": "completed",
+      "updated_at": "2026-10-10T04:07:11Z",
+      "url": "https://github.com/zhigege666/Lingshu-Gate/actions/runs/38022767372"
+    },
+    {
+      "conclusion": "success",
+      "created_at": "2026-10-10T04:04:16Z",
+      "event": "push",
+      "head_sha": "45cec40c1e57d7290ab249e620b5a50fa939e115",
+      "jobs": [
+        {
+          "conclusion": "success",
+          "id": 114127112516,
+          "name": "Analyze python",
+          "status": "completed",
+          "steps": [
+            {
+              "conclusion": "success",
+              "name": "Set up job",
+              "number": 1,
+              "status": "completed"
+            },
+            {
+              "conclusion": "success",
+              "name": "Checkout",
+              "number": 2,
+              "status": "completed"
+            },
+            {
+              "conclusion": "success",
+              "name": "Initialize CodeQL",
+              "number": 3,
+              "status": "completed"
+            },
+            {
+              "conclusion": "success",
+              "name": "Analyze",
+              "number": 4,
+              "status": "completed"
+            },
+            {
+              "conclusion": "success",
+              "name": "Post Analyze",
+              "number": 6,
+              "status": "completed"
+            },
+            {
+              "conclusion": "success",
+              "name": "Post Initialize CodeQL",
+              "number": 7,
+              "status": "completed"
+            },
+            {
+              "conclusion": "success",
+              "name": "Post Checkout",
+              "number": 8,
+              "status": "completed"
+            },
+            {
+              "conclusion": "success",
+              "name": "Complete job",
+              "number": 9,
+              "status": "completed"
+            }
+          ]
+        },
+        {
+          "conclusion": "success",
+          "id": 114127112633,
+          "name": "Analyze javascript-typescript",
+          "status": "completed",
+          "steps": [
+            {
+              "conclusion": "success",
+              "name": "Set up job",
+              "number": 1,
+              "status": "completed"
+            },
+            {
+              "conclusion": "success",
+              "name": "Checkout",
+              "number": 2,
+              "status": "completed"
+            },
+            {
+              "conclusion": "success",
+              "name": "Initialize CodeQL",
+              "number": 3,
+              "status": "completed"
+            },
+            {
+              "conclusion": "success",
+              "name": "Analyze",
+              "number": 4,
+              "status": "completed"
+            },
+            {
+              "conclusion": "success",
+              "name": "Post Analyze",
+              "number": 6,
+              "status": "completed"
+            },
+            {
+              "conclusion": "success",
+              "name": "Post Initialize CodeQL",
+              "number": 7,
+              "status": "completed"
+            },
+            {
+              "conclusion": "success",
+              "name": "Post Checkout",
+              "number": 8,
+              "status": "completed"
+            },
+            {
+              "conclusion": "success",
+              "name": "Complete job",
+              "number": 9,
+              "status": "completed"
+            }
+          ]
+        }
+      ],
+      "name": "Code scanning",
+      "run_attempt": 1,
+      "run_id": 38022767241,
+      "status": "completed",
+      "updated_at": "2026-10-10T04:06:19Z",
+      "url": "https://github.com/zhigege666/Lingshu-Gate/actions/runs/38022767241"
+    },
+    {
+      "conclusion": "success",
+      "created_at": "2026-10-10T04:04:16Z",
+      "event": "push",
+      "head_sha": "45cec40c1e57d7290ab249e620b5a50fa939e115",
+      "jobs": [
+        {
+          "conclusion": "success",
+          "id": 114127112665,
+          "name": "Check source version change",
+          "status": "completed",
+          "steps": [
+            {
+              "conclusion": "success",
+              "name": "Set up job",
+              "number": 1,
+              "status": "completed"
+            },
+            {
+              "conclusion": "success",
+              "name": "Checkout exact main revision and push history",
+              "number": 2,
+              "status": "completed"
+            },
+            {
+              "conclusion": "success",
+              "name": "Select automatic or manual release",
+              "number": 3,
+              "status": "completed"
+            },
+            {
+              "conclusion": "success",
+              "name": "Post Checkout exact main revision and push history",
+              "number": 6,
+              "status": "completed"
+            },
+            {
+              "conclusion": "success",
+              "name": "Complete job",
+              "number": 7,
+              "status": "completed"
+            }
+          ]
+        },
+        {
+          "conclusion": "success",
+          "id": 114127132065,
+          "name": "Create tag and dispatch verified release",
+          "status": "completed",
+          "steps": [
+            {
+              "conclusion": "success",
+              "name": "Set up job",
+              "number": 1,
+              "status": "completed"
+            },
+            {
+              "conclusion": "success",
+              "name": "Validate dispatch source",
+              "number": 2,
+              "status": "completed"
+            },
+            {
+              "conclusion": "success",
+              "name": "Checkout requested main revision",
+              "number": 3,
+              "status": "completed"
+            },
+            {
+              "conclusion": "success",
+              "name": "Validate source and release tag",
+              "number": 4,
+              "status": "completed"
+            },
+            {
+              "conclusion": "success",
+              "name": "Require Docker Hub credentials before creating a tag",
+              "number": 5,
+              "status": "completed"
+            },
+            {
+              "conclusion": "success",
+              "name": "Require immutable releases before creating a tag",
+              "number": 6,
+              "status": "completed"
+            },
+            {
+              "conclusion": "success",
+              "name": "Create or verify immutable release tag",
+              "number": 7,
+              "status": "completed"
+            },
+            {
+              "conclusion": "success",
+              "name": "Dispatch release workflow at verified tag",
+              "number": 8,
+              "status": "completed"
+            },
+            {
+              "conclusion": "success",
+              "name": "Post Checkout requested main revision",
+              "number": 16,
+              "status": "completed"
+            },
+            {
+              "conclusion": "success",
+              "name": "Complete job",
+              "number": 17,
+              "status": "completed"
+            }
+          ]
+        }
+      ],
+      "name": "Publish release",
+      "run_attempt": 1,
+      "run_id": 38022767332,
+      "status": "completed",
+      "updated_at": "2026-10-10T04:04:34Z",
+      "url": "https://github.com/zhigege666/Lingshu-Gate/actions/runs/38022767332"
+    }
+  ],
+  "initial_formal_attempt_and_controlled_retry": {
+    "annotation_source_url": "https://github.com/zhigege666/Lingshu-Gate/actions/runs/38022781421/job/114127192702",
+    "attempt": 1,
+    "cancel_log_timestamp": "2026-10-10T04:44:59.1725483Z",
+    "cancellation_mechanism": "Configured 40-minute job execution limit exceeded",
+    "cancellation_mechanism_confirmed": true,
+    "cancellation_was_test_assertion_timeout": false,
+    "captured_at_utc": "2026-10-10T04:59:39.390381+00:00",
+    "configured_job_timeout_minutes": 40,
+    "controlled_retry_maximum_requests": 1,
+    "controlled_retry_rationale": [
+      "GitHub annotation confirms initial cancellation by the existing 40-minute job execution limit.",
+      "Same merge source has successful full ordinary CI; actual Ubuntu 24.04 / Python 3.13.16 differs from formal Ubuntu 22.04 / Python 3.13.15.",
+      "Saved cloud Python 3.13.15 MCP catalog/cache/scale/authority range passed all 66 tests with unchanged assertions and budgets.",
+      "Retry only the original quality job and its existing dependencies, using the same source, runner image, interpreter, frozen dependencies and 40-minute budget.",
+      "This bounded retry does not prove transient runner behavior; if it times out again, stop repetition and report unresolved environment timing."
+    ],
+    "controlled_retry_request_status": "accepted_by_original_github_job_rerun_tool",
+    "controlled_retry_source_job": 114127192702,
+    "formal_workflow_reruns_requested": 1,
+    "job_id": 114127192702,
+    "last_pytest_progress_percent": 82,
+    "last_pytest_progress_timestamp": "2026-10-10T04:44:17.2044988Z",
+    "local_python31315_range_check": {
+      "affinity": [
+        0,
+        1
+      ],
+      "case_durations": [
+        {
+          "classname": "tests.test_mcp_group_cache_api",
+          "name": "test_warm_pages_reuse_structure_but_current_review_and_scopes_remain_authoritative",
+          "seconds": 0.373
+        },
+        {
+          "classname": "tests.test_mcp_group_cache_api",
+          "name": "test_input_capacity_is_checked_before_fingerprinting_copy_or_normalization[tools]",
+          "seconds": 0.21
+        },
+        {
+          "classname": "tests.test_mcp_group_cache_api",
+          "name": "test_input_capacity_is_checked_before_fingerprinting_copy_or_normalization[bytes]",
+          "seconds": 0.205
+        },
+        {
+          "classname": "tests.test_mcp_group_cache_api",
+          "name": "test_authority_is_rechecked_in_fresh_transaction_after_cold_structural_work[scopes]",
+          "seconds": 0.204
+        },
+        {
+          "classname": "tests.test_mcp_group_cache_api",
+          "name": "test_authority_is_rechecked_in_fresh_transaction_after_cold_structural_work[permission]",
+          "seconds": 0.204
+        },
+        {
+          "classname": "tests.test_mcp_group_cache_api",
+          "name": "test_authority_is_rechecked_in_fresh_transaction_after_cold_structural_work[revoked]",
+          "seconds": 0.201
+        },
+        {
+          "classname": "tests.test_mcp_group_cache_api",
+          "name": "test_authority_is_rechecked_in_fresh_transaction_after_cold_structural_work[deleted]",
+          "seconds": 0.2
+        },
+        {
+          "classname": "tests.test_mcp_group_cache_api",
+          "name": "test_authority_is_rechecked_in_fresh_transaction_after_cold_structural_work[expired]",
+          "seconds": 0.208
+        },
+        {
+          "classname": "tests.test_mcp_group_cache_api",
+          "name": "test_authority_is_rechecked_in_fresh_transaction_after_cold_structural_work[disabled]",
+          "seconds": 0.203
+        },
+        {
+          "classname": "tests.test_mcp_group_cache_api",
+          "name": "test_authority_is_rechecked_in_fresh_transaction_after_cold_structural_work[admin]",
+          "seconds": 0.202
+        },
+        {
+          "classname": "tests.test_mcp_group_cache_api",
+          "name": "test_cold_preparation_and_warm_comparison_allow_config_writer_and_retry[prepare]",
+          "seconds": 0.232
+        },
+        {
+          "classname": "tests.test_mcp_group_cache_api",
+          "name": "test_cold_preparation_and_warm_comparison_allow_config_writer_and_retry[compare]",
+          "seconds": 0.249
+        },
+        {
+          "classname": "tests.test_mcp_group_cache_api",
+          "name": "test_retry_reuses_request_structures_beyond_cache_but_rechecks_current_inputs[metadata]",
+          "seconds": 0.245
+        },
+        {
+          "classname": "tests.test_mcp_group_cache_api",
+          "name": "test_retry_reuses_request_structures_beyond_cache_but_rechecks_current_inputs[publication]",
+          "seconds": 0.232
+        },
+        {
+          "classname": "tests.test_mcp_group_cache_api",
+          "name": "test_retry_reuses_request_structures_beyond_cache_but_rechecks_current_inputs[membership]",
+          "seconds": 0.233
+        },
+        {
+          "classname": "tests.test_mcp_group_cache_api",
+          "name": "test_retry_reuses_request_structures_beyond_cache_but_rechecks_current_inputs[scopes]",
+          "seconds": 0.268
+        },
+        {
+          "classname": "tests.test_mcp_group_cache_api",
+          "name": "test_continuously_changing_structure_stops_after_three_attempts_without_partial_results",
+          "seconds": 0.222
+        },
+        {
+          "classname": "tests.test_mcp_group_cache_api",
+          "name": "test_two_http_groups_keep_shared_structural_hit_when_alternating",
+          "seconds": 0.285
+        },
+        {
+          "classname": "tests.test_mcp_group_cache_api",
+          "name": "test_authorization_snapshot_survives_comparison_race_but_next_request_rechecks[scopes]",
+          "seconds": 0.235
+        },
+        {
+          "classname": "tests.test_mcp_group_cache_api",
+          "name": "test_authorization_snapshot_survives_comparison_race_but_next_request_rechecks[permission]",
+          "seconds": 0.312
+        },
+        {
+          "classname": "tests.test_mcp_group_cache_api",
+          "name": "test_authorization_snapshot_survives_comparison_race_but_next_request_rechecks[revoked]",
+          "seconds": 0.227
+        },
+        {
+          "classname": "tests.test_mcp_group_cache_api",
+          "name": "test_authorization_snapshot_survives_comparison_race_but_next_request_rechecks[deleted]",
+          "seconds": 0.219
+        },
+        {
+          "classname": "tests.test_mcp_group_cache_api",
+          "name": "test_authorization_snapshot_survives_comparison_race_but_next_request_rechecks[expired]",
+          "seconds": 0.221
+        },
+        {
+          "classname": "tests.test_mcp_group_cache_api",
+          "name": "test_authorization_snapshot_survives_comparison_race_but_next_request_rechecks[disabled]",
+          "seconds": 0.217
+        },
+        {
+          "classname": "tests.test_mcp_group_cache_api",
+          "name": "test_authorization_snapshot_survives_comparison_race_but_next_request_rechecks[admin]",
+          "seconds": 0.239
+        },
+        {
+          "classname": "tests.test_mcp_group_cache_api",
+          "name": "test_authorization_snapshot_survives_comparison_race_but_next_request_rechecks[classification]",
+          "seconds": 0.231
+        },
+        {
+          "classname": "tests.test_mcp_group_catalog",
+          "name": "test_key_order_normalizes_without_changing_types_arrays_or_keywords",
+          "seconds": 0.001
+        },
+        {
+          "classname": "tests.test_mcp_group_catalog",
+          "name": "test_non_json_contracts_are_rejected[nan]",
+          "seconds": 0.0
+        },
+        {
+          "classname": "tests.test_mcp_group_catalog",
+          "name": "test_non_json_contracts_are_rejected[inf]",
+          "seconds": 0.0
+        },
+        {
+          "classname": "tests.test_mcp_group_catalog",
+          "name": "test_non_json_contracts_are_rejected[-inf]",
+          "seconds": 0.0
+        },
+        {
+          "classname": "tests.test_mcp_group_catalog",
+          "name": "test_non_json_contracts_are_rejected[not-json]",
+          "seconds": 0.0
+        },
+        {
+          "classname": "tests.test_mcp_group_catalog",
+          "name": "test_non_json_contracts_are_rejected[bad4]",
+          "seconds": 0.0
+        },
+        {
+          "classname": "tests.test_mcp_group_catalog",
+          "name": "test_non_json_contracts_are_rejected[bad5]",
+          "seconds": 0.0
+        },
+        {
+          "classname": "tests.test_mcp_group_catalog",
+          "name": "test_depth_cycle_size_and_node_limits_are_bounded",
+          "seconds": 0.005
+        },
+        {
+          "classname": "tests.test_mcp_group_catalog",
+          "name": "test_total_contract_bytes_are_checked_before_full_serialization",
+          "seconds": 0.017
+        },
+        {
+          "classname": "tests.test_mcp_group_catalog",
+          "name": "test_byte_budget_counts_json_escapes_and_utf8_exactly",
+          "seconds": 0.001
+        },
+        {
+          "classname": "tests.test_mcp_group_catalog",
+          "name": "test_missing_output_schema_differs_from_empty_and_nonobject_output",
+          "seconds": 0.0
+        },
+        {
+          "classname": "tests.test_mcp_group_catalog",
+          "name": "test_unreviewed_contracts_never_aggregate[review0]",
+          "seconds": 0.0
+        },
+        {
+          "classname": "tests.test_mcp_group_catalog",
+          "name": "test_unreviewed_contracts_never_aggregate[review1]",
+          "seconds": 0.0
+        },
+        {
+          "classname": "tests.test_mcp_group_catalog",
+          "name": "test_unreviewed_contracts_never_aggregate[review2]",
+          "seconds": 0.0
+        },
+        {
+          "classname": "tests.test_mcp_group_catalog",
+          "name": "test_unreviewed_contracts_never_aggregate[review3]",
+          "seconds": 0.0
+        },
+        {
+          "classname": "tests.test_mcp_group_catalog",
+          "name": "test_unreviewed_contracts_never_aggregate[review4]",
+          "seconds": 0.001
+        },
+        {
+          "classname": "tests.test_mcp_group_catalog",
+          "name": "test_unreviewed_contracts_never_aggregate[review5]",
+          "seconds": 0.0
+        },
+        {
+          "classname": "tests.test_mcp_group_catalog",
+          "name": "test_each_reviewed_safety_dimension_separates_variants[review0]",
+          "seconds": 0.001
+        },
+        {
+          "classname": "tests.test_mcp_group_catalog",
+          "name": "test_each_reviewed_safety_dimension_separates_variants[review1]",
+          "seconds": 0.0
+        },
+        {
+          "classname": "tests.test_mcp_group_catalog",
+          "name": "test_each_reviewed_safety_dimension_separates_variants[review2]",
+          "seconds": 0.0
+        },
+        {
+          "classname": "tests.test_mcp_group_catalog",
+          "name": "test_each_reviewed_safety_dimension_separates_variants[review3]",
+          "seconds": 0.0
+        },
+        {
+          "classname": "tests.test_mcp_group_catalog",
+          "name": "test_review_bound_policy_and_sensitive_fields_are_not_dropped[metadata0]",
+          "seconds": 0.0
+        },
+        {
+          "classname": "tests.test_mcp_group_catalog",
+          "name": "test_review_bound_policy_and_sensitive_fields_are_not_dropped[metadata1]",
+          "seconds": 0.001
+        },
+        {
+          "classname": "tests.test_mcp_group_catalog",
+          "name": "test_review_bound_policy_and_sensitive_fields_are_not_dropped[metadata2]",
+          "seconds": 0.0
+        },
+        {
+          "classname": "tests.test_mcp_group_catalog",
+          "name": "test_review_bound_policy_and_sensitive_fields_are_not_dropped[metadata3]",
+          "seconds": 0.0
+        },
+        {
+          "classname": "tests.test_mcp_group_catalog",
+          "name": "test_original_name_and_input_output_contracts_separate_explicit_variants",
+          "seconds": 0.001
+        },
+        {
+          "classname": "tests.test_mcp_group_catalog",
+          "name": "test_catalog_capacity_fails_without_partial_results",
+          "seconds": 0.0
+        },
+        {
+          "classname": "tests.test_mcp_group_catalog_scale",
+          "name": "test_full_directory_5000_instances_50000_tools[five_groups]",
+          "seconds": 34.072
+        },
+        {
+          "classname": "tests.test_mcp_group_catalog_scale",
+          "name": "test_full_directory_5000_instances_50000_tools[maximum_single_group]",
+          "seconds": 104.825
+        },
+        {
+          "classname": "tests.test_mcp_group_catalog_scale",
+          "name": "test_full_directory_5000_instances_50000_tools[over_cache_bytes]",
+          "seconds": 148.282
+        },
+        {
+          "classname": "tests.test_mcp_group_external_authority",
+          "name": "test_current_external_trust_rechecks_every_verified_binding[client]",
+          "seconds": 1.293
+        },
+        {
+          "classname": "tests.test_mcp_group_external_authority",
+          "name": "test_current_external_trust_rechecks_every_verified_binding[issuer]",
+          "seconds": 0.9
+        },
+        {
+          "classname": "tests.test_mcp_group_external_authority",
+          "name": "test_current_external_trust_rechecks_every_verified_binding[jwks]",
+          "seconds": 0.882
+        },
+        {
+          "classname": "tests.test_mcp_group_external_authority",
+          "name": "test_current_external_trust_rechecks_every_verified_binding[audience]",
+          "seconds": 0.87
+        },
+        {
+          "classname": "tests.test_mcp_group_external_authority",
+          "name": "test_current_external_trust_rechecks_every_verified_binding[canonical]",
+          "seconds": 0.894
+        },
+        {
+          "classname": "tests.test_mcp_group_external_authority",
+          "name": "test_current_external_trust_rechecks_every_verified_binding[invalid]",
+          "seconds": 0.875
+        },
+        {
+          "classname": "tests.test_mcp_group_external_authority",
+          "name": "test_current_external_trust_rechecks_every_verified_binding[expiry]",
+          "seconds": 0.87
+        },
+        {
+          "classname": "tests.test_mcp_group_external_authority",
+          "name": "test_current_external_trust_rechecks_every_verified_binding[proof]",
+          "seconds": 0.927
+        },
+        {
+          "classname": "tests.test_mcp_group_external_authority",
+          "name": "test_client_removed_during_lock_wait_never_reaches_a_downstream_tool[config]",
+          "seconds": 0.965
+        },
+        {
+          "classname": "tests.test_mcp_group_external_authority",
+          "name": "test_client_removed_during_lock_wait_never_reaches_a_downstream_tool[runtime]",
+          "seconds": 1.091
+        }
+      ],
+      "elapsed_seconds": 318.846071,
+      "environment_limit": "Saved cloud executor, not the hosted Ubuntu 22.04 runner; this measures local timing without reproducing the hosted cancellation mechanism.",
+      "errors": 0,
+      "exit_code": 0,
+      "failures": 0,
+      "junit_sha256": "42edf6eac65f99e972e007b66f5650500f4a43abca760d0f441526c45b1b6976",
+      "python": "Python 3.13.15",
+      "scope": [
+        "tests/test_mcp_group_cache_api.py",
+        "tests/test_mcp_group_catalog.py",
+        "tests/test_mcp_group_catalog_scale.py",
+        "tests/test_mcp_group_external_authority.py"
+      ],
+      "source_revision": "45cec40c1e57d7290ab249e620b5a50fa939e115",
+      "source_tree": "5cf23e968371ca7623eaef75e7d774a38d022240",
+      "test_assertions_and_budgets_changed": false,
+      "tests": 66
+    },
+    "log_fetch_attempts": 1,
+    "log_fetch_succeeded": true,
+    "log_lines": 837,
+    "log_sha256": "bc623e50406f68888d122e6c1a0fb3031bb17f86bf71b107458a8c3bc698b050",
+    "log_size_bytes": 83459,
+    "main_python313_check": {
+      "job_id": 114131081511,
+      "log_sha256": "f04e1b421110d755f14165dfe243fcc34ef032668bd76aa1bad600d216b58344",
+      "not_equivalent_to_formal_pinned_python31315": true,
+      "passed": 2336,
+      "pytest_seconds": 1527.57,
+      "python": "3.13.16",
+      "runner": "ubuntu-24.04",
+      "skipped": 7,
+      "subtests_passed": 134
+    },
+    "mypy_source_files_passed": 158,
+    "new_tag_preserved": "v0.4.7",
+    "new_tag_target": "45cec40c1e57d7290ab249e620b5a50fa939e115",
+    "observations": [
+      "Job duration is consistent with the configured 40-minute limit, but no explicit cancellation mechanism is present in the fetched log.",
+      "The 42% to 45% output interval is approximately 20m41s; collection mapping is still pending.",
+      "No new native/Core/offline/Compose assets or publication were produced."
+    ],
+    "old_tags_moved": false,
+    "public_job_annotation": "The job has exceeded the maximum execution time of 40m0s",
+    "pytest_final_summary_present": false,
+    "pytest_progress": [
+      "2026-10-10T04:06:55.0204311Z ........................................................................ [  3%]",
+      "2026-10-10T04:07:06.6107644Z ........................................................................ [  6%]",
+      "2026-10-10T04:08:43.3855891Z ........................................................................ [  9%]",
+      "2026-10-10T04:09:42.5652256Z ........................................................................ [ 12%]",
+      "2026-10-10T04:10:19.1960361Z ........................................................................ [ 15%]",
+      "2026-10-10T04:10:22.1328302Z ........................................................................ [ 18%]",
+      "2026-10-10T04:10:34.6609496Z ................................................................ [ 21%]",
+      "2026-10-10T04:11:13.1170276Z ........................................................................ [ 24%]",
+      "2026-10-10T04:12:10.8044044Z ........................................................................ [ 27%]",
+      "2026-10-10T04:12:52.1811185Z ........................................................................ [ 30%]",
+      "2026-10-10T04:12:52.2673594Z ........................................................................ [ 33%]",
+      "2026-10-10T04:12:56.2818193Z ........................................................................ [ 36%]",
+      "2026-10-10T04:13:25.3169686Z ........................................................................ [ 39%]",
+      "2026-10-10T04:13:33.4132736Z ...................................................................... [ 42%]",
+      "2026-10-10T04:34:14.7197195Z ........................................................................ [ 45%]",
+      "2026-10-10T04:34:54.5214908Z ........................................................................ [ 48%]",
+      "2026-10-10T04:35:44.8008859Z ........................................................................ [ 51%]",
+      "2026-10-10T04:35:44.9935479Z ........................................................................ [ 54%]",
+      "2026-10-10T04:35:56.9232519Z ..............................................................sss........................................... [ 59%]",
+      "2026-10-10T04:36:06.5435895Z ........................................................................ [ 62%]",
+      "2026-10-10T04:36:30.8747989Z ..................ssss.................................................. [ 65%]",
+      "2026-10-10T04:36:32.7585397Z ........................................................................ [ 68%]",
+      "2026-10-10T04:36:33.7574922Z ........................................................................ [ 71%]",
+      "2026-10-10T04:39:37.7213248Z ........................................................................ [ 74%]",
+      "2026-10-10T04:43:46.6129133Z ........................................................................ [ 77%]",
+      "2026-10-10T04:43:53.4968497Z ........................................................................ [ 81%]",
+      "2026-10-10T04:44:17.2044988Z .............................................. [ 82%]"
+    ],
+    "quality_conclusion": "cancelled",
+    "quality_job_completed_at": "2026-10-10T04:45:02Z",
+    "quality_job_started_at": "2026-10-10T04:04:46Z",
+    "ruff_passed": true,
+    "run_conclusion": "cancelled",
+    "run_id": 38022781421,
+    "source_revision": "45cec40c1e57d7290ab249e620b5a50fa939e115",
+    "unique_old_hosted_20_second_cause_proven": false
+  },
+  "limits": [
+    "No real nx5, x16, Podman or external OAuth client acceptance on this cloud executor.",
+    "The exact old hosted 20-second timeout was not reproduced locally; a unique cause is not established.",
+    "The parent independently reviewed source and static/RECORD regression coverage without rerunning the author's 207 tests.",
+    "The 64 MiB cache bound accounts cache entries and is not a process RSS limit.",
+    "Earlier local candidates were built at 2d6b469f8c8d661b92f0da8d1fd2f55937342923; formal assets bind the merge source above."
+  ],
+  "optional_env_key_container_signature_step_conclusion": "skipped",
+  "release": {
+    "bilingual_notes_sha256": "1227f0bed0383e14f5a8ab3dc36eea8c69a54a0615f0e51d804e25629bc59405",
+    "body_sha256": "540c8b32f36598e84510ff1cfdcaf1c86bf53f17fbaa533b1076c798fddf657e",
+    "draft": false,
+    "id": 408704164,
+    "immutable": true,
+    "prerelease": false,
+    "published_at": "2026-10-10T05:56:43Z",
+    "tag": "v0.4.7",
+    "title": "Lingshu Gate v0.4.7",
+    "url": "https://github.com/zhigege666/Lingshu-Gate/releases/tag/v0.4.7"
+  },
+  "repository": "zhigege666/Lingshu-Gate",
+  "reviewed_pr_head": "c9261a2c95cc30edb7e46317a1c36778ac0227bf",
+  "schema_version": 1,
+  "source_readback": {
+    "all_leaf_mode_type_blob_match": true,
+    "canonical_inventory_json_sha256": "90a29bb2b420b2e7c941f65485ef4f2b93828d7ac8c0c0dea8aef7df064e770d",
+    "captured_at_utc": "2026-10-10T04:05:33.255760+00:00",
+    "leaf_count": 993,
+    "merge_sha": "45cec40c1e57d7290ab249e620b5a50fa939e115",
+    "parents": [
+      "0fcfd27ba9f8e1474f6b7975a39512c1298ae279",
+      "c9261a2c95cc30edb7e46317a1c36778ac0227bf"
+    ],
+    "reviewed_head_sha": "c9261a2c95cc30edb7e46317a1c36778ac0227bf",
+    "tree": "5cf23e968371ca7623eaef75e7d774a38d022240"
+  },
+  "source_revision": "45cec40c1e57d7290ab249e620b5a50fa939e115",
+  "source_tree": "5cf23e968371ca7623eaef75e7d774a38d022240",
+  "tag_refs": {
+    "v0.4.5": "c0ea7d04cd16ac01536d0c0f00edab0c5ffc349e",
+    "v0.4.6": "d228cf7ad27f2688cc6e04e5210c8aa2ea88b646",
+    "v0.4.7": "45cec40c1e57d7290ab249e620b5a50fa939e115"
+  },
+  "version": "0.4.7"
+}

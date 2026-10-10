@@ -1,5 +1,9 @@
 # 0.4.7 candidate and publication validation
 
+The immutable [v0.4.7 release](https://github.com/zhigege666/Lingshu-Gate/releases/tag/v0.4.7)
+was published on 2026-10-10 at 05:56:43 UTC. The final receipt below binds the
+merge source and all eleven downloaded assets.
+
 ## Source and patch scope
 
 This patch carries the catalog snapshot retry repair reviewed in
@@ -16,7 +20,7 @@ and Git blobs match the reviewed head exactly. Exact-head ordinary CI
 completed successfully, including Source/Python 3.12 with hosted browser smoke,
 Python 3.11, Python 3.13 and the CI result. Ordinary main CI
 [38018193498](https://github.com/zhigege666/Lingshu-Gate/actions/runs/38018193498)
-is still running at this source capture and remains a separate acceptance gate.
+completed successfully before the version PR was merged.
 
 The sole runtime version source is `src/lingshu_gate/_version.py`. This patch
 changes it to `0.4.7` and synchronizes both READMEs, CHANGELOGs, the release
@@ -102,3 +106,50 @@ mandatory job, archive checksum, inner inventory, SBOM, source/workflow
 attestation and published title/body. A tag, dispatch, local candidate or PR
 artifact alone does not establish publication. Existing failed tags and
 denied artifacts are not reused or rerouted as substitutes for this gate.
+
+## Completed formal publication and downloaded bytes
+
+PR65 merged as `45cec40c1e57d7290ab249e620b5a50fa939e115`, tree
+`5cf23e968371ca7623eaef75e7d774a38d022240`. All 993 remote leaf modes,
+types and blobs match reviewed head `c9261a2c95cc30edb7e46317a1c36778ac0227bf`.
+The existing selector created v0.4.7 at this merge; v0.4.5/v0.4.6 retain their
+original SHAs. Main CI, code scanning, container validation, the selector and
+[formal run 38022781421](https://github.com/zhigege666/Lingshu-Gate/actions/runs/38022781421)
+completed successfully.
+
+The first formal quality attempt reached the unchanged 40-minute job limit
+without finishing pytest. After fresh source checks and a passing local
+66-case timing probe, the execution agent requested one bounded retry through
+the original tool under the authorized release scope. This engineering
+decision does not prove a transient runner cause. The second attempt passed
+on pinned CPython 3.13.15: 2,336 passed, 7 skipped, 134 subtests, 1,967.56 seconds.
+Original budgets, assertions and job limits are unchanged.
+[Initial attempt evidence](benchmarks/gate-release-0.4.7-formal-attempt-45cec40.json)
+preserves the failure and retry decision.
+
+[Final completion evidence](benchmarks/gate-release-0.4.7-formal-completion-45cec40.json)
+records actual downloads of all eleven assets, exact names/sizes/API digests
+and SHA256SUMS, five native BUILD-INFO inventories and static lists, SPDX SBOMs,
+Compose inventory and both offline Core blob identities. Each native contains
+115 Console and 3 OAuth files. Linux/macOS bytes match the fresh Linux build.
+Windows has four text hashes affected by CRLF checkout and Vite HTML whitespace;
+a fresh CRLF checkout and Vite build matches all 118 Windows paths and hashes
+exactly. This reference ran on Linux and is not a Windows runtime test. The
+initial verifier's incorrect cross-platform reference and correction are
+retained; each asset was downloaded once.
+
+The downloaded Linux x86_64 SHA-256 is
+`be4d4b52c4074da76f49bb2b8fe52d66a2853ad2fd6172c508ba454991adee80`.
+Six entry checks and six worker lifecycle cases passed against these frozen
+bytes, including deadline/cancellation, reuse and child reap. The parent is
+installed candidate-wheel Python launching the formal native worker, not a
+test of the entire frozen application parent chain. Hosted native readiness,
+Linux glibc checks, Intel macOS OpenSSL isolation, Compose validation, both Core
+critical-vulnerability scans and offline load smoke all succeeded.
+
+The publisher verified immutability and all eleven mandatory source/workflow
+attestations with trusted timestamps before updating Docker Hub latest.
+Optional environment-key OCI signing was unconfigured and skipped; mandatory
+asset attestations are recorded separately. Published title/bilingual notes
+match the source. Real nx5/x16, Podman provisioning and real OAuth-client
+acceptance remain outside these cloud receipts.
