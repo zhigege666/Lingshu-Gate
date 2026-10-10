@@ -1,4 +1,4 @@
-import { useRef, useState } from "react"
+import { useEffect, useRef, useState } from "react"
 import { Radio } from "antd"
 import { api, type McpServer } from "@/api/client"
 import { McpConfigEditor } from "@/components/mcp-config-editor"
@@ -23,6 +23,12 @@ export function ServiceConfigDrawer({ server, manifest, configDigest, canManageH
   const [footer, setFooter] = useState<HTMLDivElement | null>(null)
   const [returnFocus] = useState(() => document.activeElement instanceof HTMLElement ? document.activeElement : null)
   const saveReturnFocus = useRef<HTMLElement | null>(null)
+  useEffect(() => {
+    // Footer controls are portaled; remember native focus before precheck disables them.
+    const rememberFocus = (event: FocusEvent) => { if (event.target instanceof HTMLElement) saveReturnFocus.current = event.target }
+    footer?.addEventListener("focusin", rememberFocus)
+    return () => footer?.removeEventListener("focusin", rememberFocus)
+  }, [footer])
   const saving = useRef(false)
   const { confirm, confirmDialog } = useConfirm(t, true)
   const dirty = entryDirty || value !== initial
@@ -65,7 +71,7 @@ export function ServiceConfigDrawer({ server, manifest, configDigest, canManageH
       title={`${zh ? "修改配置" : "Edit configuration"} · ${server.id}`} closeLabel={t("close")}
       onClose={() => void close()} dirty={dirty} pending={pending}
       onCloseAutoFocus={event => { event.preventDefault(); if (returnFocus?.isConnected) returnFocus.focus() }}
-      footer={<div ref={setFooter} className="w-full" onFocusCapture={event => { saveReturnFocus.current = event.target as HTMLElement }} />}>
+      footer={<div ref={setFooter} className="w-full" />}>
       <div className="service-config-save-intent">
         <Radio.Group aria-label={zh ? "保存方式" : "Save behavior"} value={apply} onChange={event => setApply(event.target.value as boolean)} disabled={pending} options={[
           { value: true, label: zh ? "保存并应用启动" : "Save, apply and start" },
