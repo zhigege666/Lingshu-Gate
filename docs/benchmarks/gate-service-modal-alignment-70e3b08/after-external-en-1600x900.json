@@ -1,0 +1,247 @@
+{
+  "phase": "after",
+  "synthetic_data": true,
+  "dialog": {
+    "x": 370,
+    "y": 53.625,
+    "width": 860,
+    "height": 792.75,
+    "right": 1230,
+    "bottom": 846.375
+  },
+  "viewport": {
+    "width": 1600,
+    "height": 900
+  },
+  "rows": [
+    {
+      "label": "Server ID",
+      "label_bounds": {
+        "x": 395,
+        "y": 167.375,
+        "width": 272,
+        "height": 36,
+        "right": 667,
+        "bottom": 203.375
+      },
+      "control_bounds": {
+        "x": 679,
+        "y": 167.375,
+        "width": 522,
+        "height": 58,
+        "right": 1201,
+        "bottom": 225.375
+      },
+      "label_overflow": false,
+      "first_column": true,
+      "in_section": false,
+      "grid_columns": "272px 522px",
+      "switch_bounds": null,
+      "switch_help_bounds": null
+    },
+    {
+      "label": "Name",
+      "label_bounds": {
+        "x": 395,
+        "y": 241.375,
+        "width": 272,
+        "height": 36,
+        "right": 667,
+        "bottom": 277.375
+      },
+      "control_bounds": {
+        "x": 679,
+        "y": 241.375,
+        "width": 522,
+        "height": 36,
+        "right": 1201,
+        "bottom": 277.375
+      },
+      "label_overflow": false,
+      "first_column": true,
+      "in_section": false,
+      "grid_columns": "272px 522px",
+      "switch_bounds": null,
+      "switch_help_bounds": null
+    },
+    {
+      "label": "Runtime Mode",
+      "label_bounds": {
+        "x": 395,
+        "y": 293.375,
+        "width": 272,
+        "height": 36,
+        "right": 667,
+        "bottom": 329.375
+      },
+      "control_bounds": {
+        "x": 679,
+        "y": 293.375,
+        "width": 522,
+        "height": 98,
+        "right": 1201,
+        "bottom": 391.375
+      },
+      "label_overflow": false,
+      "first_column": true,
+      "in_section": false,
+      "grid_columns": "272px 522px",
+      "switch_bounds": null,
+      "switch_help_bounds": null
+    },
+    {
+      "label": "Enable service",
+      "label_bounds": {
+        "x": 395,
+        "y": 407.375,
+        "width": 272,
+        "height": 36,
+        "right": 667,
+        "bottom": 443.375
+      },
+      "control_bounds": {
+        "x": 679,
+        "y": 407.375,
+        "width": 522,
+        "height": 40,
+        "right": 1201,
+        "bottom": 447.375
+      },
+      "label_overflow": false,
+      "first_column": true,
+      "in_section": false,
+      "grid_columns": "272px 522px",
+      "switch_bounds": {
+        "x": 679,
+        "y": 415.375,
+        "width": 36,
+        "height": 20,
+        "right": 715,
+        "bottom": 435.375
+      },
+      "switch_help_bounds": {
+        "x": 727,
+        "y": 407.375,
+        "width": 474,
+        "height": 40,
+        "right": 1201,
+        "bottom": 447.375
+      }
+    },
+    {
+      "label": "Start automatically when Gate starts",
+      "label_bounds": {
+        "x": 395,
+        "y": 463.375,
+        "width": 272,
+        "height": 36,
+        "right": 667,
+        "bottom": 499.375
+      },
+      "control_bounds": {
+        "x": 679,
+        "y": 463.375,
+        "width": 522,
+        "height": 40,
+        "right": 1201,
+        "bottom": 503.375
+      },
+      "label_overflow": false,
+      "first_column": true,
+      "in_section": false,
+      "grid_columns": "272px 522px",
+      "switch_bounds": {
+        "x": 679,
+        "y": 471.375,
+        "width": 36,
+        "height": 20,
+        "right": 715,
+        "bottom": 491.375
+      },
+      "switch_help_bounds": {
+        "x": 727,
+        "y": 463.375,
+        "width": 474,
+        "height": 40,
+        "right": 1201,
+        "bottom": 503.375
+      }
+    },
+    {
+      "label": "MCP Endpoint",
+      "label_bounds": {
+        "x": 395,
+        "y": 519.375,
+        "width": 272,
+        "height": 36,
+        "right": 667,
+        "bottom": 555.375
+      },
+      "control_bounds": {
+        "x": 679,
+        "y": 519.375,
+        "width": 522,
+        "height": 54,
+        "right": 1201,
+        "bottom": 573.375
+      },
+      "label_overflow": false,
+      "first_column": true,
+      "in_section": false,
+      "grid_columns": "272px 522px",
+      "switch_bounds": null,
+      "switch_help_bounds": null
+    },
+    {
+      "label": "Timeout Seconds",
+      "label_bounds": {
+        "x": 395,
+        "y": 589.375,
+        "width": 272,
+        "height": 36,
+        "right": 667,
+        "bottom": 625.375
+      },
+      "control_bounds": {
+        "x": 679,
+        "y": 589.375,
+        "width": 522,
+        "height": 36,
+        "right": 1201,
+        "bottom": 625.375
+      },
+      "label_overflow": false,
+      "first_column": true,
+      "in_section": false,
+      "grid_columns": "272px 522px",
+      "switch_bounds": null,
+      "switch_help_bounds": null
+    },
+    {
+      "label": "HTTP headers",
+      "label_bounds": {
+        "x": 395,
+        "y": 641.375,
+        "width": 272,
+        "height": 36,
+        "right": 667,
+        "bottom": 677.375
+      },
+      "control_bounds": {
+        "x": 679,
+        "y": 641.375,
+        "width": 522,
+        "height": 36,
+        "right": 1201,
+        "bottom": 677.375
+      },
+      "label_overflow": false,
+      "first_column": true,
+      "in_section": false,
+      "grid_columns": "272px 522px",
+      "switch_bounds": null,
+      "switch_help_bounds": null
+    }
+  ],
+  "horizontal_overflow": false
+}

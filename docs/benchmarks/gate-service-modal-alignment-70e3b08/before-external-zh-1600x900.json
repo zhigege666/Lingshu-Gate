@@ -1,0 +1,203 @@
+{
+  "phase": "before",
+  "synthetic_data": true,
+  "dialog": {
+    "x": 370,
+    "y": 78.625,
+    "width": 860,
+    "height": 742.75,
+    "right": 1230,
+    "bottom": 821.375
+  },
+  "viewport": {
+    "width": 1600,
+    "height": 900
+  },
+  "rows": [
+    {
+      "label": "服务 ID",
+      "label_bounds": {
+        "x": 395,
+        "y": 192.375,
+        "width": 136,
+        "height": 36,
+        "right": 531,
+        "bottom": 228.375
+      },
+      "control_bounds": {
+        "x": 543,
+        "y": 192.375,
+        "width": 247,
+        "height": 74,
+        "right": 790,
+        "bottom": 266.375
+      },
+      "label_overflow": false,
+      "first_column": true,
+      "in_section": false,
+      "grid_columns": "136px 247px"
+    },
+    {
+      "label": "名称",
+      "label_bounds": {
+        "x": 806,
+        "y": 192.375,
+        "width": 136,
+        "height": 36,
+        "right": 942,
+        "bottom": 228.375
+      },
+      "control_bounds": {
+        "x": 954,
+        "y": 192.375,
+        "width": 247,
+        "height": 36,
+        "right": 1201,
+        "bottom": 228.375
+      },
+      "label_overflow": false,
+      "first_column": false,
+      "in_section": false,
+      "grid_columns": "136px 247px"
+    },
+    {
+      "label": "运行方式",
+      "label_bounds": {
+        "x": 395,
+        "y": 282.375,
+        "width": 272,
+        "height": 36,
+        "right": 667,
+        "bottom": 318.375
+      },
+      "control_bounds": {
+        "x": 679,
+        "y": 282.375,
+        "width": 522,
+        "height": 66,
+        "right": 1201,
+        "bottom": 348.375
+      },
+      "label_overflow": false,
+      "first_column": true,
+      "in_section": false,
+      "grid_columns": "272px 522px"
+    },
+    {
+      "label": "启用服务",
+      "label_bounds": {
+        "x": 395,
+        "y": 364.375,
+        "width": 272,
+        "height": 36,
+        "right": 667,
+        "bottom": 400.375
+      },
+      "control_bounds": {
+        "x": 679,
+        "y": 364.375,
+        "width": 111,
+        "height": 82,
+        "right": 790,
+        "bottom": 446.375
+      },
+      "label_overflow": false,
+      "first_column": true,
+      "in_section": false,
+      "grid_columns": "272px 111px"
+    },
+    {
+      "label": "Gate 启动时自动启动",
+      "label_bounds": {
+        "x": 806,
+        "y": 364.375,
+        "width": 272,
+        "height": 36,
+        "right": 1078,
+        "bottom": 400.375
+      },
+      "control_bounds": {
+        "x": 1090,
+        "y": 364.375,
+        "width": 111,
+        "height": 114,
+        "right": 1201,
+        "bottom": 478.375
+      },
+      "label_overflow": false,
+      "first_column": false,
+      "in_section": false,
+      "grid_columns": "272px 111px"
+    },
+    {
+      "label": "MCP 地址",
+      "label_bounds": {
+        "x": 395,
+        "y": 494.375,
+        "width": 272,
+        "height": 36,
+        "right": 667,
+        "bottom": 530.375
+      },
+      "control_bounds": {
+        "x": 679,
+        "y": 494.375,
+        "width": 522,
+        "height": 54,
+        "right": 1201,
+        "bottom": 548.375
+      },
+      "label_overflow": false,
+      "first_column": true,
+      "in_section": false,
+      "grid_columns": "272px 522px"
+    },
+    {
+      "label": "超时秒数",
+      "label_bounds": {
+        "x": 395,
+        "y": 564.375,
+        "width": 272,
+        "height": 36,
+        "right": 667,
+        "bottom": 600.375
+      },
+      "control_bounds": {
+        "x": 679,
+        "y": 564.375,
+        "width": 522,
+        "height": 36,
+        "right": 1201,
+        "bottom": 600.375
+      },
+      "label_overflow": false,
+      "first_column": true,
+      "in_section": false,
+      "grid_columns": "272px 522px"
+    },
+    {
+      "label": "HTTP 请求头",
+      "label_bounds": {
+        "x": 395,
+        "y": 616.375,
+        "width": 272,
+        "height": 36,
+        "right": 667,
+        "bottom": 652.375
+      },
+      "control_bounds": {
+        "x": 679,
+        "y": 616.375,
+        "width": 522,
+        "height": 36,
+        "right": 1201,
+        "bottom": 652.375
+      },
+      "label_overflow": false,
+      "first_column": true,
+      "in_section": false,
+      "grid_columns": "272px 522px"
+    }
+  ],
+  "horizontal_overflow": false
+}
