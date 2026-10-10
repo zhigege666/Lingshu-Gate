@@ -45,6 +45,7 @@ export function ConfigsPage(props: {
   const [editorPending, setEditorPending] = useState(false)
   const [editorDraftDirty, setEditorDraftDirty] = useState(false)
   const [footerContainer, setFooterContainer] = useState<HTMLDivElement | null>(null)
+  const editorReturnFocus = useRef<HTMLElement | null>(null)
   const session = useRef({ open: false, initialText: configText })
   if (editorOpen && !session.current.open) session.current.initialText = configText
   session.current.open = editorOpen
@@ -70,10 +71,12 @@ export function ConfigsPage(props: {
   const paging = useListPage(filteredConfigs, query)
 
   function handleCreateNew() {
+    editorReturnFocus.current = document.activeElement instanceof HTMLElement ? document.activeElement : null
     onNewConfig()
   }
 
   function handleEdit(config: McpConfig) {
+    editorReturnFocus.current = document.activeElement instanceof HTMLElement ? document.activeElement : null
     onEditConfig(config)
   }
 
@@ -204,6 +207,12 @@ export function ConfigsPage(props: {
         title={selectedConfigId ? `${t("edit")} · ${selectedConfigId}` : (zh ? "新建 MCP 配置" : "New MCP config")}
         closeLabel={zh ? "关闭编辑器" : "Close editor"}
         onClose={() => void closeEditor()}
+        onCloseAutoFocus={event => {
+          if (editorReturnFocus.current?.isConnected) {
+            event.preventDefault()
+            editorReturnFocus.current.focus()
+          }
+        }}
         pending={busy || editorPending}
         className="manifest-dialog"
         footer={<div ref={setFooterContainer} className="w-full" />}

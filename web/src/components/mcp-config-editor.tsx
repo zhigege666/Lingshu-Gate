@@ -393,7 +393,12 @@ export function McpConfigEditor({ locale, selectedConfigId, value, onChange, onS
     const pointer = `/${path.join("/")}`
     const id = fieldId(pointer)
     if (current !== undefined && typeof current !== "boolean") return <Field id={id} label={label}>{unsupported(label)}</Field>
-    return <Field id={id} label={label} desc={desc} error={fieldError(pointer)}><Switch className="manifest-switch" id={id} data-manifest-path={pointer} checked={typeof current === "boolean" ? current : fallback} disabled={locked} aria-invalid={Boolean(fieldError(pointer))} onCheckedChange={(checked) => { touch(pointer); if (pointer === "/auto_start" && manifest) write(changeStartupPolicy(manifest, checked)); else set(path, checked) }} /></Field>
+    return <Field id={id} label={label} error={fieldError(pointer)}>
+      <div className="manifest-switch-group">
+        <Switch className="manifest-switch" id={id} data-manifest-path={pointer} checked={typeof current === "boolean" ? current : fallback} disabled={locked} aria-invalid={Boolean(fieldError(pointer))} aria-describedby={desc ? `${id}-help` : undefined} onCheckedChange={(checked) => { touch(pointer); if (pointer === "/auto_start" && manifest) write(changeStartupPolicy(manifest, checked)); else set(path, checked) }} />
+        {desc && <p id={`${id}-help`} className="text-xs text-muted-foreground">{desc}</p>}
+      </div>
+    </Field>
   }
   function mapField(path: string[], label: string, current: unknown, withCredentials = false) {
     const id = fieldId(`/${path.join("/")}`)
@@ -462,7 +467,7 @@ export function McpConfigEditor({ locale, selectedConfigId, value, onChange, onS
     {saveBlocked && <p id={fieldId("save-block-reason")} className="text-xs text-destructive">{c("saveBlocked")}</p>}
   </div>
 
-  return <div ref={root} className={`manifest-editor manifest-editor-${activeTab}`}>
+  return <div ref={root} lang={locale} className={`manifest-editor manifest-editor-${activeTab}`}>
     <div className="manifest-editor-toolbar">
       <div role="group" aria-label={zh ? "编辑模式" : "Editor mode"} className="flex gap-1">
         <Button type="button" size="sm" variant={activeTab === "form" ? "secondary" : "ghost"} aria-pressed={activeTab === "form"} disabled={locked || !manifest} onClick={() => setActiveTab("form")}>{zh ? "表单" : "Form"}</Button>
