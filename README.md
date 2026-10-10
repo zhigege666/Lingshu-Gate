@@ -6,13 +6,50 @@ A self-hosted MCP gateway and control plane with explicit identity, tool-access,
 
 Use Gate to manage multiple MCP servers, give remote MCP clients controlled tool access, and deliver projects on trusted native hosts. One MCP Gateway, Web Console and control API connect service operations with user governance.
 
-**0.4.7 source: large MCP group-directory reads reuse immutable contracts when a concurrent configuration change requires a snapshot retry, while current permissions remain authoritative. The Console opens at `/`, with compatible old `/console` links and JSON service discovery. This version also carries the integrated groups, instance sessions, on-demand tools, OAuth editor, account-menu and packaging improvements. Built-in OAuth and its separate management resource remain opt-in.**
+> [!NOTE]
+> **0.4.7 Release status and boundary notice**
+>
+> - **Catalog resilience & groups**: Large MCP group-directory reads reuse immutable contracts when a concurrent configuration change requires a snapshot retry, while current permissions remain authoritative. Logical groups reference existing instances without copying credentials or granting access.
+> - **Console & discovery**: The Web Console opens at `/`, with compatible legacy `/console` links and JSON service discovery. Sign-in and Console show the running backend version from `/healthz`.
+> - **On-demand tool discovery**: The [on-demand directory](docs/on-demand-tools.md) exposes six bounded discovery/session entries when the client explicitly selects `/mcp?tool_mode=on_demand`; invocation rechecks real tool and instance authority.
+> - **OAuth administration**: Built-in OAuth and the separate `/mcp/manage` resource remain opt-in and default-off. Private OAuth selection uses bounded pages, preserves drafts, and reconciles unknown write outcomes before a new confirmation.
+> - **Native executor boundary**: The optional Native/Linux rootless Podman executor defaults to disabled and requires separately reviewed host provisioning/readiness. Its Git/proxy/tool preparation and supported offline install/build paths have synthetic regression evidence; real Podman host, ChatGPT OAuth client and multi-machine acceptance remain incomplete. Core remains gateway-only.
+>
+> See the [release summary](packaging/release-notes.md) and [0.4.7 validation record](docs/release-validation-0.4.7.md).
 
-Groups reference existing instances without copying credentials or granting access. The [on-demand directory](docs/on-demand-tools.md) exposes six bounded discovery/session entries when the client explicitly selects `/mcp?tool_mode=on_demand`; invocation rechecks real tool and instance authority. Private OAuth selection uses bounded pages, preserves drafts and reconciles unknown write outcomes before a new confirmation. See the [release summary](packaging/release-notes.md) and [0.4.7 validation record](docs/release-validation-0.4.7.md).
+## Architecture overview
 
-The separate, default-off `/mcp/manage` resource retains explicit client resources, scopes, consented tools and exact create/update targets. Live owner-confirmed tool changes stay within existing token/family scope ceilings; client tool-cache refresh is a separate operation. Sign-in and Console show the running backend version from `/healthz`.
+```mermaid
+flowchart TB
+    subgraph Clients["Clients & Tools"]
+        AI["AI Coding Agents / LLM Clients"]
+        Console["Operator Web Console (/)"]
+    end
 
-The optional Native/Linux rootless Podman executor defaults to disabled and requires separately reviewed host provisioning/readiness. Its Git/proxy/tool preparation and supported offline install/build paths have synthetic regression evidence; real Podman host, ChatGPT OAuth client and multi-machine acceptance remain incomplete. Core remains gateway-only. Source/fixture checks and local candidate packages do not establish formal publication or those external integrations.
+    subgraph Gate["Lingshu Gate (Control Plane & Gateway)"]
+        Gateway["MCP Gateway (/mcp)<br/>Full Catalog | On-Demand Discovery"]
+        Auth["Authentication & RBAC"]
+        Gov["Tool Governance & Classification Review"]
+        Delivery["Project Delivery & Build Engine"]
+        Audit["Audit, Retention & Content Recording"]
+    end
+
+    subgraph Downstream["Downstream MCP Servers"]
+        Stdio["Local stdio Processes"]
+        HTTP["Streamable HTTP Servers"]
+        Container["Managed Container Services"]
+    end
+
+    AI --> Gateway
+    Console --> Auth
+    Console --> Delivery
+    Gateway --> Auth
+    Gateway --> Gov
+    Gateway --> Audit
+    Gateway --> Stdio
+    Gateway --> HTTP
+    Gateway --> Container
+```
 
 ## Features
 
@@ -21,6 +58,8 @@ The optional Native/Linux rootless Podman executor defaults to disabled and requ
 | Feature | Capability and boundary | Guide |
 |---|---|---|
 | MCP gateway and transports | One authenticated Model Context Protocol endpoint; stateless JSON `/mcp`, remote MCP over Streamable HTTP, native stdio, explicit versions and bounded legacy negotiation. Tool aggregation, not generic resource/prompt hosting. | [Guide](docs/mcp-gateway.md) |
+| MCP groups and instance sessions | Logical groups reference existing instances without copying credentials or granting access; contract partitions and connection-bound sessions. | [Guide](docs/mcp-groups.md) |
+| On-demand tool discovery | Exposes six bounded discovery and session entries when selecting `/mcp?tool_mode=on_demand`, preventing schema flooding in AI clients; invocation rechecks authority. | [Guide](docs/on-demand-tools.md) |
 | Accounts and RBAC | Local sign-in, registration review, custom roles and permission types, service/tool grants, expiry, scoped personal API tokens and user status controls. | [Guide](docs/configuration.md) |
 | Tool governance | Discovery → rule analysis → human review → publication; read/write and destructive/idempotent classifications, fingerprint checks, batch review and stale-definition reconciliation. Discovery never grants access. | [Guide](docs/mcp-gateway.md) |
 | Built-in OAuth and remote access | Opt-in authorization-code flow for OAuth 2.1 / PKCE clients: confidential static clients, S256, per-user tool consent, encrypted RS256 signing keys, refresh rotation and revocation. Independent public consent UI; no DCR/CIMD or full-conformance claim. | [Guide](docs/builtin-oauth.md) |
@@ -134,8 +173,6 @@ uv run lingshu-gate
 
 Gate listens on `127.0.0.1:8000` by default. Browsers open the Web Console at `/`, OpenAPI documentation at `/docs`, and readiness probe at `/readyz`. Service information is always JSON at `/v1/meta`; `/` also retains JSON for default curl/programmatic requests and explicit acceptable `application/json`. Old `/console` bookmarks redirect to `/` with their query and hash navigation preserved. The independent OAuth entry remains `/oauth/consent`.
 
-The **Roles & Permission Types** Console page separates roles and resource permission types into tabs. Search and source/status/level filters keep the lists compact; row actions stay visible and a detail panel shows the full permission set. Copy creates a new custom item with a new code. System-item restrictions and assigned-role/referenced-type deletion checks remain enforced by the API.
-
 ## First server
 
 Create a vendor-neutral manifest in the configured `mcp.d` directory or use the Console. An external Streamable HTTP server looks like this:
@@ -216,6 +253,8 @@ Native archives bundle Gate, not every project runtime. Downstream launch and bu
 ## Documentation
 
 - [MCP gateway, protocols, tool grants and file references](docs/mcp-gateway.md)
+- [MCP groups and routing contracts](docs/mcp-groups.md)
+- [On-demand tools discovery](docs/on-demand-tools.md)
 - [Accounts, configuration, credentials and runtime policy](docs/configuration.md)
 - [Built-in OAuth administration and consent](docs/builtin-oauth.md)
 - [External identity and remote network access](docs/external-connections.md)
@@ -223,6 +262,7 @@ Native archives bundle Gate, not every project runtime. Downstream launch and bu
 - [Console delivery, private drafts and rollback](docs/console-delivery.md)
 - [Git plans, network profiles and dependency sources](docs/git-import-network.md)
 - [Git executor implementation and rollout decision](docs/git-executor-decision.md)
+- [Native isolated executor](docs/native-executor.md)
 - [Service operations, debugging, audit and diagnostics](docs/operations.md)
 - [Invocation input/output recording](docs/invocation-recording.md)
 - [Retention policy and confirmed cleanup](docs/retention.md)
@@ -234,6 +274,7 @@ Native archives bundle Gate, not every project runtime. Downstream launch and bu
 - [Bounded performance measurement](docs/performance-review.md)
 - [UI and accessibility acceptance contract](docs/ui-interaction-contract.md)
 - [0.4.0 validation and screenshot provenance](docs/release-validation.md)
+- [0.4.7 release candidate validation](docs/release-validation-0.4.7.md)
 
 ## License
 
