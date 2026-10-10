@@ -6,9 +6,9 @@
 
 适用于集中管理多个 MCP 服务、向远程 MCP 客户端提供受控工具访问，以及在可信原生主机上交付项目。通过一个 MCP Gateway、Web Console 和控制 API 管理服务与用户。
 
-**0.4.6 源码：Console 从 `/` 打开，保留旧 `/console` 链接和 JSON 服务发现。本版整合显式 MCP 分组、连接绑定实例会话、每客户端按需工具、OAuth 目录/编辑体验、账户菜单恢复、分类变化原因及经验证的打包修复。内置 OAuth 和独立管理资源仍须明确启用。**
+**0.4.7 源码：大型 MCP 分组目录因并发配置变更重试快照时，复用不可变合同结构，同时继续以当前权限为准。Console 从 `/` 打开，保留旧 `/console` 链接和 JSON 服务发现。本版也包含已整合的分组、实例会话、按需工具、OAuth 编辑、账户菜单及打包改进。内置 OAuth 和独立管理资源仍须明确启用。**
 
-分组引用已有实例，不复制凭据、不自动授权。[按需目录](docs/zh-CN/on-demand-tools.md) 在客户端明确选择 `/mcp?tool_mode=on_demand` 时提供六个有界发现/会话入口；调用复核实际工具和实例权限。私有 OAuth 选择使用有界分页、保留草稿，并在再次确认前核对写入结果未知的现场。见[发行摘要](packaging/release-notes.md)与[0.4.6 验证记录](docs/zh-CN/release-validation-0.4.6.md)。
+分组引用已有实例，不复制凭据、不自动授权。[按需目录](docs/zh-CN/on-demand-tools.md) 在客户端明确选择 `/mcp?tool_mode=on_demand` 时提供六个有界发现/会话入口；调用复核实际工具和实例权限。私有 OAuth 选择使用有界分页、保留草稿，并在再次确认前核对写入结果未知的现场。见[发行摘要](packaging/release-notes.md)与[0.4.7 验证记录](docs/zh-CN/release-validation-0.4.7.md)。
 
 独立且默认关闭的 `/mcp/manage` 继续要求明确客户端资源、scope、已同意工具及精确创建/更新目标。本人确认的 live 工具变更保留既有 token/令牌族 scope 上限；客户端工具缓存刷新是独立操作。登录页与 Console 从 `/healthz` 显示运行中的后端版本。
 
@@ -16,7 +16,7 @@
 
 ## 现有功能
 
-[集成验证](docs/zh-CN/on-demand-integration-validation.md) 保留先前准确源码检查点、50,000 工具合成测量、native worker 证据及未测试边界。0.4.6 记录将新候选检查和包与历史结果分别记录。
+[集成验证](docs/zh-CN/on-demand-integration-validation.md) 保留先前准确源码检查点、50,000 工具合成测量、native worker 证据及未测试边界。0.4.7 记录将当前重试检查、新包候选与历史结果分别记录。
 
 | 功能 | 能力与边界 | 指南 |
 |---|---|---|

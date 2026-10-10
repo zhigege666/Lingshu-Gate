@@ -4,7 +4,7 @@
 
 Lingshu Gate release automation produces directly runnable native packages, a Docker Compose deployment bundle, and tagged-release offline Core images. Every published asset is covered by `SHA256SUMS` and a repository build-provenance attestation.
 
-The current source version is `0.4.5`. This candidate integrates the root Console, grouped instances, bounded on-demand tools, OAuth catalog/editor improvements and clean packaging. Runtime reporting, Python metadata, CLI and archive names use `src/lingshu_gate/_version.py`; the Console reads the running backend version. See the [0.4.5 validation and release gates](release-validation-0.4.5.md). Historical records below keep their original versions.
+The current source version is `0.4.7`. This patch reuses immutable contracts across large group-directory snapshot retries while preserving fresh authority checks, and carries the integrated root Console, grouped instances, on-demand tools, OAuth editor and clean packaging. Runtime reporting, Python metadata, CLI and archive names use `src/lingshu_gate/_version.py`; the Console reads the running backend version. See the [0.4.7 validation and release gates](release-validation-0.4.7.md). Occupied v0.4.5/v0.4.6 tags and the historical records below retain their original identities.
 
 The source Console also includes the card-based tool catalog with deployment-specific MCP filtering, effective access badges, and direct selection in the invocation editor. Tool discovery adds the request-local `metadata.gate_access` display snapshot described in [operations](operations.md#tool-catalog). This change adds no frontend dependency or database migration.
 

@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.4.7
+
+- Reuse request-held immutable tool contracts when a configuration writer invalidates a group-directory snapshot. Bind reuse to publication revision and frozen identity; reject known-stale inputs before policy projection and comparison.
+- Recheck current token scopes, grants, classifications and group/configuration/Registry versions. Retain bounded inputs, shared cache limits, the three-attempt limit and the real 5,000-instance/50,000-tool concurrent regression with its original 20-second reader budget.
+- Carry the integrated root Console, groups/instance sessions, on-demand directory, OAuth editor, account-menu and fresh packaging changes forward under a new patch identity. Keep the occupied v0.4.5/v0.4.6 tags immutable.
+- Local evidence demonstrates avoidable retry work; it does not establish the unique cause of the earlier hosted timeout or a production latency/RSS guarantee. Formal publication retains the complete quality, native, Compose/Core, checksum, SBOM and provenance gates.
+- See the paired [0.4.7 validation record](docs/release-validation-0.4.7.md) for exact-source checks, fresh candidates and publication boundaries.
+
 ## 0.4.6
 
 - Prevent a cached, closed account menu from reclaiming keyboard focus during a queued animation frame; keep controlled closing and focus recovery for the current menu.
