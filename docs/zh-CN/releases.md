@@ -4,7 +4,7 @@
 
 Lingshu Gate 发行自动化会生成可直接运行的原生包、Docker Compose 部署包，以及只在 Tag 发行提供的 Core 离线镜像。每个已发布资产都由 `SHA256SUMS` 和仓库 Build Provenance Attestation 覆盖。
 
-当前源码版本为 `0.4.5`。本候选整合根路径 Console、分组实例、有界按需工具、OAuth 目录/编辑改进及干净打包。运行时、Python 元数据、CLI 和归档名称使用 `src/lingshu_gate/_version.py`，Console 读取运行中的后端版本。见 [0.4.5 验证与发行门禁](release-validation-0.4.5.md)；下方历史记录保留原版本。
+当前源码版本为 `0.4.7`。本 patch 在大型分组目录快照重试中复用不可变合同，保留当前权限复核，并继续包含已整合的根路径 Console、分组实例、按需工具、OAuth 编辑及干净打包。运行时、Python 元数据、CLI 和归档名称使用 `src/lingshu_gate/_version.py`，Console 读取运行中的后端版本。见 [0.4.7 验证与发行门禁](release-validation-0.4.7.md)；已占用的 v0.4.5/v0.4.6 标签和下方历史记录保留原身份。
 
 当前源码控制台还包含卡片式工具目录，支持按具体 MCP 部署筛选、展示实际读写要求，并将选中工具带入调用编辑器。工具发现新增当前请求的 `metadata.gate_access` 展示快照，详见[运维指南](operations.md#工具目录)。该变更不新增前端依赖或数据库迁移。
 

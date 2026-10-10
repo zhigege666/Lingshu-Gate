@@ -6,9 +6,9 @@ A self-hosted MCP gateway and control plane with explicit identity, tool-access,
 
 Use Gate to manage multiple MCP servers, give remote MCP clients controlled tool access, and deliver projects on trusted native hosts. One MCP Gateway, Web Console and control API connect service operations with user governance.
 
-**0.4.6 source: the Console opens at `/`, with compatible old `/console` links and JSON service discovery. This version consolidates explicit MCP groups, connection-bound instance sessions, per-client on-demand tools, OAuth catalog/editor improvements, account-menu recovery, classification change explanations and verified packaging fixes. Built-in OAuth and its separate management resource remain opt-in.**
+**0.4.7 source: large MCP group-directory reads reuse immutable contracts when a concurrent configuration change requires a snapshot retry, while current permissions remain authoritative. The Console opens at `/`, with compatible old `/console` links and JSON service discovery. This version also carries the integrated groups, instance sessions, on-demand tools, OAuth editor, account-menu and packaging improvements. Built-in OAuth and its separate management resource remain opt-in.**
 
-Groups reference existing instances without copying credentials or granting access. The [on-demand directory](docs/on-demand-tools.md) exposes six bounded discovery/session entries when the client explicitly selects `/mcp?tool_mode=on_demand`; invocation rechecks real tool and instance authority. Private OAuth selection uses bounded pages, preserves drafts and reconciles unknown write outcomes before a new confirmation. See the [release summary](packaging/release-notes.md) and [0.4.6 validation record](docs/release-validation-0.4.6.md).
+Groups reference existing instances without copying credentials or granting access. The [on-demand directory](docs/on-demand-tools.md) exposes six bounded discovery/session entries when the client explicitly selects `/mcp?tool_mode=on_demand`; invocation rechecks real tool and instance authority. Private OAuth selection uses bounded pages, preserves drafts and reconciles unknown write outcomes before a new confirmation. See the [release summary](packaging/release-notes.md) and [0.4.7 validation record](docs/release-validation-0.4.7.md).
 
 The separate, default-off `/mcp/manage` resource retains explicit client resources, scopes, consented tools and exact create/update targets. Live owner-confirmed tool changes stay within existing token/family scope ceilings; client tool-cache refresh is a separate operation. Sign-in and Console show the running backend version from `/healthz`.
 
@@ -16,7 +16,7 @@ The optional Native/Linux rootless Podman executor defaults to disabled and requ
 
 ## Features
 
-[Integration validation](docs/on-demand-integration-validation.md) records earlier exact source checkpoints, synthetic 50,000-tool measurements, native worker evidence and untested boundaries. The 0.4.6 record keeps new candidate checks and packages separate from those historical results.
+[Integration validation](docs/on-demand-integration-validation.md) records earlier exact source checkpoints, synthetic 50,000-tool measurements, native worker evidence and untested boundaries. The 0.4.7 record keeps current retry checks and fresh package candidates separate from those historical results.
 
 | Feature | Capability and boundary | Guide |
 |---|---|---|
