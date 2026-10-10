@@ -6,13 +6,50 @@
 
 适用于集中管理多个 MCP 服务、向远程 MCP 客户端提供受控工具访问，以及在可信原生主机上交付项目。通过一个 MCP Gateway、Web Console 和控制 API 管理服务与用户。
 
-**0.4.7 源码：大型 MCP 分组目录因并发配置变更重试快照时，复用不可变合同结构，同时继续以当前权限为准。Console 从 `/` 打开，保留旧 `/console` 链接和 JSON 服务发现。本版也包含已整合的分组、实例会话、按需工具、OAuth 编辑、账户菜单及打包改进。内置 OAuth 和独立管理资源仍须明确启用。**
+> [!NOTE]
+> **0.4.7 版本状态与边界声明**
+>
+> - **目录韧性与分组**：大型 MCP 分组目录因并发配置变更重试快照时，复用不可变合同结构，同时继续以当前权限为准。逻辑分组引用已有实例，不复制凭据且不自动授权。
+> - **Console 与发现**：Web Console 从 `/` 打开，保留旧 `/console` 链接兼容跳转与 JSON 服务发现。登录页与 Console 从 `/healthz` 显示运行中的后端版本。
+> - **按需工具发现**：[按需目录](docs/zh-CN/on-demand-tools.md) 在客户端显式选择 `/mcp?tool_mode=on_demand` 时提供六个有界发现/会话入口；工具调用时严格复核实际工具和实例权限。
+> - **OAuth 治理**：内置 OAuth 与独立的 `/mcp/manage` 资源默认关闭且须显式启用。私有 OAuth 选择使用有界分页、保留草稿，并在再次确认前核对写入结果未知的现场。
+> - **Native 执行器边界**：可选 Native/Linux rootless Podman 执行器默认关闭，宿主准备/readiness 需要单独审核。离线安装/构建路径已有合成回归证据，真实 Podman 宿主和多机器验收仍未完成。Core 仍仅为 gateway。
+>
+> 详见[发行摘要](packaging/release-notes.md)与[0.4.7 验证记录](docs/zh-CN/release-validation-0.4.7.md)。
 
-分组引用已有实例，不复制凭据、不自动授权。[按需目录](docs/zh-CN/on-demand-tools.md) 在客户端明确选择 `/mcp?tool_mode=on_demand` 时提供六个有界发现/会话入口；调用复核实际工具和实例权限。私有 OAuth 选择使用有界分页、保留草稿，并在再次确认前核对写入结果未知的现场。见[发行摘要](packaging/release-notes.md)与[0.4.7 验证记录](docs/zh-CN/release-validation-0.4.7.md)。
+## 架构总览
 
-独立且默认关闭的 `/mcp/manage` 继续要求明确客户端资源、scope、已同意工具及精确创建/更新目标。本人确认的 live 工具变更保留既有 token/令牌族 scope 上限；客户端工具缓存刷新是独立操作。登录页与 Console 从 `/healthz` 显示运行中的后端版本。
+```mermaid
+flowchart TB
+    subgraph Clients["客户端与控制端"]
+        AI["AI Agent / 编程助手"]
+        Console["管理员 Web Console (/)"]
+    end
 
-可选 Native/Linux rootless Podman 执行器默认关闭，宿主准备/readiness 需要单独审核。Git/代理/固定工具准备及受支持离线安装/构建路径已有合成回归证据；真实 Podman 宿主、ChatGPT OAuth 客户端和多机器验收仍未完成。Core 仍仅为 gateway。源码/fixture 检查和本地候选包不代表正式发布或上述外部联调完成。
+    subgraph Gate["Lingshu Gate (网关与控制面)"]
+        Gateway["MCP 网关 (/mcp)<br/>完整目录 | 按需发现模式"]
+        Auth["认证与 RBAC 权限"]
+        Governance["工具治理与分类审核"]
+        Delivery["项目交付与构建引擎"]
+        Audit["审计、保留策略与内容记录"]
+    end
+
+    subgraph Downstream["下游 MCP 服务"]
+        Stdio["本机 stdio 进程"]
+        HTTP["Streamable HTTP 服务"]
+        Container["受管容器服务"]
+    end
+
+    AI --> Gateway
+    Console --> Auth
+    Console --> Delivery
+    Gateway --> Auth
+    Gateway --> Governance
+    Gateway --> Audit
+    Gateway --> Stdio
+    Gateway --> HTTP
+    Gateway --> Container
+```
 
 ## 现有功能
 
@@ -21,6 +58,8 @@
 | 功能 | 能力与边界 | 指南 |
 |---|---|---|
 | MCP 聚合网关与传输 | 统一认证的 Model Context Protocol 入口；无状态 JSON `/mcp`、Streamable HTTP 远程 MCP、原生 stdio、明确版本与有界旧协议协商。聚合工具，不提供通用 resource/prompt 托管。 | [指南](docs/zh-CN/mcp-gateway.md) |
+| MCP 分组与实例会话 | 逻辑分组引用已有实例，不复制凭据且不自动授权；合同分区与连接绑定的实例会话。 | [指南](docs/zh-CN/mcp-groups.md) |
+| 按需工具发现 | 客户端显式指定 `/mcp?tool_mode=on_demand` 时暴露 6 个有界发现与会话入口，避免全量 Schema 淹没上下文；调用时严格复核实际权限。 | [指南](docs/zh-CN/on-demand-tools.md) |
 | 用户与 RBAC | 本地登录、注册审核、自定义角色和权限类型、服务/工具授权与到期、限定范围的个人 API 令牌及用户状态管理。 | [指南](docs/zh-CN/configuration.md) |
 | 工具权限治理 | 发现 → 规则分析 → 人工审核 → 发布；读写、破坏性与幂等分类、指纹检查、批量审核和过期定义对账。发现不授予权限。 | [指南](docs/zh-CN/mcp-gateway.md) |
 | 内置 OAuth 与远程访问 | 明确启用的授权码流程，面向 OAuth 2.1 / PKCE 客户端：机密静态客户端、S256、每用户工具同意、加密 RS256 签名密钥、刷新轮换与撤销。独立公网同意页；不支持 DCR/CIMD，不宣称全面规范合规。 | [指南](docs/zh-CN/builtin-oauth.md) |
@@ -134,8 +173,6 @@ uv run lingshu-gate
 
 Gate 默认监听 `127.0.0.1:8000`。浏览器在 `/` 打开 Web Console，OpenAPI 文档位于 `/docs`，就绪探针位于 `/readyz`。`/v1/meta` 始终提供 JSON 服务信息；默认 curl/程序请求及显式可接受 `application/json` 的 `/` 请求仍得到 JSON。旧 `/console` 书签跳转到 `/`，保留 query 与 hash 导航。独立 OAuth 入口仍为 `/oauth/consent`。
 
-Console 的 **角色与权限类型** 页面通过页签区分角色和资源权限类型，支持名称/代码搜索、来源/状态/基础级别筛选、平铺行内操作和完整权限详情。复制会创建需要新代码的自定义项；系统项限制、已有成员角色及被授权引用类型的删除校验仍由 API 执行。
-
 ## 第一个服务
 
 在配置的 `mcp.d` 目录中创建通用 Manifest，或使用 Console：
@@ -216,6 +253,8 @@ Tag 发行还提供 `amd64` 和 `arm64` 的 Linux Core 离线镜像，以及应�
 ## 文档
 
 - [MCP 网关、协议、工具权限与文件引用](docs/zh-CN/mcp-gateway.md)
+- [MCP 分组与路由适配](docs/zh-CN/mcp-groups.md)
+- [按需工具发现模式](docs/zh-CN/on-demand-tools.md)
 - [用户、配置、凭据与运行策略](docs/zh-CN/configuration.md)
 - [内置 OAuth 管理与同意](docs/zh-CN/builtin-oauth.md)
 - [外部身份与远程网络接入](docs/zh-CN/external-connections.md)
@@ -223,6 +262,7 @@ Tag 发行还提供 `amd64` 和 `arm64` 的 Linux Core 离线镜像，以及应�
 - [Console 交付、私有草稿与回滚](docs/zh-CN/console-delivery.md)
 - [Git 计划、网络配置与依赖源](docs/zh-CN/git-import-network.md)
 - [Git 执行器实现与上线决策](docs/zh-CN/git-executor-decision.md)
+- [Native 隔离执行器](docs/zh-CN/native-executor.md)
 - [服务运维、调试、审计与诊断](docs/zh-CN/operations.md)
 - [调用入出参记录](docs/zh-CN/invocation-recording.md)
 - [保留策略与确认清理](docs/zh-CN/retention.md)
@@ -234,6 +274,7 @@ Tag 发行还提供 `amd64` 和 `arm64` 的 Linux Core 离线镜像，以及应�
 - [有界性能测量](docs/zh-CN/performance-review.md)
 - [UI 与可访问性验收约定](docs/zh-CN/ui-interaction-contract.md)
 - [0.4.0 验证与截图来源](docs/zh-CN/release-validation.md)
+- [0.4.7 验证与发行门禁](docs/zh-CN/release-validation-0.4.7.md)
 
 ## 开源协议
 
