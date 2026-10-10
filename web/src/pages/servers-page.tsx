@@ -264,7 +264,7 @@ export function ServersPage(props: Props) {
           </div> },
           { key: "configuration", label: c.configuration, children: <div className="service-panel-stack">
             <SectionContent state={states.configuration} c={c} onRetry={() => void load("configuration", true)}>{data => <>
-              <div className="service-panel-toolbar"><h2 className="service-section-title"><CodeOutlined aria-hidden="true" />{c.manifest}</h2><Button type="primary" disabled={!data.manifest} onClick={() => setConfigSession({ server, manifest: data.manifest || {}, configDigest: data.config_digest })}>{locale === "zh-CN" ? "修改配置" : "Edit configuration"}</Button></div>
+              <div className="service-panel-toolbar"><h2 className="service-section-title"><CodeOutlined aria-hidden="true" />{c.manifest}</h2><Button type="primary" data-service-config-trigger disabled={!data.manifest} onClick={() => setConfigSession({ server, manifest: data.manifest || {}, configDigest: data.config_digest })}>{locale === "zh-CN" ? "修改配置" : "Edit configuration"}</Button></div>
               <dl className="service-facts">
                 <dt>{c.desired}</dt><dd>{server.desired_state === "running" ? c.keepRunning : server.desired_state === "stopped" ? c.keepStopped : "-"}</dd>
                 <dt>{c.lastStarted}</dt><dd>{formatDateTime(server.last_started_at)}</dd>
@@ -282,7 +282,11 @@ export function ServersPage(props: Props) {
     </section>
     </>}
 
-    {configSession && <ServiceConfigDrawer server={configSession.server} manifest={configSession.manifest} configDigest={configSession.configDigest} canManageHttpTrust={props.canManageHttpTrust} locale={locale} t={t} onClose={() => setConfigSession(null)} onSaved={async () => { await props.onRefresh(); await load("configuration", true); await load("overview", true) }} />}
+    {configSession && <ServiceConfigDrawer server={configSession.server} manifest={configSession.manifest} configDigest={configSession.configDigest} canManageHttpTrust={props.canManageHttpTrust} locale={locale} t={t} onClose={() => setConfigSession(null)} onSaved={async () => { await props.onRefresh(); await load("configuration", true); await load("overview", true) }} returnFocusFallback={() => {
+      const trigger = workspace.current?.querySelector<HTMLElement>("[data-service-config-trigger]")
+      const target = trigger && !trigger.matches(":disabled") && trigger.getClientRects().length > 0 ? trigger : workspace.current?.querySelector<HTMLElement>('.service-entry[data-active="true"]')
+      target?.focus()
+    }} />}
     <Drawer className="service-tool-drawer" title={selectedTool?.name || c.toolDetails} size={560} open={selectedTool !== null} onClose={() => setSelectedTool(null)} destroyOnHidden>
       {selectedTool && <div className="service-panel-stack">
         {props.onInvoke && props.visibleTools?.filter(tool => tool.source === "mcp" && asRecord(tool.metadata).server_id === server?.id && (tool.id === selectedTool.raw.id || tool.name === selectedTool.name)).map(tool => <Button key={tool.id} type="primary" onClick={() => props.onInvoke?.(tool.id)}>{locale === "zh-CN" ? "测试工具" : "Test tool"}</Button>)}

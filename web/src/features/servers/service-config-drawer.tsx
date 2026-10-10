@@ -1,4 +1,4 @@
-import { useRef, useState } from "react"
+import { useEffect, useRef, useState } from "react"
 import { Radio } from "antd"
 import { api, type McpServer } from "@/api/client"
 import { McpConfigEditor } from "@/components/mcp-config-editor"
@@ -9,10 +9,11 @@ import { configurationResultError } from "./configuration-result"
 import type { Locale, TFunction } from "@/i18n"
 
 /** Service-owned edit session. Snapshot is never replaced by background refresh. */
-export function ServiceConfigDrawer({ server, manifest, configDigest, canManageHttpTrust = false, locale, t, onClose, onSaved }: {
+export function ServiceConfigDrawer({ server, manifest, configDigest, canManageHttpTrust = false, locale, t, onClose, onSaved, returnFocusFallback }: {
   server: McpServer; manifest: Record<string, unknown>; locale: Locale; t: TFunction
   configDigest?: string; canManageHttpTrust?: boolean
   onClose: () => void; onSaved: () => Promise<void>
+  returnFocusFallback?: () => void
 }) {
   const zh = locale === "zh-CN"
   const [initial] = useState(() => JSON.stringify(manifest, null, 2))
@@ -22,8 +23,15 @@ export function ServiceConfigDrawer({ server, manifest, configDigest, canManageH
   const [apply, setApply] = useState(false)
   const [footer, setFooter] = useState<HTMLDivElement | null>(null)
   const [returnFocus] = useState(() => document.activeElement instanceof HTMLElement ? document.activeElement : null)
+  const saveReturnFocus = useRef<HTMLElement | null>(null)
+  useEffect(() => {
+    // Footer controls are portaled; remember native focus before precheck disables them.
+    const rememberFocus = (event: FocusEvent) => { if (event.target instanceof HTMLElement) saveReturnFocus.current = event.target }
+    footer?.addEventListener("focusin", rememberFocus)
+    return () => footer?.removeEventListener("focusin", rememberFocus)
+  }, [footer])
   const saving = useRef(false)
-  const { confirm, confirmDialog } = useConfirm(t)
+  const { confirm, confirmDialog } = useConfirm(t, true)
   const dirty = entryDirty || value !== initial
   const close = useDraftCloseGuard({ dirty, pending, locale, confirm, onClose })
   const action = apply ? server.launch_type === "external"
@@ -38,6 +46,7 @@ export function ServiceConfigDrawer({ server, manifest, configDigest, canManageH
         title: `${action} · ${server.id}`,
         description: !apply ? (zh ? "覆盖已保存配置；运行实例暂不改变。请核对凭据引用与权限声明。" : "Overwrite the saved configuration without changing the runtime. Review credential references and access declarations.") : zh ? "将替换此服务的运行配置并建立新的运行实例；现有连接会中断。静态预检查不是连接测试。" : "Replace this service's runtime configuration and start a new instance. Existing connections will be interrupted. Static validation is not a connection test.",
         confirmText: action,
+        returnFocus: saveReturnFocus.current,
       }))) return
       const parsed = JSON.parse(text) as Record<string, unknown>
       const credentials: Record<string, string> = {}
@@ -62,7 +71,11 @@ export function ServiceConfigDrawer({ server, manifest, configDigest, canManageH
     <FormDialog className="service-config-dialog" bodyClassName="service-config-dialog-body" open
       title={`${zh ? "修改配置" : "Edit configuration"} · ${server.id}`} closeLabel={t("close")}
       onClose={() => void close()} dirty={dirty} pending={pending}
-      onCloseAutoFocus={event => { event.preventDefault(); if (returnFocus?.isConnected) returnFocus.focus() }}
+      onCloseAutoFocus={event => {
+        event.preventDefault()
+        if (returnFocus?.isConnected && !returnFocus.matches("body, html, :disabled") && returnFocus.getClientRects().length > 0) returnFocus.focus()
+        else returnFocusFallback?.()
+      }}
       footer={<div ref={setFooter} className="w-full" />}>
       <div className="service-config-save-intent">
         <Radio.Group aria-label={zh ? "保存方式" : "Save behavior"} value={apply} onChange={event => setApply(event.target.value as boolean)} disabled={pending} options={[

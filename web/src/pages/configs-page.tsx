@@ -41,10 +41,12 @@ export function ConfigsPage(props: {
   const remainingViewport = useRemainingViewport()
   const [query, setQuery] = useState("")
   const zh = locale === "zh-CN"
-  const { confirm, confirmDialog } = useConfirm(t)
+  const { confirm, confirmDialog } = useConfirm(t, true)
   const [editorPending, setEditorPending] = useState(false)
   const [editorDraftDirty, setEditorDraftDirty] = useState(false)
   const [footerContainer, setFooterContainer] = useState<HTMLDivElement | null>(null)
+  const editorReturnFocus = useRef<HTMLElement | null>(null)
+  const newConfigButton = useRef<HTMLButtonElement | null>(null)
   const session = useRef({ open: false, initialText: configText })
   if (editorOpen && !session.current.open) session.current.initialText = configText
   session.current.open = editorOpen
@@ -70,10 +72,12 @@ export function ConfigsPage(props: {
   const paging = useListPage(filteredConfigs, query)
 
   function handleCreateNew() {
+    editorReturnFocus.current = document.activeElement instanceof HTMLElement ? document.activeElement : null
     onNewConfig()
   }
 
   function handleEdit(config: McpConfig) {
+    editorReturnFocus.current = document.activeElement instanceof HTMLElement ? document.activeElement : null
     onEditConfig(config)
   }
 
@@ -101,7 +105,7 @@ export function ConfigsPage(props: {
         helpLabel={t("pageHelp")}
         toolbar={<PageToolbar query={query} onQueryChange={setQuery} placeholder={`${t("search")} ID / ${t("path")}`} resultCount={filteredConfigs.length} resultLabel={t("configs")} clearLabel={t("clearSearch")} />}
         actions={<>
-          <Button onClick={handleCreateNew} disabled={busy} className="shadow-xs"><Plus className="size-4 mr-1.5" />{zh ? "新建配置" : "New Config"}</Button>
+          <Button ref={newConfigButton} onClick={handleCreateNew} disabled={busy} className="shadow-xs"><Plus className="size-4 mr-1.5" />{zh ? "新建配置" : "New Config"}</Button>
           <Button variant="outline" onClick={onReloadConfigs} disabled={busy}><RefreshCcw className="size-4 mr-1.5" />{t("reload")}</Button>
         </>}
       />
@@ -204,6 +208,14 @@ export function ConfigsPage(props: {
         title={selectedConfigId ? `${t("edit")} · ${selectedConfigId}` : (zh ? "新建 MCP 配置" : "New MCP config")}
         closeLabel={zh ? "关闭编辑器" : "Close editor"}
         onClose={() => void closeEditor()}
+        onCloseAutoFocus={event => {
+          const trigger = editorReturnFocus.current
+          const target = trigger?.isConnected && !trigger.matches(':disabled, [aria-disabled="true"]') ? trigger : newConfigButton.current
+          if (target?.isConnected && !target.matches(':disabled, [aria-disabled="true"]')) {
+            event.preventDefault()
+            target.focus()
+          }
+        }}
         pending={busy || editorPending}
         className="manifest-dialog"
         footer={<div ref={setFooterContainer} className="w-full" />}
