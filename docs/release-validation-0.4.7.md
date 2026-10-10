@@ -61,6 +61,35 @@ direct PEP 517 wheel and sdist-to-wheel paths, exact RECORD, Linux native inner
 manifest/SBOM, glibc compatibility and schema-worker/main-entry smoke with
 owned-process reap. Earlier candidate hashes do not identify these packages.
 
+Fresh local candidates completed at source `2d6b469f8c8d661b92f0da8d1fd2f55937342923`, tree
+`9cd19c15e0d4d4833aef0f1fc216da33d0713b83`. Both wheel routes have identical bytes.
+
+| Candidate | SHA-256 |
+|---|---|
+| Direct wheel and sdist-to-wheel | `e6138f23148b44e68c7bfd6c85ce90eebc152111296db910930b7ea1884db4e0` |
+| sdist | `7bbda98aa873009ff323522c85de9bf4151b74e47dcc0afc4013d35e4263d680` |
+| Linux x86_64 native | `6d432eb4977f5e94fc770b994794389a24fac59889392cc54823ca3d3bb37570` |
+
+[Package receipts](benchmarks/gate-release-0.4.7-packages-2d6b469.json) verify
+118 static files (115 Console, 3 OAuth), all 283 wheel RECORD entries, 467
+native manifest entries, the 200-package SPDX SBOM and glibc maximum 2.35.
+Twelve entry checks and twelve parent worker lifecycle checks pass, including
+deadline/cancellation, slot reuse and reap. The official frozen main-service
+readiness/HTTP/static smoke also passes with temporary owned loopback data;
+that service fixture is separate from the identity-free worker checks.
+
+[Executed check receipts](benchmarks/gate-release-0.4.7-checks-2d6b469.json)
+record 455 passing frontend tests and 207 passing packaging/schema/release
+regressions, including repeated A-to-B builds in both static directories,
+missing/unexpected files, path boundaries and native staging. CPython 3.13.15,
+Node 22.23.2, PyInstaller 6.22.3 and setuptools 84.0.0 were used. Local uv is
+0.12.19; the formal workflow pins 0.11.33. Missing local registry metadata was
+resolved by installing the unchanged locked production requirements with
+required hashes and normal TLS verification. These candidate receipts bind
+to the source commit above, before the following documentation/evidence
+commit. New formal assets and the final version main merge require their own
+source identities and hashes.
+
 After candidate acceptance and the version PR's required checks, the version
 merge to main invokes the existing `publish-release` selector. Credential and
 release-immutability prechecks precede tag creation and `release.yml` dispatch.

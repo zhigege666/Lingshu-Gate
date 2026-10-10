@@ -50,6 +50,30 @@ Git blob 与审阅 head 准确一致。精确 head 的普通 CI
 sdist-to-wheel、准确 RECORD、Linux native 包内 manifest/SBOM、glibc 兼容及
 schema worker/主入口 smoke 与所属进程回收。旧候选摘要不代表这些新包。
 
+新的本地候选已在源码 `2d6b469f8c8d661b92f0da8d1fd2f55937342923`、tree
+`9cd19c15e0d4d4833aef0f1fc216da33d0713b83` 完成；两条 wheel 链路字节一致。
+
+| 候选 | SHA-256 |
+|---|---|
+| 直接 wheel 与 sdist-to-wheel | `e6138f23148b44e68c7bfd6c85ce90eebc152111296db910930b7ea1884db4e0` |
+| sdist | `7bbda98aa873009ff323522c85de9bf4151b74e47dcc0afc4013d35e4263d680` |
+| Linux x86_64 native | `6d432eb4977f5e94fc770b994794389a24fac59889392cc54823ca3d3bb37570` |
+
+[包回执](../benchmarks/gate-release-0.4.7-packages-2d6b469.json) 验证 118 个静态
+文件（Console 115、OAuth 3）、全部 283 项 wheel RECORD、467 项 native 清单、
+200 个包的 SPDX SBOM 与最高 glibc 2.35。十二项入口及十二项父进程 worker
+生命周期检查通过，含 deadline/cancel、slot 复用及回收。正式源码自带的冻结
+主服务 readiness/HTTP/静态 smoke 也通过，使用临时所属 loopback 数据；该服务
+fixture 与不创建身份的 worker 检查分别记录。
+
+[实际检查回执](../benchmarks/gate-release-0.4.7-checks-2d6b469.json) 记录 455 项
+前端与 207 项打包/schema/release 回归通过，包含两个静态目录连续 A→B 构建、
+缺少/意外文件、路径边界及 native staging。使用 CPython 3.13.15、Node 22.23.2、
+PyInstaller 6.22.3、setuptools 84.0.0。本地 uv 0.12.19 与正式固定 0.11.33 分别
+记录；本地缓存缺少 registry 元数据时，以必需哈希和正常 TLS 安装同一冻结生产
+依赖集，未改变版本或锁文件。候选回执绑定上述源码提交，后续文档/证据提交
+另外记录；新正式资产及版本 main 合并仍需准确记录自身源码身份和校验和。
+
 候选核验及版本 PR 必需检查通过后，版本合并触发既有 `publish-release`
 selector；凭据与不可变发行预检在创建 tag、dispatch `release.yml` 前执行。
 本验证不读出或创建任何凭据值。
