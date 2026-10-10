@@ -1,0 +1,494 @@
+{
+  "controlled_retry_request": {
+    "decision_owner": "The execution agent judged a bounded retry appropriate after confirmed job timeout and successful current-source tests. No transient runner cause was established.",
+    "maximum_requests": 1,
+    "request_count": 1,
+    "requested_at_utc": "2026-10-10 04:57:51 UTC",
+    "requesting_execution_agent": "Codex /root in the saved cloud workspace",
+    "source_job_id": 114127192702,
+    "source_run_id": 38022781421,
+    "tool": "github_rerun_workflow_job"
+  },
+  "formal_11_assets_verified": false,
+  "formal_attempt_1_and_retry": {
+    "annotation_source_url": "https://github.com/zhigege666/Lingshu-Gate/actions/runs/38022781421/job/114127192702",
+    "attempt": 1,
+    "cancel_log_timestamp": "2026-10-10T04:44:59.1725483Z",
+    "cancellation_mechanism": "Configured 40-minute job execution limit exceeded",
+    "cancellation_mechanism_confirmed": true,
+    "cancellation_was_test_assertion_timeout": false,
+    "captured_at_utc": "2026-10-10T04:59:39.390381+00:00",
+    "configured_job_timeout_minutes": 40,
+    "controlled_retry_maximum_requests": 1,
+    "controlled_retry_rationale": [
+      "GitHub annotation confirms initial cancellation by the existing 40-minute job execution limit.",
+      "Same merge source has successful full ordinary CI; actual Ubuntu 24.04 / Python 3.13.16 differs from formal Ubuntu 22.04 / Python 3.13.15.",
+      "Saved cloud Python 3.13.15 MCP catalog/cache/scale/authority range passed all 66 tests with unchanged assertions and budgets.",
+      "Retry only the original quality job and its existing dependencies, using the same source, runner image, interpreter, frozen dependencies and 40-minute budget.",
+      "This bounded retry does not prove transient runner behavior; if it times out again, stop repetition and report unresolved environment timing."
+    ],
+    "controlled_retry_request_status": "accepted_by_original_github_job_rerun_tool",
+    "controlled_retry_source_job": 114127192702,
+    "formal_workflow_reruns_requested": 1,
+    "job_id": 114127192702,
+    "last_pytest_progress_percent": 82,
+    "last_pytest_progress_timestamp": "2026-10-10T04:44:17.2044988Z",
+    "local_python31315_range_check": {
+      "affinity": [
+        0,
+        1
+      ],
+      "case_durations": [
+        {
+          "classname": "tests.test_mcp_group_cache_api",
+          "name": "test_warm_pages_reuse_structure_but_current_review_and_scopes_remain_authoritative",
+          "seconds": 0.373
+        },
+        {
+          "classname": "tests.test_mcp_group_cache_api",
+          "name": "test_input_capacity_is_checked_before_fingerprinting_copy_or_normalization[tools]",
+          "seconds": 0.21
+        },
+        {
+          "classname": "tests.test_mcp_group_cache_api",
+          "name": "test_input_capacity_is_checked_before_fingerprinting_copy_or_normalization[bytes]",
+          "seconds": 0.205
+        },
+        {
+          "classname": "tests.test_mcp_group_cache_api",
+          "name": "test_authority_is_rechecked_in_fresh_transaction_after_cold_structural_work[scopes]",
+          "seconds": 0.204
+        },
+        {
+          "classname": "tests.test_mcp_group_cache_api",
+          "name": "test_authority_is_rechecked_in_fresh_transaction_after_cold_structural_work[permission]",
+          "seconds": 0.204
+        },
+        {
+          "classname": "tests.test_mcp_group_cache_api",
+          "name": "test_authority_is_rechecked_in_fresh_transaction_after_cold_structural_work[revoked]",
+          "seconds": 0.201
+        },
+        {
+          "classname": "tests.test_mcp_group_cache_api",
+          "name": "test_authority_is_rechecked_in_fresh_transaction_after_cold_structural_work[deleted]",
+          "seconds": 0.2
+        },
+        {
+          "classname": "tests.test_mcp_group_cache_api",
+          "name": "test_authority_is_rechecked_in_fresh_transaction_after_cold_structural_work[expired]",
+          "seconds": 0.208
+        },
+        {
+          "classname": "tests.test_mcp_group_cache_api",
+          "name": "test_authority_is_rechecked_in_fresh_transaction_after_cold_structural_work[disabled]",
+          "seconds": 0.203
+        },
+        {
+          "classname": "tests.test_mcp_group_cache_api",
+          "name": "test_authority_is_rechecked_in_fresh_transaction_after_cold_structural_work[admin]",
+          "seconds": 0.202
+        },
+        {
+          "classname": "tests.test_mcp_group_cache_api",
+          "name": "test_cold_preparation_and_warm_comparison_allow_config_writer_and_retry[prepare]",
+          "seconds": 0.232
+        },
+        {
+          "classname": "tests.test_mcp_group_cache_api",
+          "name": "test_cold_preparation_and_warm_comparison_allow_config_writer_and_retry[compare]",
+          "seconds": 0.249
+        },
+        {
+          "classname": "tests.test_mcp_group_cache_api",
+          "name": "test_retry_reuses_request_structures_beyond_cache_but_rechecks_current_inputs[metadata]",
+          "seconds": 0.245
+        },
+        {
+          "classname": "tests.test_mcp_group_cache_api",
+          "name": "test_retry_reuses_request_structures_beyond_cache_but_rechecks_current_inputs[publication]",
+          "seconds": 0.232
+        },
+        {
+          "classname": "tests.test_mcp_group_cache_api",
+          "name": "test_retry_reuses_request_structures_beyond_cache_but_rechecks_current_inputs[membership]",
+          "seconds": 0.233
+        },
+        {
+          "classname": "tests.test_mcp_group_cache_api",
+          "name": "test_retry_reuses_request_structures_beyond_cache_but_rechecks_current_inputs[scopes]",
+          "seconds": 0.268
+        },
+        {
+          "classname": "tests.test_mcp_group_cache_api",
+          "name": "test_continuously_changing_structure_stops_after_three_attempts_without_partial_results",
+          "seconds": 0.222
+        },
+        {
+          "classname": "tests.test_mcp_group_cache_api",
+          "name": "test_two_http_groups_keep_shared_structural_hit_when_alternating",
+          "seconds": 0.285
+        },
+        {
+          "classname": "tests.test_mcp_group_cache_api",
+          "name": "test_authorization_snapshot_survives_comparison_race_but_next_request_rechecks[scopes]",
+          "seconds": 0.235
+        },
+        {
+          "classname": "tests.test_mcp_group_cache_api",
+          "name": "test_authorization_snapshot_survives_comparison_race_but_next_request_rechecks[permission]",
+          "seconds": 0.312
+        },
+        {
+          "classname": "tests.test_mcp_group_cache_api",
+          "name": "test_authorization_snapshot_survives_comparison_race_but_next_request_rechecks[revoked]",
+          "seconds": 0.227
+        },
+        {
+          "classname": "tests.test_mcp_group_cache_api",
+          "name": "test_authorization_snapshot_survives_comparison_race_but_next_request_rechecks[deleted]",
+          "seconds": 0.219
+        },
+        {
+          "classname": "tests.test_mcp_group_cache_api",
+          "name": "test_authorization_snapshot_survives_comparison_race_but_next_request_rechecks[expired]",
+          "seconds": 0.221
+        },
+        {
+          "classname": "tests.test_mcp_group_cache_api",
+          "name": "test_authorization_snapshot_survives_comparison_race_but_next_request_rechecks[disabled]",
+          "seconds": 0.217
+        },
+        {
+          "classname": "tests.test_mcp_group_cache_api",
+          "name": "test_authorization_snapshot_survives_comparison_race_but_next_request_rechecks[admin]",
+          "seconds": 0.239
+        },
+        {
+          "classname": "tests.test_mcp_group_cache_api",
+          "name": "test_authorization_snapshot_survives_comparison_race_but_next_request_rechecks[classification]",
+          "seconds": 0.231
+        },
+        {
+          "classname": "tests.test_mcp_group_catalog",
+          "name": "test_key_order_normalizes_without_changing_types_arrays_or_keywords",
+          "seconds": 0.001
+        },
+        {
+          "classname": "tests.test_mcp_group_catalog",
+          "name": "test_non_json_contracts_are_rejected[nan]",
+          "seconds": 0.0
+        },
+        {
+          "classname": "tests.test_mcp_group_catalog",
+          "name": "test_non_json_contracts_are_rejected[inf]",
+          "seconds": 0.0
+        },
+        {
+          "classname": "tests.test_mcp_group_catalog",
+          "name": "test_non_json_contracts_are_rejected[-inf]",
+          "seconds": 0.0
+        },
+        {
+          "classname": "tests.test_mcp_group_catalog",
+          "name": "test_non_json_contracts_are_rejected[not-json]",
+          "seconds": 0.0
+        },
+        {
+          "classname": "tests.test_mcp_group_catalog",
+          "name": "test_non_json_contracts_are_rejected[bad4]",
+          "seconds": 0.0
+        },
+        {
+          "classname": "tests.test_mcp_group_catalog",
+          "name": "test_non_json_contracts_are_rejected[bad5]",
+          "seconds": 0.0
+        },
+        {
+          "classname": "tests.test_mcp_group_catalog",
+          "name": "test_depth_cycle_size_and_node_limits_are_bounded",
+          "seconds": 0.005
+        },
+        {
+          "classname": "tests.test_mcp_group_catalog",
+          "name": "test_total_contract_bytes_are_checked_before_full_serialization",
+          "seconds": 0.017
+        },
+        {
+          "classname": "tests.test_mcp_group_catalog",
+          "name": "test_byte_budget_counts_json_escapes_and_utf8_exactly",
+          "seconds": 0.001
+        },
+        {
+          "classname": "tests.test_mcp_group_catalog",
+          "name": "test_missing_output_schema_differs_from_empty_and_nonobject_output",
+          "seconds": 0.0
+        },
+        {
+          "classname": "tests.test_mcp_group_catalog",
+          "name": "test_unreviewed_contracts_never_aggregate[review0]",
+          "seconds": 0.0
+        },
+        {
+          "classname": "tests.test_mcp_group_catalog",
+          "name": "test_unreviewed_contracts_never_aggregate[review1]",
+          "seconds": 0.0
+        },
+        {
+          "classname": "tests.test_mcp_group_catalog",
+          "name": "test_unreviewed_contracts_never_aggregate[review2]",
+          "seconds": 0.0
+        },
+        {
+          "classname": "tests.test_mcp_group_catalog",
+          "name": "test_unreviewed_contracts_never_aggregate[review3]",
+          "seconds": 0.0
+        },
+        {
+          "classname": "tests.test_mcp_group_catalog",
+          "name": "test_unreviewed_contracts_never_aggregate[review4]",
+          "seconds": 0.001
+        },
+        {
+          "classname": "tests.test_mcp_group_catalog",
+          "name": "test_unreviewed_contracts_never_aggregate[review5]",
+          "seconds": 0.0
+        },
+        {
+          "classname": "tests.test_mcp_group_catalog",
+          "name": "test_each_reviewed_safety_dimension_separates_variants[review0]",
+          "seconds": 0.001
+        },
+        {
+          "classname": "tests.test_mcp_group_catalog",
+          "name": "test_each_reviewed_safety_dimension_separates_variants[review1]",
+          "seconds": 0.0
+        },
+        {
+          "classname": "tests.test_mcp_group_catalog",
+          "name": "test_each_reviewed_safety_dimension_separates_variants[review2]",
+          "seconds": 0.0
+        },
+        {
+          "classname": "tests.test_mcp_group_catalog",
+          "name": "test_each_reviewed_safety_dimension_separates_variants[review3]",
+          "seconds": 0.0
+        },
+        {
+          "classname": "tests.test_mcp_group_catalog",
+          "name": "test_review_bound_policy_and_sensitive_fields_are_not_dropped[metadata0]",
+          "seconds": 0.0
+        },
+        {
+          "classname": "tests.test_mcp_group_catalog",
+          "name": "test_review_bound_policy_and_sensitive_fields_are_not_dropped[metadata1]",
+          "seconds": 0.001
+        },
+        {
+          "classname": "tests.test_mcp_group_catalog",
+          "name": "test_review_bound_policy_and_sensitive_fields_are_not_dropped[metadata2]",
+          "seconds": 0.0
+        },
+        {
+          "classname": "tests.test_mcp_group_catalog",
+          "name": "test_review_bound_policy_and_sensitive_fields_are_not_dropped[metadata3]",
+          "seconds": 0.0
+        },
+        {
+          "classname": "tests.test_mcp_group_catalog",
+          "name": "test_original_name_and_input_output_contracts_separate_explicit_variants",
+          "seconds": 0.001
+        },
+        {
+          "classname": "tests.test_mcp_group_catalog",
+          "name": "test_catalog_capacity_fails_without_partial_results",
+          "seconds": 0.0
+        },
+        {
+          "classname": "tests.test_mcp_group_catalog_scale",
+          "name": "test_full_directory_5000_instances_50000_tools[five_groups]",
+          "seconds": 34.072
+        },
+        {
+          "classname": "tests.test_mcp_group_catalog_scale",
+          "name": "test_full_directory_5000_instances_50000_tools[maximum_single_group]",
+          "seconds": 104.825
+        },
+        {
+          "classname": "tests.test_mcp_group_catalog_scale",
+          "name": "test_full_directory_5000_instances_50000_tools[over_cache_bytes]",
+          "seconds": 148.282
+        },
+        {
+          "classname": "tests.test_mcp_group_external_authority",
+          "name": "test_current_external_trust_rechecks_every_verified_binding[client]",
+          "seconds": 1.293
+        },
+        {
+          "classname": "tests.test_mcp_group_external_authority",
+          "name": "test_current_external_trust_rechecks_every_verified_binding[issuer]",
+          "seconds": 0.9
+        },
+        {
+          "classname": "tests.test_mcp_group_external_authority",
+          "name": "test_current_external_trust_rechecks_every_verified_binding[jwks]",
+          "seconds": 0.882
+        },
+        {
+          "classname": "tests.test_mcp_group_external_authority",
+          "name": "test_current_external_trust_rechecks_every_verified_binding[audience]",
+          "seconds": 0.87
+        },
+        {
+          "classname": "tests.test_mcp_group_external_authority",
+          "name": "test_current_external_trust_rechecks_every_verified_binding[canonical]",
+          "seconds": 0.894
+        },
+        {
+          "classname": "tests.test_mcp_group_external_authority",
+          "name": "test_current_external_trust_rechecks_every_verified_binding[invalid]",
+          "seconds": 0.875
+        },
+        {
+          "classname": "tests.test_mcp_group_external_authority",
+          "name": "test_current_external_trust_rechecks_every_verified_binding[expiry]",
+          "seconds": 0.87
+        },
+        {
+          "classname": "tests.test_mcp_group_external_authority",
+          "name": "test_current_external_trust_rechecks_every_verified_binding[proof]",
+          "seconds": 0.927
+        },
+        {
+          "classname": "tests.test_mcp_group_external_authority",
+          "name": "test_client_removed_during_lock_wait_never_reaches_a_downstream_tool[config]",
+          "seconds": 0.965
+        },
+        {
+          "classname": "tests.test_mcp_group_external_authority",
+          "name": "test_client_removed_during_lock_wait_never_reaches_a_downstream_tool[runtime]",
+          "seconds": 1.091
+        }
+      ],
+      "elapsed_seconds": 318.846071,
+      "environment_limit": "Saved cloud executor, not the hosted Ubuntu 22.04 runner; this measures local timing without reproducing the hosted cancellation mechanism.",
+      "errors": 0,
+      "exit_code": 0,
+      "failures": 0,
+      "junit_sha256": "42edf6eac65f99e972e007b66f5650500f4a43abca760d0f441526c45b1b6976",
+      "python": "Python 3.13.15",
+      "scope": [
+        "tests/test_mcp_group_cache_api.py",
+        "tests/test_mcp_group_catalog.py",
+        "tests/test_mcp_group_catalog_scale.py",
+        "tests/test_mcp_group_external_authority.py"
+      ],
+      "source_revision": "45cec40c1e57d7290ab249e620b5a50fa939e115",
+      "source_tree": "5cf23e968371ca7623eaef75e7d774a38d022240",
+      "test_assertions_and_budgets_changed": false,
+      "tests": 66
+    },
+    "log_fetch_attempts": 1,
+    "log_fetch_succeeded": true,
+    "log_lines": 837,
+    "log_sha256": "bc623e50406f68888d122e6c1a0fb3031bb17f86bf71b107458a8c3bc698b050",
+    "log_size_bytes": 83459,
+    "main_python313_check": {
+      "job_id": 114131081511,
+      "log_sha256": "f04e1b421110d755f14165dfe243fcc34ef032668bd76aa1bad600d216b58344",
+      "not_equivalent_to_formal_pinned_python31315": true,
+      "passed": 2336,
+      "pytest_seconds": 1527.57,
+      "python": "3.13.16",
+      "runner": "ubuntu-24.04",
+      "skipped": 7,
+      "subtests_passed": 134
+    },
+    "mypy_source_files_passed": 158,
+    "new_tag_preserved": "v0.4.7",
+    "new_tag_target": "45cec40c1e57d7290ab249e620b5a50fa939e115",
+    "observations": [
+      "Job duration is consistent with the configured 40-minute limit, but no explicit cancellation mechanism is present in the fetched log.",
+      "The 42% to 45% output interval is approximately 20m41s; collection mapping is still pending.",
+      "No new native/Core/offline/Compose assets or publication were produced."
+    ],
+    "old_tags_moved": false,
+    "public_job_annotation": "The job has exceeded the maximum execution time of 40m0s",
+    "pytest_final_summary_present": false,
+    "pytest_progress": [
+      "2026-10-10T04:06:55.0204311Z ........................................................................ [  3%]",
+      "2026-10-10T04:07:06.6107644Z ........................................................................ [  6%]",
+      "2026-10-10T04:08:43.3855891Z ........................................................................ [  9%]",
+      "2026-10-10T04:09:42.5652256Z ........................................................................ [ 12%]",
+      "2026-10-10T04:10:19.1960361Z ........................................................................ [ 15%]",
+      "2026-10-10T04:10:22.1328302Z ........................................................................ [ 18%]",
+      "2026-10-10T04:10:34.6609496Z ................................................................ [ 21%]",
+      "2026-10-10T04:11:13.1170276Z ........................................................................ [ 24%]",
+      "2026-10-10T04:12:10.8044044Z ........................................................................ [ 27%]",
+      "2026-10-10T04:12:52.1811185Z ........................................................................ [ 30%]",
+      "2026-10-10T04:12:52.2673594Z ........................................................................ [ 33%]",
+      "2026-10-10T04:12:56.2818193Z ........................................................................ [ 36%]",
+      "2026-10-10T04:13:25.3169686Z ........................................................................ [ 39%]",
+      "2026-10-10T04:13:33.4132736Z ...................................................................... [ 42%]",
+      "2026-10-10T04:34:14.7197195Z ........................................................................ [ 45%]",
+      "2026-10-10T04:34:54.5214908Z ........................................................................ [ 48%]",
+      "2026-10-10T04:35:44.8008859Z ........................................................................ [ 51%]",
+      "2026-10-10T04:35:44.9935479Z ........................................................................ [ 54%]",
+      "2026-10-10T04:35:56.9232519Z ..............................................................sss........................................... [ 59%]",
+      "2026-10-10T04:36:06.5435895Z ........................................................................ [ 62%]",
+      "2026-10-10T04:36:30.8747989Z ..................ssss.................................................. [ 65%]",
+      "2026-10-10T04:36:32.7585397Z ........................................................................ [ 68%]",
+      "2026-10-10T04:36:33.7574922Z ........................................................................ [ 71%]",
+      "2026-10-10T04:39:37.7213248Z ........................................................................ [ 74%]",
+      "2026-10-10T04:43:46.6129133Z ........................................................................ [ 77%]",
+      "2026-10-10T04:43:53.4968497Z ........................................................................ [ 81%]",
+      "2026-10-10T04:44:17.2044988Z .............................................. [ 82%]"
+    ],
+    "quality_conclusion": "cancelled",
+    "quality_job_completed_at": "2026-10-10T04:45:02Z",
+    "quality_job_started_at": "2026-10-10T04:04:46Z",
+    "ruff_passed": true,
+    "run_conclusion": "cancelled",
+    "run_id": 38022781421,
+    "source_revision": "45cec40c1e57d7290ab249e620b5a50fa939e115",
+    "unique_old_hosted_20_second_cause_proven": false
+  },
+  "formal_attestations_verified": false,
+  "formal_release_published": false,
+  "github_actor_readback": {
+    "actor": "github-actions[bot]",
+    "attempt": 2,
+    "conclusion": null,
+    "event": "workflow_dispatch",
+    "head": "45cec40c1e57d7290ab249e620b5a50fa939e115",
+    "observed_at_utc": "2026-10-10 05:05:05 UTC",
+    "run_id": 38022781421,
+    "run_started_at": "2026-10-10T04:57:51Z",
+    "status": "in_progress",
+    "triggering_actor": "zhigege666"
+  },
+  "limits": [
+    "No unique cause of the old hosted 20-second timeout is established.",
+    "The ordinary CI uses Ubuntu 24.04 / Python 3.13.16 and does not replace the formal pinned Ubuntu 22.04 / Python 3.13.15 quality gate.",
+    "The local 66-test timing measures the saved cloud executor, not the hosted Ubuntu 22.04 runner.",
+    "No real nx5/x16/Podman/external OAuth acceptance was performed."
+  ],
+  "schema_version": 1,
+  "source_readback": {
+    "all_leaf_mode_type_blob_match": true,
+    "canonical_inventory_json_sha256": "90a29bb2b420b2e7c941f65485ef4f2b93828d7ac8c0c0dea8aef7df064e770d",
+    "captured_at_utc": "2026-10-10T04:05:33.255760+00:00",
+    "leaf_count": 993,
+    "merge_sha": "45cec40c1e57d7290ab249e620b5a50fa939e115",
+    "parents": [
+      "0fcfd27ba9f8e1474f6b7975a39512c1298ae279",
+      "c9261a2c95cc30edb7e46317a1c36778ac0227bf"
+    ],
+    "reviewed_head_sha": "c9261a2c95cc30edb7e46317a1c36778ac0227bf",
+    "tree": "5cf23e968371ca7623eaef75e7d774a38d022240"
+  },
+  "source_revision": "45cec40c1e57d7290ab249e620b5a50fa939e115",
+  "source_tree": "5cf23e968371ca7623eaef75e7d774a38d022240",
+  "state": "Attempt 1 cancelled by the 40-minute job limit; one bounded retry accepted. Formal publication and asset verification remain pending.",
+  "version": "0.4.7"
+}
