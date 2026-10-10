@@ -284,7 +284,7 @@ export function ServersPage(props: Props) {
 
     {configSession && <ServiceConfigDrawer server={configSession.server} manifest={configSession.manifest} configDigest={configSession.configDigest} canManageHttpTrust={props.canManageHttpTrust} locale={locale} t={t} onClose={() => setConfigSession(null)} onSaved={async () => { await props.onRefresh(); await load("configuration", true); await load("overview", true) }} returnFocusFallback={() => {
       const trigger = workspace.current?.querySelector<HTMLElement>("[data-service-config-trigger]")
-      const target = trigger && !trigger.matches(":disabled") ? trigger : workspace.current?.querySelector<HTMLElement>('.service-entry[data-active="true"]')
+      const target = trigger && !trigger.matches(":disabled") && trigger.getClientRects().length > 0 ? trigger : workspace.current?.querySelector<HTMLElement>('.service-entry[data-active="true"]')
       target?.focus()
     }} />}
     <Drawer className="service-tool-drawer" title={selectedTool?.name || c.toolDetails} size={560} open={selectedTool !== null} onClose={() => setSelectedTool(null)} destroyOnHidden>

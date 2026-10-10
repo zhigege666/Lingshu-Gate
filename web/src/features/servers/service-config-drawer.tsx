@@ -73,7 +73,7 @@ export function ServiceConfigDrawer({ server, manifest, configDigest, canManageH
       onClose={() => void close()} dirty={dirty} pending={pending}
       onCloseAutoFocus={event => {
         event.preventDefault()
-        if (returnFocus?.isConnected && !returnFocus.matches(":disabled")) returnFocus.focus()
+        if (returnFocus?.isConnected && !returnFocus.matches("body, html, :disabled") && returnFocus.getClientRects().length > 0) returnFocus.focus()
         else returnFocusFallback?.()
       }}
       footer={<div ref={setFooter} className="w-full" />}>
