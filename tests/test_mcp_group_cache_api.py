@@ -8,9 +8,9 @@ import pytest
 
 from lingshu_gate.application import mcp_group_catalog as application
 from lingshu_gate.application import mcp_group_structures as structures
-from lingshu_gate.domain.mcp_groups import McpGroupError
+from lingshu_gate.domain.mcp_groups import McpGroupDraft, McpGroupError
 
-from test_mcp_groups import catalog_path, catalog_token, catalog_tool, create
+from test_mcp_groups import catalog_path, catalog_token, catalog_tool, create, draft
 from test_mcp_groups import gate as gate
 
 
@@ -143,6 +143,61 @@ def test_cold_preparation_and_warm_comparison_allow_config_writer_and_retry(gate
     detail = gate["client"].get(catalog_path(group, "/" + variant)).json()
     assert detail["members"][0]["instance_name"] == "Edited synthetic name"
     assert calls >= 2
+
+
+@pytest.mark.parametrize("change", ["metadata", "publication", "membership", "scopes"])
+def test_retry_reuses_request_structures_beyond_cache_but_rechecks_current_inputs(gate, change):
+    group = create(gate, members=["instance-0", "instance-1", "instance-2"])
+    definitions, handlers = zip(*(catalog_tool(gate, f"instance-{index}") for index in range(3)), strict=True)
+    token, headers = catalog_token(gate, ["operations.manage", "tools.read"])
+    gate["catalog"].structures = structures.ToolStructureCache(max_entries=2)
+    reached, release = threading.Event(), threading.Event()
+    original = structures.prepare_tool_structure
+    def paused(entry):
+        if not reached.is_set():
+            reached.set()
+            assert release.wait(5)
+        return original(entry)
+    def writer():
+        gate["configs"].save_config({"id": "instance-0", "name": "Edited synthetic name",
+            "launch": {"type": "external"}, "transport": {"type": "streamable_http", "endpoint": "https://mcp.example.test/mcp"}},
+            overwrite=True)
+        if change == "publication":
+            gate["registry"].update_definition(definitions[1].model_copy(update={"input_schema": {"type": "string"}}))
+        elif change == "membership":
+            gate["service"].save(McpGroupDraft(**draft(members=["instance-0", "instance-1"], with_request=False)),
+                gate["principal"], group_id=group["id"], expected_revision=group["revision"])
+        elif change == "scopes":
+            gate["database"].execute("UPDATE api_tokens SET scopes_json=? WHERE id=?",
+                (json.dumps(["operations.manage"]), token["id"]))
+    with patch.object(structures, "prepare_tool_structure", side_effect=paused) as prepare, \
+            patch.object(application, "build_catalog", wraps=application.build_catalog) as comparison, \
+            patch.object(gate["access"], "visible_tool_contracts", wraps=gate["access"].visible_tool_contracts) as projection, \
+            ThreadPoolExecutor(max_workers=2) as pool:
+        reader = pool.submit(gate["client"].get, catalog_path(group), headers=headers)
+        try:
+            assert reached.wait(3)
+            pool.submit(writer).result(timeout=2)
+        finally:
+            release.set()
+        response = reader.result(timeout=8)
+        assert response.status_code == 200
+        assert prepare.call_count == (4 if change == "publication" else 3), \
+            "Retry must reuse every unchanged immutable publication held by this request, even after shared eviction"
+        assert comparison.call_count == 1, "Known-stale metadata must not reach policy projection or comparison"
+        assert projection.call_count == 1
+        expected = {"metadata": 3, "publication": 2, "membership": 2, "scopes": 0}[change]
+        assert response.json()["visible_tool_count"] == expected
+        assert gate["catalog"].structures.usage()[0] == 2
+        if change == "metadata":
+            before = prepare.call_count
+            variant = response.json()["variants"][0]["variant_id"]
+            detail = gate["client"].get(catalog_path(group, "/" + variant), headers=headers)
+            assert detail.status_code == 200
+            assert detail.json()["members"][0]["instance_name"] == "Edited synthetic name"
+            assert prepare.call_count == before + 1, "Request-local reuse must end at the HTTP response"
+    for handler in handlers:
+        handler.assert_not_called()
 
 
 def test_continuously_changing_structure_stops_after_three_attempts_without_partial_results(gate):

@@ -7,7 +7,7 @@ from dataclasses import replace
 
 from lingshu_gate.access_control import AccessControlStore
 from lingshu_gate.application.mcp_groups import McpGroupService
-from lingshu_gate.application.mcp_group_structures import ToolStructureCache
+from lingshu_gate.application.mcp_group_structures import PreparedToolStructure, ToolStructureCache
 from lingshu_gate.auth import AuthPrincipal
 from lingshu_gate.domain.mcp_group_catalog import (
     MAX_CATALOG_CONTRACT_BYTES, MAX_CATALOG_TOOLS,
@@ -15,7 +15,7 @@ from lingshu_gate.domain.mcp_group_catalog import (
 )
 from lingshu_gate.domain.mcp_groups import McpGroupError
 from lingshu_gate.mcp_config_store import McpConfigConflict
-from lingshu_gate.registry import RegistrySnapshotCapacityError, ToolRegistry
+from lingshu_gate.registry import RegistrySnapshotCapacityError, RegistryToolSnapshot, ToolRegistry
 
 MAX_SNAPSHOT_ATTEMPTS = 3
 
@@ -41,6 +41,9 @@ class McpGroupCatalogService:
 
     def _snapshot(self, group_id: str, actor: AuthPrincipal) -> tuple[int, list[VisibleCatalogTool], list[CatalogVariant]]:
         self.groups.check(actor)
+        # Retain only immutable structure within this bounded request. Shared
+        # eviction must not turn a snapshot retry into another cold batch.
+        retained: dict[RegistryToolSnapshot, PreparedToolStructure] = {}
         for _ in range(MAX_SNAPSHOT_ATTEMPTS):
             # Capture only group metadata under the write lock. File loading,
             # fingerprints, policy projection and comparison happen outside it.
@@ -69,7 +72,19 @@ class McpGroupCatalogService:
                         raise McpGroupError("group_catalog_capacity", "The group exceeds bounded structural input capacity.", 503)
                     candidates.append(entry)
             # No configuration, Registry or database lock across preparation.
-            prepared = self.structures.get_many(candidates)
+            # The key includes both publication revision and frozen identity;
+            # changed/removed candidates cannot inherit old prepared contracts.
+            retained = {entry: retained[entry] for entry in candidates if entry in retained}
+            missing = [entry for entry in candidates if entry not in retained]
+            fresh = self.structures.get_many(missing) if missing else []
+            retained.update(zip(missing, fresh, strict=True))
+            prepared = [retained[entry] for entry in candidates]
+            with self.groups.configs.mutation_lock:
+                if (not self.groups.configs.metadata_snapshot_current(metadata_revision)
+                        or not self.registry.mcp_snapshot_current(snapshot.revisions)):
+                    continue
+            # Discard known-stale inputs before current policy projection and
+            # comparison; authority and the final version vector stay fresh.
             by_id = {item.definition.id: item for item in prepared}
             with self.groups.store.database.session() as connection:
                 connection.execute("BEGIN")

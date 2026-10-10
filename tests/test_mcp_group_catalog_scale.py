@@ -169,6 +169,11 @@ def test_full_directory_5000_instances_50000_tools(gate, monkeypatch, record_pro
     last_group, last_instance = groups[-1], tool_instances - 1
     definition = registry.get_definition(f"mcp.scale-{last_instance:04}.query-{tools_each - 1:02}")
     registry.update_definition(definition.model_copy(update={"description": "Synthetic changed publication"}))
+    writer_entries = registry.mcp_snapshot(
+        [f"scale-{index:04}" for index in range(tool_instances - 1000, tool_instances)], max_tools=50_000).tools
+    with gate["catalog"].structures._lock:
+        writer_initial_misses = sum((entry.revision, entry.structure) not in gate["catalog"].structures._entries
+                                    for entry in writer_entries)
     reached, release = threading.Event(), threading.Event()
     original_prepare = structures.prepare_tool_structure
     def paused(entry):
@@ -192,6 +197,9 @@ def test_full_directory_5000_instances_50000_tools(gate, monkeypatch, record_pro
             release.set()
         after = reader.result(timeout=20)
     assert after.status_code == 200 and after.json()["visible_tool_count"] == 1000 * tools_each - 1
+    assert counts["fingerprints"] == before_writer["fingerprints"] + writer_initial_misses
+    assert counts["normalizations"] == before_writer["normalizations"] + writer_initial_misses
+    assert counts["canonical_serializations"] == before_writer["canonical_serializations"] + 3 * writer_initial_misses
     if not over_cache:
         assert counts["fingerprints"] == before_writer["fingerprints"] + 1
         assert counts["normalizations"] == before_writer["normalizations"] + 1
@@ -215,6 +223,7 @@ def test_full_directory_5000_instances_50000_tools(gate, monkeypatch, record_pro
         "cold_structure_counts": cold_counts, "warm_and_paged_additional_structure_counts": warm_counts,
         "warm_initial_miss_min": min(batch_misses[5:35]), "warm_initial_miss_max": max(batch_misses[5:35]),
         "alternating_group_initial_misses": alternating_misses,
+        "writer_initial_misses": writer_initial_misses,
         "writer_additional_preparations": counts["fingerprints"] - before_writer["fingerprints"],
         "config_writer_lock_wait_ms": round(lock_wait * 1000, 3), "cache_entries": entries,
         "cache_charged_bytes": charged_bytes, "process_peak_rss_kib": peak_rss_kib}

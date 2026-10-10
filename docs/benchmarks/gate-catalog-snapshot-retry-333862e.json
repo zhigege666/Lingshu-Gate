@@ -1,0 +1,715 @@
+{
+  "schema_version": 1,
+  "purpose": "Diagnose and remove avoidable structural and policy work after a concurrent configuration writer invalidates a large catalog read.",
+  "recorded_at_utc": "2026-10-10T01:48:33.842285+00:00",
+  "failed_release_source": "d228cf7ad27f2688cc6e04e5210c8aa2ea88b646",
+  "base_main": "333862e869c4e0b1946e7e22661064188dcc583f",
+  "validated_content_commit": "2534eb9032b8165d40d732bf1b033a55b96f3cbe",
+  "validation_identity": "Tests ran in the isolated worktree before committing. The three recorded file hashes are byte-identical to this code commit; the following evidence-only commit does not change them.",
+  "failure_evidence": {
+    "origin": "New user-provided pasted release-step text; not a retrieved workflow log or a previously denied artifact.",
+    "sha256": "605946e96ee6872cc3882bf349533d45ece862548fbb606b995462cc1a9dcafa",
+    "bytes": 29424,
+    "lines": 551,
+    "complete_original_log": false,
+    "truncated_at_end": true,
+    "final_pytest_summary_available": false,
+    "shown_checks": {
+      "ruff": "pass",
+      "mypy": "pass",
+      "pytest_progress": "100%"
+    },
+    "shown_failure": "test_full_directory_5000_instances_50000_tools[over_cache_bytes]",
+    "shown_exception": "concurrent.futures.TimeoutError at tests/test_mcp_group_catalog_scale.py:193, reader.result(timeout=20)",
+    "completed_before_timeout": [
+      "reached.wait(5)",
+      "writer.result(timeout=5)",
+      "finally release.set()"
+    ],
+    "limit": "This text establishes the reader exceeded 20 seconds after release. It does not establish a deadlock, a complete original-log result, or the runner performance cause."
+  },
+  "source_equivalence": {
+    "base_main_changes_from_failed_source": "Eight benchmark helper/evidence additions only.",
+    "src_tests_dependencies_formal_workflow_unchanged": true,
+    "files": {
+      "src/lingshu_gate/application/mcp_group_catalog.py": {
+        "failed_version_sha256": "c9ae7ce0d66266ecbba38fbc7140a1440152e82c035f4fd9226e5daceb19a2f4",
+        "validated_sha256": "dc631c1952d810aa8ad8f77a827cbe2dbf03753c8848fbcd3ac2a60c9ccdfe2c",
+        "validated_git_blob": "13b65d6f3b179c0d7c38d6636ee79112af143669"
+      },
+      "tests/test_mcp_group_cache_api.py": {
+        "failed_version_sha256": "1daed78d987da2ee3e9070132c7d55918c5563968bd37dc792d1bb05df59770d",
+        "validated_sha256": "61aa648d8b0ded35e4101a96aaf018ab26ed89cf45baec0966de8df2a5e760e6",
+        "validated_git_blob": "23eec20e4e9f0ac296d6f3a5eea2ebcf44016816"
+      },
+      "tests/test_mcp_group_catalog_scale.py": {
+        "failed_version_sha256": "5332bc0cb80787113b01b6a34d972eab26e88b0775aa369fd5c97308921d6a39",
+        "validated_sha256": "f108798aba04d61f216715bd365a78372e42804f0a8a89627f5c1d45ac0e4e6d",
+        "validated_git_blob": "f3d25ff51676ef685a11fc773166e5c36f3ec52e"
+      }
+    }
+  },
+  "local_profile": {
+    "python": "CPython 3.13.15",
+    "dependency_install": "uv sync --frozen --group release",
+    "uv": "0.12.19",
+    "uv_lock_sha256": "0b055ff1efc0ce161f9fb477b1b95950ba57c5a0eabc8495613788104f4388d3",
+    "platform": "Linux x86_64, glibc 2.41",
+    "scale_process_cpu_affinity": [
+      0,
+      1
+    ],
+    "scope": "Synthetic loopback HTTP and real isolated file/SQLite state. No downstream invocation, host provisioning or OAuth authorization change.",
+    "limitation": "This is the saved cloud environment, not the Ubuntu 22.04 formal runner. The original over-cache test passed locally; its exact 20-second failure was not reproduced."
+  },
+  "diagnosis": [
+    "The original reader completed preparation, current policy projection and comparison before noticing the writer changed its metadata revision.",
+    "The first get_many batch holds immutable hits only within that batch. On retry the shared 64 MiB cache had evicted 7741 structures already held by this same request, so they were prepared again.",
+    "The writer race prepared 15483 structures instead of the initial 7742 misses and performed two authority projections and comparisons. This is reproducible wasted work; it is not proof of the exact formal-runner slowdown or deadlock."
+  ],
+  "repair": [
+    "Retain only immutable PreparedToolStructure values in the bounded request, keyed by RegistryToolSnapshot (publication revision plus actual frozen identity). Prune to the current candidates on every retry.",
+    "Revalidate configuration and selected Registry version vectors immediately after preparation, before policy projection and comparison.",
+    "Keep the fresh database authority transaction, group revision validation and final configuration/Registry checks. No principal, review, grant or visibility result is reused.",
+    "Preserve the real 5000-instance/50000-tool scale, shared cache bounds, three-attempt limit, configuration writer budgets and reader.result(timeout=20)."
+  ],
+  "negative_control": {
+    "exit_code": 1,
+    "junit": {
+      "tests": "4",
+      "errors": "0",
+      "failures": "4",
+      "skipped": "0",
+      "time": "1.690",
+      "timestamp": "2026-10-10T01:32:18.714407+00:00"
+    },
+    "pytest_summaries": [
+      "4 failed in 1.69s"
+    ],
+    "log_sha256": "8293b0fc43abef2598ef9f0c5080af9a019ffb3c2825aa89f0f0ee124ea99417",
+    "junit_sha256": "93955ece70b3f400d84166394042ddf224eb497c84113916375811ff195bac61",
+    "expected_result": "Four new deterministic regression cases fail against the unchanged production implementation; this is the intentional pre-fix control."
+  },
+  "before_minimal_real_scale": {
+    "exit_code": 0,
+    "junit": {
+      "tests": "1",
+      "errors": "0",
+      "failures": "0",
+      "skipped": "0",
+      "time": "35.105",
+      "timestamp": "2026-10-10T01:27:36.627877+00:00"
+    },
+    "pytest_summaries": [
+      "1 passed, 1 warning in 35.10s"
+    ],
+    "log_sha256": "130017d70208fe13fe829b8644f67e23d9216955cefd825a221b116afe62c845",
+    "junit_sha256": "7bfccb25c5add2e8e96d28c4e2ce22c02536f3a992445036347ff9d6518c4a33",
+    "measurements": [
+      {
+        "test": "test_minimal_full_scale_writer_retry",
+        "properties": {
+          "reader_after_release_seconds": 4.806437156999891,
+          "writer_lock_wait_seconds": 1.309999788645655e-05
+        }
+      }
+    ]
+  },
+  "before_original_over_cache": {
+    "exit_code": 0,
+    "junit": {
+      "tests": "1",
+      "errors": "0",
+      "failures": "0",
+      "skipped": "0",
+      "time": "138.913",
+      "timestamp": "2026-10-10T01:29:22.767706+00:00"
+    },
+    "pytest_summaries": [
+      "1 passed, 1 warning in 138.91s (0:02:18)"
+    ],
+    "log_sha256": "4eb274d58fcd23efa6e12be7bee653c85da51aabd648bb52a651f13558930188",
+    "junit_sha256": "e4f2d80afc8ef94843da3ebf1de921f81eb47d23eec24113650ef69dfde2724f",
+    "measurements": [
+      {
+        "test": "test_full_directory_5000_instances_50000_tools[over_cache_bytes]",
+        "properties": {
+          "directory_scale_measurements": {
+            "instances": 5000,
+            "registry_tools": 50000,
+            "groups": 1,
+            "over_cache_bytes": true,
+            "retained_after_cold": 42259,
+            "estimated_full_working_set_charged_bytes": 79400000,
+            "members_per_group": 1000,
+            "tools_per_request": 50000,
+            "cold_samples": 5,
+            "cold_p95_ms": 6838.649,
+            "hot_samples": 10,
+            "hot_p95_ms": 2917.382,
+            "catalog_page_samples": 10,
+            "catalog_page_p95_ms": 2986.829,
+            "member_page_samples": 10,
+            "member_page_p95_ms": 2884.456,
+            "cold_structure_counts": {
+              "fingerprints": 250000,
+              "normalizations": 250000,
+              "canonical_serializations": 750000
+            },
+            "warm_and_paged_additional_structure_counts": {
+              "fingerprints": 232230,
+              "normalizations": 232230,
+              "canonical_serializations": 696690
+            },
+            "warm_initial_miss_min": 7741,
+            "warm_initial_miss_max": 7741,
+            "alternating_group_initial_misses": [
+              7741,
+              7741,
+              7741,
+              7741
+            ],
+            "writer_additional_preparations": 15483,
+            "config_writer_lock_wait_ms": 0.012,
+            "cache_entries": 42259,
+            "cache_charged_bytes": 67107295,
+            "process_peak_rss_kib": 751632
+          }
+        }
+      }
+    ]
+  },
+  "after_minimal_real_scale": {
+    "exit_code": 0,
+    "junit": {
+      "tests": "1",
+      "errors": "0",
+      "failures": "0",
+      "skipped": "0",
+      "time": "30.280",
+      "timestamp": "2026-10-10T01:33:46.291250+00:00"
+    },
+    "pytest_summaries": [
+      "1 passed, 1 warning in 30.30s"
+    ],
+    "log_sha256": "e758a10abcef7a374c35bfa66dfe34b5d20b550fa9820b99faf8547ec2dcb4d6",
+    "junit_sha256": "a965f54e40de0759c1741104c943b74a8c216f9931bb032f7b66c991a8bfd912",
+    "measurements": [
+      {
+        "test": "test_minimal_full_scale_writer_retry",
+        "properties": {
+          "reader_after_release_seconds": 3.0445760840011644,
+          "writer_lock_wait_seconds": 1.2097996659576893e-05
+        }
+      }
+    ]
+  },
+  "after_cache_authority_regressions": {
+    "exit_code": 0,
+    "junit": {
+      "tests": "32",
+      "errors": "0",
+      "failures": "0",
+      "skipped": "0",
+      "time": "6.543",
+      "timestamp": "2026-10-10T01:32:55.822121+00:00"
+    },
+    "pytest_summaries": [
+      "32 passed in 6.56s"
+    ],
+    "log_sha256": "8bb4ef8940c9be317d9acbe73ce3973027aa33e909f634312d0b422680830f62",
+    "junit_sha256": "56d3a959dd00f8a4ad686a6462df7fbb57461c0721d1ae1a05da3d2468141d8a"
+  },
+  "after_all_original_scale_parameters": {
+    "exit_code": 0,
+    "junit": {
+      "tests": "3",
+      "errors": "0",
+      "failures": "0",
+      "skipped": "0",
+      "time": "284.361",
+      "timestamp": "2026-10-10T01:35:04.516484+00:00"
+    },
+    "pytest_summaries": [
+      "3 passed, 3 warnings in 284.36s (0:04:44)"
+    ],
+    "log_sha256": "177a5fce2f4f9fc2ecbb0904d364471b23c2706ec502eaf02409224001bba551",
+    "junit_sha256": "ca2447214f78b5726476ad1be85eee788ecb40eab37107329f2aa38346100301",
+    "measurements": [
+      {
+        "test": "test_full_directory_5000_instances_50000_tools[five_groups]",
+        "properties": {
+          "directory_scale_measurements": {
+            "instances": 5000,
+            "registry_tools": 50000,
+            "groups": 5,
+            "over_cache_bytes": false,
+            "retained_after_cold": 50000,
+            "estimated_full_working_set_charged_bytes": 58700003,
+            "members_per_group": 1000,
+            "tools_per_request": 10000,
+            "cold_samples": 5,
+            "cold_p95_ms": 1635.202,
+            "hot_samples": 10,
+            "hot_p95_ms": 255.434,
+            "catalog_page_samples": 10,
+            "catalog_page_p95_ms": 1105.641,
+            "member_page_samples": 10,
+            "member_page_p95_ms": 314.017,
+            "cold_structure_counts": {
+              "fingerprints": 50000,
+              "normalizations": 50000,
+              "canonical_serializations": 150000
+            },
+            "warm_and_paged_additional_structure_counts": {
+              "fingerprints": 0,
+              "normalizations": 0,
+              "canonical_serializations": 0
+            },
+            "warm_initial_miss_min": 0,
+            "warm_initial_miss_max": 0,
+            "alternating_group_initial_misses": [],
+            "writer_initial_misses": 1,
+            "writer_additional_preparations": 1,
+            "config_writer_lock_wait_ms": 0.009,
+            "cache_entries": 50000,
+            "cache_charged_bytes": 58700003,
+            "process_peak_rss_kib": 790972
+          }
+        }
+      },
+      {
+        "test": "test_full_directory_5000_instances_50000_tools[maximum_single_group]",
+        "properties": {
+          "directory_scale_measurements": {
+            "instances": 5000,
+            "registry_tools": 50000,
+            "groups": 1,
+            "over_cache_bytes": false,
+            "retained_after_cold": 50000,
+            "estimated_full_working_set_charged_bytes": 58700003,
+            "members_per_group": 1000,
+            "tools_per_request": 50000,
+            "cold_samples": 5,
+            "cold_p95_ms": 5994.466,
+            "hot_samples": 10,
+            "hot_p95_ms": 3195.814,
+            "catalog_page_samples": 10,
+            "catalog_page_p95_ms": 2893.894,
+            "member_page_samples": 10,
+            "member_page_p95_ms": 3021.027,
+            "cold_structure_counts": {
+              "fingerprints": 250000,
+              "normalizations": 250000,
+              "canonical_serializations": 750000
+            },
+            "warm_and_paged_additional_structure_counts": {
+              "fingerprints": 0,
+              "normalizations": 0,
+              "canonical_serializations": 0
+            },
+            "warm_initial_miss_min": 0,
+            "warm_initial_miss_max": 0,
+            "alternating_group_initial_misses": [],
+            "writer_initial_misses": 1,
+            "writer_additional_preparations": 1,
+            "config_writer_lock_wait_ms": 0.012,
+            "cache_entries": 50000,
+            "cache_charged_bytes": 58700003,
+            "process_peak_rss_kib": 1037092
+          }
+        }
+      },
+      {
+        "test": "test_full_directory_5000_instances_50000_tools[over_cache_bytes]",
+        "properties": {
+          "directory_scale_measurements": {
+            "instances": 5000,
+            "registry_tools": 50000,
+            "groups": 1,
+            "over_cache_bytes": true,
+            "retained_after_cold": 42259,
+            "estimated_full_working_set_charged_bytes": 79400000,
+            "members_per_group": 1000,
+            "tools_per_request": 50000,
+            "cold_samples": 5,
+            "cold_p95_ms": 7843.467,
+            "hot_samples": 10,
+            "hot_p95_ms": 4398.852,
+            "catalog_page_samples": 10,
+            "catalog_page_p95_ms": 4331.557,
+            "member_page_samples": 10,
+            "member_page_p95_ms": 4518.246,
+            "cold_structure_counts": {
+              "fingerprints": 250000,
+              "normalizations": 250000,
+              "canonical_serializations": 750000
+            },
+            "warm_and_paged_additional_structure_counts": {
+              "fingerprints": 232230,
+              "normalizations": 232230,
+              "canonical_serializations": 696690
+            },
+            "warm_initial_miss_min": 7741,
+            "warm_initial_miss_max": 7741,
+            "alternating_group_initial_misses": [
+              7741,
+              7741,
+              7741,
+              7741
+            ],
+            "writer_initial_misses": 7742,
+            "writer_additional_preparations": 7742,
+            "config_writer_lock_wait_ms": 0.014,
+            "cache_entries": 42259,
+            "cache_charged_bytes": 67107295,
+            "process_peak_rss_kib": 1292472
+          }
+        }
+      }
+    ]
+  },
+  "after_related_catalog_oauth_configuration_registry": {
+    "exit_code": 0,
+    "junit": {
+      "tests": "481",
+      "errors": "0",
+      "failures": "0",
+      "skipped": "0",
+      "time": "323.141",
+      "timestamp": "2026-10-10T01:41:25.188991+00:00"
+    },
+    "pytest_summaries": [
+      "481 passed, 2 warnings in 323.15s (0:05:23)"
+    ],
+    "log_sha256": "8ffa3c277f9624fca09542b0dc6ec6c0dead9249d8d98c755a4776efee34a07a",
+    "junit_sha256": "cfc8bd5187fc0cb91d060642b5fe9f3bc89884f12be5e430a8de5ae9686e4750",
+    "measurements": [
+      {
+        "test": "test_five_thousand_real_manifest_queries_reuse_metadata_snapshot",
+        "properties": {
+          "metadata_query_measurements": {
+            "instances": 5000,
+            "cold_seconds": 0.3719,
+            "warm_30_queries_seconds": 0.2486,
+            "cold_manifest_reads": 5000,
+            "warm_manifest_reads": 0
+          }
+        }
+      },
+      {
+        "test": "test_catalog_5000_actual_tools_100_instances_complete_search_and_nested_paging",
+        "properties": {
+          "catalog_5000_tools_query_seconds": 0.40641979400243144
+        }
+      }
+    ]
+  },
+  "stage_observations": {
+    "baseline-minimal": {
+      "stages_sha256": "535cb1f66ca9b7d1540b0fea2f8311be2056db453553709b4981a62487b3917a",
+      "writer_completion_to_snapshot_end_seconds": 4.749002,
+      "structural_preparations_after_writer_start": 15483,
+      "authority_projections_after_writer_start": 2,
+      "comparisons_after_writer_start": 2,
+      "stage_ends": [
+        {
+          "stage": "writer_end",
+          "seconds": 0.076702
+        },
+        {
+          "stage": "prepare_batch_end",
+          "seconds": 0.827084,
+          "tools": 50000,
+          "initial_misses": 7742
+        },
+        {
+          "stage": "authority_projection_end",
+          "seconds": 0.558839
+        },
+        {
+          "stage": "comparison_end",
+          "seconds": 0.336631
+        },
+        {
+          "stage": "metadata_current_end",
+          "seconds": 2.9e-05,
+          "current": false
+        },
+        {
+          "stage": "metadata_files_end",
+          "seconds": 0.310312
+        },
+        {
+          "stage": "metadata_selected_end",
+          "seconds": 0.311616
+        },
+        {
+          "stage": "registry_snapshot_end",
+          "seconds": 0.003274
+        },
+        {
+          "stage": "prepare_batch_end",
+          "seconds": 0.74239,
+          "tools": 50000,
+          "initial_misses": 7741
+        },
+        {
+          "stage": "authority_projection_end",
+          "seconds": 1.378607
+        },
+        {
+          "stage": "comparison_end",
+          "seconds": 0.335114
+        },
+        {
+          "stage": "metadata_current_end",
+          "seconds": 9.6e-05,
+          "current": true
+        },
+        {
+          "stage": "request_snapshot_end",
+          "seconds": 4.905681
+        }
+      ]
+    },
+    "baseline-original": {
+      "stages_sha256": "92497ce1852829977c35688034012cf2681cb85bc139557278889925ea00b1af",
+      "writer_completion_to_snapshot_end_seconds": 4.578338,
+      "structural_preparations_after_writer_start": 15483,
+      "authority_projections_after_writer_start": 2,
+      "comparisons_after_writer_start": 2,
+      "stage_ends": [
+        {
+          "stage": "writer_end",
+          "seconds": 0.091066
+        },
+        {
+          "stage": "prepare_batch_end",
+          "seconds": 0.833297,
+          "tools": 50000,
+          "initial_misses": 7742
+        },
+        {
+          "stage": "authority_projection_end",
+          "seconds": 0.521693
+        },
+        {
+          "stage": "comparison_end",
+          "seconds": 1.108278
+        },
+        {
+          "stage": "metadata_current_end",
+          "seconds": 2.8e-05,
+          "current": false
+        },
+        {
+          "stage": "metadata_files_end",
+          "seconds": 0.301235
+        },
+        {
+          "stage": "metadata_selected_end",
+          "seconds": 0.302616
+        },
+        {
+          "stage": "registry_snapshot_end",
+          "seconds": 0.00369
+        },
+        {
+          "stage": "prepare_batch_end",
+          "seconds": 0.743927,
+          "tools": 50000,
+          "initial_misses": 7741
+        },
+        {
+          "stage": "authority_projection_end",
+          "seconds": 0.501866
+        },
+        {
+          "stage": "comparison_end",
+          "seconds": 0.325783
+        },
+        {
+          "stage": "metadata_current_end",
+          "seconds": 9.2e-05,
+          "current": true
+        },
+        {
+          "stage": "request_snapshot_end",
+          "seconds": 4.757669
+        }
+      ]
+    },
+    "fixed-minimal": {
+      "stages_sha256": "51cdcb3cdd917010d4981a4a740ed95b85e5b4366c66903399ad300d9519076a",
+      "writer_completion_to_snapshot_end_seconds": 2.977798,
+      "structural_preparations_after_writer_start": 7742,
+      "authority_projections_after_writer_start": 1,
+      "comparisons_after_writer_start": 1,
+      "stage_ends": [
+        {
+          "stage": "writer_end",
+          "seconds": 0.079805
+        },
+        {
+          "stage": "prepare_batch_end",
+          "seconds": 0.816908,
+          "tools": 50000,
+          "initial_misses": 7742
+        },
+        {
+          "stage": "metadata_current_end",
+          "seconds": 0.00012,
+          "current": false
+        },
+        {
+          "stage": "metadata_files_end",
+          "seconds": 0.324304
+        },
+        {
+          "stage": "metadata_selected_end",
+          "seconds": 0.325665
+        },
+        {
+          "stage": "registry_snapshot_end",
+          "seconds": 0.00343
+        },
+        {
+          "stage": "metadata_current_end",
+          "seconds": 0.000101,
+          "current": true
+        },
+        {
+          "stage": "authority_projection_end",
+          "seconds": 0.571499
+        },
+        {
+          "stage": "comparison_end",
+          "seconds": 1.100006
+        },
+        {
+          "stage": "metadata_current_end",
+          "seconds": 2.9e-05,
+          "current": true
+        },
+        {
+          "stage": "request_snapshot_end",
+          "seconds": 3.146196
+        }
+      ]
+    },
+    "fixed-scale": {
+      "stages_sha256": "cd9eef16cb1b44049f6ee662099aae4bb1d2a7631439ef438a395cddfdeee5f1",
+      "writer_completion_to_snapshot_end_seconds": 4.741541,
+      "structural_preparations_after_writer_start": 7742,
+      "authority_projections_after_writer_start": 1,
+      "comparisons_after_writer_start": 1,
+      "stage_ends": [
+        {
+          "stage": "writer_end",
+          "seconds": 0.09349
+        },
+        {
+          "stage": "prepare_batch_end",
+          "seconds": 3.211012,
+          "tools": 50000,
+          "initial_misses": 7742
+        },
+        {
+          "stage": "metadata_current_end",
+          "seconds": 0.000119,
+          "current": false
+        },
+        {
+          "stage": "metadata_files_end",
+          "seconds": 0.380412
+        },
+        {
+          "stage": "metadata_selected_end",
+          "seconds": 0.382051
+        },
+        {
+          "stage": "registry_snapshot_end",
+          "seconds": 0.0043
+        },
+        {
+          "stage": "metadata_current_end",
+          "seconds": 0.00019,
+          "current": true
+        },
+        {
+          "stage": "authority_projection_end",
+          "seconds": 0.592205
+        },
+        {
+          "stage": "comparison_end",
+          "seconds": 0.383434
+        },
+        {
+          "stage": "metadata_current_end",
+          "seconds": 3e-05,
+          "current": true
+        },
+        {
+          "stage": "request_snapshot_end",
+          "seconds": 4.965775
+        }
+      ]
+    }
+  },
+  "stage_observation_method": "Temporary wrappers recorded real durations of metadata loading, selected Registry snapshots, get_many, current policy projection and comparison. fixed-scale stages are the final over_cache_bytes parameter in the three-parameter process. Initial misses and original preparation counters remain independently asserted by the scale test.",
+  "timing_interpretation": "Matched minimal processes completed after release in 4.806437 and 3.044576 seconds. These are measurements, not a production latency guarantee. The three-parameter fixed process has a different retained process history from the one-parameter baseline; its elapsed time and peak RSS are not a paired performance comparison.",
+  "additional_checks": {
+    "ruff": "All repository checks passed.",
+    "mypy": "No issues found in 158 source files.",
+    "repository_identity_history": "Passed.",
+    "source_version_check": "0.4.6; passed.",
+    "git_diff_check": "Passed."
+  },
+  "review_scope": "Author local execution records and static checks. Independent review and exact remote-head acceptance are requested through the parent thread; not yet claimed.",
+  "not_run_for_this_fix": [
+    "Complete backend suite",
+    "Frontend tests/build or browser acceptance",
+    "Wheel/native package rebuild and entry-point smokes",
+    "Python 3.11/3.12 local reruns",
+    "Formal release rerun",
+    "Real nx5/Podman or external OAuth acceptance"
+  ],
+  "delivery_boundaries": {
+    "version_tag_release_changes": false,
+    "formal_or_diagnostic_dispatch": false,
+    "denied_artifact_download_retry": false,
+    "Plane_or_product_ticket_changes": false,
+    "tag_v0_4_6_remains": "d228cf7ad27f2688cc6e04e5210c8aa2ea88b646",
+    "previous_formal_release_failure_resolved": false
+  },
+  "validation_commands": {
+    "scale": "python -m pytest -q tests/test_mcp_group_catalog_scale.py",
+    "cache_and_authority": "python -m pytest -q tests/test_mcp_group_cache_api.py tests/test_mcp_group_structures.py",
+    "related_files": [
+      "tests/test_mcp_groups.py",
+      "tests/test_mcp_group_catalog.py",
+      "tests/test_mcp_group_cache_api.py",
+      "tests/test_mcp_group_structures.py",
+      "tests/test_mcp_group_routing.py",
+      "tests/test_mcp_group_external_authority.py",
+      "tests/test_mcp_group_mcp.py",
+      "tests/test_registry_structure.py",
+      "tests/test_registry_concurrency.py",
+      "tests/test_mcp_config_atomicity.py",
+      "tests/test_mcp_configuration_service.py",
+      "tests/test_external_mcp_configuration.py",
+      "tests/test_tool_catalog.py",
+      "tests/test_catalog_denial_audit.py",
+      "tests/test_catalog_principal_ordering.py",
+      "tests/test_catalog_external_dispatch.py",
+      "tests/test_catalog_group_adapter.py",
+      "tests/test_catalog_classification_projection.py",
+      "tests/test_oauth_scope_catalog.py",
+      "tests/test_oauth_catalog_scaling.py",
+      "tests/test_oauth_paged_catalog.py"
+    ],
+    "related_arguments": "python -m pytest -q <related_files>",
+    "stage_note": "The instrumented scale runs also loaded the private observation plugin. Its output contains counts and stage durations only; raw logs and the user attachment remain private."
+  }
+}
