@@ -1,5 +1,14 @@
 # Service configuration layout validation
 
+## Contract follow-up after independent code review
+
+The comparison images and 70e3b08 implementation below are retained as historical evidence. Current implementation `77b1a8d348764528742fefa53e78117631de381a` supersedes the inline switch-help placement: it uses the existing Field description **below** the switch, as required by the unchanged UI contract.
+
+ConfigsPage now opts into existing confirmation focus restoration. New/Edit close and Keep editing have direct browser regressions; a removed or disabled Edit trigger returns to the available New Config action. The third consumer, DeliveryConfigEditor, is exercised through the actual BuildsPage at all four desktop sizes in both languages, including draft retention and exactly one draft-save PUT with start/overwrite remaining false.
+
+The final checks passed: 455 frontend tests, type/UX checks, Console/OAuth build and 49 browser cases with no retries. [Text-only follow-up evidence](benchmarks/gate-service-modal-contract-followup-77b1a8d.json) records source blobs, negative controls and local screenshot metadata. All 23 new PNGs remain in the original cloud environment, with no new images committed, uploaded or transferred; the prior screenshot history is unchanged. New-source incremental code review and visual acceptance remain pending.
+
+
 This isolated change aligns the existing **Service configurations → Edit** form. The four Chinese desktop comparisons use the actual built Console with synthetic API fixtures. Independent review by dot/the parent and acceptance on a real remote deployment remain **pending**.
 
 | Source | Exact revision |
