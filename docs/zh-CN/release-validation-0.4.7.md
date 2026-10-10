@@ -1,5 +1,9 @@
 # 0.4.7 候选与正式发布验证
 
+不可变 [v0.4.7 正式发行](https://github.com/zhigege666/Lingshu-Gate/releases/tag/v0.4.7)
+已于 2026-10-10 05:56:43 UTC 发布。下方最终回执绑定合并源码及实际下载的
+全部十一项资产。
+
 ## 源码与 patch 范围
 
 本 patch 包含 [PR64](https://github.com/zhigege666/Lingshu-Gate/pull/64) 审阅的
@@ -15,7 +19,7 @@ Git blob 与审阅 head 准确一致。精确 head 的普通 CI
 已通过，包含 Source/Python 3.12 与托管浏览器 smoke、Python 3.11、Python 3.13
 及 CI result。main 普通 CI
 [38018193498](https://github.com/zhigege666/Lingshu-Gate/actions/runs/38018193498)
-在本源码记录时仍在运行，作为版本合并前独立验收门槛。
+已在版本 PR 合并前成功完成。
 
 唯一运行时版本源为 `src/lingshu_gate/_version.py`，本 patch 更新至 `0.4.7`，
 同步双语 README、CHANGELOG、发行指南与 release notes。已整合的分组/会话、
@@ -83,3 +87,43 @@ selector；凭据与不可变发行预检在创建 tag、dispatch `release.yml` 
 全部必需任务、归档校验和、包内清单、SBOM、源码/工作流 attestation 和公开
 标题/正文。tag、dispatch、本地候选或 PR artifact 都不代表正式发布完成；不以
 复用旧失败标签、读取或改道下载旧拒绝 artifact 替代这些门槛。
+
+## 正式发布完成与下载字节核验
+
+PR65 合并为 `45cec40c1e57d7290ab249e620b5a50fa939e115`，tree 为
+`5cf23e968371ca7623eaef75e7d774a38d022240`；远端全部 993 个 leaf 的 mode、type
+及 blob 匹配审阅 head `c9261a2c95cc30edb7e46317a1c36778ac0227bf`。
+现有 selector 在该合并上创建 v0.4.7；v0.4.5/v0.4.6 保留原 SHA。main CI、代码
+扫描、容器验证、selector 与
+[正式运行 38022781421](https://github.com/zhigege666/Lingshu-Gate/actions/runs/38022781421)
+均已成功完成。
+
+首次正式质量门槛达到未改动的 40 分钟 job 限制，pytest 未完成。新源码检查
+及本地 66 项计时探针通过后，执行代理在已授权发布范围内使用原工具请求一次
+有界重跑；此工程判断不证明 runner 瞬时故障。第二次在固定 CPython 3.13.15
+上通过：2,336 passed、7 skipped、134 subtests，1,967.56 秒。原预算、断言和
+job 限制均未改变。
+[首次运行证据](../benchmarks/gate-release-0.4.7-formal-attempt-45cec40.json)
+保留失败及重跑判断。
+
+[最终完成证据](../benchmarks/gate-release-0.4.7-formal-completion-45cec40.json)
+记录全部十一项实际下载、准确名称/大小/API 摘要与 SHA256SUMS、五平台 native
+BUILD-INFO 清单及静态文件、SPDX SBOM、Compose 清单和双架构离线 Core blob
+身份。每个平台包含 Console 115、OAuth 3 个文件。Linux/macOS 字节匹配新 Linux
+构建；Windows 四个文本摘要受 CRLF 检出及 Vite HTML 空白影响。新 CRLF 检出及
+Vite 构建准确匹配 Windows 全部 118 个路径和摘要；该参考运行在 Linux，不是
+Windows 运行时测试。首次校验错误采用共同平台参考及修正均保留；每项资产只
+下载一次。
+
+实际下载的 Linux x86_64 SHA-256 为
+`be4d4b52c4074da76f49bb2b8fe52d66a2853ad2fd6172c508ba454991adee80`。
+该冻结字节通过六项入口与六项 worker 生命周期检查，含 deadline/cancel、slot
+复用及所属子进程回收。父进程是已安装候选 wheel 的 Python，调用正式 native
+worker，不宣称覆盖完整冻结应用父链路。托管 native readiness、Linux glibc、
+Intel macOS OpenSSL 隔离、Compose、双架构 Core critical 扫描及离线 load smoke
+均成功。
+
+publisher 验证不可变发行及全部十一项带可信时间戳的强制源码/工作流 attestation
+后更新 Docker Hub latest。可选环境密钥 OCI 签名未配置而跳过，与强制资产
+attestation 分别记录。已发布标题/双语 notes 与源码匹配。真实 nx5/x16、Podman
+准备及真实 OAuth 客户端验收仍不在这些云回执范围内。
