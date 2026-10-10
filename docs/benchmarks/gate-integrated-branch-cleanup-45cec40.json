@@ -1,0 +1,120 @@
+{
+  "schema_version": 1,
+  "repository": "zhigege666/Lingshu-Gate",
+  "captured_at_utc": "2026-10-10T06:58:56.683067+00:00",
+  "authorization": "Existing user instruction: verify remote SHAs and clean fully integrated branches; preserve unique content.",
+  "main": "45cec40c1e57d7290ab249e620b5a50fa939e115",
+  "protected_refs": {
+    "refs/heads/main": "45cec40c1e57d7290ab249e620b5a50fa939e115",
+    "refs/tags/v0.4.5": "c0ea7d04cd16ac01536d0c0f00edab0c5ffc349e",
+    "refs/tags/v0.4.6": "d228cf7ad27f2688cc6e04e5210c8aa2ea88b646",
+    "refs/tags/v0.4.7": "45cec40c1e57d7290ab249e620b5a50fa939e115",
+    "refs/heads/fix/gate-service-modal-alignment-20261010": "08338e14aad70d11118f2c3eb31d25b8c49e1bbe"
+  },
+  "delete_exact_refs": [
+    {
+      "branch": "fix/gate-account-menu-focus-20261008",
+      "expected_sha": "9f8fddd9709e400517fc2e342ed9889a35751c96",
+      "ancestor_of_main": true
+    },
+    {
+      "branch": "fix/gate-catalog-snapshot-retry-20261010",
+      "expected_sha": "2f59a904a8f90da6a242699a62b1ad8f556cee29",
+      "ancestor_of_main": true
+    },
+    {
+      "branch": "test/gate-metadata-ttl-boundary-20261008",
+      "expected_sha": "20030018aef1e2a28e5c08bdd80d90073b688464",
+      "ancestor_of_main": true
+    },
+    {
+      "branch": "test/gate-release-0.4.5-20261007",
+      "expected_sha": "2ef739b5a9f72e8a7a01c7044f20b5d766de415c",
+      "ancestor_of_main": true
+    },
+    {
+      "branch": "test/gate-release-0.4.6-20261009",
+      "expected_sha": "7a38dca72351a58b59ee7712f3296764848333be",
+      "ancestor_of_main": true
+    },
+    {
+      "branch": "test/gate-release-0.4.7-20261010",
+      "expected_sha": "c9261a2c95cc30edb7e46317a1c36778ac0227bf",
+      "ancestor_of_main": true
+    },
+    {
+      "branch": "test/gate-release-diagnostic-json-isolation-20261008",
+      "expected_sha": "d8568c77139de5559683e84d8a76d9799eb8653d",
+      "ancestor_of_main": true
+    },
+    {
+      "branch": "test/gate-release-quality-repair-20261008",
+      "expected_sha": "e80da954388752db79785ae3384264ced08e96d7",
+      "ancestor_of_main": true
+    }
+  ],
+  "preserve_unique_refs": [
+    {
+      "branch": "test/gate-account-focus-diagnostic-20261008",
+      "expected_sha": "9f90dead000db20ed069ea3e720912a552b75fa3",
+      "ancestor_of_main": false
+    },
+    {
+      "branch": "test/gate-account-focus-main-evidence-20261008",
+      "expected_sha": "5f0148750ff9f66ab2b3feb14a97dd81332db76f",
+      "ancestor_of_main": false
+    },
+    {
+      "branch": "test/gate-formal-environment-diagnostic-20261008",
+      "expected_sha": "31939e2701c39181b31ef79ffb51a7d43666cc60",
+      "ancestor_of_main": false
+    },
+    {
+      "branch": "test/gate-formal-environment-evidence-20261008",
+      "expected_sha": "da877054c8be79409f33967305d8b4b180158a2c",
+      "ancestor_of_main": false
+    },
+    {
+      "branch": "test/gate-release-0.4.5-evidence-20261007",
+      "expected_sha": "e4f1921f7fb4f36045706b508665e76c5fe300be",
+      "ancestor_of_main": false
+    },
+    {
+      "branch": "test/gate-release-0.4.6-package-evidence-20261009",
+      "expected_sha": "6cc6457905e7b03a11aabfa296a495ec819f6e42",
+      "ancestor_of_main": false
+    },
+    {
+      "branch": "test/gate-release-0.4.7-formal-evidence-20261010",
+      "expected_sha": "6a7a0f8e82e7dc069056e55f567d21e3a39f2aad",
+      "ancestor_of_main": false
+    },
+    {
+      "branch": "test/gate-release-quality-d228-20261009",
+      "expected_sha": "0cd74320cecbb2b2c8aeb3f941590fef42a14ce4",
+      "ancestor_of_main": false
+    },
+    {
+      "branch": "test/gate-release-resume-fixed-source-20261008",
+      "expected_sha": "b8150e878feffe1bd5b3784ae3050237e4db643d",
+      "ancestor_of_main": false
+    },
+    {
+      "branch": "fix/gate-service-modal-alignment-20261010",
+      "expected_sha": "08338e14aad70d11118f2c3eb31d25b8c49e1bbe",
+      "ancestor_of_main": false
+    }
+  ],
+  "execution_status": "completed",
+  "mutation_boundary": "One atomic, expected-SHA-guarded deletion of these eight branch heads only. All commits remain reachable from main; no tag, main, release asset or unique branch update.",
+  "completed_at_utc": "2026-10-10T06:59:59.327707+00:00",
+  "push_exit_code": 0,
+  "operation": "Atomic deletion of eight branch refs with separate expected-SHA leases; no commit history rewrite.",
+  "deleted_ref_count": 8,
+  "preserved_unique_ref_count": 10,
+  "all_other_remote_refs_unchanged": true,
+  "main_and_tags_unchanged": true,
+  "all_deleted_commits_reachable_from_main": true,
+  "formal_release": "v0.4.7 remains published and immutable; no release assets changed.",
+  "preserved_evidence_head_at_cleanup": "6a7a0f8e82e7dc069056e55f567d21e3a39f2aad"
+}
