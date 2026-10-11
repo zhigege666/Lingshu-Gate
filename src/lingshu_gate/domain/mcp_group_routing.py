@@ -6,6 +6,7 @@ from typing import Any
 
 from pydantic import BaseModel, ConfigDict, Field, StrictStr
 from lingshu_gate.mcp_manifest import MCP_SERVER_ID_PATTERN
+from lingshu_gate.domain.mcp_groups import McpGroupType
 
 TOOL_REF_PATTERN = r"^mcp-group:[a-f0-9]{32}:[a-f0-9]{64}$"
 INSTANCE_ID_PATTERN = MCP_SERVER_ID_PATTERN
@@ -33,6 +34,9 @@ class CatalogTarget:
     tool_id: str
     schema_revision: str
     definition_fingerprint: str
+    group_type: McpGroupType = "unspecified"
+    group_name: str = ""
+    instance_name: str = ""
 
 
 def logical_service_id(group_id: str) -> str:

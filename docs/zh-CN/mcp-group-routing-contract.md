@@ -8,13 +8,15 @@
 
 共享运行连接使用每个 runtime 的新 epoch 和单调 generation；替换/清空客户端及每次共享 connect/reconnect 尝试（含失败和恢复）均推进 generation，不再从对象地址、时间戳或下游 SID 推导连续性。复用 SID 或 A→B→A 恢复旧客户端不能复活旧路由会话；派发期间 generation 变化也使 guard 失败，必须先对账再显式打开新会话。
 
-本内部 port 基于 exact 0.4.4 实现。公开 MCP 调用入口由按需目录持有。分组不增加第二套通用调用端点，也不把逻辑别名注册成下游工具。
+本内部 port 及公开按需集成已在 0.4.5 整合，0.4.7 继续提供。显式组用途与来源标识是本轮未发布的源码改动。公开 MCP 调用入口由按需目录持有。分组不增加第二套通用调用端点，也不把逻辑别名注册成下游工具。
 
-`McpGroupRoutingService.resolve(actor, tool_ref=..., instance_id=...)` 返回 `CatalogTarget`：包含实际 `server_id`、原 `tool_id`、显式 `instance_id`、逻辑 `service_id`、`group_id`、`group_revision`、`schema_revision` 和 `definition_fingerprint`。`schema_revision` 是分区的完整合同指纹。逻辑引用格式为 `mcp-group:<group-id>:<partition-fingerprint>`。原 `mcp.<server-id>.<name>` 标识和 API 保持可用。
+`McpGroupRoutingService.resolve(actor, tool_ref=..., instance_id=...)` 返回 `CatalogTarget`：包含实际 `server_id`、原 `tool_id`、显式 `instance_id`、逻辑 `service_id`、`group_id`、`group_revision`、`schema_revision`、`definition_fingerprint`、`group_type`、`group_name` 和 `instance_name`。`schema_revision` 是分区的完整合同指纹。逻辑引用格式为 `mcp-group:<group-id>:<partition-fingerprint>`。原 `mcp.<server-id>.<name>` 标识和 API 保持可用。
+
+`group_type` 区分 `execution` 执行环境与 `data_source` 查询来源；历史 `unspecified` 保留到明确选择为止。两种用途都使用显式选择和实例绑定保护。用途表示管理员意图，不证明业务/数据等价，不是只读分类或自动路由策略。公开分组工具摘要包含 `group_type`/`group_name`，有权实例页、所选 describe 与打开会话结果另含 `instance_name`；不可见成员的标识不会进入公开结果。名称与用途仅作元数据，不加入下游参数。修改用途推进既有组 revision，使旧会话和游标失效。
 
 `search` 和 `describe` 交集当前用户／角色／控制权限、API token 或 OAuth 授权上限、实际实例／工具权限、逻辑服务／工具授权。逻辑服务使用现有资源授权存储中的 `server_id=mcp-group:<group-id>`，可选精确 `tool_id=tool_ref`。加入实例不产生授权。OAuth 继续授权原实际工具 ID，逻辑路由不能扩大允许列表。结构缓存不保存授权。
 
-`open_session(actor, GroupToolSelection)` 必须显式指定 `tool_ref` 与现有 `instance_id`。返回生成的会话标识，绑定调用者的认证连接、组修订、配置摘要和当前 runtime 代际。持久化的 `default_instance_id` 仅为建议，缺少实例选择会被拒绝。路由 envelope 拒绝 endpoint、secret 和未知字段。默认实例必须已选中且可用。
+`open_session(actor, GroupToolSelection)` 必须显式指定 `tool_ref` 与现有 `instance_id`。返回生成的会话标识、逻辑 `service_id`、所选 `instance_id`/`instance_name`、`group_id`/`group_type`/`group_name` 和过期时间。会话绑定调用者的认证连接、组修订、配置摘要和当前 runtime 代际。持久化的 `default_instance_id` 仅为建议，缺少实例选择会被拒绝。路由 envelope 拒绝 endpoint、secret 和未知字段。默认实例必须已选中且可用。
 
 统一调用入口在原调用路径外使用 `dispatch_guard(actor, GroupToolCall)`，得到 `(current_actor, target)`：
 

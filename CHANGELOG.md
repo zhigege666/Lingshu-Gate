@@ -1,5 +1,12 @@
 # Changelog
 
+## Unreleased
+
+- Distinguish multi-instance execution (`execution`) from multi-data-source query (`data_source`) through an explicit group purpose. Preserve existing groups as `unspecified`; legacy updates that omit the purpose retain the saved value, and legacy MCP creation receipts keep their request digest across upgrades.
+- Require a purpose choice in Console and show it in group directories/details. Authorized on-demand group summaries, instance pages, describe and session-open results identify the purpose and selected source using existing instance names.
+- Reuse existing contract partitioning, authority checks, explicit instance sessions, revision invalidation, body-bound CSRF, creation idempotency and atomic audit. Group purposes do not authorize tools, automatically choose peers, locate datasets, merge results or replay calls.
+- Update paired group, routing and on-demand guides and security notes; correct obsolete pre-integration status text while keeping this source change separate from published 0.4.7 behavior.
+
 ## 0.4.7
 
 - Reuse request-held immutable tool contracts when a configuration writer invalidates a group-directory snapshot. Bind reuse to publication revision and frozen identity; reject known-stale inputs before policy projection and comparison.

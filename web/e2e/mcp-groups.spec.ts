@@ -3,11 +3,12 @@ import { mkdirSync } from 'node:fs'
 import { join } from 'node:path'
 import { login, expectInViewportAndUnobscured } from './helpers'
 import { listFixtures, servers } from './synthetic-data'
+import type { McpGroupType } from '../src/api/mcp-groups'
 
 const alpha = 'a'.repeat(32), beta = 'b'.repeat(32)
-const instances = Array.from({ length: 1000 }, (_, i) => ({ instance_id: `instance-${String(i).padStart(4, '0')}`, name: `Instance ${String(i).padStart(4, '0')}`, status: 'not_loaded', available: true, contract_revision: (i < 20 ? 'a' : 'b').repeat(64), groups: [{ id: alpha, name: 'Synthetic alpha', status: 'active' }] }))
+const instances = Array.from({ length: 1000 }, (_, i) => ({ instance_id: `instance-${String(i).padStart(4, '0')}`, name: `Instance ${String(i).padStart(4, '0')}`, status: 'not_loaded', available: true, contract_revision: (i < 20 ? 'a' : 'b').repeat(64), groups: [{ id: alpha, name: 'Synthetic alpha', group_type: 'execution', status: 'active' }] }))
 const stamp = '2026-10-04T00:00:00Z'
-const record = (id: string, name: string, members = instances.map(item => item.instance_id)) => ({ id, name, description: 'Synthetic metadata-only collection', status: 'active', revision: 1, created_at: stamp, updated_at: stamp, default_instance_id: null as string | null, members: members.map(instance_id => ({ instance_id, status: 'active', available: true })) })
+const record = (id: string, name: string, members = instances.map(item => item.instance_id)) => ({ id, name, description: 'Synthetic metadata-only collection', group_type: 'execution' as McpGroupType, status: 'active', revision: 1, created_at: stamp, updated_at: stamp, default_instance_id: null as string | null, members: members.map(instance_id => ({ instance_id, status: 'active', available: true })) })
 
 async function fixture(page: Page, locale = 'en-US', theme = 'dark') {
   await login(page)
@@ -34,7 +35,7 @@ async function fixture(page: Page, locale = 'en-US', theme = 'dark') {
         }
         const id = req.method() === 'POST' ? 'c'.repeat(32) : path.split('/').at(-1)!
         if (req.method() === 'DELETE') { records.delete(id); return route.fulfill({ json: { id, deleted: true, metadata_only: true } }) }
-        const next = { ...record(id, body.name, body.members), description: body.description, status: body.status, default_instance_id: body.default_instance_id ?? null, revision: (records.get(id)?.revision ?? 0) + 1 }
+        const next = { ...record(id, body.name, body.members), description: body.description, group_type: body.group_type ?? records.get(id)?.group_type ?? 'unspecified', status: body.status, default_instance_id: body.default_instance_id ?? null, revision: (records.get(id)?.revision ?? 0) + 1 }
         records.set(id, next)
         if (req.method() === 'POST') receipts.set(body.request_key, { body: JSON.stringify(body), id })
         if (loseResponse) { loseResponse = false; return route.abort('failed') }
@@ -101,12 +102,52 @@ for (const [width, height] of [[1600, 900], [1920, 1080], [2560, 1080], [2560, 1
   })
 }
 
+for (const locale of ['en-US', 'zh-CN']) {
+  test(`group purpose requires a choice and identifies data sources ${locale}`, async ({ page }) => {
+    const gate = await fixture(page, locale), zh = locale === 'zh-CN'
+    await page.getByRole('button', { name: zh ? '创建组' : 'Create group', exact: true }).click()
+    const dialog = page.getByRole('dialog'), save = dialog.getByRole('button', { name: zh ? '保存组' : 'Save group', exact: true })
+    await dialog.getByLabel(zh ? '名称' : 'Name', { exact: true }).fill('Synthetic data sources')
+    await save.click()
+    await expect(dialog.getByRole('alert')).toContainText(zh ? '请选择多实例执行或多数据源查询。' : 'Select multi-instance execution or multi-data-source query.')
+    expect(gate.writes).toHaveLength(0)
+    await dialog.getByRole('radio', { name: zh ? '多数据源查询' : 'Multi-data-source query', exact: true }).check()
+    await expect(dialog.getByRole('alert')).toHaveCount(0)
+    await expect(dialog.getByRole('columnheader', { name: zh ? '数据来源' : 'Data source', exact: true })).toBeVisible()
+    await dialog.getByRole('checkbox', { name: 'Instance 0000 · instance-0000', exact: true }).check()
+    await save.click()
+    await expect(dialog).toHaveCount(0)
+    expect(gate.writes[0].body).toMatchObject({ group_type: 'data_source', members: ['instance-0000'] })
+    await expect(page.locator('.mcp-group-detail .ant-tag').filter({ hasText: zh ? '多数据源查询' : 'Multi-data-source query' })).toBeVisible()
+    await expect(page.locator('.mcp-group-detail')).toContainText(zh ? '结果不会自动合并' : 'results are not combined automatically')
+  })
+
+  test(`legacy purpose is explicit and purpose edits retain dirty-close protection ${locale}`, async ({ page }) => {
+    const gate = await fixture(page, locale), zh = locale === 'zh-CN'
+    gate.records.set(alpha, { ...gate.records.get(alpha)!, group_type: 'unspecified' })
+    await page.locator('.service-entry').filter({ hasText: 'Synthetic alpha' }).click()
+    await expect(page.locator('.mcp-group-detail')).toContainText(zh ? '未指定用途' : 'Purpose unspecified')
+    await page.getByRole('button', { name: zh ? '编辑组' : 'Edit group', exact: true }).click()
+    const dialog = page.getByRole('dialog')
+    await dialog.getByRole('button', { name: zh ? '保存组' : 'Save group', exact: true }).click()
+    expect(gate.writes).toHaveLength(0)
+    await dialog.getByRole('radio', { name: zh ? '多数据源查询' : 'Multi-data-source query', exact: true }).check()
+    await page.keyboard.press('Escape')
+    await page.getByRole('alertdialog').getByRole('button', { name: zh ? '继续编辑' : 'Continue editing', exact: true }).click()
+    await expect(dialog.getByRole('radio', { name: zh ? '多数据源查询' : 'Multi-data-source query', exact: true })).toBeChecked()
+    await dialog.getByRole('button', { name: zh ? '保存组' : 'Save group', exact: true }).click()
+    await expect(dialog).toHaveCount(0)
+    expect(gate.writes[0]).toMatchObject({ method: 'PUT', body: { group_type: 'data_source', expected_revision: 1 } })
+  })
+}
+
 for (const locale of ['en-US', 'zh-CN']) test(`explicit default radio and incompatible versions ${locale}`, async ({ page }) => {
   const gate = await fixture(page, locale)
   const zh = locale === 'zh-CN'
   await page.getByRole('button', { name: zh ? '创建组' : 'Create group', exact: true }).click()
   const dialog = page.getByRole('dialog')
   await dialog.getByLabel(zh ? '名称' : 'Name', { exact: true }).fill('Synthetic contract group')
+  await dialog.getByRole('radio', { name: zh ? '多实例执行' : 'Multi-instance execution', exact: true }).check()
   const default0 = dialog.getByRole('radio', { name: `${zh ? '默认实例' : 'Default instance'} · instance-0000`, exact: true })
   await expect(default0).toBeDisabled()
   await dialog.getByRole('checkbox', { name: 'Instance 0000 · instance-0000', exact: true }).check()
@@ -132,6 +173,7 @@ test('cross-page selection and complete search survive save failure/retry', asyn
   await page.getByRole('button', { name: 'Create group', exact: true }).click()
   const dialog = page.getByRole('dialog')
   await dialog.getByLabel('Name', { exact: true }).fill('Synthetic selected group')
+  await dialog.getByRole('radio', { name: 'Multi-instance execution', exact: true }).check()
   await dialog.getByRole('checkbox', { name: 'Instance 0000 · instance-0000', exact: true }).check()
   await dialog.locator('.ant-pagination-next').click()
   await dialog.getByRole('checkbox', { name: 'Instance 0020 · instance-0020', exact: true }).check()
@@ -157,6 +199,7 @@ test('lost create response retries the same bound request instead of another gro
   await page.getByRole('button', { name: 'Create group', exact: true }).click()
   const dialog = page.getByRole('dialog')
   await dialog.getByLabel('Name', { exact: true }).fill('Synthetic lost creation')
+  await dialog.getByRole('radio', { name: 'Multi-instance execution', exact: true }).check()
   gate.setLoseResponse()
   await dialog.getByRole('button', { name: 'Save group', exact: true }).click()
   await expect(dialog.getByRole('button', { name: 'Check saved result', exact: true })).toBeVisible()
@@ -178,10 +221,12 @@ test('changed unconfirmed creation reconciles the saved group while keeping new 
   await page.getByRole('button', { name: '创建组', exact: true }).click()
   const dialog = page.getByRole('dialog')
   await dialog.getByLabel('名称', { exact: true }).fill('首次提交')
+  await dialog.getByRole('radio', { name: '多实例执行', exact: true }).check()
   gate.setLoseResponse()
   await dialog.getByRole('button', { name: '保存组', exact: true }).click()
   await expect(dialog.getByRole('button', { name: '核对保存结果', exact: true })).toBeVisible()
   await dialog.getByLabel('名称', { exact: true }).fill('保留新的修改')
+  await dialog.getByRole('radio', { name: '多数据源查询', exact: true }).check()
   await dialog.getByRole('button', { name: '保存组', exact: true }).click()
   await expect(dialog.getByRole('alert')).toContainText('草稿已修改')
   for (const name of ['核对保存结果', '重试原创建', '保存组']) await expectInViewportAndUnobscured(dialog.getByRole('button', { name, exact: true }))
@@ -191,10 +236,12 @@ test('changed unconfirmed creation reconciles the saved group while keeping new 
   await dialog.getByRole('button', { name: '核对保存结果', exact: true }).click()
   await expect(dialog.getByRole('button', { name: '重新读取已保存组', exact: true })).toBeVisible()
   await expect(dialog.getByLabel('名称', { exact: true })).toHaveValue('保留新的修改')
+  await expect(dialog.getByRole('radio', { name: '多数据源查询', exact: true })).toBeChecked()
   await dialog.getByRole('button', { name: '保存组', exact: true }).click()
   await expect(dialog).toHaveCount(0)
   expect(gate.writes.map(item => item.method)).toEqual(['POST', 'PUT'])
   expect(gate.writes[1].body.expected_revision).toBe(1)
+  expect(gate.writes.map(item => item.body.group_type)).toEqual(['execution', 'data_source'])
   expect(gate.writes[1].body).not.toHaveProperty('request_key')
   expect(Array.from(gate.records.values()).filter(item => item.name === '保留新的修改')).toHaveLength(1)
 })
@@ -207,6 +254,7 @@ for (const locale of ['en-US', 'zh-CN']) {
     await page.getByRole('button', { name: create, exact: true }).click()
     const dialog = page.getByRole('dialog')
     await dialog.getByLabel(chinese ? '名称' : 'Name', { exact: true }).fill('Synthetic saved before reload')
+    await dialog.getByRole('radio', { name: chinese ? '多实例执行' : 'Multi-instance execution', exact: true }).check()
     gate.setLoseResponse()
     await dialog.getByRole('button', { name: chinese ? '保存组' : 'Save group', exact: true }).click()
     await expect(dialog.getByRole('button', { name: check, exact: true })).toBeVisible()
@@ -243,6 +291,7 @@ for (const locale of ['en-US', 'zh-CN']) {
     await page.getByRole('button', { name: chinese ? '创建组' : 'Create group', exact: true }).click()
     const dialog = page.getByRole('dialog'), name = dialog.getByLabel(chinese ? '名称' : 'Name', { exact: true })
     await name.fill('Synthetic draft at capacity')
+    await dialog.getByRole('radio', { name: chinese ? '多实例执行' : 'Multi-instance execution', exact: true }).check()
     await dialog.getByRole('button', { name: chinese ? '保存组' : 'Save group', exact: true }).click()
     await expect(dialog.getByRole('alert')).toContainText(chinese ? '本次请求未新建组' : 'This request did not create a new group')
     await expect(name).toHaveValue('Synthetic draft at capacity')
@@ -318,6 +367,7 @@ test('storage failure keeps in-dialog reconciliation usable and reports reload l
   await page.getByRole('button', { name: 'Create group', exact: true }).click()
   const dialog = page.getByRole('dialog')
   await dialog.getByLabel('Name', { exact: true }).fill('Synthetic unavailable storage')
+  await dialog.getByRole('radio', { name: 'Multi-instance execution', exact: true }).check()
   gate.setLoseResponse()
   await dialog.getByRole('button', { name: 'Save group', exact: true }).click()
   await expect(dialog).toContainText('Browser recovery storage is unavailable')
@@ -338,19 +388,24 @@ test('explicit retry of an unconfirmed original creation preserves later edits',
   await page.getByRole('button', { name: 'Create group', exact: true }).click()
   const dialog = page.getByRole('dialog')
   await dialog.getByLabel('Name', { exact: true }).fill('Original submitted draft')
+  await dialog.getByRole('radio', { name: 'Multi-instance execution', exact: true }).check()
   await dialog.getByRole('button', { name: 'Save group', exact: true }).click()
   await expect(dialog.getByRole('button', { name: 'Retry original creation', exact: true })).toBeVisible()
   await dialog.getByLabel('Name', { exact: true }).fill('Edits after failure')
+  await dialog.getByRole('radio', { name: 'Multi-data-source query', exact: true }).check()
   await dialog.getByRole('button', { name: 'Check saved result', exact: true }).click()
   await expect(dialog.getByRole('alert')).toContainText('No saved result')
   await dialog.getByRole('button', { name: 'Retry original creation', exact: true }).click()
   await expect(dialog.getByRole('button', { name: 'Reload saved group', exact: true })).toBeVisible()
   await expect(dialog.getByLabel('Name', { exact: true })).toHaveValue('Edits after failure')
+  await expect(dialog.getByRole('radio', { name: 'Multi-data-source query', exact: true })).toBeChecked()
   expect(gate.writes[0].body.request_key).toBe(originalKey)
   expect(gate.writes[0].body.name).toBe('Original submitted draft')
+  expect(gate.writes[0].body.group_type).toBe('execution')
   await dialog.getByRole('button', { name: 'Save group', exact: true }).click()
   await expect(dialog).toHaveCount(0)
   expect(gate.writes.map(item => item.method)).toEqual(['POST', 'PUT'])
+  expect(gate.writes.at(-1)!.body.group_type).toBe('data_source')
 })
 
 test('explicit catalog refresh is separate from normal search and paging', async ({ page }) => {
@@ -413,6 +468,10 @@ test('group fields, state choices and member selection work by keyboard', async 
   await dialog.getByLabel('Name', { exact: true }).fill('Synthetic keyboard draft')
   await page.keyboard.press('Tab')
   await expect(dialog.getByLabel('Description', { exact: true })).toBeFocused()
+  await page.keyboard.press('Tab')
+  await expect(dialog.getByRole('radio', { name: 'Multi-instance execution', exact: true })).toBeFocused()
+  await page.keyboard.press('ArrowRight')
+  await expect(dialog.getByRole('radio', { name: 'Multi-data-source query', exact: true })).toBeChecked()
   await page.keyboard.press('Tab')
   await expect(dialog.getByRole('radio', { name: 'Active', exact: true })).toBeFocused()
   await page.keyboard.press('ArrowRight')
@@ -483,6 +542,7 @@ test('pending save blocks duplicate submission and keyboard close', async ({ pag
     await page.getByRole('button', { name: 'Create group', exact: true }).click()
     const dialog = page.getByRole('dialog')
     await dialog.getByLabel('Name', { exact: true }).fill('Pending synthetic')
+    await dialog.getByRole('radio', { name: 'Multi-instance execution', exact: true }).check()
     await dialog.getByRole('button', { name: 'Save group', exact: true }).click()
     await expect.poll(() => entered).toBe(true)
     await expect(dialog.getByRole('button', { name: 'Save group', exact: true })).toBeDisabled()
@@ -508,6 +568,7 @@ test('real isolated Console reconciles lost create response then archives/delete
   await page.locator('.mcp-group-view-switch').getByText('Groups', { exact: true }).click()
   await page.getByRole('button', { name: 'Create group', exact: true }).click()
   await page.getByRole('dialog').getByLabel('Name', { exact: true }).fill('Synthetic ephemeral collection')
+  await page.getByRole('dialog').getByRole('radio', { name: 'Multi-instance execution', exact: true }).check()
   await page.getByRole('dialog').getByRole('button', { name: 'Save group', exact: true }).click()
   await expect(page.getByRole('dialog').getByRole('button', { name: 'Check saved result', exact: true })).toBeVisible()
   await page.getByRole('dialog').getByRole('button', { name: 'Save group', exact: true }).click()

@@ -38,6 +38,18 @@ describe("group metadata requests", () => {
     expect(fetch).toHaveBeenCalledTimes(2)
     expect(fetch.mock.calls[1][1].signal.aborted).toBe(true)
   })
+  it("binds the group purpose to the confirmed request and its CSRF digest", async () => {
+    const fetch = vi.fn().mockImplementation(async (path: string) => new Response(JSON.stringify(path.includes("/csrf") ? { csrf: "synthetic-ticket" } : { id: "a".repeat(32), group_type: "data_source", revision: 2 })))
+    vi.stubGlobal("fetch", fetch)
+    const body = { name: "Independent sources", description: "", group_type: "data_source" as const, status: "active" as const, members: ["a", "b"], reconfirm_members: [], confirmed: true as const, expected_revision: 1 }
+    const result = await mcpGroupsApi.save("a".repeat(32), body)
+    expect(result.group_type).toBe("data_source")
+    expect(JSON.parse(fetch.mock.calls[1][1].body).group_type).toBe("data_source")
+    const execution = { ...body, group_type: "execution" as const }
+    await mcpGroupsApi.save("a".repeat(32), execution)
+    expect(new URL(fetch.mock.calls[0][0], "https://gate.example.test").searchParams.get("request_digest"))
+      .not.toBe(new URL(fetch.mock.calls[2][0], "https://gate.example.test").searchParams.get("request_digest"))
+  })
   it("retains an explicit create key and binds it to each fresh ticket on retry", async () => {
     const body = { name: "Synthetic retry", description: "", status: "active" as const, members: [], reconfirm_members: [], confirmed: true as const, request_key: "d".repeat(32) }
     const fetch = vi.fn().mockImplementation(async (path: string) => new Response(JSON.stringify(path.includes("/csrf") ? { csrf: "synthetic-ticket" } : { id: "c".repeat(32), revision: 1 })))

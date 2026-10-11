@@ -1,6 +1,6 @@
 import { useEffect, useId, useRef, useState } from "react"
 import { Alert, Button, Input, Pagination, Radio, Table, Tag } from "antd"
-import { canonicalGroupBody, mcpGroupsApi, type McpGroup, type McpGroupDraft, type McpGroupInstance } from "@/api/mcp-groups"
+import { canonicalGroupBody, mcpGroupsApi, type McpGroup, type McpGroupDraft, type McpGroupInstance, type McpGroupType } from "@/api/mcp-groups"
 import { FormDialog } from "@/components/form-dialog"
 import { useConfirm } from "@/components/confirm-dialog"
 import { useDraftCloseGuard } from "@/components/use-draft-close-guard"
@@ -17,6 +17,8 @@ export function McpGroupEditor({ group, locale, t, onClose, onSaved, returnFocus
   const [snapshot, setSnapshot] = useState(group)
   const [name, setName] = useState(group?.name ?? "")
   const [description, setDescription] = useState(group?.description ?? "")
+  const [groupType, setGroupType] = useState<McpGroupType>(group?.group_type ?? "unspecified")
+  const [typeError, setTypeError] = useState(false)
   const [status, setStatus] = useState<"active" | "archived">(group?.status ?? "active")
   const [selected, setSelected] = useState<string[]>(group?.members.map(item => item.instance_id) ?? [])
   const [defaultInstance, setDefaultInstance] = useState(group?.default_instance_id ?? "")
@@ -37,8 +39,8 @@ export function McpGroupEditor({ group, locale, t, onClose, onSaved, returnFocus
   const lock = useRef(false), generation = useRef(0), alive = useRef(true)
   const writeController = useRef<AbortController | null>(null)
   const [returnFocus] = useState(() => document.activeElement instanceof HTMLElement ? document.activeElement : null)
-  const baseline = useRef(JSON.stringify([group?.name ?? "", group?.description ?? "", group?.status ?? "active", [...selected].sort(), group?.default_instance_id ?? ""]))
-  const dirty = baseline.current !== JSON.stringify([name, description, status, [...selected].sort(), defaultInstance]) || reconfirmed.length > 0
+  const baseline = useRef(JSON.stringify([group?.name ?? "", group?.description ?? "", group?.group_type ?? "unspecified", group?.status ?? "active", [...selected].sort(), group?.default_instance_id ?? ""]))
+  const dirty = baseline.current !== JSON.stringify([name, description, groupType, status, [...selected].sort(), defaultInstance]) || reconfirmed.length > 0
   const selectedVersions = new Set(selected.map(instance => knownInstances[instance]?.contract_revision).filter(Boolean))
   const { confirm, confirmDialog } = useConfirm(t, true)
   const close = useDraftCloseGuard({ dirty: dirty || creationUnknown, pending, locale,
@@ -66,7 +68,7 @@ export function McpGroupEditor({ group, locale, t, onClose, onSaved, returnFocus
   function adoptCreated(next: McpGroup) {
     const cleared = clearRecovery()
     setSnapshot(next); setCreationUnknown(false); setCreationInfo(c.createRecovered + (cleared ? "" : ` ${c.recoveryUnavailable}`)); setError("")
-    baseline.current = JSON.stringify([next.name, next.description, next.status, next.members.map(item => item.instance_id).sort(), next.default_instance_id ?? ""])
+    baseline.current = JSON.stringify([next.name, next.description, next.group_type ?? "unspecified", next.status, next.members.map(item => item.instance_id).sort(), next.default_instance_id ?? ""])
     setMissing(next.members.filter(item => selected.includes(item.instance_id) && (item.available === false || item.status === "missing")).map(item => item.instance_id))
   }
   async function checkCreation() {
@@ -79,7 +81,8 @@ export function McpGroupEditor({ group, locale, t, onClose, onSaved, returnFocus
   }
   async function save(retryOriginal = false) {
     if (lock.current || (!retryOriginal && !name.trim()) || selected.length > 1000) return
-    let body: McpGroupDraft = { name, description, status, members: [...selected].sort(),
+    if (!retryOriginal && groupType === "unspecified") { setTypeError(true); return }
+    let body: McpGroupDraft = { name, description, group_type: groupType, status, members: [...selected].sort(),
       default_instance_id: defaultInstance || null,
       reconfirm_members: reconfirmed.filter(item => selected.includes(item)), confirmed: true,
       ...(snapshot ? { expected_revision: snapshot.revision } : {}) }
@@ -96,7 +99,7 @@ export function McpGroupEditor({ group, locale, t, onClose, onSaved, returnFocus
       const next = await mcpGroupsApi.save(snapshot?.id, body, controller.signal)
       if (alive.current) {
         if (retryOriginal) adoptCreated(next)
-        else { if (!snapshot) clearRecovery(); baseline.current = JSON.stringify([name, description, status, [...selected].sort(), defaultInstance]); onSaved(next); onClose() }
+        else { if (!snapshot) clearRecovery(); baseline.current = JSON.stringify([name, description, groupType, status, [...selected].sort(), defaultInstance]); onSaved(next); onClose() }
       }
     } catch (cause) { if (alive.current) {
       let feedback = groupError(cause, locale)
@@ -125,9 +128,10 @@ export function McpGroupEditor({ group, locale, t, onClose, onSaved, returnFocus
       const next = await mcpGroupsApi.detail(snapshot.id, controller.signal)
       if (alive.current) {
         setSnapshot(next); setName(next.name); setDescription(next.description); setStatus(next.status); setCreationInfo("")
+        setGroupType(next.group_type ?? "unspecified"); setTypeError(false)
         setDefaultInstance(next.default_instance_id ?? "")
         setSelected(next.members.map(item => item.instance_id)); setMissing(next.members.filter(item => item.available === false || item.status === "missing").map(item => item.instance_id)); setReconfirmed([])
-        baseline.current = JSON.stringify([next.name, next.description, next.status, next.members.map(item => item.instance_id).sort(), next.default_instance_id ?? ""]); setRefresh(value => value + 1)
+        baseline.current = JSON.stringify([next.name, next.description, next.group_type ?? "unspecified", next.status, next.members.map(item => item.instance_id).sort(), next.default_instance_id ?? ""]); setRefresh(value => value + 1)
       }
     } catch (cause) { if (alive.current) setError(groupError(cause, locale)) }
     finally { lock.current = false; if (alive.current) setPending(false) }
@@ -141,6 +145,10 @@ export function McpGroupEditor({ group, locale, t, onClose, onSaved, returnFocus
       {creationInfo && <Alert type="info" showIcon title={creationInfo} />}
       <div className="mcp-group-form-row"><label htmlFor={`${id}-name`}>{c.name}</label><Input id={`${id}-name`} autoFocus maxLength={128} value={name} disabled={pending} onChange={event => setName(event.target.value)} /></div>
       <div className="mcp-group-form-row"><label htmlFor={`${id}-description`}>{c.description}</label><Input id={`${id}-description`} maxLength={500} value={description} disabled={pending} onChange={event => setDescription(event.target.value)} /></div>
+      <div className="mcp-group-form-row"><span id={`${id}-type`}>{c.groupType}</span><div><Radio.Group aria-labelledby={`${id}-type`} aria-describedby={`${id}-type-help`} aria-invalid={typeError} disabled={pending} value={groupType}
+        options={[{ value: "execution", label: c.execution }, { value: "data_source", label: c.dataSource }]} onChange={event => { setGroupType(event.target.value as McpGroupType); setTypeError(false) }} />
+        <div id={`${id}-type-help`} className="mcp-group-help">{groupType === "execution" ? c.executionHint : groupType === "data_source" ? c.dataSourceHint : c.typeHint}</div>
+        {typeError && <p role="alert" className="text-destructive">{c.typeRequired}</p>}</div></div>
       <div className="mcp-group-form-row"><span id={`${id}-state`}>{c.state}</span><Radio.Group aria-labelledby={`${id}-state`} disabled={pending} value={status} options={[{ value: "active", label: c.active }, { value: "archived", label: c.archived }]} onChange={event => setStatus(event.target.value as "active" | "archived")} /></div>
       <div className="mcp-group-member-heading"><h3>{c.members}</h3><span role="status">{selected.length} {c.selected}</span></div>
       <div className="mcp-group-form-row"><span id={`${id}-default`}>{c.defaultInstance}</span><div role="group" aria-labelledby={`${id}-default`}><span>{defaultInstance || c.noDefault}</span>{defaultInstance && <Button type="link" size="small" disabled={pending} onClick={() => setDefaultInstance("")}>{c.clearDefault}</Button>}<div className="mcp-group-help">{c.defaultHint}</div></div></div>
@@ -157,7 +165,7 @@ export function McpGroupEditor({ group, locale, t, onClose, onSaved, returnFocus
           onSelectAll: (checked, _rows, changed) => { if (checked) { const restored = changed.filter(row => snapshot?.members.some(item => item.instance_id === row.instance_id && (item.available === false || item.status === "missing"))).map(row => row.instance_id); setReconfirmed(values => [...new Set([...values, ...restored])]); setMissing(values => values.filter(value => !restored.includes(value))) } },
           getCheckboxProps: record => ({ disabled: pending || (!selected.includes(record.instance_id) && selected.length >= 1000), name: record.instance_id, "aria-label": `${record.name} · ${record.instance_id}` }),
         }} columns={[
-          { title: c.name, dataIndex: "name", ellipsis: true },
+          { title: groupType === "data_source" ? c.source : c.name, dataIndex: "name", ellipsis: true },
           { title: c.instanceId, dataIndex: "instance_id", ellipsis: true },
           { title: c.runtimeStatus, dataIndex: "status", width: 130, render: value => value === "not_loaded" ? c.notLoaded : value === "missing" ? c.missing : localizeStatus(t, value) },
           { title: c.contractVersion, width: 140, render: (_, record) => record.contract_revision ? <code title={record.contract_revision}>{record.contract_revision.slice(0, 12)}</code> : c.unknownContract },

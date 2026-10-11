@@ -36,7 +36,7 @@ class McpGroupStore:
             where = "instr(g.search_text,?)>0 AND (?='all' OR g.status=?)"
             params = (q.casefold().strip(), status, status)
             total = connection.execute(f"SELECT COUNT(*) FROM mcp_groups g WHERE {where}", params).fetchone()[0]
-            rows = connection.execute(f"SELECT g.id,g.name,g.description,g.status,g.revision,g.created_at,g.updated_at,g.default_instance_id,"
+            rows = connection.execute(f"SELECT g.id,g.name,g.description,g.group_type,g.status,g.revision,g.created_at,g.updated_at,g.default_instance_id,"
                 "COUNT(m.server_id) AS member_count,SUM(m.status='missing') AS missing_count "
                 f"FROM mcp_groups g LEFT JOIN mcp_group_members m ON m.group_id=g.id WHERE {where} "
                 "GROUP BY g.id ORDER BY g.name COLLATE NOCASE,g.id LIMIT ? OFFSET ?", (*params, limit, offset))
@@ -79,14 +79,16 @@ class McpGroupStore:
             group_id = group_id or uuid4().hex
             now = iso_now()
             revision = previous["revision"] + 1 if previous else 1
+            # 旧客户端省略用途时保留已保存值；新建旧格式组保持未指定，避免误判数据来源。
+            group_type = previous["group_type"] if previous and "group_type" not in draft.model_fields_set else draft.group_type
             search = f"{group_id} {draft.name} {draft.description}".casefold()
             if previous:
-                connection.execute("UPDATE mcp_groups SET name=?,description=?,status=?,revision=?,search_text=?,updated_at=?,default_instance_id=? WHERE id=?",
-                    (draft.name, draft.description, draft.status, revision, search, now, draft.default_instance_id, group_id))
+                connection.execute("UPDATE mcp_groups SET name=?,description=?,group_type=?,status=?,revision=?,search_text=?,updated_at=?,default_instance_id=? WHERE id=?",
+                    (draft.name, draft.description, group_type, draft.status, revision, search, now, draft.default_instance_id, group_id))
                 connection.execute("DELETE FROM mcp_group_members WHERE group_id=?", (group_id,))
             else:
-                connection.execute("INSERT INTO mcp_groups(id,name,description,status,revision,search_text,created_at,updated_at,default_instance_id) VALUES(?,?,?,?,?,?,?,?,?)",
-                    (group_id, draft.name, draft.description, draft.status, revision, search, now, now, draft.default_instance_id))
+                connection.execute("INSERT INTO mcp_groups(id,name,description,group_type,status,revision,search_text,created_at,updated_at,default_instance_id) VALUES(?,?,?,?,?,?,?,?,?,?)",
+                    (group_id, draft.name, draft.description, group_type, draft.status, revision, search, now, now, draft.default_instance_id))
             connection.executemany("INSERT INTO mcp_group_members VALUES(?,?,?)", (
                 (group_id, item, "active" if item in available_instances and
                  (old_members.get(item, "active") == "active" or item in draft.reconfirm_members) else "missing")

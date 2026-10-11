@@ -1,4 +1,5 @@
 import type { Locale } from "@/i18n"
+import type { McpGroupType } from "@/api/mcp-groups"
 
 const copy = {
   "en-US": {
@@ -6,6 +7,12 @@ const copy = {
     ungrouped: "Ungrouped", select: "Select a group or ungrouped instances", searchGroups: "Search groups by name or ID",
     searchInstances: "Search instances by name or ID", active: "Active", archived: "Archived", all: "All",
     name: "Name", description: "Description", state: "State", members: "Members", instanceId: "Instance ID",
+    groupType: "Group purpose", execution: "Multi-instance execution", dataSource: "Multi-data-source query", unspecified: "Purpose unspecified",
+    source: "Data source",
+    typeRequired: "Select multi-instance execution or multi-data-source query.", typeHint: "Choose whether members represent execution environments or separate data sources.",
+    executionHint: "Select an execution instance and keep the task on that instance. A new task can select another instance.",
+    dataSourceHint: "Each instance represents a data source, identified by its instance name. Select a source to query; results are not combined automatically.",
+    unspecifiedHint: "This group has no specified purpose. Edit it to explicitly choose how its members are used.",
     defaultInstance: "Default instance", noDefault: "None selected", clearDefault: "Clear default", contractVersion: "Contract version", runtimeStatus: "Status", unknownContract: "Not discovered",
     defaultHint: "A suggested default. Calls still require an explicit instance selection.",
     contractConflict: "Different contract versions are selected. Tools with incompatible contracts stay in separate partitions; arguments cannot be shared between them.",
@@ -35,6 +42,12 @@ const copy = {
     ungrouped: "未分组", select: "选择组或未分组实例", searchGroups: "按名称或 ID 搜索组",
     searchInstances: "按名称或 ID 搜索实例", active: "有效", archived: "已归档", all: "全部",
     name: "名称", description: "说明", state: "状态", members: "成员", instanceId: "实例 ID",
+    groupType: "组用途", execution: "多实例执行", dataSource: "多数据源查询", unspecified: "未指定用途",
+    source: "数据来源",
+    typeRequired: "请选择多实例执行或多数据源查询。", typeHint: "根据成员代表执行环境或独立数据来源，明确选择组用途。",
+    executionHint: "选择执行实例后，同一任务的操作保持在该实例；开始新任务时可选择其他实例。",
+    dataSourceHint: "每个实例代表一个数据来源，以实例名称标识。选择来源后查询该实例的数据，结果不会自动合并。",
+    unspecifiedHint: "此组尚未指定用途，可编辑并明确选择成员的使用方式。",
     defaultInstance: "默认实例", noDefault: "未选择", clearDefault: "清除默认", contractVersion: "合同版本", runtimeStatus: "状态", unknownContract: "尚未发现",
     defaultHint: "默认实例仅作建议，调用仍须显式选择实例。",
     contractConflict: "已选择不同合同版本。合同不兼容的工具保持独立分区，不能混用参数。",
@@ -62,6 +75,14 @@ const copy = {
 } satisfies Record<Locale, Record<string, string>>
 
 export const groupCopy = (locale: Locale) => copy[locale]
+export function groupTypeLabel(value: McpGroupType | undefined, locale: Locale): string {
+  const c = groupCopy(locale)
+  return value === "execution" ? c.execution : value === "data_source" ? c.dataSource : c.unspecified
+}
+export function groupTypeHint(value: McpGroupType | undefined, locale: Locale): string {
+  const c = groupCopy(locale)
+  return value === "execution" ? c.executionHint : value === "data_source" ? c.dataSourceHint : c.unspecifiedHint
+}
 export function groupError(cause: unknown, locale: Locale): string {
   const c = groupCopy(locale), message = cause instanceof Error ? cause.message : String(cause)
   if (message.includes("group_revision_conflict")) return c.conflict

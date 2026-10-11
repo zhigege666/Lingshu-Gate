@@ -74,7 +74,8 @@ def test_group_directory_filters_physical_and_logical_grants_before_paging(gate,
     page = catalog.search(actor, CatalogSearch(group_id=group["id"]))
     ref = page["tools"][0]["tool_ref"]
     instances = catalog.search(actor, CatalogSearch(group_id=group["id"], tool_ref=ref), instances=True)
-    assert instances["instances"] == [{"instance_id": "instance-0", "group_id": group["id"]}]
+    assert instances["instances"] == [{"instance_id": "instance-0", "instance_name": "Synthetic instance 0",
+        "group_id": group["id"], "group_type": "unspecified", "group_name": group["name"]}]
     assert "instance-1" not in json.dumps(instances) and "instance-2" not in json.dumps(instances)
 
 

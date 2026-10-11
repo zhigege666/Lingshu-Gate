@@ -5,7 +5,7 @@ import { PageHeader, PageToolbar } from "@/components/page-shell"
 import { useConfirm } from "@/components/confirm-dialog"
 import { localizeStatus, type Locale, type TFunction } from "@/i18n"
 import { McpGroupEditor } from "./group-editor"
-import { groupCopy, groupError } from "./group-copy"
+import { groupCopy, groupError, groupTypeHint, groupTypeLabel } from "./group-copy"
 import { useAuth } from "@/components/auth-gate"
 import { forgetGroupCreation, readGroupCreation, type GroupCreationScope } from "./group-create-recovery"
 
@@ -128,7 +128,7 @@ function McpGroupsDirectory({ locale, t, serverIds, onSelectInstance, onBusyChan
       {listError && <Alert role="alert" type="error" showIcon title={listError} action={<Button onClick={() => setRefresh(value => value + 1)}>{c.retry}</Button>} />}
       <div className="service-directory-list" aria-busy={loading}>
         {list?.groups.map(item => <button className="service-entry" key={item.id} disabled={busy} aria-pressed={selection === item.id} data-active={selection === item.id} onClick={() => choose(item.id)}>
-          <span><span className="service-entry-name" title={item.name}>{item.name}</span><span className="service-entry-subtitle" title={item.id}>{item.id}</span></span>
+          <span><span className="service-entry-name" title={item.name}>{item.name}</span><Tag className="mcp-group-entry-purpose">{groupTypeLabel(item.group_type, locale)}</Tag><span className="service-entry-subtitle" title={item.id}>{item.id}</span></span>
           <span className="service-entry-meta"><Tag>{item.status === "active" ? c.active : c.archived}</Tag><span>{item.member_count}</span></span>
         </button>)}
         {!loading && !listError && list?.groups.length === 0 && <Empty description={query ? c.noMatches : c.empty} image={Empty.PRESENTED_IMAGE_SIMPLE} />}
@@ -136,16 +136,17 @@ function McpGroupsDirectory({ locale, t, serverIds, onSelectInstance, onBusyChan
       <div className="service-directory-footer"><Pagination simple current={page} total={list?.total ?? 0} pageSize={20} showSizeChanger={false} disabled={busy || loading} onChange={setPage} /></div>
     </aside>
     <section className="service-detail mcp-group-detail" aria-label={c.groups}>
-      <PageHeader closeLabel={t("close")} variant="detail" title={selection === "__ungrouped" ? c.ungrouped : detail?.name || c.groups} description={detail?.id} titleExtra={detail && <Tag>{detail.status === "active" ? c.active : c.archived}</Tag>}
+      <PageHeader closeLabel={t("close")} variant="detail" title={selection === "__ungrouped" ? c.ungrouped : detail?.name || c.groups} description={detail?.id} titleExtra={detail && <><Tag>{groupTypeLabel(detail.group_type, locale)}</Tag><Tag>{detail.status === "active" ? c.active : c.archived}</Tag></>}
         actions={<><Button ref={fallbackFocus} disabled={busy} onClick={() => void refreshDirectory()}>{c.refresh}</Button>{detail && canWrite && <><Button disabled={busy} onClick={() => setEditing({ group: detail })}>{c.edit}</Button><Button danger disabled={busy} onClick={() => void remove()}>{c.delete}</Button></>}</>} />
       <p className="service-description mcp-group-policy">{c.metadata}</p>
       {recoveryKey && !editing && <Alert className="mcp-group-recovery" type="warning" showIcon title={c.recoveryTitle} description={<>{c.recoveryHint}{recoveryError && <p role="alert">{recoveryError}</p>}<div><Button disabled={busy} onClick={() => void recoverCreation()}>{c.checkCreate}</Button><Button disabled={busy} onClick={() => void abandonRecovery()}>{c.abandonRecovery}</Button></div></>} />}
       {detail?.description && <p className="mcp-group-policy">{detail.description}</p>}
+      {detail && <p className="mcp-group-policy">{groupTypeHint(detail.group_type, locale)}</p>}
       {(detailError || memberError || mutationError) && <Alert role="alert" type="error" showIcon title={mutationError || detailError || memberError} action={<Button disabled={busy} onClick={() => setRefresh(value => value + 1)}>{c.retry}</Button>} />}
       {!selection ? <Empty description={c.select} image={Empty.PRESENTED_IMAGE_SIMPLE} /> : <>
         <div className="mcp-group-query"><Input.Search aria-label={c.searchInstances} placeholder={c.searchInstances} maxLength={200} value={memberQuery} allowClear disabled={busy} onChange={event => { setMemberQuery(event.target.value); setMemberPage(1) }} /><span role="status">{instances?.total ?? 0} {c.instances}</span></div>
         <div className="mcp-group-members-scroll"><Table<McpGroupInstance> rowKey="instance_id" size="small" dataSource={instances?.instances ?? []} loading={membersLoading} pagination={false} locale={{ emptyText: c.noMatches }} columns={[
-          { title: c.name, width: "30%", ellipsis: true, render: (_, item) => item.available && serverIds.has(item.instance_id) ? <Button type="link" className="mcp-group-instance-link" disabled={busy} onClick={() => onSelectInstance(item.instance_id)} title={item.name}>{item.name}</Button> : <span title={item.name}>{item.name}</span> },
+          { title: detail?.group_type === "data_source" ? c.source : c.name, width: "30%", ellipsis: true, render: (_, item) => item.available && serverIds.has(item.instance_id) ? <Button type="link" className="mcp-group-instance-link" disabled={busy} onClick={() => onSelectInstance(item.instance_id)} title={item.name}>{item.name}</Button> : <span title={item.name}>{item.name}</span> },
           { title: c.instanceId, dataIndex: "instance_id", width: "30%", ellipsis: true },
           { title: c.state, render: (_, item) => <Tag color={item.available ? undefined : "warning"}>{item.available ? item.status === "not_loaded" ? c.notLoaded : localizeStatus(t, item.status) : c.missing}</Tag> },
           { title: c.groups, render: (_, item) => <span className="mcp-group-tags" title={item.groups.map(group => group.name).join("; ")}>{item.groups.slice(0, 3).map(group => <Tag key={group.id}>{group.name}</Tag>)}{item.groups.length > 3 && <Tag>+{item.groups.length - 3}</Tag>}</span> },

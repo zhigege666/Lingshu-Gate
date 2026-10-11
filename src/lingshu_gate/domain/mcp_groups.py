@@ -5,6 +5,8 @@ from typing import Literal
 
 from pydantic import BaseModel, ConfigDict, Field, StrictInt, StrictStr, field_validator, model_validator
 
+McpGroupType = Literal["execution", "data_source", "unspecified"]
+
 
 class McpGroupError(Exception):
     def __init__(self, code: str, message: str, status: int = 409) -> None:
@@ -16,6 +18,8 @@ class McpGroupDraft(BaseModel):
     model_config = ConfigDict(extra="forbid")
     name: StrictStr = Field(min_length=1, max_length=128)
     description: StrictStr = Field(default="", max_length=500)
+    group_type: McpGroupType = Field(default="unspecified",
+        description="execution 表示多实例执行，data_source 表示多数据源查询；unspecified 保留未指定用途的历史组。")
     status: Literal["active", "archived"] = "active"
     members: list[StrictStr] = Field(max_length=1000)
     reconfirm_members: list[StrictStr] = Field(default_factory=list, max_length=1000)

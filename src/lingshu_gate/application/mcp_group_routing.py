@@ -53,7 +53,7 @@ class McpGroupRoutingService:
             return self.groups.store.detail(connection, group_id)
         # A selected target needs one membership row, not every group member or
         # the contracts belonging to other instances. This stores no authority.
-        row = connection.execute("SELECT id,status,revision FROM mcp_groups WHERE id=?", (group_id,)).fetchone()
+        row = connection.execute("SELECT id,name,group_type,status,revision FROM mcp_groups WHERE id=?", (group_id,)).fetchone()
         member = connection.execute("SELECT server_id AS instance_id,status FROM mcp_group_members "
             "WHERE group_id=? AND server_id=? AND status='active'", (group_id, instance_id)).fetchone()
         if row is None or member is None:
@@ -160,16 +160,17 @@ class McpGroupRoutingService:
         contracts. Physical-instance and logical grants were intersected in the
         existing snapshot before keyword ordering or pagination.
         """
-        _, visible, variants = self._snapshot(group_id, actor)
+        group, visible, variants = self._snapshot(group_id, actor)
         selected = [variant for variant in variants
             if all(word in variant.search_text for word in keywords)
             and (tool_ref is None or logical_tool_ref(group_id, variant.summary.variant_id) == tool_ref)
             and (instance_id is None or any(member.instance_id == instance_id for member in variant.members))]
         if instances:
-            identifiers = sorted({member.instance_id for variant in selected for member in variant.members
-                if instance_id is None or member.instance_id == instance_id})
-            return [{"instance_id": identifier, "group_id": group_id}
-                    for identifier in identifiers[offset:offset + limit]]
+            names = {member.instance_id: member.instance_name for variant in selected for member in variant.members
+                if instance_id is None or member.instance_id == instance_id}
+            return [{"instance_id": identifier, "instance_name": names[identifier], "group_id": group_id,
+                     "group_type": group["group_type"], "group_name": group["name"]}
+                    for identifier in sorted(names)[offset:offset + limit]]
         selected.sort(key=lambda variant: (variant.summary.original_tool_name, variant.summary.variant_id))
         definitions = {item.definition.id: item.definition for item in visible}
         summaries = []
@@ -177,6 +178,7 @@ class McpGroupRoutingService:
             definition = definitions[variant.members[0].tool_id]
             summaries.append({"tool_ref": logical_tool_ref(group_id, variant.summary.variant_id),
                 "instance_id": instance_id, "group_id": group_id,
+                "group_type": group["group_type"], "group_name": group["name"],
                 "name": definition.name[:128], "description": definition.description[:320],
                 "schema_revision": variant.summary.variant_id})
         return summaries
@@ -195,7 +197,8 @@ class McpGroupRoutingService:
                     definition = next(item.definition for item in tools if item.definition.id == member.tool_id)
                     mutable = definition.copy_definition() if hasattr(definition, "copy_definition") else definition
                     return CatalogTarget(logical_service_id(group_id), group_id, group["revision"], tool_ref,
-                        instance_id, instance_id, member.tool_id, variant_id, tool_definition_revision(mutable))
+                        instance_id, instance_id, member.tool_id, variant_id, tool_definition_revision(mutable),
+                        group["group_type"], group["name"], member.instance_name)
         raise self._unavailable()
 
     def describe(self, actor: AuthPrincipal, *, tool_ref: str, instance_id: str) -> dict[str, Any]:
@@ -204,6 +207,8 @@ class McpGroupRoutingService:
         if tool_definition_revision(definition) != resolved.definition_fingerprint:
             raise McpGroupError("group_tool_contract_changed", "The contract changed; search again.")
         return {"service_id": resolved.service_id, "tool_ref": resolved.tool_ref, "instance_id": resolved.instance_id,
+            "group_id": resolved.group_id, "group_type": resolved.group_type, "group_name": resolved.group_name,
+            "instance_name": resolved.instance_name,
             "server_id": resolved.server_id, "tool_id": resolved.tool_id, "schema_revision": resolved.schema_revision,
             "definition": definition.model_dump()}
 
@@ -227,8 +232,9 @@ class McpGroupRoutingService:
                     connection.execute("INSERT INTO mcp_group_route_sessions VALUES(?,?,?,?,?,?,?,?,?,?,NULL)",
                         (session_id, actor.id, _binding(actor), resolved.group_id, resolved.group_revision,
                          resolved.instance_id, config.digest, generation, now.isoformat(), expires))
-                return {"session_id": session_id, "service_id": resolved.service_id,
-                        "instance_id": resolved.instance_id, "expires_at": expires}
+                return {"session_id": session_id, "service_id": resolved.service_id, "group_id": resolved.group_id,
+                        "instance_id": resolved.instance_id, "instance_name": resolved.instance_name,
+                        "group_type": resolved.group_type, "group_name": resolved.group_name, "expires_at": expires}
 
     def close_session(self, actor: AuthPrincipal, session_id: str) -> dict[str, Any]:
         actor = current_tool_principal(self.auth, actor)

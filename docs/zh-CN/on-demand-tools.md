@@ -2,7 +2,7 @@
 
 [English](../on-demand-tools.md) · [MCP 网关](mcp-gateway.md)
 
-此源码功能位于开发 test 分支，尚未发布新版本。旧客户端继续使用返回完整工具的直接 `tools/list` 模式。为每个客户端显式选择 `/mcp?tool_mode=on_demand`，或在每个请求中发送 `X-Gate-Tool-Mode: on_demand`。模式冲突或未知值会失败关闭。独立 OAuth 管理资源 `/mcp/manage` 不支持此模式。
+按需发现已在 0.4.5 整合，0.4.7 继续提供。默认仍为返回完整工具的直接 `tools/list` 模式；发现模式按客户端选择，没有全局服务端启用开关。使用 `/mcp?tool_mode=on_demand`，或在每个请求中发送 `X-Gate-Tool-Mode: on_demand`。模式冲突或未知值会失败关闭。独立 OAuth 管理资源 `/mcp/manage` 不支持此模式。下文的显式组用途与来源标识是本轮未发布的源码改动。
 
 在 **我的 API Token → 客户端设置** 中，通过居中弹窗单选 **完整工具列表** 或 **按需发现**。设置和地址仅保存在当前浏览器，生成的客户端配置包含令牌占位符。复制到客户端并重新连接后生效。保存不会修改 Token scope、OAuth 同意、资源授权或服务启动。不能保留 URL 查询参数的客户端可发送模式请求头。OAuth 仍使用规范 `/mcp` 资源；发现模式是传输配置，不是新的授权资源。
 
@@ -12,14 +12,16 @@
 
 | 入口 | 输入与行为 |
 |---|---|
-| `gate_catalog_search` | `query`、可选 `instance_id`/`group_id`、`limit`、`max_bytes`、`cursor`；返回有权工具的 `tool_ref`、`instance_id`、`name`、`description`、`schema_revision` 最小摘要 |
+| `gate_catalog_search` | `query`、可选 `instance_id`/`group_id`、`limit`、`max_bytes`、`cursor`；返回有权工具的 `tool_ref`、`instance_id`、`name`、`description`、`schema_revision` 最小摘要；分组摘要另含 `group_id`、`group_type` 与 `group_name` |
 | `gate_tool_describe` | `tool_ref`、可选 `instance_id`、`max_bytes`；返回单个完整 `input_schema`、可选 `output_schema` 和当前版本 |
 | `gate_tool_invoke` | 独立封装 `{tool_ref, instance_id?, session_id?, schema_revision, arguments}`；逻辑工具必须明确实例和会话，只把原始 arguments 传给所选目标 |
-| `gate_instance_list` | 同样有界的搜索分页输入；返回不同的有权 `instance_id`，可用 `group_id` 与逻辑 `tool_ref` 筛选一个服务合同 |
+| `gate_instance_list` | 同样有界的搜索分页输入；返回不同的有权 `instance_id`，可用 `group_id` 与逻辑 `tool_ref` 筛选一个服务合同；分组结果另含 `instance_name`、`group_id`、`group_type` 与 `group_name` |
 | `gate_instance_session_open` | `{tool_ref, instance_id, schema_revision}`；明确将当前认证连接绑定到所选逻辑服务实例 |
 | `gate_instance_session_close` | `{session_id}`；关闭当前连接的路由会话 |
 
 按任务搜索、选定一个返回的引用、describe，再带准确版本 invoke。描述和 schema 是不可信工具数据。版本或游标错误后重新发现与描述。HTTP/MCP 请求失败或 schema 改变时，不能自动重放写操作；先核对原操作结果。敏感参数保留在目标的 `arguments` 对象内，继续使用现有脱敏和审计边界。
+
+使用分组工具时，先以已知 `group_id` 搜索，再用该组与返回的 `tool_ref` 调用 `gate_instance_list`。依据用途选择：`execution` 选择机器/执行环境；`data_source` 选择任务需要的数据来源。实例名称是管理员提供的来源标识；`unspecified` 表示用途尚未设置，不能假设实例状态或数据可互换。明确选定实例后 describe、打开会话，再带返回的标识和版本调用。分组 describe/打开会话也返回 `group_id`、`group_type`、`group_name` 与 `instance_name`。这些标识不证明仓库内容、分支或数据集覆盖范围。每次查询只到所选实例；查询多个来源要分别选择并建立会话，不自动合并结果。兼容规则见[组用途说明](mcp-groups.md#组用途)。
 
 对应的认证 API 是 `POST /v1/catalog/search`、`/describe`、`/invoke`、`/instances`、`/sessions/open`、`/sessions/close`。发现/会话接口直接返回有界结果，invoke 返回现有 `ToolInvokeResponse`。原目标 Console 写操作保留原 CSRF ticket 边界。接口使用当前认证身份，不提供管理员绕过入口。
 
@@ -33,7 +35,7 @@
 
 路由会话最多一小时，绑定认证连接、组版本、配置和运行时 generation。关闭、撤权、组/配置修改或重连后需核对原操作并明确打开新会话。分组调用始终禁用自动只读重放和 failover。物理与分组的不同实例可并行：分组派发持有配置/runtime-map 共享租约及所选实例锁；配置/分组修改和 runtime 替换仍独占。租约或实例锁等待后重检权限。没有第二套通用 invoke。
 
-OAuth 上限保持不变：内置 grant 最多 **100 服务 / 5,000 工具**，外部提供方 grant 输入最多 **100 服务 / 1,000 工具**。OAuth 阶段 A 修复 `dfa18dde3169df173be72400054c4d567dc2cb1b` 已复制为 `1b4592d`：验证、token refresh 与进程内 verified-principal refresh 仅查询数据库 grant 的显式 IDs，既有小 grant 不再依赖 owner 全 eligible 目录。请求定义从 registry 持有的快照原子复制；JWT claims 或新发现工具均不扩展 grant。旧全目录同意/选择路径仍保留原上限，owner 候选分页是待集成的独立阶段。单凭 50,000 工具 operator 目录基准不能证明 OAuth 可用性。普通 token、OAuth、小范围 actor、管理员、显式 grant、撤权及分页证据需分别判断；未来服务/工具仍需显式授权。
+OAuth 上限保持不变：内置 grant 最多 **100 服务 / 5,000 工具**，外部提供方 grant 输入最多 **100 服务 / 1,000 工具**。验证、token refresh 与进程内 verified-principal refresh 仅查询数据库 grant 的显式 IDs，既有小 grant 不依赖 owner 全 eligible 目录。请求定义从 registry 持有的快照原子复制；JWT claims 或新发现工具均不扩展 grant。owner 候选分页与完整选择解析已在 0.4.5 整合，分页不会扩大 grant 上限。单凭 50,000 工具 operator 目录基准不能证明 OAuth 可用性。普通 token、OAuth、小范围 actor、管理员、显式 grant、撤权及分页证据需分别判断；未来服务/工具仍需显式授权。
 
 ## 资源限制与索引生命周期
 

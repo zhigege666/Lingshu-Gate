@@ -128,7 +128,7 @@ class McpGroupService:
             versions = self._contract_versions({item["instance_id"] for item in page})
             for item in page:
                 item["contract_revision"] = versions.get(item["instance_id"])
-                item["groups"] = [dict(row) for row in connection.execute("SELECT g.id,g.name,g.status FROM mcp_groups g "
+                item["groups"] = [dict(row) for row in connection.execute("SELECT g.id,g.name,g.group_type,g.status FROM mcp_groups g "
                     "JOIN mcp_group_members m ON m.group_id=g.id WHERE m.server_id=? ORDER BY g.name,g.id", (item["instance_id"],))]
             return {"instances": page, "total": len(items), "offset": offset, "limit": limit}
 
@@ -142,8 +142,11 @@ class McpGroupService:
                     request_key = request_key or draft.request_key
                 if request_key is None or not re.fullmatch(r"[a-f0-9]{32}", request_key):
                     raise McpGroupError("group_request_key_required", "A new group needs an actor-bound request key.", 422)
-                request_digest = request_digest or hashlib.sha256(json.dumps(draft.model_dump(), ensure_ascii=False,
-                    sort_keys=True, separators=(",", ":")).encode()).hexdigest()
+                if not request_digest:
+                    # 旧 MCP 创建回执使用原规范正文；省略新增用途时不把默认值加入摘要，保证升级后可重试。
+                    digest_body = draft.model_dump(exclude={"group_type"} if "group_type" not in draft.model_fields_set else set())
+                    request_digest = hashlib.sha256(json.dumps(digest_body, ensure_ascii=False,
+                        sort_keys=True, separators=(",", ":")).encode()).hexdigest()
             # Read current files under the same mutation lock, even when list metadata is cached.
             available = set(self._catalog(refresh=True))
             return self.store.save(draft, group_id=group_id, expected_revision=expected_revision,

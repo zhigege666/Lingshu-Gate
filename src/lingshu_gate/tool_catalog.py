@@ -331,6 +331,8 @@ class ToolCatalog:
                   "schema_revision": revision, "name": definition.name,
                   "description": definition.description,
                   "input_schema": definition.input_schema if definition.input_schema is not None else {"type": "object"}}
+        if request.tool_ref.startswith("mcp-group:"):
+            output.update({key: described[key] for key in ("group_id", "group_type", "group_name", "instance_name")})
         output_schema = definition.metadata.get("outputSchema", definition.metadata.get("output_schema"))
         if isinstance(output_schema, dict):
             output["output_schema"] = output_schema

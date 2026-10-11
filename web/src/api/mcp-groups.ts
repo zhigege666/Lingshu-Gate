@@ -1,9 +1,10 @@
 import { queryString, request } from "./http"
 
-export type McpGroupSummary = { id: string; name: string; description: string; status: "active" | "archived"; revision: number; member_count: number; missing_count: number; created_at: string; updated_at: string; default_instance_id?: string | null }
+export type McpGroupType = "execution" | "data_source" | "unspecified"
+export type McpGroupSummary = { id: string; name: string; description: string; group_type?: McpGroupType; status: "active" | "archived"; revision: number; member_count: number; missing_count: number; created_at: string; updated_at: string; default_instance_id?: string | null }
 export type McpGroup = Omit<McpGroupSummary, "member_count" | "missing_count"> & { members: { instance_id: string; status: "active" | "missing"; available?: boolean }[] }
-export type McpGroupInstance = { instance_id: string; name: string; status: string; available: boolean; contract_revision?: string | null; groups: { id: string; name: string; status: string }[] }
-export type McpGroupDraft = { name: string; description: string; status: "active" | "archived"; members: string[]; reconfirm_members: string[]; default_instance_id?: string | null; confirmed: true; expected_revision?: number; request_key?: string }
+export type McpGroupInstance = { instance_id: string; name: string; status: string; available: boolean; contract_revision?: string | null; groups: { id: string; name: string; group_type?: McpGroupType; status: string }[] }
+export type McpGroupDraft = { name: string; description: string; group_type?: McpGroupType; status: "active" | "archived"; members: string[]; reconfirm_members: string[]; default_instance_id?: string | null; confirmed: true; expected_revision?: number; request_key?: string }
 export type GroupPage<T> = { total: number; offset: number; limit: number } & T
 
 export const GROUP_REQUEST_TIMEOUT_MS = 15_000
