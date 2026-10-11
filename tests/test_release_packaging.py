@@ -878,7 +878,7 @@ def test_release_reconciliation_propagates_validation_failures() -> None:
     assert "HTTP 404|not found" not in workflow
     assert "cat \"$release_error\" >&2" in workflow
     assert "Existing release does not exactly match the verified published artifact set" in workflow
-    assert workflow.count("--json assets,isDraft,isImmutable,isPrerelease,tagName") == 2
+    assert workflow.count("--json assets,isDraft,isImmutable,isPrerelease,tagName,name,body") == 2
     assert workflow.count(".tagName == $release_tag") == 2
     assert workflow.count(".isPrerelease == $expected_prerelease") == 2
     assert "Existing release tag, prerelease, draft, or immutability metadata is invalid" in workflow
@@ -903,6 +903,7 @@ def test_release_verifies_all_asset_attestations_with_strict_identity() -> None:
     assert 'cert_identity="https://github.com/${GITHUB_REPOSITORY}/.github/workflows/release.yml@${GITHUB_REF}"' in workflow
     assert "--repo \"$GITHUB_REPOSITORY\"" in workflow
     assert "--cert-identity \"$cert_identity\"" in workflow
+    assert "--signer-digest \"$GITHUB_WORKFLOW_SHA\"" in workflow
     assert "--source-ref \"$GITHUB_REF\"" in workflow
     assert "--source-digest \"$GITHUB_SHA\"" in workflow
     assert "--deny-self-hosted-runners" in workflow

@@ -1,0 +1,247 @@
+{
+  "schema_version": 1,
+  "recorded_at_utc": "2026-10-11T05:53:00.891076+00:00",
+  "record_type": "pre_push_validation_snapshot_for_independent_generic_extraction",
+  "comparison_main_sha": "2cbbe0673ce221a490af55d7d45abb5171552ec6",
+  "reviewed_modal_source_sha": "a0cc7925f02718e44cb0216e82581eff9b7644fc",
+  "reviewed_modal_docs_head_sha": "3d369665f4ab6fb54cc28d0b2b3bf69dba15800a",
+  "source_version": "0.4.7",
+  "preserved_immutable_tag_sha": "45cec40c1e57d7290ab249e620b5a50fa939e115",
+  "independent_all_branch_review": {
+    "review_sha256": "3f8a0335d84da18ab76aa36c580b5017da8224b3f908e1c2b5edfc94098b8734",
+    "head_count": 18,
+    "tag_count": 17,
+    "necessary_generic_release_protections": 3,
+    "necessary_direct_acl_regressions": 2,
+    "additional_legacy_implementation_gaps_found": 0,
+    "new_candidate_final_review": "required_after_exact_commit"
+  },
+  "branch_dispositions": [
+    {
+      "branch": "fix/gate-service-modal-alignment-20261010",
+      "sha": "39a85b8aebe389bca455fe7ffca3b2670fac93b7",
+      "disposition_en": "Superseded by the reviewed modal candidate in PR #66; preserve the source branch.",
+      "disposition_zh": "已由 PR #66 的审查后模态候选覆盖；保留来源分支。"
+    },
+    {
+      "branch": "main",
+      "sha": "2cbbe0673ce221a490af55d7d45abb5171552ec6",
+      "disposition_en": "Exact integration baseline; preserve the current paired README changes.",
+      "disposition_zh": "精确整合基线；保留当前双语 README 修改。"
+    },
+    {
+      "branch": "test/gate-account-focus-diagnostic-20261008",
+      "sha": "9f90dead000db20ed069ea3e720912a552b75fa3",
+      "disposition_en": "The account shell, E2E tests and diagnostic JSON are already byte-identical to main. Preserve the source branch; its inherited fixed-source release route is superseded by the focused PR #59 extraction.",
+      "disposition_zh": "账户入口、E2E 测试与诊断 JSON 已和 main 字节一致；保留来源分支，其继承的固定源码发行入口由 PR #59 的定向提取替代。"
+    },
+    {
+      "branch": "test/gate-account-focus-main-evidence-20261008",
+      "sha": "5f0148750ff9f66ab2b3feb14a97dd81332db76f",
+      "disposition_en": "Retain cloud browser evidence and the explicitly unexecuted nx5 follow-up plan; no runtime transplant.",
+      "disposition_zh": "保留云端浏览器证据及明确未执行的 nx5 后续计划；不移植运行时实现。"
+    },
+    {
+      "branch": "test/gate-formal-environment-diagnostic-20261008",
+      "sha": "31939e2701c39181b31ef79ffb51a7d43666cc60",
+      "disposition_en": "Retain the read-only fixed-v0.4.5 environment/CLI diagnostic. Do not install its old source override in the current publication workflow.",
+      "disposition_zh": "保留只读固定 v0.4.5 环境与 CLI 诊断；不将旧源码覆盖入口装入当前发布工作流。"
+    },
+    {
+      "branch": "test/gate-formal-environment-evidence-20261008",
+      "sha": "da877054c8be79409f33967305d8b4b180158a2c",
+      "disposition_en": "Retain the original timeout/environment findings and approval boundaries as historical evidence.",
+      "disposition_zh": "保留原超时、环境发现和批准边界作为历史证据。"
+    },
+    {
+      "branch": "test/gate-release-0.4.5-evidence-20261007",
+      "sha": "e4f1921f7fb4f36045706b508665e76c5fe300be",
+      "disposition_en": "Retain exact CI and isolated acceptance receipts, including incomplete acceptance. No retrospective v0.4.5 publication.",
+      "disposition_zh": "保留精确 CI 与隔离验收收据及未完成验收结论；不补发 v0.4.5。"
+    },
+    {
+      "branch": "test/gate-release-0.4.6-package-evidence-20261009",
+      "sha": "6cc6457905e7b03a11aabfa296a495ec819f6e42",
+      "disposition_en": "Retain PR package/quality failures and the original controller terminal state; no version downgrade.",
+      "disposition_zh": "保留 PR 包、质量失败和原控制器终态；不降级版本。"
+    },
+    {
+      "branch": "test/gate-release-0.4.7-formal-evidence-20261010",
+      "sha": "f42d609d47066ac8e6e43c13adc6436ab1379007",
+      "disposition_en": "Preserve the formal timeout → completion and cleanup chain. Apply only the approved two execution-agent label corrections; original three commits are recoverable from the verified bundle.",
+      "disposition_zh": "保留正式超时→完成及清理链；仅应用批准的两处执行代理标签修正，原三个提交可从验证后的 bundle 恢复。"
+    },
+    {
+      "branch": "test/gate-release-quality-d228-20261009",
+      "sha": "0cd74320cecbb2b2c8aeb3f941590fef42a14ce4",
+      "disposition_en": "Retain the old v0.4.6-bound diagnostic evidence; the current workflow already has the needed quality controls.",
+      "disposition_zh": "保留绑定旧 v0.4.6 的诊断证据；当前工作流已有所需质量控制。"
+    },
+    {
+      "branch": "test/gate-release-resume-fixed-source-20261008",
+      "sha": "b8150e878feffe1bd5b3784ae3050237e4db643d",
+      "disposition_en": "Extract exact title/body verification, asset-proof-before-publication ordering and existing-release write guards. Preserve both unique commits and recovery evidence; supersede PR #59 without importing the fixed v0.4.5 route or its dual-source artifact naming.",
+      "disposition_zh": "提取精确标题正文校验、发布前资产证明和已有 Release 的写入防护；保留两个独有提交及恢复证据，以最小修复替代 PR #59，不引入固定 v0.4.5 入口或双源码资产命名。"
+    },
+    {
+      "branch": "test/gate-service-modal-delivery-20261010",
+      "sha": "3d369665f4ab6fb54cc28d0b2b3bf69dba15800a",
+      "disposition_en": "Deliver reviewed modal focus fixes through PR #66 after its exact-head complete CI passes; retain existing UI evidence and acceptance scope.",
+      "disposition_zh": "在 exact head 的完整 CI 通过后，通过 PR #66 交付模态焦点修复；保留现有 UI 证据及验收范围。"
+    },
+    {
+      "branch": "test/mcp-groups-20261005",
+      "sha": "62c607b9d81965282ee0d1283c304c85e65b7d93",
+      "disposition_en": "Group/runtime contracts are already integrated or strengthened in main; preserve unique source history.",
+      "disposition_zh": "分组与运行时合同已在 main 整合或增强；保留独有来源历史。"
+    },
+    {
+      "branch": "test/oauth-catalog-scaling-20261005",
+      "sha": "dfa18dde3169df173be72400054c4d567dc2cb1b",
+      "disposition_en": "Catalog scaling/cache behavior and regressions already exist in main; no duplicate product transplant.",
+      "disposition_zh": "目录规模、缓存行为与回归已在 main 保留；不重复移植产品实现。"
+    },
+    {
+      "branch": "test/oauth-scope-bulk-20261005",
+      "sha": "acfccf0c4a5de9880056c465412d491d7e4a0ca8",
+      "disposition_en": "Bulk OAuth editing and authorization boundaries are already integrated; preserve the old branch.",
+      "disposition_zh": "批量 OAuth 编辑与授权边界已整合；保留旧分支。"
+    },
+    {
+      "branch": "test/on-demand-groups-integration-20261005",
+      "sha": "6f3e87145a8ff581d8738ffbc3ee6f374ab56010",
+      "disposition_en": "On-demand/group integration is already in main, including stronger authority and cache checks.",
+      "disposition_zh": "按需工具与分组整合已在 main，并保留更强的权限与缓存检查。"
+    },
+    {
+      "branch": "test/on-demand-tools-20261005",
+      "sha": "8a044488cb792b3eee96b7b69e1b4f1de2719ee8",
+      "disposition_en": "On-demand tool controls and retaining other instance indexes on directed refresh are already covered in main.",
+      "disposition_zh": "按需工具控制及定向刷新保留其他实例索引已在 main 覆盖。"
+    },
+    {
+      "branch": "wip/stage1-after-v043-20261005",
+      "sha": "c59ad25d6bfe0f26ce48a0f172bd787ad64b9375",
+      "disposition_en": "Restore only the two omitted outputSchema/legacy-classification ACL regression tests. Current runtime has equal or stronger credential, Git, SRI and diagnostic-redaction boundaries; preserve historical stage reports without replacing current guides.",
+      "disposition_zh": "仅恢复遗漏的 outputSchema 与旧分类合同两项 ACL 回归；当前运行时在凭据、Git、SRI 和诊断脱敏上已有相等或更强边界，保留历史阶段报告，不替换当前指南。"
+    }
+  ],
+  "approved_history_repair": {
+    "branch": "refs/heads/test/gate-release-0.4.7-formal-evidence-20261010",
+    "original_sha": "e0766101fa344db399122884aadbb08ac4b8f439",
+    "replacement_sha": "f42d609d47066ac8e6e43c13adc6436ab1379007",
+    "exact_lease_update_succeeded": true,
+    "exact_remote_readback": true,
+    "only_one_remote_ref_changed": true,
+    "all_other_17_heads_and_17_tags_preserved": true,
+    "old_local_branch_and_frozen_evidence_preserved": true,
+    "checker_sha256": "17e08e2d62e6db0bb240a20c25ddc6a0077af80d8766934a66c2889883f2981b",
+    "identity_exit_code": 0,
+    "identity_log_sha256": "a7507cd98b517cd1ff693675a6ebe556e776e33478c24de417fffb05f215ce73"
+  },
+  "original_evidence_recovery": {
+    "recovery_bundle_sha256": "449565cc36f3476aaec0024e2cfa8a089b89a06452b78fc873d96da6a68a4f23",
+    "recovery_bundle_verify_exit_code": 0,
+    "restore_seed_excluded_all_three_original_evidence_commits": true,
+    "restore_imported_all_three_original_evidence_commits": [
+      "5070d9a0c453569944cf5e9e94f71837110442e8",
+      "6a7a0f8e82e7dc069056e55f567d21e3a39f2aad",
+      "e0766101fa344db399122884aadbb08ac4b8f439"
+    ],
+    "restore_fsck_exit_code": 0,
+    "only_changed_json_field": "controlled_retry_request.requesting_execution_agent"
+  },
+  "executed_local_checks": [
+    {
+      "label": "generic-release-engineering-v1",
+      "exit_code": 1,
+      "elapsed_seconds": 45.377,
+      "log_sha256": "5f2acd40f91a23a2c08a65d894944f8ef0ffc3897a86fd2a7bb507ac6ec21b2a"
+    },
+    {
+      "label": "generic-release-engineering-v2",
+      "exit_code": 0,
+      "elapsed_seconds": 46.928,
+      "log_sha256": "2a6af98ef16dc00614c25ef63135acfbdabc1a7c2bf190492eb2a54b5653e1e9"
+    },
+    {
+      "label": "generic-publication-boundary-red",
+      "exit_code": 0,
+      "elapsed_seconds": 0.159,
+      "log_sha256": "51ce78192105daab6de1067e974f10765361425173352a9d773421a9a34e18c4"
+    },
+    {
+      "label": "generic-ruff",
+      "exit_code": 0,
+      "elapsed_seconds": 0.024,
+      "log_sha256": "82b3e6a6c090a57601d22943bd23fca9218d1031dbe5a7b754092f9a156b4f18"
+    },
+    {
+      "label": "generic-mypy",
+      "exit_code": 0,
+      "elapsed_seconds": 0.183,
+      "log_sha256": "a4be80670a49e40967d7663defa16bbef3d09cd6a5dbd3e7d61ae68cbaf7a2e4"
+    },
+    {
+      "label": "generic-version",
+      "exit_code": 0,
+      "elapsed_seconds": 0.05,
+      "log_sha256": "b908034df92dbedd142741ee10b5da8ac50837c4994e15c0840b47b022e8e263"
+    },
+    {
+      "label": "generic-web-build",
+      "exit_code": 0,
+      "elapsed_seconds": 3.684,
+      "log_sha256": "c88c0cee9ec05d5b8214ead476ec9ff286f0f65fbd673a9d8c4cfd9005dc52f7"
+    }
+  ],
+  "related_suite_result": "287 passed in 46.48s",
+  "initial_related_suite_failure": {
+    "result": "279 passed, one launcher file-mode test failed",
+    "cause": "New local worktree umask yielded 0700 for two source files whose unchanged Git mode is 100755. Restored exactly those files to 0755; no Git mode/content delta or test waiver.",
+    "affected_paths": [
+      "packaging/native/start.sh",
+      "scripts/release/build_offline_images.sh"
+    ],
+    "fixed_related_suite_exit_code": 0
+  },
+  "publication_fixtures": {
+    "real_registry_or_github_calls": false,
+    "baseline_workflow_boundary_test_observed_failed": true,
+    "existing_release_checks": [
+      "title",
+      "full_body",
+      "eleven_asset_set",
+      "exact_downloaded_bytes",
+      "attestation_cli_failure",
+      "empty_proof_array",
+      "trusted_timestamp_required",
+      "strict_signer_source_ref_and_runner_flags"
+    ],
+    "new_release_readback_checks": [
+      "title",
+      "full_body",
+      "eleven_asset_set",
+      "exact_downloaded_bytes"
+    ],
+    "source_notes_preserved_and_exact_digest_footer_verified": true
+  },
+  "pr66_ci": {
+    "run_id": 38067497722,
+    "attempt": 2,
+    "head_sha": "3d369665f4ab6fb54cc28d0b2b3bf69dba15800a",
+    "url": "https://github.com/zhigege666/Lingshu-Gate/actions/runs/38067497722/attempts/2",
+    "state_at_snapshot": "in_progress_after_approved_identity_fix",
+    "complete_required_checks_must_be_verified_before_merge": true
+  },
+  "candidate_ci": "not_started_at_this_pre_push_snapshot; exact committed head and final check state are bound by the PR checks and delivery receipts",
+  "acceptance_limits": {
+    "new_formal_publication": false,
+    "version_bump": false,
+    "tag_or_release_mutation": false,
+    "nx5_deployment": false,
+    "old_fixed_v045_dispatch": false,
+    "modal_browser_acceptance": "Existing actual 59-case modal scope and 455 frontend unit tests remain bound to a0cc792; no wider 493-case browser acceptance claim.",
+    "artifact_download_or_image_transport": false
+  }
+}

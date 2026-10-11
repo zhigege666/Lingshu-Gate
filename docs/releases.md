@@ -8,6 +8,14 @@ The current source version is `0.4.7`. This patch reuses immutable contracts acr
 
 The source Console also includes the card-based tool catalog with deployment-specific MCP filtering, effective access badges, and direct selection in the invocation editor. Tool discovery adds the request-local `metadata.gate_access` display snapshot described in [operations](operations.md#tool-catalog). This change adds no frontend dependency or database migration.
 
+## Source publication reentry checks
+
+The publication job prepares the title and bilingual notes from its checked-out source, including the exact container digest and Docker Hub mirror reference. Both an existing immutable release and a newly created release must match that title and complete body; only terminal line endings are normalized. The exact eleven-asset set and every asset's bytes remain required.
+
+Every asset's provenance is verified before container promotion, mirroring, signing or release creation. Verification requires the repository, workflow certificate identity, exact signer and source revisions, source tag, hosted runner and a trusted timestamp; see the [GitHub CLI verification options](https://cli.github.com/manual/gh_attestation_verify). An existing immutable release is checked with its original attestations. Its publication job skips promotion, registry login, mirroring, signing, new attestations, release creation and the stable `latest` update.
+
+These source changes are extracted from the reviewed historical recovery work without its fixed v0.4.5 source override. They do not change the source version or modify a published tag or release. Synthetic regression tests exercise text mismatch, exact asset bytes, proof failure and timestamp rejection; they do not constitute a new formal publication.
+
 ## 0.3.1 security and release recovery
 
 This source requires PyJWT 2.14.0 or later and locks PyJWT to 2.15.1, including the fix for CVE-2026-102268. The pip requirements export is regenerated from the same uv lock file. Existing RS256-only verification and default-disabled external authentication remain unchanged.
