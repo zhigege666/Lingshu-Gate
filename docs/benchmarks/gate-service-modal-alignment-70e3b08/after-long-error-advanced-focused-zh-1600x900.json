@@ -1,0 +1,272 @@
+{
+  "phase": "after",
+  "synthetic_data": true,
+  "dialog": {
+    "x": 370,
+    "y": 26.125,
+    "width": 860,
+    "height": 847.75,
+    "right": 1230,
+    "bottom": 873.875
+  },
+  "viewport": {
+    "width": 1600,
+    "height": 900
+  },
+  "rows": [
+    {
+      "label": "服务 ID",
+      "label_bounds": {
+        "x": 395,
+        "y": 152.015625,
+        "width": 160,
+        "height": 36,
+        "right": 555,
+        "bottom": 188.015625
+      },
+      "control_bounds": {
+        "x": 567,
+        "y": 152.015625,
+        "width": 223,
+        "height": 74,
+        "right": 790,
+        "bottom": 226.015625
+      },
+      "label_overflow": false,
+      "first_column": true,
+      "in_section": false,
+      "grid_columns": "160px 223px",
+      "switch_bounds": null,
+      "switch_help_bounds": null
+    },
+    {
+      "label": "名称",
+      "label_bounds": {
+        "x": 806,
+        "y": 152.015625,
+        "width": 160,
+        "height": 36,
+        "right": 966,
+        "bottom": 188.015625
+      },
+      "control_bounds": {
+        "x": 978,
+        "y": 152.015625,
+        "width": 223,
+        "height": 36,
+        "right": 1201,
+        "bottom": 188.015625
+      },
+      "label_overflow": false,
+      "first_column": false,
+      "in_section": false,
+      "grid_columns": "160px 223px",
+      "switch_bounds": null,
+      "switch_help_bounds": null
+    },
+    {
+      "label": "运行方式",
+      "label_bounds": {
+        "x": 395,
+        "y": 242.015625,
+        "width": 160,
+        "height": 36,
+        "right": 555,
+        "bottom": 278.015625
+      },
+      "control_bounds": {
+        "x": 567,
+        "y": 242.015625,
+        "width": 634,
+        "height": 66,
+        "right": 1201,
+        "bottom": 308.015625
+      },
+      "label_overflow": false,
+      "first_column": true,
+      "in_section": false,
+      "grid_columns": "160px 634px",
+      "switch_bounds": null,
+      "switch_help_bounds": null
+    },
+    {
+      "label": "启用服务",
+      "label_bounds": {
+        "x": 395,
+        "y": 324.015625,
+        "width": 160,
+        "height": 36,
+        "right": 555,
+        "bottom": 360.015625
+      },
+      "control_bounds": {
+        "x": 567,
+        "y": 324.015625,
+        "width": 634,
+        "height": 36,
+        "right": 1201,
+        "bottom": 360.015625
+      },
+      "label_overflow": false,
+      "first_column": true,
+      "in_section": false,
+      "grid_columns": "160px 634px",
+      "switch_bounds": {
+        "x": 567,
+        "y": 332.015625,
+        "width": 36,
+        "height": 20,
+        "right": 603,
+        "bottom": 352.015625
+      },
+      "switch_help_bounds": {
+        "x": 615,
+        "y": 324.015625,
+        "width": 300.015625,
+        "height": 24,
+        "right": 915.015625,
+        "bottom": 348.015625
+      }
+    },
+    {
+      "label": "Gate 启动时自动启动",
+      "label_bounds": {
+        "x": 395,
+        "y": 376.015625,
+        "width": 160,
+        "height": 36,
+        "right": 555,
+        "bottom": 412.015625
+      },
+      "control_bounds": {
+        "x": 567,
+        "y": 376.015625,
+        "width": 634,
+        "height": 36,
+        "right": 1201,
+        "bottom": 412.015625
+      },
+      "label_overflow": false,
+      "first_column": true,
+      "in_section": false,
+      "grid_columns": "160px 634px",
+      "switch_bounds": {
+        "x": 567,
+        "y": 384.015625,
+        "width": 36,
+        "height": 20,
+        "right": 603,
+        "bottom": 404.015625
+      },
+      "switch_help_bounds": {
+        "x": 615,
+        "y": 376.015625,
+        "width": 494.703125,
+        "height": 24,
+        "right": 1109.703125,
+        "bottom": 400.015625
+      }
+    },
+    {
+      "label": "MCP 地址",
+      "label_bounds": {
+        "x": 395,
+        "y": 428.015625,
+        "width": 160,
+        "height": 36,
+        "right": 555,
+        "bottom": 464.015625
+      },
+      "control_bounds": {
+        "x": 567,
+        "y": 428.015625,
+        "width": 634,
+        "height": 182,
+        "right": 1201,
+        "bottom": 610.015625
+      },
+      "label_overflow": false,
+      "first_column": true,
+      "in_section": false,
+      "grid_columns": "160px 634px",
+      "switch_bounds": null,
+      "switch_help_bounds": null
+    },
+    {
+      "label": "超时秒数",
+      "label_bounds": {
+        "x": 395,
+        "y": 626.015625,
+        "width": 160,
+        "height": 36,
+        "right": 555,
+        "bottom": 662.015625
+      },
+      "control_bounds": {
+        "x": 567,
+        "y": 626.015625,
+        "width": 634,
+        "height": 36,
+        "right": 1201,
+        "bottom": 662.015625
+      },
+      "label_overflow": false,
+      "first_column": true,
+      "in_section": false,
+      "grid_columns": "160px 634px",
+      "switch_bounds": null,
+      "switch_help_bounds": null
+    },
+    {
+      "label": "HTTP 请求头",
+      "label_bounds": {
+        "x": 395,
+        "y": 678.015625,
+        "width": 160,
+        "height": 36,
+        "right": 555,
+        "bottom": 714.015625
+      },
+      "control_bounds": {
+        "x": 567,
+        "y": 678.015625,
+        "width": 634,
+        "height": 36,
+        "right": 1201,
+        "bottom": 714.015625
+      },
+      "label_overflow": false,
+      "first_column": true,
+      "in_section": false,
+      "grid_columns": "160px 634px",
+      "switch_bounds": null,
+      "switch_help_bounds": null
+    },
+    {
+      "label": "权限声明",
+      "label_bounds": {
+        "x": 412,
+        "y": 784.015625,
+        "width": 160,
+        "height": 36,
+        "right": 572,
+        "bottom": 820.015625
+      },
+      "control_bounds": {
+        "x": 584,
+        "y": 784.015625,
+        "width": 600,
+        "height": 76,
+        "right": 1184,
+        "bottom": 860.015625
+      },
+      "label_overflow": false,
+      "first_column": true,
+      "in_section": true,
+      "grid_columns": "160px 600px",
+      "switch_bounds": null,
+      "switch_help_bounds": null
+    }
+  ],
+  "horizontal_overflow": false
+}

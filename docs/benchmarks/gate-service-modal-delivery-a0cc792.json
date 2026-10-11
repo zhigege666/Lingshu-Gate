@@ -1,0 +1,440 @@
+{
+  "schema_version": 1,
+  "recorded_at_utc": "2026-10-10T16:16:22.011813+00:00",
+  "product_source_sha": "a0cc7925f02718e44cb0216e82581eff9b7644fc",
+  "product_source_tree": "85f386c2c5c216129242deff780351c26e79dc0e",
+  "branch": "test/gate-service-modal-delivery-20261010",
+  "integrated_main_sha": "2cbbe0673ce221a490af55d7d45abb5171552ec6",
+  "source_blobs": {
+    "web/src/components/confirm-dialog.tsx": {
+      "git_blob": "5d5aa0b186f27227fc99980a17f46905b74c9038",
+      "sha256": "7adca557f8f483cf7cb91222ab5662e3c855403af547f7b43c9074d66aa9b8b5"
+    },
+    "web/src/components/mcp-config-editor.tsx": {
+      "git_blob": "1801c4c3cf47ec62c1d8565e94aba02456ba78b8",
+      "sha256": "3f213556970b89ce4e029c7e4bd6b9983c7b5076e978905faeeece3aff17c096"
+    },
+    "web/src/features/mcp-config/editor.css": {
+      "git_blob": "0becec77ea0b795346fd29c8209842ea8a0889a1",
+      "sha256": "d603dcc94b36c93e0735ba1d986809df7162589cf946c99163cb6ed59ed69cf4"
+    },
+    "web/src/features/servers/delivery-config-editor.tsx": {
+      "git_blob": "578f42a21bace233d7149cb02fa318168b72d00e",
+      "sha256": "c94c6f63957cfd6da748a67dbdb955cb0e0f2294fbf3561872e0d10255a2a8cc"
+    },
+    "web/src/features/servers/service-config-drawer.tsx": {
+      "git_blob": "aa96ede50517b5fcf7c2081dd51e3a369ea7e3ed",
+      "sha256": "782c13146a808a4cb90afd92cb4d3f1d7a68396e833f05f9c1d27f13b1a5a65a"
+    },
+    "web/src/pages/configs-page.tsx": {
+      "git_blob": "855374979a36527931b3358030182d7ac6751345",
+      "sha256": "cf826b556170ee7c90001c56d3dbb70df19dda6c67ede229b48196bf9ed608f9"
+    },
+    "web/src/pages/servers-page.tsx": {
+      "git_blob": "787b0210fbdd7f592392c1ea13623da38e558e4a",
+      "sha256": "7dca96c26df989fd7c735c4b0d53ec2efac791b18bb8887fcd49d9e9c1ff9bae"
+    },
+    "web/e2e/config-interaction.spec.ts": {
+      "git_blob": "aab7ea942b89251513e705876e06303b623b5ed5",
+      "sha256": "7fcb321db85a40ab4479994cc3e8958c7b74dddb096581214ba72cdf9bb753d6"
+    },
+    "web/e2e/service-config-layout.spec.ts": {
+      "git_blob": "7d7501a3927e0954417e48dcc2b5fc7a78a29b6e",
+      "sha256": "606a3fdd89643fa4c2275b221ba0e3bd18d2151aacf2ae5d145678ba41ae0e74"
+    }
+  },
+  "preserved_readmes": {
+    "README.md": {
+      "preserved_main_sha": "2cbbe0673ce221a490af55d7d45abb5171552ec6",
+      "sha256": "6c351418f3e09fa6880a4db06e9f215ace512a11664b9eb013fae2c866819435",
+      "byte_identical": true
+    },
+    "README.zh-CN.md": {
+      "preserved_main_sha": "2cbbe0673ce221a490af55d7d45abb5171552ec6",
+      "sha256": "6ed90e78d5ea3faafd1940c5a8cd75cdcf95c249d841d77ecc40180e8d995e47",
+      "byte_identical": true
+    }
+  },
+  "backend_version_packaging_workflows_unchanged_from_original_281": true,
+  "checks": [
+    {
+      "command": "npm --prefix web run check",
+      "exit_code": 0,
+      "elapsed_seconds": 2.294,
+      "raw_log_sha256": "d1c0aeac257790ad20a5343d2b92c91489739ce07d0de1b9f85682bba923f5da"
+    },
+    {
+      "command": "npm --prefix web test",
+      "exit_code": 0,
+      "elapsed_seconds": 14.124,
+      "raw_log_sha256": "15911ae3611c883995ac767b80585bdeb8b7ada51e92f839d314749f7ef45346",
+      "files_passed": 75,
+      "tests_passed": 455
+    },
+    {
+      "command": "npm --prefix web run build",
+      "exit_code": 0,
+      "elapsed_seconds": 3.958,
+      "raw_log_sha256": "cf07b937f7b8f686fc5ec988137a1cf61c14154733b7be76d45a105b5118a3ce"
+    },
+    {
+      "command": "python -m scripts.release.check_version",
+      "exit_code": 0,
+      "elapsed_seconds": 0.066,
+      "raw_log_sha256": "b908034df92dbedd142741ee10b5da8ac50837c4994e15c0840b47b022e8e263"
+    },
+    {
+      "command": "git diff --check 2cbbe0673ce221a490af55d7d45abb5171552ec6 HEAD",
+      "exit_code": 0,
+      "elapsed_seconds": 0.015,
+      "raw_log_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "command": "python scripts/quality/check_repository_identity.py",
+      "scope": "Current repository content; does not substitute for failed full published-history gate",
+      "exit_code": 0,
+      "raw_log_sha256": "c2abe4b85441da546d672d41b520819e0f611660fce7d205b7529bffc9036ceb",
+      "guide_links_checked": 16
+    }
+  ],
+  "browser": {
+    "command": "playwright test service-config-layout.spec.ts config-interaction.spec.ts",
+    "source_sha": "a0cc7925f02718e44cb0216e82581eff9b7644fc",
+    "spec_sha256": "7fcb321db85a40ab4479994cc3e8958c7b74dddb096581214ba72cdf9bb753d6",
+    "exit_code": 0,
+    "passed": 59,
+    "skipped": 0,
+    "flaky": 0,
+    "retries": 0,
+    "elapsed_seconds": 126.022,
+    "raw_log_sha256": "bcccd1b02253fcb9935971ce5c615c240a7a7ffa27c0a52bea703c90a66ccd0b",
+    "json_report_sha256": "971ca4bf1fb2c25d17e7ea05d6256a29bc64df454745f68b763af59fd709c999",
+    "scope": "Complete original 49-case two-file scope plus ten permanent focus regressions. The wider 493-case repository suite was enumerated, not executed.",
+    "new_eight_boundaries": [
+      {
+        "title": "services successful save restores the refreshed trigger en-US @full",
+        "status": "passed",
+        "focus_at_250ms": [
+          {
+            "tag": "BUTTON",
+            "text": "Edit configuration"
+          }
+        ]
+      },
+      {
+        "title": "services clean close retains context with removed trigger en-US @full",
+        "status": "passed",
+        "focus_at_250ms": [
+          {
+            "tag": "BUTTON",
+            "text": "Synthetic service 0synthetic-service-000running50"
+          }
+        ]
+      },
+      {
+        "title": "services clean close retains context with disabled trigger en-US @full",
+        "status": "passed",
+        "focus_at_250ms": [
+          {
+            "tag": "BUTTON",
+            "text": "Synthetic service 0synthetic-service-000running50"
+          }
+        ]
+      },
+      {
+        "title": "services asynchronous Edit and enable returns focus to configuration en-US @full",
+        "status": "passed",
+        "focus_at_250ms": [
+          {
+            "tag": "BUTTON",
+            "text": "Edit configuration"
+          }
+        ]
+      },
+      {
+        "title": "services successful save restores the refreshed trigger zh-CN @full",
+        "status": "passed",
+        "focus_at_250ms": [
+          {
+            "tag": "BUTTON",
+            "text": "修改配置"
+          }
+        ]
+      },
+      {
+        "title": "services clean close retains context with removed trigger zh-CN @full",
+        "status": "passed",
+        "focus_at_250ms": [
+          {
+            "tag": "BUTTON",
+            "text": "Synthetic service 0synthetic-service-000运行中50"
+          }
+        ]
+      },
+      {
+        "title": "services clean close retains context with disabled trigger zh-CN @full",
+        "status": "passed",
+        "focus_at_250ms": [
+          {
+            "tag": "BUTTON",
+            "text": "Synthetic service 0synthetic-service-000运行中50"
+          }
+        ]
+      },
+      {
+        "title": "services asynchronous Edit and enable returns focus to configuration zh-CN @full",
+        "status": "passed",
+        "focus_at_250ms": [
+          {
+            "tag": "BUTTON",
+            "text": "修改配置"
+          }
+        ]
+      }
+    ]
+  },
+  "red_green_comparisons": [
+    {
+      "red_source_sha": "281d3a75897173d84d1175cf5a28711ecd1151b3",
+      "green_source_sha": "762caac25223131540c5191f06eda8fb23bed307",
+      "red_cases": 6,
+      "red_failed_focus_assertions": 6,
+      "red_actual_tag_at_250ms": "BODY",
+      "green_cases": 6,
+      "green_passed": 6,
+      "spec_sha256": "df4453748dff9b6a50e9b48e00596ade5ab18f45ae63f7fb37b85484a6abd09c",
+      "spec_byte_identical_red_green": true,
+      "full_scope_passed": 57,
+      "green_rows": [
+        {
+          "title": "services successful save restores the refreshed trigger en-US @full",
+          "status": "passed",
+          "focus_at_250ms": [
+            {
+              "tag": "BUTTON",
+              "text": "Edit configuration"
+            }
+          ]
+        },
+        {
+          "title": "services clean close retains context with removed trigger en-US @full",
+          "status": "passed",
+          "focus_at_250ms": [
+            {
+              "tag": "BUTTON",
+              "text": "Synthetic service 0synthetic-service-000running50"
+            }
+          ]
+        },
+        {
+          "title": "services clean close retains context with disabled trigger en-US @full",
+          "status": "passed",
+          "focus_at_250ms": [
+            {
+              "tag": "BUTTON",
+              "text": "Synthetic service 0synthetic-service-000running50"
+            }
+          ]
+        },
+        {
+          "title": "services successful save restores the refreshed trigger zh-CN @full",
+          "status": "passed",
+          "focus_at_250ms": [
+            {
+              "tag": "BUTTON",
+              "text": "修改配置"
+            }
+          ]
+        },
+        {
+          "title": "services clean close retains context with removed trigger zh-CN @full",
+          "status": "passed",
+          "focus_at_250ms": [
+            {
+              "tag": "BUTTON",
+              "text": "Synthetic service 0synthetic-service-000运行中50"
+            }
+          ]
+        },
+        {
+          "title": "services clean close retains context with disabled trigger zh-CN @full",
+          "status": "passed",
+          "focus_at_250ms": [
+            {
+              "tag": "BUTTON",
+              "text": "Synthetic service 0synthetic-service-000运行中50"
+            }
+          ]
+        }
+      ],
+      "first_harness_attempt_preserved_not_product_red": true,
+      "red_raw_log_sha256": "26594ab2c185c3e876df2b92ad68fbcfbab5a62d6de34c6412feeea38c3dbee1",
+      "green_raw_log_sha256": "6bcb3810be051623c8e5aeea73060cc352c813d52d6f0c88641b4bafffd40491"
+    },
+    {
+      "red_source_sha": "762caac25223131540c5191f06eda8fb23bed307",
+      "green_source_sha": "a0cc7925f02718e44cb0216e82581eff9b7644fc",
+      "red_cases": 2,
+      "red_failed_focus_assertions": 2,
+      "red_actual_tag_at_250ms": "BODY",
+      "green_cases": 2,
+      "green_passed": 2,
+      "spec_sha256": "7fcb321db85a40ab4479994cc3e8958c7b74dddb096581214ba72cdf9bb753d6",
+      "spec_byte_identical_red_green": true,
+      "full_scope_passed": 59,
+      "green_rows": [
+        {
+          "title": "services asynchronous Edit and enable returns focus to configuration en-US @full",
+          "status": "passed",
+          "focus_at_250ms": [
+            {
+              "tag": "BUTTON",
+              "text": "Edit configuration"
+            }
+          ]
+        },
+        {
+          "title": "services asynchronous Edit and enable returns focus to configuration zh-CN @full",
+          "status": "passed",
+          "focus_at_250ms": [
+            {
+              "tag": "BUTTON",
+              "text": "修改配置"
+            }
+          ]
+        }
+      ],
+      "prior_six_case_red_green_record": "services-refresh-red-green-762caac.json",
+      "prior_six_case_whole_spec_sha256": "df4453748dff9b6a50e9b48e00596ade5ab18f45ae63f7fb37b85484a6abd09c",
+      "prior_six_case_green_source_sha": "762caac25223131540c5191f06eda8fb23bed307",
+      "red_raw_log_sha256": "813a859fe9bdcb74123bd7518fd0f81b97b3b5493eac47db0981f56d4b7b91c6",
+      "green_raw_log_sha256": "bcccd1b02253fcb9935971ce5c615c240a7a7ffa27c0a52bea703c90a66ccd0b"
+    }
+  ],
+  "initial_harness_failure": {
+    "source_sha": "281d3a75897173d84d1175cf5a28711ecd1151b3",
+    "cases": 6,
+    "classification": "Background Edit button lookup failed while hidden by the dialog. No product red claim. Fixed only new-test lookup with includeHidden; assertions unchanged.",
+    "original_failure_logs_and_local_screenshots_preserved": true
+  },
+  "identity_gate": {
+    "command": "python scripts/quality/check_repository_identity.py --history",
+    "exit_code": 1,
+    "published_head_count": 17,
+    "published_tag_count": 17,
+    "remote_inventory_sha256": "bca4c27e7c57f9d42f4dc6463316c4c73377d14d6021ead4395c407b55fc0ffd",
+    "raw_log_sha256": "15790cf7428e6d1d85718d67db2c758dbebedf78f38823f0f25aae6c7a65edaa",
+    "elapsed_seconds": 32.223,
+    "findings": [
+      {
+        "rule": "TXT-045",
+        "commit": "e0766101fa344db399122884aadbb08ac4b8f439",
+        "path": "docs/benchmarks/gate-release-0.4.7-formal-attempt-45cec40.json",
+        "line": 7
+      },
+      {
+        "rule": "TXT-045",
+        "commit": "e0766101fa344db399122884aadbb08ac4b8f439",
+        "path": "docs/benchmarks/gate-release-0.4.7-formal-completion-45cec40.json",
+        "line": 45
+      }
+    ],
+    "published_failure_branch": "test/gate-release-0.4.7-formal-evidence-20261010",
+    "candidate_ancestry_contains_failure_commit": false,
+    "worker_all_refs_scan_exit_code": 1,
+    "fresh_remote_inventory_corrected_stale_tracking_refs": true,
+    "checker_or_exceptions_modified": false,
+    "unique_branch_and_frozen_evidence_preserved": true
+  },
+  "independent_code_review": {
+    "status": "no_unhandled_P1_P2_within_reviewed_focus_scope",
+    "product_source_sha": "a0cc7925f02718e44cb0216e82581eff9b7644fc",
+    "tree_sha": "85f386c2c5c216129242deff780351c26e79dc0e",
+    "unhandled_counts": {
+      "P1": 0,
+      "P2": 0
+    },
+    "closed_findings": [
+      {
+        "id": "CR-P2-01",
+        "priority": "P2",
+        "status": "closed_at_a0cc792",
+        "previousStatus": "unresolved_at281_closed_at762",
+        "trigger": "Services successful save awaits configuration refresh, which replaces/disconnects the captured Edit configuration button.",
+        "impactBeforeFix": "Final editor close left BODY focused and lost the task keyboard location.",
+        "fix": "Use only eligible original target, otherwise caller resolves current enabled visible configuration action, then current active service-entry inside the live workspace.",
+        "regression": "Two bilingual delayed successful-save refresh cases assert old DOM disconnected, exactly one PUT, expected digest, false apply/start, 250ms action focus and Tab/ShiftTab; four bilingual removed/disabled clean-close cases assert active-entry focus and no PUT.",
+        "validRedCases": 6,
+        "finalGreenCases": 6,
+        "harnessFailureExcluded": true
+      },
+      {
+        "id": "CR-P2-02",
+        "priority": "P2",
+        "status": "closed_at_a0cc792",
+        "previousStatus": "unresolved_at762",
+        "trigger": "Planned-disabled Services overview Edit and enable switches tabs and awaits detail before editor mount; original control is disabled/hidden and mount can capture BODY.",
+        "impactBeforeFix": "BODY qualified under the old connected/enabled check, bypassed fallback, and remained active after clean Escape close.",
+        "fix": "Reject BODY/HTML, disconnected, native-disabled and no-layout-rectangle original targets; require visible replacement configuration action before active-entry fallback.",
+        "regression": "Permanent bilingual actual Edit-and-enable entry with 100ms read delay; clean Escape close; 250ms configuration action focus and no PUT.",
+        "validRedCases": 2,
+        "redActualTagAt250ms": "BODY",
+        "finalGreenCases": 2,
+        "finalActualTagAt250ms": "BUTTON",
+        "redGreenSpecByteIdentical": true,
+        "specSHA256": "7fcb321db85a40ab4479994cc3e8958c7b74dddb096581214ba72cdf9bb753d6",
+        "redNoPutAssertionExecuted": false,
+        "greenNoPutAssertionExecuted": true
+      }
+    ],
+    "reviewer_reran_suites": false,
+    "independently_verified": [
+      "completion source SHA",
+      "log SHA256",
+      "browser raw JSON report SHA256",
+      "red/final spec bytes",
+      "eight raw focus JSON attachments",
+      "published-ref list SHA256",
+      "historical review hashes"
+    ],
+    "report_sha256": "fcbfacd64d94eb7844dce59ea0dda95b09d3d7d81184aa9cfe0b3a8dd959e59e",
+    "result_sha256": "8c894daed48c7ae28c9cdbd2c8670170722a45672dff5f157a1908285606a6a9",
+    "overall_merge_ready": false,
+    "overall_release_ready": false,
+    "later_documentation_head_requires_blob_equivalence": true,
+    "runtime_scope_limits": [
+      "new reviewer browser/unit/build runs",
+      "whole application browser suite",
+      "StrictMode development replay",
+      "cross-browser and OS focus differences",
+      "zoom or screen-reader runtime",
+      "all fallback targets unavailable",
+      "selected service disappearance or filtered/paged-out active entry during refresh",
+      "future aria-disabled-only consumers",
+      "later documentation-head source equivalence"
+    ]
+  },
+  "prior_visual_review": {
+    "source_sha": "281d3a75897173d84d1175cf5a28711ecd1151b3",
+    "screenshots_viewed": 34,
+    "scope": "Original layout and two prior focus findings only. Not a new screenshot review of a0cc792.",
+    "report_sha256": "b4636f643c4275ba8af56164a6f17980adb3fe62fc498f0cdb9706eb8a9879e3",
+    "result_sha256": "5c8f332063425520032a9e5d89bc6d6c936983bcbfae4cf264a1a66b10bf2d09"
+  },
+  "delivery_state": {
+    "merge_ready": false,
+    "reason": "Unchanged full published-history identity gate fails on unique earlier release evidence branch.",
+    "hosted_ci": "not_started",
+    "merged": false,
+    "tagged_or_released": false
+  },
+  "boundaries": {
+    "new_images_committed_or_transferred": false,
+    "all_new_images_and_raw_logs_stay_in_saved_cloud_executor": true,
+    "backend_full_suite_rerun": false,
+    "packaging_rerun": false,
+    "real_nx5_podman_executed": false,
+    "versions_permissions_and_release_workflows_changed": false,
+    "new_ui_review_scope_overclaimed": false
+  }
+}

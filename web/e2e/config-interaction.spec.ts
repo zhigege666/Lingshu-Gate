@@ -4,14 +4,18 @@ import { servers } from './synthetic-data'
 
 const server = { ...servers[0], launch_type: 'external', status: 'running', enabled: true }
 const manifest = { id: server.id, name: server.name, enabled: true, launch: { type: 'external' }, transport: { type: 'streamable_http', endpoint: 'http://127.0.0.1:1/mcp' }, timeout_seconds: 30 }
-async function openEditor(page: Page, historyForward = false, options: { locale?: 'en-US' | 'zh-CN'; viewport?: { width: number; height: number }; dark?: boolean; manifest?: Record<string, unknown>; configDigest?: string } = {}) {
+async function openEditor(page: Page, historyForward = false, options: { locale?: 'en-US' | 'zh-CN'; viewport?: { width: number; height: number }; dark?: boolean; manifest?: Record<string, unknown>; configDigest?: string; disabledEntry?: boolean } = {}) {
   await login(page)
   if (options.locale || options.dark) await page.addInitScript(({ locale, dark }) => {
     localStorage.setItem('lingshu-gate-console-locale', locale || 'en-US')
     localStorage.setItem('lingshu-gate-console-theme', dark ? 'dark' : 'light')
   }, { locale: options.locale, dark: options.dark })
-  await page.route('**/v1/mcp/servers', route => route.fulfill({ json: { servers: [server], load_errors: [] } }))
-  await page.route('**/v1/mcp/servers/*/detail?*', route => route.fulfill({ json: { server, manifest: options.manifest || manifest, config_digest: options.configDigest, tools: [] } }))
+  const fixtureServer = options.disabledEntry ? { ...server, enabled: false, status: 'disabled', last_error: 'Server is disabled' } : server
+  await page.route('**/v1/mcp/servers', route => route.fulfill({ json: { servers: [fixtureServer], load_errors: [] } }))
+  await page.route('**/v1/mcp/servers/*/detail?*', async route => {
+    if (options.disabledEntry) await new Promise(resolve => setTimeout(resolve, 100))
+    await route.fulfill({ json: { server: fixtureServer, manifest: options.manifest || (options.disabledEntry ? { ...manifest, enabled: false } : manifest), config_digest: options.configDigest, tools: [] } })
+  })
   await page.route('**/v1/mcp/configs/*/validate', route => route.fulfill({ json: { ok: true, can_apply: true, manifest_id: server.id, summary: { errors: 0, warnings: 0, info: 0, ok: 1 }, checks: [] } }))
   await page.setViewportSize(options.viewport || { width: 1280, height: 600 })
   if (historyForward) {
@@ -21,8 +25,11 @@ async function openEditor(page: Page, historyForward = false, options: { locale?
     await page.goBack()
   } else await page.goto('/console/#/servers')
   const zh = options.locale === 'zh-CN'
-  await page.getByRole('tab', { name: zh ? '配置' : 'Configuration', exact: true }).click()
-  await page.getByRole('button', { name: zh ? '修改配置' : 'Edit configuration', exact: true }).click()
+  if (options.disabledEntry) await page.getByRole('button', { name: zh ? '编辑并启用' : 'Edit and enable', exact: true }).click()
+  else {
+    await page.getByRole('tab', { name: zh ? '配置' : 'Configuration', exact: true }).click()
+    await page.getByRole('button', { name: zh ? '修改配置' : 'Edit configuration', exact: true }).click()
+  }
   return page.getByRole('dialog', { name: `${zh ? '修改配置' : 'Edit configuration'} · ${server.id}`, exact: true })
 }
 
@@ -44,8 +51,80 @@ test('E2E-201 @full cancelling save-only confirmation sends no mutation', async 
   await confirm.getByRole('button', { name: 'Cancel', exact: true }).click()
   await expect(confirm).toHaveCount(0)
   await expect(save).toBeEnabled()
+  await expect(save).toBeFocused()
   expect(writes).toEqual([])
 })
+
+for (const locale of ['en-US', 'zh-CN'] as const) {
+  test(`services successful save restores the refreshed trigger ${locale} @full`, async ({ page }) => {
+    const digest = 'c'.repeat(64)
+    const editor = await openEditor(page, false, { locale, viewport: { width: 1600, height: 900 }, configDigest: digest })
+    const zh = locale === 'zh-CN'
+    const trigger = page.getByRole('button', { name: zh ? '修改配置' : 'Edit configuration', exact: true, includeHidden: true })
+    const previousTrigger = await trigger.elementHandle()
+    let saved = { ...manifest }
+    const writes: unknown[] = []
+    await page.route('**/v1/mcp/servers/*/detail?*', async route => {
+      await new Promise(resolve => setTimeout(resolve, 100))
+      await route.fulfill({ json: { server, manifest: saved, config_digest: digest, tools: [] } })
+    })
+    await page.route('**/v1/mcp/configs/*', async route => {
+      if (route.request().method() !== 'PUT') return route.fallback()
+      const body = route.request().postDataJSON()
+      writes.push(body)
+      saved = body.manifest
+      await route.fulfill({ json: { config: { id: server.id, manifest: saved }, server: null, message: 'Saved without applying' } })
+    })
+    await editor.getByLabel(zh ? '名称' : 'Name', { exact: true }).fill('Synthetic refreshed focus draft')
+    await editor.getByRole('button', { name: zh ? '保存配置' : 'Save configuration', exact: true }).click()
+    await page.getByRole('alertdialog').getByRole('button', { name: zh ? '仅保存（未生效）' : 'Save only (not applied)', exact: true }).click()
+    await expect(editor).toHaveCount(0)
+    expect(await previousTrigger!.evaluate(element => element.isConnected)).toBe(false)
+    expect(writes).toEqual([expect.objectContaining({ apply: false, start: false, expected_config_digest: digest, manifest: expect.objectContaining({ name: 'Synthetic refreshed focus draft' }) })])
+    await page.waitForTimeout(250)
+    await test.info().attach('focus-at-close', { contentType: 'application/json', body: Buffer.from(JSON.stringify(await page.evaluate(() => ({ tag: document.activeElement?.tagName, text: document.activeElement?.textContent?.trim().slice(0, 80) })))) })
+    await expect(trigger).toBeFocused()
+    await page.keyboard.press('Tab')
+    await expect(page.locator('.console-brand')).not.toBeFocused()
+    await page.keyboard.press('Shift+Tab')
+    await expect(trigger).toBeFocused()
+  })
+  for (const unavailable of ['removed', 'disabled'] as const) {
+    test(`services clean close retains context with ${unavailable} trigger ${locale} @full`, async ({ page }) => {
+      const editor = await openEditor(page, false, { locale, viewport: { width: 1600, height: 900 } })
+      const writes: string[] = []
+      await page.route('**/v1/mcp/configs/*', route => {
+        if (route.request().method() === 'PUT') writes.push(route.request().url())
+        return route.fallback()
+      })
+      await page.getByRole('button', { name: locale === 'zh-CN' ? '修改配置' : 'Edit configuration', exact: true, includeHidden: true }).evaluate((element, unavailable) => {
+        if (unavailable === 'removed') element.remove()
+        else (element as HTMLButtonElement).disabled = true
+      }, unavailable)
+      await page.keyboard.press('Escape')
+      await expect(editor).toHaveCount(0)
+      await page.waitForTimeout(250)
+      await test.info().attach('focus-at-close', { contentType: 'application/json', body: Buffer.from(JSON.stringify(await page.evaluate(() => ({ tag: document.activeElement?.tagName, text: document.activeElement?.textContent?.trim().slice(0, 80) })))) })
+      await expect(page.locator('.service-entry[data-active="true"]')).toBeFocused()
+      expect(writes).toEqual([])
+    })
+  }
+  test(`services asynchronous Edit and enable returns focus to configuration ${locale} @full`, async ({ page }) => {
+    const editor = await openEditor(page, false, { locale, viewport: { width: 1600, height: 900 }, disabledEntry: true })
+    await expect(editor).toBeVisible()
+    const writes: string[] = []
+    await page.route('**/v1/mcp/configs/*', route => {
+      if (route.request().method() === 'PUT') writes.push(route.request().url())
+      return route.fallback()
+    })
+    await page.keyboard.press('Escape')
+    await expect(editor).toHaveCount(0)
+    await page.waitForTimeout(250)
+    await test.info().attach('focus-at-close', { contentType: 'application/json', body: Buffer.from(JSON.stringify(await page.evaluate(() => ({ tag: document.activeElement?.tagName, text: document.activeElement?.textContent?.trim().slice(0, 80) })))) })
+    await expect(page.getByRole('button', { name: locale === 'zh-CN' ? '修改配置' : 'Edit configuration', exact: true })).toBeFocused()
+    expect(writes).toEqual([])
+  })
+}
 
 test('E2E-202 @full HTTP200 failed activation retains editor and blocks duplicate save', async ({ page }) => {
   const editor = await openEditor(page)
@@ -207,6 +286,7 @@ test('E2E-208 @full dirty escape retains the draft until discard and clean closu
   await expect(guard).toBeVisible()
   await guard.getByRole('button', { name: 'Continue editing', exact: true }).click()
   await expect(editor.getByLabel('Name', { exact: true })).toHaveValue('Synthetic dirty edit')
+  await expect(editor.getByLabel('Name', { exact: true })).toBeFocused()
   await editor.getByRole('button', { name: 'Cancel', exact: true }).click()
   await page.getByRole('alertdialog').getByRole('button', { name: 'Discard changes', exact: true }).click()
   await expect(editor).toHaveCount(0)

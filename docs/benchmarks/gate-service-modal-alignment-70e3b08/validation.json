@@ -1,0 +1,454 @@
+{
+  "schema_version": 1,
+  "captured_at_utc": "2026-10-10T06:56:39.132152+00:00",
+  "repository": "zhigege666/Lingshu-Gate",
+  "branch": "fix/gate-service-modal-alignment-20261010",
+  "base_main": "45cec40c1e57d7290ab249e620b5a50fa939e115",
+  "implementation_source_revision": "70e3b08c219b738dbee2551cb88407f0d758a634",
+  "implementation_tree": "207c290cdad93655f0874cf92b0fcfe78b76ef51",
+  "source_files": [
+    {
+      "path": "web/src/features/mcp-config/editor.css",
+      "git_blob": "17b0fa1ceb1bc15c9e816a6dc42e3487dc9eb013",
+      "sha256": "89c26626fff30a3e6f25ace3e549b8bbe8193f182e73ae40d80e961caffc7887"
+    },
+    {
+      "path": "web/src/components/mcp-config-editor.tsx",
+      "git_blob": "56930f76a301dd58846e052b6ad9efd8f0423a1f",
+      "sha256": "4afaee484a799d1142d4d841648421fe10982138cc692c317e1fb0f93410cb6b"
+    },
+    {
+      "path": "web/src/pages/configs-page.tsx",
+      "git_blob": "2fa5ae9b355a35ef8bb44b786caec1288ba5d3e0",
+      "sha256": "9522c7389e9ac53fbd07640649b89095d8be1ac9fbab6f57c5054aeef78b2d61"
+    },
+    {
+      "path": "web/e2e/service-config-layout.spec.ts",
+      "git_blob": "5f4d84a0cd2915a10c56b9d0b3b08834f23b65e9",
+      "sha256": "624ba399cc1608bafef640afa15e44f907b1c62ab4e53f40b7619496c8dcec0c"
+    }
+  ],
+  "request": "Align the existing service configuration editor and preserve its frame and behavior; compare four desktop viewports using actual browser screenshots.",
+  "root_cause": {
+    "paired_label_width_px": 136,
+    "other_label_width_px": 272,
+    "control_left_mismatch_px": 136,
+    "startup_switch_control_width_px_before": 111,
+    "percentage_width_hypothesis_confirmed": false,
+    "finding": "Conflicting fixed grid tracks, including full-width labels inside half-width startup columns, caused misaligned controls and cramped switch help."
+  },
+  "fix": {
+    "shared_fixed_label_width": {
+      "zh_px": 160,
+      "en_px": 272
+    },
+    "paired_fields": "Use the same label track and collapse when the container cannot hold two usable field columns.",
+    "startup_fields": "Separate rows with aligned switches and readable help.",
+    "focus": "Remember the connected New/Edit trigger in ConfigsPage and restore focus after close; the untouched main frontend failed the dedicated negative control.",
+    "outer_dialog_width_px_preserved": 860,
+    "secondary_service_configuration_dialog_max_width_px_preserved": 1200,
+    "version_permissions_save_apply_and_start_semantics_changed": false
+  },
+  "environment": {
+    "executor": "Original saved Linux cloud executor; no environment switch.",
+    "node": "24.19.0",
+    "npm": "11.9.0",
+    "chromium": "151.0.7922.173",
+    "playwright": "1.63.0",
+    "vite": "8.3.2",
+    "browser": "Installed Chromium running the actual freshly built Console renderer on an isolated loopback test server.",
+    "api_fixture": "Synthetic configurations and validation responses via repository Playwright fixtures; no real remote identity, service or permission changes."
+  },
+  "captures": [
+    {
+      "name": "after-external-en-1600x900",
+      "phase": "after",
+      "source_revision": "70e3b08c219b738dbee2551cb88407f0d758a634",
+      "png": "docs/benchmarks/gate-service-modal-alignment-70e3b08/after-external-en-1600x900.png",
+      "png_sha256": "60cf76249c35cbcea4809beb6f4be7a3f0f5353297ec4668954342c3fe306d3b",
+      "png_bytes": 167201,
+      "geometry": "docs/benchmarks/gate-service-modal-alignment-70e3b08/after-external-en-1600x900.json",
+      "geometry_sha256": "83d76cae3f12aac676a1ca32185010bd8fa4b6898c8867bce918f24f3bbd533e",
+      "viewport": {
+        "width": 1600,
+        "height": 900
+      },
+      "dialog": {
+        "x": 370,
+        "y": 53.625,
+        "width": 860,
+        "height": 792.75,
+        "right": 1230,
+        "bottom": 846.375
+      },
+      "first_column_control_left_spread_px": 0,
+      "horizontal_overflow": false,
+      "label_overflow": false,
+      "synthetic_data": true,
+      "captured_at_utc": "2026-10-10T06:35:12.136535+00:00"
+    },
+    {
+      "name": "after-external-zh-1600x900",
+      "phase": "after",
+      "source_revision": "70e3b08c219b738dbee2551cb88407f0d758a634",
+      "png": "docs/benchmarks/gate-service-modal-alignment-70e3b08/after-external-zh-1600x900.png",
+      "png_sha256": "55c5dc236e221c98087dcaa8d6ed4b50b8250dbb2a5826360562bdc6186e4d01",
+      "png_bytes": 156272,
+      "geometry": "docs/benchmarks/gate-service-modal-alignment-70e3b08/after-external-zh-1600x900.json",
+      "geometry_sha256": "82ac276e8acd8bc035e3916957606b1e2fac17c3db6e1a506f9ac81ca5ea83e6",
+      "viewport": {
+        "width": 1600,
+        "height": 900
+      },
+      "dialog": {
+        "x": 370,
+        "y": 91.625,
+        "width": 860,
+        "height": 716.75,
+        "right": 1230,
+        "bottom": 808.375
+      },
+      "first_column_control_left_spread_px": 0,
+      "horizontal_overflow": false,
+      "label_overflow": false,
+      "synthetic_data": true,
+      "captured_at_utc": "2026-10-10T06:35:08.012457+00:00"
+    },
+    {
+      "name": "after-external-zh-1920x1080",
+      "phase": "after",
+      "source_revision": "70e3b08c219b738dbee2551cb88407f0d758a634",
+      "png": "docs/benchmarks/gate-service-modal-alignment-70e3b08/after-external-zh-1920x1080.png",
+      "png_sha256": "eab8e4ba780d0636a1f629051e770fe5c465dec2e6a14885404080a29c06eb79",
+      "png_bytes": 169782,
+      "geometry": "docs/benchmarks/gate-service-modal-alignment-70e3b08/after-external-zh-1920x1080.json",
+      "geometry_sha256": "7e3f567f7452d3c21522aacf2089b6234374ae88e603aa081e4bf979fa7b9f4b",
+      "viewport": {
+        "width": 1920,
+        "height": 1080
+      },
+      "dialog": {
+        "x": 530,
+        "y": 181.625,
+        "width": 860,
+        "height": 716.75,
+        "right": 1390,
+        "bottom": 898.375
+      },
+      "first_column_control_left_spread_px": 0,
+      "horizontal_overflow": false,
+      "label_overflow": false,
+      "synthetic_data": true,
+      "captured_at_utc": "2026-10-10T06:35:05.612411+00:00"
+    },
+    {
+      "name": "after-external-zh-2560x1080",
+      "phase": "after",
+      "source_revision": "70e3b08c219b738dbee2551cb88407f0d758a634",
+      "png": "docs/benchmarks/gate-service-modal-alignment-70e3b08/after-external-zh-2560x1080.png",
+      "png_sha256": "fbfd8dd4a33089938629233b6c239fe9c2470e8c67292f04c6ad261ac4ff3937",
+      "png_bytes": 174319,
+      "geometry": "docs/benchmarks/gate-service-modal-alignment-70e3b08/after-external-zh-2560x1080.json",
+      "geometry_sha256": "239094ec23ebcf64666cea324513759e966301c11b6ec4e5ace8bd4a91c6245a",
+      "viewport": {
+        "width": 2560,
+        "height": 1080
+      },
+      "dialog": {
+        "x": 850,
+        "y": 181.625,
+        "width": 860,
+        "height": 716.75,
+        "right": 1710,
+        "bottom": 898.375
+      },
+      "first_column_control_left_spread_px": 0,
+      "horizontal_overflow": false,
+      "label_overflow": false,
+      "synthetic_data": true,
+      "captured_at_utc": "2026-10-10T06:35:04.504390+00:00"
+    },
+    {
+      "name": "after-external-zh-2560x1440",
+      "phase": "after",
+      "source_revision": "70e3b08c219b738dbee2551cb88407f0d758a634",
+      "png": "docs/benchmarks/gate-service-modal-alignment-70e3b08/after-external-zh-2560x1440.png",
+      "png_sha256": "02e5e94bfec8bbf6b3f0af69fe66d8d46f91d9e77b977d91648f3d7e2f637603",
+      "png_bytes": 186129,
+      "geometry": "docs/benchmarks/gate-service-modal-alignment-70e3b08/after-external-zh-2560x1440.json",
+      "geometry_sha256": "f9d82fd8e12e6d9bebcbd834e803bc830b537e53856206cd0dbd31b492750061",
+      "viewport": {
+        "width": 2560,
+        "height": 1440
+      },
+      "dialog": {
+        "x": 850,
+        "y": 361.625,
+        "width": 860,
+        "height": 716.75,
+        "right": 1710,
+        "bottom": 1078.375
+      },
+      "first_column_control_left_spread_px": 0,
+      "horizontal_overflow": false,
+      "label_overflow": false,
+      "synthetic_data": true,
+      "captured_at_utc": "2026-10-10T06:35:06.832434+00:00"
+    },
+    {
+      "name": "after-long-error-advanced-focused-zh-1600x900",
+      "phase": "after",
+      "source_revision": "70e3b08c219b738dbee2551cb88407f0d758a634",
+      "png": "docs/benchmarks/gate-service-modal-alignment-70e3b08/after-long-error-advanced-focused-zh-1600x900.png",
+      "png_sha256": "bb6f8128fc5de8c344e557eaa2adcf2e9f91aa20ea8528e39ee962b71a6cd54c",
+      "png_bytes": 202566,
+      "geometry": "docs/benchmarks/gate-service-modal-alignment-70e3b08/after-long-error-advanced-focused-zh-1600x900.json",
+      "geometry_sha256": "ab896c7c5c630909d27fe3b245f36777f5ff4cde122ed2430336038acdcc5f1c",
+      "viewport": {
+        "width": 1600,
+        "height": 900
+      },
+      "dialog": {
+        "x": 370,
+        "y": 26.125,
+        "width": 860,
+        "height": 847.75,
+        "right": 1230,
+        "bottom": 873.875
+      },
+      "first_column_control_left_spread_px": 0,
+      "horizontal_overflow": false,
+      "label_overflow": false,
+      "synthetic_data": true,
+      "captured_at_utc": "2026-10-10T06:35:10.168498+00:00"
+    },
+    {
+      "name": "after-managed-http-zh-1600x900",
+      "phase": "after",
+      "source_revision": "70e3b08c219b738dbee2551cb88407f0d758a634",
+      "png": "docs/benchmarks/gate-service-modal-alignment-70e3b08/after-managed-http-zh-1600x900.png",
+      "png_sha256": "33fe73ecbd9c71b475052ab59d2aa757c1fc75bc9985d25c827e94adf30defa0",
+      "png_bytes": 171861,
+      "geometry": "docs/benchmarks/gate-service-modal-alignment-70e3b08/after-managed-http-zh-1600x900.json",
+      "geometry_sha256": "38fa1de04592cc74668136dcc32f7a98b90899b2a7ec2105669efef87a7526bd",
+      "viewport": {
+        "width": 1600,
+        "height": 900
+      },
+      "dialog": {
+        "x": 370,
+        "y": 40.125,
+        "width": 860,
+        "height": 819.75,
+        "right": 1230,
+        "bottom": 859.875
+      },
+      "first_column_control_left_spread_px": 0,
+      "horizontal_overflow": false,
+      "label_overflow": false,
+      "synthetic_data": true,
+      "captured_at_utc": "2026-10-10T06:35:09.596487+00:00"
+    },
+    {
+      "name": "after-managed-stdio-zh-1600x900",
+      "phase": "after",
+      "source_revision": "70e3b08c219b738dbee2551cb88407f0d758a634",
+      "png": "docs/benchmarks/gate-service-modal-alignment-70e3b08/after-managed-stdio-zh-1600x900.png",
+      "png_sha256": "1db77bb2942637e0da90b744922ded326be82ab83ce9e6916c3785fcb0c2a743",
+      "png_bytes": 164593,
+      "geometry": "docs/benchmarks/gate-service-modal-alignment-70e3b08/after-managed-stdio-zh-1600x900.json",
+      "geometry_sha256": "58cad1c89d05f9445dbf7a439dd4c60a0bf8711f46dc100fbe30dbec070f871e",
+      "viewport": {
+        "width": 1600,
+        "height": 900
+      },
+      "dialog": {
+        "x": 370,
+        "y": 40.125,
+        "width": 860,
+        "height": 819.75,
+        "right": 1230,
+        "bottom": 859.875
+      },
+      "first_column_control_left_spread_px": 0,
+      "horizontal_overflow": false,
+      "label_overflow": false,
+      "synthetic_data": true,
+      "captured_at_utc": "2026-10-10T06:35:09.408484+00:00"
+    },
+    {
+      "name": "before-external-zh-1600x900",
+      "phase": "before",
+      "source_revision": "45cec40c1e57d7290ab249e620b5a50fa939e115",
+      "png": "docs/benchmarks/gate-service-modal-alignment-70e3b08/before-external-zh-1600x900.png",
+      "png_sha256": "b3f7283b4abd3b3db6a25c5ab3f0226fe77b98427ad2029852af44cf5bfe603e",
+      "png_bytes": 156147,
+      "geometry": "docs/benchmarks/gate-service-modal-alignment-70e3b08/before-external-zh-1600x900.json",
+      "geometry_sha256": "bcc3d52bb373aaf09ce7ee0ea7056f4b3c75ae191dd1c62c0e0d345820b589e2",
+      "viewport": {
+        "width": 1600,
+        "height": 900
+      },
+      "dialog": {
+        "x": 370,
+        "y": 78.625,
+        "width": 860,
+        "height": 742.75,
+        "right": 1230,
+        "bottom": 821.375
+      },
+      "first_column_control_left_spread_px": 136,
+      "horizontal_overflow": false,
+      "label_overflow": false,
+      "synthetic_data": true,
+      "captured_at_utc": "2026-10-10T06:22:44.754368+00:00"
+    },
+    {
+      "name": "before-external-zh-1920x1080",
+      "phase": "before",
+      "source_revision": "45cec40c1e57d7290ab249e620b5a50fa939e115",
+      "png": "docs/benchmarks/gate-service-modal-alignment-70e3b08/before-external-zh-1920x1080.png",
+      "png_sha256": "2fff6c8fdf68ae62d2ffb99b3fea65519bafaaaa38ab1e3d0caa7d46c6ed1141",
+      "png_bytes": 169505,
+      "geometry": "docs/benchmarks/gate-service-modal-alignment-70e3b08/before-external-zh-1920x1080.json",
+      "geometry_sha256": "0bedf51d73f956f9d7e6310ca6ef3b125c144e336f0c145707c5ac3018b10320",
+      "viewport": {
+        "width": 1920,
+        "height": 1080
+      },
+      "dialog": {
+        "x": 530,
+        "y": 168.625,
+        "width": 860,
+        "height": 742.75,
+        "right": 1390,
+        "bottom": 911.375
+      },
+      "first_column_control_left_spread_px": 136,
+      "horizontal_overflow": false,
+      "label_overflow": false,
+      "synthetic_data": true,
+      "captured_at_utc": "2026-10-10T06:22:42.270322+00:00"
+    },
+    {
+      "name": "before-external-zh-2560x1080",
+      "phase": "before",
+      "source_revision": "45cec40c1e57d7290ab249e620b5a50fa939e115",
+      "png": "docs/benchmarks/gate-service-modal-alignment-70e3b08/before-external-zh-2560x1080.png",
+      "png_sha256": "7670fe0d297327e1dc5de4d164b6549fc1989554b8e19a0d29817abc23f3a30b",
+      "png_bytes": 173861,
+      "geometry": "docs/benchmarks/gate-service-modal-alignment-70e3b08/before-external-zh-2560x1080.json",
+      "geometry_sha256": "ba5449883e6270392ec9cc7cc74042c79c682d89faa9b14c93cc9c0de4e8eb37",
+      "viewport": {
+        "width": 2560,
+        "height": 1080
+      },
+      "dialog": {
+        "x": 850,
+        "y": 168.625,
+        "width": 860,
+        "height": 742.75,
+        "right": 1710,
+        "bottom": 911.375
+      },
+      "first_column_control_left_spread_px": 136,
+      "horizontal_overflow": false,
+      "label_overflow": false,
+      "synthetic_data": true,
+      "captured_at_utc": "2026-10-10T06:22:41.138300+00:00"
+    },
+    {
+      "name": "before-external-zh-2560x1440",
+      "phase": "before",
+      "source_revision": "45cec40c1e57d7290ab249e620b5a50fa939e115",
+      "png": "docs/benchmarks/gate-service-modal-alignment-70e3b08/before-external-zh-2560x1440.png",
+      "png_sha256": "4f579c2c8f13ae568daab7f86b7d5f16123ed81ca18b9153a49ea400523f9ae0",
+      "png_bytes": 186521,
+      "geometry": "docs/benchmarks/gate-service-modal-alignment-70e3b08/before-external-zh-2560x1440.json",
+      "geometry_sha256": "2388484eb0418328fcb3feb8097e7ed0f95ea31a53dfcd290d27c6cb7f26dbcf",
+      "viewport": {
+        "width": 2560,
+        "height": 1440
+      },
+      "dialog": {
+        "x": 850,
+        "y": 348.625,
+        "width": 860,
+        "height": 742.75,
+        "right": 1710,
+        "bottom": 1091.375
+      },
+      "first_column_control_left_spread_px": 136,
+      "horizontal_overflow": false,
+      "label_overflow": false,
+      "synthetic_data": true,
+      "captured_at_utc": "2026-10-10T06:22:43.662347+00:00"
+    }
+  ],
+  "checks": [
+    {
+      "command": "cd web && npm run check",
+      "result": "TypeScript and UX source checks passed.",
+      "exit_code": 0,
+      "local_receipt_name": "frontend-check-final.log",
+      "receipt_sha256": "bc92351034472db5291fa947ecc630375188c5ac9bf0c78ded2fef3a2575f658"
+    },
+    {
+      "command": "cd web && npm test",
+      "result": "75 files; 455 tests passed.",
+      "exit_code": 0,
+      "local_receipt_name": "frontend-test-final.log",
+      "receipt_sha256": "efc47b0aed9b97fa33ca9250d1fe4668010e53a4281ea57bc3c382badbfc91f5"
+    },
+    {
+      "command": "cd web && npm run build",
+      "result": "Console and OAuth Vite builds passed.",
+      "exit_code": 0,
+      "local_receipt_name": "after-focus-frontend-build.log",
+      "receipt_sha256": "54f4ed23b8e32b3f52a284336c954912de31fe2c650e3f52d879300343200428"
+    },
+    {
+      "command": "cd web && PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH=/usr/bin/chromium PYTHONPATH=../src GATE_UI_LAYOUT_PHASE=after npm exec -- playwright test e2e/service-config-layout.spec.ts e2e/config-interaction.spec.ts --reporter=list",
+      "result": "34 passed: 7 new layout/interaction checks and 27 existing configuration checks; no retries.",
+      "exit_code": 0,
+      "local_receipt_name": "after-browser-final.log",
+      "receipt_sha256": "206cef781a4ae4f3aff70c9fbbef7f34ddf4549fdf6c98e1131c5596dae4bfee"
+    },
+    {
+      "command": "Baseline capture against the unmodified main frontend, with GATE_UI_LAYOUT_PHASE=before.",
+      "result": "Four desktop captures passed; two after-only checks skipped in the baseline capture script.",
+      "exit_code": 0,
+      "local_receipt_name": "baseline-browser-final.log",
+      "receipt_sha256": "81b3ebb22b95bc984075aed9f0b5c9f4e57cce3b84ce2be33800afe8eae85805"
+    },
+    {
+      "command": "Dedicated dirty-discard focus test against the unmodified main frontend.",
+      "result": "Expected negative control: Edit trigger was not focused after discarding. The same test passed after the local focus fix.",
+      "exit_code": 1,
+      "local_receipt_name": "original-focus-control.log",
+      "receipt_sha256": "b3cc6ffbbfd8de5dc9f5380c8b21eb2ef540074a9a6e4eab0bce31a737c55796"
+    }
+  ],
+  "browser_coverage": {
+    "primary_editor": "Four Chinese external-HTTP before/after pairs, English external-HTTP at 1600x900, all three runtime modes, replace address, advanced fields, long URL and error, validation-to-field focus, Space/arrow/Tab, reachable footer and discard-to-trigger focus.",
+    "secondary_shared_editor": "Existing 27-case suite includes all four desktop sizes in both languages and light/dark themes, form/JSON lossless editing, save/apply boundaries, masked endpoint handling and permissions. The 16 visual matrix cases are automated compatibility evidence; they have not all received manual or independent visual review.",
+    "added_tests": 7,
+    "existing_tests": 27,
+    "total_passed": 34
+  },
+  "review": {
+    "implementation_author_visual_inspection": "Inspected the original user screenshot privately and the actual four desktop comparison pairs plus mode/error/English captures. The first-column mismatch is gone, startup help is readable, and the footer is reachable.",
+    "independent_dot_or_parent_review": "pending",
+    "independent_review_passed": false,
+    "real_remote_host_visual_acceptance": "not run",
+    "original_user_image_republished": false
+  },
+  "release_boundary": "Isolated UI branch only. This fix is not merged, tagged, or included in the immutable v0.4.7 assets.",
+  "limits": [
+    "Synthetic API responses exercise the actual renderer; they do not establish acceptance on nx5, nx2, x16 or another live deployment.",
+    "No SSH, Podman, live container security configuration, main merge, tag, release or new formal workflow dispatch was performed for this UI branch.",
+    "Backend, wheel and native packaging were not rerun for this presentation/focus change; earlier v0.4.7 package evidence remains bound to its original source.",
+    "Local command paths are normalized to repository-relative equivalents in this public receipt; private raw log hashes preserve the actual executions.",
+    "Independent design acceptance remains pending; source checks and author inspection are not substitutes for it."
+  ]
+}

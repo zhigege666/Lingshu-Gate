@@ -19,6 +19,7 @@ type ConfirmOptions = {
   cancelText?: string
   destructive?: boolean
   hideCancel?: boolean
+  returnFocus?: HTMLElement | null
 }
 
 /**
@@ -40,7 +41,7 @@ export function useConfirm(t: TFunction, restoreFocus = false): { confirm: (opti
   }, [])
 
   const confirm = useCallback((next: ConfirmOptions) => {
-    if (restoreFocus) previousFocus.current = document.activeElement instanceof HTMLElement ? document.activeElement : null
+    if (restoreFocus) previousFocus.current = next.returnFocus ?? (document.activeElement instanceof HTMLElement ? document.activeElement : null)
     setOptions(next)
     setOpen(true)
     return new Promise<boolean>((resolve) => {

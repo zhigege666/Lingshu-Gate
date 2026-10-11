@@ -1,0 +1,993 @@
+{
+  "schema_version": 1,
+  "captured_at_utc": "2026-10-10T07:29:58.254137+00:00",
+  "repository": "zhigege666/Lingshu-Gate",
+  "branch": "fix/gate-service-modal-alignment-20261010",
+  "main": "45cec40c1e57d7290ab249e620b5a50fa939e115",
+  "previous_reviewed_revision": "08338e14aad70d11118f2c3eb31d25b8c49e1bbe",
+  "implementation_revision": "77b1a8d348764528742fefa53e78117631de381a",
+  "implementation_tree": "358d5df84cfb87e0e2f1ccc9edb8e83d4ebb7983",
+  "source_files": [
+    {
+      "path": "web/e2e/service-config-layout.spec.ts",
+      "git_blob": "71c64fe2cb3a75a8e0f75f458ef44b69f897cf70",
+      "sha256": "8c6b742135f61f2ed8571a06967a716503101a1aabecb86187f5b20b3ea25b96"
+    },
+    {
+      "path": "web/src/components/mcp-config-editor.tsx",
+      "git_blob": "1801c4c3cf47ec62c1d8565e94aba02456ba78b8",
+      "sha256": "3f213556970b89ce4e029c7e4bd6b9983c7b5076e978905faeeece3aff17c096"
+    },
+    {
+      "path": "web/src/features/mcp-config/editor.css",
+      "git_blob": "0becec77ea0b795346fd29c8209842ea8a0889a1",
+      "sha256": "d603dcc94b36c93e0735ba1d986809df7162589cf946c99163cb6ed59ed69cf4"
+    },
+    {
+      "path": "web/src/pages/configs-page.tsx",
+      "git_blob": "855374979a36527931b3358030182d7ac6751345",
+      "sha256": "cf826b556170ee7c90001c56d3dbb70df19dda6c67ede229b48196bf9ed608f9"
+    }
+  ],
+  "applicable_contract": {
+    "files": [
+      "web/AGENTS.md",
+      "docs/ui-interaction-contract.md",
+      "docs/zh-CN/ui-interaction-contract.md"
+    ],
+    "requirement": "Fixed-width label and control on one row; help and errors below the control.",
+    "contract_or_instructions_relaxed": false,
+    "switch_fix": "Reuse the existing Field description below the Switch. Preserve its aria-describedby binding and align the description with the switch left edge."
+  },
+  "focus_fix": {
+    "new_and_edit_close": "Return focus to the existing enabled trigger.",
+    "removed_or_disabled_trigger": "Return focus to the existing available New Config button.",
+    "keep_editing": "Opt ConfigsPage into the existing useConfirm focus-restoration option, retaining the dirty draft and Cancel-button focus.",
+    "shared_confirm_implementation_changed": false
+  },
+  "checks": [
+    {
+      "command": "cd web && npm run check",
+      "exit_code": 0,
+      "result": "TypeScript and UX source checks passed.",
+      "private_log_filename": "frontend-check-final.log",
+      "log_sha256": "bc92351034472db5291fa947ecc630375188c5ac9bf0c78ded2fef3a2575f658"
+    },
+    {
+      "command": "cd web && npm test",
+      "exit_code": 0,
+      "result": "75 files; 455 tests passed.",
+      "private_log_filename": "frontend-test-final.log",
+      "log_sha256": "152eebe25d0504448e663a7a63679776835e744a68d3a40492eac847e6149a10"
+    },
+    {
+      "command": "cd web && npm run build",
+      "exit_code": 0,
+      "result": "Console and OAuth Vite builds passed.",
+      "private_log_filename": "frontend-build-final.log",
+      "log_sha256": "f915dd84730a0ececff357a4a82ad446730049eccbbafed59836ab54fc66c3bf"
+    },
+    {
+      "command": "cd web && PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH=/usr/bin/chromium PYTHONPATH=../src GATE_UI_LAYOUT_PHASE=after npm exec -- playwright test e2e/service-config-layout.spec.ts e2e/config-interaction.spec.ts --reporter=list",
+      "exit_code": 0,
+      "result": "49 passed: 22 configuration-layout/interaction cases and 27 existing shared-editor cases; no retries.",
+      "private_log_filename": "browser-final.log",
+      "log_sha256": "0cbb18ad7a4228ed0940f3d02451439fac3f97a62e5fcec6e1964b1b25e4fb29"
+    }
+  ],
+  "negative_and_intermediate_checks": [
+    {
+      "test": "Below-switch helper geometry on the previous implementation",
+      "source_revision": "08338e14aad70d11118f2c3eb31d25b8c49e1bbe",
+      "exit_code": 1,
+      "observed_helper_y_minus_switch_bottom_px": -28,
+      "result": "Meaningful expected failure. This initial two-case run also had an inaccessible outside-dialog role locator in the removed-trigger case; that setup failure is not claimed as a product defect.",
+      "private_log_filename": "negative-contract-focus.log",
+      "log_sha256": "20fc0e7a509014f4e4ddfcca095097ef724faaab355a3e7ebf674964dbd88141"
+    },
+    {
+      "test": "Removed Edit trigger with corrected includeHidden locator",
+      "source_revision": "08338e14aad70d11118f2c3eb31d25b8c49e1bbe",
+      "exit_code": 1,
+      "result": "Expected failure: New Config remained inactive after the editor closed.",
+      "private_log_filename": "negative-removed-trigger-corrected-locator.log",
+      "log_sha256": "8994353d33adc67406847cd9026137104d227b127ba0ffd77e5b5b3eff7926ed"
+    },
+    {
+      "test": "Intermediate full suite before enabling existing confirmation focus restoration",
+      "source_revision": null,
+      "configs_page_working_bytes_sha256": "41d4cf620ff7c8581087856eb24c1a5e607840ea24fd45e8ae2926698f2a392e",
+      "exit_code": 1,
+      "passed": 48,
+      "failed": 1,
+      "result": "Keep editing preserved the draft but did not return focus to Cancel. The final opt-in fix retains the original focus assertion.",
+      "private_log_filename": "browser-before-confirm-focus-fix.log",
+      "log_sha256": "cae72b641503962680a5e36cd25c61ceb3d94fc85f5877d1978d0712b66dac7b"
+    }
+  ],
+  "actual_browser_coverage": {
+    "service_configurations": "Four desktop sizes in both languages; switches, long URL/error, advanced fields and keyboard. Direct cases cover New Config, dirty Edit discard, Keep editing, removed trigger and disabled trigger.",
+    "service_configuration_dialog": "Existing 27-case suite including four-size, both-language, light/dark form/JSON compatibility.",
+    "delivery_config_editor": "Eight actual BuildsPage-to-DeliveryConfigEditor cases: four desktop sizes in both languages. Managed Stdio/HTTP additionally checked at 1600x900 in both languages. Continue editing retains the draft; saving makes exactly one synthetic delivery-draft PUT and preserves start=false and overwrite=false.",
+    "suite_tests_passed": 49,
+    "shared_existing_cases": 27,
+    "configuration_layout_and_focus_cases": 22,
+    "delivery_cases_within_22": 8,
+    "api_fixture": "Isolated synthetic configurations, build/upload/draft records and validation responses; actual built Console renderer on loopback.",
+    "environment": "Original saved Linux cloud executor; no environment switch."
+  },
+  "local_only_capture_metadata": [
+    {
+      "filename": "after-delivery-external-en-1600x900.png",
+      "sha256": "95cea574b4fdb4c5c338b9689568a3db886424c03d68879d15166e2e29ff0610",
+      "geometry_filename": "after-delivery-external-en-1600x900.json",
+      "geometry_sha256": "de5e615efe918d5d8b1351496e8f34ce83d6f0531bbdc20fd03816f339260656",
+      "source_revision": "77b1a8d348764528742fefa53e78117631de381a",
+      "width": 1600,
+      "height": 900,
+      "dialog": {
+        "x": 288,
+        "y": 17.125,
+        "width": 1024,
+        "height": 865.75,
+        "right": 1312,
+        "bottom": 882.875
+      },
+      "control_left_spread_px": 0,
+      "switch_helpers": [
+        {
+          "label": "Enable service",
+          "vertical_gap_px": 6.0,
+          "left_offset_px": 0,
+          "help_width_px": 686
+        },
+        {
+          "label": "Start automatically when Gate starts",
+          "vertical_gap_px": 6.0,
+          "left_offset_px": 0,
+          "help_width_px": 686
+        }
+      ],
+      "horizontal_overflow": false,
+      "label_overflow": false,
+      "synthetic_data": true,
+      "image_retained_in_original_environment": true,
+      "image_uploaded_or_transferred": false
+    },
+    {
+      "filename": "after-delivery-external-en-1920x1080.png",
+      "sha256": "fd32f17613e9275b8945eea7c71967f93cdb6f1839197baf3f90c40f4a53e21d",
+      "geometry_filename": "after-delivery-external-en-1920x1080.json",
+      "geometry_sha256": "1aa2629292fdc62868a1a4802304d70a201d8c3a8c4156fbde9f9edcedd94a35",
+      "source_revision": "77b1a8d348764528742fefa53e78117631de381a",
+      "width": 1920,
+      "height": 1080,
+      "dialog": {
+        "x": 448,
+        "y": 100.625,
+        "width": 1024,
+        "height": 878.75,
+        "right": 1472,
+        "bottom": 979.375
+      },
+      "control_left_spread_px": 0,
+      "switch_helpers": [
+        {
+          "label": "Enable service",
+          "vertical_gap_px": 6.0,
+          "left_offset_px": 0,
+          "help_width_px": 686
+        },
+        {
+          "label": "Start automatically when Gate starts",
+          "vertical_gap_px": 6.0,
+          "left_offset_px": 0,
+          "help_width_px": 686
+        }
+      ],
+      "horizontal_overflow": false,
+      "label_overflow": false,
+      "synthetic_data": true,
+      "image_retained_in_original_environment": true,
+      "image_uploaded_or_transferred": false
+    },
+    {
+      "filename": "after-delivery-external-en-2560x1080.png",
+      "sha256": "459638c846463080ae45ed52b0941fe01b2115f67f9617315be2a3dc6ae1a6a0",
+      "geometry_filename": "after-delivery-external-en-2560x1080.json",
+      "geometry_sha256": "8822cb4c16bcd08529b0f840e8bc0fbe96e859030725e95d02a8e7deca4acf03",
+      "source_revision": "77b1a8d348764528742fefa53e78117631de381a",
+      "width": 2560,
+      "height": 1080,
+      "dialog": {
+        "x": 768,
+        "y": 100.625,
+        "width": 1024,
+        "height": 878.75,
+        "right": 1792,
+        "bottom": 979.375
+      },
+      "control_left_spread_px": 0,
+      "switch_helpers": [
+        {
+          "label": "Enable service",
+          "vertical_gap_px": 6.0,
+          "left_offset_px": 0,
+          "help_width_px": 686
+        },
+        {
+          "label": "Start automatically when Gate starts",
+          "vertical_gap_px": 6.0,
+          "left_offset_px": 0,
+          "help_width_px": 686
+        }
+      ],
+      "horizontal_overflow": false,
+      "label_overflow": false,
+      "synthetic_data": true,
+      "image_retained_in_original_environment": true,
+      "image_uploaded_or_transferred": false
+    },
+    {
+      "filename": "after-delivery-external-en-2560x1440.png",
+      "sha256": "9573e733b9541de21fe8b447b6e437d604b3f2cf02253f1dd54f2de52902beff",
+      "geometry_filename": "after-delivery-external-en-2560x1440.json",
+      "geometry_sha256": "9713ed9f7c31f5dd1fb55cbcada21adfbbd282f05c738ceb8bcb5cf35c383a1e",
+      "source_revision": "77b1a8d348764528742fefa53e78117631de381a",
+      "width": 2560,
+      "height": 1440,
+      "dialog": {
+        "x": 768,
+        "y": 280.625,
+        "width": 1024,
+        "height": 878.75,
+        "right": 1792,
+        "bottom": 1159.375
+      },
+      "control_left_spread_px": 0,
+      "switch_helpers": [
+        {
+          "label": "Enable service",
+          "vertical_gap_px": 6.0,
+          "left_offset_px": 0,
+          "help_width_px": 686
+        },
+        {
+          "label": "Start automatically when Gate starts",
+          "vertical_gap_px": 6.0,
+          "left_offset_px": 0,
+          "help_width_px": 686
+        }
+      ],
+      "horizontal_overflow": false,
+      "label_overflow": false,
+      "synthetic_data": true,
+      "image_retained_in_original_environment": true,
+      "image_uploaded_or_transferred": false
+    },
+    {
+      "filename": "after-delivery-external-zh-1600x900.png",
+      "sha256": "307759e4f6c6decf3b0f90fe8538521eb6f4746ba226276f12f19c24545d6cc4",
+      "geometry_filename": "after-delivery-external-zh-1600x900.json",
+      "geometry_sha256": "1a69179846057941ab8feb894d64d6ca407e24002c22a8ec386d225448862f87",
+      "source_revision": "77b1a8d348764528742fefa53e78117631de381a",
+      "width": 1600,
+      "height": 900,
+      "dialog": {
+        "x": 288,
+        "y": 62.625,
+        "width": 1024,
+        "height": 774.75,
+        "right": 1312,
+        "bottom": 837.375
+      },
+      "control_left_spread_px": 0,
+      "switch_helpers": [
+        {
+          "label": "启用服务",
+          "vertical_gap_px": 6.0,
+          "left_offset_px": 0,
+          "help_width_px": 798
+        },
+        {
+          "label": "Gate 启动时自动启动",
+          "vertical_gap_px": 6.0,
+          "left_offset_px": 0,
+          "help_width_px": 798
+        }
+      ],
+      "horizontal_overflow": false,
+      "label_overflow": false,
+      "synthetic_data": true,
+      "image_retained_in_original_environment": true,
+      "image_uploaded_or_transferred": false
+    },
+    {
+      "filename": "after-delivery-external-zh-1920x1080.png",
+      "sha256": "ccb738e87576c9e921c8a4e4ab543fcf7952ac9963b4dd43f9405aa47a1d24f0",
+      "geometry_filename": "after-delivery-external-zh-1920x1080.json",
+      "geometry_sha256": "0092fe94db8e38418f9187a8c76c770f3ff1dc1b0b36befd910a2a4c792e0050",
+      "source_revision": "77b1a8d348764528742fefa53e78117631de381a",
+      "width": 1920,
+      "height": 1080,
+      "dialog": {
+        "x": 448,
+        "y": 152.625,
+        "width": 1024,
+        "height": 774.75,
+        "right": 1472,
+        "bottom": 927.375
+      },
+      "control_left_spread_px": 0,
+      "switch_helpers": [
+        {
+          "label": "启用服务",
+          "vertical_gap_px": 6.0,
+          "left_offset_px": 0,
+          "help_width_px": 798
+        },
+        {
+          "label": "Gate 启动时自动启动",
+          "vertical_gap_px": 6.0,
+          "left_offset_px": 0,
+          "help_width_px": 798
+        }
+      ],
+      "horizontal_overflow": false,
+      "label_overflow": false,
+      "synthetic_data": true,
+      "image_retained_in_original_environment": true,
+      "image_uploaded_or_transferred": false
+    },
+    {
+      "filename": "after-delivery-external-zh-2560x1080.png",
+      "sha256": "9a3c80cbcf4203e424ea7cadce880d35a14a39a560dd2035fec8ec3008bd911b",
+      "geometry_filename": "after-delivery-external-zh-2560x1080.json",
+      "geometry_sha256": "3db166693e61e03217e30c2c1a41c2fe2a89da7987b38b1cc596be8e11a9fddd",
+      "source_revision": "77b1a8d348764528742fefa53e78117631de381a",
+      "width": 2560,
+      "height": 1080,
+      "dialog": {
+        "x": 768,
+        "y": 152.625,
+        "width": 1024,
+        "height": 774.75,
+        "right": 1792,
+        "bottom": 927.375
+      },
+      "control_left_spread_px": 0,
+      "switch_helpers": [
+        {
+          "label": "启用服务",
+          "vertical_gap_px": 6.0,
+          "left_offset_px": 0,
+          "help_width_px": 798
+        },
+        {
+          "label": "Gate 启动时自动启动",
+          "vertical_gap_px": 6.0,
+          "left_offset_px": 0,
+          "help_width_px": 798
+        }
+      ],
+      "horizontal_overflow": false,
+      "label_overflow": false,
+      "synthetic_data": true,
+      "image_retained_in_original_environment": true,
+      "image_uploaded_or_transferred": false
+    },
+    {
+      "filename": "after-delivery-external-zh-2560x1440.png",
+      "sha256": "6ae8b00c87eeef34d1ff6a2d72d39e7fa37a3bebc507f854032b9081492cdb4d",
+      "geometry_filename": "after-delivery-external-zh-2560x1440.json",
+      "geometry_sha256": "9f7c7d2cab4c0e8bc671b558b64f8f5bf55206affa8e59b07f2fb248282528fa",
+      "source_revision": "77b1a8d348764528742fefa53e78117631de381a",
+      "width": 2560,
+      "height": 1440,
+      "dialog": {
+        "x": 768,
+        "y": 332.625,
+        "width": 1024,
+        "height": 774.75,
+        "right": 1792,
+        "bottom": 1107.375
+      },
+      "control_left_spread_px": 0,
+      "switch_helpers": [
+        {
+          "label": "启用服务",
+          "vertical_gap_px": 6.0,
+          "left_offset_px": 0,
+          "help_width_px": 798
+        },
+        {
+          "label": "Gate 启动时自动启动",
+          "vertical_gap_px": 6.0,
+          "left_offset_px": 0,
+          "help_width_px": 798
+        }
+      ],
+      "horizontal_overflow": false,
+      "label_overflow": false,
+      "synthetic_data": true,
+      "image_retained_in_original_environment": true,
+      "image_uploaded_or_transferred": false
+    },
+    {
+      "filename": "after-delivery-managed-http-en-1600x900.png",
+      "sha256": "b914c3e1ac29d233f1b87974716d4c89eac4bebe668ef4909d612b461b0a86ac",
+      "geometry_filename": "after-delivery-managed-http-en-1600x900.json",
+      "geometry_sha256": "c48ac86506ab405994ea66983db80c5531da2325abc842ec6e7755cffa2d62ae",
+      "source_revision": "77b1a8d348764528742fefa53e78117631de381a",
+      "width": 1600,
+      "height": 900,
+      "dialog": {
+        "x": 288,
+        "y": 17.125,
+        "width": 1024,
+        "height": 865.75,
+        "right": 1312,
+        "bottom": 882.875
+      },
+      "control_left_spread_px": 0,
+      "switch_helpers": [
+        {
+          "label": "Enable service",
+          "vertical_gap_px": 6.0,
+          "left_offset_px": 0,
+          "help_width_px": 686
+        },
+        {
+          "label": "Start automatically when Gate starts",
+          "vertical_gap_px": 6.0,
+          "left_offset_px": 0,
+          "help_width_px": 686
+        }
+      ],
+      "horizontal_overflow": false,
+      "label_overflow": false,
+      "synthetic_data": true,
+      "image_retained_in_original_environment": true,
+      "image_uploaded_or_transferred": false
+    },
+    {
+      "filename": "after-delivery-managed-http-zh-1600x900.png",
+      "sha256": "d3842ed0ad8d4e4396020c04943e24fe8d67ac69a2a2626cb928aa311cbc2278",
+      "geometry_filename": "after-delivery-managed-http-zh-1600x900.json",
+      "geometry_sha256": "3bab6fd20bb798c816172120ff72396004fdaea2e47baef31dbd7dbdf2b44a0a",
+      "source_revision": "77b1a8d348764528742fefa53e78117631de381a",
+      "width": 1600,
+      "height": 900,
+      "dialog": {
+        "x": 288,
+        "y": 27.125,
+        "width": 1024,
+        "height": 845.75,
+        "right": 1312,
+        "bottom": 872.875
+      },
+      "control_left_spread_px": 0,
+      "switch_helpers": [
+        {
+          "label": "启用服务",
+          "vertical_gap_px": 6.0,
+          "left_offset_px": 0,
+          "help_width_px": 798
+        },
+        {
+          "label": "Gate 启动时自动启动",
+          "vertical_gap_px": 6.0,
+          "left_offset_px": 0,
+          "help_width_px": 798
+        }
+      ],
+      "horizontal_overflow": false,
+      "label_overflow": false,
+      "synthetic_data": true,
+      "image_retained_in_original_environment": true,
+      "image_uploaded_or_transferred": false
+    },
+    {
+      "filename": "after-delivery-managed-stdio-en-1600x900.png",
+      "sha256": "b5743373079a0efe96dad4189f7b4ddf2b56cd456058b42b2d22f2aafdf8ad3f",
+      "geometry_filename": "after-delivery-managed-stdio-en-1600x900.json",
+      "geometry_sha256": "e68f61121657230a73b6e1e8e4c3913c7efc022f4e7f720c49613cc68fd7fbd3",
+      "source_revision": "77b1a8d348764528742fefa53e78117631de381a",
+      "width": 1600,
+      "height": 900,
+      "dialog": {
+        "x": 288,
+        "y": 17.125,
+        "width": 1024,
+        "height": 865.75,
+        "right": 1312,
+        "bottom": 882.875
+      },
+      "control_left_spread_px": 0,
+      "switch_helpers": [
+        {
+          "label": "Enable service",
+          "vertical_gap_px": 6.0,
+          "left_offset_px": 0,
+          "help_width_px": 686
+        },
+        {
+          "label": "Start automatically when Gate starts",
+          "vertical_gap_px": 6.0,
+          "left_offset_px": 0,
+          "help_width_px": 686
+        }
+      ],
+      "horizontal_overflow": false,
+      "label_overflow": false,
+      "synthetic_data": true,
+      "image_retained_in_original_environment": true,
+      "image_uploaded_or_transferred": false
+    },
+    {
+      "filename": "after-delivery-managed-stdio-zh-1600x900.png",
+      "sha256": "3987ff2c7c4116906c32047d5fd228e751e0fa8e02fe92b24e07333008bfac06",
+      "geometry_filename": "after-delivery-managed-stdio-zh-1600x900.json",
+      "geometry_sha256": "99662c1e5d7ada8fb936b48236740db45b7f96a00f3c55cbad89bf028ed374b2",
+      "source_revision": "77b1a8d348764528742fefa53e78117631de381a",
+      "width": 1600,
+      "height": 900,
+      "dialog": {
+        "x": 288,
+        "y": 27.125,
+        "width": 1024,
+        "height": 845.75,
+        "right": 1312,
+        "bottom": 872.875
+      },
+      "control_left_spread_px": 0,
+      "switch_helpers": [
+        {
+          "label": "启用服务",
+          "vertical_gap_px": 6.0,
+          "left_offset_px": 0,
+          "help_width_px": 798
+        },
+        {
+          "label": "Gate 启动时自动启动",
+          "vertical_gap_px": 6.0,
+          "left_offset_px": 0,
+          "help_width_px": 798
+        }
+      ],
+      "horizontal_overflow": false,
+      "label_overflow": false,
+      "synthetic_data": true,
+      "image_retained_in_original_environment": true,
+      "image_uploaded_or_transferred": false
+    },
+    {
+      "filename": "after-external-en-1600x900.png",
+      "sha256": "95d6fac74ab9973207ccb494418f8ddc68f86b4d8901f0a6d9a16c0b706a1576",
+      "geometry_filename": "after-external-en-1600x900.json",
+      "geometry_sha256": "9d1ff5316ef0b43371c500b3e3751da7e75eabd343809e5f71a27c28b2e13f1b",
+      "source_revision": "77b1a8d348764528742fefa53e78117631de381a",
+      "width": 1600,
+      "height": 900,
+      "dialog": {
+        "x": 370,
+        "y": 40.125,
+        "width": 860,
+        "height": 819.75,
+        "right": 1230,
+        "bottom": 859.875
+      },
+      "control_left_spread_px": 0,
+      "switch_helpers": [
+        {
+          "label": "Enable service",
+          "vertical_gap_px": 6.0,
+          "left_offset_px": 0,
+          "help_width_px": 522
+        },
+        {
+          "label": "Start automatically when Gate starts",
+          "vertical_gap_px": 6.0,
+          "left_offset_px": 0,
+          "help_width_px": 522
+        }
+      ],
+      "horizontal_overflow": false,
+      "label_overflow": false,
+      "synthetic_data": true,
+      "image_retained_in_original_environment": true,
+      "image_uploaded_or_transferred": false
+    },
+    {
+      "filename": "after-external-en-1920x1080.png",
+      "sha256": "3b13b1ee3d355351f57606defb9ac6e34514cb58d00c3e424c3363a94cf60edb",
+      "geometry_filename": "after-external-en-1920x1080.json",
+      "geometry_sha256": "958969021bc4a2948f360c4fd4f758ff94fdd4e711f82f22750fa8635081db8a",
+      "source_revision": "77b1a8d348764528742fefa53e78117631de381a",
+      "width": 1920,
+      "height": 1080,
+      "dialog": {
+        "x": 530,
+        "y": 125.625,
+        "width": 860,
+        "height": 828.75,
+        "right": 1390,
+        "bottom": 954.375
+      },
+      "control_left_spread_px": 0,
+      "switch_helpers": [
+        {
+          "label": "Enable service",
+          "vertical_gap_px": 6.0,
+          "left_offset_px": 0,
+          "help_width_px": 522
+        },
+        {
+          "label": "Start automatically when Gate starts",
+          "vertical_gap_px": 6.0,
+          "left_offset_px": 0,
+          "help_width_px": 522
+        }
+      ],
+      "horizontal_overflow": false,
+      "label_overflow": false,
+      "synthetic_data": true,
+      "image_retained_in_original_environment": true,
+      "image_uploaded_or_transferred": false
+    },
+    {
+      "filename": "after-external-en-2560x1080.png",
+      "sha256": "80fc3e2b2d89947d16980c81c896c88f95b8b52764d8bac2b3dc849c0adc8ae7",
+      "geometry_filename": "after-external-en-2560x1080.json",
+      "geometry_sha256": "fdd64b2a570ead578e53d9e614e2cf48f44d43d58233595e37661689ebc7bec2",
+      "source_revision": "77b1a8d348764528742fefa53e78117631de381a",
+      "width": 2560,
+      "height": 1080,
+      "dialog": {
+        "x": 850,
+        "y": 125.625,
+        "width": 860,
+        "height": 828.75,
+        "right": 1710,
+        "bottom": 954.375
+      },
+      "control_left_spread_px": 0,
+      "switch_helpers": [
+        {
+          "label": "Enable service",
+          "vertical_gap_px": 6.0,
+          "left_offset_px": 0,
+          "help_width_px": 522
+        },
+        {
+          "label": "Start automatically when Gate starts",
+          "vertical_gap_px": 6.0,
+          "left_offset_px": 0,
+          "help_width_px": 522
+        }
+      ],
+      "horizontal_overflow": false,
+      "label_overflow": false,
+      "synthetic_data": true,
+      "image_retained_in_original_environment": true,
+      "image_uploaded_or_transferred": false
+    },
+    {
+      "filename": "after-external-en-2560x1440.png",
+      "sha256": "01761dec0f3ee71ca9ae6006768ed9c5649879057ebbd711118c0e0ca3abc669",
+      "geometry_filename": "after-external-en-2560x1440.json",
+      "geometry_sha256": "933a203ce41ba70fab36eb16df4d89028c7b37bb6c5fa9b69e2b683471c68a6a",
+      "source_revision": "77b1a8d348764528742fefa53e78117631de381a",
+      "width": 2560,
+      "height": 1440,
+      "dialog": {
+        "x": 850,
+        "y": 305.625,
+        "width": 860,
+        "height": 828.75,
+        "right": 1710,
+        "bottom": 1134.375
+      },
+      "control_left_spread_px": 0,
+      "switch_helpers": [
+        {
+          "label": "Enable service",
+          "vertical_gap_px": 6.0,
+          "left_offset_px": 0,
+          "help_width_px": 522
+        },
+        {
+          "label": "Start automatically when Gate starts",
+          "vertical_gap_px": 6.0,
+          "left_offset_px": 0,
+          "help_width_px": 522
+        }
+      ],
+      "horizontal_overflow": false,
+      "label_overflow": false,
+      "synthetic_data": true,
+      "image_retained_in_original_environment": true,
+      "image_uploaded_or_transferred": false
+    },
+    {
+      "filename": "after-external-zh-1600x900.png",
+      "sha256": "c169ab307419cbe02d2413e213f034197dbac761bb60d8abad4726c90fd9312d",
+      "geometry_filename": "after-external-zh-1600x900.json",
+      "geometry_sha256": "a3088a9d105b76a91cd7205049332ee0044c9872c59619f62d05f56416e71d85",
+      "source_revision": "77b1a8d348764528742fefa53e78117631de381a",
+      "width": 1600,
+      "height": 900,
+      "dialog": {
+        "x": 370,
+        "y": 77.625,
+        "width": 860,
+        "height": 744.75,
+        "right": 1230,
+        "bottom": 822.375
+      },
+      "control_left_spread_px": 0,
+      "switch_helpers": [
+        {
+          "label": "启用服务",
+          "vertical_gap_px": 6.0,
+          "left_offset_px": 0,
+          "help_width_px": 634
+        },
+        {
+          "label": "Gate 启动时自动启动",
+          "vertical_gap_px": 6.0,
+          "left_offset_px": 0,
+          "help_width_px": 634
+        }
+      ],
+      "horizontal_overflow": false,
+      "label_overflow": false,
+      "synthetic_data": true,
+      "image_retained_in_original_environment": true,
+      "image_uploaded_or_transferred": false
+    },
+    {
+      "filename": "after-external-zh-1920x1080.png",
+      "sha256": "8c2ca5c0ad868572a4ff8b20bc7cb793517dced172b9f34d7a776ac756124045",
+      "geometry_filename": "after-external-zh-1920x1080.json",
+      "geometry_sha256": "f50dcf4decc662fca8b2ac54640eabe9b3e29766806c2ab40f0cf9c21ef7ab70",
+      "source_revision": "77b1a8d348764528742fefa53e78117631de381a",
+      "width": 1920,
+      "height": 1080,
+      "dialog": {
+        "x": 530,
+        "y": 167.625,
+        "width": 860,
+        "height": 744.75,
+        "right": 1390,
+        "bottom": 912.375
+      },
+      "control_left_spread_px": 0,
+      "switch_helpers": [
+        {
+          "label": "启用服务",
+          "vertical_gap_px": 6.0,
+          "left_offset_px": 0,
+          "help_width_px": 634
+        },
+        {
+          "label": "Gate 启动时自动启动",
+          "vertical_gap_px": 6.0,
+          "left_offset_px": 0,
+          "help_width_px": 634
+        }
+      ],
+      "horizontal_overflow": false,
+      "label_overflow": false,
+      "synthetic_data": true,
+      "image_retained_in_original_environment": true,
+      "image_uploaded_or_transferred": false
+    },
+    {
+      "filename": "after-external-zh-2560x1080.png",
+      "sha256": "373356b64c244108293336d6b67d3272a0531a2bac8d39787f6a9ffcb5dd4b13",
+      "geometry_filename": "after-external-zh-2560x1080.json",
+      "geometry_sha256": "31e3f1d71c6e07b51792a0ed3415fb8b4912abadc5ce9ac10d82e09d2e8f13ca",
+      "source_revision": "77b1a8d348764528742fefa53e78117631de381a",
+      "width": 2560,
+      "height": 1080,
+      "dialog": {
+        "x": 850,
+        "y": 167.625,
+        "width": 860,
+        "height": 744.75,
+        "right": 1710,
+        "bottom": 912.375
+      },
+      "control_left_spread_px": 0,
+      "switch_helpers": [
+        {
+          "label": "启用服务",
+          "vertical_gap_px": 6.0,
+          "left_offset_px": 0,
+          "help_width_px": 634
+        },
+        {
+          "label": "Gate 启动时自动启动",
+          "vertical_gap_px": 6.0,
+          "left_offset_px": 0,
+          "help_width_px": 634
+        }
+      ],
+      "horizontal_overflow": false,
+      "label_overflow": false,
+      "synthetic_data": true,
+      "image_retained_in_original_environment": true,
+      "image_uploaded_or_transferred": false
+    },
+    {
+      "filename": "after-external-zh-2560x1440.png",
+      "sha256": "ef2a8b9f4e41c8ca67202ffe7ff069ecc65b64cfaeec97083f4de6463be9a760",
+      "geometry_filename": "after-external-zh-2560x1440.json",
+      "geometry_sha256": "b14e37ccac7a5433b256589dd4dfeb162f7d201a207ba6aa74396d9436889e8d",
+      "source_revision": "77b1a8d348764528742fefa53e78117631de381a",
+      "width": 2560,
+      "height": 1440,
+      "dialog": {
+        "x": 850,
+        "y": 347.625,
+        "width": 860,
+        "height": 744.75,
+        "right": 1710,
+        "bottom": 1092.375
+      },
+      "control_left_spread_px": 0,
+      "switch_helpers": [
+        {
+          "label": "启用服务",
+          "vertical_gap_px": 6.0,
+          "left_offset_px": 0,
+          "help_width_px": 634
+        },
+        {
+          "label": "Gate 启动时自动启动",
+          "vertical_gap_px": 6.0,
+          "left_offset_px": 0,
+          "help_width_px": 634
+        }
+      ],
+      "horizontal_overflow": false,
+      "label_overflow": false,
+      "synthetic_data": true,
+      "image_retained_in_original_environment": true,
+      "image_uploaded_or_transferred": false
+    },
+    {
+      "filename": "after-long-error-advanced-focused-zh-1600x900.png",
+      "sha256": "2205f7d0013713861840bafec021ed7461648d2217aba8685eed5eba75243e9c",
+      "geometry_filename": "after-long-error-advanced-focused-zh-1600x900.json",
+      "geometry_sha256": "5c530cfe2fbeb2813d9d670d633330348da2c82e4afee80a0d6ea398aab3a789",
+      "source_revision": "77b1a8d348764528742fefa53e78117631de381a",
+      "width": 1600,
+      "height": 900,
+      "dialog": {
+        "x": 370,
+        "y": 26.125,
+        "width": 860,
+        "height": 847.75,
+        "right": 1230,
+        "bottom": 873.875
+      },
+      "control_left_spread_px": 0,
+      "switch_helpers": [
+        {
+          "label": "启用服务",
+          "vertical_gap_px": 6.0,
+          "left_offset_px": 0,
+          "help_width_px": 634
+        },
+        {
+          "label": "Gate 启动时自动启动",
+          "vertical_gap_px": 6.0,
+          "left_offset_px": 0,
+          "help_width_px": 634
+        }
+      ],
+      "horizontal_overflow": false,
+      "label_overflow": false,
+      "synthetic_data": true,
+      "image_retained_in_original_environment": true,
+      "image_uploaded_or_transferred": false
+    },
+    {
+      "filename": "after-managed-http-zh-1600x900.png",
+      "sha256": "3f680dc84319797c4216ab61f0d7b2aa0c52a974a25b3a182471ddfd8c8a862c",
+      "geometry_filename": "after-managed-http-zh-1600x900.json",
+      "geometry_sha256": "38c0d418973ba3d4d12e3ec2670690f53463df5ad0bc950cb356cda2c47ad932",
+      "source_revision": "77b1a8d348764528742fefa53e78117631de381a",
+      "width": 1600,
+      "height": 900,
+      "dialog": {
+        "x": 370,
+        "y": 40.125,
+        "width": 860,
+        "height": 819.75,
+        "right": 1230,
+        "bottom": 859.875
+      },
+      "control_left_spread_px": 0,
+      "switch_helpers": [
+        {
+          "label": "启用服务",
+          "vertical_gap_px": 6.0,
+          "left_offset_px": 0,
+          "help_width_px": 634
+        },
+        {
+          "label": "Gate 启动时自动启动",
+          "vertical_gap_px": 6.0,
+          "left_offset_px": 0,
+          "help_width_px": 634
+        }
+      ],
+      "horizontal_overflow": false,
+      "label_overflow": false,
+      "synthetic_data": true,
+      "image_retained_in_original_environment": true,
+      "image_uploaded_or_transferred": false
+    },
+    {
+      "filename": "after-managed-stdio-zh-1600x900.png",
+      "sha256": "b779b4ab1a59ff2b0f000ec952827cec8e71344dcde4e315ecb0e7600587f3a0",
+      "geometry_filename": "after-managed-stdio-zh-1600x900.json",
+      "geometry_sha256": "3fccf7f7d5a72d6afd6c7f4604bc05bee64dbc7646fdb3dfe1deb17dff719d57",
+      "source_revision": "77b1a8d348764528742fefa53e78117631de381a",
+      "width": 1600,
+      "height": 900,
+      "dialog": {
+        "x": 370,
+        "y": 40.125,
+        "width": 860,
+        "height": 819.75,
+        "right": 1230,
+        "bottom": 859.875
+      },
+      "control_left_spread_px": 0,
+      "switch_helpers": [
+        {
+          "label": "启用服务",
+          "vertical_gap_px": 6.0,
+          "left_offset_px": 0,
+          "help_width_px": 634
+        },
+        {
+          "label": "Gate 启动时自动启动",
+          "vertical_gap_px": 6.0,
+          "left_offset_px": 0,
+          "help_width_px": 634
+        }
+      ],
+      "horizontal_overflow": false,
+      "label_overflow": false,
+      "synthetic_data": true,
+      "image_retained_in_original_environment": true,
+      "image_uploaded_or_transferred": false
+    }
+  ],
+  "image_boundary": {
+    "new_png_count_retained_locally": 23,
+    "new_png_added_to_git": false,
+    "new_png_uploaded_or_transferred": false,
+    "prior_original_and_intermediate_capture_history_preserved": true,
+    "previous_committed_png_blobs_unchanged": true,
+    "original_user_private_image_republished": false,
+    "library_upload_authorization": "pending; no upload or alternative image delivery attempted"
+  },
+  "review": {
+    "previous_08338e14_parent_code_review": "No confirmed new P1/P2; contract consistency and coverage gaps required follow-up.",
+    "new_revision_incremental_parent_code_review": "pending",
+    "new_capture_manual_or_independent_visual_review": "not completed",
+    "independent_visual_acceptance": "pending"
+  },
+  "boundaries": {
+    "version_permissions_and_runtime_semantics_changed": false,
+    "main_merge_tag_release_or_formal_dispatch": false,
+    "live_host_ssh_or_podman_actions": false,
+    "backend_wheel_native_checks_for_this_ui_revision": "not rerun"
+  }
+}
