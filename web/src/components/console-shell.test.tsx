@@ -53,8 +53,10 @@ describe("控制台直接导航", () => {
   it.each(["zh-CN", "en-US"] as const)("%s 导航名称描述任务且保持旧路由", locale => {
     const html = navigationMarkup({ permissions: [...new Set(CONSOLE_ROUTES.map(route => route.permission))], locale })
     const expected = locale === "zh-CN"
-      ? { dashboard: "总览", tools: "工具目录", invoke: "工具调试", diagnostics: "健康检查", accessRoles: "角色与权限", personalTokens: "Gate API 令牌" }
-      : { dashboard: "Overview", tools: "Tool catalog", invoke: "Tool testing", diagnostics: "Health checks", accessRoles: "Roles &amp; permissions", personalTokens: "Gate API tokens" }
+      ? { dashboard: "总览", tools: "工具目录", invoke: "工具调试", diagnostics: "健康检查", accessRoles: "角色与权限", myConnections: "我的授权" }
+      : { dashboard: "Overview", tools: "Tool catalog", invoke: "Tool testing", diagnostics: "Health checks", accessRoles: "Roles &amp; permissions", myConnections: "My authorizations" }
+    expect(html).not.toContain('href="#/personalTokens"')
+    expect(parseConsoleHash("#/personalTokens").view).toBe("personalTokens")
     for (const [route, label] of Object.entries(expected)) {
       const link = [...html.matchAll(/<a\b[^>]*href="([^"]+)"[^>]*>([\s\S]*?)<\/a>/g)].find(match => match[1] === `#/${route}`)
       expect(link?.[2]).toContain(`>${label}</span>`)

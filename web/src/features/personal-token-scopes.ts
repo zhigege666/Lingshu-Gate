@@ -1,4 +1,6 @@
 import type { AuthUser } from "@/components/auth-gate"
+import { presentControlPermission } from "@/features/access-roles/presentation"
+import type { Locale } from "@/i18n"
 
 type TokenScopeIdentity = Pick<AuthUser, "permissions" | "auth_type" | "scopes">
 
@@ -17,8 +19,8 @@ function compareScopes(a: string, b: string): number {
 }
 
 export function getAvailableTokenScopes(user: TokenScopeIdentity): string[] {
-  // 与后端保持一致：Token 登录不能超出父 Token 的 scope，即使所属账号是管理员。
-  const tokenLimited = user.auth_type === "token" && !user.scopes.includes("*")
+  // 与后端保持一致：Token 或 OAuth 登录均不能超出当前令牌的 scope。
+  const tokenLimited = ["token", "oauth"].includes(user.auth_type) && !user.scopes.includes("*")
   return [...new Set(user.permissions)]
     .filter((scope) => scope !== "*" && (!tokenLimited || user.scopes.includes(scope)))
     .sort(compareScopes)
@@ -29,7 +31,25 @@ export function getTokenScopeOptions(availableScopes: string[], existingScopes: 
   return [...new Set([...availableScopes, ...existingScopes])].sort(compareScopes)
 }
 
-export function getDefaultTokenScopes(availableScopes: string[]): string[] {
-  // 没有只读权限时等待用户选择，不自动勾选写入或管理权限。
+export function isTokenScopeAdministrator(user: Pick<AuthUser, "role" | "roles">): boolean {
+  return user.role === "admin" || user.roles.includes("admin")
+}
+
+export function getDefaultTokenScopes(availableScopes: string[], user: Pick<AuthUser, "role" | "roles">): string[] {
+  // 管理员新建时选择全部当前可授予权限，含新增权限；不使用 * 扩大已有 Token。
+  if (isTokenScopeAdministrator(user)) return [...availableScopes]
+  // 其他账号没有只读权限时等待用户选择，不默认授予写入或管理权限。
   return availableScopes.includes("tools.read") ? ["tools.read"] : []
+}
+
+export function getTokenScopeGroups(scopes: string[], locale: Locale) {
+  const groups = new Map<string, { code: string; name: string; description: string }[]>()
+  for (const code of new Set(scopes)) {
+    const { group, name, description } = presentControlPermission({ code }, locale)
+    const items = groups.get(group) || []
+    items.push({ code, name, description })
+    groups.set(group, items)
+  }
+  // 未识别的新增或历史权限仍可见，不因展示分组而改变可选或已保存范围。
+  return [...groups].map(([name, items]) => ({ name, scopes: items }))
 }

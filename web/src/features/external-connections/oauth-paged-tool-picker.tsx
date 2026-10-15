@@ -11,13 +11,13 @@ type Filters = { query: string; server_id: string; access: string; view: "tools"
 const emptyFilters: Filters = { query: "", server_id: "", access: "", view: "tools" }
 
 /** Pages are display data. Only the server resolver determines whole choices. */
-export function OAuthPagedToolPicker({ grantId, catalog, selection, selected, refreshKey, zh, disabled, onResolve, onRefresh, onCatalog, onError, onLoading }: {
-  grantId: string; catalog: OAuthScopeCatalog | null; selection: OAuthScopeSelection | null; selected: string[]; refreshKey: number; zh: boolean; disabled: boolean
+export function OAuthPagedToolPicker({ grantId, catalog, selection, selected, refreshKey, zh, disabled, onResolve, onRefresh, onCatalog, onError, onLoading, serverId = "" }: {
+  serverId?: string; grantId: string; catalog: OAuthScopeCatalog | null; selection: OAuthScopeSelection | null; selected: string[]; refreshKey: number; zh: boolean; disabled: boolean
   onResolve: (operation: ScopeSelectionOperation) => Promise<OAuthScopeSelection | null>; onRefresh: () => void
   onCatalog: (catalog: OAuthScopeCatalog) => void; onError: (cause: unknown) => void; onLoading: (loading: boolean) => void
 }) {
   const [pageData, setPageData] = useState<OAuthScopeCatalog | null>(catalog)
-  const [filters, setFilters] = useState<Filters>(emptyFilters)
+  const [filters, setFilters] = useState<Filters>({ ...emptyFilters, server_id: serverId })
   const [cursors, setCursors] = useState<string[]>([""])
   const [mode, setMode] = useState<ScopeSelectionMode>("custom")
   const [loading, setLoading] = useState(false)
@@ -29,13 +29,14 @@ export function OAuthPagedToolPicker({ grantId, catalog, selection, selected, re
     if (catalog && lastRefresh.current !== refreshKey) {
       lastRefresh.current = refreshKey; generation.current++
       if (debounce.current) clearTimeout(debounce.current)
-      setPageData(catalog); setFilters(emptyFilters); setCursors([""]); setMode("custom"); setLoading(false)
+      setPageData(serverId ? null : catalog); if (serverId) void load({ ...emptyFilters, server_id: serverId }); setFilters({ ...emptyFilters, server_id: serverId }); setCursors([""]); setMode("custom"); setLoading(false)
     }
   }, [catalog, refreshKey])
   useEffect(() => () => { generation.current++; if (debounce.current) clearTimeout(debounce.current) }, [])
   const blocked = disabled || loading || !catalog
   async function load(nextFilters: Filters, nextCursors = [""]) {
     if (!catalog) return
+    if (serverId) nextFilters = { ...nextFilters, server_id: serverId }
     if (debounce.current) clearTimeout(debounce.current)
     const current = ++generation.current
     setFilters(nextFilters); setLoading(true); onLoading(true)
@@ -59,7 +60,7 @@ export function OAuthPagedToolPicker({ grantId, catalog, selection, selected, re
   const selectedGroups = new Map(selection?.group_selected_counts.map(group => [group.server_id, group.selected_count]) || [])
   const countText = whole ? zh ? `已选 ${counts?.tools ?? 0} / ${whole.tools} 工具 · ${counts?.mcps ?? 0} MCP · 匹配 ${pageData?.matching_counts.tools ?? 0}` : `${counts?.tools ?? 0} / ${whole.tools} selected · ${counts?.mcps ?? 0} MCPs · ${pageData?.matching_counts.tools ?? 0} matches` : zh ? `草稿保留 ${selected.length} 个工具；请刷新可授权范围。` : `${selected.length} draft selections retained; refresh available scope.`
   return <section className="oauth-tools oauth-paged-tools oauth-compact-tools" aria-label={zh ? "MCP 和工具授权范围" : "MCP and tool authorization scope"} aria-busy={loading}>
-    <div className="oauth-bulk-selection">
+    {!serverId && <div className="oauth-bulk-selection">
       <span className="oauth-bulk-label"><span id={quickId}>{zh ? "全目录" : "Entire catalog"}</span><Tooltip trigger={["hover", "focus"]} title={zh ? "作用于整个当前可授权目录，跨分页和筛选；超限保留草稿。只读仅含已发布为 read 的工具，未来新增不会自动选中。" : "Applies to the entire current available catalog across pages and filters. Limits retain your draft. Read-only uses published read classifications; future additions stay unselected."}><Button type="text" size="small" className="oauth-scope-info-trigger" aria-label={zh ? "快捷选择说明" : "Quick selection details"} icon={<InfoCircleOutlined aria-hidden />} /></Tooltip></span>
       <Radio.Group aria-labelledby={quickId} value={mode} disabled={blocked} onChange={event => {
         const next = event.target.value as ScopeSelectionMode
@@ -68,14 +69,14 @@ export function OAuthPagedToolPicker({ grantId, catalog, selection, selected, re
       }}><Radio value="read" aria-label={zh ? "仅选全部当前只读" : "All current read-only tools"}>{zh ? "全部只读" : "All read-only"}</Radio><Radio value="all" aria-label={zh ? "选中全部当前工具" : "All current tools"}>{zh ? "全部工具" : "All tools"}</Radio><Radio value="custom">{zh ? "自定义" : "Custom"}</Radio></Radio.Group>
       <Button type="text" disabled={blocked || !selected.length} onClick={() => void choose({ mode: "ids", tool_ids: [] })}>{zh ? "清空选择" : "Clear selection"}</Button>
       <Button type="text" aria-label={zh ? "刷新可授权范围" : "Refresh available scope"} aria-busy={loading || disabled} loading={loading || disabled} disabled={disabled || loading} onClick={onRefresh}>{zh ? "刷新可授权范围" : "Refresh available scope"}</Button>
-    </div>
+    </div>}
     <div className="oauth-filters">
       <Input aria-label={zh ? "搜索当前范围内的工具" : "Search tools in the current scope"} placeholder={zh ? "搜索工具名称、ID 或 MCP" : "Search tool name, ID or MCP"} allowClear value={filters.query} disabled={disabled || !catalog} onChange={event => {
         const next = { ...filters, query: event.target.value }; setFilters(next)
         if (debounce.current) clearTimeout(debounce.current)
         debounce.current = setTimeout(() => void load(next), 300)
       }} />
-      <OAuthMcpFilter remote={catalog ? { grantId, revision: catalog.catalog_revision, count: catalog.catalog_counts.mcps } : undefined} value={filters.server_id} disabled={blocked} zh={zh} onChange={server_id => void load({ ...filters, server_id })} />
+      {!serverId && <OAuthMcpFilter remote={catalog ? { grantId, revision: catalog.catalog_revision, count: catalog.catalog_counts.mcps } : undefined} value={filters.server_id} disabled={blocked} zh={zh} onChange={server_id => void load({ ...filters, server_id })} />}
       <Segmented aria-label={zh ? "按读写权限筛选" : "Filter by access"} value={filters.access} disabled={blocked} onChange={value => void load({ ...filters, access: String(value) })} options={[{ value: "", label: zh ? "全部" : "All" }, { value: "read", label: zh ? "只读" : "Read" }, { value: "write", label: zh ? "写入" : "Write" }]} />
     </div>
     <div className="oauth-selection"><span role="status" title={countText}>{countText}</span><div className="oauth-actions">

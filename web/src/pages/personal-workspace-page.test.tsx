@@ -1,7 +1,21 @@
 import { renderToStaticMarkup } from "react-dom/server"
-import { describe, expect, it } from "vitest"
+import { describe, expect, it, vi } from "vitest"
+import type { AuthUser } from "@/components/auth-gate"
 import { PersonalWorkspacePage, initialPersonalWorkspaceView, personalToolAccessLabel, personalCallLabel } from "@/pages/personal-workspace-page"
 import { translate, type TFunction } from "@/i18n"
+
+vi.mock("@/components/auth-gate", () => ({
+  useAuth: () => ({
+    user: {
+      id: "operator", username: "operator", display_name: "Operator",
+      role: "operator", roles: ["operator"],
+      permissions: ["tools.read", "tools.invoke", "credentials.manage.self"],
+      status: "active", must_change_password: false, auth_type: "session", scopes: [],
+    } satisfies AuthUser,
+    logout: vi.fn(),
+  }),
+}))
+
 const t: TFunction = key => translate("en-US", key)
 const props = { locale: "en-US" as const, t, onNavigate: () => {}, onInvoke: () => {} }
 
@@ -28,13 +42,12 @@ describe("personal workspace presentation", () => {
     const html = renderToStaticMarkup(<PersonalWorkspacePage {...props} view="myInvocations" />)
     expect(html).toContain("up to 500 loaded, not an all-time total")
   })
-  it("defaults to built-in grants and requires Gate confirmation within existing OAuth scopes", () => {
+  it("defaults to unified authorizations presenting personal tokens and OAuth grants", () => {
     const html = renderToStaticMarkup(<PersonalWorkspacePage {...props} view="myConnections" />)
-    expect(html).toContain("My OAuth grants")
-    expect(html).toContain("Explicit confirmation in Gate")
-    expect(html).toContain("within existing OAuth scopes")
-    expect(html).toContain("without another client OAuth flow")
-    expect(html).toContain("External identity provider")
-    expect(html).not.toContain("Manage personal tokens")
+    expect(html).toContain("My authorizations")
+    expect(html).toContain("New authorization")
+    expect(html).toContain("API token")
+    expect(html).toContain("Gate OAuth")
+    expect(html).toContain("External OAuth")
   })
 })

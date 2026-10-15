@@ -1,6 +1,6 @@
 import { RemainingList, ListPagination, ListViewport, useListPage } from "@/components/list-pagination"
 import { usePageRefresh } from "@/components/page-refresh"
-import { useEffect, useMemo, useRef, useState } from "react"
+import { useEffect, useId, useMemo, useRef, useState } from "react"
 import { Copy, Pencil, Plus, ShieldCheck } from "lucide-react"
 import { api, type PersonalToken } from "@/api/client"
 import { useAuth } from "@/components/auth-gate"
@@ -17,7 +17,7 @@ import { Label } from "@/components/ui/label"
 import { Switch } from "@/components/ui/switch"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { Toaster } from "@/components/ui/toast"
-import { getAvailableTokenScopes, getDefaultTokenScopes, getTokenScopeOptions } from "@/features/personal-token-scopes"
+import { getAvailableTokenScopes, getDefaultTokenScopes, getTokenScopeGroups, getTokenScopeOptions, isTokenScopeAdministrator } from "@/features/personal-token-scopes"
 import { McpClientSettingsDialog } from "@/features/mcp-client-settings-dialog"
 import type { Locale, TFunction } from "@/i18n"
 import { formatDateTime } from "@/lib/utils"
@@ -31,6 +31,10 @@ const copy = {
     newToken: "创建凭据",
     name: "凭据名称",
     scopes: "Scope 范围",
+    selectedScopes: "已选权限",
+    adminScopeDefault: "管理员新建 Token 默认选择全部当前可授予权限，包含新增权限；可按用途取消选择。",
+    readScopeDefault: "新建 Token 默认只选择只读工具权限；其他权限可按用途选择。",
+    noReadScopeDefault: "当前身份没有可授予的只读工具权限，新建 Token 不默认选择权限；请按用途选择已有权限。",
     expiresAt: "失效时间",
     noExpiry: "永久有效",
     create: "创建 Token",
@@ -61,6 +65,10 @@ const copy = {
     newToken: "Create credential",
     name: "Credential name",
     scopes: "Scopes",
+    selectedScopes: "Selected permissions",
+    adminScopeDefault: "New administrator tokens select all currently grantable permissions, including newly added permissions. Deselect permissions to fit the intended use.",
+    readScopeDefault: "New tokens select only read-only tool access by default. Select other permissions for the intended use.",
+    noReadScopeDefault: "Your current identity cannot grant read-only tool access. New tokens start without selected permissions; choose from the permissions you can grant.",
     expiresAt: "Expires at",
     noExpiry: "Never",
     create: "Create token",
@@ -111,12 +119,17 @@ export function PersonalTokensPage({ locale, t }: { locale: Locale; t: TFunction
     () => getTokenScopeOptions(availableScopes, editingToken?.scopes),
     [availableScopes, editingToken],
   )
+  const defaultScopeHint = isTokenScopeAdministrator(user) ? c.adminScopeDefault : availableScopes.includes("tools.read") ? c.readScopeDefault : c.noReadScopeDefault
 
   const [query, setQuery] = useState("")
   const filteredRecords = useMemo(() => {
     const needle = query.trim().toLowerCase()
-    return tokens.filter(item => !needle || `${item.name} ${item.token_prefix} ${item.scopes.join(" ")}`.toLowerCase().includes(needle))
-  }, [tokens, query])
+    return tokens.filter(item => {
+      if (!needle) return true
+      const scopeText = getTokenScopeGroups(item.scopes, locale).flatMap(group => [group.name, ...group.scopes.flatMap(scope => [scope.code, scope.name])]).join(" ")
+      return `${item.name} ${item.token_prefix} ${scopeText}`.toLowerCase().includes(needle)
+    })
+  }, [tokens, query, locale])
   const paging = useListPage(filteredRecords, query)
 
   usePageRefresh(load, busy)
@@ -138,7 +151,7 @@ export function PersonalTokensPage({ locale, t }: { locale: Locale; t: TFunction
   function openCreate() {
     if (busy) return
     setFormError(null)
-    const initialScopes = getDefaultTokenScopes(availableScopes)
+    const initialScopes = getDefaultTokenScopes(availableScopes, user)
     baseline.current = JSON.stringify({ name: "MCP Client", scopes: [...initialScopes].sort(), expiresAt: "" })
     setEditingToken(null)
     setName("MCP Client")
@@ -254,7 +267,7 @@ export function PersonalTokensPage({ locale, t }: { locale: Locale; t: TFunction
                   return <TableRow key={token.id}>
                     <TableCell><div className="font-medium">{token.name}</div><div className="text-xs text-muted-foreground">{formatDateTime(token.created_at)}</div></TableCell>
                     <TableCell><code>{token.token_prefix}</code></TableCell>
-                    <TableCell><div className="flex max-w-sm flex-wrap gap-1">{token.scopes.map((scope) => <Badge key={scope} variant="outline">{scope}</Badge>)}</div></TableCell>
+                    <TableCell><TokenScopeSummary scopes={token.scopes} locale={locale} /></TableCell>
                     <TableCell className="whitespace-nowrap text-xs text-muted-foreground">{token.last_used_at ? formatDateTime(token.last_used_at) : "-"}</TableCell>
                     <TableCell><Badge variant={status === "active" ? "success" : status === "expired" ? "warning" : "secondary"}>{c[status]}</Badge></TableCell>
                     <TableCell>{status === "active" && <div className="flex flex-wrap gap-2"><Button disabled={busy} size="sm" variant="outline" onClick={() => openEdit(token)}><Pencil />{c.editScopes}</Button><Button disabled={busy} size="sm" variant="danger" onClick={() => void revoke(token)}>{c.revoke}</Button></div>}</TableCell>
@@ -268,15 +281,14 @@ export function PersonalTokensPage({ locale, t }: { locale: Locale; t: TFunction
         </CardContent>
       </Card>
 
-      <FormDialog dirty={!newToken && draft !== baseline.current} open={dialogOpen} onClose={() => void closeEditor()} title={editingToken ? c.editScopes : c.newToken} description={editingToken ? `${editingToken.name} · ${editingToken.token_prefix}` : undefined} closeLabel={t("close")} pending={busy} error={formError} className="max-w-xl"
+      <FormDialog dirty={!newToken && draft !== baseline.current} open={dialogOpen} onClose={() => void closeEditor()} title={editingToken ? c.editScopes : c.newToken} description={editingToken ? `${editingToken.name} · ${editingToken.token_prefix}` : undefined} closeLabel={t("close")} pending={busy} error={formError} className="max-w-3xl"
         footer={newToken ? <><Button variant="outline" disabled={busy} onClick={() => void closeEditor()}>{t("close")}</Button><Button onClick={() => void copyToken()}><Copy />{c.copyToken}</Button></> : <><Button variant="outline" disabled={busy} onClick={() => void closeEditor()}>{t("cancel")}</Button><Button type="submit" form="personal-token-editor" disabled={busy || scopes.length === 0 || (!editingToken && !name.trim())}>{editingToken ? c.saveScopes : c.create}</Button></>}>
         {newToken ? <Alert><AlertDescription><p className="mb-2 font-medium">{c.tokenOnce}</p><code className="block break-all rounded-md bg-muted p-3 text-xs">{newToken}</code></AlertDescription></Alert> : <form id="personal-token-editor" className="flex flex-col gap-4" onSubmit={event => { event.preventDefault(); void (editingToken ? updateScopes() : create()) }}>
               {!editingToken && <div className="flex flex-col gap-2"><Label htmlFor="token-name">{c.name}</Label><Input id="token-name" disabled={busy} value={name} onChange={(event) => setName(event.target.value)} /></div>}
-              <div className="flex flex-col gap-2">
-                <Label>{c.scopes}</Label>
-                <div className="grid gap-2">
-                  {scopeOptions.map((scope) => <label key={scope} className="flex items-center justify-between gap-3 rounded-lg border p-3"><span className="min-w-0"><span className="block break-all text-sm font-medium">{scope}</span><span className="block text-xs text-muted-foreground">{scopeDescription(scope, locale)}</span></span><Switch disabled={busy} aria-label={scope} checked={scopes.includes(scope)} onCheckedChange={(checked) => setScopes((current) => checked ? [...new Set([...current, scope])] : current.filter((item) => item !== scope))} /></label>)}
-                </div>
+              <div className="flex min-w-0 flex-col gap-3">
+                <div className="flex flex-wrap items-center justify-between gap-2"><Label>{c.scopes}</Label><span className="text-xs text-muted-foreground" aria-live="polite">{c.selectedScopes}: {scopes.length} / {scopeOptions.length}</span></div>
+                {!editingToken && <p className="text-xs text-muted-foreground">{defaultScopeHint}</p>}
+                <TokenScopeSelector options={scopeOptions} selected={scopes} locale={locale} disabled={busy} onChange={setScopes} />
               </div>
               {!editingToken && <div className="flex flex-col gap-2"><Label htmlFor="token-expiry">{c.expiresAt}</Label><Input id="token-expiry" disabled={busy} type="datetime-local" aria-describedby="token-expiry-hint" value={expiresAt} onChange={(event) => setExpiresAt(event.target.value)} /><div id="token-expiry-hint" className="text-xs text-muted-foreground">{expiresAt || c.noExpiry}</div></div>}
               <Alert><AlertDescription className="flex items-start gap-2"><ShieldCheck className="mt-0.5 size-4 shrink-0" />{c.scopeHint}</AlertDescription></Alert>
@@ -294,19 +306,26 @@ function tokenStatus(token: PersonalToken): "active" | "revoked" | "expired" {
   return "active"
 }
 
-function scopeDescription(scope: string, locale: Locale) {
-  const values: Record<string, [string, string]> = {
-    "tools.read": ["发现并调用已授权的只读 Tool", "Discover and invoke granted read-only tools"],
-    "tools.invoke": ["调用已授权的写 Tool（同时包含只读）", "Invoke granted write tools, including read-only access"],
-    "audit.read": ["读取调用审计", "Read invocation audits"],
-    "console.view": ["读取基础控制面信息", "Read basic control-plane data"],
-    "operations.manage": ["管理 MCP 配置与服务，上传、构建、部署和启动项目", "Manage MCP configuration and services; upload, build, deploy, and start projects"],
-    "classifications.manage": ["分析、确认并发布工具的只读或读写分类", "Analyze, confirm, and publish tool read/write classifications"],
-    "credentials.manage.self": ["管理自己的 API Token 与下游 MCP 凭据", "Manage personal API tokens and downstream MCP credentials"],
-    "credentials.manage.all": ["查看并吊销全部用户的 API Token", "View and revoke API tokens for all users"],
-    "users.manage": ["审核、启用、停用和维护用户账号", "Review, activate, disable, and maintain user accounts"],
-    "roles.manage": ["管理角色、控制面权限与 MCP 权限类型", "Manage roles, control-plane permissions, and MCP permission types"],
-    "grants.manage": ["维护用户和角色的 MCP 服务或工具授权", "Manage MCP server and tool grants for users and roles"],
-  }
-  return values[scope]?.[locale === "zh-CN" ? 0 : 1] || scope
+export function TokenScopeSelector({ options, selected, locale, disabled, onChange }: { options: string[]; selected: string[]; locale: Locale; disabled: boolean; onChange: (scopes: string[]) => void }) {
+  const descriptionId = useId()
+  return <div className="grid min-w-0 items-start gap-4 md:grid-cols-2">
+    {getTokenScopeGroups(options, locale).map(group => <fieldset key={group.name} disabled={disabled} className="min-w-0 rounded-lg border p-3 pt-2">
+      <legend className="px-1 text-sm font-medium">{group.name}</legend>
+      <div className="flex flex-col divide-y">
+        {group.scopes.map(scope => <label key={scope.code} className="flex min-w-0 items-start justify-between gap-3 py-3">
+          <span className="min-w-0"><span className="block break-words text-sm font-medium">{scope.name}</span><code className="block break-all text-xs text-muted-foreground">{scope.code}</code><span id={`${descriptionId}-${scope.code}`} className="mt-1 block break-words text-xs text-muted-foreground">{scope.description}</span></span>
+          <Switch disabled={disabled} aria-label={scope.name} aria-describedby={`${descriptionId}-${scope.code}`} checked={selected.includes(scope.code)} onCheckedChange={checked => onChange(checked ? [...new Set([...selected, scope.code])] : selected.filter(code => code !== scope.code))} />
+        </label>)}
+      </div>
+    </fieldset>)}
+  </div>
+}
+
+export function TokenScopeSummary({ scopes, locale }: { scopes: string[]; locale: Locale }) {
+  return <div className="flex max-w-lg flex-col gap-2">
+    {getTokenScopeGroups(scopes, locale).map(group => <div key={group.name} className="flex flex-col gap-1">
+      <span className="text-xs text-muted-foreground">{group.name}</span>
+      <div className="flex flex-wrap gap-1">{group.scopes.map(scope => <Badge key={scope.code} variant="outline" title={`${scope.code} · ${scope.description}`}>{scope.name}</Badge>)}</div>
+    </div>)}
+  </div>
 }

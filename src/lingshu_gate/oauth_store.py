@@ -98,13 +98,19 @@ ALTER TABLE gate_oauth_grants ADD COLUMN target_revision INTEGER NOT NULL DEFAUL
 """)
 
 
+def _server_policies_schema(connection: sqlite3.Connection) -> None:
+    # 旧授权保持精确工具快照，只有本人确认后才保存持续授权策略。
+    connection.execute("ALTER TABLE gate_oauth_grants ADD COLUMN server_policies_json TEXT NOT NULL DEFAULT '[]'")
+
+
 class OAuthStore:
     def __init__(self, database: SQLiteDatabase) -> None:
         self.database = database
         MigrationRunner(database.connect, (Migration("0006_builtin_oauth", _schema),
                                            Migration("0008_oauth_interaction_capacity", _interaction_capacity_schema),
                                            Migration("0009_oauth_scope_confirmations", _scope_confirmation_schema),
-                                           Migration("0012_oauth_management_resource", _management_resource_schema))).run()
+                                           Migration("0012_oauth_management_resource", _management_resource_schema),
+                                           Migration("0019_oauth_server_policies", _server_policies_schema))).run()
 
     @contextmanager
     def transaction(self) -> Iterator[sqlite3.Connection]:
@@ -143,8 +149,11 @@ class OAuthStore:
     @staticmethod
     def grant(row: Any) -> dict[str, Any]:
         return {**dict(row), "scopes": json.loads(row["scopes_json"]),
-                "tools": json.loads(row["tools_json"]), "management_targets": json.loads(row["management_targets_json"])}
+                "tools": json.loads(row["tools_json"]), "management_targets": json.loads(row["management_targets_json"]),
+                "server_policies": json.loads(row["server_policies_json"])}
 
     def grants(self, user_id: str) -> list[dict[str, Any]]:
         return [self.grant(row) for row in self.database.query_all(
-            "SELECT * FROM gate_oauth_grants WHERE user_id=? ORDER BY created_at DESC,id", (user_id,))]
+            "SELECT g.*,COALESCE(d.mode,'on_demand') AS tool_discovery_mode FROM gate_oauth_grants g "
+            "LEFT JOIN authorization_discovery d ON d.kind='builtin' AND d.authorization_id=g.id "
+            "WHERE g.user_id=? ORDER BY g.created_at DESC,g.id", (user_id,))]

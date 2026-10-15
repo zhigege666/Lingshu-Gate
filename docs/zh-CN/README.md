@@ -12,7 +12,7 @@
 | [架构](architecture.md) | 组件、请求路径、持久化与信任边界 |
 | [配置](configuration.md) | 环境变量、目录、Manifest、凭据和反向代理设置 |
 | [MCP 网关](mcp-gateway.md) | 网关入口、协议协商、下游 HTTP/stdio、发现、分类和调用 |
-| [按需工具发现](on-demand-tools.md) | 六个有界发现/会话入口、每客户端模式、保留原授权与合成规模基准 |
+| [按需工具发现](on-demand-tools.md) | 六个有界发现/会话入口、每条授权默认按需、保留原权限与合成规模基准 |
 | [按需目录集成溯源](on-demand-integration.md) | 精确分组提交映射、冲突处理与定向安全证据 |
 | [按需目录集成验收记录](on-demand-integration-validation.md) | 精确测试检查点、物理/分组实测及原生 worker 证据 |
 | [Gate 功能集成候选](gate-feature-integration.md) | OAuth/catalog/group/Native 溯源、a3b57f7 前端验证、最新 ed34c5a wheel／Linux 包验收及继承的后端证据 |
@@ -33,6 +33,7 @@
 | [浏览器回归](browser-regression.md) | 隔离真实后端 Playwright、合成大列表、场景编号及证据边界 |
 | [外部 OAuth 资源访问](external-connections.md) | 默认关闭的 JWT 验证、信任配置、个人委托与实际接入边界 |
 | [内置 OAuth 授权](builtin-oauth.md) | 复用已有用户、静态客户端、同意、刷新/撤销与公网代理放行清单 |
+| [我的授权](my-authorizations.md) | 统一个人凭据、MCP 持续范围、可编辑配额与安全/支持边界 |
 | [OAuth Console 密度](oauth-console-density.md) | 开发中的范围编辑器与已配置管理布局、不变授权边界及合成证据 |
 | [发行产物](releases.md) | 平台归档、checksum、SBOM、构建元数据、离线镜像和发布规则 |
 | [0.4.0 验证记录](release-validation.md) | 已执行检查、合成截图与剩余验收缺口 |

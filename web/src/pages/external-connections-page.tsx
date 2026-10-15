@@ -1,7 +1,8 @@
+import { QuotaFields } from "@/features/external-connections/mcp-authorization-editor"
 import { ConnectionGuide, ConnectionGuideChecks } from "@/features/external-connections/connection-guide"
 import { EditorNavigationContext, useEditorNavigationGuards } from "@/components/editor-navigation-guard"
 import { useContext, useEffect, useMemo, useRef, useState } from "react"
-import { Alert, Button, Input, InputNumber, Select, Switch, Tabs, Tag } from "antd"
+import { Alert, Button, Input, Radio, Select, Switch, Tabs, Tag } from "antd"
 import { api, type ToolDefinition } from "@/api/client"
 import { externalRequest as request, activationReason, externalError } from "@/features/external-connections/api"
 import { FormDialog } from "@/components/form-dialog"
@@ -17,7 +18,7 @@ import { BuiltinOAuthGrants, BuiltinOAuthInfrastructure } from "@/pages/oauth-ma
 import type { Locale, TFunction } from "@/i18n"
 
 type Props = { locale: Locale; t: TFunction }
-function Field({ label, children }: { label: string; children: React.ReactNode }) { return <label className="flex flex-col gap-2 text-sm"><span>{label}</span>{children}</label> }
+function Field({ label, children }: { label: string; children: React.ReactNode }) { return <label className="authorization-field text-sm"><span className="whitespace-nowrap">{label}</span>{children}</label> }
 function QuotaNotice({ zh }: { zh: boolean }) { return <p className="text-sm text-muted-foreground">{zh ? "调用配额仅在单 Core 进程内存中计数，重启后重置；多个进程或实例不共享配额。" : "Call quotas are counted in one Core process's memory and reset on restart; multiple processes or instances do not share quotas."}</p> }
 function ConnectionNotice({ zh }: { zh: boolean }) { return <Alert type="info" showIcon title={zh ? "Gate OAuth 令牌验证与个人授权" : "Gate OAuth token verification and personal grants"} description={<>{zh ? "默认关闭。启用后仅接受受信签发方已签发且验证通过的令牌；不会自动注册 OAuth 客户端、启动隧道或完成 ChatGPT 登录。外部提供方的注册与授权须另行完成。" : "Disabled by default. Enabling accepts already-issued tokens only after verification. It does not register an OAuth client, start a tunnel or complete ChatGPT sign-in. Provider registration and authorization are separate steps."}<QuotaNotice zh={zh} /></>} /> }
 function statusLabel(state: string, zh: boolean) { return zh ? ({ enabled: "已启用", active: "已启用", disabled: "已关闭", expired: "已过期", revoked: "已撤销" }[state] ?? state) : state }
@@ -117,7 +118,7 @@ function ExternalConnectionInfrastructure({ locale, t }: Props) {
     <p className="text-sm text-muted-foreground">{zh ? "可返回任意步骤。步骤位置会保留；未保存的输入离开前会提示，已保存配置可继续编辑。" : "Revisit any step. Your step position is retained; leaving warns about unsaved input, and saved configuration can be resumed."}</p>
     <ConnectionGuide zh={zh} mode={draft.mode} step={guideStep} onStep={changeGuideStep} disabled={busy}>
       {guideStep < 2 && configurationForm}
-      {guideStep === 2 && <div className="space-y-4"><ExternalSubjectLinks locale={locale} t={t} issuers={snapshot?.trusted_issuers ?? []} /><p>{zh ? "用户在“我的连接”设置自己的授权；管理员不能替用户自动同意 OAuth。" : "Users configure their own grants in My connections; administrators cannot automatically consent on their behalf."}</p><a href="#/myConnections" className="underline">{zh ? "打开我的连接" : "Open My connections"}</a></div>}
+      {guideStep === 2 && <div className="space-y-4"><ExternalSubjectLinks locale={locale} t={t} issuers={snapshot?.trusted_issuers ?? []} /><p>{zh ? "用户在“我的授权”设置自己的授权；管理员不能替用户自动同意 OAuth。" : "Users configure their own grants in My authorizations; administrators cannot automatically consent on their behalf."}</p><a href="#/myConnections" className="underline">{zh ? "打开我的授权" : "Open My authorizations"}</a></div>}
       {guideStep === 3 && <><ConnectionGuideChecks draft={connectionDraft(snapshot || {revision:0})} zh={zh} />{dirty && <p className="text-sm text-amber-600">{zh ? "检查针对已保存配置；前面步骤还有未保存修改。" : "Checks use saved configuration; previous steps contain unsaved edits."}</p>}<Button className="mt-3" disabled={busy} onClick={() => void load()}>{zh ? "重新读取配置状态" : "Reload configuration status"}</Button></>}
       {formError && <Alert className="mt-4" type="error" title={formError} />}
       {message && <Alert className="mt-4" type="success" title={message} />}
@@ -139,8 +140,8 @@ function ExternalConnectionInfrastructure({ locale, t }: Props) {
   </div>
 }
 
-const newGrant = (): GrantDraft => ({ enabled: false, client_id: "", server_allowlist: [], tool_allowlist: [], access: ["read"], expires_at: "", rate_per_minute: 30, concurrency: 1 })
-function ExternalIdentityGrants({ locale, t }: Props) {
+const newGrant = (): GrantDraft => ({ enabled: false, client_id: "", server_allowlist: [], tool_allowlist: [], access: ["read"], expires_at: "", rate_per_minute: 6000, concurrency: 100 })
+export function ExternalIdentityGrants({ locale, t, embedded = false, action, onChanged }: Props & { embedded?: boolean; action?: { grant?: Grant; action: "edit" | "revoke"; nonce: number }; onChanged?: () => void }) {
   const zh = locale === "zh-CN"
   const [grants, setGrants] = useState<Grant[]>([])
   const [readiness, setReadiness] = useState({ connection_ready: false, activation_errors: [] as string[], allowed_client_ids: [] as string[] })
@@ -206,7 +207,7 @@ function ExternalIdentityGrants({ locale, t }: Props) {
       if (draft.enabled && !(await confirm({ title: zh ? "启用此个人授权范围？" : "Enable this personal grant scope?", description: `${draft.client_id} · ${draft.tool_allowlist.length} ${zh ? "个工具" : "tools"} · ${draft.expires_at}` }))) return
       const result = await request<Grant>(`/v1/auth/external-grants${editing ? `/${encodeURIComponent(editing.id)}` : ""}`, { method: editing ? "PATCH" : "POST", body: JSON.stringify({ ...draft, ...(editing ? { expected_revision: editing.revision } : {}) }) })
       if (result.enabled !== draft.enabled) throw new Error("Unexpected enablement state")
-      setGrants(current => editing ? current.map(item => item.id === result.id ? result : item) : [result, ...current]); setOpen(false); setMessage(zh ? "个人授权设置已保存；未执行外部 OAuth 登录。" : "Personal grant saved; no external OAuth sign-in was performed.")
+      setGrants(current => editing ? current.map(item => item.id === result.id ? result : item) : [result, ...current]); setOpen(false); onChanged?.(); setMessage(zh ? "个人授权设置已保存；未执行外部 OAuth 登录。" : "Personal grant saved; no external OAuth sign-in was performed.")
     } catch (cause) { setFormError(externalError(cause, zh)) }
     finally { pending.current = false; setBusy(false) }
   }
@@ -228,12 +229,14 @@ function ExternalIdentityGrants({ locale, t }: Props) {
       setBusy(true); setError("")
       const result = await request<Grant>(`/v1/auth/external-grants/${encodeURIComponent(item.id)}`, { method: "DELETE" })
       if (result.state !== "revoked") throw new Error("Revocation state unknown")
-      setGrants(current => current.map(grant => grant.id === item.id ? result : grant))
+      setGrants(current => current.map(grant => grant.id === item.id ? result : grant)); onChanged?.()
     } catch (cause) { setError(externalError(cause, zh)) }
     finally { pending.current = false; setBusy(false) }
   }
+  useEffect(() => { if (!action) return; if (action.action === "revoke" && action.grant) void revoke(action.grant); else edit(action.grant) }, [action?.nonce])
   return <div className="space-y-4">
-    <PageHeader closeLabel={t("close")} title={zh ? "我的连接" : "My connections"} toolbar={<PageToolbar query={query} onQueryChange={setQuery} placeholder={zh ? "搜索本人授权" : "Search your grants"} clearLabel={t("clearSearch")} />} actions={<Button disabled={busy || Boolean(error) || Boolean(toolError)} onClick={() => edit()}>{zh ? "新建个人授权" : "New personal grant"}</Button>} />
+    {!embedded && <>
+    <PageHeader closeLabel={t("close")} title={zh ? "我的授权" : "My authorizations"} toolbar={<PageToolbar query={query} onQueryChange={setQuery} placeholder={zh ? "搜索本人授权" : "Search your grants"} clearLabel={t("clearSearch")} />} actions={<Button disabled={busy || Boolean(error) || Boolean(toolError)} onClick={() => edit()}>{zh ? "新建个人授权" : "New personal grant"}</Button>} />
     <ConnectionNotice zh={zh} />
     {error && <Alert type="error" title={error} action={<Button onClick={() => void load()}>{t("retry")}</Button>} />}
     {toolError && <Alert type="warning" title={zh ? "工具目录不可用；仍可关闭或撤销已有授权。" : "Tool catalog unavailable; existing grants can still be disabled or revoked."} description={toolError} />}
@@ -242,17 +245,17 @@ function ExternalIdentityGrants({ locale, t }: Props) {
     <ListViewport viewport={paging.viewport} label={zh ? "本人授权" : "Your grants"}><Table><TableHeader><TableRow><TableHead>Client ID</TableHead><TableHead>{zh ? "范围 / 有效期" : "Scope / expiry"}</TableHead><TableHead>{t("status")}</TableHead><TableHead>{t("actions")}</TableHead></TableRow></TableHeader><TableBody>{paging.items.map(item => <TableRow key={item.id}><TableCell>{item.client_id}<div className="text-xs">{item.id}</div></TableCell><TableCell>{item.tool_allowlist.length} {zh ? "个工具" : "tools"} · {item.access.join(" / ")}<div>{item.expires_at}</div></TableCell><TableCell><Tag>{statusLabel(item.state, zh)}</Tag>{item.activation_errors?.length ? <p className="text-xs">{item.activation_errors.map(reason => activationReason(reason, zh)).join(" · ")}</p> : null}{!item.scope_currently_authorized && <p>{zh ? "范围已不获准" : "Scope no longer authorized"}</p>}</TableCell><TableCell><div className="flex gap-2">{item.enabled && <Button size="small" disabled={busy} onClick={() => void disable(item)}>{zh ? "关闭" : "Disable"}</Button>}<Button size="small" disabled={busy || Boolean(toolError) || item.state === "revoked"} onClick={() => edit(item)}>{t("edit")}</Button><Button size="small" danger disabled={busy || item.state === "revoked"} onClick={() => void revoke(item)}>{zh ? "撤销" : "Revoke"}</Button></div></TableCell></TableRow>)}</TableBody></Table></ListViewport>
     {!busy && !paging.total && !error && <p>{query.trim() && grants.length ? t("noMatchingRecords") : zh ? "还没有个人授权。" : "No personal grants yet."}</p>}<ListPagination paging={paging} t={t} />
     </RemainingList>
-    <FormDialog open={open} title={zh ? "个人授权范围" : "Personal grant scope"} closeLabel={t("close")} onClose={() => void close()} dirty={dirty} pending={busy} error={formError} className="max-w-3xl" footer={<><Button disabled={busy} onClick={() => void close()}>{t("cancel")}</Button><Button type="primary" htmlType="submit" form="external-grant-draft" loading={busy}>{zh ? "保存个人授权" : "Save personal grant"}</Button></>}>
+    </>}
+    {embedded && error && <Alert type="error" title={error} />}
+    <FormDialog open={open} title={zh ? "调整授权" : "Adjust authorization"} closeLabel={t("close")} onClose={() => void close()} dirty={dirty} pending={busy} error={formError} className="max-w-3xl" footer={<><Button disabled={busy} onClick={() => void close()}>{t("cancel")}</Button><Button type="primary" htmlType="submit" form="external-grant-draft" loading={busy}>{zh ? "保存个人授权" : "Save personal grant"}</Button></>}>
       <form id="external-grant-draft" className="flex flex-col gap-4" onSubmit={event => { event.preventDefault(); void save() }}>
         <Field label={zh ? "启用本人授权" : "Enable my grant"}><Switch aria-label={zh ? "启用本人授权" : "Enable my grant"} checked={draft.enabled} disabled={busy || (!draft.enabled && (!readiness.connection_ready || activationBlockers.length > 0))} onChange={enabled => setDraft(current => ({ ...current, enabled }))} /></Field>
         {(!readiness.connection_ready || activationBlockers.length > 0) && <Alert type="warning" title={zh ? "当前不能启用：检查配置、身份绑定和客户端" : "Cannot enable: check infrastructure, identity binding and client"} description={activationBlockers.map(reason => activationReason(reason, zh)).join(" · ")} />}
-        <Field label={zh ? "每分钟调用上限" : "Calls per minute"}><InputNumber disabled={busy} min={1} max={10000} value={draft.rate_per_minute} onChange={value => setDraft(current => ({ ...current, rate_per_minute: value ?? 1 }))} /></Field>
-        <Field label={zh ? "并发上限" : "Concurrent calls"}><InputNumber disabled={busy} min={1} max={100} value={draft.concurrency} onChange={value => setDraft(current => ({ ...current, concurrency: value ?? 1 }))} /></Field>
-        <QuotaNotice zh={zh} />
+        <QuotaFields rate={draft.rate_per_minute} concurrency={draft.concurrency} onRate={value => setDraft(current => ({ ...current, rate_per_minute: value }))} onConcurrency={value => setDraft(current => ({ ...current, concurrency: value }))} disabled={busy} zh={zh} />
         <Field label="Client ID"><Input list="external-allowed-clients" disabled={busy} value={draft.client_id} onChange={event => setDraft(current => ({ ...current, client_id: event.target.value }))} /><datalist id="external-allowed-clients">{readiness.allowed_client_ids.map(id => <option key={id} value={id} />)}</datalist></Field>
         <Field label={zh ? "到期时间（UTC）" : "Expiry (UTC)"}><Input type="datetime-local" disabled={busy} value={draft.expires_at ? new Date(draft.expires_at).toISOString().slice(0, 16) : ""} onChange={event => setDraft(current => ({ ...current, expires_at: event.target.value ? `${event.target.value}:00Z` : "" }))} /></Field>
-        <Field label={zh ? "筛选已获准的工具类型" : "Filter authorized tool access"}><Select aria-label={zh ? "工具访问类型" : "Tool access type"} disabled={busy} value={accessFilter} options={[{ value: "read", label: zh ? "已获准的只读工具" : "Authorized read tools" }, { value: "write", label: zh ? "已获准的写工具" : "Authorized write tools" }]} onChange={setAccessFilter} /></Field>
-        <p>{zh ? "可跨页选择只读及写工具；只记录所选工具所需的级别，不会扩大原有角色或资源权限。调用仍受现有角色、资源授权、令牌 scope 与下方限制共同约束。" : "Select read and write tools across pages. Access follows the selected tools and does not expand existing permissions. Calls remain subject to role, resource, token scope and the limits below."} ({draft.rate_per_minute}/min · {draft.concurrency})</p>
+        <Field label={zh ? "筛选已获准的工具类型" : "Filter authorized tool access"}><Radio.Group aria-label={zh ? "工具访问类型" : "Tool access type"} disabled={busy} value={accessFilter} options={[{ value: "read", label: zh ? "已获准的只读工具" : "Authorized read tools" }, { value: "write", label: zh ? "已获准的写工具" : "Authorized write tools" }]} onChange={event => setAccessFilter(event.target.value)} /></Field>
+
         <div className="flex flex-wrap gap-2"><Input aria-label={zh ? "搜索获准工具" : "Search authorized tools"} value={toolQuery} onChange={event => setToolQuery(event.target.value)} /><Select className="min-w-48" aria-label={zh ? "筛选获准 MCP" : "Filter authorized MCP"} showSearch optionFilterProp="label" value={server} onChange={setServer} options={[{ value: "", label: zh ? "所有获准 MCP" : "All authorized MCP" }, ...[...new Set(eligible.map(tool => String(tool.metadata.server_id)))].map(id => ({ value: id, label: id }))]} /></div>
         <div className="flex items-center justify-between"><span>{zh ? `跨页已选 ${selected.size} 项` : `${selected.size} selected across pages`}</span><Button disabled={busy || !selected.size} onClick={() => setDraft(current => ({ ...current, tool_allowlist: [], server_allowlist: [], access: [] }))}>{zh ? "清空选择" : "Clear selection"}</Button></div>
         <ListViewport actions={false} viewport={toolPaging.viewport} label={zh ? "已发布且获准工具" : "Published authorized tools"}><Table><TableHeader><TableRow><TableHead>{zh ? "选择" : "Select"}</TableHead><TableHead>{zh ? "MCP / 工具" : "MCP / tool"}</TableHead></TableRow></TableHeader><TableBody>{toolPaging.items.map(tool => <TableRow key={tool.id}><TableCell><input type="checkbox" aria-label={tool.id} checked={selected.has(tool.id)} disabled={busy} onChange={event => selectTool(tool.id, event.target.checked)} /></TableCell><TableCell>{String(tool.metadata.server_id)} · {tool.name}<div className="text-xs">{tool.id}</div></TableCell></TableRow>)}</TableBody></Table></ListViewport><ListPagination paging={toolPaging} t={t} />

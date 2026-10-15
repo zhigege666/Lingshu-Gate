@@ -47,7 +47,7 @@ export function ConnectionGuide({ step, onStep, zh, children, disabled, mode = "
         </>}
         {step === 2 && <>
           <p>{zh ? "管理员在此把签名验证后的 (issuer, subject) 绑定到已有 Gate 用户。subject 来自身份提供方的 sub，不要把显示名或邮箱猜作 sub。" : "Bind a signature-verified (issuer, subject) pair to an existing Gate user. Subject is the provider's sub; do not guess it from a display name or email."}</p>
-          <p>{zh ? "然后让该用户进入“我的连接”，选择客户端、允许的 MCP/工具、读写范围、有效期和配额。个人授权仍与用户原有权限取交集，不会因连接成功而获得所有工具。" : "The user then opens My connections and chooses client, MCP/tools, access level, expiry and quotas. Delegation is intersected with existing user permissions; connectivity does not grant every tool."}</p>
+          <p>{zh ? "然后让该用户进入“我的授权”，选择客户端、允许的 MCP/工具、读写范围、有效期和配额。个人授权仍与用户原有权限取交集，不会因连接成功而获得所有工具。" : "The user then opens My authorizations and chooses client, MCP/tools, access level, expiry and quotas. Delegation is intersected with existing user permissions; connectivity does not grant every tool."}</p>
           <p>{zh ? "绑定身份不等于完成提供方登录或同意授权；两边都需要独立配置。" : "An identity link does not complete provider sign-in or consent. Both sides require separate setup."}</p>
         </>}
         {step === 3 && <>

@@ -5,7 +5,7 @@ import { EditorNavigationContext } from "@/components/editor-navigation-guard"
 import { useConfirm } from "@/components/confirm-dialog"
 import { usePageRefresh } from "@/components/page-refresh"
 import { networkApi, type NetworkDefaults, type NetworkProfile, type NetworkSettings } from "@/api/network"
-import { networkPermission, selectionFromKey, selectionKey, selectionOptions } from "./model"
+import { executorNextAction, networkPermission, selectionFromKey, selectionKey, selectionOptions } from "./model"
 import type { TFunction } from "@/i18n"
 import "./network-settings.css"
 
@@ -27,6 +27,7 @@ export function NetworkSettingsPanel({ t, onSaved, onState }: { t: TFunction; on
   const [target, setTarget] = useState<"github" | "npm" | "python">("github")
   const [references, setReferences] = useState<Array<{ version: number; resource_type: string; resource_id: string }> | null>(null)
   const [hostPolicy, setHostPolicy] = useState("")
+  const [executorHelp, setExecutorHelp] = useState(false)
   const baseline = useRef("")
   const requestId = useRef(0)
   const mounted = useRef(true)
@@ -85,7 +86,14 @@ export function NetworkSettingsPanel({ t, onSaved, onState }: { t: TFunction; on
     {error && <Alert type="error" showIcon title={error} action={<Button disabled={busy} onClick={() => void load(true)}>{t("retry")}</Button>} />}
     {result && <Alert type="success" showIcon title={result} closable onClose={() => setResult(null)} />}
     {settings && defaults && <>
-      {!settings.executor.available && <Alert type="warning" showIcon title={copy("安全网络执行器未安装：Git 拉取、代理测试和指定网络安装暂不可执行", "Safe network executor is unavailable: Git acquisition, proxy tests and configured installation are blocked")} />}
+      {!settings.executor.available && <Alert type="warning" showIcon title={copy("安全网络执行器尚未就绪", "Safe network executor is not ready")} description={<div className="flex flex-col gap-2">
+        <p>{copy("Git 拉取、代理测试和使用指定网络的依赖安装需执行器就绪后才能执行。网络配置仍可先保存。", "Git acquisition, proxy tests and dependency installation with configured networking require a ready executor. You can still save network configuration.")}</p>
+        <p>{executorNextAction(settings.executor.missing, zh)}</p>
+        <div className="network-settings-actions">
+          <Button onClick={() => setExecutorHelp(true)}>{copy("查看配置指引", "View setup guide")}</Button>
+          <Button disabled={busy || loading} loading={loading} onClick={() => void load(true)}>{copy("重新检查", "Check again")}</Button>
+        </div>
+      </div>} />}
       <div className="network-settings-grid">
         <Card title={copy("代理配置", "Proxy profiles")} extra={<Button type="primary" disabled={busy} onClick={() => edit()}>{copy("新增配置", "New profile")}</Button>}>
           <div className="network-settings-actions mb-3"><label htmlFor="network-test-target">{copy("受控测试目标", "Controlled test target")}</label><Select id="network-test-target" aria-label={copy("受控测试目标", "Controlled test target")} value={target} onChange={setTarget} options={[{ value: "github", label: "GitHub" }, { value: "npm", label: "npm registry" }, { value: "python", label: "Python index" }]} /></div>
@@ -129,6 +137,27 @@ export function NetworkSettingsPanel({ t, onSaved, onState }: { t: TFunction; on
     </Drawer>
     <Modal open={references !== null} title={copy("配置引用", "Configuration references")} onCancel={() => setReferences(null)} footer={<Button onClick={() => setReferences(null)}>{t("close")}</Button>}>
       <Table size="small" rowKey={row => `${row.resource_type}:${row.resource_id}:${row.version}`} dataSource={references || []} pagination={{ pageSize: 5 }} columns={[{ title: copy("版本", "Version"), dataIndex: "version" }, { title: copy("类型", "Type"), dataIndex: "resource_type" }, { title: "ID", dataIndex: "resource_id", ellipsis: true }]} />
+    </Modal>
+    <Modal open={executorHelp} width={720} title={copy("安全网络执行器配置指引", "Safe network executor setup guide")} onCancel={() => setExecutorHelp(false)} footer={<Button onClick={() => setExecutorHelp(false)}>{t("close")}</Button>}>
+      <div className="flex flex-col gap-3">
+        <p>{copy("以下步骤由 Gate 部署管理员在服务器上完成。保存本页的代理配置不会自动启用执行器。", "A Gate deployment administrator must complete these steps on the server. Saving proxy settings on this page does not enable the executor automatically.")}</p>
+        <ol className="list-decimal pl-5 space-y-3">
+          <li>{copy("确认部署环境：当前执行器仅支持 Linux Native，由专用非 root 账户运行 rootless Podman。Windows、macOS 和 Docker Core 实例需要在受支持的 Linux Native 环境中完成这些交付操作。", "Verify the deployment environment: the executor supports Linux Native with rootless Podman under a dedicated non-root account. Windows, macOS and Docker Core instances require a supported Linux Native environment for these delivery operations.")}</li>
+          <li>{copy("准备隔离资源：执行器根目录与 Gate 数据、配置、项目目录分离；根目录及 workspaces 目录由 Gate 账户拥有，无符号链接，权限为 0700。workspaces 使用独立 tmpfs 挂载，启用 nodev、nosuid，总容量不超过 2 GiB。配置 cgroup v2 及已委派的 CPU、memory、pids 控制器。", "Provision isolation resources: keep the executor root separate from Gate data, configuration and project directories; the root and workspaces directories must be owned by the Gate account, have no symlinks and use mode 0700. Mount workspaces as a separate tmpfs with nodev, nosuid and a maximum capacity of 2 GiB. Configure cgroup v2 with delegated CPU, memory and pids controllers.")}</li>
+          <li>{copy("准备受审镜像和 Podman：管理员安装并配置 rootless Podman，使用受审的绝对可执行路径。预加载包含 /usr/bin/python3、具备 SHA-1 碰撞检测的 /usr/bin/git 和 /usr/local/bin/node 的执行器镜像，并使用完整 @sha256 摘要固定镜像。", "Prepare reviewed image and Podman: an administrator installs and configures rootless Podman using a reviewed absolute executable path. Preload an executor image with /usr/bin/python3, /usr/bin/git with SHA-1 collision detection and /usr/local/bin/node, and pin its full @sha256 digest.")}</li>
+          <li>
+            <span>{copy("配置 Gate 启动环境：", "Configure the Gate startup environment:")}</span>
+            <p><code className="break-all">LINGSHU_GATE_RUNTIME_ROLE=local</code></p>
+            <p><code className="break-all">LINGSHU_GATE_NATIVE_EXECUTOR</code>{copy(" 设置为 JSON 对象，enabled=true，填写 root、image、podman_bin；使用代理时配置受审的 proxy_hosts。以下占位符须替换为真实的受审目录和镜像摘要。", " must be a JSON object with enabled=true, root, image and podman_bin; configure reviewed proxy_hosts when using a proxy. Replace the following placeholders with the actual reviewed directory and image digest.")}</p>
+            <pre className="whitespace-pre-wrap break-all rounded bg-muted p-3 text-xs">{JSON.stringify({ enabled: true, root: "/var/lib/lingshu-gate-executor", image: "registry.example.invalid/gate-executor@sha256:<reviewed-64-hex-digest>", podman_bin: "/usr/bin/podman", proxy_hosts: [] }, null, 2)}</pre>
+          </li>
+          <li>{copy("重启 Gate 并等待启动隔离自检完成，然后点击“重新检查”读取最新状态。全部就绪检查通过后，再尝试 Git 拉取或代理测试；依赖安装仍须满足对应项目计划的支持条件。", "Restart Gate and wait for its startup isolation self-test to finish, then use Check again to read the latest status. Retry Git acquisition or proxy tests after all readiness checks pass; dependency installation must also satisfy the project plan's support conditions.")}</li>
+        </ol>
+        {Boolean(settings?.executor.missing?.length) && <details>
+          <summary>{copy("查看当前阻塞项（供管理员排查）", "View current blockers (for administrator diagnosis)")}</summary>
+          <ul className="mt-2 list-disc pl-5">{settings?.executor.missing?.map(reason => <li key={reason}><code className="break-all">{reason}</code></li>)}</ul>
+        </details>}
+      </div>
     </Modal>
     {confirmDialog}
   </div>

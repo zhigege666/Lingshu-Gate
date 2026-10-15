@@ -236,12 +236,23 @@ def oauth_http(tmp_path, monkeypatch, request):
                     "server_allowlist": sorted({tool.split(".")[1] for tool in tools}), "tool_allowlist": tools,
                     "access": levels, "expires_at": (datetime.now(timezone.utc) + timedelta(minutes=5)).isoformat(),
                     "rate_per_minute": 500, "concurrency": 10, "policy_version": 1})
+            # 既有直接调用矩阵显式使用完整列表，缺省按需另有真实 JWT 场景覆盖。
+            for grant in grants.values():
+                state.auth_store.database.execute("INSERT INTO authorization_discovery VALUES('external',?,'direct',1)", (grant["id"],))
             yield OAuthHTTP(client, state, key, users, grants, links, calls, credentials, fetches, jwks_requests, verifier, entered, release)
     finally:
         server.should_exit = True
         thread.join(timeout=5)
         listener.close()
         assert not thread.is_alive(), "temporary Gate did not shut down"
+
+
+def test_external_jwt_legacy_grant_defaults_on_demand_independently(oauth_http):
+    env = oauth_http
+    env.state.auth_store.database.execute("DELETE FROM authorization_discovery WHERE kind='external' AND authorization_id=?", (env.grants["alice"]["id"],))
+    env.client.headers["X-Gate-Tool-Mode"] = "direct"
+    assert env.names(env.token("alice")) == {"gate_catalog_search", "gate_tool_describe", "gate_tool_invoke", "gate_instance_list", "gate_instance_session_open", "gate_instance_session_close"}
+    assert env.names(env.token("bob")) == {"mcp__B__read"}
 
 
 def test_ohttp01_scope_intersection_real_dispatch_and_personal_credentials(oauth_http):

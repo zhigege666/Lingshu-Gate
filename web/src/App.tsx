@@ -56,7 +56,7 @@ const DownstreamCredentialsPage = lazy(() => import("@/pages/downstream-credenti
 const InvokePage = lazy(() => import("@/pages/invoke-page").then((module) => ({ default: module.InvokePage })))
 const InvocationAuditPage = lazy(() => import("@/pages/invocation-audit-page").then((module) => ({ default: module.InvocationAuditPage })))
 const LogsEventsPage = lazy(() => import("@/pages/logs-events-page").then((module) => ({ default: module.LogsEventsPage })))
-const PersonalTokensPage = lazy(() => import("@/pages/personal-tokens-page").then((module) => ({ default: module.PersonalTokensPage })))
+const PersonalTokensPage = lazy(() => import("@/pages/my-authorizations-page").then((module) => ({ default: module.MyAuthorizationsPage })))
 const RuntimeCachePage = lazy(() => import("@/pages/runtime-cache-page").then((module) => ({ default: module.RuntimeCachePage })))
 const ServersPage = lazy(() => import("@/pages/servers-page").then((module) => ({ default: module.ServersPage })))
 const ToolsPage = lazy(() => import("@/pages/tools-page").then((module) => ({ default: module.ToolsPage })))
@@ -412,7 +412,7 @@ export default function App() {
             {view === "accessRoles" && <AccessRolesPage locale={locale} t={t} />}
             {view === "accessGrants" && <AccessGrantsPage locale={locale} t={t} />}
             {view === "toolClassifications" && <ToolClassificationsPage locale={locale} t={t} />}
-            {view === "personalTokens" && <PersonalTokensPage locale={locale} t={t} />}
+            {view === "personalTokens" && <PersonalTokensPage initialKind="api" locale={locale} t={t} />}
             {view === "downstreamCredentials" && <DownstreamCredentialsPage locale={locale} t={t} />}
             {view === "invocationAudit" && <InvocationAuditPage locale={locale} t={t} canReadPayload={can("audit.payload.read")} />}
             {view === "logs" && <LogsEventsPage t={t} canManageRetention={can("retention.manage")} />}

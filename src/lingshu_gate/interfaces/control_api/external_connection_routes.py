@@ -53,8 +53,8 @@ class GrantDraftRequest(BaseModel):
     tool_allowlist: list[str] = Field(min_length=1, max_length=1000)
     access: list[Literal["read", "write"]] = Field(min_length=1, max_length=2)
     expires_at: datetime
-    rate_per_minute: int = Field(default=30, ge=1, le=10000)
-    concurrency: int = Field(default=1, ge=1, le=100)
+    rate_per_minute: int = Field(default=6000, ge=1, le=10000)
+    concurrency: int = Field(default=100, ge=1, le=100)
 
     @field_validator("server_allowlist", "tool_allowlist")
     @classmethod

@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest"
-import { filterGrants, grantRemaining, grantState, utcGrantTime } from "./oauth-grants-model"
+import { filterGrants, grantRemaining, grantState, isOAuthQuotaOnlyChange, utcGrantTime } from "./oauth-grants-model"
 import type { OAuthGrant } from "./oauth-api"
 
 const now = 2_000_000_000
@@ -42,5 +42,31 @@ describe("personal grant list", () => {
     expect(grantRemaining(now + 10, now, true)).toBe("剩余约 1 分钟")
     expect(grantRemaining(now + 3601, now, false)).toBe("About 2 h remaining")
     expect(grantRemaining(now + 86400, now, true)).toBe("剩余约 1 天")
+  })
+})
+
+describe("OAuth 仅调整配额的范围保留", () => {
+  const stale: OAuthGrant = { ...base, tools: [{ ...base.tools[0], currently_authorized: false }], scope_currently_authorized: false, server_policies: [{ server_id: "old-server", server_binding: "old-lifecycle", mode: "continuous", access: "read" }] }
+  const original = () => ({ toolIds: stale.tools.map(tool => tool.id), policies: [...stale.server_policies!], expiresAt: stale.expires_at, rate: stale.rate_per_minute, concurrency: stale.concurrency })
+  it("已失效的精确工具与服务绑定不变时允许调高或调低配额，保留原快照", () => {
+    const before = JSON.stringify(stale)
+    expect(isOAuthQuotaOnlyChange(stale, { ...original(), rate: 6000, concurrency: 100 })).toBe(true)
+    expect(isOAuthQuotaOnlyChange(stale, { ...original(), rate: 1 })).toBe(true)
+    expect(JSON.stringify(stale)).toBe(before)
+    expect(stale.tools[0].currently_authorized).toBe(false)
+    expect(stale.server_policies![0].server_binding).toBe("old-lifecycle")
+  })
+  it("改动工具、服务意图、身份绑定或到期时间不能通过仅配额路径", () => {
+    const draft = { ...original(), rate: 6000 }
+    expect(isOAuthQuotaOnlyChange(stale, { ...draft, toolIds: [] })).toBe(false)
+    expect(isOAuthQuotaOnlyChange(stale, { ...draft, policies: [] })).toBe(false)
+    expect(isOAuthQuotaOnlyChange(stale, { ...draft, policies: [{ ...draft.policies[0], access: "write" }] })).toBe(false)
+    expect(isOAuthQuotaOnlyChange(stale, { ...draft, policies: [{ ...draft.policies[0], server_binding: "new-lifecycle" }] })).toBe(false)
+    expect(isOAuthQuotaOnlyChange(stale, { ...draft, expiresAt: stale.expires_at - 60 })).toBe(false)
+    expect(isOAuthQuotaOnlyChange(stale, original())).toBe(false)
+    expect(isOAuthQuotaOnlyChange(stale, { ...draft, rate: null })).toBe(false)
+  })
+  it("采用后端兼容语义：省略未改变策略的绑定仍只保留原绑定", () => {
+    expect(isOAuthQuotaOnlyChange(stale, { ...original(), rate: 6000, policies: [{ server_id: "old-server", mode: "continuous", access: "read" }] })).toBe(true)
   })
 })

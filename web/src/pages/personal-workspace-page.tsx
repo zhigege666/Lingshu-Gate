@@ -1,5 +1,5 @@
 import { InvocationPayloadPanel, payloadText, type InvocationDetail } from "@/components/invocation-payload-panel"
-import { ExternalGrantsPage } from "@/pages/external-connections-page"
+import { MyAuthorizationsPage as ExternalGrantsPage } from "@/pages/my-authorizations-page"
 import { useCallback, useEffect, useRef, useState } from "react"
 import { Alert, Button, Drawer, Input, Table } from "antd"
 import { request, queryString } from "@/api/http"
@@ -126,7 +126,7 @@ function PersonalResourcesPage({ view, locale, t, onInvoke, viewState = initialP
   }
   function changePage(next: number) { restoreTop.current = 0; setScrollTop(0); setPage(next) }
   function openDetail(id: string) { setDetailPage(1); setSelected(id) }
-  const title = view === "myServers" ? (zh ? "我的 MCP" : "My MCP") : view === "myConnections" ? (zh ? "我的连接" : "My connections") : (zh ? "我的调用" : "My invocations")
+  const title = view === "myServers" ? (zh ? "我的 MCP" : "My MCP") : view === "myConnections" ? (zh ? "我的授权" : "My authorizations") : (zh ? "我的调用" : "My invocations")
   const filtered = audits.filter(item => `${item.server_id} ${item.tool_id} ${item.correlation_id} ${item.outcome}`.toLowerCase().includes(query.toLowerCase()))
   return <div className="personal-workspace-page" ref={tableRegion}>
     {view !== "myConnections" && <PageHeader closeLabel={t("close")} title={title} />}

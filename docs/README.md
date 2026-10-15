@@ -12,7 +12,7 @@ This documentation describes the current Gate product boundary. English is autho
 | [Architecture](architecture.md) | Components, request paths, persistence, and trust boundaries |
 | [Configuration](configuration.md) | Environment variables, directories, manifests, credentials, and reverse proxy settings |
 | [MCP gateway](mcp-gateway.md) | Gateway endpoint, protocol negotiation, downstream HTTP/stdio, discovery, classification, and invocation |
-| [On-demand tools](on-demand-tools.md) | Six bounded discovery/session entries, per-client modes, unchanged authorization and synthetic scale benchmarks |
+| [On-demand tools](on-demand-tools.md) | Six bounded discovery/session entries, per-authorization modes defaulting to on-demand, unchanged authority and synthetic benchmarks |
 | [On-demand integration provenance](on-demand-integration.md) | Exact group commit mapping, conflict resolution and targeted security evidence |
 | [On-demand integration validation](on-demand-integration-validation.md) | Exact test checkpoints, physical/group measurements and native worker evidence |
 | [Gate feature integration candidate](gate-feature-integration.md) | OAuth/catalog/groups/Native provenance, a3b57f7 frontend checks, fresh ed34c5a wheel/Linux package acceptance and inherited backend evidence |
@@ -33,6 +33,7 @@ This documentation describes the current Gate product boundary. English is autho
 | [Browser regression](browser-regression.md) | Isolated real-backend Playwright, synthetic large lists, scenario IDs and evidence boundaries |
 | [External OAuth resource access](external-connections.md) | Default-disabled JWT verification, trust configuration, personal delegations and integration boundaries |
 | [Built-in OAuth authorization](builtin-oauth.md) | Existing Gate users, static clients, consent, refresh/revoke and public proxy allowlist |
+| [My authorizations](my-authorizations.md) | Unified personal credentials, continuous MCP scope, editable quotas and safety/support boundaries |
 | [OAuth Console density](oauth-console-density.md) | Development scope-editor and configured-management layout, unchanged authorization and synthetic evidence |
 | [Release artifacts](releases.md) | Platform archives, checksums, SBOM, build metadata, offline images, and publishing rules |
 | [0.4.0 validation record](release-validation.md) | Executed checks, synthetic screenshots and remaining acceptance gaps |

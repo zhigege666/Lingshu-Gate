@@ -1,0 +1,9 @@
+.authorization-field { display:grid; grid-template-columns: max-content minmax(0,1fr); align-items:center; gap:12px; }
+.authorization-field > label { min-width:144px; white-space:nowrap; }
+.authorization-quota-fields { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:16px; }
+.authorization-field .ant-input-number { width:100%; max-width:240px; }
+.authorization-mcp-editor { display:flex; flex-direction:column; gap:12px; min-width:0; }
+.authorization-mcp-editor .ant-radio-group { display:flex; flex-wrap:wrap; gap:4px; }
+.authorization-toolbar { display:flex; flex-wrap:wrap; align-items:center; gap:12px; }
+.authorization-toolbar > .ant-input-affix-wrapper { max-width:320px; }
+@media(max-width:900px) { .authorization-quota-fields { grid-template-columns:1fr; } }

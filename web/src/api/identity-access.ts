@@ -170,6 +170,13 @@ export type InvocationStatistics = {
 }
 
 export type PersonalToken = {
+  tool_discovery_mode?: "on_demand" | "direct"
+  authorization_mode?: "account" | "independent"
+  authorization_revision?: number
+  server_policies?: { server_id: string; server_binding?: string; mode: "continuous"; access: "read" | "write" }[]
+  tool_ids?: string[]
+  rate_per_minute?: number | null
+  concurrency?: number | null
   id: string
   name: string
   username?: string | null

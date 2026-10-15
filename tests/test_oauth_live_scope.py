@@ -19,6 +19,7 @@ from lingshu_gate.observability_store import ObservabilityStore
 from lingshu_gate.oauth_server import OAuthError, SCOPE_CONFIRMATION_TTL
 from lingshu_gate.oauth_store import OAuthStore, _interaction_capacity_schema, _schema
 from lingshu_gate.persistence.migrations import Migration, MigrationRunner
+from lingshu_gate.persistence.token_authorizations_migration import TOKEN_AUTHORIZATIONS_MIGRATION_ID
 from lingshu_gate.transports.http import build_protocol_request
 from lingshu_gate.transports.oauth import McpOAuthDiscoveryBoundary, OAuthProtectedResourceMetadata
 from test_builtin_oauth import ISSUER, REDIRECT, RESOURCE, VERIFIER, enable, exchange, issue_code, refresh
@@ -74,6 +75,9 @@ def test_same_http_bearer_lists_and_calls_new_mcp_after_owner_confirmation_and_r
     code = issue_code(gate, client, tools=original_ids)
     grant = gate["server"].store.grants(gate["users"]["alice"]["id"])[0]
     other_code = issue_code(gate, client, tools=original_ids)
+    # 完整列表用例明确选择 direct；其他用例继续检验按需缺省。
+    for item in gate["server"].store.grants(gate["users"]["alice"]["id"]):
+        gate["db"].execute("INSERT INTO authorization_discovery VALUES('builtin',?,'direct',1)", (item["id"],))
     with TestClient(gate["app"], base_url=ISSUER) as browser:
         token_fields = {"grant_type": "authorization_code", "resource": RESOURCE, "redirect_uri": REDIRECT,
                         "code_verifier": VERIFIER, "client_id": client["id"], "client_secret": secret}
@@ -339,12 +343,30 @@ def test_live_resource_permission_revocation_after_preview_cannot_commit(gate):
         apply(gate, grant, prepared)
 
 
-@pytest.mark.parametrize("limit,value", [("expires_at", 9999999999), ("rate", 31), ("concurrency", 2)])
-def test_live_scope_update_cannot_increase_expiry_or_quotas(gate, limit, value):
+@pytest.mark.parametrize("limit,value", [("expires_at", 9999999999), ("rate", 10001), ("concurrency", 101)])
+def test_live_scope_update_cannot_increase_expiry_or_exceed_quota_bounds(gate, limit, value):
     _, _, grant, _ = initial(gate)
     allow_b(gate)
     with pytest.raises(OAuthError, match="grant_limits_can_only_narrow"):
         preview(gate, grant, **{limit: value})
+
+
+def test_owner_confirmed_quota_only_update_can_raise_then_lower_without_widening_scopes(gate):
+    _, _, grant, tokens = initial(gate)
+    original_family = [dict(row) for row in gate["db"].query_all("SELECT * FROM gate_oauth_families")]
+    prepared = preview(gate, grant, ids=["mcp.A.read"], rate=6000, concurrency=100)
+    assert prepared["previous_rate_per_minute"] == 30 and prepared["previous_concurrency"] == 1
+    assert gate["server"].verify(tokens["access_token"]).external_rate_per_minute == 30
+    updated = apply(gate, grant, prepared)
+    principal = gate["server"].verify(tokens["access_token"])
+    assert principal.external_rate_per_minute == 6000 and principal.external_concurrency == 100
+    assert principal.external_tool_ids == ("mcp.A.read",)
+    lowered = apply(gate, updated, preview(gate, updated, ids=["mcp.A.read"], rate=10, concurrency=2))
+    assert lowered["scopes"] == grant["scopes"] and lowered["expires_at"] == grant["expires_at"]
+    assert [dict(row) for row in gate["db"].query_all("SELECT * FROM gate_oauth_families")] == original_family
+    with pytest.raises(OAuthError, match="grant_can_only_narrow"):
+        gate["server"].narrow_grant(grant["user_id"], lowered["id"], lowered["revision"],
+            ["mcp.A.read"], lowered["expires_at"], 6000, 100)
 
 
 def test_confirmation_capacity_replacement_and_expiry_cleanup_are_bounded(gate, monkeypatch):
@@ -398,7 +420,8 @@ def test_published_v042_nonempty_database_upgrade_and_second_start_preserve_exis
             fields = ",".join(f'"{column}"' for column in columns)
             rows = gate["db"].query_all(f'SELECT {fields} FROM "{table}"')
             if table == "schema_migrations":
-                    rows = [row for row in rows if row["id"] not in {"0009_oauth_scope_confirmations", "0012_oauth_management_resource"}]
+                    rows = [row for row in rows if row["id"] not in {"0009_oauth_scope_confirmations", "0012_oauth_management_resource",
+                                                                      "0019_oauth_server_policies", TOKEN_AUTHORIZATIONS_MIGRATION_ID}]
             connection.executemany(f'INSERT INTO "{table}" ({fields}) VALUES ({",".join("?" for _ in columns)})',
                                    [tuple(row) for row in rows])
         assert connection.execute("PRAGMA foreign_key_check").fetchall() == []
@@ -438,13 +461,15 @@ def test_published_v042_nonempty_database_upgrade_and_second_start_preserve_exis
     first_app = main_module.create_app()
     assert snapshot() == before
     after_migrations = {row["id"]: row["applied_at"] for row in legacy.query_all("SELECT * FROM schema_migrations")}
-    new_migrations = {"0009_oauth_scope_confirmations", "0012_oauth_management_resource"}
+    new_migrations = {"0009_oauth_scope_confirmations", "0012_oauth_management_resource", "0019_oauth_server_policies",
+                      TOKEN_AUTHORIZATIONS_MIGRATION_ID}
     assert {key: value for key, value in after_migrations.items() if key not in new_migrations} == before_migrations
     assert set(after_migrations) - set(before_migrations) == new_migrations
     assert all(row[0] == '["business"]' for row in legacy.query_all("SELECT resources_json FROM gate_oauth_clients"))
     assert all(tuple(row) == ("{}", 0) for row in legacy.query_all("SELECT management_targets_json,target_revision FROM gate_oauth_grants"))
     assert legacy.query_all("SELECT * FROM gate_oauth_management_config") == []
     assert legacy.query_all("SELECT * FROM gate_oauth_scope_confirmations") == []
+    assert all(row[0] == "[]" for row in legacy.query_all("SELECT server_policies_json FROM gate_oauth_grants"))
     upgraded = {**gate, "server": first_app.state.oauth_server, "db": legacy, "auth": first_app.state.auth_store}
     confirmation = preview(upgraded, grant, ids=["mcp.A.read"])
     confirmation_row = dict(legacy.query_one("SELECT * FROM gate_oauth_scope_confirmations WHERE grant_id=?", (grant["id"],)))

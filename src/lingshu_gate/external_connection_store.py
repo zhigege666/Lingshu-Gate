@@ -89,11 +89,15 @@ class ExternalConnectionStore:
 
     def list_grants(self, user_id: str) -> list[dict[str, Any]]:
         return [self._grant(row) for row in self.database.query_all(
-            "SELECT * FROM user_external_grant_drafts WHERE user_id = ? ORDER BY created_at DESC", (user_id,))]
+            "SELECT g.*,COALESCE(d.mode,'on_demand') AS tool_discovery_mode FROM user_external_grant_drafts g "
+            "LEFT JOIN authorization_discovery d ON d.kind='external' AND d.authorization_id=g.id "
+            "WHERE g.user_id=? ORDER BY g.created_at DESC", (user_id,))]
 
     def get_grant(self, user_id: str, grant_id: str) -> dict[str, Any]:
         row = self.database.query_one(
-            "SELECT * FROM user_external_grant_drafts WHERE id = ? AND user_id = ?", (grant_id, user_id))
+            "SELECT g.*,COALESCE(d.mode,'on_demand') AS tool_discovery_mode FROM user_external_grant_drafts g "
+            "LEFT JOIN authorization_discovery d ON d.kind='external' AND d.authorization_id=g.id "
+            "WHERE g.id=? AND g.user_id=?", (grant_id, user_id))
         if not row:
             raise KeyError("grant not found")
         return self._grant(row)
@@ -137,7 +141,8 @@ class ExternalConnectionStore:
     def _grant(row: Any) -> dict[str, Any]:
         return {**json.loads(row["payload_json"]), "id": row["id"], "user_id": row["user_id"],
                 "revision": row["revision"], "revoked_at": row["revoked_at"],
-                "created_at": row["created_at"], "updated_at": row["updated_at"]}
+                "created_at": row["created_at"], "updated_at": row["updated_at"],
+                "tool_discovery_mode": dict(row).get("tool_discovery_mode", "on_demand")}
 
 
     @staticmethod

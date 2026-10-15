@@ -659,6 +659,8 @@ def test_full_mcp_transport_reauthenticates_each_call_before_downstream(gate, mu
     info, secret = enable(gate)
     server = gate["server"]
     tokens = exchange(server, info, secret, issue_code(gate, info))
+    grant = server.store.grants(gate["users"]["alice"]["id"])[0]
+    gate["db"].execute("INSERT INTO authorization_discovery VALUES('builtin',?,'direct',1)", (grant["id"],))
     token = tokens["access_token"]
     calls = []
     class Downstream:
@@ -710,6 +712,7 @@ def test_mcp_rechecks_after_request_body_before_dispatch(gate, monkeypatch):
     server = gate["server"]
     token = exchange(server, info, secret, issue_code(gate, info))["access_token"]
     grant = server.store.grants(gate["users"]["alice"]["id"])[0]
+    gate["db"].execute("INSERT INTO authorization_discovery VALUES('builtin',?,'direct',1)", (grant["id"],))
     original_json = Request.json
     async def revoke_after_body(request):
         body = await original_json(request)

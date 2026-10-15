@@ -104,11 +104,18 @@ const controlPermissionPresentations: Record<Locale, Record<string, ControlPermi
     "grants.manage": { name: "资源授权", description: "维护用户和角色的 MCP 服务或工具授权。", group: "身份与授权" },
     "classifications.manage": { name: "工具读写分类", description: "分析、确认并发布工具的只读或读写分类。", group: "身份与授权" },
     "credentials.manage.self": { name: "我的 API Token 与下游凭据", description: "维护自己的 Lingshu Gate API Token 和下游 MCP 凭据。", group: "凭据与审计" },
+    "credentials.manage.system": { name: "共享服务凭据", description: "维护共享 MCP 服务凭据，与个人下游凭据分别管理。", group: "凭据与审计" },
     "credentials.manage.all": { name: "全部用户 API Token", description: "查看并吊销全部用户的 API Token，不读取用户下游秘密。", group: "凭据与审计" },
+    "retention.manage": { name: "记录保留与内容策略", description: "管理日志、事件和调用记录的保留期限，以及调用内容记录策略。", group: "凭据与审计" },
     "audit.read": { name: "调用审计", description: "查看 MCP 调用的授权判定和执行结果。", group: "凭据与审计" },
-    "tools.read": { name: "工具", description: "发现获准使用的 MCP 工具。", group: "工具调用与运行态" },
-    "tools.invoke": { name: "调用", description: "调用获准使用的只读或写入 MCP 工具。", group: "工具调用与运行态" },
+    "audit.payload.read": { name: "其他用户调用内容", description: "读取经过脱敏和限长的其他用户调用内容；调用审计权限本身不包含此权限。", group: "凭据与审计" },
+    "tools.read": { name: "只读工具", description: "发现并调用获准使用的只读 MCP 工具。", group: "工具调用与运行态" },
+    "tools.invoke": { name: "写入工具", description: "调用获准使用的写入 MCP 工具；只读调用还需 tools.read。", group: "工具调用与运行态" },
+    "observability.read.all": { name: "全部运维日志与事件", description: "读取全部服务和系统级的运维日志与事件。", group: "工具调用与运行态" },
     "operations.manage": { name: "配置与运维管理", description: "管理 MCP 配置、服务、构建部署、运行缓存、上传和诊断等页面。", group: "工具调用与运行态" },
+    "system_settings.manage": { name: "系统网络配置", description: "管理交付网络配置；使用网络另需 network.use。", group: "系统与外部接入" },
+    "network.use": { name: "Git 与依赖网络使用", description: "使用已审查的 Git 与依赖网络；不包含网络配置管理权限。", group: "系统与外部接入" },
+    "external_connections.manage": { name: "外部连接与受信身份", description: "管理共享外部接入、受信身份和授权验证配置，不代替用户同意授权。", group: "系统与外部接入" },
   },
   "en-US": {
     "console.view": { name: "Dashboard & console", description: "Sign in and view the dashboard and basic console information.", group: "Console basics" },
@@ -117,18 +124,26 @@ const controlPermissionPresentations: Record<Locale, Record<string, ControlPermi
     "grants.manage": { name: "Resource grants", description: "Manage MCP server or tool grants for users and roles.", group: "Identity & access" },
     "classifications.manage": { name: "Tool classification", description: "Analyze, confirm, and publish read or write classifications for tools.", group: "Identity & access" },
     "credentials.manage.self": { name: "My API tokens & downstream credentials", description: "Manage personal Lingshu Gate API tokens and downstream MCP credentials.", group: "Credentials & audit" },
+    "credentials.manage.system": { name: "Shared service credentials", description: "Manage shared MCP service credentials separately from personal downstream credentials.", group: "Credentials & audit" },
     "credentials.manage.all": { name: "All user API tokens", description: "View and revoke user API tokens without reading downstream secrets.", group: "Credentials & audit" },
+    "retention.manage": { name: "Record retention & content policy", description: "Manage retention for logs, events, and invocation records, and invocation content recording policies.", group: "Credentials & audit" },
     "audit.read": { name: "Invocation audit", description: "Review MCP authorization decisions and invocation results.", group: "Credentials & audit" },
-    "tools.read": { name: "Tools", description: "Discover MCP tools the user is allowed to access.", group: "Tools & runtime" },
-    "tools.invoke": { name: "Invoke", description: "Invoke allowed read-only or write MCP tools.", group: "Tools & runtime" },
+    "audit.payload.read": { name: "Other users' invocation content", description: "Read redacted, bounded invocation content for other users. Invocation audit access alone does not grant this permission.", group: "Credentials & audit" },
+    "tools.read": { name: "Read-only tools", description: "Discover and invoke granted read-only MCP tools.", group: "Tools & runtime" },
+    "tools.invoke": { name: "Write tools", description: "Invoke granted write MCP tools. Read-only calls also require tools.read.", group: "Tools & runtime" },
+    "observability.read.all": { name: "All operational logs & events", description: "Read operational logs and events for all services and the system.", group: "Tools & runtime" },
     "operations.manage": { name: "Configuration & operations", description: "Manage MCP configuration, services, builds, runtime cache, uploads, and diagnostics.", group: "Tools & runtime" },
+    "system_settings.manage": { name: "System network settings", description: "Manage delivery network settings. Network use separately requires network.use.", group: "System & external connections" },
+    "network.use": { name: "Git & dependency network use", description: "Use reviewed Git and dependency networks without permission to manage network settings.", group: "System & external connections" },
+    "external_connections.manage": { name: "External connections & trusted identities", description: "Manage shared external access, trusted identities, and authorization verification settings without consenting on behalf of users.", group: "System & external connections" },
   },
 }
 
-export function presentControlPermission(permission: ControlPermission, locale: Locale): ControlPermissionPresentation {
+// 角色接口提供完整权限记录，Token 身份只提供 code；两处共用用途文案。
+export function presentControlPermission(permission: Pick<ControlPermission, "code"> & Partial<Pick<ControlPermission, "name" | "description">>, locale: Locale): ControlPermissionPresentation {
   return controlPermissionPresentations[locale][permission.code] || {
     name: permission.name || permission.code,
-    description: permission.description,
+    description: permission.description || (locale === "zh-CN" ? "该权限尚未提供用途说明，请核对权限标识。" : "No purpose description is available for this permission. Review its code."),
     group: locale === "zh-CN" ? "其他权限" : "Other permissions",
   }
 }

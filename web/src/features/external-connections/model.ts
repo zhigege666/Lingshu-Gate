@@ -2,7 +2,7 @@ import type { ToolDefinition } from "@/api/client"
 export type ConnectionDraft = { enabled: boolean; mode: "disabled" | "direct" | "secure_mcp_tunnel"; endpoint: string | null; canonical_resource_url: string | null; tunnel_reference: string | null; runtime_secret_reference: string | null; trusted_issuers: string[]; issuer_jwks: [string, string][]; client_allowlist: string[]; resource_mappings: [string, string][] }
 export type ConnectionSnapshot = Partial<ConnectionDraft> & { revision: number; validation_errors?: string[]; connected?: boolean; oauth_verifier_ready?: boolean; provider_verified?: boolean }
 export const emptyConnection: ConnectionDraft = { enabled: false, mode: "disabled", endpoint: null, canonical_resource_url: null, tunnel_reference: null, runtime_secret_reference: null, trusted_issuers: [], issuer_jwks: [], client_allowlist: [], resource_mappings: [] }
-export type GrantDraft = { enabled: boolean; client_id: string; server_allowlist: string[]; tool_allowlist: string[]; access: ("read" | "write")[]; expires_at: string; rate_per_minute: number; concurrency: number }
+export type GrantDraft = { enabled: boolean; client_id: string; server_allowlist: string[]; tool_allowlist: string[]; access: ("read" | "write")[]; expires_at: string; rate_per_minute: number | null; concurrency: number | null }
 export type Grant = GrantDraft & { id: string; revision: number; state: "enabled" | "active" | "disabled" | "expired" | "revoked"; scope_currently_authorized: boolean; activation_errors?: string[]; limits_enforced?: boolean }
 export type GrantList = { grants: Grant[]; connection_ready: boolean; activation_errors: string[]; allowed_client_ids?: string[] }
 export type BindingUser = { id: string; username: string; display_name: string; status: string }
@@ -48,7 +48,7 @@ export function eligibleTools(tools: ToolDefinition[], access: "read" | "write")
 export function grantError(draft: GrantDraft, tools: ToolDefinition[], now = Date.now()): string | null {
   if (!/^[A-Za-z0-9_.:/-]{1,256}$/.test(draft.client_id)) return "Enter a client ID, not a secret."
   if (!Number.isFinite(Date.parse(draft.expires_at)) || Date.parse(draft.expires_at) <= now) return "Choose a future expiry."
-  if (!Number.isInteger(draft.rate_per_minute) || draft.rate_per_minute < 1 || draft.rate_per_minute > 10000 || !Number.isInteger(draft.concurrency) || draft.concurrency < 1 || draft.concurrency > 100) return "Rate and concurrency must be whole numbers within the displayed bounds."
+  if (!Number.isInteger(draft.rate_per_minute) || (draft.rate_per_minute ?? 0) < 1 || (draft.rate_per_minute ?? 0) > 10000 || !Number.isInteger(draft.concurrency) || (draft.concurrency ?? 0) < 1 || (draft.concurrency ?? 0) > 100) return "Rate and concurrency must be whole numbers within the displayed bounds."
   if (!draft.access.length || draft.access.some(value => !["read", "write"].includes(value))) return "Choose an access level."
   const eligible = new Set(draft.access.flatMap(access => eligibleTools(tools, access).map(tool => tool.id)))
   if (!draft.tool_allowlist.length || draft.tool_allowlist.length > 1000 || draft.tool_allowlist.some(id => !eligible.has(id))) return "Select currently authorized published tools; unavailable selections must be removed."

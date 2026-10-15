@@ -90,7 +90,7 @@ export const CONSOLE_ROUTES = [
   { id: "connectionInfrastructure", label: { source: "navigation", key: "connectionInfrastructure" }, icon: Server, permission: "external_connections.manage", section: "access" },
   { id: "myConnections", label: { source: "navigation", key: "myConnections" }, icon: Fingerprint, permission: "credentials.manage.self", section: "personal", requiresAuthentication: true },
   { id: "myInvocations", label: { source: "navigation", key: "myInvocations" }, icon: ScrollText, permission: "console.view", section: "personal", requiresAuthentication: true },
-  { id: "personalTokens", label: { source: "navigation", key: "tokens" }, icon: KeyRound, permission: "credentials.manage.self", section: "personal", requiresAuthentication: true },
+  { id: "personalTokens", hidden: true, label: { source: "navigation", key: "tokens" }, icon: KeyRound, permission: "credentials.manage.self", section: "personal", requiresAuthentication: true },
   { id: "downstreamCredentials", label: { source: "navigation", key: "downstream" }, icon: Fingerprint, permission: "credentials.manage.self", section: "personal", requiresAuthentication: true },
 ] as const satisfies readonly ConsoleRouteDefinition[]
 

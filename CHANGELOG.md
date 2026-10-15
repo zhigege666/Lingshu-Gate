@@ -2,10 +2,16 @@
 
 ## Unreleased
 
+## 0.4.8
+
+- Unify personal credentials under "My Authorizations" in the Web Console: personal API tokens, Gate OAuth grants, and external identity authorizations share a unified management table, toolbar search and filtering, status indicators, and lifecycle operations without separate standalone pages or redundant intros.
+- Continuous MCP authorization: personal API tokens and Gate OAuth grants support whole-service continuous authorization in read-only or read-write mode, automatically granting newly discovered and published tools under that MCP. Bind continuous policies to service lifecycle identity so deleted and recreated services or replaced trust targets require explicit re-authorization.
+- Authorization-level on-demand discovery: persist tool discovery mode (`on_demand` vs `direct`) per authorization for personal API tokens, Gate OAuth grants, and external OAuth records, defaulting both new and existing business authorizations to on-demand. Client URL query parameters and request headers are ignored in favor of the persistent setting.
+- Editable invocation limits: business authorizations enforce per-minute rate limits (1–10,000, default 6,000) and concurrency limits (1–100, default 100), verified in dispatch with CAS revisions, explicit preview differences, and atomic rollback audit.
 - Distinguish multi-instance execution (`execution`) from multi-data-source query (`data_source`) through an explicit group purpose. Preserve existing groups as `unspecified`; legacy updates that omit the purpose retain the saved value, and legacy MCP creation receipts keep their request digest across upgrades.
 - Require a purpose choice in Console and show it in group directories/details. Authorized on-demand group summaries, instance pages, describe and session-open results identify the purpose and selected source using existing instance names.
-- Reuse existing contract partitioning, authority checks, explicit instance sessions, revision invalidation, body-bound CSRF, creation idempotency and atomic audit. Group purposes do not authorize tools, automatically choose peers, locate datasets, merge results or replay calls.
-- Update paired group, routing and on-demand guides and security notes; correct obsolete pre-integration status text while keeping this source change separate from published 0.4.7 behavior.
+- Database migrations: add `authorization_discovery`, `mcp_authorization_identity`, and `token_authorizations` migrations while preserving single-writer SQLite and isolated Core execution boundaries.
+- See the paired [0.4.8 validation record](docs/release-validation-0.4.8.md) for executed checks and candidate boundaries.
 
 ## 0.4.7
 

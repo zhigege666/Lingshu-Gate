@@ -7,15 +7,16 @@ A self-hosted MCP gateway and control plane with explicit identity, tool-access,
 Use Gate to manage multiple MCP servers, give remote MCP clients controlled tool access, and deliver projects on trusted native hosts. One MCP Gateway, Web Console and control API connect service operations with user governance.
 
 > [!NOTE]
-> **0.4.7 Release status and boundary notice**
+> **0.4.8 Release status and boundary notice**
 >
-> - **Catalog resilience & groups**: Large MCP group-directory reads reuse immutable contracts when a concurrent configuration change requires a snapshot retry, while current permissions remain authoritative. Logical groups reference existing instances without copying credentials or granting access.
+> - **Unified authorizations & continuous MCP scope**: Personal API tokens, Gate OAuth grants, and external identity authorizations are unified in the Web Console under [My Authorizations](docs/my-authorizations.md). Business authorizations support continuous whole-service MCP scoping in read-only or read-write mode, automatically granting newly published tools, with configurable per-minute (default 6,000) and concurrency (default 100) call limits.
+> - **On-demand tool discovery**: Business authorizations default to six bounded discovery and session entries per authorization. Select On demand or Full tool list per authorization; request-level overrides are ignored. See the [guide](docs/on-demand-tools.md) for client refresh and compatibility.
+> - **Group purpose distinction**: Multi-instance execution (`execution`) and multi-data-source query (`data_source`) groups are explicitly identified, while existing groups remain `unspecified`.
 > - **Console & discovery**: The Web Console opens at `/`, with compatible legacy `/console` links and JSON service discovery. Sign-in and Console show the running backend version from `/healthz`.
-> - **On-demand tool discovery**: The [on-demand directory](docs/on-demand-tools.md) exposes six bounded discovery/session entries when the client explicitly selects `/mcp?tool_mode=on_demand`; invocation rechecks real tool and instance authority.
 > - **OAuth administration**: Built-in OAuth and the separate `/mcp/manage` resource remain opt-in and default-off. Private OAuth selection uses bounded pages, preserves drafts, and reconciles unknown write outcomes before a new confirmation.
 > - **Native executor boundary**: The optional Native/Linux rootless Podman executor defaults to disabled and requires separately reviewed host provisioning/readiness. Its Git/proxy/tool preparation and supported offline install/build paths have synthetic regression evidence; real Podman host, ChatGPT OAuth client and multi-machine acceptance remain incomplete. Core remains gateway-only.
 >
-> See the [release summary](packaging/release-notes.md) and [0.4.7 validation record](docs/release-validation-0.4.7.md).
+> See the [release summary](packaging/release-notes.md) and [0.4.8 validation record](docs/release-validation-0.4.8.md).
 
 ## Architecture overview
 
@@ -59,7 +60,7 @@ flowchart TB
 |---|---|---|
 | MCP gateway and transports | One authenticated Model Context Protocol endpoint; stateless JSON `/mcp`, remote MCP over Streamable HTTP, native stdio, explicit versions and bounded legacy negotiation. Tool aggregation, not generic resource/prompt hosting. | [Guide](docs/mcp-gateway.md) |
 | MCP groups and instance sessions | Logical groups reference existing instances without copying credentials or granting access; contract partitions and connection-bound sessions. | [Guide](docs/mcp-groups.md) |
-| On-demand tool discovery | Exposes six bounded discovery and session entries when selecting `/mcp?tool_mode=on_demand`, preventing schema flooding in AI clients; invocation rechecks authority. | [Guide](docs/on-demand-tools.md) |
+| On-demand tool discovery | New and existing business authorizations default to six bounded entries in development source; each authorization can select a full list, with unchanged authority checks. | [Guide](docs/on-demand-tools.md) |
 | Accounts and RBAC | Local sign-in, registration review, custom roles and permission types, service/tool grants, expiry, scoped personal API tokens and user status controls. | [Guide](docs/configuration.md) |
 | Tool governance | Discovery → rule analysis → human review → publication; read/write and destructive/idempotent classifications, fingerprint checks, batch review and stale-definition reconciliation. Discovery never grants access. | [Guide](docs/mcp-gateway.md) |
 | Built-in OAuth and remote access | Opt-in authorization-code flow for OAuth 2.1 / PKCE clients: confidential static clients, S256, per-user tool consent, encrypted RS256 signing keys, refresh rotation and revocation. Independent public consent UI; no DCR/CIMD or full-conformance claim. | [Guide](docs/builtin-oauth.md) |

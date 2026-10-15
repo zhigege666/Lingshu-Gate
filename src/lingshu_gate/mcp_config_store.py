@@ -22,6 +22,7 @@ from lingshu_gate.logging import log_event
 from lingshu_gate.endpoint_security import REDACTED_ENDPOINT
 from lingshu_gate.mcp_manifest import McpServerManifest, validate_manifest_for_write
 from lingshu_gate.mcp_http_trust import McpHttpTrustStore, require_mcp_http_endpoint
+from lingshu_gate.mcp_authorization_policy import record_config_identity, server_binding
 from lingshu_gate.models import McpConfigListResponse, McpConfigResponse
 from lingshu_gate.redaction import redact_text, redact_validation_errors
 
@@ -53,6 +54,29 @@ class McpConfigStore:
         self._metadata_index: dict[str, McpInstanceMetadata] = {}
         self._metadata_revision = 0
         self._metadata_built_at = 0.0
+        if self.http_trust_store is not None:
+            # 启动时对账已保存配置；外部替换文件不能恢复旧持续授权身份。
+            for path in self._iter_files():
+                try:
+                    manifest = self._load_manifest(path)
+                    self._record_authorization_identity(manifest, path, check_previous=True)
+                except (ValueError, OSError, ValidationError):
+                    continue
+
+    def _record_authorization_identity(self, manifest: McpServerManifest, path: Path, *,
+                                       replace: bool = False, check_previous: bool = False) -> None:
+        if self.http_trust_store is None:
+            return
+        with self.http_trust_store.database.session() as connection:
+            if check_previous:
+                try:
+                    server_binding(connection, manifest.id)
+                except ValueError:
+                    replace = True
+            record_config_identity(connection, manifest.id, path,
+                {"launch_type": manifest.launch.type, "transport": manifest.transport.type,
+                 "endpoint": manifest.transport.endpoint if manifest.transport.type == "streamable_http" else None},
+                replace=replace)
 
     def invalidate_instance_metadata(self) -> None:
         with self.mutation_lock, self._metadata_lock:
@@ -171,9 +195,17 @@ class McpConfigStore:
             manifest_data = self._preserve_masked_env(manifest_data, existing_raw)
 
         manifest = _validate_manifest(manifest_data, for_write=True, http_trust_store=self.http_trust_store)
+        replace_identity = existing_path is None
+        if existing_path and self.http_trust_store is not None:
+            with self.http_trust_store.database.session() as connection:
+                try:
+                    server_binding(connection, manifest.id)
+                except ValueError:
+                    replace_identity = True
         self.config_dir.mkdir(parents=True, exist_ok=True)
         path = self._checked_path(existing_path or self.config_dir / f"{manifest.id}.yaml")
         self._write_manifest(path, manifest.model_dump(mode="json", exclude={"manifest_path"}))
+        self._record_authorization_identity(manifest, path, replace=replace_identity)
         saved = self._load_manifest(path)
         log_event(logger, logging.INFO, "gate.mcp.config_saved", "MCP config saved", server_id=saved.id, path=str(path), overwrite=bool(existing_path))
         return self._to_response(path)
@@ -197,6 +229,8 @@ class McpConfigStore:
         path = self._checked_path(path)
         response = self._to_response(path)
         path.unlink()
+        if self.http_trust_store is not None:
+            self.http_trust_store.database.execute("DELETE FROM gate_mcp_authorization_identities WHERE server_id=?", (server_id,))
         log_event(logger, logging.INFO, "gate.mcp.config_deleted", "MCP config deleted", server_id=server_id, path=str(path))
         return response
 

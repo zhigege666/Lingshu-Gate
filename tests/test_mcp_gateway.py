@@ -73,6 +73,9 @@ def deny_operator(_: Request) -> AuthPrincipal:
 
 
 class FakeAccessStore:
+    def evaluate(self, principal: AuthPrincipal, definition: ToolDefinition):
+        return {"allowed": bool(self.visible_tools(principal, [definition]))}
+
     def observability_server_ids(self, principal, candidates):
         if principal.role == "viewer":
             raise AccessDeniedError("missing operations permission", required_access="operations.manage", granted_access="none")
@@ -93,6 +96,7 @@ class FakeAccessStore:
         principal: AuthPrincipal,
         tool_id: str,
         arguments: dict[str, object],
+        *, dispatch_guard=None,
     ):
         if principal.role == "viewer" and tool_id != SYSTEM_DEBUG_TOOL_ID:
             raise AccessDeniedError(
@@ -101,7 +105,7 @@ class FakeAccessStore:
                 granted_access="read",
             )
         from lingshu_gate.registry import ToolInvocationContext
-        return registry.invoke(tool_id, arguments, context=ToolInvocationContext(
+        return registry.invoke(tool_id, arguments, dispatch_guard=dispatch_guard, context=ToolInvocationContext(
             actor_id=principal.id, username=principal.username, auth_type=principal.auth_type,
             token_id=None, correlation_id="synthetic", roles=(principal.role,),
         ))

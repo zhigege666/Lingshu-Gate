@@ -32,6 +32,15 @@ describe("OAuth scope and request boundaries", () => {
     expect(fetch).toHaveBeenCalledTimes(1)
     expect(fetch.mock.calls[0][1]).toMatchObject({ method: "PATCH", cache: "no-store", credentials: "same-origin" })
   })
+  it("reads FastAPI token authorization errors as safe recoverable codes", async () => {
+    vi.stubGlobal("window", { setTimeout, clearTimeout })
+    const fetch = vi.fn().mockResolvedValue(new Response(JSON.stringify({ detail: "authorization_confirmation_changed" }), { status: 409 }))
+    vi.stubGlobal("fetch", fetch)
+    const result = oauthRequest("/v1/auth/tokens/example/authorization", { confirmation: "synthetic-once" })
+    await expect(result).rejects.toMatchObject({ code: "authorization_confirmation_changed", status: 409 })
+    expect(fetch).toHaveBeenCalledTimes(1)
+    expect(oauthError(new OAuthRequestError("authorization_confirmation_changed", 409), true)).toContain("草稿已保留")
+  })
   it("returns a one-time secret only to the current caller", async () => {
     vi.stubGlobal("window", { setTimeout, clearTimeout })
     vi.stubGlobal("fetch", vi.fn().mockResolvedValue(new Response(JSON.stringify({ client: { id: "synthetic" }, client_secret: "synthetic-once" }), { status: 201 })))

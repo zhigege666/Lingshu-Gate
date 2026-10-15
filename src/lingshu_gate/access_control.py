@@ -23,12 +23,57 @@ from lingshu_gate.domain.oauth_management import MANAGEMENT_READ_TOOLS, MANAGEME
 from lingshu_gate.invocation_payloads import snapshot
 from lingshu_gate.retention_store import RetentionStore
 from lingshu_gate.mcp_runtime import McpRuntimeManager
+from lingshu_gate.mcp_authorization_policy import ensure_server_identity, server_binding, tool_snapshot
 from lingshu_gate.models import ToolDefinition, ToolInvokeResponse
 from lingshu_gate.registry import ToolDispatchRejectedError, ToolExecutionError, ToolInvocationContext, ToolRegistry
 from lingshu_gate.user_credential_store import UserCredentialBindingError
 
 ACCESS_RANK = {"none": 0, "read": 1, "write": 2, "unknown": -1}
 VALID_ACCESS = {"none", "read", "write"}
+
+
+def token_authorization_budget_valid(connection: sqlite3.Connection, principal: AuthPrincipal) -> bool:
+    """每次认证有界计数当前独立范围，不截断超过预算的持续授权。"""
+    if principal.api_token_authorization_mode != "independent":
+        return True
+    policies: dict[str, str] = {}
+    for server_id, binding, access in principal.api_token_server_policies:
+        try:
+            if server_binding(connection, server_id) == binding:
+                policies[server_id] = access
+        except ValueError:
+            continue
+    selected = dict(principal.api_token_tool_snapshots)
+    if len(selected) > 5000 or len(policies) > 100:
+        return False
+    parts: list[str] = []
+    params: list[Any] = []
+    if policies:
+        parts.append("server_id IN (" + ",".join("?" for _ in policies) + ")")
+        params.extend(policies)
+    if selected:
+        parts.append("tool_id IN (" + ",".join("?" for _ in selected) + ")")
+        params.extend(selected)
+    if not parts:
+        return True
+    cursor = connection.execute("SELECT server_id,tool_id,effective_access FROM mcp_tool_classifications "
+        "WHERE status='published' AND effective_access IN ('read','write') AND (" + " OR ".join(parts) + ")", params)
+    count, servers = 0, set()
+    while rows := cursor.fetchmany(250):
+        grants = AccessControlStore._effective_access_map(connection, principal, [(row[0], row[1]) for row in rows])
+        for server_id, tool_id, access in rows:
+            scope = "tools.read" if access == "read" else "tools.invoke"
+            if not _token_scope_allows(principal, access) or not _principal_control_allows(principal, scope):
+                continue
+            if ACCESS_RANK.get(grants[(server_id, tool_id)], 0) < ACCESS_RANK[access]:
+                continue
+            if tool_id not in selected and ACCESS_RANK.get(policies.get(server_id, "none"), 0) < ACCESS_RANK[access]:
+                continue
+            count += 1
+            servers.add(server_id)
+            if count > 5000 or len(servers) > 100:
+                return False
+    return True
 
 READ_PATTERNS = {
     "get",
@@ -667,6 +712,14 @@ class AccessControlStore:
         existing_rows = self._load_classifications(
             connection, ((_server_id(item), item.id) for item in definitions),
         )
+        server_ids = sorted({_server_id(item) for item in definitions if item.source == "mcp"})
+        for offset in range(0, len(server_ids), 250):
+            batch = server_ids[offset:offset + 250]
+            present = {row[0] for row in connection.execute(
+                "SELECT server_id FROM gate_mcp_authorization_identities WHERE server_id IN (" +
+                ",".join("?" for _ in batch) + ")", batch)}
+            for server_id in set(batch) - present:
+                ensure_server_identity(connection, server_id)
         now = iso_now()
         for definition in definitions:
             server_id = _server_id(definition)
@@ -1199,6 +1252,7 @@ class AccessControlStore:
                     definition,
                     classifications.get((_server_id(definition), definition.id)),
                     partial(grants.__getitem__, (_server_id(definition), definition.id)),
+                    connection=connection,
                 )
                 if decision["allowed"]:
                     # Return a request-local display snapshot. Never mutate the
@@ -1240,7 +1294,8 @@ class AccessControlStore:
                         classification = None
                 except (ValueError, TypeError, RecursionError):
                     classification = None
-            decision = self._evaluate(principal, definition, classification, partial(grants.__getitem__, key))
+            decision = self._evaluate(principal, definition, classification, partial(grants.__getitem__, key),
+                                      connection=connection)
             permission = "tools.read" if decision["required_access"] == "read" else "tools.invoke"
             # Legacy admin discovery bypass does not widen this read-only
             # directory's freshly loaded explicit control-permission ceiling.
@@ -1257,6 +1312,7 @@ class AccessControlStore:
                 definition,
                 classification,
                 lambda: self._effective_access_map(connection, principal, [key])[key],
+                connection=connection,
             )
 
     def catalog_authorizer(self, connection: sqlite3.Connection, principal: AuthPrincipal) -> Callable[..., int]:
@@ -1305,19 +1361,49 @@ class AccessControlStore:
             granted_access = granted()
             cache_key = (server_id, source, permission, policy, effective_access, status, granted_access,
                          tool_id if source == "builtin" else None)
-            if principal.auth_type != "oauth" and cache_key in decisions:
+            independent = (principal.auth_type == "token"
+                           and principal.api_token_authorization_mode == "independent")
+            if principal.auth_type != "oauth" and not independent and cache_key in decisions:
                 return decisions[cache_key]
             definition = ToolDefinition.model_construct(
                 id=tool_id, name="", description="", source=source, permission=permission,
                 metadata={**json.loads(policy), "server_id": server_id},
             )
             classification = {"effective_access": effective_access, "status": status} if status else None
-            allowed = int(self._evaluate(principal, definition, classification, lambda: granted_access)["allowed"])
-            if principal.auth_type != "oauth":
+            if independent and tool_id in dict(principal.api_token_tool_snapshots):
+                classification = self._load_classifications(connection, [(server_id, tool_id)]).get((server_id, tool_id))
+            allowed = int(self._evaluate(principal, definition, classification, lambda: granted_access,
+                                         connection=connection)["allowed"])
+            if principal.auth_type != "oauth" and not independent:
                 decisions[cache_key] = allowed
             return allowed
 
         return authorize
+
+    @staticmethod
+    def _token_mcp_policy_allows(principal: AuthPrincipal, definition: ToolDefinition | FrozenToolDefinition,
+                                 classification: dict[str, Any] | None, connection: sqlite3.Connection) -> bool:
+        if (not classification or classification.get("status") != "published"
+                or classification.get("effective_access") not in {"read", "write"}):
+            return False
+        server_id = _server_id(definition)
+        for candidate, binding, access in principal.api_token_server_policies:
+            if candidate != server_id:
+                continue
+            try:
+                return (server_binding(connection, server_id) == binding
+                        and ACCESS_RANK[access] >= ACCESS_RANK[classification["effective_access"]])
+            except (ValueError, KeyError):
+                return False
+        expected = dict(principal.api_token_tool_snapshots).get(definition.id)
+        expected_binding = dict(principal.api_token_tool_bindings).get(definition.id)
+        if expected is None or not expected_binding:
+            return False
+        try:
+            return (server_binding(connection, server_id) == expected_binding
+                    and tool_snapshot(definition, classification) == expected)
+        except (KeyError, TypeError, ValueError):
+            return False
 
     def _evaluate(
         self,
@@ -1325,10 +1411,20 @@ class AccessControlStore:
         definition: ToolDefinition | FrozenToolDefinition,
         classification: dict[str, Any] | None,
         grant_lookup: Callable[[], str],
+        *, connection: sqlite3.Connection | None = None,
     ) -> dict[str, Any]:
         """发现与调用复用同一策略；调用方只负责准备本次请求的分类及授权数据。"""
 
         server_id = _server_id(definition)
+        if (principal.auth_type == "token" and definition.source == "mcp"
+                and principal.api_token_authorization_mode == "independent"):
+            # 业务 MCP 独立策略必须先于管理员旁路执行；内置控制工具仍走其原合同。
+            with (nullcontext(connection) if connection is not None else self.database.session()) as policy_connection:
+                allowed = self._token_mcp_policy_allows(principal, definition, classification, policy_connection)
+            if not allowed:
+                return {"allowed": False, "reason": "API token MCP authorization does not allow this tool",
+                        "server_id": server_id, "required_access": (classification or {}).get("effective_access", "unknown"),
+                        "granted_access": "none", "classification_status": (classification or {}).get("status", "missing")}
         if principal.auth_type == "oauth":
             if principal.oauth_builtin and principal.oauth_resource and principal.oauth_resource.endswith("/mcp/manage"):
                 config_row = self.database.query_one("SELECT payload_json FROM gate_oauth_config WHERE id=1")
@@ -1615,10 +1711,17 @@ class AccessControlStore:
         return ACCESS_RANK.get(granted, 0) >= ACCESS_RANK[required_access]
 
     def _acquire_external_invocation(self, principal: AuthPrincipal) -> str | None:
-        if principal.auth_type != "oauth":
+        if principal.auth_type == "token":
+            if not principal.api_token_rate_per_minute and not principal.api_token_concurrency:
+                return None
+            grant_id = f"api-token:{principal.token_id}"
+            rate, concurrency = principal.api_token_rate_per_minute, principal.api_token_concurrency
+        elif principal.auth_type == "oauth":
+            grant_id = principal.external_grant_id or ""
+            rate, concurrency = principal.external_rate_per_minute, principal.external_concurrency
+        else:
             return None
-        grant_id = principal.external_grant_id
-        if not grant_id or principal.external_rate_per_minute < 1 or principal.external_concurrency < 1:
+        if not grant_id or rate < 1 or concurrency < 1:
             raise AccessDeniedError("external invocation limits are unavailable", required_access="invoke", granted_access="none")
         now = monotonic()
         with self._external_limit_lock:
@@ -1631,9 +1734,9 @@ class AccessControlStore:
                     del self._external_windows[key]
                     self._external_active.pop(key, None)
             window = self._external_windows.setdefault(grant_id, deque())
-            if len(window) >= principal.external_rate_per_minute:
+            if len(window) >= rate:
                 raise AccessDeniedError("external invocation rate limit exceeded", required_access="invoke", granted_access="none")
-            if self._external_active.get(grant_id, 0) >= principal.external_concurrency:
+            if self._external_active.get(grant_id, 0) >= concurrency:
                 raise AccessDeniedError("external invocation concurrency limit exceeded", required_access="invoke", granted_access="none")
             window.append(now)
             self._external_active[grant_id] = self._external_active.get(grant_id, 0) + 1

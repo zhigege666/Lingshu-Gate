@@ -130,13 +130,35 @@ def register_mcp_gateway_route(
         if not has_request_id:
             return Response(status_code=202)
         query_params = QueryParams(request.scope.get("query_string", b""))
-        mode = query_params.get("tool_mode", request.headers.get("x-gate-tool-mode", "direct"))
+        requested_mode = query_params.get("tool_mode", request.headers.get("x-gate-tool-mode"))
         header_mode = request.headers.get("x-gate-tool-mode")
-        if (len(query_params.getlist("tool_mode")) > 1 or len(request.headers.getlist("x-gate-tool-mode")) > 1
-                or mode not in {"direct", "on_demand"} or header_mode is not None and header_mode != mode
+        from lingshu_gate.authorization_discovery import discovery_setting, principal_authorization
+
+        authorization = principal_authorization(principal) if path == "/mcp" else None
+        def saved_mode(actor: AuthPrincipal) -> str:
+            key = principal_authorization(actor)
+            if key is None or key != authorization:
+                raise AccessDeniedError("authorization changed", required_access="invoke", granted_access="none")
+            with access_store.database.session() as connection:
+                return str(discovery_setting(connection, *key)["tool_discovery_mode"])
+
+        # 每条业务授权决定工具呈现；旧客户端参数与请求头（含重复、冲突或未知值）均忽略。
+        # Console 会话与管理资源沿用其既有请求级校验合同。
+        mode = saved_mode(principal) if authorization else requested_mode or "direct"
+        invalid_request_mode = not authorization and (
+            len(query_params.getlist("tool_mode")) > 1 or len(request.headers.getlist("x-gate-tool-mode")) > 1
+            or requested_mode is not None and requested_mode != mode
+            or header_mode is not None and header_mode != mode)
+        if (mode not in {"direct", "on_demand"} or invalid_request_mode
                 or mode == "on_demand" and (path != "/mcp" or catalog is None)):
             return _error_response(request_id, -32602, "Unsupported or conflicting tool_mode", settings,
                 status_code=400, protocol_version=protocol_context.protocol_version)
+        def require_current_mode(request: Request) -> AuthPrincipal:
+            current = require_mcp_viewer(request)
+            if authorization and saved_mode(current) != mode:
+                raise AccessDeniedError("discovery mode changed before dispatch", required_access="invoke", granted_access="none")
+            return current
+
         if mode == "on_demand" and method in {"tools/list", "tools/call"}:
             assert catalog is not None
             try:
@@ -151,7 +173,7 @@ def register_mcp_gateway_route(
                     return _error_response(request_id, -32602, "Select a catalog entry with object arguments", settings,
                         status_code=400, protocol_version=protocol_context.protocol_version)
                 invocation = await run_in_threadpool(_call_catalog_authenticated, catalog, request,
-                    require_mcp_viewer, params["name"], params.get("arguments", {}))
+                    require_current_mode, params["name"], params.get("arguments", {}))
             except ValidationError:
                 return _tool_error(request_id, "Invalid catalog parameters", settings,
                     structured_content={"error": {"code": "catalog_parameters_invalid"}}, protocol_context=protocol_context)
@@ -237,7 +259,7 @@ def register_mcp_gateway_route(
                 principal,
                 protocol_context,
                 request,
-                require_mcp_viewer,
+                require_current_mode,
             )
         return _error_response(
             request_id,
@@ -357,7 +379,17 @@ def _invoke_authenticated_tool(request: Request, require_principal: Callable[[Re
     # Re-read the inbound credential in the dispatch thread after body parsing
     # and thread-pool admission. Never use a handshake/session-cached principal.
     principal = require_principal(request)
-    return access_store.invoke_tool(registry, principal, tool_id, arguments)
+
+    def guard() -> None:
+        from lingshu_gate.tool_catalog import _same_invocation_principal
+
+        # 下游等待连接锁期间可能撤权或收紧配额，实际派发前重新读取入站凭据。
+        current = require_principal(request)
+        if (not _same_invocation_principal(current, principal)
+                or not access_store.evaluate(current, registry.get_definition(tool_id))["allowed"]):
+            raise AccessDeniedError("authorization changed before dispatch", required_access="invoke", granted_access="none")
+
+    return access_store.invoke_tool(registry, principal, tool_id, arguments, dispatch_guard=guard)
 
 
 def _call_catalog_authenticated(catalog: ToolCatalog, request: Request,

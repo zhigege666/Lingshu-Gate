@@ -126,6 +126,12 @@ def register_access_routes(
     require_viewer: Callable[[Request], AuthPrincipal],
 ) -> None:
     """注册访问治理 API；所有策略写操作在这里集中做控制面权限校验。"""
+    from lingshu_gate.token_authorizations import TokenAuthorizationStore, register_token_authorization_routes
+    from lingshu_gate.authorization_discovery import register_authorization_discovery_routes
+
+    register_authorization_discovery_routes(app, auth_store, access_store, observability_store)
+    register_token_authorization_routes(app, TokenAuthorizationStore(auth_store, access_store, registry,
+                                                                     observability_store), require_viewer)
 
     def personal_servers(principal: AuthPrincipal) -> list[dict[str, Any]]:
         # Authorization precedes grouping, search and counts. Never serialize runtime

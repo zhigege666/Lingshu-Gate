@@ -220,8 +220,8 @@ def test_cursor_filters_session_binding_invisibility_and_withdrawn_ids(paged):
 def test_single_confirmation_limits_and_explicit_invalid_selection_removal(paged):
     offered = catalog(paged)
     rejected = paged["browser"].post(paged["path"] + "/scope-preview", json={**target(paged, offered, ["mcp.A.write"]),
-        "csrf": offered["csrf"], "rate_per_minute": 31}, headers={"Origin": ISSUER})
-    assert rejected.status_code == 400 and rejected.json()["error"] == "grant_limits_can_only_narrow"
+        "csrf": offered["csrf"], "rate_per_minute": 10001}, headers={"Origin": ISSUER})
+    assert rejected.status_code == 400 and rejected.json()["error"] == "invalid_request"
     mixed = select(paged, offered, ids=["mcp.A.write", "mcp.unknown.id"]).json()
     assert mixed["tool_ids"] == ["mcp.A.write", "mcp.unknown.id"] and mixed["unavailable_ids"] == ["mcp.unknown.id"]
     blocked = paged["browser"].post(paged["path"] + "/scope-preview", json={**target(paged, offered, mixed["tool_ids"]),
@@ -273,6 +273,8 @@ def test_admin_api_token_calls_unpublished_new_mcp_and_paged_catalog_explains_it
         McpOAuthDiscoveryBoundary(OAuthProtectedResourceMetadata(RESOURCE, (ISSUER,))))
     api = gate["auth"].create_api_token(principal=principal, name="Synthetic scope comparison",
         scopes=["tools.read", "tools.invoke"])
+    gate["db"].execute("INSERT INTO authorization_discovery VALUES('builtin',?,'direct',1)", (grant["id"],))
+    gate["db"].execute("INSERT INTO authorization_discovery VALUES('api',?,'direct',1)", (api["id"],))
     path = f"/v1/auth/oauth/grants/{grant['id']}"
     with TestClient(gate["app"], base_url=ISSUER) as browser:
         params, headers = build_protocol_request("tools/call", {"name": "mcp__synthetic-plane__project", "arguments": {}},

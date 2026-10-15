@@ -1,17 +1,18 @@
+export type McpServerPolicy = { server_id: string; server_binding?: string; mode: "continuous"; access: "read" | "write" }
 export type OAuthTool = { id: string; name: string; server_id: string; server_name?: string | null; access: "read" | "write"; snapshot: string; currently_authorized?: boolean }
 export type OAuthClient = { id: string; name: string; redirect_uris: string[]; scopes: string[]; resources?: string[]; enabled: boolean; revision: number; created_at: number }
 export type OAuthConfig = { enabled: boolean; issuer: string; resource: string; revision: number; metadata_url: string; authorization_endpoint: string; token_endpoint: string; jwks_uri: string; signing_keys: { kid: string; active: boolean; retire_at: number | null }[] }
-export type OAuthGrant = { id: string; client_id: string; client_name: string; resource: string; resource_kind?: "business" | "management"; management_targets?: Record<string, string[]>; target_revision?: number; scopes: string[]; tools: OAuthTool[]; state: string; created_at?: number; expires_at: number; rate_per_minute: number; concurrency: number; revision: number; scope_currently_authorized: boolean; effective_tool_count: number; scope_catalog_mode?: "paged" | "legacy" }
+export type OAuthGrant = { server_policies?: McpServerPolicy[]; id: string; client_id: string; client_name: string; resource: string; resource_kind?: "business" | "management"; management_targets?: Record<string, string[]>; target_revision?: number; scopes: string[]; tools: OAuthTool[]; state: string; created_at?: number; expires_at: number; rate_per_minute: number; concurrency: number; revision: number; scope_currently_authorized: boolean; effective_tool_count: number; scope_catalog_mode?: "paged" | "legacy" }
 export type ScopeSnapshot = Pick<OAuthTool, "id" | "server_id" | "access" | "snapshot"> & Partial<Pick<OAuthTool, "name" | "server_name">>
 export type OAuthScopeUnavailableServer = { server_id: string; server_name: string | null; reasons: { code: "classification_not_published" | "classification_unavailable" | "grant_scope_ceiling" | "client_scope_ceiling"; count: number }[] }
-export type OAuthScopeOptions = { csrf: string; expires_at: number; grant_revision: number; scopes: string[]; effective_scopes: string[]; family_scope_limits: { scopes: string[]; count: number }[]; tools: OAuthTool[]; unavailable_servers?: OAuthScopeUnavailableServer[]; can_review_classifications?: boolean }
+export type OAuthScopeOptions = { server_policies?: McpServerPolicy[]; servers?: OAuthScopeGroup[]; csrf: string; expires_at: number; grant_revision: number; scopes: string[]; effective_scopes: string[]; family_scope_limits: { scopes: string[]; count: number }[]; tools: OAuthTool[]; unavailable_servers?: OAuthScopeUnavailableServer[]; can_review_classifications?: boolean }
 export type OAuthDifferenceSummary = { added: number; removed: number; added_write: number; removed_write: number; write: number }
 export type OAuthScopeCounts = { tools: number; read: number; write: number; mcps: number }
-export type OAuthScopeGroup = { server_id: string; server_name: string | null; tool_count: number; read_count: number; write_count: number }
+export type OAuthScopeGroup = { server_binding?: string | null; server_id: string; server_name: string | null; tool_count: number; read_count: number; write_count: number }
 export type OAuthScopeCatalog = Omit<OAuthScopeOptions, "tools"> & { complete: false; view: "tools" | "groups" | "unavailable"; catalog_revision: string; items: (OAuthTool | OAuthScopeGroup | OAuthScopeUnavailableServer)[]; next_cursor: string | null; matching_counts: OAuthScopeCounts; catalog_counts: OAuthScopeCounts; unavailable_counts: OAuthScopeCounts; selection_limits: { tools: number; mcps: number } }
 export type OAuthScopeSelection = { catalog_revision: string; tool_ids: string[]; available_ids: string[]; unavailable_ids: string[]; tools: OAuthTool[]; selected_counts: OAuthScopeCounts; group_selected_counts: { server_id: string; selected_count: number }[]; difference_summary: OAuthDifferenceSummary }
-export type OAuthScopePreview = { confirmation: string; confirmation_expires_at: number; expires_at: number; tool_ids: string[]; added: string[]; removed: string[]; previous_tools: ScopeSnapshot[]; tools: OAuthTool[]; rate_per_minute: number; concurrency: number; difference_summary?: OAuthDifferenceSummary }
-export type ConsentContext = { csrf: string; completed: boolean; phase: "preauth" | "authenticated" | "completed"; expires_at: number; client: { id: string; name: string }; resource: string; resource_kind?: "business" | "management"; scopes: string[]; user: { id: string; username: string; display_name: string } | null; tools: OAuthTool[]; max_grant_days: number; access_seconds: number; refresh_days: number }
+export type OAuthScopePreview = { server_policies?: McpServerPolicy[]; previous_server_policies?: McpServerPolicy[]; confirmation: string; confirmation_expires_at: number; expires_at: number; tool_ids: string[]; added: string[]; removed: string[]; previous_tools: ScopeSnapshot[]; tools: OAuthTool[]; rate_per_minute: number; concurrency: number; difference_summary?: OAuthDifferenceSummary }
+export type ConsentContext = { servers?: OAuthScopeGroup[]; csrf: string; completed: boolean; phase: "preauth" | "authenticated" | "completed"; expires_at: number; client: { id: string; name: string }; resource: string; resource_kind?: "business" | "management"; scopes: string[]; user: { id: string; username: string; display_name: string } | null; tools: OAuthTool[]; max_grant_days: number; access_seconds: number; refresh_days: number }
 export type OAuthManagementConfig = { enabled: boolean; active: boolean; revision: number; resource: string }
 export type ManagementTargetOptions = { csrf: string; expires_at: number; expected_revision: number; expected_target_revision: number; targets: Record<string, string[]>; scopes: string[]; tool_ids: string[] }
 export type ManagementTargetPreview = { confirmation: string; confirmation_expires_at: number; expected_revision: number; expected_target_revision: number; previous_targets: Record<string, string[]>; targets: Record<string, string[]>; scopes_unchanged: boolean; tools_unchanged: boolean }
@@ -27,7 +28,7 @@ export async function oauthRequest<T>(path: string, body?: unknown, method = "PO
       body: body === undefined ? undefined : JSON.stringify(body) })
     let payload: Record<string, unknown>
     try { payload = await response.json() } catch { throw new OAuthRequestError("invalid_response", response.status) }
-    if (!response.ok) throw new OAuthRequestError(typeof payload.error === "string" ? payload.error : "request_failed", response.status)
+    if (!response.ok) throw new OAuthRequestError(typeof payload.error === "string" ? payload.error : typeof payload.detail === "string" ? payload.detail : "request_failed", response.status)
     return payload as T
   } catch (error) {
     if (error instanceof OAuthRequestError) throw error
@@ -35,6 +36,14 @@ export async function oauthRequest<T>(path: string, body?: unknown, method = "PO
   } finally { window.clearTimeout(timeout) }
 }
 const errors: Record<string, [string, string]> = {
+  authorization_catalog_limit: ["候选目录超出当前支持上限。已有授权仅可调整配额；请联系管理员缩小本人资源范围。", "The candidate catalog exceeds current limits. Existing authorizations can only edit call limits; ask an administrator to reduce your resource scope."],
+  authorization_scope_limit: ["授权范围超出当前支持上限，草稿已保留；请选择较少的 MCP 或工具。", "The authorization exceeds current limits. Your draft is retained; choose fewer MCPs or tools."],
+  authorization_confirmation_changed: ["授权或目录已改变，或确认已过期。请刷新可授权范围后重新确认；草稿已保留。", "Authorization or catalog changed, or confirmation expired. Refresh available scope and confirm again; your draft is retained."],
+  token_authorization_unavailable: ["此令牌已撤销或过期。请关闭后刷新授权列表。", "This token is revoked or expired. Close and refresh the authorization list."],
+  server_scope_unavailable: ["MCP 服务身份或权限已改变。请刷新后重新选择此 MCP；草稿已保留。", "The MCP identity or permissions changed. Refresh and select this MCP again; your draft is retained."],
+  invalid_token_scope: ["功能权限已不可授予，请刷新并核对范围。", "A functional permission is no longer grantable. Refresh and review the scope."],
+  invalid_tool_selection: ["工具选择无效，请刷新并核对范围。", "Tool selection is invalid. Refresh and review the scope."],
+
   scope_selection_tool_limit: ["此次选择超过 5000 工具上限，草稿已保留。请搜索工具或选择较少的 MCP。", "This selection exceeds 5,000 tools. Your draft is retained; search for tools or choose fewer MCPs."],
   server_scope_limit: ["此次选择超过 100 MCP 上限，草稿已保留。请选择较少的 MCP。", "This selection exceeds 100 MCPs. Your draft is retained; choose fewer MCPs."],
   scope_catalog_unavailable: ["可授权目录暂不可用，草稿已保留；请稍后刷新。", "The available catalog is temporarily unavailable. Your draft is retained; refresh later."],

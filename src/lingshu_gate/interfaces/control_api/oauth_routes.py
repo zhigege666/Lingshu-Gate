@@ -89,11 +89,19 @@ class LoginRequest(InteractionRequest):
     password: str = Field(min_length=1, max_length=1024)
 
 
+class ServerPolicyRequest(StrictRequest):
+    server_id: str = Field(min_length=1, max_length=512)
+    mode: Literal["continuous"] = "continuous"
+    access: Literal["read", "write"]
+    server_binding: str | None = Field(default=None, min_length=1, max_length=128)
+
+
 class ConsentRequest(InteractionRequest):
     tool_ids: list[str] = Field(default_factory=list, max_length=MAX_TOOLS)
+    server_policies: list[ServerPolicyRequest] = Field(default_factory=list, max_length=100)
     grant_days: int = Field(default=7, ge=1, le=30)
-    rate_per_minute: int = Field(default=30, ge=1, le=10000)
-    concurrency: int = Field(default=1, ge=1, le=100)
+    rate_per_minute: int = Field(default=6000, ge=1, le=10000)
+    concurrency: int = Field(default=100, ge=1, le=100)
     deny: StrictBool = False
     management_targets: dict[str, list[str]] = Field(default_factory=dict, max_length=MAX_MANAGEMENT_TARGETS)
 
@@ -111,11 +119,15 @@ class RevokeRequest(StrictRequest):
 
 
 class ScopePreviewRequest(NarrowRequest):
+    tool_ids: list[str] = Field(default_factory=list, max_length=MAX_TOOLS)
+    server_policies: list[ServerPolicyRequest] = Field(default_factory=list, max_length=100)
     csrf: str = Field(min_length=40, max_length=MAX_INTERACTION_TICKET)
     catalog_revision: str | None = Field(default=None, pattern=r"^[a-f0-9]{64}$")
 
 
 class ScopeUpdateRequest(NarrowRequest):
+    tool_ids: list[str] = Field(default_factory=list, max_length=MAX_TOOLS)
+    server_policies: list[ServerPolicyRequest] = Field(default_factory=list, max_length=100)
     confirmation: str = Field(min_length=40, max_length=MAX_INTERACTION_TICKET)
     catalog_revision: str | None = Field(default=None, pattern=r"^[a-f0-9]{64}$")
 
@@ -435,7 +447,7 @@ def register_oauth_routes(app: FastAPI, *, server: OAuthServer, observability: O
     def describe_grant(grant: dict[str, Any], current: dict[str, dict[str, Any]]) -> dict[str, Any]:
         client = server.store.database.query_one("SELECT name,enabled,scopes_json,resources_json FROM gate_oauth_clients WHERE id=?", (grant["client_id"],))
         management = grant["target_revision"] > 0
-        safe = {key: value for key, value in grant.items() if key not in {"tools_json", "scopes_json", "management_targets_json"}}
+        safe = {key: value for key, value in grant.items() if key not in {"tools_json", "scopes_json", "management_targets_json", "server_policies_json"}}
         state = ("revoked" if grant["revoked_at"] is not None else "expired" if grant["expires_at"] <= int(time.time())
                  else "disabled" if not client or not client["enabled"] or not server.store.config()["enabled"]
                  or (management and (grant["resource"] != server.store.management_config()["resource"]
@@ -446,8 +458,12 @@ def register_oauth_routes(app: FastAPI, *, server: OAuthServer, observability: O
                   "currently_authorized": key in current and tool_scope_matches(value, current[key])
                   and (("operations.manage" if management else "tools.read") if value["access"] == "read" else "tools.invoke") in scopes}
                  for key, value in grant["tools"].items()]
+        continuous_servers = {item["server_id"] for item in grant["server_policies"]}
+        continuous_count = sum(("tools.read" if value["access"] == "read" else "tools.invoke") in scopes
+                               for key, value in current.items() if key not in grant["tools"] and value["server_id"] in continuous_servers)
         return {**safe, "tools": tools, "client_name": client["name"] if client else grant["client_id"],
-                "resource_kind": "management" if management else "business", "state": state, "effective_tool_count": sum(bool(item["currently_authorized"]) for item in tools),
+                "resource_kind": "management" if management else "business", "state": state,
+                "effective_tool_count": sum(bool(item["currently_authorized"]) for item in tools) + continuous_count,
                 "scope_catalog_mode": "paged" if server.candidate_catalog is not None and not management else "legacy",
                 "scope_currently_authorized": all(item["currently_authorized"] for item in tools)}
 
@@ -457,13 +473,19 @@ def register_oauth_routes(app: FastAPI, *, server: OAuthServer, observability: O
                 return server.catalog(principal, ["operations.manage", "tools.invoke"], resource=grant["resource"], tool_ids=grant["tools"])
             except OAuthError:
                 return {}
+        if grant["server_policies"] or any("server_binding" in item for item in grant["tools"].values()):
+            try:
+                return server._grant_tools(principal, grant, grant["scopes"])
+            except OAuthError:
+                return {}
         return server.catalog(principal, ["tools.read", "tools.invoke"], tool_ids=grant["tools"])
 
     @app.get("/v1/auth/oauth/grants", tags=["oauth-management"])
     def grants(principal: AuthPrincipal = Depends(owner)) -> dict[str, Any]:
         result = []
         for grant in server.store.grants(principal.id):
-            result.append(describe_grant(grant, grant_catalog(principal, grant)))
+            result.append({**describe_grant(grant, grant_catalog(principal, grant)),
+                           "tool_discovery_mode": grant["tool_discovery_mode"] if grant["resource"] == server.store.config()["resource"] else "direct"})
         return {"grants": result}
 
     @app.get("/v1/auth/oauth/grants/{grant_id}/management-targets", tags=["oauth-management"])
@@ -534,7 +556,9 @@ def register_oauth_routes(app: FastAPI, *, server: OAuthServer, observability: O
         body = await read_json(request, ScopePreviewRequest, 4 * 1024 * 1024)
         result = await run_in_threadpool(server.preview_scope, principal, grant_id, request.cookies[server.auth.cookie_name],
                                         body.csrf, body.expected_revision, body.tool_ids, body.expires_at,
-                                        body.rate_per_minute, body.concurrency, body.catalog_revision)
+                                        body.rate_per_minute, body.concurrency, body.catalog_revision,
+                                        server_policies=([item.model_dump(exclude_none=True) for item in body.server_policies]
+                                                         if "server_policies" in body.model_fields_set else None))
         return JSONResponse(result, headers=SAFE_HEADERS)
 
     @app.post("/v1/auth/oauth/grants/{grant_id}/scope", tags=["oauth-management"])
@@ -543,7 +567,9 @@ def register_oauth_routes(app: FastAPI, *, server: OAuthServer, observability: O
         body = await read_json(request, ScopeUpdateRequest, 4 * 1024 * 1024)
         grant = await run_in_threadpool(server.update_scope, principal, grant_id, request.cookies[server.auth.cookie_name],
                                        body.confirmation, body.expected_revision, body.tool_ids, body.expires_at,
-                                      body.rate_per_minute, body.concurrency, body.catalog_revision)
+                                      body.rate_per_minute, body.concurrency, body.catalog_revision,
+                                      server_policies=([item.model_dump(exclude_none=True) for item in body.server_policies]
+                                                       if "server_policies" in body.model_fields_set else None))
         current = await run_in_threadpool(grant_catalog, principal, grant)
         return JSONResponse(describe_grant(grant, current), headers=SAFE_HEADERS)
 
@@ -673,8 +699,12 @@ def register_oauth_routes(app: FastAPI, *, server: OAuthServer, observability: O
             _, authorization = server.interaction(connection, body.request_id, browser, body.csrf)
         principal = await run_in_threadpool(server.session_principal, request.cookies.get(SESSION_COOKIE), resource=authorization["resource"])
         rate.check(request, "decision", 30, principal)
+        management = server.resource_policy(authorization["resource"])["kind"] == "management"
         result = await run_in_threadpool(server.consent, body.request_id, browser, body.csrf, principal, body.tool_ids, body.grant_days,
-                                body.rate_per_minute, body.concurrency, deny=body.deny, management_targets=body.management_targets)
+                                30 if management and "rate_per_minute" not in body.model_fields_set else body.rate_per_minute,
+                                1 if management and "concurrency" not in body.model_fields_set else body.concurrency,
+                                deny=body.deny, management_targets=body.management_targets,
+                                server_policies=[item.model_dump(exclude_none=True) for item in body.server_policies])
         row = server.store.database.query_one("SELECT request_json FROM gate_oauth_interactions WHERE id_hash=?",
                                                (hash_secret(body.request_id),))
         grant_id = json.loads(row["request_json"]).get("grant_id", "") if row else ""

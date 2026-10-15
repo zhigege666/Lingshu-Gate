@@ -52,6 +52,13 @@ class AuthPrincipal:
     permissions: tuple[str, ...] = ()
     must_change_password: bool = False
     token_id: str | None = None
+    api_token_authorization_mode: str = "account"
+    api_token_revision: int = 0
+    api_token_server_policies: tuple[tuple[str, str, str], ...] = ()
+    api_token_tool_snapshots: tuple[tuple[str, str], ...] = ()
+    api_token_tool_bindings: tuple[tuple[str, str], ...] = ()
+    api_token_rate_per_minute: int = 0
+    api_token_concurrency: int = 0
     scopes: tuple[str, ...] = ()
     delegated_scopes: tuple[str, ...] | None = None
     external_grant_id: str | None = None
@@ -118,6 +125,13 @@ class AuthStore:
         self.external_verifier: ExternalJwtVerifier | None = None
         self.external_connections: ExternalConnectionStore | None = None
         self.builtin_oauth: OAuthServer | None = None
+        # 仅创建策略表；既有令牌不回填范围或配额，保持原有账号继承语义。
+        from lingshu_gate.persistence.migrations import Migration, MigrationRunner
+        from lingshu_gate.persistence.token_authorizations_migration import (
+            TOKEN_AUTHORIZATIONS_MIGRATION_ID, apply_token_authorizations_migration,
+        )
+        MigrationRunner(database.connect, (Migration(TOKEN_AUTHORIZATIONS_MIGRATION_ID,
+                                                     apply_token_authorizations_migration),)).run()
         self.initial_admin_credentials_path = (
             settings.data_dir / INITIAL_ADMIN_CREDENTIALS_FILE
         )
@@ -604,15 +618,18 @@ class AuthStore:
         return requested_scopes
 
     def list_api_tokens(self, *, user_id: str | None = None) -> list[dict[str, object]]:
+        from lingshu_gate.token_authorizations import authorization_data
         where = "WHERE api_tokens.user_id = ?" if user_id else ""
         parameters = (user_id,) if user_id else ()
         rows = self.database.query_all(
             f"""
             SELECT api_tokens.id, api_tokens.name, api_tokens.token_prefix,
                    api_tokens.scopes_json, api_tokens.expires_at, api_tokens.revoked_at,
-                   api_tokens.last_used_at, api_tokens.created_at, users.username
+                   api_tokens.last_used_at, api_tokens.created_at, users.username,
+                   COALESCE(discovery.mode,'on_demand') AS tool_discovery_mode
             FROM api_tokens
             JOIN users ON users.id = api_tokens.user_id
+            LEFT JOIN authorization_discovery discovery ON discovery.kind='api' AND discovery.authorization_id=api_tokens.id
             {where}
             ORDER BY api_tokens.created_at DESC
             """,
@@ -629,6 +646,9 @@ class AuthStore:
                 "revoked_at": row["revoked_at"],
                 "last_used_at": row["last_used_at"],
                 "created_at": row["created_at"],
+                "tool_discovery_mode": row["tool_discovery_mode"],
+                **authorization_data(self.database.query_one(
+                    "SELECT * FROM api_token_authorizations WHERE token_id=?", (row["id"],))),
             }
             for row in rows
         ]
@@ -876,12 +896,32 @@ class AuthStore:
         if not row or row["status"] != "active" or row["revoked_at"] or _is_expired(row["token_expires_at"]):
             return None
         self.database.execute("UPDATE api_tokens SET last_used_at = ? WHERE id = ?", (iso_now(), row["token_id"]))
-        return self._build_principal(
+        principal = self._build_principal(
             row,
             auth_type="token",
             token_id=row["token_id"],
             scopes=tuple(json.loads(row["scopes_json"] or "[]")),
         )
+        return self.apply_api_token_authorization(principal)
+
+    def apply_api_token_authorization(self, principal: AuthPrincipal) -> AuthPrincipal:
+        """每次认证与排队后派发均刷新本枚令牌的范围、快照和配额。"""
+        policy = self.database.query_one("SELECT * FROM api_token_authorizations WHERE token_id=?", (principal.token_id,))
+        if policy is None:
+            return principal
+        current = replace(principal, api_token_authorization_mode=policy["mode"], api_token_revision=policy["revision"],
+            api_token_server_policies=tuple((item["server_id"], item["server_binding"], item["access"])
+                for item in json.loads(policy["server_policies_json"])),
+            api_token_tool_snapshots=tuple((key, value["snapshot"]) for key, value in json.loads(policy["tools_json"]).items()),
+            api_token_tool_bindings=tuple((key, value.get("server_binding", "")) for key, value in json.loads(policy["tools_json"]).items()),
+            api_token_rate_per_minute=policy["rate_per_minute"], api_token_concurrency=policy["concurrency"])
+        if current.api_token_authorization_mode == "independent":
+            from lingshu_gate.access_control import token_authorization_budget_valid
+
+            with self.database.session() as connection:
+                if not token_authorization_budget_valid(connection, current):
+                    raise HTTPException(403, detail="authorization_scope_limit")
+        return current
 
     def _build_principal(
         self,

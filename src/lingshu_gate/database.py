@@ -43,6 +43,12 @@ from lingshu_gate.persistence.mcp_groups_migration import MCP_GROUPS_MIGRATION_I
 from lingshu_gate.persistence.mcp_group_requests_migration import MCP_GROUP_REQUESTS_MIGRATION_ID, apply_mcp_group_requests_migration
 from lingshu_gate.persistence.mcp_group_routing_migration import MCP_GROUP_ROUTING_MIGRATION_ID, apply_mcp_group_routing_migration
 from lingshu_gate.persistence.mcp_group_type_migration import MCP_GROUP_TYPE_MIGRATION_ID, apply_mcp_group_type_migration
+from lingshu_gate.persistence.mcp_authorization_identity_migration import (
+    MCP_AUTHORIZATION_IDENTITY_MIGRATION_ID, apply_mcp_authorization_identity_migration,
+)
+from lingshu_gate.persistence.authorization_discovery_migration import (
+    AUTHORIZATION_DISCOVERY_MIGRATION_ID, apply_authorization_discovery_migration,
+)
 
 BASELINE_MIGRATION_ID = "0001_gate_baseline"
 SQLITE_BUSY_TIMEOUT_MS = 30_000
@@ -93,7 +99,9 @@ class SQLiteDatabase:
              Migration(MCP_GROUP_REQUESTS_MIGRATION_ID, apply_mcp_group_requests_migration),
              Migration(MCP_GROUP_ROUTING_MIGRATION_ID, apply_mcp_group_routing_migration),
              Migration(CATALOG_GROUP_EPOCH_MIGRATION_ID, apply_catalog_group_epoch_migration),
-             Migration(MCP_GROUP_TYPE_MIGRATION_ID, apply_mcp_group_type_migration)),
+             Migration(MCP_GROUP_TYPE_MIGRATION_ID, apply_mcp_group_type_migration),
+             Migration(MCP_AUTHORIZATION_IDENTITY_MIGRATION_ID, apply_mcp_authorization_identity_migration),
+             Migration(AUTHORIZATION_DISCOVERY_MIGRATION_ID, apply_authorization_discovery_migration)),
         ).run()
 
     def _apply_baseline_migration(self, connection: sqlite3.Connection) -> None:

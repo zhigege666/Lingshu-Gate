@@ -38,10 +38,11 @@ from lingshu_gate.domain.oauth_management import (
     management_resource, management_tool_snapshot, normalize_management_targets,
 )
 from lingshu_gate.external_connection import _https_resource
+from lingshu_gate.mcp_authorization_policy import bind_server_policies, server_binding, tool_snapshot
 from lingshu_gate.observability_store import ObservabilityStore
 from lingshu_gate.oauth_store import OAuthStore
 from lingshu_gate.ports.oauth_candidate_catalog import OAuthCandidateCatalogPort
-from lingshu_gate.registry import ToolInvocationContext, ToolRegistry
+from lingshu_gate.registry import RegistrySnapshotCapacityError, ToolInvocationContext, ToolRegistry
 
 SCOPES = BUSINESS_SCOPES | MANAGEMENT_SCOPES
 CODE_TTL = 60
@@ -476,8 +477,7 @@ class OAuthServer:
             classification = classifications[(str(server_id), tool.id)]
             if classification["status"] != "published" or classification["effective_access"] != access:
                 continue
-            snapshot = hash_secret(json.dumps([classification["fingerprint"], access,
-                                                classification["reviewed_at"]], sort_keys=True))
+            snapshot = tool_snapshot(tool, classification)
             result[tool.id] = {"id": tool.id, "name": tool.name, "server_id": str(server_id),
                                "server_name": tool.metadata["server_name"].strip()
                                if isinstance(tool.metadata.get("server_name"), str) and tool.metadata["server_name"].strip() else None,
@@ -492,10 +492,74 @@ class OAuthServer:
         saved = grant["tools"]
         if len(saved) > MAX_TOOLS or len({value["server_id"] for value in saved.values()}) > 100:
             raise OAuthError("invalid_grant")
+        policies = grant.get("server_policies", []) if not grant["target_revision"] else []
+        if policies and self.candidate_catalog is not None:
+            self.candidate_catalog.synchronize()
+        candidates = set(saved)
+        with (nullcontext(connection) if connection is not None else self.store.database.session()) as read_connection:
+            valid_policies = []
+            for policy in policies:
+                try:
+                    if server_binding(read_connection, policy["server_id"]) == policy["server_binding"]:
+                        valid_policies.append(policy)
+                except (ValueError, KeyError):
+                    continue
+            if valid_policies:
+                server_ids = [item["server_id"] for item in valid_policies]
+                if self.candidate_catalog is not None:
+                    for access in ("read", "write"):
+                        scoped_servers = [item["server_id"] for item in valid_policies if item["access"] == access]
+                        if scoped_servers:
+                            allowed = set(scopes) & ({"tools.read"} if access == "read" else BUSINESS_SCOPES)
+                            candidates.update(self.candidate_catalog.resolve(read_connection, principal, allowed,
+                                mode="groups", server_ids=scoped_servers))
+                else:
+                    try:
+                        snapshot = self.registry.mcp_snapshot(server_ids, max_tools=MAX_TOOLS)
+                    except RegistrySnapshotCapacityError:
+                        raise OAuthError("tool_catalog_limit", 409) from None
+                    candidates.update(item.structure.id for item in snapshot.tools)
         current = self.catalog(principal, scopes, connection=connection,
-                               resource=grant["resource"], tool_ids=saved)
-        return {key: value for key, value in saved.items()
-                if key in current and tool_scope_matches(value, current[key])}
+                               resource=grant["resource"], tool_ids=candidates)
+        result = {key: value for key, value in saved.items()
+                  if key in current and tool_scope_matches(value, current[key])}
+        # 持续范围按每次请求的分类、账号权限及该 JWT/family scope 重新求交集。
+        # 服务被删除重建后，生命周期绑定不相等，原授权不得复活。
+        with (nullcontext(connection) if connection is not None else self.store.database.session()) as read_connection:
+            for key in list(result):
+                if "server_binding" in saved[key]:
+                    try:
+                        if server_binding(read_connection, saved[key]["server_id"]) != saved[key]["server_binding"]:
+                            result.pop(key)
+                    except ValueError:
+                        result.pop(key)
+            for policy in valid_policies:
+                try:
+                    if server_binding(read_connection, policy["server_id"]) != policy["server_binding"]:
+                        continue
+                except (ValueError, KeyError):
+                    continue
+                result.update({key: value for key, value in current.items()
+                               if value["server_id"] == policy["server_id"]
+                               and (policy["access"] == "write" or value["access"] == "read")})
+        return result
+
+    @staticmethod
+    def _bind_tool_snapshots(connection: sqlite3.Connection, tools: dict[str, dict[str, Any]], *,
+                             skip_unavailable: bool = False) -> dict[str, dict[str, Any]]:
+        bindings: dict[str, str] = {}
+        result = {}
+        for key, tool in tools.items():
+            server_id = tool["server_id"]
+            try:
+                if server_id not in bindings:
+                    bindings[server_id] = server_binding(connection, server_id)
+            except ValueError as exc:
+                if skip_unavailable:
+                    continue
+                raise OAuthError(str(exc), 409) from None
+            result[key] = {**tool, "server_binding": bindings[server_id]}
+        return result
 
     def _fresh_owner(self, principal: AuthPrincipal) -> AuthPrincipal:
         row = self.store.database.query_one("SELECT * FROM users WHERE id=?", (principal.id,))
@@ -520,7 +584,8 @@ class OAuthServer:
         grant = self.store.grant(row)
         config = self.ready_config(connection)
         client = connection.execute("SELECT * FROM gate_oauth_clients WHERE id=? AND enabled=1", (grant["client_id"],)).fetchone()
-        if not client or grant["revoked_at"] is not None or grant["expires_at"] <= int(time.time()) or grant["resource"] != config["resource"]:
+        if (not client or grant["revoked_at"] is not None or grant["expires_at"] <= int(time.time())
+                or grant["resource"] != config["resource"] or "business" not in json.loads(client["resources_json"])):
             raise OAuthError("grant_scope_unavailable", 409)
         return grant, client, config
 
@@ -538,6 +603,60 @@ class OAuthServer:
         eligible = {key: tool for key, tool in visible.items()
                     if ("tools.read" if tool["access"] == "read" else "tools.invoke") in ceiling}
         return eligible, visible
+
+    def _scope_policies(self, connection: sqlite3.Connection, principal: AuthPrincipal, grant: dict[str, Any],
+                        client: Any, policies: list[dict[str, Any]], selected: dict[str, dict[str, Any]]) -> list[dict[str, Any]]:
+        if not policies:
+            return []
+        if grant["target_revision"]:
+            raise OAuthError("invalid_server_policies")
+        if len(policies) > 100:
+            raise OAuthError("server_scope_limit")
+        previous = {item["server_id"]: item for item in grant.get("server_policies", [])}
+        bound: list[dict[str, Any]] = []
+        retained: set[str] = set()
+        seen: set[str] = set()
+        for policy in policies:
+            server_id = policy.get("server_id")
+            if (not isinstance(server_id, str) or server_id in seen
+                    or set(policy) - {"server_id", "mode", "access", "server_binding"}):
+                raise OAuthError("invalid_server_policy")
+            seen.add(server_id)
+            old = previous.get(server_id)
+            if old is not None and "server_binding" not in policy:
+                policy = {**policy, "server_binding": old["server_binding"]}
+            unchanged = old and all(policy.get(key) == old[key] for key in ("server_id", "mode", "access"))
+            # 三字段旧客户端与未修改的行继承原身份；失效身份可保留，但不恢复访问。
+            # 重新绑定必须显式提交当前 binding，再经预览和单次确认完成。
+            if old is not None and unchanged and policy["server_binding"] == old["server_binding"]:
+                assert old is not None
+                bound.append(dict(old))
+                retained.add(server_id)
+                continue
+            try:
+                bound.extend(bind_server_policies(connection, [policy]))
+            except ValueError as exc:
+                raise OAuthError(str(exc), 409) from None
+        bound.sort(key=lambda item: item["server_id"])
+        ceiling = self._candidate_ceiling(grant, client)
+        # 无当前工具时，服务级账号授权仍可表达持续意图；逐工具授权不能推导为服务授权。
+        visible_servers = {item["server_id"] for item in selected.values()}
+        if any(item["server_id"] in visible_servers for item in bound):
+            raise OAuthError("server_policy_conflict")
+        current_catalog: dict[str, dict[str, Any]] | None = None
+        for policy in bound:
+            if policy["server_id"] in retained:
+                continue
+            required = {"tools.read"} if policy["access"] == "read" else {"tools.read", "tools.invoke"}
+            if not required <= ceiling:
+                raise OAuthError("grant_scope_insufficient", 409)
+            permission = self.access._effective_access_map(connection, principal, [(policy["server_id"], "")])[(policy["server_id"], "")]
+            if permission not in {"read", "write"}:
+                if current_catalog is None:
+                    current_catalog, _ = self._scope_catalog(connection, principal, grant, client)
+                if not any(item["server_id"] == policy["server_id"] for item in current_catalog.values()):
+                    raise OAuthError("server_scope_unavailable", 409)
+        return bound
 
     @staticmethod
     def _scope_binding(principal: AuthPrincipal, session: str, grant: dict[str, Any], client: Any,
@@ -571,25 +690,45 @@ class OAuthServer:
             raise OAuthError("tool_scope_changed", 409)
 
     @staticmethod
+    def _quota_only_target(grant: dict[str, Any], tool_ids: list[str], policies: list[dict[str, Any]],
+                           expires_at: int, rate: int, concurrency: int) -> bool:
+        if (expires_at != grant["expires_at"] or set(tool_ids) != set(grant["tools"])
+                or (rate == grant["rate_per_minute"] and concurrency == grant["concurrency"])):
+            return False
+        if any(set(item) - {"server_id", "mode", "access", "server_binding"} for item in policies):
+            return False
+        def intent(values: list[dict[str, Any]]) -> list[tuple[str, str, str]]:
+            return sorted((str(item.get("server_id")), str(item.get("mode")), str(item.get("access"))) for item in values)
+
+        previous = {item["server_id"]: item for item in grant["server_policies"]}
+        if any("server_binding" in item and item["server_binding"] != previous.get(item.get("server_id"), {}).get("server_binding")
+               for item in policies):
+            return False
+        return intent(policies) == intent(grant["server_policies"])
+
+    @staticmethod
     def _scope_target(grant: dict[str, Any], catalog: dict[str, dict[str, Any]], visible: dict[str, dict[str, Any]],
                       revision: int, tool_ids: list[str], expires_at: int, rate: int,
-                      concurrency: int) -> tuple[dict[str, dict[str, Any]], dict[str, Any]]:
+                      concurrency: int, server_policies: list[dict[str, Any]] | None = None,
+                      preserve_scope: bool = False) -> tuple[dict[str, dict[str, Any]], dict[str, Any]]:
         if revision != grant["revision"]:
             raise OAuthError("revision_conflict", 409)
-        if (not tool_ids or len(tool_ids) > MAX_TOOLS or any(not isinstance(key, str) or not 1 <= len(key) <= 512 for key in tool_ids)
+        if ((not tool_ids and not server_policies) or len(tool_ids) > MAX_TOOLS or any(not isinstance(key, str) or not 1 <= len(key) <= 512 for key in tool_ids)
                 or len(set(tool_ids)) != len(tool_ids)):
             raise OAuthError("invalid_request")
-        if any(key in visible and key not in catalog for key in tool_ids):
+        if not preserve_scope and any(key in visible and key not in catalog for key in tool_ids):
             raise OAuthError("grant_scope_insufficient", 409)
-        if not set(tool_ids) <= set(catalog):
+        if not preserve_scope and not set(tool_ids) <= set(catalog):
             raise OAuthError("tool_scope_changed", 409)
-        tools = {key: catalog[key] for key in sorted(tool_ids)}
-        if len({item["server_id"] for item in tools.values()}) > 100:
+        # 仅配额变更保留已保存快照，不借此次确认重新批准已失效的工具或服务身份。
+        tools = dict(grant["tools"]) if preserve_scope else {key: catalog[key] for key in sorted(tool_ids)}
+        if len({item["server_id"] for item in tools.values()} | {item["server_id"] for item in server_policies or []}) > 100:
             raise OAuthError("server_scope_limit")
         if not (int(time.time()) < expires_at <= grant["expires_at"]
-                and 1 <= rate <= grant["rate_per_minute"] and 1 <= concurrency <= grant["concurrency"]):
+                and 1 <= rate <= 10000 and 1 <= concurrency <= 100):
             raise OAuthError("grant_limits_can_only_narrow")
-        target = {"tool_ids": list(tools), "expires_at": expires_at, "rate_per_minute": rate, "concurrency": concurrency}
+        target = {"tool_ids": list(tools), "server_policies": server_policies or [], "expires_at": expires_at,
+                  "rate_per_minute": rate, "concurrency": concurrency}
         return tools, target
 
     @staticmethod
@@ -598,7 +737,9 @@ class OAuthServer:
 
     @staticmethod
     def _scope_difference(grant: dict[str, Any], tools: dict[str, dict[str, Any]]) -> tuple[list[str], list[str]]:
-        added = [key for key in tools if key not in grant["tools"] or not tool_scope_matches(grant["tools"][key], tools[key])]
+        added = [key for key in tools if key not in grant["tools"] or not tool_scope_matches(grant["tools"][key], tools[key])
+                 or ("server_binding" in tools[key]
+                     and grant["tools"][key].get("server_binding") != tools[key]["server_binding"])]
         removed = [key for key in grant["tools"] if key not in tools or key in added]
         return added, removed
 
@@ -650,7 +791,22 @@ class OAuthServer:
                                           (grant_id, int(time.time()))).fetchall():
                 scopes = tuple(sorted(set(json.loads(row["scopes_json"])) & set(grant["scopes"]) & set(json.loads(client["scopes_json"]))))
                 family_limits[scopes] = family_limits.get(scopes, 0) + 1
+            servers: dict[str, dict[str, Any]] = {}
+            for item in catalog.values():
+                group = servers.setdefault(item["server_id"], {"server_id": item["server_id"],
+                    "server_name": item["server_name"], "tool_count": 0, "read_count": 0, "write_count": 0})
+                group["tool_count"] += 1
+                group[item["access"] + "_count"] += 1
+            for policy in grant["server_policies"]:
+                servers.setdefault(policy["server_id"], {"server_id": policy["server_id"], "server_name": None,
+                    "tool_count": 0, "read_count": 0, "write_count": 0})
+            for item in servers.values():
+                try:
+                    item["server_binding"] = server_binding(connection, item["server_id"])
+                except ValueError:
+                    item["server_binding"] = None
             return {"csrf": csrf, "expires_at": payload["expires_at"], "grant_revision": grant["revision"],
+                    "server_policies": grant["server_policies"], "servers": list(servers.values()),
                     "scopes": grant["scopes"], "effective_scopes": sorted(set(grant["scopes"]) & set(json.loads(client["scopes_json"]))),
                     "family_scope_limits": [{"scopes": list(scopes), "count": count} for scopes, count in sorted(family_limits.items())],
                     "tools": list(catalog.values()),
@@ -671,7 +827,7 @@ class OAuthServer:
             raise OAuthError("tool_scope_changed", 409)
         binding["catalog_digest"] = hash_secret(json.dumps([self._candidate_incarnation, marker, principal.roles, principal.permissions,
             grant["scopes"], client["scopes_json"], client["resources_json"], grant["expires_at"],
-            grant["rate_per_minute"], grant["concurrency"], self._catalog_digest(grant["tools"])], sort_keys=True))
+            grant["rate_per_minute"], grant["concurrency"], self._catalog_digest(grant["tools"]), grant["server_policies"]], sort_keys=True))
         return binding
 
     @staticmethod
@@ -707,6 +863,12 @@ class OAuthServer:
                 after = saved["after"]
             page = port.page(connection, principal, ceiling, query=query, server_id=server_id,
                              access=access, view=view, limit=limit, after=after, grant_scopes=set(grant["scopes"]))
+            if view == "groups":
+                for item in page["items"]:
+                    try:
+                        item["server_binding"] = server_binding(connection, item["server_id"])
+                    except ValueError:
+                        item["server_binding"] = None
             expires = min(int(time.time()) + SCOPE_CONFIRMATION_TTL, grant["expires_at"])
             ticket = {**binding, "purpose": "grant_scope_options_v2", "expires_at": expires}
             csrf = self._ticket_cipher().encrypt(json.dumps(ticket).encode()).decode()
@@ -717,6 +879,7 @@ class OAuthServer:
                 families[family_scopes] = families.get(family_scopes, 0) + 1
             result = {"complete": False, "view": view, "csrf": csrf, "expires_at": expires,
                 "grant_revision": grant["revision"], "catalog_revision": revision, "scopes": grant["scopes"],
+                "server_policies": grant["server_policies"],
                 "effective_scopes": sorted(ceiling), "family_scope_limits": [
                     {"scopes": list(scopes), "count": count} for scopes, count in sorted(families.items())],
                 "selection_limits": {"tools": MAX_TOOLS, "mcps": 100},
@@ -810,7 +973,7 @@ class OAuthServer:
 
     def preview_scope(self, principal: AuthPrincipal, grant_id: str, session: str, csrf: str,
                       revision: int, tool_ids: list[str], expires_at: int, rate: int, concurrency: int,
-                      catalog_revision: str | None = None) -> dict[str, Any]:
+                      catalog_revision: str | None = None, *, server_policies: list[dict[str, Any]] | None = None) -> dict[str, Any]:
         paged = catalog_revision is not None
         generation = self._candidate_port().synchronize() if paged else None
         binding = self._scope_ticket(csrf, "grant_scope_options_v2" if paged else "grant_scope_options_v1", principal, session, grant_id)
@@ -828,7 +991,15 @@ class OAuthServer:
                 catalog, visible = self._scope_catalog(connection, principal, grant, client)
                 current = self._scope_binding(principal, session, grant, client, config, catalog)
             self._check_scope_binding(binding, current)
-            tools, target = self._scope_target(grant, catalog, visible, revision, tool_ids, expires_at, rate, concurrency)
+            submitted_policies = grant["server_policies"] if server_policies is None else server_policies
+            quota_only = self._quota_only_target(grant, tool_ids, submitted_policies, expires_at, rate, concurrency)
+            policies = grant["server_policies"] if quota_only else self._scope_policies(connection, principal, grant, client,
+                submitted_policies, {key: catalog[key] for key in tool_ids if key in catalog})
+            tools, target = self._scope_target(grant, catalog, visible, revision, tool_ids, expires_at, rate, concurrency, policies,
+                                               preserve_scope=quota_only)
+            if not quota_only:
+                tools = self._bind_tool_snapshots(connection, tools)
+            target["tool_binding_digest"] = self._target_digest({key: item.get("server_binding") for key, item in tools.items()})
             added, removed = self._scope_difference(grant, tools)
             now = int(time.time())
             connection.execute("DELETE FROM gate_oauth_scope_confirmations WHERE expires_at<=?", (now,))
@@ -844,7 +1015,9 @@ class OAuthServer:
                                "token_hash=excluded.token_hash,expires_at=excluded.expires_at",
                                (grant_id, principal.id, hash_secret(session), hash_secret(token), payload["expires_at"]))
             result = {"confirmation": token, "confirmation_expires_at": payload["expires_at"], **target, "added": added, "removed": removed,
-                    "previous_tools": list(grant["tools"].values()), "tools": list(tools.values())}
+                    "previous_tools": list(grant["tools"].values()), "tools": list(tools.values()),
+                    "previous_server_policies": grant["server_policies"],
+                    "previous_rate_per_minute": grant["rate_per_minute"], "previous_concurrency": grant["concurrency"]}
             if paged:
                 self._check_scope_binding(binding, self._candidate_binding(connection, principal, session, grant, client, config, generation))
                 result["previous_tools"] = []
@@ -859,7 +1032,7 @@ class OAuthServer:
 
     def update_scope(self, principal: AuthPrincipal, grant_id: str, session: str, confirmation: str,
                      revision: int, tool_ids: list[str], expires_at: int, rate: int, concurrency: int,
-                     catalog_revision: str | None = None) -> dict[str, Any]:
+                     catalog_revision: str | None = None, *, server_policies: list[dict[str, Any]] | None = None) -> dict[str, Any]:
         paged = catalog_revision is not None
         generation = self._candidate_port().synchronize() if paged else None
         binding = self._scope_ticket(confirmation, "grant_scope_confirmation_v2" if paged else "grant_scope_confirmation_v1", principal, session, grant_id)
@@ -877,7 +1050,15 @@ class OAuthServer:
             else:
                 catalog, visible = self._scope_catalog(connection, principal, grant, client)
                 self._check_scope_binding(binding, self._scope_binding(principal, session, grant, client, config, catalog))
-            tools, target = self._scope_target(grant, catalog, visible, revision, tool_ids, expires_at, rate, concurrency)
+            submitted_policies = grant["server_policies"] if server_policies is None else server_policies
+            quota_only = self._quota_only_target(grant, tool_ids, submitted_policies, expires_at, rate, concurrency)
+            policies = grant["server_policies"] if quota_only else self._scope_policies(connection, principal, grant, client,
+                submitted_policies, {key: catalog[key] for key in tool_ids if key in catalog})
+            tools, target = self._scope_target(grant, catalog, visible, revision, tool_ids, expires_at, rate, concurrency, policies,
+                                               preserve_scope=quota_only)
+            if not quota_only:
+                tools = self._bind_tool_snapshots(connection, tools)
+            target["tool_binding_digest"] = self._target_digest({key: item.get("server_binding") for key, item in tools.items()})
             if binding["target_digest"] != self._target_digest(target):
                 raise OAuthError("scope_confirmation_changed", 409)
             pending = connection.execute("SELECT * FROM gate_oauth_scope_confirmations WHERE grant_id=? AND user_id=?",
@@ -889,14 +1070,17 @@ class OAuthServer:
             added, removed = self._scope_difference(grant, tools)
             if paged:
                 self._check_scope_binding(binding, self._candidate_binding(connection, principal, session, grant, client, config, generation))
-            if connection.execute("UPDATE gate_oauth_grants SET tools_json=?,expires_at=?,rate_per_minute=?,concurrency=?,revision=revision+1 "
+            if connection.execute("UPDATE gate_oauth_grants SET tools_json=?,server_policies_json=?,expires_at=?,rate_per_minute=?,concurrency=?,revision=revision+1 "
                                   "WHERE id=? AND user_id=? AND revision=? AND revoked_at IS NULL",
-                                  (json.dumps(tools), expires_at, rate, concurrency, grant_id, principal.id, revision)).rowcount != 1:
+                                  (json.dumps(tools), json.dumps(policies), expires_at, rate, concurrency, grant_id, principal.id, revision)).rowcount != 1:
                 raise OAuthError("revision_conflict", 409)
             connection.execute("DELETE FROM gate_oauth_scope_confirmations WHERE grant_id=?", (grant_id,))
             ObservabilityStore(self.store.database).emit_event("gate.oauth.grant_scope_updated", source="oauth", subject_type="oauth",
                 subject_id=grant_id, payload={"actor_id": principal.id, "client_id": client["id"], "previous_revision": revision,
                     "revision": revision + 1, "added_tool_ids": added, "removed_tool_ids": removed,
+                    "previous_server_policies": grant["server_policies"], "server_policies": policies,
+                    "previous_rate_per_minute": grant["rate_per_minute"], "rate_per_minute": rate,
+                    "previous_concurrency": grant["concurrency"], "concurrency": concurrency,
                     "target_digest": self._target_digest(target), "scopes_unchanged": True}, connection=connection)
             return self.store.grant(connection.execute("SELECT * FROM gate_oauth_grants WHERE id=?", (grant_id,)).fetchone())
 
@@ -914,6 +1098,8 @@ class OAuthServer:
                 if principal is None:
                     connection.execute("DELETE FROM gate_oauth_interactions WHERE id_hash=? AND completed=0", (hash_secret(interaction),))
                 else:
+                    if self.resource_policy(request["resource"], connection)["kind"] == "business":
+                        catalog = self._bind_tool_snapshots(connection, catalog, skip_unavailable=True)
                     stored = connection.execute("SELECT user_id FROM gate_oauth_interactions WHERE id_hash=?", (hash_secret(interaction),)).fetchone()
                     if stored and stored["user_id"] != principal.id:
                         connection.execute("DELETE FROM gate_oauth_interactions WHERE id_hash=?", (hash_secret(interaction),))
@@ -924,8 +1110,15 @@ class OAuthServer:
                                            "(id_hash,browser_hash,csrf_hash,request_json,expires_at,user_id,client_id) VALUES(?,?,?,?,?,?,?)",
                                            (hash_secret(interaction), hash_secret(browser), hash_secret(csrf), json.dumps(request),
                                             row["expires_at"], principal.id, request["client_id"]))
+                    bindings: dict[str, str] = {}
+                    if self.resource_policy(request["resource"], connection)["kind"] == "business":
+                        for tool in catalog.values():
+                            try:
+                                bindings[tool["server_id"]] = server_binding(connection, tool["server_id"])
+                            except ValueError:
+                                continue
                     connection.execute("UPDATE gate_oauth_interactions SET catalog_json=? WHERE id_hash=?",
-                                       (json.dumps({"user_id": principal.id, "tools": catalog}), hash_secret(interaction)))
+                                       (json.dumps({"user_id": principal.id, "tools": catalog, "server_bindings": bindings}), hash_secret(interaction)))
         return {"csrf": csrf, "completed": bool(row["completed"]), "expires_at": row["expires_at"],
                 "phase": "completed" if row["completed"] else "authenticated" if principal else "preauth",
                 "client": {"id": request["client_id"], "name": client["name"]},
@@ -934,6 +1127,9 @@ class OAuthServer:
                 "user": {"id": principal.id, "username": principal.username,
                          "display_name": principal.display_name} if principal else None,
                 "tools": list(catalog.values()), "max_grant_days": 30,
+                "server_bindings": bindings if principal and not row["completed"] else {},
+                "default_rate_per_minute": 6000 if request["resource"] == self.store.config()["resource"] else 30,
+                "default_concurrency": 100 if request["resource"] == self.store.config()["resource"] else 1,
                 "access_seconds": ACCESS_TTL, "refresh_days": 30}
 
     def release_interaction(self, interaction: str, browser: str, csrf: str) -> None:
@@ -943,10 +1139,11 @@ class OAuthServer:
 
     def consent(self, interaction: str, browser: str, csrf: str, principal: AuthPrincipal | None,
                 tool_ids: list[str], grant_days: int, rate: int, concurrency: int, *, deny: bool = False,
-                management_targets: dict[str, list[str]] | None = None) -> str:
+                management_targets: dict[str, list[str]] | None = None,
+                server_policies: list[dict[str, Any]] | None = None) -> str:
         if not deny and principal is None:
             raise OAuthError("login_required", 401)
-        if not deny and (not tool_ids or len(tool_ids) > MAX_TOOLS or len(set(tool_ids)) != len(tool_ids)
+        if not deny and ((not tool_ids and not server_policies) or len(tool_ids) > MAX_TOOLS or len(set(tool_ids)) != len(tool_ids)
                 or not 1 <= grant_days <= 30 or not 1 <= rate <= 10000 or not 1 <= concurrency <= 100):
             raise OAuthError("invalid_consent")
         with self.store.transaction() as connection:
@@ -972,24 +1169,41 @@ class OAuthServer:
             elif management_targets:
                 raise OAuthError("invalid_management_targets")
             offered = json.loads(row["catalog_json"])
+            if not management:
+                current = self._bind_tool_snapshots(connection, {key: current[key] for key in tool_ids if key in current})
             if offered.get("user_id") != principal.id or any(
                     tool_id not in current or not tool_scope_matches(offered.get("tools", {}).get(tool_id, {}), current[tool_id])
+                    or (offered.get("tools", {}).get(tool_id, {}).get("server_binding") != current[tool_id].get("server_binding"))
                     for tool_id in tool_ids):
                 raise OAuthError("tool_scope_changed", 409)
             tools = {tool_id: current[tool_id] for tool_id in tool_ids}
+            client = connection.execute("SELECT * FROM gate_oauth_clients WHERE id=?", (request["client_id"],)).fetchone()
+            policies = self._scope_policies(connection, principal,
+                {"target_revision": 1 if management else 0, "scopes": request["scopes"]}, client, server_policies or [], tools)
+            if any(offered.get("server_bindings", {}).get(item["server_id"]) != item["server_binding"] for item in policies):
+                raise OAuthError("tool_scope_changed", 409)
             granted_scopes = sorted({"tools.read" if value["access"] == "read" else "tools.invoke"
-                                     for value in tools.values()})
+                                     for value in tools.values()} | ({"tools.read"} if policies else set())
+                                    | ({"tools.invoke"} if any(item["access"] == "write" for item in policies) else set()))
             if management:
                 granted_scopes = sorted({"operations.manage"} | ({"tools.invoke"} if "tools.invoke" in granted_scopes else set()))
-            if len({item["server_id"] for item in tools.values()}) > 100:
+            if len({item["server_id"] for item in tools.values()} | {item["server_id"] for item in policies}) > 100:
                 raise OAuthError("server_scope_limit")
             if connection.execute("SELECT COUNT(*) FROM gate_oauth_grants WHERE user_id=?", (principal.id,)).fetchone()[0] >= 1000:
                 raise OAuthError("grant_limit", 409)
             now = int(time.time())
-            connection.execute("INSERT INTO gate_oauth_grants VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
+            connection.execute("INSERT INTO gate_oauth_grants "
+                               "(id,user_id,client_id,resource,scopes_json,tools_json,expires_at,rate_per_minute,concurrency,"
+                               "revoked_at,revision,created_at,management_targets_json,target_revision,server_policies_json) "
+                               "VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
                                (grant_id, principal.id, request["client_id"], request["resource"],
                                 json.dumps(granted_scopes), json.dumps(tools), now + grant_days * 86400,
-                                rate, concurrency, None, 1, now, json.dumps(targets), 1 if management else 0))
+                                rate, concurrency, None, 1, now, json.dumps(targets), 1 if management else 0, json.dumps(policies)))
+            if policies:
+                ObservabilityStore(self.store.database).emit_event("gate.oauth.grant_server_policies_created", source="oauth",
+                    subject_type="oauth", subject_id=grant_id, payload={"actor_id": principal.id,
+                        "client_id": request["client_id"], "server_policies": policies,
+                        "rate_per_minute": rate, "concurrency": concurrency}, connection=connection)
             connection.execute("INSERT INTO gate_oauth_codes VALUES(?,?,?,?,?,?,?,NULL)",
                                (hash_secret(code), grant_id, request["client_id"], request["redirect_uri"],
                                 request["resource"], request["code_challenge"], now + CODE_TTL))

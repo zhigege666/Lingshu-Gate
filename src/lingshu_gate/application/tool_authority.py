@@ -41,6 +41,8 @@ def current_tool_principal(auth: AuthStore, actor: AuthPrincipal) -> AuthPrincip
                     or row["expires_at"] and datetime.fromisoformat(row["expires_at"]) <= datetime.now(timezone.utc)):
                 raise ValueError("token_unavailable")
             scopes = _intersection(scopes, tuple(json.loads(row["scopes_json"])))
+            # 与新的 HTTP 认证使用同一令牌策略读取，排队后不能沿用旧范围或配额。
+            actor = auth.apply_api_token_authorization(replace(actor, scopes=scopes))
         elif actor.auth_type == "oauth":
             if actor.oauth_builtin:
                 if auth.builtin_oauth is None:
