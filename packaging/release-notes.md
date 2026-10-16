@@ -1,31 +1,27 @@
-# Lingshu Gate 0.4.8
+# Lingshu Gate 0.4.9
 
 ## English — release overview
 
-0.4.8 delivers unified personal credential management under "My Authorizations", continuous MCP authorization scoping, persistent per-authorization tool discovery modes defaulting to on-demand, configurable invocation quotas, and group purpose distinction. The release unifies personal API tokens, Gate OAuth grants, and external identity authorizations into a single management interface, removing disconnected token pages and redundant documentation bars.
+0.4.9 preserves tool classifications, original review timestamps, and OAuth authorization snapshots across MCP service restarts, temporary connection failures, and smooth upgrades for unchanged tool definitions. Offline tools leave the callable tool catalog immediately upon disconnect, ensuring offline safety while avoiding redundant re-authorization or re-review cycles when the service recovers.
 
-- **Unified personal authorizations**: Personal API tokens, Gate OAuth authorizations, and external provider grants are managed from a unified table with search, kind/purpose/status filters, quota readouts, and scoped actions. Tokens reveal their plaintext secret only once at creation; OAuth grants originate from client flows; revocations target exact records without merging or cross-revoking distinct credentials.
-- **Continuous MCP authorization**: Personal API tokens and Gate OAuth grants support continuous whole-service authorization in read-only or read-write mode. Newly discovered and published tools under that MCP automatically become available without re-selecting individual tools. Policies bind to service lifecycle identity; deleting and recreating a service or replacing its trust target invalidates continuous authorization and requires re-confirmation.
-- **Authorization-level tool discovery**: Tool discovery mode (`on_demand` vs `direct`) is persisted per authorization for API tokens, Gate OAuth grants, and external OAuth records, defaulting both new and existing business authorizations to on-demand. Request-level query parameters and headers are ignored, and generated client configs omit `tool_mode`.
-- **Configurable invocation quotas**: Business authorizations support editable per-minute rate limits (1–10,000, default 6,000) and concurrency limits (1–100, default 100), enforced in dispatch memory with CAS revision checks, preview differences, and atomic rollback audit.
-- **Group purpose distinction**: Multi-instance execution (`execution`) and multi-data-source query (`data_source`) groups are explicitly identified, while existing groups remain `unspecified` with upgrade compatibility.
-- **Persistence & migrations**: Three database migrations (`authorization_discovery`, `mcp_authorization_identity`, `token_authorizations`) upgrade existing databases while preserving SQLite single-writer and isolated Core boundaries.
+- **MCP review & authorization lifecycle preservation**: When an MCP server restarts, reconnects after temporary network/health-check outages, or undergoes an upgrade, tools whose definitions remain unchanged retain their existing classification status and review timestamps. Callers retain their granted access without requiring new OAuth consent or manual scope adjustment.
+- **Callable catalog offline boundary**: Tools belonging to a stopped, failed, or disconnected MCP server are unlisted from the callable tool catalog immediately. Retaining classification and review records does not make an offline tool invocable.
+- **Upgrade reconciliation against complete tools/list**: When a service restores and reports its full tool list, unchanged tools preserve their existing authorization snapshots. Newly introduced tools are registered as `pending` with `unknown` access requiring explicit review and publication. Old tools omitted from the complete tool list remain invalidated, even if they reappear at a later date.
+- **Strict security & lifecycle boundaries**: Modifications to tool definitions, explicit unregistrations, service deletion/recreation, and token/grant revocations retain their existing invalidation behavior. This behavior is standard lifecycle policy and introduces no new configuration flags.
 
 The optional Native/Linux rootless Podman executor remains disabled by default; real Podman host, ChatGPT OAuth client, and multi-machine acceptance remain incomplete. Core remains gateway-only. Installing the release does not automatically provision these resources, enable OAuth, or expand permissions.
 
-The [0.4.8 validation record](../docs/release-validation-0.4.8.md) documents exact-source checks, candidate test evidence, and formal publication boundaries. Pushing a version change to main automatically starts tag creation and the formal release workflow. Formal publication requires 11 verified assets with provenance: five native targets (Linux x86_64/ARM64, Windows x86_64, macOS x86_64/ARM64), Compose, two offline Core images, application SPDX SBOM, image reference, and SHA256SUMS.
+The [0.4.9 validation record](../docs/release-validation-0.4.9.md) documents exact-source checks, candidate test evidence, and formal publication boundaries. Pushing a version change to main automatically starts tag creation and the formal release workflow. Formal publication requires 11 verified assets with provenance: five native targets (Linux x86_64/ARM64, Windows x86_64, macOS x86_64/ARM64), Compose, two offline Core images, application SPDX SBOM, image reference, and SHA256SUMS.
 
 ## 简体中文 — 版本概述
 
-0.4.8 提供统一个人凭据管理的“我的授权”入口、MCP 持续授权范围、持久化到每条授权且默认按需的工具发现模式、可编辑调用配额以及显式分组用途区分。本版本将个人 API 令牌、Gate OAuth 授权和外部身份提供方授权整合至统一管理界面，移除分散的独立令牌页与常驻长说明条。
+0.4.9 在同一 MCP 服务重启、临时连接断开或平滑升级时，只要工具定义保持未变，即可保留其分类、原审核时间戳以及已确认的 OAuth 授权快照。服务离线后工具立即退出可调用目录，在保障离线安全性的同时，免除服务恢复后重复授权与重新审核的负担。
 
-- **统一“我的授权”管理**：个人 API 令牌、Gate OAuth 授权和外部提供方授权在同一表格中集中管理，提供名称/客户端搜索、授权方式/用途/状态筛选、实际配额展示及作用域操作。API 令牌明文仅在创建时展示一次；OAuth 授权仍由客户端流程发起；撤销操作精确作用于目标来源记录，不串联或误撤销其他凭据。
-- **MCP 持续授权**：个人 API 令牌与 Gate 业务 OAuth 支持整服务级持续授权（只读或读写模式）。被持续授权的 MCP 下后续新发现且审核发布的工具自动获得使用权限，无需逐项重选。策略严格绑定服务生命周期身份；删除重建同名服务或替换信任目标必须重新确认，不继承旧授权。
-- **授权级工具发现**：工具发现模式（按需发现 `on_demand` 与完整工具列表 `direct`）持久化至每条业务授权（API 令牌、Gate 业务 OAuth 与外部 OAuth 本地授权），新旧授权均默认按需。忽略客户端请求参数与请求头覆盖，客户端生成配置去掉 `tool_mode` 参数。
-- **可编辑调用配额**：业务授权支持可配置的每分钟调用上限（1–10000，新建默认 6000）与并发上限（1–100，新建默认 100），派发时由内存计数器校验，保存经过版本 CAS、差异确认及原子审计回滚。
-- **分组用途区分**：显式区分多实例执行（`execution`）与多数据源查询（`data_source`），历史分组保持 `unspecified` 并保留升级兼容性。
-- **持久化与迁移**：增加 `authorization_discovery`、`mcp_authorization_identity` 与 `token_authorizations` 三项数据库迁移，继续保留 SQLite 单写入者及 Core 网关边界。
+- **MCP 审核与授权生命周期保留**：当 MCP 服务发生普通重启、网络/健康检查临时中断恢复或服务平滑升级时，与之前定义完全一致的工具继续保留其原分类和审核时间戳。客户端与使用者无需重新进行 OAuth 授权确认或手动更新权限范围。
+- **可调用目录严格离线**：服务停止、失败或断开连接后，所属工具立即从网关可调用目录中下架；保留审核信息绝不会使不可用工具仍处于可调用状态。
+- **恢复与升级完整快照对齐**：服务恢复并提供完整工具列表（`tools/list`）后，未变更工具恢复既有授权快照；新增工具进入待审核状态（`pending` / `unknown`），须经管理员明确审核与发布；被完整列表实际移除的旧工具维持失效，即便日后再次出现亦须重新审核。
+- **严格安全与生命周期边界**：工具定义变更、显式注销、服务删除重建及凭据/授权撤销严格保留原有失效机制。本生命周期规则为开箱即用默认行为，不引入额外配置开关。
 
 可选 Native/Linux rootless Podman 执行器默认关闭；真实 Podman 宿主、ChatGPT OAuth 客户端及多机器验收仍未完成。Core 仍仅为 gateway。安装本版不会自动准备这些资源、启用 OAuth 或扩大权限。
 
-[0.4.8 验证记录](../docs/zh-CN/release-validation-0.4.8.md) 记录准确源码检查、候选测试证据与正式发布门禁。版本变化推入 main 会自动启动创建 tag 与正式发行工作流。正式发布要求 11 项经来源证明验证的资产：五平台 native（Linux x86_64/ARM64、Windows x86_64、macOS x86_64/ARM64）、Compose、两个离线 Core 镜像、应用 SPDX SBOM、镜像引用及 SHA256SUMS。
+[0.4.9 验证记录](../docs/zh-CN/release-validation-0.4.9.md) 记录准确源码检查、候选测试证据与正式发布门禁。版本变化推入 main 会自动启动创建 tag 与正式发行工作流。正式发布要求 11 项经来源证明验证的资产：五平台 native（Linux x86_64/ARM64、Windows x86_64、macOS x86_64/ARM64）、Compose、两个离线 Core 镜像、应用 SPDX SBOM、镜像引用及 SHA256SUMS。

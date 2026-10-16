@@ -12,6 +12,7 @@ from lingshu_gate.mcp_gateway import register_mcp_gateway_route
 from lingshu_gate.models import ToolDefinition
 from lingshu_gate.oauth_candidate_catalog import OAuthCandidateCatalog
 from lingshu_gate.oauth_server import OAuthError
+from lingshu_gate.registry import ToolRecord
 from lingshu_gate.tool_catalog import ToolCatalog
 from lingshu_gate.transports.http import build_protocol_request
 from lingshu_gate.transports.oauth import McpOAuthDiscoveryBoundary, OAuthProtectedResourceMetadata
@@ -44,6 +45,37 @@ def publish(gate, tool_id, access="read"):
     gate["access"].set_classification(server_id="A", tool_id=tool_id, access=access,
         destructive=False, idempotent=access == "read", reviewer_id=gate["admin"]["id"])
     gate["access"].publish_classifications(server_id="A", reviewer_id=gate["admin"]["id"])
+
+
+@pytest.mark.parametrize("synchronize_during_outage", [False, True])
+def test_selected_oauth_bearer_survives_restart_and_upgrade_without_new_consent(gate, synchronize_during_outage):
+    _, _, grant, tokens = initial(gate, both=True)
+    catalog = ToolCatalog(gate["registry"], gate["access"])
+    catalog.synchronize()
+    definitions = [gate["registry"].get_definition(tool_id) for tool_id in grant["tools"]]
+    before = {row["tool_id"]: row for row in gate["access"].list_classifications(server_id="A")}
+    gate["registry"].unregister_by_metadata("server_id", "A", source="mcp", retire=False)
+    if synchronize_during_outage:
+        catalog.synchronize()
+        assert gate["server"].verify(tokens["access_token"]).external_tool_ids == ()
+    added = definitions[0].model_copy(update={"id": "mcp.A.added", "name": "added",
+        "metadata": {**definitions[0].metadata, "original_tool_name": "added"}})
+    gate["registry"].replace_by_metadata("server_id", "A",
+        [ToolRecord(tool, lambda _: {}) for tool in [*definitions, added]], source="mcp")
+    catalog.synchronize()
+    assert set(gate["server"].verify(tokens["access_token"]).external_tool_ids) == set(grant["tools"])
+    after = {row["tool_id"]: row for row in gate["access"].list_classifications(server_id="A")}
+    assert all(before[tool_id] == after[tool_id] for tool_id in grant["tools"])
+    assert after[added.id]["status"] == "pending"
+    # 新工具即使独立发布，也不会进入原来的指定工具授权，更不会刷新旧工具快照。
+    gate["access"].set_classification(server_id="A", tool_id=added.id, access="read", destructive=False,
+                                      idempotent=True, reviewer_id=gate["admin"]["id"])
+    gate["access"].publish_classifications(tool_ids=[added.id], reviewer_id=gate["admin"]["id"])
+    assert set(gate["server"].verify(tokens["access_token"]).external_tool_ids) == set(grant["tools"])
+    gate["server"].narrow_grant(gate["users"]["alice"]["id"], grant["id"], grant["revision"],
+                                [], 0, 0, 0, revoke=True)
+    with pytest.raises(OAuthError):
+        gate["server"].verify(tokens["access_token"])
 
 
 def test_same_bearer_gains_future_published_tools_and_readback_keeps_policy_separate(gate):

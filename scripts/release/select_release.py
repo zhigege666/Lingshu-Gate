@@ -15,7 +15,7 @@ REVISION_PATTERN = re.compile(r"(?:[0-9a-f]{40}|[0-9a-f]{64})")
 
 def _git(repository: Path, *arguments: str) -> str:
     result = subprocess.run(
-        ["git", *arguments], cwd=repository, capture_output=True, text=True, check=False
+        ["git", *arguments], cwd=repository, capture_output=True, text=True, encoding="utf-8", check=False
     )
     if result.returncode != 0:
         raise RuntimeError("Cannot verify release history; fetch the complete push baseline")

@@ -127,10 +127,11 @@ class ToolCatalog:
         self._initial = True
         registry.subscribe_catalog(self._enqueue)
 
-    def _enqueue(self, changes: dict[str, ToolDefinition | None]) -> None:
+    def _enqueue(self, changes: dict[str, ToolDefinition | None], retired: frozenset[str]) -> None:
         with self._queue_lock:
             self._pending.update(changes)
-            self._retired.update(key for key, definition in changes.items() if definition is None)
+            # 目录下架与审核失效分别处理：重启/断线不改变原分类、审核时间和授权快照。
+            self._retired.update(retired)
             for key, definition in changes.items():
                 self._reserved.discard(key)
                 if definition is not None and public_tool_name(definition) in CATALOG_TOOL_NAMES:

@@ -16,7 +16,7 @@ from lingshu_gate.models import ToolDefinition, ToolInvokeResponse
 from lingshu_gate.domain.tool_structure import FrozenToolDefinition, freeze_tool_definition
 
 ToolHandler = Callable[..., dict[str, Any]]
-CatalogListener = Callable[[dict[str, ToolDefinition | None]], None]
+CatalogListener = Callable[[dict[str, ToolDefinition | None], frozenset[str]], None]
 logger = logging.getLogger(__name__)
 SENSITIVE_LOG_KEY = re.compile(
     r"(?:password|passwd|secret|token|authorization|cookie|credential|api[_-]?key|private[_-]?key|data_base64)",
@@ -138,6 +138,8 @@ class ToolRegistry:
         self._lock = threading.RLock()
         self._revision = 0
         self._structures: dict[str, FrozenToolDefinition] = {}
+        # 临时下线只保留不可调用的定义，用于恢复后识别真正被移除的工具；不保留旧 handler。
+        self._unavailable_structures: dict[str, FrozenToolDefinition] = {}
         self._mcp_index: dict[str, dict[str, RegistryToolSnapshot]] = {}
         self._mcp_revisions: dict[str, int] = {}
         self._catalog_listeners: list[CatalogListener] = []
@@ -145,12 +147,15 @@ class ToolRegistry:
     def subscribe_catalog(self, listener: CatalogListener) -> None:
         """Seed atomically; listeners only enqueue and never do I/O or callbacks."""
         with self._lock:
-            listener({key: record.definition for key, record in self._tools.items()})
+            listener({key: record.definition for key, record in self._tools.items()}, frozenset())
             self._catalog_listeners.append(listener)
 
-    def _notify_catalog(self, changes: dict[str, ToolDefinition | None]) -> None:
+    def _notify_catalog(self, changes: dict[str, ToolDefinition | None], *,
+                        retired: frozenset[str] | None = None) -> None:
+        if retired is None:
+            retired = frozenset(key for key, definition in changes.items() if definition is None)
         for listener in self._catalog_listeners:
-            listener(changes)
+            listener(changes, retired)
 
     def _index_change(self, previous: ToolRecord | None, current: ToolRecord | None,
                       structure: FrozenToolDefinition | None = None) -> None:
@@ -192,6 +197,7 @@ class ToolRegistry:
             self._revision += 1
             self._index_change(previous, current, structure)
             self._structures[owned.id] = structure
+            self._unavailable_structures.pop(owned.id, None)
             self._tools[owned.id] = current
             self._notify_catalog({owned.id: owned})
         log_event(
@@ -229,8 +235,9 @@ class ToolRegistry:
         value: Any,
         *,
         source: str | None = None,
+        retire: bool = True,
     ) -> int:
-        """按元数据注销工具；可额外限定工具来源，避免误删内置工具。"""
+        """按元数据注销工具；临时不可用时保留审核，真实移除默认使审核失效。"""
 
         with self._lock:
             removed = [
@@ -239,14 +246,25 @@ class ToolRegistry:
                 if record.definition.metadata.get(key) == value
                 and (source is None or record.definition.source == source)
             ]
-            if removed:
+            unavailable = {
+                tool_id for tool_id, structure in self._unavailable_structures.items()
+                if structure.metadata.get(key) == value and (source is None or structure.source == source)
+            } if retire else set()
+            changed_ids = set(removed) | unavailable
+            if changed_ids:
                 self._revision += 1
             for tool_id in removed:
+                if not retire:
+                    self._unavailable_structures[tool_id] = self._structures[tool_id]
                 self._index_change(self._tools.pop(tool_id), None)
                 self._structures.pop(tool_id)
-            if removed:
-                self._notify_catalog(dict.fromkeys(removed))
-        for tool_id in removed:
+            if retire:
+                for tool_id in changed_ids:
+                    self._unavailable_structures.pop(tool_id, None)
+            if changed_ids:
+                self._notify_catalog(dict.fromkeys(changed_ids),
+                                     retired=frozenset(changed_ids) if retire else frozenset())
+        for tool_id in sorted(changed_ids):
             log_event(
                 logger,
                 logging.INFO,
@@ -256,8 +274,9 @@ class ToolRegistry:
                 key=key,
                 value=value,
                 source=source,
+                retired=retire,
             )
-        return len(removed)
+        return len(changed_ids)
 
     def replace_by_metadata(
         self,
@@ -296,7 +315,11 @@ class ToolRegistry:
                     and (source is None or record.definition.source == source)
                 )
             }
-            conflicts = sorted(set(retained) & set(replacement))
+            unavailable = {
+                tool_id for tool_id, structure in self._unavailable_structures.items()
+                if structure.metadata.get(key) == value and (source is None or structure.source == source)
+            }
+            conflicts = sorted((set(retained) | (self._unavailable_structures.keys() - unavailable)) & set(replacement))
             if conflicts:
                 raise ValueError(
                     "Replacement tool conflicts with another source: "
@@ -304,7 +327,8 @@ class ToolRegistry:
                 )
 
             removed_count = len(self._tools) - len(retained)
-            retired_ids = self._tools.keys() - retained.keys() - replacement.keys()
+            # 重启后完整 tools/list 仍缺失的旧工具才是真实移除；相同定义继续复用原审核。
+            retired_ids = (self._tools.keys() - retained.keys() | unavailable) - replacement.keys()
             self._revision += 1
             for tool_id in self._tools.keys() - retained.keys():
                 self._index_change(self._tools[tool_id], None)
@@ -312,6 +336,8 @@ class ToolRegistry:
             for tool_id, record in replacement.items():
                 self._index_change(None, record, structures[tool_id])
             self._structures.update(structures)
+            for tool_id in unavailable:
+                self._unavailable_structures.pop(tool_id)
             # One assignment publishes the complete replacement snapshot. Readers
             # protected by the same lock can never observe a partially refreshed set.
             self._tools = {**retained, **replacement}

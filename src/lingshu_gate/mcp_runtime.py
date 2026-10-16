@@ -719,7 +719,7 @@ class McpRuntimeManager:
                     runtime.client.stop()
                     runtime.client = None
                 runtime.tools = []
-                self.registry.unregister_by_metadata("server_id", server_id, source="mcp")
+                self.registry.unregister_by_metadata("server_id", server_id, source="mcp", retire=False)
                 self._log_runtime(server_id, "error", "Failed to start MCP server", "gate.mcp.server_start_failed", {"error": safe_error})
                 self._record_recovery_event(server_id, "gate.mcp.server_start_failed", "Failed to start MCP server", {"error": safe_error}, level="error")
                 log_event(logger, logging.ERROR, "gate.mcp.server_start_failed", "Failed to start MCP server", server_id=server_id, error=safe_error, exc_info=True)
@@ -842,7 +842,7 @@ class McpRuntimeManager:
                 runtime.client.stop()
                 runtime.client = None
             runtime.tools = []
-            self.registry.unregister_by_metadata("server_id", server_id, source="mcp")
+            self.registry.unregister_by_metadata("server_id", server_id, source="mcp", retire=False)
             log_event(logger, logging.ERROR, "gate.mcp.server_start_failed", "Failed to connect external MCP server", server_id=server_id, endpoint=safe_endpoint, error=safe_error, exc_info=cancel is None)
             self._log_runtime(server_id, "error", "Failed to connect external MCP server", "gate.mcp.server_start_failed", {"endpoint": safe_endpoint, "error": safe_error})
             if cancel is not None:
@@ -927,7 +927,7 @@ class McpRuntimeManager:
                 self._stop_runtime_locked(server_id, runtime, clear_error=False)
 
     def _stop_runtime_locked(self, server_id: str, runtime: McpServerRuntime, *, clear_error: bool) -> None:
-        self.registry.unregister_by_metadata("server_id", server_id, source="mcp")
+        self.registry.unregister_by_metadata("server_id", server_id, source="mcp", retire=False)
         runtime.restart_scheduled = False
         runtime.next_restart_at = None
         runtime.health_status = "unknown"
@@ -969,7 +969,7 @@ class McpRuntimeManager:
             runtime.last_exit_code = returncode
             runtime.last_exited_at = _now()
             runtime.health_status = "unknown"
-            self.registry.unregister_by_metadata("server_id", server_id, source="mcp")
+            self.registry.unregister_by_metadata("server_id", server_id, source="mcp", retire=False)
             if runtime.state == McpServerState.STOPPED:
                 return
             runtime.state = McpServerState.FAILED
@@ -1027,7 +1027,7 @@ class McpRuntimeManager:
                 runtime.last_error = f"MCP health check failed {runtime.consecutive_health_failures} time(s): {error}"
                 runtime.client = None
                 runtime.tools = []
-                self.registry.unregister_by_metadata("server_id", server_id, source="mcp")
+                self.registry.unregister_by_metadata("server_id", server_id, source="mcp", retire=False)
                 threshold_payload = {**failure_payload, "reason": "health_check_failed"}
                 log_event(logger, logging.ERROR, "gate.mcp.health_check_threshold_exceeded", "MCP health check failure threshold exceeded", server_id=server_id, **threshold_payload)
                 self._log_runtime(server_id, "error", "MCP health check failure threshold exceeded", "gate.mcp.health_check_threshold_exceeded", threshold_payload)

@@ -2,6 +2,14 @@
 
 ## Unreleased
 
+## 0.4.9
+
+- Preserve tool classifications, reviewer timestamps, and OAuth authorization snapshots across MCP service restarts, temporary connection outages, and upgrades for unchanged tool definitions.
+- Tools belonging to stopped, failed, or disconnected MCP servers leave the callable catalog immediately; preserving reviews does not leave offline tools invocable.
+- Reconcile tool snapshots against complete `tools/list` on recovery: unchanged definitions preserve existing authorization snapshots, newly introduced tools require classification review and publication, and tools omitted from the new list remain invalidated.
+- Retain strict invalidation boundaries for definition changes, explicit unregistrations, service recreation, and grant revocation.
+- See the paired [0.4.9 validation record](docs/release-validation-0.4.9.md) for executed checks and candidate boundaries.
+
 ## 0.4.8
 
 - Unify personal credentials under "My Authorizations" in the Web Console: personal API tokens, Gate OAuth grants, and external identity authorizations share a unified management table, toolbar search and filtering, status indicators, and lifecycle operations without separate standalone pages or redundant intros.
