@@ -14,6 +14,7 @@ from fastapi.testclient import TestClient
 from lingshu_gate.access_control import AccessDeniedError
 from lingshu_gate.mcp_gateway import register_mcp_gateway_route
 from lingshu_gate.models import ToolDefinition
+from lingshu_gate.tool_catalog import ToolCatalog
 from lingshu_gate.oauth_server import OAuthError
 from lingshu_gate.transports.http import build_protocol_request
 from lingshu_gate.transports.oauth import McpOAuthDiscoveryBoundary, OAuthProtectedResourceMetadata
@@ -75,7 +76,8 @@ def test_one_saved_tool_survives_more_than_5000_owner_candidates(gate, monkeypat
             (gate["admin"]["id"],))
     register_mcp_gateway_route(gate["app"], gate["settings"], gate["registry"], gate["access"],
         gate["auth"].authenticate_mcp_request,
-        McpOAuthDiscoveryBoundary(OAuthProtectedResourceMetadata(RESOURCE, (ISSUER,))))
+        McpOAuthDiscoveryBoundary(OAuthProtectedResourceMetadata(RESOURCE, (ISSUER,))),
+        catalog=ToolCatalog(gate["registry"], gate["access"]))
     with TestClient(gate["app"], base_url=ISSUER) as browser:
         params, headers = build_protocol_request("server/discover", None, client_name="Synthetic", client_version="1")
         response = browser.post("/mcp", json={"jsonrpc": "2.0", "id": 1, "method": "server/discover", "params": params},

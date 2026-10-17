@@ -54,14 +54,20 @@ class _AccessStore:
         del principal
         return definitions
 
+    def evaluate(self, principal, definition):
+        return {"allowed": True}
+
     def invoke_tool(
         self,
         registry: ToolRegistry,
         principal: AuthPrincipal,
         tool_id: str,
         arguments: dict[str, object],
+        *, dispatch_guard=None,
     ):
         del principal
+        if dispatch_guard is not None:
+            dispatch_guard()
         self.invocations.append((tool_id, arguments))
         return registry.invoke(tool_id, arguments)
 

@@ -13,6 +13,8 @@ from lingshu_gate.mcp_gateway import register_mcp_gateway_route
 from lingshu_gate.models import ToolDefinition
 from lingshu_gate.protocol.request import CLIENT_CAPABILITIES_META_KEY, PROTOCOL_META_KEY
 from lingshu_gate.registry import ToolRegistry
+from test_mcp_protocol_current import _AccessStore as CurrentAccessStore
+from test_mcp_sdk_interop import _AccessStore as SdkAccessStore
 
 VERSIONS = ("2025-03-26", "2025-06-18", "2025-11-25")
 
@@ -174,8 +176,9 @@ def test_legacy_requests_keep_auth_origin_and_revocation_checks(gateway):
     assert store.invocations == 0
 
 
-def test_legacy_access_fixture_executes_dispatch_guard_before_invocation():
-    store = AccessStore()
+@pytest.mark.parametrize("factory", [AccessStore, CurrentAccessStore, SdkAccessStore])
+def test_legacy_access_fixture_executes_dispatch_guard_before_invocation(factory):
+    store = factory()
     calls = []
 
     def denied_guard():
@@ -185,4 +188,4 @@ def test_legacy_access_fixture_executes_dispatch_guard_before_invocation():
     principal = AuthPrincipal(id="legacy-test", username="legacy-test", role="viewer")
     with pytest.raises(AccessDeniedError):
         store.invoke_tool(ToolRegistry(), principal, "test.echo", {}, dispatch_guard=denied_guard)
-    assert calls == ["checked"] and store.invocations == 0
+    assert calls == ["checked"] and not getattr(store, "invocations", 0)

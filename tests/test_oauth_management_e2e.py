@@ -20,6 +20,7 @@ from lingshu_gate.domain.oauth_management import MANAGEMENT_METADATA_PATH, MANAG
 from lingshu_gate.models import ToolDefinition
 from lingshu_gate.observability_store import ObservabilityStore
 from lingshu_gate.protocol.version import MCP_PROTOCOL_VERSION
+from lingshu_gate.tool_catalog import CATALOG_TOOL_NAMES
 from lingshu_gate.transports.http import build_protocol_request
 from test_builtin_oauth import CHALLENGE, ISSUER, REDIRECT, RESOURCE, VERIFIER
 from test_external_mcp_configuration import PASSWORD, apply_arguments, manifest, wait
@@ -191,7 +192,16 @@ def test_complete_management_chain_and_target_confirmation_preserve_business_fam
     assert call(browser, other, "gate_mcp_config_status", {"operation_id": applied_b["operation_id"]}).get("isError")
     assert tuple(db.query_one("SELECT * FROM gate_oauth_families WHERE id=?", (business_claims["fid"],))) == original_family
     assert tuple(db.query_one("SELECT * FROM gate_oauth_grants WHERE id=?", (business_claims["gid"],))) == original_grant
-    assert {item["name"] for item in protocol(browser, ordinary["access_token"], "tools/list", path="/mcp").json()["result"]["tools"]} == {"mcp__synthetic_business__read"}
+    assert {item["name"] for item in protocol(browser, ordinary["access_token"], "tools/list", path="/mcp").json()["result"]["tools"]} == set(CATALOG_TOOL_NAMES)
+    search = protocol(browser, ordinary["access_token"], "tools/call",
+        {"name": "gate_catalog_search", "arguments": {}}, path="/mcp")
+    assert search.status_code == 200, search.text
+    assert {item["tool_ref"] for item in output(search.json()["result"])["tools"]} == {"mcp.synthetic_business.read"}
+    described = protocol(browser, ordinary["access_token"], "tools/call",
+        {"name": "gate_tool_describe", "arguments": {"tool_ref": "mcp.synthetic_business.read"}}, path="/mcp")
+    assert described.status_code == 200 and output(described.json()["result"])["tool_ref"] == "mcp.synthetic_business.read"
+    assert tuple(db.query_one("SELECT * FROM gate_oauth_families WHERE id=?", (business_claims["fid"],))) == original_family
+    assert tuple(db.query_one("SELECT * FROM gate_oauth_grants WHERE id=?", (business_claims["gid"],))) == original_grant
     journal = db.query_one("SELECT status,result_json FROM mcp_idempotent_operations WHERE id=?", (applied_b["operation_id"],))
     assert journal["status"] == "succeeded" and json.loads(journal["result_json"])["terminal"]
 

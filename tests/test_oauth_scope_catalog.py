@@ -8,6 +8,7 @@ from fastapi.testclient import TestClient
 
 from lingshu_gate.mcp_gateway import register_mcp_gateway_route
 from lingshu_gate.models import ToolDefinition
+from lingshu_gate.tool_catalog import ToolCatalog
 from lingshu_gate.oauth_server import OAuthError
 from lingshu_gate.transports.http import build_protocol_request
 from lingshu_gate.transports.oauth import McpOAuthDiscoveryBoundary, OAuthProtectedResourceMetadata
@@ -55,10 +56,19 @@ def test_admin_api_token_calls_unpublished_new_mcp_while_oauth_explains_publicat
 
     gate["access"].attach_mcp_runtime(SyntheticRuntime())
     register_mcp_gateway_route(gate["app"], gate["settings"], gate["registry"], gate["access"], gate["auth"].authenticate_mcp_request,
-        McpOAuthDiscoveryBoundary(OAuthProtectedResourceMetadata(RESOURCE, (ISSUER,))))
+        McpOAuthDiscoveryBoundary(OAuthProtectedResourceMetadata(RESOURCE, (ISSUER,))),
+        catalog=ToolCatalog(gate["registry"], gate["access"]))
     api = gate["auth"].create_api_token(principal=principal, name="Synthetic admin API", scopes=["tools.read", "tools.invoke"])
     with TestClient(gate["app"], base_url=ISSUER) as browser:
-        params, headers = build_protocol_request("tools/call", {"name": "mcp__synthetic-plane__project", "arguments": {}},
+        describe_params, describe_headers = build_protocol_request("tools/call",
+            {"name": "gate_tool_describe", "arguments": {"tool_ref": "mcp.synthetic-plane.project"}},
+            client_name="Synthetic", client_version="1", protocol_version="2026-07-28")
+        described = browser.post("/mcp", json={"jsonrpc": "2.0", "id": 1, "method": "tools/call", "params": describe_params},
+            headers={**describe_headers, "Authorization": "Bearer " + str(api["token"])})
+        assert described.status_code == 200 and not described.json()["result"].get("isError", False), described.text
+        revision = described.json()["result"]["structuredContent"]["schema_revision"]
+        params, headers = build_protocol_request("tools/call", {"name": "gate_tool_invoke",
+            "arguments": {"tool_ref": "mcp.synthetic-plane.project", "schema_revision": revision, "arguments": {}}},
             client_name="Synthetic", client_version="1", protocol_version="2026-07-28")
         body = {"jsonrpc": "2.0", "id": 1, "method": "tools/call", "params": params}
         called = browser.post("/mcp", json=body, headers={**headers, "Authorization": "Bearer " + str(api["token"])})

@@ -20,6 +20,8 @@ The initial full-suite run exposed two pre-existing external-management tests th
 
 Four legacy-protocol tests also failed against unchanged 0.4.9 because their access-store double lacked the current `dispatch_guard` argument and evaluation method. The double now executes the guard; all three legacy versions assert the check runs, and a negative case verifies guard failure prevents invocation. That file passed 13 tests. The combined external-configuration, gateway, legacy-protocol, authorization-discovery and stdio run passed 179 tests plus 2 subtests. Only test contracts changed; gateway security rules did not.
 
+Further current-protocol and SDK doubles now implement dispatch guards. OAuth and log tests use persisted discovery settings and actual catalog wiring while checking unchanged grant scope, hidden-tool privacy and global-log non-disclosure. That group passed 48 tests plus 15 subtests. The initial full run recorded 56 failures, 2425 passes, 7 skips and 132 passed subtests; failure accounting includes two subtest failures. After normal frozen dependency synchronization prepared the isolated build environment, all 40 existing offline wheel tests passed unchanged, including source-integrity and security negative cases. The final complete commit still requires full-suite and workflow acceptance.
+
 ## Release identity boundaries
 
 Current documentation and test-helper wording are neutral. Seven historical snapshots are limited to the exact existing 0.4.8/0.4.9 commits, paths, Git blobs, SHA-256 values and findings. The previous independently reviewed exception remains intact. Reuse in other commits, commit messages, current text and release artifacts is not covered by a historical waiver.
