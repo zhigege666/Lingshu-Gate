@@ -20,13 +20,20 @@ VERSIONS = ("2025-03-26", "2025-06-18", "2025-11-25")
 class AccessStore:
     allowed = True
     invocations = 0
+    guard_checks = 0
 
     def visible_tools(self, principal, definitions):
         return definitions if self.allowed else []
 
-    def invoke_tool(self, registry, principal, tool_id, arguments):
+    def evaluate(self, principal, definition):
+        self.guard_checks += 1
+        return {"allowed": self.allowed}
+
+    def invoke_tool(self, registry, principal, tool_id, arguments, *, dispatch_guard=None):
         if not self.allowed:
             raise AccessDeniedError("revoked", required_access="read", granted_access="none")
+        if dispatch_guard is not None:
+            dispatch_guard()
         self.invocations += 1
         return registry.invoke(tool_id, arguments)
 
@@ -97,6 +104,7 @@ def test_legacy_initialize_notify_list_call_and_ping(gateway, version):
     assert "resultType" not in output
     assert output["structuredContent"] == {"echo": {"value": "hello"}}
     assert store.invocations == 1
+    assert store.guard_checks == 1
     ping = client.post("/mcp", headers=headers, json={"jsonrpc": "2.0", "id": 4, "method": "ping"})
     assert ping.json()["result"] == {}
 
@@ -164,3 +172,17 @@ def test_legacy_requests_keep_auth_origin_and_revocation_checks(gateway):
     denied = client.post("/mcp", headers=headers, json=request)
     assert denied.json()["result"]["isError"] is True
     assert store.invocations == 0
+
+
+def test_legacy_access_fixture_executes_dispatch_guard_before_invocation():
+    store = AccessStore()
+    calls = []
+
+    def denied_guard():
+        calls.append("checked")
+        raise AccessDeniedError("revoked at dispatch", required_access="read", granted_access="none")
+
+    principal = AuthPrincipal(id="legacy-test", username="legacy-test", role="viewer")
+    with pytest.raises(AccessDeniedError):
+        store.invoke_tool(ToolRegistry(), principal, "test.echo", {}, dispatch_guard=denied_guard)
+    assert calls == ["checked"] and store.invocations == 0

@@ -2,6 +2,16 @@
 
 ## Unreleased
 
+## 0.4.10
+
+- Fix blank stdio endpoints incorrectly entering Streamable HTTP URL validation across precheck, create, edit, reload and transport switching.
+- Preserve HTTP URL, private-origin trust, redaction and lossless Form/JSON boundaries; no placeholder HTTP endpoint is required.
+- Correct release identity findings in documentation and test helpers, with historical exceptions pinned to exact existing commits, paths, blobs, digests and findings.
+- Preserve all original C2PA bytes in four concept images. Distinguish source attribution only for exact reviewed image/chunk digests; changed images, other metadata and other rules remain checked.
+- Align stale external-management and legacy-protocol tests with persisted discovery modes and dispatch guards, including negative no-write/no-invocation cases.
+- Use a new patch identity without rewriting occupied tags or adding a database migration; retain full formal asset, checksum, SBOM and provenance requirements.
+- See the paired [0.4.10 validation record](docs/release-validation-0.4.10.md) for executed checks and remaining boundaries.
+
 ## 0.4.9
 
 - Preserve tool classifications, reviewer timestamps, and OAuth authorization snapshots across MCP service restarts, temporary connection outages, and upgrades for unchanged tool definitions.

@@ -113,7 +113,34 @@ def wait(gate, operation_id):
     pytest.fail("Synthetic external operation did not terminate")
 
 
+
+def select_direct_discovery(gate, token):
+    """Use the real owner preview/confirmation flow, without changing scopes."""
+    owner = gate["client"]
+    auth = gate["auth"]
+    before = auth._principal_from_api_token(token["token"])
+    path = "/v1/auth/authorizations/api/" + token["id"] + "/discovery"
+    offered = owner.get(path)
+    assert offered.status_code == 200, offered.text
+    current = offered.json()
+    assert current["tool_discovery_mode"] == "on_demand"
+    body = {"tool_discovery_mode": "direct", "expected_revision": current["discovery_revision"], "csrf": current["csrf"]}
+    headers = {"Origin": "http://testserver"}
+    preview = owner.post(path + "-preview", json=body, headers=headers)
+    assert preview.status_code == 200, preview.text
+    saved = owner.post(path, json={**body, "csrf": preview.json()["csrf"]}, headers=headers)
+    assert saved.status_code == 200 and saved.json()["tool_discovery_mode"] == "direct", saved.text
+    after = auth._principal_from_api_token(token["token"])
+    assert before is not None and after is not None and before.scopes == after.scopes
+
+
 def generic_call(client, entry, tool_id, arguments, *, origin=None, authorization=None):
+    if entry == "catalog":
+        described = generic_output(generic_call(client, "mcp", "gate_tool_describe", {"tool_ref": tool_id},
+            origin=origin, authorization=authorization), "mcp")
+        return generic_call(client, "mcp", "gate_tool_invoke",
+            {"tool_ref": tool_id, "schema_revision": described["schema_revision"], "arguments": arguments},
+            origin=origin, authorization=authorization)
     headers = {"Origin": origin} if origin else {}
     if authorization:
         headers["Authorization"] = authorization
@@ -160,19 +187,21 @@ def test_console_cookie_cannot_invoke_configuration_tools_through_generic_entrie
 
 
 def generic_output(response, entry):
-    assert response.status_code == 200
-    result = response.json()["result"] if entry == "mcp" else response.json()
-    if entry == "mcp":
+    assert response.status_code == 200, response.text
+    result = response.json()["result"] if entry in {"mcp", "catalog"} else response.json()
+    if entry in {"mcp", "catalog"}:
         assert not result.get("isError", False), result
         return result["structuredContent"]
     assert result["ok"], result
     return result["output"]
 
 
-@pytest.mark.parametrize("entry", ["tool", "invoke", "mcp"])
+@pytest.mark.parametrize("entry", ["tool", "invoke", "mcp", "catalog"])
 def test_api_token_can_use_all_configuration_tools_through_generic_entries(gate, entry):
     token = gate["auth"].create_api_token(principal=gate["principal"], name="Synthetic management",
         scopes=["tools.read", "tools.invoke", "operations.manage"])
+    if entry == "mcp":
+        select_direct_discovery(gate, token)
     with TestClient(gate["app"]) as client:
         def invoke(action, arguments):
             return generic_output(generic_call(client, entry, "gate_mcp_config_" + action,
@@ -306,7 +335,8 @@ def test_non_admin_and_connection_scope_limits_are_enforced(gate):
         gate["service"].plan({"mode": "create", "manifest": manifest()}, replace(gate["context"], delegated_scopes=("tools.read",)))
 
 
-def test_rest_session_api_token_and_mcp_token_share_the_same_plan_contract(gate):
+@pytest.mark.parametrize("entry", ["mcp", "catalog"])
+def test_rest_session_api_token_and_mcp_token_share_the_same_plan_contract(gate, entry):
     client, auth, principal = gate["client"], gate["auth"], gate["principal"]
     body = {"mode": "create", "manifest": manifest()}
     plan = client.post("/v1/mcp/external-configs/plan", json=body, headers=session_headers(gate, body))
@@ -315,6 +345,8 @@ def test_rest_session_api_token_and_mcp_token_share_the_same_plan_contract(gate)
     assert forbidden.status_code == 403
     limited = auth.create_api_token(principal=principal, name="Synthetic read only", scopes=["tools.read"])
     full = auth.create_api_token(principal=principal, name="Synthetic management", scopes=["tools.read", "tools.invoke", "operations.manage"])
+    if entry == "mcp":
+        select_direct_discovery(gate, full)
     with TestClient(gate["app"]) as token_client:
         denied = token_client.post("/v1/mcp/external-configs/plan", json={"mode": "create", "manifest": manifest()},
                                   headers={"Authorization": "Bearer " + limited["token"]})
@@ -322,12 +354,9 @@ def test_rest_session_api_token_and_mcp_token_share_the_same_plan_contract(gate)
         token_rest = token_client.post("/v1/mcp/external-configs/plan", json=body,
             headers={"Authorization": "Bearer " + full["token"], "Origin": "https://other.example.test", "Sec-Fetch-Site": "cross-site"})
         assert token_rest.status_code == 200 and token_rest.json()["manifest_digest"] == plan.json()["manifest_digest"]
-        params, headers = build_protocol_request("tools/call", {"name": "gate_mcp_config_plan", "arguments": {"mode": "create", "manifest": manifest()}},
-                                                client_name="Synthetic", client_version="1", protocol_version=MCP_PROTOCOL_VERSION)
-        result = token_client.post("/mcp", headers={**headers, "Authorization": "Bearer " + full["token"]},
-                                   json={"jsonrpc": "2.0", "id": 1, "method": "tools/call", "params": params})
-        assert result.status_code == 200 and not result.json()["result"].get("isError", False)
-        token_plan = result.json()["result"]["structuredContent"]
+        result = generic_call(token_client, entry, "gate_mcp_config_plan", body,
+                              authorization="Bearer " + full["token"])
+        token_plan = generic_output(result, entry)
         assert token_plan["manifest_digest"] == plan.json()["manifest_digest"]
         # A session cannot consume a token-bound plan even for the same user.
         with pytest.raises(ToolExecutionError):
@@ -924,3 +953,15 @@ def test_cancel_rechecks_completion_after_the_initial_status_read(gate, monkeypa
     assert row["status"] == "success" and row["cancel_requested"] == 0
     assert original({"operation_id": operation_id}, gate["context"])["connection_state"] == "connected"
     assert not any(action == "disconnect" for action, _ in gate["calls"])
+
+
+def test_default_on_demand_management_token_rejects_direct_tool_names_without_writing(gate):
+    token = gate["auth"].create_api_token(principal=gate["principal"], name="Synthetic default discovery",
+        scopes=["tools.read", "tools.invoke", "operations.manage"])
+    before = gate["service"].database.query_all("SELECT id FROM external_mcp_config_plans")
+    with TestClient(gate["app"]) as client:
+        response = generic_call(client, "mcp", "gate_mcp_config_plan", {"mode": "create", "manifest": manifest()},
+                                authorization="Bearer " + token["token"])
+        assert response.status_code == 400 and response.json()["error"]["code"] == -32602
+    assert gate["service"].database.query_all("SELECT id FROM external_mcp_config_plans") == before
+    assert not gate["calls"] and not gate["service"].configs.list_configs().configs

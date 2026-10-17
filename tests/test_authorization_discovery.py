@@ -26,12 +26,12 @@ def browser(gate):
         yield client
 
 
-def setting_path(kind, authorization_id):
-    return f"/v1/auth/authorizations/{kind}/{authorization_id}/discovery"
+def setting_path(authorization_kind, authorization_id):
+    return f"/v1/auth/authorizations/{authorization_kind}/{authorization_id}/discovery"
 
 
-def preview(client, kind, authorization_id, mode):
-    path = setting_path(kind, authorization_id)
+def preview(client, authorization_kind, authorization_id, mode):
+    path = setting_path(authorization_kind, authorization_id)
     offered = client.get(path)
     assert offered.status_code == 200, offered.text
     state = offered.json()
@@ -41,9 +41,9 @@ def preview(client, kind, authorization_id, mode):
     return {**body, "csrf": response.json()["csrf"]}
 
 
-def set_mode(client, kind, authorization_id, mode):
-    body = preview(client, kind, authorization_id, mode)
-    response = client.post(setting_path(kind, authorization_id), json=body, headers={"Origin": ISSUER})
+def set_mode(client, authorization_kind, authorization_id, mode):
+    body = preview(client, authorization_kind, authorization_id, mode)
+    response = client.post(setting_path(authorization_kind, authorization_id), json=body, headers={"Origin": ISSUER})
     assert response.status_code == 200, response.text
     return response.json()
 

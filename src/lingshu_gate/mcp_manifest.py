@@ -6,7 +6,7 @@ import re
 from pathlib import Path, PurePosixPath
 from typing import Any, Literal
 
-from pydantic import BaseModel, ConfigDict, Field, TypeAdapter, ValidationError, field_validator, model_validator
+from pydantic import BaseModel, ConfigDict, Field, TypeAdapter, ValidationError, ValidationInfo, field_validator, model_validator
 
 from lingshu_gate.endpoint_security import redact_endpoint, validate_streamable_http_endpoint
 from lingshu_gate.mcp_http_trust import McpHttpTrustStore, require_mcp_http_endpoint
@@ -244,8 +244,13 @@ class TransportConfig(BaseModel):
 
     @field_validator("endpoint")
     @classmethod
-    def validate_endpoint(cls, value: str | None) -> str | None:
+    def validate_endpoint(cls, value: str | None, info: ValidationInfo) -> str | None:
         if value is None:
+            return None
+        # The lossless editor retains the optional HTTP field when switching
+        # to stdio. A blank value means no endpoint for stdio only; non-empty
+        # declarations and every HTTP endpoint retain the strict URL checks.
+        if info.data.get("type") == "stdio" and not value.strip():
             return None
         # Syntax is a declaration. Persistence, apply and the client separately
         # require current server-owned trust before using private HTTP.

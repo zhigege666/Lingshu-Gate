@@ -177,6 +177,8 @@ timeout_seconds: 30
 auto_start: false
 ```
 
+Stdio does not require `transport.endpoint`. Omit it or use `null`; an empty or whitespace-only string retained by the editor is normalized to no endpoint during validation and persistence. Form/JSON switching still preserves explicit HTTP endpoint/header fields. Any non-empty endpoint declaration retains URL validation, and switching to Streamable HTTP requires a valid endpoint and the existing server-owned private-origin trust. Saving does not start the process.
+
 Stdio likewise accepts omitted/`auto`, explicit `2026-07-28`, and the three legacy versions above. It additionally supports explicit `2024-11-05` for stdio only. Automatic negotiation requires a recognized unsupported-discovery signal; modern `-32022` is not a legacy-version signal.
 
 Use an absolute, reviewed `cwd` inside the allowed root. Avoid shell wrappers; configure the executable and argument list directly. Auto-start should remain off until the command, credentials, and tool definitions have been reviewed.
