@@ -331,7 +331,7 @@ jobs:
           --bundle-dir "build/release/native-archive-${{ matrix.target }}/lingshu-gate-v${{ needs.version.outputs.version }}-${{ matrix.target }}"
 
       - name: Upload native archive
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: native-${{ matrix.target }}
           path: dist/release/
@@ -414,7 +414,7 @@ jobs:
           done
 
       - name: Upload Docker Compose bundle
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: docker-compose
           path: dist/release/
@@ -542,7 +542,7 @@ jobs:
           done
 
       - name: Upload offline Core images
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: docker-offline
           path: dist/release/
@@ -712,7 +712,7 @@ jobs:
         run: python scripts/quality/check_repository_identity.py --artifacts dist/release
 
       - name: Upload verified container metadata
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: docker-published-candidate
           path: dist/release/
