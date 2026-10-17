@@ -165,6 +165,8 @@ timeout_seconds: 30
 auto_start: false
 ```
 
+Stdio 不要求 `transport.endpoint`，可省略或设为 `null`；编辑器保留的空字符串或纯空白会在校验、保存时按未填写处理。表单/JSON 切换仍保留明确填写的 HTTP 地址和请求头。非空地址继续执行 URL 校验；切回 Streamable HTTP 时必须提供有效地址，并满足已有的服务端私网信任要求。保存配置不会启动进程。
+
 Stdio 同样接受省略/`auto`、明确指定 `2026-07-28` 及上述三个旧版；另外仅 Stdio 支持明确指定 `2024-11-05`。自动协商要求已识别的不支持发现信号；现代协议错误 `-32022` 不代表旧版协商。
 
 使用经过复核且位于 Allowed Root 内的绝对 `cwd`。避免 Shell Wrapper，直接配置可执行文件和参数列表。在命令、凭据和工具定义完成复核前，应保持 Auto Start 关闭。

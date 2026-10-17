@@ -71,6 +71,8 @@ class HistorySnapshotException:
 
 # One fixed test fixture remains in these immutable historical snapshots. Its
 # current source was corrected by 4556352c4671efa7a810d129adf0d561b820363f.
+# The reviewed 0.4.8/0.4.9 documentation and test-helper snapshots below are
+# corrected in the current tree without rewriting published commits or tags.
 # Keep every dimension pinned: no branch, date, path-wide, or rule-wide waiver.
 _HISTORY_SNAPSHOT_EXCEPTIONS = (
     HistorySnapshotException(
@@ -87,6 +89,76 @@ _HISTORY_SNAPSHOT_EXCEPTIONS = (
         blob="6a01a9ed9f9f45e98612de708d3697ce53ec5e65",
         sha256="33a6376f5c30fb4f248437c736627df3ac1636a59f5d2529356d1734ec147faf",
         findings=frozenset({("TXT-001", 12), ("TXT-001", 14), ("TXT-001", 20)}),
+    ),
+    HistorySnapshotException(
+        commits=frozenset({
+            "bc8a920fa1987dfedb8e47ff4c984bd2cd55cd48",
+            "ebad81939459469b9ba473c14a1f68132b5f3eee",
+        }),
+        path="docs/mcp-continuous-authorization-design.md",
+        blob="cecd3dfb2b4218150f58b596195c933be8dec27e",
+        sha256="534a3f157eed1f961f33a0c6c78c1bc434935d80f1dc62c04bd3d9a41ede8335",
+        findings=frozenset({("TXT-045", 179)}),
+    ),
+    HistorySnapshotException(
+        commits=frozenset({
+            "bc8a920fa1987dfedb8e47ff4c984bd2cd55cd48",
+            "ebad81939459469b9ba473c14a1f68132b5f3eee",
+        }),
+        path="docs/my-authorizations.md",
+        blob="2b459110b1e05f0a51e9f159d985cb7b994436f7",
+        sha256="16cf6092c94607a6fd2d17f321f326b0d7f3a75e46ba2fcb35d13b6aa8873e36",
+        findings=frozenset({("TXT-045", 29)}),
+    ),
+    HistorySnapshotException(
+        commits=frozenset({
+            "bc8a920fa1987dfedb8e47ff4c984bd2cd55cd48",
+            "ebad81939459469b9ba473c14a1f68132b5f3eee",
+        }),
+        path="docs/on-demand-tools.md",
+        blob="a45003b115e34aba8900035cf1fc32b40a348f31",
+        sha256="e5c677a3573ece68a661b09ce5a5276edc581db7d4db436951138167540e2cc2",
+        findings=frozenset({("TXT-045", 7)}),
+    ),
+    HistorySnapshotException(
+        commits=frozenset({
+            "bc8a920fa1987dfedb8e47ff4c984bd2cd55cd48",
+            "ebad81939459469b9ba473c14a1f68132b5f3eee",
+        }),
+        path="docs/zh-CN/mcp-continuous-authorization-design.md",
+        blob="29ec5931d527da6b992c2289f191f2b164768128",
+        sha256="ebcb94a22b299c39e39e0857f528c0a2206283bc8c1281ce9a69ce2a4241795d",
+        findings=frozenset({("TXT-045", 200)}),
+    ),
+    HistorySnapshotException(
+        commits=frozenset({
+            "bc8a920fa1987dfedb8e47ff4c984bd2cd55cd48",
+            "ebad81939459469b9ba473c14a1f68132b5f3eee",
+        }),
+        path="docs/zh-CN/my-authorizations.md",
+        blob="3a025134021c800db3843bd84ba3d8afd7d6b75f",
+        sha256="025f0210a1b793db7e0c1434a13984e1fbbc9afdc7bdce8337a12f3acd6f4399",
+        findings=frozenset({("TXT-045", 29)}),
+    ),
+    HistorySnapshotException(
+        commits=frozenset({
+            "bc8a920fa1987dfedb8e47ff4c984bd2cd55cd48",
+            "ebad81939459469b9ba473c14a1f68132b5f3eee",
+        }),
+        path="docs/zh-CN/on-demand-tools.md",
+        blob="d59d0417d514ba4059ef6baf0309825418235422",
+        sha256="f3350706657ca741081dca606bd3cffec9777a4c60e1d824c53179df0aa83c94",
+        findings=frozenset({("TXT-045", 7)}),
+    ),
+    HistorySnapshotException(
+        commits=frozenset({
+            "bc8a920fa1987dfedb8e47ff4c984bd2cd55cd48",
+            "ebad81939459469b9ba473c14a1f68132b5f3eee",
+        }),
+        path="tests/test_authorization_discovery.py",
+        blob="9964a6a6eff9ade3706655d5c33a494474c18c00",
+        sha256="809bd0e54ed26a2176fc2e7c1000a6c12c572680b3b6401149c25832804f4842",
+        findings=frozenset({("TXT-015", 33), ("TXT-015", 44), ("TXT-015", 45)}),
     ),
 )
 
@@ -585,27 +657,88 @@ def _scan_text(text: str, location: str, *, budget: MatchBudget | None = None) -
     return violations
 
 
+# Generated concept artwork contains third-party C2PA provenance, not product
+# identity. Keep the original signed PNG bytes. Only these reviewed full images
+# and exact caBX chunks may omit TXT-040 from that chunk's identity findings;
+# all other rules, image content, metadata, locations and modified bytes remain
+# strict. There is no extension-wide or vendor-wide exclusion.
+_REVIEWED_PNG_PROVENANCE: dict[str, tuple[str, str]] = {
+    "docs/images/console/continuous-authorization/mcp-scope-editor-concept-zh-CN-v2.png": (
+        "62a59dd2741dc6447d7c0dce85c334563f952723742c62cb10ef1d5ee1e10cea",
+        "6cd7065a80d9c560b556d7d8c94d138885c6d57273ece5e08760d54e25bfa370",
+    ),
+    "docs/images/console/continuous-authorization/mcp-scope-editor-concept-zh-CN.png": (
+        "64bb5219fb964d0a1c3d96bd3ef6b68f3c5c704467cc2e94e2f46cf251c718c2",
+        "460a19ac2eb1fd1b679bbacee57f0c6e933f1cb7ebd6118c70025ce3b156b9bf",
+    ),
+    "docs/images/console/continuous-authorization/my-authorizations-concept-zh-CN-v2.png": (
+        "f0bc6e025bffbf818d6d5861a01dae805efdae7ee88721e33fc7f201620b081c",
+        "b4796e3f431c7658e52bc2bc5859060facd4b09cb0e8b3c80578df8a79356441",
+    ),
+    "docs/images/console/continuous-authorization/unified-connections-concept-zh-CN.png": (
+        "6632f905d55fdaf297d232b3626c37349c778ded53b5d017a2422992add98e33",
+        "caf6550e66cb8d87a8e24ad3532ca9cf8da9a90fdc112fa4d4b5ee5b97e42365",
+    ),
+}
+
+
+def _reviewed_png_provenance(data: bytes, location: str) -> tuple[bytes, bytes] | None:
+    document = re.sub(r"^git:[0-9a-f]{12}:", "", location)
+    binding = next((value for path, value in _REVIEWED_PNG_PROVENANCE.items()
+                    if document == path or document.endswith("/" + path)), None)
+    if binding is None or not data.startswith(b"\x89PNG\r\n\x1a\n"):
+        return None
+    image_digest, chunk_digest = binding
+    if hashlib.sha256(data).hexdigest() != image_digest:
+        return None
+    offset, retained, provenance = 8, [data[:8]], []
+    while offset + 12 <= len(data):
+        size = int.from_bytes(data[offset:offset + 4], "big")
+        end = offset + size + 12
+        if end > len(data):
+            return None
+        chunk = data[offset:end]
+        if zlib.crc32(chunk[4:-4]) != int.from_bytes(chunk[-4:], "big"):
+            return None
+        if chunk[4:8] == b"caBX":
+            if hashlib.sha256(chunk).hexdigest() != chunk_digest:
+                return None
+            provenance.append(chunk)
+        else:
+            retained.append(chunk)
+        offset = end
+    if offset != len(data) or len(provenance) != 1 or retained[-1][4:8] != b"IEND":
+        return None
+    return b"".join(retained), provenance[0]
+
+
+def _scan_opaque_bytes(data: bytes, location: str) -> list[Violation]:
+    budget = MatchBudget()
+    violations: list[Violation] = []
+    for match in _ASCII_RUN.finditer(data):
+        violations.extend(_scan_text(match.group().decode("ascii"), location, budget=budget))
+    for pattern, encoding in ((_UTF16_LE_RUN, "utf-16-le"), (_UTF16_BE_RUN, "utf-16-be")):
+        for match in pattern.finditer(data):
+            violations.extend(_scan_text(match.group().decode(encoding), location, budget=budget))
+    return [violation for violation in violations if violation.rule_id not in _OPAQUE_BINARY_IGNORED_RULE_IDS]
+
+
 def _scan_bytes(data: bytes, location: str, *, strict_text: bool = True) -> list[Violation]:
     size_limit = _MAX_TEXT_BYTES if strict_text else _MAX_BINARY_BYTES
     if len(data) > size_limit:
         return [Violation("FILE-001", location, 1)]
     text = _decode_text(data)
-    budget = MatchBudget()
     if text is None:
         if strict_text:
             return [Violation("FILE-002", location, 1)]
-        violations: list[Violation] = []
-        for match in _ASCII_RUN.finditer(data):
-            violations.extend(_scan_text(match.group().decode("ascii"), location, budget=budget))
-        for pattern, encoding in ((_UTF16_LE_RUN, "utf-16-le"), (_UTF16_BE_RUN, "utf-16-be")):
-            for match in pattern.finditer(data):
-                violations.extend(_scan_text(match.group().decode(encoding), location, budget=budget))
-        return [
-            violation
-            for violation in violations
-            if violation.rule_id not in _OPAQUE_BINARY_IGNORED_RULE_IDS
-        ]
-    return _scan_text(text, location, budget=budget)
+        reviewed = _reviewed_png_provenance(data, location)
+        if reviewed is not None:
+            image_bytes, provenance = reviewed
+            return [*_scan_opaque_bytes(image_bytes, location),
+                    *(finding for finding in _scan_opaque_bytes(provenance, location)
+                      if finding.rule_id != "TXT-040")]
+        return _scan_opaque_bytes(data, location)
+    return _scan_text(text, location)
 
 
 def _safe_member_path(value: str) -> PurePosixPath | None:

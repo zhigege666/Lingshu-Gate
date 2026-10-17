@@ -122,14 +122,14 @@ jobs:
             "$task_node_bin" "$task_playwright_cli" install-deps chromium
           timeout --kill-after=5 180 "$task_node_bin" "$task_playwright_cli" install chromium
 
+      - name: Test Console against isolated real backend
+        run: timeout --kill-after=5 180 npm --prefix web run e2e:smoke
+
       - name: Verify backend on Python 3.12
         run: |
           uv run --no-sync ruff check .
           uv run --no-sync mypy
           uv run --no-sync pytest -q
-
-      - name: Test Console against isolated real backend
-        run: timeout --kill-after=5 180 npm --prefix web run e2e:smoke
 
       - name: Retain synthetic browser failure evidence
         if: failure()

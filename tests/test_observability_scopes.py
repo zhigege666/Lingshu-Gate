@@ -6,6 +6,8 @@ import os
 import pytest
 from fastapi.testclient import TestClient
 
+from test_external_mcp_configuration import select_direct_discovery
+
 
 @pytest.fixture
 def observability_api(tmp_path, monkeypatch):
@@ -176,6 +178,7 @@ def test_debug_tool_does_not_bypass_global_capability_or_service_scope(observabi
     login("admin")
     token = client.post("/v1/auth/tokens", json={"name": "debug-operations",
         "scopes": ["tools.invoke", "operations.manage"]}).json()
+    select_direct_discovery({"client": client, "auth": state.auth_store}, token)
     client.cookies.clear()
     client.headers["Authorization"] = f"Bearer {token['token']}"
     for action in ("events", "logs", "overview"):

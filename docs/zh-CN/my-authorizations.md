@@ -26,7 +26,7 @@ Gate API 令牌的独立范围与 Gate 业务 OAuth 已实现持续授权。后�
 
 列表“工具发现”列可打开对应授权的居中设置弹窗，直接选择“按需发现”或“完整工具列表”。**新旧业务授权均默认按需**；每条 API 令牌、Gate 业务 OAuth 或外部 OAuth 本地授权独立保存。管理资源保留固定工具。按需模式只暴露六个发现/调用/实例会话入口，完整模式直接列出当前有权工具；两种模式使用相同权限校验，均不扩大授权。
 
-客户端设置只保存名称和接入地址，复制的配置不含 `tool_mode`。旧浏览器中保存的模式会在生成配置时移除。旧 URL 的 `tool_mode` 和 `X-Gate-Tool-Mode` 请求头均忽略，统一采用该授权设置；切换后须刷新客户端工具目录或重新连接。保存经过本人预览确认、CSRF、版本和原子审计；结果未知先刷新核对，禁止盲目重放。该设置不修改全局规则或 Codex 插件配置，也不决定 Codex 优先选择哪一个入口。
+客户端设置只保存名称和接入地址，复制的配置不含 `tool_mode`。旧浏览器中保存的模式会在生成配置时移除。旧 URL 的 `tool_mode` 和 `X-Gate-Tool-Mode` 请求头均忽略，统一采用该授权设置；切换后须刷新客户端工具目录或重新连接。保存经过本人预览确认、CSRF、版本和原子审计；结果未知先刷新核对，禁止盲目重放。该设置不修改全局规则或 MCP 客户端插件配置，也不决定 MCP 客户端优先选择哪一个入口。
 
 实际本机合成验收截图：[每条授权独立模式](../images/console/continuous-authorization/runtime-discovery-per-authorization.png)、[模式弹窗](../images/console/continuous-authorization/runtime-discovery-editor.png)、[移除重复选项后的客户端设置](../images/console/continuous-authorization/runtime-client-settings-without-mode.png)。截图不代表线上部署或真实客户端缓存刷新。
 

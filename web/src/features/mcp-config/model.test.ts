@@ -51,6 +51,19 @@ describe("MCP config model", () => {
     expect(source.user_credential_values).toEqual({ token: "secret" })
   })
 
+  it("accepts the blank endpoint retained by a new stdio draft and rechecks it on HTTP switch", () => {
+    const template = createMcpConfigTemplate()
+    const stdio = patchManifestField(changeRuntimeMode(template, "managed_stdio"), ["launch", "command"], { kind: "set", value: "npx" })
+    expect(stdio.transport).toEqual({ type: "stdio", endpoint: "" })
+    expect(precheckManifest(stdio, copy).errors).toEqual([])
+    expect(precheckManifest(parseManifest(JSON.stringify(stdio)), copy).errors).toEqual([])
+    for (const mode of ["managed_http", "external_http"] as const) {
+      expect(precheckManifest(changeRuntimeMode(stdio, mode), copy).errors).toContain("endpointRequired")
+    }
+    expect(template.transport).toEqual({ type: "streamable_http", endpoint: "" })
+    expect(template.launch).toEqual({ type: "external" })
+  })
+
   it("validates HTTP endpoints", () => {
     const result = precheckManifest({
       id: "demo",

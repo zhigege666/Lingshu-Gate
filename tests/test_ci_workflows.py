@@ -131,3 +131,17 @@ def test_formal_release_retains_its_own_complete_source_validation() -> None:
     assert "ruff check ." in commands and "mypy" in commands and "pytest -q" in commands
     assert steps["Verify release engineering on pull requests"]["if"] == "github.event_name == 'pull_request'"
     assert "tests/test_release_packaging.py" in steps["Verify release engineering on pull requests"]["run"]
+
+
+def test_browser_smoke_runs_before_the_long_backend_suite_without_removing_checks() -> None:
+    steps = _workflow("backend.yml")["jobs"]["source"]["steps"]
+    positions = {step["name"]: index for index, step in enumerate(steps)}
+    assert positions["Verify and build Console once"] < positions["Install browser for isolated smoke"]
+    assert positions["Install frozen dependencies"] < positions["Install browser for isolated smoke"]
+    assert positions["Install browser for isolated smoke"] < positions["Test Console against isolated real backend"]
+    assert positions["Test Console against isolated real backend"] < positions["Verify backend on Python 3.12"]
+    for name in ("Test Console against isolated real backend", "Verify backend on Python 3.12"):
+        step = steps[positions[name]]
+        assert "if" not in step and "continue-on-error" not in step
+    assert "timeout --kill-after=5 180" in steps[positions["Test Console against isolated real backend"]]["run"]
+    assert "pytest -q" in steps[positions["Verify backend on Python 3.12"]]["run"]

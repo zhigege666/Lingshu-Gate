@@ -1,27 +1,23 @@
-# Lingshu Gate 0.4.9
+# Lingshu Gate 0.4.10
 
 ## English — release overview
 
-0.4.9 preserves tool classifications, original review timestamps, and OAuth authorization snapshots across MCP service restarts, temporary connection failures, and smooth upgrades for unchanged tool definitions. Offline tools leave the callable tool catalog immediately upon disconnect, ensuring offline safety while avoiding redundant re-authorization or re-review cycles when the service recovers.
+0.4.10 fixes stdio configuration validation and the repository-identity failure that stopped the preceding release before packaging. It retains the existing MCP lifecycle, continuous authorization and on-demand discovery behavior without expanding permissions or changing deployment defaults.
 
-- **MCP review & authorization lifecycle preservation**: When an MCP server restarts, reconnects after temporary network/health-check outages, or undergoes an upgrade, tools whose definitions remain unchanged retain their existing classification status and review timestamps. Callers retain their granted access without requiring new OAuth consent or manual scope adjustment.
-- **Callable catalog offline boundary**: Tools belonging to a stopped, failed, or disconnected MCP server are unlisted from the callable tool catalog immediately. Retaining classification and review records does not make an offline tool invocable.
-- **Upgrade reconciliation against complete tools/list**: When a service restores and reports its full tool list, unchanged tools preserve their existing authorization snapshots. Newly introduced tools are registered as `pending` with `unknown` access requiring explicit review and publication. Old tools omitted from the complete tool list remain invalidated, even if they reappear at a later date.
-- **Strict security & lifecycle boundaries**: Modifications to tool definitions, explicit unregistrations, service deletion/recreation, and token/grant revocations retain their existing invalidation behavior. This behavior is standard lifecycle policy and introduces no new configuration flags.
+- **Stdio configuration**: Empty or whitespace-only optional endpoints are normalized to no endpoint for stdio. Precheck, creation, editing and reload agree, while Form/JSON runtime switching remains lossless. Streamable HTTP still requires a valid URL; private-origin trust, redaction and non-empty endpoint validation remain enforced.
+- **Release identity recovery**: Documentation and test helper names use neutral wording. The already-existing 0.4.8/0.4.9 snapshots are pinned by commit, path, Git blob, SHA-256 and exact findings rather than rewriting tags or disabling history checks.
+- **Preserved artwork provenance**: Four reviewed concept PNGs keep their original bytes, including C2PA source metadata. Only their exact image and metadata-chunk digests distinguish source attribution from product identity; changed files, other metadata and other identity findings stay strict.
+- **Upgrade boundary**: No new dependency or database migration is introduced. Configuration saving does not execute a downstream package, start a service or grant tool access. Existing native/Core restrictions and optional-executor defaults remain unchanged.
 
-The optional Native/Linux rootless Podman executor remains disabled by default; real Podman host, ChatGPT OAuth client, and multi-machine acceptance remain incomplete. Core remains gateway-only. Installing the release does not automatically provision these resources, enable OAuth, or expand permissions.
-
-The [0.4.9 validation record](../docs/release-validation-0.4.9.md) documents exact-source checks, candidate test evidence, and formal publication boundaries. Pushing a version change to main automatically starts tag creation and the formal release workflow. Formal publication requires 11 verified assets with provenance: five native targets (Linux x86_64/ARM64, Windows x86_64, macOS x86_64/ARM64), Compose, two offline Core images, application SPDX SBOM, image reference, and SHA256SUMS.
+See the [0.4.10 validation record](../docs/release-validation-0.4.10.md) for executed candidate checks and the local Python-version boundary. A version change or successful identity check is not publication. Formal release still requires all quality checks and eleven verified assets: five native targets, Compose, two offline Core images, application SPDX SBOM, container image reference and SHA256SUMS, with build provenance. Existing tags remain immutable.
 
 ## 简体中文 — 版本概述
 
-0.4.9 在同一 MCP 服务重启、临时连接断开或平滑升级时，只要工具定义保持未变，即可保留其分类、原审核时间戳以及已确认的 OAuth 授权快照。服务离线后工具立即退出可调用目录，在保障离线安全性的同时，免除服务恢复后重复授权与重新审核的负担。
+0.4.10 修复 Stdio 配置校验，以及上一版在打包前被仓库身份检查阻断的问题。既有 MCP 生命周期、持续授权与按需发现行为保持不变，不扩大权限或改变部署默认值。
 
-- **MCP 审核与授权生命周期保留**：当 MCP 服务发生普通重启、网络/健康检查临时中断恢复或服务平滑升级时，与之前定义完全一致的工具继续保留其原分类和审核时间戳。客户端与使用者无需重新进行 OAuth 授权确认或手动更新权限范围。
-- **可调用目录严格离线**：服务停止、失败或断开连接后，所属工具立即从网关可调用目录中下架；保留审核信息绝不会使不可用工具仍处于可调用状态。
-- **恢复与升级完整快照对齐**：服务恢复并提供完整工具列表（`tools/list`）后，未变更工具恢复既有授权快照；新增工具进入待审核状态（`pending` / `unknown`），须经管理员明确审核与发布；被完整列表实际移除的旧工具维持失效，即便日后再次出现亦须重新审核。
-- **严格安全与生命周期边界**：工具定义变更、显式注销、服务删除重建及凭据/授权撤销严格保留原有失效机制。本生命周期规则为开箱即用默认行为，不引入额外配置开关。
+- **Stdio 配置**：Stdio 的可选地址为空或纯空白时按未填写处理，预检、创建、编辑和重新读取一致；表单/JSON 运行方式切换仍保持无损。Streamable HTTP 仍须提供有效 URL，私网信任、脱敏与非空地址校验继续生效。
+- **发行身份检查修复**：文档和测试辅助命名改用中性表述；已有 0.4.8/0.4.9 历史快照按提交、路径、Git Blob、SHA-256 和精确发现项固定，不重写标签或关闭历史检查。
+- **保留概念图来源证明**：四张已审查 PNG 保留原始字节及 C2PA 来源元数据。仅针对精确图片和元数据块摘要区分来源身份与产品身份；修改文件、其他元数据和其他身份规则仍严格检查。
+- **升级边界**：不新增依赖或数据库迁移。保存配置不会执行下游包、启动服务或授予工具访问权；原生/Core 限制及可选执行器默认值保持不变。
 
-可选 Native/Linux rootless Podman 执行器默认关闭；真实 Podman 宿主、ChatGPT OAuth 客户端及多机器验收仍未完成。Core 仍仅为 gateway。安装本版不会自动准备这些资源、启用 OAuth 或扩大权限。
-
-[0.4.9 验证记录](../docs/zh-CN/release-validation-0.4.9.md) 记录准确源码检查、候选测试证据与正式发布门禁。版本变化推入 main 会自动启动创建 tag 与正式发行工作流。正式发布要求 11 项经来源证明验证的资产：五平台 native（Linux x86_64/ARM64、Windows x86_64、macOS x86_64/ARM64）、Compose、两个离线 Core 镜像、应用 SPDX SBOM、镜像引用及 SHA256SUMS。
+执行证据和本机 Python 版本边界见 [0.4.10 验证记录](../docs/zh-CN/release-validation-0.4.10.md)。版本变化或身份检查通过均不代表发布完成；正式发行仍要求完整质量检查及十一项经来源证明验证的资产：五平台原生包、Compose、两个离线 Core 镜像、应用 SPDX SBOM、容器镜像引用及 SHA256SUMS。已有标签保持不可变。

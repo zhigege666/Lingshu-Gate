@@ -7,8 +7,10 @@ A self-hosted MCP gateway and control plane with explicit identity, tool-access,
 Use Gate to manage multiple MCP servers, give remote MCP clients controlled tool access, and deliver projects on trusted native hosts. One MCP Gateway, Web Console and control API connect service operations with user governance.
 
 > [!NOTE]
-> **0.4.9 Release status and boundary notice**
+> **0.4.10 Release status and boundary notice**
 >
+> - **Stdio configuration fix**: Empty or whitespace-only `transport.endpoint` values mean no endpoint for stdio across precheck, save and reload. HTTP URL and private-origin trust restrictions stay unchanged; form switching retains existing HTTP fields.
+> - **Release identity recovery**: Neutral documentation and test-helper names, exact reviewed historical snapshots, and narrowly scoped concept-art provenance handling preserve image bytes, existing tags and every formal release check.
 > - **MCP review & authorization lifecycle preservation**: When an MCP server restarts, reconnects after temporary network/health-check outages, or undergoes a smooth upgrade, tool definitions matching previous definitions retain their original classification and reviewer timestamp without requiring new OAuth consent or manual scope adjustment. Offline tools leave the callable catalog immediately upon disconnect.
 > - **Unified authorizations & continuous MCP scope**: Personal API tokens, Gate OAuth grants, and external identity authorizations are unified in the Web Console under [My Authorizations](docs/my-authorizations.md). Business authorizations support continuous whole-service MCP scoping in read-only or read-write mode, automatically granting newly published tools, with configurable per-minute (default 6,000) and concurrency (default 100) call limits.
 > - **On-demand tool discovery**: Business authorizations default to six bounded discovery and session entries per authorization. Select On demand or Full tool list per authorization; request-level overrides are ignored. See the [guide](docs/on-demand-tools.md) for client refresh and compatibility.
@@ -17,7 +19,7 @@ Use Gate to manage multiple MCP servers, give remote MCP clients controlled tool
 > - **OAuth administration**: Built-in OAuth and the separate `/mcp/manage` resource remain opt-in and default-off. Private OAuth selection uses bounded pages, preserves drafts, and reconciles unknown write outcomes before a new confirmation.
 > - **Native executor boundary**: The optional Native/Linux rootless Podman executor defaults to disabled and requires separately reviewed host provisioning/readiness. Its Git/proxy/tool preparation and supported offline install/build paths have synthetic regression evidence; real Podman host, ChatGPT OAuth client and multi-machine acceptance remain incomplete. Core remains gateway-only.
 >
-> See the [release summary](packaging/release-notes.md) and [0.4.9 validation record](docs/release-validation-0.4.9.md).
+> See the [release summary](packaging/release-notes.md) and [0.4.10 validation record](docs/release-validation-0.4.10.md).
 
 ## Architecture overview
 
