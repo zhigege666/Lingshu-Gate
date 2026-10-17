@@ -24,6 +24,8 @@ Further current-protocol and SDK doubles now implement dispatch guards. OAuth an
 
 Source review also found an old browser smoke test still selecting the removed client-settings mode radio. The updated scenarios cover legacy browser-preference cleanup and real per-authorization preview, confirmation, persistence, independence and unchanged scopes, in both languages and the four established desktop sizes. Browser execution must be verified separately; file existence or type checks are not browser evidence. Existing browser smoke now precedes the long backend suite, retaining its timeout and every mandatory check so UI contract failures surface earlier.
 
+Hosted source-check run 250 on 2026-10-17 passed identity/version checks, all 478 frontend tests, both builds and frozen dependencies. Of 43 real-browser smoke tests, 42 passed, including all four new bilingual client/discovery scenarios. The remaining navigation test clicked the now-hidden legacy personalTokens menu. It now uses the visible myConnections entry while retaining native Back/Forward/reload and exact query-string assertions; the legacy bookmark path remains covered by the client-settings scenarios.
+
 ## Release identity boundaries
 
 Current documentation and test-helper wording are neutral. Seven historical snapshots are limited to the exact existing 0.4.8/0.4.9 commits, paths, Git blobs, SHA-256 values and findings. The previous independently reviewed exception remains intact. Reuse in other commits, commit messages, current text and release artifacts is not covered by a historical waiver.
