@@ -22,6 +22,8 @@ Four legacy-protocol tests also failed against unchanged 0.4.9 because their acc
 
 Further current-protocol and SDK doubles now implement dispatch guards. OAuth and log tests use persisted discovery settings and actual catalog wiring while checking unchanged grant scope, hidden-tool privacy and global-log non-disclosure. That group passed 48 tests plus 15 subtests. The initial full run recorded 56 failures, 2425 passes, 7 skips and 132 passed subtests; failure accounting includes two subtest failures. After normal frozen dependency synchronization prepared the isolated build environment, all 40 existing offline wheel tests passed unchanged, including source-integrity and security negative cases. The final complete commit still requires full-suite and workflow acceptance.
 
+Source review also found an old browser smoke test still selecting the removed client-settings mode radio. The updated scenarios cover legacy browser-preference cleanup and real per-authorization preview, confirmation, persistence, independence and unchanged scopes, in both languages and the four established desktop sizes. Browser execution must be verified separately; file existence or type checks are not browser evidence. Existing browser smoke now precedes the long backend suite, retaining its timeout and every mandatory check so UI contract failures surface earlier.
+
 ## Release identity boundaries
 
 Current documentation and test-helper wording are neutral. Seven historical snapshots are limited to the exact existing 0.4.8/0.4.9 commits, paths, Git blobs, SHA-256 values and findings. The previous independently reviewed exception remains intact. Reuse in other commits, commit messages, current text and release artifacts is not covered by a historical waiver.
