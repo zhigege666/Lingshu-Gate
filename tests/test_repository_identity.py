@@ -658,6 +658,71 @@ def test_official_reference_history_preserves_document_scope():
     assert identity._scan_text(reference + " " + vendor, "git:123456789abc:docs/external-connections.md")
 
 
+@pytest.mark.parametrize("format", ["tar", "zip", "directory"])
+@pytest.mark.parametrize("change,rule", [
+    ("none", None), ("prose", "TXT-040"), ("url", "TXT-040"), ("document", "TXT-040"),
+    ("skill_path", "SKILL-003"), ("skill_content", "TXT-001"), ("example", "TXT-001"),
+    ("skills_root_file", "SKILL-004"),
+])
+def test_release_documents_preserve_exact_source_exceptions_and_skill_policy(tmp_path, format, change, rule):
+    _prepare_repository(tmp_path)
+    vendor = _value((111, 112, 101, 110, 97, 105))
+    reference = f"[guide](https://developers.{vendor}.com/api/docs/guides/secure-mcp-tunnels)"
+    skill = ".agents/skills/lingshu-gate-upload-build-start/SKILL.md"
+    files = {skill: (tmp_path / skill).read_text(), "docs/external-connections.md": reference,
+             "docs/zh-CN/external-connections.md": reference, "examples/demo.yaml": "id: demo\n"}
+    if change == "prose":
+        files["docs/external-connections.md"] += " " + vendor
+    elif change == "url":
+        files["docs/external-connections.md"] = reference.replace(")", "?unreviewed=1)")
+    elif change == "document":
+        files["docs/renamed.md"] = files.pop("docs/external-connections.md")
+    elif change == "skill_path":
+        files[".agents/skills/another-task/SKILL.md"] = files.pop(skill)
+    elif change == "skill_content":
+        files[skill] += _restricted_token()
+    elif change == "skills_root_file":
+        files[".agents/skills"] = files.pop(skill)
+    elif change == "example":
+        files["examples/demo.yaml"] += _restricted_token()
+    wrapper = "lingshu-gate-v0.5.0-linux-x86_64"
+    destination = tmp_path / "release"
+    destination.mkdir()
+    directories = sorted({str(parent) for path in files for parent in Path(wrapper + "/" + path).parents
+                          if str(parent) != "."})
+    if format == "directory":
+        for path, text in files.items():
+            file = destination / wrapper / path
+            file.parent.mkdir(parents=True, exist_ok=True)
+            file.write_text(text)
+        artifact = destination
+    elif format == "zip":
+        artifact = destination / "bundle.zip"
+        with zipfile.ZipFile(artifact, "w") as archive:
+            for directory in directories:
+                archive.writestr(directory + "/", b"")
+            for path, text in files.items():
+                archive.writestr(wrapper + "/" + path, text)
+    else:
+        artifact = destination / "bundle.tar.gz"
+        with tarfile.open(artifact, "w:gz") as archive:
+            for directory in directories:
+                member = tarfile.TarInfo(directory)
+                member.type = tarfile.DIRTYPE
+                archive.addfile(member)
+            for path, text in files.items():
+                _add_tar_file(archive, wrapper + "/" + path, text.encode())
+    findings = identity.audit_repository(tmp_path, artifact_paths=[artifact])
+    if rule is None:
+        assert findings == []
+    else:
+        matches = [finding for finding in findings if finding.rule_id == rule]
+        assert matches
+        assert all(wrapper + "/" in finding.location for finding in matches)
+        if change == "skill_path":
+            assert any(finding.rule_id == "SKILL-004" for finding in findings)
+
+
 def test_history_message_exception_requires_commit_digest_and_exact_finding(monkeypatch):
     token = _restricted_token()
     body = token + "\n"

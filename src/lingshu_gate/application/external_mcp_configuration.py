@@ -1,5 +1,6 @@
 """Confirmed external HTTP configuration; no builds, commands or trust writes."""
 from __future__ import annotations
+from lingshu_gate.registry import receipt_arguments
 
 import hashlib
 import json
@@ -212,7 +213,8 @@ class ExternalMcpConfigurationService:
         return _digest({"actor_id": context.actor_id, "issuer": context.oauth_issuer, "resource": context.oauth_resource,
                         "client_id": context.oauth_client_id, "grant_id": context.oauth_grant_id, "family_id": context.oauth_family_id})
 
-    def _idempotent_arguments(self, arguments: dict[str, Any], context: ToolInvocationContext) -> dict[str, Any]:
+    def _idempotent_arguments(self, arguments: dict[str, Any], context: ToolInvocationContext, tool_id: str) -> dict[str, Any]:
+        arguments = receipt_arguments(context, tool_id, arguments)
         return {"request": arguments, "management_binding": self._principal_digest(context)} if context.auth_type == "oauth" else arguments
 
     def _plan_authority(self, body: ExternalConfigApplyInput, context: ToolInvocationContext,
@@ -394,7 +396,8 @@ class ExternalMcpConfigurationService:
             raise _error("confirmation_required", "Confirm the exact external configuration and connection plan.")
         if context.auth_type == "oauth":
             self._plan_authority(body, context)
-        operation_id, replay = self.delivery._reserve_operation(context, "gate_mcp_config_apply", body.idempotency_key, self._idempotent_arguments(arguments, context))
+        operation_id, replay = self.delivery._reserve_operation(context, "gate_mcp_config_apply", body.idempotency_key,
+            self._idempotent_arguments(arguments, context, "gate_mcp_config_apply"), arguments_are_receipt=True)
         if context.auth_type == "oauth":
             try:
                 self._plan_authority(body, context)
@@ -652,7 +655,8 @@ class ExternalMcpConfigurationService:
                     "status": "already_terminal" if terminal else "cancel_requested",
                     "terminal": terminal, "next_action": "Read or poll the target operation; this response does not prove a remote process stopped. Saved configuration is retained."}, body.operation_id
         result = self.delivery._run_idempotent(context, "gate_mcp_config_cancel", body.idempotency_key,
-            self._idempotent_arguments(arguments, context), "mcp_config_operation", action)
+            self._idempotent_arguments(arguments, context, "gate_mcp_config_cancel"), "mcp_config_operation", action,
+            arguments_are_receipt=True)
         self._operation_authority(body.operation_id, context, tool_id="gate_mcp_config_cancel", write=True)
         return result
 

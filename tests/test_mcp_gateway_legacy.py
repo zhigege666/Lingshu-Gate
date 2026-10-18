@@ -31,7 +31,7 @@ class AccessStore:
         self.guard_checks += 1
         return {"allowed": self.allowed}
 
-    def invoke_tool(self, registry, principal, tool_id, arguments, *, dispatch_guard=None):
+    def invoke_tool(self, registry, principal, tool_id, arguments, *, dispatch_guard=None, correlation_id=None):
         if not self.allowed:
             raise AccessDeniedError("revoked", required_access="read", granted_access="none")
         if dispatch_guard is not None:

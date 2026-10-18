@@ -4,6 +4,8 @@
 
 Lingshu Gate 使用 Python 实现服务，使用 React/TypeScript 实现 Console。构建后的 Console 嵌入 Python 包，在 `/` 向浏览器提供，保留 hash 导航。旧 `/console` 入口跳转到根路径；生成资源使用 `/assets/`，旧 `/console/assets/` 路径继续兼容。`/v1/meta` 始终提供 JSON 服务信息，显式可接受 `Accept: application/json` 的 `/` 请求也提供 JSON。
 
+直接运行已发布的原生包或 Compose 包，请先阅读[开始使用](getting-started.md)。本页介绍从源码开发和验证 Gate。
+
 ## 环境要求
 
 - Python 3.11、3.12 或 3.13
@@ -27,6 +29,8 @@ Lingshu Gate 使用 Python 实现服务，使用 React/TypeScript 实现 Console
 ## 安装
 
 ```bash
+git clone https://github.com/zhigege666/Lingshu-Gate.git
+cd Lingshu-Gate
 uv sync --frozen
 npm --prefix web ci
 ```

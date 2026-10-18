@@ -1,0 +1,60 @@
+{
+  "schema_version": 1,
+  "product_version": "0.5.0",
+  "browser": "Google Chrome for Testing 153.0.8010.12",
+  "started_utc": "2026-10-18T13:15:21.678Z",
+  "completed_utc": "2026-10-18T13:18:56.338Z",
+  "data": "Isolated synthetic accounts, authorizations, demo tools and logical group; no production accounts or credentials.",
+  "images": [
+    {
+      "file": "en-US/v0.5.0-discovery.png",
+      "locale": "en-US",
+      "theme": "light",
+      "viewport": {
+        "width": 2560,
+        "height": 1440
+      },
+      "sha256": "9aff385ded11d1308ac3348948bb2f3c18e76e9fb68e5d0131d74e753e8c793e",
+      "pixel_edits": false
+    },
+    {
+      "file": "zh-CN/v0.5.0-discovery.png",
+      "locale": "zh-CN",
+      "theme": "light",
+      "viewport": {
+        "width": 2560,
+        "height": 1440
+      },
+      "sha256": "63bb0b874e0deea1b5ac304881b6a3a41a368ea86bdf7d1942cfcbaeda891d03",
+      "pixel_edits": false
+    }
+  ],
+  "ui_input_sha256": {
+    "web/src/features/external-connections/discovery-preferences.tsx": "94e7f8cc88341e298a23826f13e09826f1e68fd91926639c288dc8320463494c",
+    "web/src/features/external-connections/discovery-mode-dialog.tsx": "96bc678bda903eafac0a703460b373b88cbd2e3ec788fd49a31ae2e5860bfcfd",
+    "web/src/pages/my-authorizations-page.tsx": "4074b36ecb49b847d24db80e6531249be40946e5df0a3e9969f1621c37f33788"
+  },
+  "validation": {
+    "status": "passed",
+    "matrix_combinations": [
+      "2560x1440-en-light",
+      "2560x1440-en-dark",
+      "2560x1440-zh-light",
+      "2560x1440-zh-dark",
+      "1920x1080-en-light",
+      "1920x1080-en-dark",
+      "1920x1080-zh-light",
+      "1920x1080-zh-dark",
+      "1600x900-en-light",
+      "1600x900-en-dark",
+      "1600x900-zh-light",
+      "1600x900-zh-dark",
+      "2560x1080-en-light",
+      "2560x1080-en-dark",
+      "2560x1080-zh-light",
+      "2560x1080-zh-dark"
+    ],
+    "browser_page_errors": 0,
+    "scope": "Real native-backed Console: argument policies, discovery preferences, focus, keyboard and desktop layout; does not claim third-party client or production integration acceptance."
+  }
+}

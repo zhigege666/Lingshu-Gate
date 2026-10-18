@@ -194,7 +194,36 @@ class SystemDebugService:
 def register_system_debug_tool(registry: ToolRegistry, service: SystemDebugService) -> None:
     """Register the debug tool in the existing REST tool registry."""
 
-    registry.register(system_debug_tool_definition(), service.invoke, contextual=True)
+    registry.register(system_debug_tool_definition(), service.invoke, contextual=True, argument_preparer=prepare_system_debug_arguments)
+
+
+def prepare_system_debug_arguments(arguments: dict[str, Any]) -> dict[str, Any]:
+    from lingshu_gate.registry import ToolDispatchRejectedError
+
+    try:
+        values = dict(arguments)
+        action = values["action"] = str(arguments.get("action") or "overview").strip()
+        if action not in {"overview", "server_detail", "logs", "events", "diagnostics"}:
+            raise ValueError("Unsupported diagnostic action")
+        values["limit"] = _parse_limit(arguments.get("limit"))
+        used = {"keyword"}
+        if action in {"overview", "server_detail", "logs", "events"}:
+            used.add("server_id")
+        if action in {"logs", "events"}:
+            used.update({"source", "event_type"})
+        if action == "logs":
+            used.add("level")
+        for name in used:
+            value = _optional_text(arguments.get(name), name)
+            if value is None:
+                values.pop(name, None)
+            else:
+                values[name] = value
+        if action == "server_detail":
+            _required_text(values.get("server_id"), "server_id")
+        return values
+    except (ValueError, TypeError):
+        raise ToolDispatchRejectedError("tool_arguments_invalid", "Check the diagnostic action, text filters and integer limit (1–200).") from None
 
 
 def _parse_limit(value: Any) -> int:

@@ -158,11 +158,13 @@ def test_database_environment_rejects_unsupported_or_secret_bearing_values(
         Settings.from_env()
 
 
-def test_main_passes_only_configured_proxy_sources_to_uvicorn(monkeypatch: pytest.MonkeyPatch) -> None:
+@pytest.mark.parametrize("level", ["WARNING", "DEBUG"])
+def test_main_passes_configured_proxy_sources_and_log_level_to_uvicorn(monkeypatch: pytest.MonkeyPatch, level: str) -> None:
     captured: dict[str, object] = {}
 
     monkeypatch.setattr(sys, "argv", ["lingshu-gate"])
     monkeypatch.setenv("LINGSHU_GATE_TRUSTED_PROXY_IPS", "10.0.0.12")
+    monkeypatch.setenv("LINGSHU_GATE_LOG_LEVEL", level)
     monkeypatch.setattr("lingshu_gate.cli.configure_logging", lambda _level: None)
     monkeypatch.setattr("lingshu_gate.cli.uvicorn.run", lambda *args, **kwargs: captured.update(kwargs))
 
@@ -170,3 +172,4 @@ def test_main_passes_only_configured_proxy_sources_to_uvicorn(monkeypatch: pytes
 
     assert captured["forwarded_allow_ips"] == "10.0.0.12"
     assert captured["workers"] == 1
+    assert captured["log_level"] == level.lower()

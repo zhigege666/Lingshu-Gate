@@ -20,6 +20,11 @@ Direct runtime dependencies include:
 | cryptography | Apache-2.0 OR BSD-3-Clause |
 | python-multipart | Apache-2.0 |
 | MCP Python SDK | MIT |
+| jsonschema | MIT |
+| HTTPX2 | BSD-3-Clause |
+| websockets | BSD-3-Clause |
+| OpenTelemetry API, SDK and OTLP HTTP exporter | Apache-2.0 |
+| Requests | Apache-2.0 |
 | React and React DOM | MIT |
 | Ant Design and Ant Design Icons | MIT |
 | Radix UI | MIT |

@@ -22,7 +22,8 @@ def _port(value: str) -> int:
 
 def _parse_args(argv: Sequence[str] | None = None) -> argparse.Namespace:
     parser = argparse.ArgumentParser(
-        prog="lingshu-gate", description="Run the Lingshu Gate API, Console, and MCP gateway"
+        prog="lingshu-gate", description="Run the Lingshu Gate API, Console, and MCP gateway",
+        epilog="Service commands: demo-server, openapi, connector (use COMMAND --help).",
     )
     parser.add_argument("--version", action="version", version=f"%(prog)s {__version__}")
     parser.add_argument("--host", help="Bind address (default: 127.0.0.1)")
@@ -62,6 +63,16 @@ def main() -> None:
 
         _worker()
         return
+    if sys.argv[1:2] == ["connector"]:
+        from lingshu_gate.connector_cli import main as connector_main
+
+        connector_main(sys.argv[2:])
+        return
+    if sys.argv[1:2] and sys.argv[1] in {"demo-server", "openapi"}:
+        from lingshu_gate.adoption_cli import main as service_main
+
+        service_main(sys.argv[1:])
+        return
     args = _parse_args()
     _apply_overrides(args)
     settings = Settings.from_env()
@@ -72,6 +83,7 @@ def main() -> None:
         port=settings.port,
         reload=False,
         workers=1,
+        log_level=settings.log_level.lower(),
         forwarded_allow_ips=settings.trusted_proxy_ips,
     )
 

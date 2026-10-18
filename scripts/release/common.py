@@ -16,7 +16,7 @@ import sys
 import tarfile
 import zipfile
 from datetime import datetime, timezone
-from pathlib import Path
+from pathlib import Path, PurePosixPath
 from typing import Any, Iterable
 
 REPOSITORY_ROOT = Path(__file__).resolve().parents[2]
@@ -26,7 +26,11 @@ REQUIRED_LEGAL_FILES = (
     REPOSITORY_ROOT / "NOTICE",
     REPOSITORY_ROOT / "THIRD_PARTY_NOTICES.md",
 )
-REQUIRED_DOCUMENTATION_FILES = (REPOSITORY_ROOT / "README.md",)
+REQUIRED_DOCUMENTATION_FILES = tuple(REPOSITORY_ROOT / name for name in (
+    "README.md", "README.zh-CN.md", "SECURITY.md", "SECURITY.zh-CN.md", "CONTRIBUTING.md",
+    "CHANGELOG.md", "CHANGELOG.zh-CN.md", "packaging/release-notes.md",
+))
+DOCUMENTATION_TREES = ("docs", "examples", ".agents/skills/lingshu-gate-upload-build-start")
 SEMVER_NUMBER = r"(?:0|[1-9][0-9]*)"
 SEMVER_PRERELEASE_IDENTIFIER = r"(?:0|[1-9][0-9]*|[0-9A-Za-z-]*[A-Za-z-][0-9A-Za-z-]*)"
 SAFE_VERSION_PATTERN = re.compile(
@@ -97,6 +101,9 @@ def validate_release_inputs() -> None:
     missing = [path.relative_to(REPOSITORY_ROOT).as_posix() for path in (*REQUIRED_LEGAL_FILES, *REQUIRED_DOCUMENTATION_FILES) if not path.is_file()]
     if missing:
         raise RuntimeError("Required release file(s) are missing: " + ", ".join(missing))
+    for path in (*REQUIRED_LEGAL_FILES, *REQUIRED_DOCUMENTATION_FILES):
+        _release_source_file(path.relative_to(REPOSITORY_ROOT).as_posix())
+    _public_documentation_files()
 
 
 def source_date_epoch() -> int:
@@ -318,6 +325,81 @@ def copy_release_file(source: Path, destination_dir: Path, *, destination_name: 
     destination = destination_dir / (destination_name or source.name)
     shutil.copy2(source, destination)
     return destination
+
+
+def _release_source_file(relative: str) -> Path:
+    """Reject links at every repository-relative component before copying."""
+    path = PurePosixPath(relative)
+    if (not path.parts or "\\" in relative or any(ord(c) < 32 for c in relative)
+            or path.is_absolute() or ".." in path.parts
+            or path.as_posix() != relative):
+        raise RuntimeError("Invalid public documentation path")
+    if REPOSITORY_ROOT.is_symlink():
+        raise RuntimeError("Release source does not support symlinks")
+    current = REPOSITORY_ROOT
+    try:
+        for component in path.parts:
+            current = current / component
+            mode = current.lstat().st_mode
+            if stat.S_ISLNK(mode):
+                raise RuntimeError("Release source does not support symlinks: " + relative)
+        if not stat.S_ISREG(mode) or not current.resolve().is_relative_to(REPOSITORY_ROOT.resolve()):
+            raise RuntimeError("Release source is not a confined regular file: " + relative)
+    except OSError as error:
+        raise RuntimeError("Required release source is unavailable: " + relative) from error
+    return current
+
+
+def _public_documentation_files() -> list[Path]:
+    """Use a reviewed allowlist, including for builds without Git metadata."""
+    manifest = _release_source_file("packaging/public-documentation.json")
+    if manifest.stat().st_size > 1024 * 1024:
+        raise RuntimeError("Public documentation manifest exceeds its size limit")
+    try:
+        value = json.loads(manifest.read_text(encoding="utf-8"))
+    except (ValueError, UnicodeError) as error:
+        raise RuntimeError("Invalid public documentation manifest") from error
+    if (not isinstance(value, dict) or set(value) != {"schema_version", "files"}
+            or type(value["schema_version"]) is not int or value["schema_version"] != 1
+            or not isinstance(value["files"], list) or not 1 <= len(value["files"]) <= 4096
+            or any(not isinstance(item, str) or len(item) > 2048 for item in value["files"])):
+        raise RuntimeError("Invalid public documentation manifest")
+    names = value["files"]
+    required = {p.relative_to(REPOSITORY_ROOT).as_posix() for p in REQUIRED_DOCUMENTATION_FILES}
+    if len(set(names)) != len(names) or not required.issubset(names):
+        raise RuntimeError("Public documentation manifest has duplicate or missing required files")
+    for name in names:
+        if name not in required and not any(name.startswith(tree + "/") for tree in DOCUMENTATION_TREES):
+            raise RuntimeError("Public documentation manifest contains an unsupported path")
+    return [_release_source_file(name) for name in names]
+
+
+def copy_release_documentation(destination: Path) -> None:
+    """Keep only explicitly listed public guides, examples and relative links."""
+    sources = _public_documentation_files()
+    for source in sources:
+        relative = source.relative_to(REPOSITORY_ROOT)
+        source = _release_source_file(relative.as_posix())
+        parent = destination / relative.parent
+        parent.mkdir(parents=True, exist_ok=True)
+        copy_release_file(source, parent)
+
+
+def copy_package_readmes(destination: Path, *, package: str, version: str) -> None:
+    """Finish a bundle with reviewed, package-specific bilingual entry pages."""
+    if package not in {"native", "docker"} or not _valid_release_version(version):
+        raise RuntimeError("Invalid package documentation target or version")
+    # Resolve both sources before writing, including each ancestor's link check.
+    sources = [
+        _release_source_file(f"packaging/{package}/package-README{suffix}.md")
+        for suffix in ("", ".zh-CN")
+    ]
+    rendered = [
+        source.read_text(encoding="utf-8").replace("@VERSION@", version).replace("](../../", "](")
+        for source in sources
+    ]
+    for name, text in zip(("README.md", "README.zh-CN.md"), rendered, strict=True):
+        (destination / name).write_text(text, encoding="utf-8")
 
 
 def python_executable_name(target: str) -> str:

@@ -96,3 +96,7 @@ Managed containers have one non-configurable isolation baseline: digest-pinned i
 ## Extension rule
 
 New downstream support uses the generic MCP transport and manifest model so the Gate core remains vendor-neutral.
+
+## Optional integration and observation boundaries
+
+Demo, connector relay/agent and OpenAPI adapter are independent commands. Core registration retains classification and authorization. Connector and adapter credentials use protected local files. Argument preparers retain raw confirmation receipts while producing bounded effective inputs; current rules and contracts are rechecked at final dispatch and each allowed retry. Pins and cached result reads reuse current identity and authorization. Prometheus and the private OpenTelemetry provider are process-local and default off; export has a bounded queue and fixed destination. See [policies](argument-policies.md), [discovery](on-demand-tools.md) and [telemetry](telemetry.md).

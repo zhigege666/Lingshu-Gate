@@ -19,6 +19,7 @@ from lingshu_gate.database import SQLiteDatabase
 from lingshu_gate.project_delivery_mcp import (
     PROJECT_DELIVERY_TOOL_DEFINITIONS,
     ProjectDeliveryMcpService,
+    register_project_delivery_tools,
 )
 from lingshu_gate.mcp_runtime import McpManifestDigestConflict
 from lingshu_gate.mcp_manifest import McpServerManifest
@@ -1314,6 +1315,26 @@ class ProjectDeliveryFakePipelineTest(unittest.TestCase):
         self.assertEqual(len(self.builds.build_upload_calls), 1)
         self.assertTrue(self.builds.build_upload_calls[0]["run_install"])
         self.assertTrue(self.builds.build_upload_calls[0]["run_build"])
+
+        # A receipt created by the pre-preparer service path still replays when
+        # the public Registry now materializes first-party defaults. The guard
+        # sees the effective values while the journal retains the old digest.
+        registry = ToolRegistry()
+        register_project_delivery_tools(registry, self.service)
+        effective = []
+        through_registry = registry.invoke("gate_build_create", create_arguments,
+            context=self.context, arguments_guard=effective.append)
+        self.assertTrue(through_registry.ok)
+        self.assertTrue(through_registry.output["idempotent_replay"])
+        self.assertEqual(through_registry.output["operation_id"], created["operation_id"])
+        self.assertEqual(len(self.builds.build_upload_calls), 1)
+        self.assertIs(effective[0]["run_install"], True)
+        self.assertIs(effective[0]["run_build"], True)
+        self.assertEqual(effective[0]["timeout_seconds"], 300)
+        expected_digest = hashlib.sha256(json.dumps(create_arguments, ensure_ascii=False,
+            sort_keys=True, separators=(",", ":")).encode()).hexdigest()
+        receipt = self.database.query_one("SELECT request_digest FROM mcp_idempotent_operations WHERE id=?", (created["operation_id"],))
+        self.assertEqual(receipt["request_digest"], expected_digest)
 
         with self.assertRaises(ToolExecutionError) as same_key_conflict:
             self.service.build_create(

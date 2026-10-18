@@ -753,6 +753,12 @@ class AuthStore:
             self.initial_admin_credentials_path.unlink(missing_ok=True)
 
     def authenticate_mcp_request(self, request: Request) -> AuthPrincipal:
+        from lingshu_gate.telemetry import phase
+
+        with phase("authorization"):
+            return self._authenticate_mcp_request(request)
+
+    def _authenticate_mcp_request(self, request: Request) -> AuthPrincipal:
         """External JWTs authenticate only this protocol endpoint, never Console."""
         bearer = self._bearer_token(request)
         # The trusted route selects this audience before looking at any token.
@@ -823,6 +829,12 @@ class AuthStore:
         return self._enforce_password_change(principal, request)
 
     def authenticate_request(self, request: Request) -> AuthPrincipal:
+        from lingshu_gate.telemetry import phase
+
+        with phase("authorization"):
+            return self._authenticate_request(request)
+
+    def _authenticate_request(self, request: Request) -> AuthPrincipal:
         if "authorization" in request.headers and not self.enabled:
             raise HTTPException(401, detail="authorization credentials require Gate authentication", headers={"WWW-Authenticate": "Bearer"})
         if not self.enabled:

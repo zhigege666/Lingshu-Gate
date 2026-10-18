@@ -1,0 +1,27 @@
+# Opt-in override; relative paths resolve from the first Compose file.
+services:
+  demo:
+    image: ${LINGSHU_GATE_IMAGE:-lingshu-gate:local}
+    pull_policy: ${LINGSHU_GATE_PULL_POLICY:-missing}
+    command: ["python", "-m", "lingshu_gate.cli", "demo-server", "--host", "127.0.0.1", "--port", "18880"]
+    network_mode: service:core
+    depends_on:
+      core:
+        condition: service_healthy
+    init: true
+    user: '10001:10001'
+    read_only: true
+    cap_drop: [ALL]
+    security_opt: [no-new-privileges:true]
+    tmpfs:
+      - /tmp:rw,noexec,nosuid,nodev,size=16m,uid=10001,gid=10001
+    pids_limit: 64
+    mem_limit: 256m
+    cpus: 0.5
+    restart: 'no'
+    healthcheck:
+      test: [CMD, python, -c, "import socket; socket.create_connection(('127.0.0.1', 18880), timeout=2).close()"]
+      interval: 2s
+      timeout: 3s
+      start_period: 2s
+      retries: 30

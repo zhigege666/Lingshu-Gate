@@ -1,6 +1,7 @@
 """通用 fileRef 分块上传 MCP 工具。"""
 
 from __future__ import annotations
+from lingshu_gate.argument_preparation import model_preparer
 
 import base64
 import binascii
@@ -145,5 +146,7 @@ def register_tool_file_tools(registry: ToolRegistry, service: ToolFileMcpService
         "gate_file_upload_commit": service.commit,
         "gate_file_upload_abort": service.abort,
     }
+    models: dict[str, type[BaseModel]] = {"gate_file_upload_begin": FileBeginInput, "gate_file_upload_chunk": FileChunkInput,
+        "gate_file_upload_commit": FileCommitInput, "gate_file_upload_abort": FileAbortInput}
     for definition in TOOL_FILE_DEFINITIONS:
-        registry.register(definition, handlers[definition.id], contextual=True)
+        registry.register(definition, handlers[definition.id], contextual=True, argument_preparer=model_preparer(models[definition.id]))

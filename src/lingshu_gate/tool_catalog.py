@@ -1,6 +1,8 @@
 """Bounded, permission-first tool discovery over an incremental SQLite index."""
 from __future__ import annotations
 
+from lingshu_gate.telemetry import correlation_id as normalized_correlation, invocation_entry
+
 import base64
 import hashlib
 import hmac
@@ -17,7 +19,7 @@ from typing import Any
 
 from pydantic import BaseModel, ConfigDict, Field
 
-from lingshu_gate.access_control import AccessControlStore, AccessDeniedError
+from lingshu_gate.access_control import AccessControlStore, AccessDeniedError, _is_expired
 from lingshu_gate.application.mcp_group_routing import McpGroupRoutingService
 from lingshu_gate.auth import AuthPrincipal
 from lingshu_gate.application.schema_validation import validate_arguments as _validate_arguments
@@ -25,7 +27,7 @@ from lingshu_gate.observability_store import ObservabilityStore
 from lingshu_gate.domain.mcp_group_routing import GroupToolCall, GroupToolSelection
 from lingshu_gate.domain.mcp_groups import McpGroupError
 from lingshu_gate.models import ToolDefinition, ToolInvokeResponse
-from lingshu_gate.protocol.tool_namespace import public_tool_name
+from lingshu_gate.protocol.tool_namespace import public_tool_name, reserved_preference_name
 from lingshu_gate.ports.catalog_target import CatalogTarget, CatalogTargetResolver
 from lingshu_gate.registry import ToolExecutionError, ToolNotFoundError, ToolRegistry
 
@@ -134,7 +136,7 @@ class ToolCatalog:
             self._retired.update(retired)
             for key, definition in changes.items():
                 self._reserved.discard(key)
-                if definition is not None and public_tool_name(definition) in CATALOG_TOOL_NAMES:
+                if definition is not None and (public_tool_name(definition) in CATALOG_TOOL_NAMES or reserved_preference_name(public_tool_name(definition))):
                     self._reserved.add(key)
             self._generation += 1
 
@@ -221,6 +223,59 @@ class ToolCatalog:
             return offset
         except (ValueError, KeyError, TypeError):
             raise _reject("catalog_cursor_invalid", "The cursor expired or its catalog, identity, permissions or query changed.") from None
+
+    def visible_groups(self, principal: AuthPrincipal, request: CatalogSearch) -> dict[str, Any]:
+        """A bounded visible directory for business users, without management access."""
+        if request.limit > 20 or request.group_id or request.tool_ref or request.instance_id:
+            raise _reject("catalog_parameters_invalid", "Select at most twenty group summaries per page.")
+        generation, epoch = self.synchronize(), self._epoch()
+        router = self._groups()
+        with self.database.session() as connection:
+            connection.execute("BEGIN")
+            # Metadata is capped at 1,000 groups by the group store. It binds
+            # cursors but never becomes a public count or a schema directory.
+            marker = [tuple(row) for row in connection.execute("SELECT id,revision FROM mcp_groups ORDER BY id")]
+            connection.create_function("gate_catalog_allowed", 7, self.access.catalog_authorizer(connection, principal))
+            connection.create_function("gate_grant_current", 1, lambda value: int(not _is_expired(value)))
+            rows = connection.execute("""WITH allowed AS MATERIALIZED (
+                SELECT DISTINCT c.instance_id FROM gate_tool_catalog c
+                LEFT JOIN mcp_tool_classifications p ON p.server_id=c.instance_id AND p.tool_id=c.tool_ref
+                WHERE c.source='mcp' AND gate_catalog_allowed(
+                    c.tool_ref,c.instance_id,c.source,c.permission,c.policy_json,p.effective_access,p.status)=1
+            ) SELECT DISTINCT g.id,g.name FROM mcp_groups g
+                JOIN mcp_group_members m ON m.group_id=g.id AND m.status='active'
+                JOIN allowed a ON a.instance_id=m.server_id
+                WHERE g.status='active' AND instr(lower(g.name),lower(?))>0 AND (? OR EXISTS (
+                    SELECT 1 FROM mcp_resource_grants r JOIN permission_types p ON p.id=r.permission_type_id
+                    WHERE r.server_id='mcp-group:'||g.id AND p.enabled=1 AND p.base_level!='none'
+                    AND gate_grant_current(r.expires_at)=1 AND (
+                        (r.subject_type='user' AND r.subject_id=?) OR (r.subject_type='role' AND r.subject_id IN (
+                            SELECT ur.role_id FROM user_roles ur JOIN roles role ON role.id=ur.role_id
+                            WHERE ur.user_id=? AND role.enabled=1
+                        ))
+                    )
+                )) ORDER BY g.id""", (request.query, principal.role == "admin" or "admin" in principal.roles,
+                                         principal.id, principal.id)).fetchall()
+        binding = self._binding(principal, request, "visible_groups" + _json(marker), generation, epoch)
+        offset = self._offset(request.cursor, binding)
+        visible = []
+        # The cheap admission above can over-admit (for example an exact none
+        # override). Only the original full physical/logical policy decides
+        # visibility. Offset and continuation count these visible rows alone.
+        for row in rows:
+            try:
+                tools = router.directory_page(principal, group_id=row["id"], keywords=[], tool_ref=None,
+                    instance_id=None, offset=0, limit=1, instances=False)
+            except McpGroupError:
+                continue
+            if tools:
+                visible.append({"id": row["id"], "name": row["name"]})
+                if len(visible) >= offset + request.limit + 1:
+                    break
+        current_marker = [tuple(row) for row in self.database.query_all("SELECT id,revision FROM mcp_groups ORDER BY id")]
+        if generation != self._generation or epoch != self._epoch() or marker != current_marker:
+            raise _reject("catalog_changed", "The visible directory changed; search again.")
+        return self._page(visible[offset:], request, "groups", offset, binding)
 
     def search(self, principal: AuthPrincipal, request: CatalogSearch, *, instances: bool = False) -> dict[str, Any]:
         generation = self.synchronize()
@@ -357,6 +412,10 @@ class ToolCatalog:
     @staticmethod
     def _checked_response(response: ToolInvokeResponse) -> ToolInvokeResponse:
         error = response.output.get("error") if isinstance(response.output, dict) else None
+        if not response.ok and isinstance(error, dict) and error.get("code") == "tool_arguments_invalid":
+            # Preparation rejects oversized/deep inputs before schema work.
+            # Keep the catalog's invalid-argument boundary for that early exit.
+            raise _reject("catalog_arguments_invalid", error["message"])
         if (not response.ok and isinstance(error, dict) and str(error.get("code", "")).startswith("catalog_")
                 and error.get("code") != "catalog_identity_changed"):
             raise _reject(error["code"], error["message"])
@@ -370,10 +429,10 @@ class ToolCatalog:
     def invoke(self, principal: AuthPrincipal, request: CatalogInvoke, *,
                refresh_principal: Callable[[], AuthPrincipal] | None = None,
                correlation_id: str | None = None) -> ToolInvokeResponse:
+        correlation_id = normalized_correlation(correlation_id)
         if request.tool_ref.startswith("mcp-group:"):
             return self._invoke_group(principal, request, refresh_principal=refresh_principal,
                                       correlation_id=correlation_id)
-        correlation_id = correlation_id or secrets.token_hex(16)
         self.synchronize()
         try:
             definition = self.registry.get_definition(request.tool_ref)
@@ -381,13 +440,13 @@ class ToolCatalog:
             self._audit_rejection(principal, request, correlation_id, None, "unavailable")
             raise _reject("catalog_tool_unavailable", "The selected tool is unavailable.") from None
 
-        def validate() -> None:
+        def validate(effective: dict[str, Any]) -> None:
             if (request.session_id is not None or request.instance_id is not None and request.instance_id != instance_for(definition)
                     or principal.oauth_resource and principal.oauth_resource.endswith("/mcp/manage")):
                 raise _reject("catalog_tool_unavailable", "The selected tool is unavailable.")
             if schema_revision(definition) != request.schema_revision:
                 raise _reject("catalog_schema_revision_conflict", "The selected tool definition changed; describe it again.")
-            _validate_arguments(definition.input_schema if definition.input_schema is not None else {"type": "object"}, request.arguments)
+            _validate_arguments(definition.input_schema if definition.input_schema is not None else {"type": "object"}, effective)
 
         def guard() -> None:
             current = refresh_principal() if refresh_principal is not None else principal
@@ -417,7 +476,7 @@ class ToolCatalog:
     def _invoke_group(self, principal: AuthPrincipal, request: CatalogInvoke, *,
                       refresh_principal: Callable[[], AuthPrincipal] | None,
                       correlation_id: str | None) -> ToolInvokeResponse:
-        correlation_id = correlation_id or secrets.token_hex(16)
+        correlation_id = normalized_correlation(correlation_id)
         try:
             if request.instance_id is None or request.session_id is None:
                 raise _reject("catalog_tool_unavailable", "The selected tool is unavailable.")
@@ -430,10 +489,10 @@ class ToolCatalog:
         call = GroupToolCall(tool_ref=request.tool_ref, instance_id=request.instance_id,
                              session_id=request.session_id, arguments=request.arguments)
 
-        def validate() -> None:
+        def validate(effective: dict[str, Any]) -> None:
             if request.schema_revision != target.schema_revision or schema_revision(definition) != target.definition_fingerprint:
                 raise _reject("catalog_schema_revision_conflict", "The selected logical contract changed; describe it again.")
-            _validate_arguments(definition.input_schema if definition.input_schema is not None else {"type": "object"}, request.arguments)
+            _validate_arguments(definition.input_schema if definition.input_schema is not None else {"type": "object"}, effective)
 
         @contextmanager
         def dispatch():
@@ -461,10 +520,11 @@ class ToolCatalog:
                 raise _reject("catalog_tool_unavailable", "The selected tool is unavailable.") from None
 
         try:
-            response = self.access.invoke_tool(self.registry, principal, target.tool_id, request.arguments,
-                correlation_id=correlation_id, dispatch_guard=guard, arguments_validator=validate,
-                dispatch_context=dispatch(), expected_definition_revision=target.definition_fingerprint,
-                allow_read_retry=False)
+            with invocation_entry("group"):
+                response = self.access.invoke_tool(self.registry, principal, target.tool_id, request.arguments,
+                    correlation_id=correlation_id, dispatch_guard=guard, arguments_validator=validate,
+                    dispatch_context=dispatch(), expected_definition_revision=target.definition_fingerprint,
+                    allow_read_retry=False)
         except AccessDeniedError:
             raise _reject("catalog_tool_unavailable", "The selected tool is unavailable.") from None
         except ToolNotFoundError:

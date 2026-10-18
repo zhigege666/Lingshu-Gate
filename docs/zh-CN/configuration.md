@@ -278,3 +278,9 @@ Native 隔离交付以管理员专用 `LINGSHU_GATE_NATIVE_EXECUTOR` JSON 对象
 ## 内置 OAuth 配置
 
 内置 OAuth 默认关闭，通过受权限控制的 `/v1/auth/oauth/*` API 或**连接基础设施 → Gate 内置 OAuth**配置，不提供环境变量快捷启用。保存固定 HTTPS issuer/resource，明确生成加密签名密钥并登记静态客户端，再启用。客户端密钥仅返回一次，签名私钥不离开加密存储。API token 与外部 IdP 验证继续可用。Scopes、限制及独立公网放行路径见[内置 OAuth 指南](builtin-oauth.md)。
+
+## 可选观测与辅助进程
+
+`LINGSHU_GATE_TELEMETRY` 接受严格 JSON；缺省或空值表示指标和 trace 均关闭。仅启用指标可设为 `{"metrics_enabled":true}`。trace 需要明确完整的 OTLP/HTTP 地址，可选受保护的 token 与 CA 文件。两份 Compose 模板均透传变量。见[标准观测](telemetry.md)。
+
+[演示](first-call.md)、[私网连接器](private-connector.md)、[OpenAPI 适配器](openapi-adapter.md)均为独立 CLI 进程，Core 不会隐式启动。其本地配置和受保护明文凭据文件独立于 Core Manifest 与加密凭据库。`examples/` 使用中性地址和占位符。

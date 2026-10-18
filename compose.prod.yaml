@@ -26,6 +26,7 @@ services:
       LINGSHU_GATE_MCP_ALLOWED_ORIGINS: ${LINGSHU_GATE_MCP_ALLOWED_ORIGINS:-}
       LINGSHU_GATE_LOG_LEVEL: ${LINGSHU_GATE_LOG_LEVEL:-INFO}
       LINGSHU_GATE_LOG_PAYLOADS: "false"
+      LINGSHU_GATE_TELEMETRY: ${LINGSHU_GATE_TELEMETRY:-}
     volumes:
       - type: bind
         source: ${LINGSHU_GATE_WORKSPACE_ROOT:-/srv/lingshu-gate/workspace}

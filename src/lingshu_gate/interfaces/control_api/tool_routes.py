@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from lingshu_gate.telemetry_http import request_correlation
+
 from fastapi import Depends, FastAPI, HTTPException, Request
 
 from lingshu_gate.access_control import AccessControlStore, AccessDeniedError
@@ -71,7 +73,7 @@ def register_tool_routes(
                 principal,
                 tool_id,
                 arguments,
-                correlation_id=http_request.headers.get("x-correlation-id"),
+                correlation_id=request_correlation(http_request),
             )
         except AccessDeniedError as exc:
             raise HTTPException(status_code=403, detail=exc.reason) from exc

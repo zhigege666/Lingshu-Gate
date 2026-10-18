@@ -164,3 +164,9 @@ Do not delete databases, volumes, uploads, or operation records as an initial tr
 - Long-running event streams consume connections; set proxy idle behavior intentionally.
 - Uploads, build artifacts, logs, and audits grow under the data directory; monitor free space and define retention according to your environment.
 - A downstream outage should be isolated from Gate readiness, but repeated retries can still consume capacity; use bounded restart and request policies.
+
+## Argument policies and standard telemetry
+
+The tool's **Argument policy** action requires `grants.manage`. Its editor evaluates examples without execution; current rules restrict effective arguments at final dispatch. Admitted calls rejected before execution record zero attempts; rejection of a recovery retry preserves prior actual attempts. See [argument policies](argument-policies.md).
+
+Optional `GET /v1/observability/metrics` and `GET /v1/observability/telemetry` require current authentication and both `operations.manage` and `observability.read.all`. HTTP requests, logical invocations and actual executions have separate counts. Metrics and traces default off; export failures do not add business retries. See [standard telemetry](telemetry.md) for configuration, labels, correlation and privacy.

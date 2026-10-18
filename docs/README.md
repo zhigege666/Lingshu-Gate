@@ -6,6 +6,12 @@ This documentation describes the current Gate product boundary. English is autho
 
 | Guide | Purpose |
 |---|---|
+| [Getting started](getting-started.md) | Released native/Docker trial, production and source entry paths |
+| [First authorized call](first-call.md) | Demo, initial login, read-only token, denied write, audit and revocation |
+| [Argument policies](argument-policies.md) | Bounded rules, pure evaluation and effective-input enforcement |
+| [Private connector](private-connector.md) | Fixed targets, separate credentials and TLS |
+| [OpenAPI adapter](openapi-adapter.md) | Local subset and immutable HTTP contracts |
+| [Standard telemetry](telemetry.md) | Default-off Prometheus and OTLP/HTTP, permissions and privacy |
 | [Performance review](performance-review.md) | Reproducible synthetic benchmarks and validation limits |
 | [Retention controls](retention.md) | Separate log, event and invocation lifetimes, cleanup preview and confirmation |
 | [Invocation content recording](invocation-recording.md) | Opt-in bounded redacted content, owner isolation, audit capability and retention |

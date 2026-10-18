@@ -14,13 +14,17 @@ Choose Docker Core for an isolated control plane and external Streamable HTTP ga
 
 All modes use SQLite and support one Gate process per database.
 
-## Docker Compose quick start
+## Released Docker trial
+
+For a local evaluation without a source checkout, use the verified Compose archive and its explicit `compose.quickstart.yaml` / `.env.quickstart.example` path in [getting started](getting-started.md). The trial uses local HTTP, authentication, independent volumes and the released image. Its empty workspace is read-only. The default archive `compose.yaml` remains the HTTPS production configuration.
+
+## Source Docker Compose
 
 From a source checkout:
 
 ```bash
 mkdir -p runtime/workspace
-docker compose up -d --build core
+docker compose up -d --build --wait --wait-timeout 120 core
 docker compose ps
 curl --fail http://127.0.0.1:8000/readyz
 ```
@@ -37,7 +41,7 @@ The file is deleted after the password change.
 
 ### Compose release bundle
 
-The release asset `lingshu-gate-v<version>-docker-compose.tar.gz` contains a deployment-specific `DEPLOYMENT.md` and `.env.example`. After verifying and extracting it:
+The release asset `lingshu-gate-v<version>-docker-compose.tar.gz` contains package-specific English/Chinese READMEs, both quickstart files and paired `DEPLOYMENT.md` / `DEPLOYMENT.zh-CN.md`. For production, after verifying and extracting it:
 
 ```bash
 cp .env.example .env
@@ -59,14 +63,16 @@ export LINGSHU_GATE_BOOTSTRAP_PASSWORD_FILE="$PWD/secrets/bootstrap-admin-passwo
 sudo install -d -o 10001 -g 10001 -m 0750 "$LINGSHU_GATE_WORKSPACE_ROOT"
 install -d -m 0700 ./secrets
 python -c 'import secrets; print(secrets.token_urlsafe(32))' > "$LINGSHU_GATE_BOOTSTRAP_PASSWORD_FILE"
-chmod 0600 "$LINGSHU_GATE_BOOTSTRAP_PASSWORD_FILE"
+sudo chown 10001:10001 "$LINGSHU_GATE_BOOTSTRAP_PASSWORD_FILE"
+sudo chmod 0400 "$LINGSHU_GATE_BOOTSTRAP_PASSWORD_FILE"
 
 docker compose -f compose.prod.yaml config --quiet
-docker compose -f compose.prod.yaml up -d
+docker compose -f compose.prod.yaml run --rm --no-deps --entrypoint sh core -c 'test -r /run/secrets/lingshu_gate_bootstrap_admin_password'
+docker compose -f compose.prod.yaml up -d --no-build --wait --wait-timeout 120 core
 curl --fail http://127.0.0.1:8000/readyz
 ```
 
-Adjust ownership of the password file so container UID `10001` can read it without making it group/world writable. Rootless container engines and desktop virtualization use different UID mappings; test readability under the actual service account.
+This ownership sequence is for Linux rootful Docker and keeps the file readable only by UID `10001`. Rootless container engines and desktop virtualization use different UID mappings; use the equivalent protected mapping and run the readability check under the actual service account. If validation or readability fails, fix it before starting. Sign in through the configured HTTPS entry; a successful loopback readiness probe does not prove Secure-cookie login works over HTTP.
 
 After first login, change the administrator password and rotate the provisioning secret. Keep the bootstrap file protected while the Compose definition references it.
 
@@ -174,3 +180,9 @@ Older binaries ignore the new session purpose column. An OAuth-enabled installat
 The session-purpose migration supports published Console-only source versions. In-place upgrades from early unpublished OAuth candidates are unsupported: their old sessions must all be invalidated offline before starting this version, or use a fresh/matching published-version database. Never preserve an old candidate consent session as a Console session; the migration cannot infer its provenance.
 
 Token/revoke ingress is source-limited before body parsing; read-only client validation precedes authenticated operation budgets (exchange 180, refresh 300, revoke 120 per minute globally; 30/60/30 per client). Unauthenticated failures cannot spend these budgets. Ingress/failure source tracking is bounded with eviction, so edge enforcement remains necessary for rotating IPs, shared proxies, connection/body floods and audit/storage load. Restrict trusted forwarded IP handling and apply separate endpoint/failed-authentication edge limits; do not treat the reserved operation budgets as an availability guarantee.
+
+## 0.5.0 upgrade and optional services
+
+Migrations `0022_tool_preferences` and `0023_tool_argument_policy` add persistent preferences and rules. Stop the writer and consistently back up database, configuration and credential keys before upgrading. A previous binary does not enforce argument policies; rollback requires its matching backup and reconciliation of subsequent changes.
+
+Native and Compose bundles include paired guides and `examples/`. The [first-call guide](first-call.md) uses a separate demo process or a sidecar sharing Core's loopback network. Connector and OpenAPI adapter also run separately. Core remains unprivileged with a read-only root and no engine socket. [Telemetry](telemetry.md) defaults off.

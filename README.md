@@ -1,25 +1,75 @@
 # Lingshu Gate
 
-A self-hosted MCP gateway and control plane with explicit identity, tool-access, credential, audit and project-delivery boundaries.
+A self-hosted MCP gateway that connects tools, limits who can call them, and records what happened.
 
-[简体中文](README.zh-CN.md) · [Documentation](docs/README.md) · [Security](SECURITY.md) · [Contributing](CONTRIBUTING.md)
+[简体中文](README.zh-CN.md) · [Download 0.5.0](https://github.com/zhigege666/Lingshu-Gate/releases/tag/v0.5.0) · [Get started](docs/getting-started.md) · [Documentation](docs/README.md) · [Security](SECURITY.md)
 
-Use Gate to manage multiple MCP servers, give remote MCP clients controlled tool access, and deliver projects on trusted native hosts. One MCP Gateway, Web Console and control API connect service operations with user governance.
+<img src="docs/images/console/en-US/v0.5.0-discovery.png" alt="Lingshu Gate 0.5.0: per-authorization pinned tools, logical groups and bounded text previews" width="1200">
 
-> [!NOTE]
-> **0.4.10 Release status and boundary notice**
->
-> - **Stdio configuration fix**: Empty or whitespace-only `transport.endpoint` values mean no endpoint for stdio across precheck, save and reload. HTTP URL and private-origin trust restrictions stay unchanged; form switching retains existing HTTP fields.
-> - **Release identity recovery**: Neutral documentation and test-helper names, exact reviewed historical snapshots, and narrowly scoped concept-art provenance handling preserve image bytes, existing tags and every formal release check.
-> - **MCP review & authorization lifecycle preservation**: When an MCP server restarts, reconnects after temporary network/health-check outages, or undergoes a smooth upgrade, tool definitions matching previous definitions retain their original classification and reviewer timestamp without requiring new OAuth consent or manual scope adjustment. Offline tools leave the callable catalog immediately upon disconnect.
-> - **Unified authorizations & continuous MCP scope**: Personal API tokens, Gate OAuth grants, and external identity authorizations are unified in the Web Console under [My Authorizations](docs/my-authorizations.md). Business authorizations support continuous whole-service MCP scoping in read-only or read-write mode, automatically granting newly published tools, with configurable per-minute (default 6,000) and concurrency (default 100) call limits.
-> - **On-demand tool discovery**: Business authorizations default to six bounded discovery and session entries per authorization. Select On demand or Full tool list per authorization; request-level overrides are ignored. See the [guide](docs/on-demand-tools.md) for client refresh and compatibility.
-> - **Group purpose distinction**: Multi-instance execution (`execution`) and multi-data-source query (`data_source`) groups are explicitly identified, while existing groups remain `unspecified`.
-> - **Console & discovery**: The Web Console opens at `/`, with compatible legacy `/console` links and JSON service discovery. Sign-in and Console show the running backend version from `/healthz`.
-> - **OAuth administration**: Built-in OAuth and the separate `/mcp/manage` resource remain opt-in and default-off. Private OAuth selection uses bounded pages, preserves drafts, and reconciles unknown write outcomes before a new confirmation.
-> - **Native executor boundary**: The optional Native/Linux rootless Podman executor defaults to disabled and requires separately reviewed host provisioning/readiness. Its Git/proxy/tool preparation and supported offline install/build paths have synthetic regression evidence; real Podman host, ChatGPT OAuth client and multi-machine acceptance remain incomplete. Core remains gateway-only.
->
-> See the [release summary](packaging/release-notes.md) and [0.4.10 validation record](docs/release-validation-0.4.10.md).
+*0.5.0 Console, captured at 2560×1440 with synthetic users and services. [Capture record](docs/images/console/v0.5.0-capture.json).*
+
+## Where Gate fits
+
+- **One controlled tool entry:** connect multiple MCP services, review and publish tools, then give each user or authorization a limited view through one `/mcp` endpoint.
+- **Connect existing services:** reach private HTTP MCPs through an explicitly configured connector, or expose selected operations from a local OpenAPI snapshot. Use native Gate for trusted local stdio and project delivery.
+- **Operate with evidence:** inspect invocation decisions, constrain effective tool arguments and opt into Prometheus metrics or OTLP traces.
+
+## Quick start
+
+| Goal | Choose | Start here |
+|---|---|---|
+| Try a released version | Native archive, or the released-image Docker trial | [Download and start](docs/getting-started.md) |
+| Deploy for production | Digest-pinned Core behind HTTPS, or a managed native service | [Deployment, backup and upgrades](docs/deployment.md) |
+| Develop Gate | Source checkout and locked dependencies | [Local development](docs/local-development.md) |
+
+### Prebuilt native package
+
+Download the matching OS/CPU archive and `SHA256SUMS`, [verify it](docs/releases.md#verify-a-download), extract it and enter its directory. Run `./start.sh` on Linux/macOS or `.\start.cmd` on Windows. Gate itself needs no host Python, Node.js or Git.
+
+Open [http://127.0.0.1:8000/](http://127.0.0.1:8000/). Read `data/initial-admin-credentials.json` locally, sign in, change the password and sign in again. The generated initial file is removed and the old session is revoked. The package's own English/Chinese README includes the full platform-specific path.
+
+### Released Docker trial
+
+Verify and extract `lingshu-gate-v0.5.0-docker-compose.tar.gz`, enter that directory and run:
+
+```bash
+cp .env.quickstart.example .env.quickstart
+docker compose --env-file .env.quickstart -f compose.quickstart.yaml up -d --no-build --wait --wait-timeout 120 core
+docker compose --env-file .env.quickstart -f compose.quickstart.yaml exec core cat /data/initial-admin-credentials.json
+```
+
+Open [http://127.0.0.1:8000/](http://127.0.0.1:8000/), sign in with those local one-time credentials and change the password. This uses the released image, loopback-only HTTP, authentication, separate trial volumes, UID/GID `10001`, a read-only root and no engine socket. PowerShell can use `Copy-Item` for the first line. See [getting started](docs/getting-started.md) for ports and offline images.
+
+### Production deployment
+
+Use the bundle's default `compose.yaml` and paired `DEPLOYMENT.md` / `DEPLOYMENT.zh-CN.md`: select a published digest, prepare readable protected bootstrap credentials, persistent storage and HTTPS with Secure cookies. Follow [deployment](docs/deployment.md) for exact proxy, origin, backup and upgrade requirements. Keep one Core per database.
+
+### From source
+
+Requirements: Git, Python 3.11–3.13, uv, Node.js 22.12+ in 22.x, 24.x or 26+, and npm.
+
+```bash
+git clone https://github.com/zhigege666/Lingshu-Gate.git
+cd Lingshu-Gate
+uv sync --frozen
+npm --prefix web ci
+npm --prefix web run build
+uv run lingshu-gate
+```
+
+For a source Docker build, run `mkdir -p runtime/workspace` and `docker compose up -d --build --wait --wait-timeout 120 core` from that repository root. [Local development](docs/local-development.md) explains separate paths, credentials and test commands.
+
+## First authorized call
+
+The [included demo walkthrough](docs/first-call.md) needs no external service account or desktop MCP client. Start the independent in-memory demo, connect it in Gate, review and publish three tools, then create a separate read-only caller. Follow `tools/list → gate_catalog_search → gate_tool_describe → gate_tool_invoke` using the returned tool reference and revision.
+
+Check the successful audit, deny a write with an unchanged counter, reject an invalid revision, stop/restart the demo and revoke the caller. Gate startup, tool discovery, classification confirmation and publication are separate steps; access still requires both resource grants and token scope.
+
+## 0.5.0 release
+
+This version adds pinned discovery and text previews, four argument-policy rules, private HTTP connectors, a selected-operation OpenAPI adapter and default-off standard telemetry. Native and Compose archives include package-specific bilingual start pages and the runnable demo. See [changes](CHANGELOG.md) and the [bilingual release notes](packaging/release-notes.md).
+
+Two database migrations add preferences and argument policies. Back up the database, configuration and credential keys consistently before upgrading; old binaries do not enforce the new policies.
 
 ## Architecture overview
 
@@ -31,7 +81,7 @@ flowchart TB
     end
 
     subgraph Gate["Lingshu Gate (Control Plane & Gateway)"]
-        Gateway["MCP Gateway (/mcp)<br/>Full Catalog | On-Demand Discovery"]
+        Gateway["MCP Gateway (/mcp): Full Catalog / On-Demand Discovery"]
         Auth["Authentication & RBAC"]
         Gov["Tool Governance & Classification Review"]
         Delivery["Project Delivery & Build Engine"]
@@ -57,13 +107,16 @@ flowchart TB
 
 ## Features
 
-[Integration validation](docs/on-demand-integration-validation.md) records earlier exact source checkpoints, synthetic 50,000-tool measurements, native worker evidence and untested boundaries. The 0.4.7 record keeps current retry checks and fresh package candidates separate from those historical results.
 
 | Feature | Capability and boundary | Guide |
 |---|---|---|
 | MCP gateway and transports | One authenticated Model Context Protocol endpoint; stateless JSON `/mcp`, remote MCP over Streamable HTTP, native stdio, explicit versions and bounded legacy negotiation. Tool aggregation, not generic resource/prompt hosting. | [Guide](docs/mcp-gateway.md) |
 | MCP groups and instance sessions | Logical groups reference existing instances without copying credentials or granting access; contract partitions and connection-bound sessions. | [Guide](docs/mcp-groups.md) |
-| On-demand tool discovery | New and existing business authorizations default to six bounded entries in development source; each authorization can select a full list, with unchanged authority checks. | [Guide](docs/on-demand-tools.md) |
+| On-demand tool discovery | Six default entries, up to 20 authorized fixed tools/groups, and optional bounded text-result paging; each authorization retains its own scope. | [Guide](docs/on-demand-tools.md) |
+| Argument policies | Exact equality, allowed values, numeric ranges and string prefixes on effective arguments; pure preview and revisioned audited saves. | [Guide](docs/argument-policies.md) |
+| Private HTTP MCP connector | Fixed-target relay/agent with distinct credentials, bounded sessions and no automatic business replay. | [Guide](docs/private-connector.md) |
+| OpenAPI adapter | Explicit operations from local OpenAPI 3.0/3.1 snapshots, fixed origins and contract-bound tool names. | [Guide](docs/openapi-adapter.md) |
+| Standard telemetry | Default-off Prometheus aggregates and OTLP/HTTP tracing, protected control-plane endpoints and bounded export. | [Guide](docs/telemetry.md) |
 | Accounts and RBAC | Local sign-in, registration review, custom roles and permission types, service/tool grants, expiry, scoped personal API tokens and user status controls. | [Guide](docs/configuration.md) |
 | Tool governance | Discovery → rule analysis → human review → publication; read/write and destructive/idempotent classifications, fingerprint checks, batch review and stale-definition reconciliation. Discovery never grants access. | [Guide](docs/mcp-gateway.md) |
 | Built-in OAuth and remote access | Opt-in authorization-code flow for OAuth 2.1 / PKCE clients: confidential static clients, S256, per-user tool consent, encrypted RS256 signing keys, refresh rotation and revocation. Independent public consent UI; no DCR/CIMD or full-conformance claim. | [Guide](docs/builtin-oauth.md) |
@@ -81,125 +134,6 @@ flowchart TB
 
 See the documentation index below for all workflows. [Invocation content recording](docs/invocation-recording.md) · [Git executor decision](docs/git-executor-decision.md)
 
-## Console screenshots
-
-Captured separately in each language from the 0.4.0 candidate code on an isolated local test instance with synthetic users, services and projects. No real external account, user proxy or production credential is present. Git blockage and disabled OAuth are shown as observed. Screenshots are UI evidence, not production integration acceptance. [Capture and validation record](docs/release-validation.md).
-
-<img src="docs/images/console/en-US/v0.4.0-overview.png" alt="Overview and invocation statistics" width="1000">
-
-*Overview and invocation statistics · synthetic test instance*
-
-<img src="docs/images/console/en-US/v0.4.0-tool-catalog.png" alt="MCP tool catalog and effective access" width="1000">
-
-*MCP tool catalog and effective access · synthetic test instance*
-
-<details>
-<summary>Review, personal workspace, delivery, Git, networking, OAuth and tool debugging</summary>
-
-<img src="docs/images/console/en-US/v0.4.0-classification.png" alt="Tool classification review and publication" width="1000">
-
-*Tool classification review and publication · synthetic test instance*
-
-<img src="docs/images/console/en-US/v0.4.0-personal.png" alt="Personal MCP workspace" width="1000">
-
-*Personal MCP workspace · synthetic test instance*
-
-<img src="docs/images/console/en-US/v0.4.0-delivery.png" alt="Trusted ZIP delivery workspace" width="1000">
-
-*Trusted ZIP delivery workspace · synthetic test instance*
-
-<img src="docs/images/console/en-US/v0.4.0-git-import.png" alt="Git source form with the unavailable executor shown" width="1000">
-
-*Git source form with the unavailable executor shown · synthetic test instance*
-
-<img src="docs/images/console/en-US/v0.4.0-network-settings.png" alt="System settings: network profiles and dependency sources" width="1000">
-
-*System settings: network profiles and dependency sources · synthetic test instance*
-
-<img src="docs/images/console/en-US/v0.4.0-oauth.png" alt="Built-in OAuth administration, disabled by default" width="1000">
-
-*Built-in OAuth administration, disabled by default · synthetic test instance*
-
-<img src="docs/images/console/en-US/v0.4.0-tool-invoke.png" alt="Tool debugging and result review" width="1000">
-
-*Tool debugging and result review · synthetic test instance*
-
-</details>
-
-## Quick start
-
-### Docker Compose
-
-Docker Compose is the shortest path to an isolated Gate control plane and HTTP gateway:
-
-```bash
-mkdir -p runtime/workspace
-docker compose up -d --build core
-docker compose ps
-```
-
-Open <http://127.0.0.1:8000/>. On an empty data volume, Gate creates a one-time administrator password in `/data/initial-admin-credentials.json`:
-
-```bash
-docker compose exec core sh -c 'cat /data/initial-admin-credentials.json'
-```
-
-Sign in, change the password immediately, and create narrowly scoped users or API tokens. The one-time credentials file is removed after the password is changed.
-
-The default Compose service binds to `127.0.0.1`, runs as UID/GID `10001`, uses a read-only root filesystem, and keeps authentication enabled. The Core image connects to external Streamable HTTP servers; use a native installation when Gate must launch local stdio processes or execute project builds.
-
-### Prebuilt native package
-
-Download the archive for your platform and `SHA256SUMS` from [GitHub Releases](https://github.com/zhigege666/Lingshu-Gate/releases), verify the archive, extract it, then run:
-
-```bash
-./start.sh
-```
-
-On Windows:
-
-```powershell
-.\start.cmd
-```
-
-The launcher creates package-local `data`, `config`, and `workspace` directories. You can also run `lingshu-gate` (`lingshu-gate.exe` on Windows) directly when you provide the required paths through `LINGSHU_GATE_*` environment variables.
-
-### From source
-
-Requirements: Python 3.11, 3.12, or 3.13; Node.js 22.12+ (22.x), 24.x, or 26+; npm; and `uv`.
-
-```bash
-uv sync --frozen
-npm --prefix web ci
-npm --prefix web run build
-uv run lingshu-gate
-```
-
-Gate listens on `127.0.0.1:8000` by default. Browsers open the Web Console at `/`, OpenAPI documentation at `/docs`, and readiness probe at `/readyz`. Service information is always JSON at `/v1/meta`; `/` also retains JSON for default curl/programmatic requests and explicit acceptable `application/json`. Old `/console` bookmarks redirect to `/` with their query and hash navigation preserved. The independent OAuth entry remains `/oauth/consent`.
-
-## First server
-
-Create a vendor-neutral manifest in the configured `mcp.d` directory or use the Console. An external Streamable HTTP server looks like this:
-
-```yaml
-id: example-http
-name: Example HTTP server
-enabled: true
-launch:
-  type: external
-transport:
-  type: streamable_http
-  endpoint: https://service.example/mcp
-  protocol_version: "2026-07-28"
-auto_start: false
-```
-
-Set `protocol_version` to `auto` or a supported explicit version; omission starts with `2026-07-28`. HTTP and stdio support different compatibility ranges; see [protocol negotiation](docs/mcp-gateway.md).
-
-Validate and save the manifest, inspect discovered tools, classify them as read or write, review the result, and publish only the classifications that should be callable. Access is the intersection of control permission, resource grant, published classification, and API-token scope.
-
-For local stdio configuration, credential references, lifecycle behavior, and gateway requests, see [MCP gateway and downstream servers](docs/mcp-gateway.md).
-
 ## Project delivery and remote access
 
 Upload, preflight, build, deploy, overwrite, start, cancel and abandon keep their own permissions and confirmations; MCP writes also bind idempotency keys and digests. The Console saves encrypted private drafts, previews deployment differences and supports explicitly requested manual rollback when a protected snapshot is available. See [Project delivery](docs/project-delivery.md), [Console delivery](docs/console-delivery.md) and the bundled [Delivery Skill](.agents/skills/lingshu-gate-upload-build-start/SKILL.md).
@@ -212,7 +146,7 @@ Remote access can use Gate API tokens, built-in OAuth or an external RS256 IdP; 
 - Network binding defaults to loopback; remote access belongs behind an HTTPS reverse proxy.
 - Session cookies are `HttpOnly` and `SameSite=Lax`; enable `LINGSHU_GATE_AUTH_COOKIE_SECURE=true` behind HTTPS.
 - MCP payload logging is disabled by default.
-- Secrets are encrypted at rest and returned only as masked metadata; manifests should use `${credential:<id>}` references.
+- Core-managed credentials are encrypted at rest and returned as masked metadata; connector and adapter credentials use separate protected local files. Manifests should use `${credential:<id>}` references.
 - Tool annotations are hints. Human-reviewed, published classifications and explicit grants determine effective access.
 - The Docker Core service drops Linux capabilities, prevents privilege escalation, and mounts the workspace read-only.
 
@@ -231,7 +165,9 @@ Release automation builds the following archives:
 | macOS ARM64 | `lingshu-gate-v<version>-macos-arm64.tar.gz` |
 | Docker Compose | `lingshu-gate-v<version>-docker-compose.tar.gz` |
 
-Tagged releases also provide offline Linux Core images for `amd64` and `arm64` plus an application SPDX SBOM. Every native archive contains `SBOM.spdx.json`, `BUILD-INFO.json`, `LICENSE`, `NOTICE`, `THIRD_PARTY_NOTICES.md`, and this README. Verify the selected archive against `SHA256SUMS` before extraction; see [Release artifacts](docs/releases.md).
+Tagged releases also provide offline Linux Core images for `amd64` and `arm64` plus an application SPDX SBOM. Every native archive contains `SBOM.spdx.json`, `BUILD-INFO.json`, `LICENSE`, `NOTICE`, `THIRD_PARTY_NOTICES.md`, and package-specific English/Chinese start pages. Verify the selected archive against `SHA256SUMS` before extraction; see [Release artifacts](docs/releases.md).
+
+Native and Compose bundles also include paired guides, neutral examples, changelogs, security policies, release notes and the Project Delivery Skill. Start with [First authorized call](docs/first-call.md).
 
 ## Support matrix
 
@@ -256,6 +192,13 @@ Native archives bundle Gate, not every project runtime. Downstream launch and bu
 
 ## Documentation
 
+- [Getting started: native, Docker, production and source](docs/getting-started.md)
+- [First successful and denied calls](docs/first-call.md)
+- [Tool argument policies](docs/argument-policies.md)
+- [Private HTTP MCP connector](docs/private-connector.md)
+- [Selected OpenAPI operations](docs/openapi-adapter.md)
+- [Prometheus metrics and OTLP traces](docs/telemetry.md)
+
 - [MCP gateway, protocols, tool grants and file references](docs/mcp-gateway.md)
 - [MCP groups and routing contracts](docs/mcp-groups.md)
 - [On-demand tools discovery](docs/on-demand-tools.md)
@@ -279,6 +222,11 @@ Native archives bundle Gate, not every project runtime. Downstream launch and bu
 - [UI and accessibility acceptance contract](docs/ui-interaction-contract.md)
 - [0.4.0 validation and screenshot provenance](docs/release-validation.md)
 - [0.4.7 release candidate validation](docs/release-validation-0.4.7.md)
+
+
+## Help improve Gate
+
+If Gate solves a problem for you, star the repository to find it again and use GitHub Watch → Custom → Releases for release notifications. Share a minimal, redacted reproduction when reporting an issue, or contribute a small integration example with its permission and failure cases. The [first-call guide](docs/first-call.md) is a useful starting point for trying the project or showing it to a colleague.
 
 ## License
 

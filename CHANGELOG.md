@@ -2,6 +2,19 @@
 
 ## Unreleased
 
+## 0.5.0
+
+- Add persistent pinned tools and optional plain-text result budgets to business authorizations, with current authorization, contract, group-session and cache-isolation checks.
+- Add four argument-policy rule types, a paired Console editor and pure example evaluation; enforce current rules on effective arguments immediately before dispatch, including file-reference conversion and retries.
+- Preserve raw confirmation receipts while first-party argument preparers produce bounded effective arguments; retain separate classification confirmation and publication.
+- Add independent private connector relay/agent commands with fixed targets, separate credentials, bounded sessions and no automatic replay of business requests.
+- Add a strict local OpenAPI 3.0/3.1 adapter with selected operations, fixed HTTP/authentication contracts and immutable tool identities.
+- Add default-off Prometheus metrics and OpenTelemetry OTLP/HTTP tracing with current dual-permission scraping, bounded export, fixed destinations and argument/result/credential privacy.
+- Include a local demonstration service, paired first-call/integration/observability guides, neutral examples and complete public documentation in native and Compose bundles.
+- Add a released-image Docker quickstart with independent local trial volumes, public demo readiness checks, package-specific bilingual READMEs and a complete dynamic first-call guide. Put download/install choices and current Console captures near the top of both project READMEs.
+- Add migrations `0022_tool_preferences` and `0023_tool_argument_policy`. Back up database, configuration and credential keys together; old binaries do not enforce new policies.
+- Synchronize dependency locks, native OpenTelemetry packaging, third-party notices and the bilingual [release notes](packaging/release-notes.md). Keep existing immutable tags and all formal release gates.
+
 ## 0.4.10
 
 - Fix blank stdio endpoints incorrectly entering Streamable HTTP URL validation across precheck, create, edit, reload and transport switching.

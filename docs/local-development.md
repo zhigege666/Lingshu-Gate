@@ -26,7 +26,11 @@ Lingshu Gate uses Python for the service and React/TypeScript for the Console. T
 
 ## Install
 
+For a released package, use [getting started](getting-started.md). For development, clone and enter the source repository before installing dependencies:
+
 ```bash
+git clone https://github.com/zhigege666/Lingshu-Gate.git
+cd Lingshu-Gate
 uv sync --frozen
 npm --prefix web ci
 ```

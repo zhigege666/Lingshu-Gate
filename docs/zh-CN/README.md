@@ -6,6 +6,12 @@
 
 | 指南 | 用途 |
 |---|---|
+| [开始使用](getting-started.md) | 原生/Docker 发行版试用、生产和源码入口 |
+| [首次授权调用](first-call.md) | 演示、初始登录、只读令牌、写入拒绝、审计和撤销 |
+| [参数策略](argument-policies.md) | 有界规则、纯评估和实际参数检查 |
+| [私网连接器](private-connector.md) | 固定目标、独立凭据和 TLS |
+| [OpenAPI 适配器](openapi-adapter.md) | 本地严格子集和不可变 HTTP 合同 |
+| [标准观测](telemetry.md) | 默认关闭的 Prometheus/OTLP HTTP、权限与隐私 |
 | [性能评估](performance-review.md) | 可复现的合成数据基准测试与验证边界 |
 | [保留策略](retention.md) | 日志、事件、调用独立保留期限，清理预览及确认 |
 | [调用内容记录](invocation-recording.md) | 按需启用限长脱敏内容、本人隔离、审计能力及保留边界 |

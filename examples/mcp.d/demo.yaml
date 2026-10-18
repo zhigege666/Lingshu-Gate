@@ -1,0 +1,12 @@
+id: demo
+name: Gate demonstration
+enabled: true
+launch:
+  type: external
+transport:
+  type: streamable_http
+  endpoint: http://127.0.0.1:18880/mcp
+  protocol_version: auto
+timeout_seconds: 10
+startup_policy: gate_start_v1
+auto_start: false

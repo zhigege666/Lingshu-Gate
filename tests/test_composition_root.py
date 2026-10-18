@@ -10,6 +10,7 @@ from pathlib import Path
 from unittest.mock import patch
 
 from fastapi.routing import APIRoute
+from fastapi.testclient import TestClient
 
 
 MAIN_PATH = Path(__file__).resolve().parents[1] / "src" / "lingshu_gate" / "main.py"
@@ -120,6 +121,7 @@ def test_extracted_routes_preserve_authentication_boundaries() -> None:
         operation_routes = 0
         tool_routes = 0
         credential_routes = 0
+        policy_routes: set[tuple[str, str]] = set()
         network_project_routes: set[str] = set()
         for route in app.routes:
             if not isinstance(route, APIRoute):
@@ -139,7 +141,9 @@ def test_extracted_routes_preserve_authentication_boundaries() -> None:
             if route.path.startswith("/v1/credentials"):
                 credential_routes += 1
                 assert "require_system_credentials" in dependencies, route.path
-            if route.path.startswith("/v1/tools") or route.path == "/v1/invoke":
+            if "/argument-policy" in route.path:
+                policy_routes.update((method, route.path) for method in route.methods)
+            elif route.path.startswith("/v1/tools") or route.path == "/v1/invoke":
                 tool_routes += 1
                 assert "authenticate_request" in dependencies, route.path
 
@@ -147,3 +151,16 @@ def test_extracted_routes_preserve_authentication_boundaries() -> None:
         assert network_project_routes == set(NETWORK_PROJECT_PERMISSIONS)
         assert credential_routes == 5
         assert tool_routes == 4
+        assert policy_routes == {
+            ("GET", "/v1/tools/{tool_id}/argument-policy"),
+            ("PUT", "/v1/tools/{tool_id}/argument-policy"),
+            ("POST", "/v1/tools/{tool_id}/argument-policy/csrf"),
+            ("POST", "/v1/tools/{tool_id}/argument-policy/preview"),
+        }
+        # Policy handlers authenticate before reading the bounded raw body, so
+        # exercise their real request boundary instead of inferring it from DI.
+        with TestClient(app) as client:
+            for method, path in policy_routes:
+                response = client.request(method, path.replace("{tool_id}", "synthetic-tool"),
+                    params={"request_digest": "0" * 64}, json={})
+                assert response.status_code == 401, (method, path, response.text)

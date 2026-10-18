@@ -6,6 +6,7 @@ from typing import Any, Literal
 from pydantic import BaseModel, ConfigDict, Field, ValidationError
 
 from lingshu_gate.application.mcp_groups import McpGroupService
+from lingshu_gate.argument_preparation import model_preparer
 from lingshu_gate.auth import AuthPrincipal
 from lingshu_gate.domain.mcp_groups import McpGroupCreate, McpGroupDelete, McpGroupError, McpGroupUpdate
 from lingshu_gate.project_delivery_mcp import _definition
@@ -79,8 +80,12 @@ def register_mcp_group_tools(registry: ToolRegistry, service: McpGroupService) -
         ("gate_mcp_group_save", GroupSaveInput, True, "Create or update a confirmed group; does not copy credentials or grant access."),
         ("gate_mcp_group_delete", GroupDeleteInput, True, "Delete confirmed group metadata; leaves its instances running."),
     ]
+    def preserve_presence(parsed: BaseModel, values: dict[str, Any]) -> None:
+        if isinstance(parsed, GroupSaveInput) and "group_type" not in parsed.draft.model_fields_set:
+            values["draft"].pop("group_type", None)
     for name, model, write, description in definitions:
         definition = _definition(name, name, description, model, permission="write" if write else "read",
                                  read_only=not write, destructive=name.endswith("delete"), open_world=False)
         definition.metadata.update(server_id="gate_mcp_groups", group_management_control_plane=True)
-        registry.register(definition, dispatch(name, model, write), contextual=True)
+        registry.register(definition, dispatch(name, model, write), contextual=True,
+                          argument_preparer=model_preparer(model, transform=preserve_presence))

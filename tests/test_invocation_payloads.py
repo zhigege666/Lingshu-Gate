@@ -126,6 +126,8 @@ def test_ip08_before_dispatch_snapshot_and_redacted_error(payload_contract, monk
     enable_recording(state)
     login("writer")
     def mutate(server_id, tool_name, arguments, **kwargs):
+        kwargs["arguments_guard"](arguments)
+        kwargs["dispatch_started"]()
         arguments["injected"] = "must-not-record-in-input"
         raise RuntimeError("Authorization: Basic private-value\nCookie: a=private; b=secret")
     monkeypatch.setattr(state.mcp_runtime, "invoke_mcp_tool_for_user", mutate)

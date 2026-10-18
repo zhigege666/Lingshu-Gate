@@ -12,6 +12,7 @@ import { Dialog, DialogBody, DialogContent, DialogDescription, DialogHeader, Dia
 import { Skeleton } from "@/components/ui/skeleton"
 import { DEFAULT_TOOL_PAGE_SIZE, ALL_TOOL_SERVICES, BUILTIN_TOOL_SERVICE, filterTools, paginateTools, toolAccess, toolServerId, toolServiceOptions, type ToolAccess } from "@/features/tool-catalog"
 import { builtinOriginBadge, toolOriginName } from "@/features/tool-origin"
+import { ArgumentPolicyDialog } from "@/features/argument-policy/policy-dialog"
 import type { Locale, TFunction } from "@/i18n"
 import "./tools-page.css"
 
@@ -29,10 +30,12 @@ type Props = {
   t: TFunction
   onInvoke: (toolId: string) => void
   onRefresh: () => void
+  canManageArgumentPolicy?: boolean
 }
 
-export function ToolsPage({ tools, servers, loading, error, t, onInvoke, onRefresh, locale = "en-US", viewState = initialToolCatalogView, onViewStateChange }: Props) {
+export function ToolsPage({ tools, servers, loading, error, t, onInvoke, onRefresh, locale = "en-US", viewState = initialToolCatalogView, onViewStateChange, canManageArgumentPolicy = false }: Props) {
   const [selectedId, setSelectedId] = useState<string | null>(viewState.selectedId ?? null)
+  const [policyTool, setPolicyTool] = useState<ToolDefinition | null>(null)
   const [query, setQuery] = useState(viewState.query)
   const [service, setService] = useState(viewState.service)
   const [access, setAccess] = useState<"all" | ToolAccess>(viewState.access)
@@ -164,7 +167,7 @@ export function ToolsPage({ tools, servers, loading, error, t, onInvoke, onRefre
         </div>
       </div>}
 
-    <Dialog open={selected !== null && !loading && !error} onOpenChange={open => { if (!open) setSelectedId(null) }}>
+    <Dialog open={selected !== null && !loading && !error && !policyTool} onOpenChange={open => { if (!open && !policyTool) setSelectedId(null) }}>
       <DialogContent closeLabel={t("close")} className="max-w-3xl">
         <DialogHeader>
           <DialogTitle className="break-words">{selected?.name || selected?.id}</DialogTitle>
@@ -183,10 +186,14 @@ export function ToolsPage({ tools, servers, loading, error, t, onInvoke, onRefre
               <summary className="cursor-pointer text-sm font-medium">{t("metadata")}</summary>
               <div className="mt-2"><JsonPanel copyLabel={t("copy")} data={selected.metadata} maxHeight="max-h-60" /></div>
             </details>}
-            <Button onClick={() => onInvoke(selected.id)}><Play />{t("invokeTool")}</Button>
+            <div className="flex flex-wrap gap-2">
+              {canManageArgumentPolicy && <Button id="tool-argument-policy-action" variant="outline" onClick={() => setPolicyTool(selected)}>{locale === "zh-CN" ? "参数限制" : "Argument limits"}</Button>}
+              <Button onClick={() => onInvoke(selected.id)}><Play />{t("invokeTool")}</Button>
+            </div>
           </>}
         </DialogBody>
       </DialogContent>
     </Dialog>
+    {policyTool && <ArgumentPolicyDialog tool={policyTool} locale={locale} t={t} onClose={() => setPolicyTool(null)} />}
   </div>
 }

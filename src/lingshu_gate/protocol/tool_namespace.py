@@ -14,6 +14,10 @@ SYSTEM_DEBUG_TOOL_ID = "gate_system_debug"
 SYSTEM_DEBUG_TOOL_NAME = "gate_system_debug"
 
 
+def reserved_preference_name(name: str) -> bool:
+    return name == "gate_result_read" or name.startswith("gate_pinned_")
+
+
 class ToolNamespaceCollisionError(ValueError):
     """Two registry ids project to the same public MCP tool name."""
 
@@ -53,6 +57,8 @@ class ToolNamespace:
         )
         for definition in ordered:
             wire_name = public_tool_name(definition)
+            if reserved_preference_name(wire_name):
+                raise ToolNamespaceCollisionError(wire_name, (definition.id, "reserved:authorization-preference"))
             existing = by_name.get(wire_name)
             if existing is not None and existing.id != definition.id:
                 raise ToolNamespaceCollisionError(

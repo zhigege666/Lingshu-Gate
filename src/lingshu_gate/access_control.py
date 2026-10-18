@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from lingshu_gate.telemetry import correlation_id as normalized_correlation, observed_invocation, phase, remember_failure
+
 import hashlib
 import json
 import re
@@ -17,6 +19,7 @@ from typing import Any, Iterable
 from uuid import uuid4
 
 from lingshu_gate.auth import AuthPrincipal
+from lingshu_gate.argument_policy import ArgumentPolicyDenied, ArgumentPolicyStore, check_policy
 from lingshu_gate.database import SQLiteDatabase
 from lingshu_gate.domain.tool_structure import FrozenToolDefinition
 from lingshu_gate.domain.oauth_management import MANAGEMENT_READ_TOOLS, MANAGEMENT_TOOL_IDS, management_resource, management_tool_snapshot
@@ -188,6 +191,8 @@ class AccessControlStore:
         self._external_windows: dict[str, deque[float]] = {}
         self._external_active: dict[str, int] = {}
         self.mcp_runtime: McpRuntimeManager | None = None
+        self.refresh_principal: Callable[[AuthPrincipal], AuthPrincipal] | None = None
+        self.argument_policies = ArgumentPolicyStore(database)
         self._seed_system_data()
 
     def attach_mcp_runtime(self, mcp_runtime: McpRuntimeManager) -> None:
@@ -1747,6 +1752,7 @@ class AccessControlStore:
             with self._external_limit_lock:
                 self._external_active[grant_id] -= 1
 
+    @observed_invocation
     def invoke_tool(
         self,
         registry: ToolRegistry,
@@ -1758,7 +1764,7 @@ class AccessControlStore:
         dispatch_guard: Callable[[], None] | None = None,
         expected_definition_revision: str | None = None,
         allow_read_retry: bool = True,
-        arguments_validator: Callable[[], None] | None = None,
+        arguments_validator: Callable[[dict[str, Any]], None] | None = None,
         dispatch_context: AbstractContextManager[None] | None = None,
     ) -> ToolInvokeResponse:
         definition = registry.get_definition(tool_id)
@@ -1770,12 +1776,14 @@ class AccessControlStore:
         # classification row merely to discard synchronize_tools()'s return.
         with self.database.session() as connection:
             self._synchronize_tools(connection, [definition])
-        decision = self.evaluate(principal, definition)
-        correlation_id = correlation_id or str(uuid4())
+        with phase("authorization") as authorization_observation:
+            decision = self.evaluate(principal, definition)
+            authorization_observation.outcome = "success" if decision["allowed"] else "denied"
+        correlation_id = normalized_correlation(correlation_id)
         # On-demand inputs have not crossed their bounded validator yet. Do not
         # serialize or retain attacker-controlled deep/large values for audits
         # before permission and external rate/concurrency admission.
-        summary = _payload_summary(arguments) if arguments_validator is None else {"values_recorded": False}
+        summary: dict[str, Any] = {"values_recorded": False}
         if not decision["allowed"]:
             self._record_invocation_audit(
                 principal,
@@ -1791,35 +1799,95 @@ class AccessControlStore:
                 required_access=decision["required_access"],
                 granted_access=decision["granted_access"],
             )
-        recorded_input = (snapshot(arguments) if arguments_validator is None
-            and RetentionStore(self.database).policy()["payload_mode"] == "redacted" else None)
+        record_payload = RetentionStore(self.database).policy()["payload_mode"] == "redacted"
+        recorded_input: dict[str, Any] | None = None
         try:
-            external_lease = self._acquire_external_invocation(principal)
+            with phase("quota"):
+                external_lease = self._acquire_external_invocation(principal)
         except AccessDeniedError as exc:
             denied = {**decision, "allowed": False, "reason": exc.reason}
             self._record_invocation_audit(principal, definition, correlation_id=correlation_id,
                                           decision=denied, outcome="not_invoked", duration_ms=None, payload=summary)
             raise
         recorded_outputs: list[dict[str, Any]] = []
-        guard_passed = dispatch_guard is None and arguments_validator is None and dispatch_context is None
+        guard_passed = False
+        dispatch_attempts = 0
+        schema_checked = False
+        rejection_reason = "catalog dispatch rejected"
+        denial_details: dict[str, Any] = {}
 
-        def checked_guard() -> None:
-            nonlocal guard_passed
-            assert dispatch_guard is not None
-            dispatch_guard()
+        def mark_dispatch_started() -> None:
+            nonlocal dispatch_attempts
+            dispatch_attempts += 1
+
+        def check_effective_arguments(effective: dict[str, Any]) -> None:
+            nonlocal guard_passed, schema_checked, summary, recorded_input
+            from lingshu_gate.application.schema_validation import validate_arguments
+            from lingshu_gate.domain.tool_structure import checked_json_size
+            from lingshu_gate.tool_catalog import _same_invocation_principal
+
+            # A read retry has its own admission. A denial must not retain the
+            # earlier attempt's inputs or pretend that attempt never happened.
+            guard_passed = False
+            recorded_input = None
+            recorded_outputs.clear()
+            summary = {"values_recorded": False}
+            # fileRef conversion happens in Runtime before this callback. The
+            # exact same owned object is passed to the executor after it returns.
+            try:
+                checked_json_size(effective, max_bytes=1_048_576, max_nodes=8192, max_depth=32)
+            except (ValueError, TypeError, RecursionError, OverflowError):
+                raise ToolDispatchRejectedError("tool_arguments_invalid", "Effective tool arguments exceeded the supported boundary.") from None
+            while True:
+                if dispatch_guard is not None:
+                    dispatch_guard()
+                try:
+                    current = self.refresh_principal(principal) if self.refresh_principal is not None else principal
+                except Exception:
+                    raise ToolDispatchRejectedError("tool_authorization_changed", "The calling identity is no longer available.") from None
+                if not _same_invocation_principal(current, principal):
+                    raise ToolDispatchRejectedError("tool_authorization_changed", "The calling authority changed before dispatch.")
+                latest = registry.get_definition(tool_id)
+                if tool_definition_revision(latest) != prepared.definition_revision:
+                    raise ToolDispatchRejectedError("catalog_schema_revision_conflict", "The selected tool definition changed before dispatch.")
+                if not self.evaluate(current, latest)["allowed"]:
+                    raise ToolDispatchRejectedError("tool_authorization_changed", "The current authority does not allow this tool.")
+                policy = self.argument_policies.current(tool_id)
+                if not schema_checked and (arguments_validator is not None or policy.enabled):
+                    # Check the real upstream input after Gate's fileRef has
+                    # become filePath; upstream schemas need not know fileRef.
+                    if arguments_validator is not None:
+                        arguments_validator(effective)
+                    else:
+                        validate_arguments(definition.input_schema, effective)
+                    schema_checked = True
+                    continue  # Validation may wait; re-read authority and rules.
+                check_policy(policy, effective)
+                break
             guard_passed = True
-
-        registry_dispatch: dict[str, Any] = (
-            {"dispatch_guard": checked_guard, "expected_definition": definition} if dispatch_guard is not None else {}
-        )
+            summary = _payload_summary(effective)
+            if policy.enabled:
+                summary["policy_revision"] = policy.revision
+            if record_payload:
+                recorded_input = snapshot(effective)
 
         started = perf_counter()
         try:
-            if arguments_validator is not None:
-                arguments_validator()
-                summary = _payload_summary(arguments)
-                if RetentionStore(self.database).policy()["payload_mode"] == "redacted":
-                    recorded_input = snapshot(arguments)
+            with phase("prepare"):
+                prepared = registry.prepare(tool_id, arguments, expected_definition=definition)
+                # Without fileRef, Runtime sends these exact owned arguments.
+                # Bound schema work before taking group/instance dispatch
+                # leases; the final guard still rechecks live authority and
+                # policy for every attempt. fileRef must first become filePath.
+                if "fileRef" not in prepared.arguments:
+                    if arguments_validator is not None:
+                        arguments_validator(prepared.arguments)
+                        schema_checked = True
+                    elif self.argument_policies.current(tool_id).enabled:
+                        from lingshu_gate.application.schema_validation import validate_arguments
+
+                        validate_arguments(definition.input_schema, prepared.arguments)
+                        schema_checked = True
             with dispatch_context or nullcontext():
                 if definition.source == "mcp" and self.mcp_runtime:
                     server_id = str(definition.metadata.get("server_id") or "")
@@ -1829,10 +1897,11 @@ class AccessControlStore:
                     output = self.mcp_runtime.invoke_mcp_tool_for_user(
                         server_id,
                         tool_name,
-                        arguments,
+                        prepared.arguments,
                         user_id=principal.id,
-                        **({"dispatch_guard": checked_guard} if dispatch_guard is not None else {}),
-                        audit_snapshot=recorded_outputs.append if recorded_input is not None else None,
+                        arguments_guard=check_effective_arguments,
+                        dispatch_started=mark_dispatch_started,
+                        audit_snapshot=recorded_outputs.append if record_payload else None,
                         retry_read_only=(
                             allow_read_retry and decision["classification_status"] == "published"
                             and decision["required_access"] == "read"
@@ -1842,8 +1911,11 @@ class AccessControlStore:
                 else:
                     response = registry.invoke(
                         tool_id,
-                        arguments,
-                        **registry_dispatch,
+                        prepared.arguments,
+                        prepared=prepared,
+                        arguments_guard=check_effective_arguments,
+                        dispatch_started=mark_dispatch_started,
+                        expected_definition=definition,
                         context=ToolInvocationContext(
                             actor_id=principal.id,
                             username=principal.username,
@@ -1898,22 +1970,33 @@ class AccessControlStore:
                 granted_access=decision["granted_access"],
             ) from exc
         except ToolExecutionError as exc:
+            remember_failure(exc)
             if isinstance(exc, ToolDispatchRejectedError):
                 guard_passed = False
+            if isinstance(exc, ArgumentPolicyDenied):
+                rejection_reason = "argument policy denied"
+                denial_details = exc.details
+                summary = {"values_recorded": False, **exc.details}
+                recorded_input = None
+                recorded_outputs.clear()
             response = ToolInvokeResponse(ok=False, tool_id=tool_id, error=str(exc), output=exc.to_payload())
         except Exception as exc:  # noqa: BLE001 - 工具边界统一返回失败响应
+            remember_failure(exc)
             response = ToolInvokeResponse(ok=False, tool_id=tool_id, error=str(exc))
         finally:
             self._release_external_invocation(external_lease)
         duration_ms = max(0, round((perf_counter() - started) * 1000))
         if not guard_passed:
-            decision = {**decision, "allowed": False, "reason": "catalog dispatch rejected"}
+            decision = {**decision, "allowed": False, "reason": rejection_reason}
+            recorded_input = None
+            recorded_outputs.clear()
+            summary = {"values_recorded": False, **denial_details, "dispatch_attempts": dispatch_attempts}
         self._record_invocation_audit(
             principal,
             definition,
             correlation_id=correlation_id,
             decision=decision,
-            outcome="not_invoked" if not guard_passed else "success" if response.ok else "error",
+            outcome="not_invoked" if not guard_passed and not dispatch_attempts else "success" if response.ok else "error",
             duration_ms=duration_ms,
             payload=summary,
             recorded_input=recorded_input,

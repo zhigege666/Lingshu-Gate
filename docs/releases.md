@@ -4,9 +4,9 @@
 
 Lingshu Gate release automation produces directly runnable native packages, a Docker Compose deployment bundle, and tagged-release offline Core images. Every published asset is covered by `SHA256SUMS` and a repository build-provenance attestation.
 
-The current source version is `0.4.10`. This patch fixes stdio blank-endpoint validation and release identity findings through neutral documentation/test helpers, exact historical snapshots and preserved concept-art provenance. HTTP security, authorization, review and formal asset requirements remain unchanged; no database migration is added. Runtime reporting, Python metadata, CLI and archive names use `src/lingshu_gate/_version.py`. See the [0.4.10 validation and release gates](release-validation-0.4.10.md). Existing tags, including v0.4.8/v0.4.9, remain unchanged.
+The current source version is `0.5.0`. It adds pinned discovery, optional result budgets, argument policies, independent private connector and OpenAPI adapter services, default-off standard telemetry and paired first-call guides. Migrations `0022_tool_preferences` and `0023_tool_argument_policy` require a consistent database/configuration/key backup before upgrade; old binaries do not enforce the new policies. Runtime reporting, Python metadata, CLI and archive names use `src/lingshu_gate/_version.py`. Read the bilingual [release notes](../packaging/release-notes.md); existing tags remain immutable.
 
-The source Console also includes the card-based tool catalog with deployment-specific MCP filtering, effective access badges, and direct selection in the invocation editor. Tool discovery adds the request-local `metadata.gate_access` display snapshot described in [operations](operations.md#tool-catalog). This change adds no frontend dependency or database migration.
+The source Console also includes the card-based tool catalog with deployment-specific MCP filtering, effective access badges, and direct selection in the invocation editor. Tool discovery adds the request-local `metadata.gate_access` display snapshot described in [operations](operations.md#tool-catalog). The new policy and discovery-preference storage is described in the upgrade section.
 
 ## Source publication reentry checks
 
@@ -14,7 +14,7 @@ The publication job prepares the title and bilingual notes from its checked-out 
 
 Every asset's provenance is verified before container promotion, mirroring, signing or release creation. Verification requires the repository, workflow certificate identity, exact signer and source revisions, source tag, hosted runner and a trusted timestamp; see the [GitHub CLI verification options](https://cli.github.com/manual/gh_attestation_verify). An existing immutable release is checked with its original attestations. Its publication job skips promotion, registry login, mirroring, signing, new attestations, release creation and the stable `latest` update.
 
-These source changes are extracted from the reviewed historical recovery work without its fixed v0.4.5 source override. They do not change the source version or modify a published tag or release. Synthetic regression tests exercise text mismatch, exact asset bytes, proof failure and timestamp rejection; they do not constitute a new formal publication.
+These source changes are extracted from the reviewed historical recovery work without its fixed v0.4.5 source override. Those reentry checks do not modify a published tag or release. Synthetic regression tests exercise text mismatch, exact asset bytes, proof failure and timestamp rejection; they do not constitute a new formal publication.
 
 ## 0.3.1 security and release recovery
 
@@ -24,7 +24,7 @@ The failed `v0.3.0` tag is retained at its original revision. The corrected sour
 
 ## Artifact matrix
 
-Source change pending release: external HTTP tool calls recover an expired MCP session with one handshake and discovery attempt. Only published read-only calls with unchanged tool metadata are retried once; other calls receive actionable structured errors. Failed recovery is reflected in runtime health. This is request-driven recovery, not periodic monitoring or an external process restart; deploying the updated source is required.
+External HTTP tool calls retain their existing recovery: they recover an expired MCP session with one handshake and discovery attempt. Only published read-only calls with unchanged tool metadata are retried once; other calls receive actionable structured errors. Failed recovery is reflected in runtime health. This is request-driven recovery, not periodic monitoring or an external process restart; deploying the updated source is required.
 
 | Target | Asset | Build architecture |
 |---|---|---|
@@ -59,7 +59,8 @@ Each native archive contains one top-level directory and:
 - `start.sh` or `start.cmd`;
 - `lingshu-gate.env.example`;
 - empty `data`, `config/mcp.d`, and `workspace` directories;
-- `README.md`, `LICENSE`, `NOTICE`, and `THIRD_PARTY_NOTICES.md`;
+- paired READMEs, changelogs and security policies; public `docs/` and `examples/` trees, bilingual release notes and the Project Delivery Skill;
+- `LICENSE`, `NOTICE` and `THIRD_PARTY_NOTICES.md`;
 - `SBOM.spdx.json` using SPDX 2.3 and covering the bundled Python runtime plus the Console production dependency closure;
 - `BUILD-INFO.json` with version, target, source revision, normalized build time, builder versions, and a file digest manifest.
 
@@ -77,28 +78,30 @@ Linux:
 
 ```bash
 asset='lingshu-gate-v<version>-linux-x86_64.tar.gz'
-awk -v asset="$asset" '$2 == asset {print}' SHA256SUMS | sha256sum --check -
+awk -v asset="$asset" '$2 == asset {print; n++} END {if (n != 1) exit 1}' SHA256SUMS > SHA256SUMS.selected &&
+sha256sum --check SHA256SUMS.selected
 ```
 
 macOS:
 
 ```bash
 asset='lingshu-gate-v<version>-macos-arm64.tar.gz'
-awk -v asset="$asset" '$2 == asset {print}' SHA256SUMS | shasum --algorithm 256 --check
+awk -v asset="$asset" '$2 == asset {print; n++} END {if (n != 1) exit 1}' SHA256SUMS > SHA256SUMS.selected &&
+shasum --algorithm 256 --check SHA256SUMS.selected
 ```
 
 Windows PowerShell:
 
 ```powershell
 $Asset = "lingshu-gate-v<version>-windows-x86_64.zip"
-$Line = Get-Content SHA256SUMS | Where-Object { $_ -match "  $([Regex]::Escape($Asset))$" }
-if (-not $Line) { throw "Checksum entry not found" }
-$Expected = ($Line -split "\s+")[0].ToLowerInvariant()
+$Lines = @(Get-Content SHA256SUMS | Where-Object { $_ -match "  $([Regex]::Escape($Asset))$" })
+if ($Lines.Count -ne 1) { throw "Expected exactly one checksum entry" }
+$Expected = ($Lines[0] -split "\s+")[0].ToLowerInvariant()
 $Actual = (Get-FileHash -Algorithm SHA256 $Asset).Hash.ToLowerInvariant()
 if ($Actual -ne $Expected) { throw "Checksum mismatch" }
 ```
 
-An exact file-name match prevents verifying the digest for a different asset. A missing or mismatched line is a hard failure.
+An exact file-name match prevents verifying the digest for a different asset. A missing, duplicated or mismatched line is a hard failure. Stop before extraction if verification fails.
 
 As an additional source check, use a current GitHub CLI:
 
@@ -128,15 +131,17 @@ Set-Location "$Destination\lingshu-gate-v<version>-windows-x86_64"
 .\start.cmd
 ```
 
-Open <http://127.0.0.1:8000/>, retrieve the one-time credentials from the package-local `data` directory, and change the password immediately.
+Open <http://127.0.0.1:8000/>, read the one-time credentials locally from `data/initial-admin-credentials.json`, change the password, and sign in again. The generated file is removed and the old session is invalidated. Each native archive has its own paired start pages; see [getting started](getting-started.md).
 
 The workflow does not apply platform code signing or macOS notarization. Operating-system reputation prompts may therefore appear. Verify the checksum and attestation, inspect the release record, and follow your organization's approved execution policy; do not disable system-wide protections.
 
 ## Compose bundle
 
-After verification and extraction:
+The archive includes package-specific English/Chinese READMEs. For a local released-image trial, copy `.env.quickstart.example` to `.env.quickstart` and explicitly select `-f compose.quickstart.yaml` with that env file. See [getting started](getting-started.md). This path uses independent trial volumes, authentication and loopback HTTP; it needs no source build or production bootstrap file.
 
-1. read the bundled `DEPLOYMENT.md`;
+For production, after verification and extraction:
+
+1. read the bundled `DEPLOYMENT.md` or `DEPLOYMENT.zh-CN.md`;
 2. copy `.env.example` to `.env`;
 3. set a digest-pinned `LINGSHU_GATE_IMAGE`;
 4. configure `LINGSHU_GATE_BOOTSTRAP_ADMIN_USERNAME` and a protected `LINGSHU_GATE_BOOTSTRAP_PASSWORD_FILE`;
@@ -223,7 +228,7 @@ Before publication, create the Docker Hub repository and configure `DOCKERHUB_US
 
 The version mirror must succeed before GitHub Release creation. Existing version tags with different payloads or attestation descriptors are rejected. Configure Docker Hub immutable version tags where available, excluding `latest`, to also prevent writes by other clients. GitHub release immutability does not protect Docker Hub tags.
 
-After Release assets and their attestations have been verified, stable releases update `docker.io/<DOCKERHUB_USERNAME>/lingshu-gate:latest` only when GitHub identifies that release as its latest stable release. Prereleases and reruns of older releases do not move `latest`. Publication jobs are serialized. A failure updating `latest` leaves the already published version and Release intact and fails the workflow; rerun it to retry verification and synchronization. Registry publication is not an atomic transaction across GHCR, Docker Hub and GitHub Releases, so a failed run may leave a verified version image in one registry. Do not delete or replace published version tags to retry.
+After Release assets and their attestations have been verified, stable releases update `docker.io/<DOCKERHUB_USERNAME>/lingshu-gate:latest` only when GitHub identifies that release as its latest stable release. Prereleases and reruns of older releases do not move `latest`. Publication jobs are serialized. A failure updating `latest` leaves the already published version and Release intact and fails the workflow. A rerun that finds an existing immutable release verifies it and skips `latest` promotion; recovery of a failed `latest` update therefore requires a separately reviewed mirror operation using the verified version digest. Registry publication is not an atomic transaction across GHCR, Docker Hub and GitHub Releases, so a failed run may leave a verified version image in one registry. Do not delete or replace published version tags to retry.
 
 The Docker Hub mirror includes BuildKit SBOM/provenance manifests. GitHub asset attestations remain attached to the GitHub Release assets; optional Cosign signing still targets the GHCR digest, not a separate Docker Hub signature.
 

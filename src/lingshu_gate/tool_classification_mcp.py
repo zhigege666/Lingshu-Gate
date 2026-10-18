@@ -17,7 +17,8 @@ from lingshu_gate.access_control import (
     iso_now,
 )
 from lingshu_gate.models import ToolDefinition
-from lingshu_gate.registry import ToolExecutionError, ToolInvocationContext, ToolRegistry
+from lingshu_gate.argument_preparation import model_preparer
+from lingshu_gate.registry import ToolExecutionError, ToolInvocationContext, ToolRegistry, receipt_arguments
 
 CLASSIFICATION_SERVER_ID = "gate-control"
 CLASSIFICATION_PERMISSION = "classifications.manage"
@@ -356,10 +357,12 @@ class ToolClassificationMcpService:
         action: Callable[[], dict[str, Any]],
     ) -> dict[str, Any]:
         """复用 Gate 的持久化幂等表，避免审核/发布重试重复产生副作用。"""
-
+        original = receipt_arguments(context, tool_id, arguments)
+        if tool_id == "gate_tool_classification_publish":
+            original = {**original, "tool_ids": arguments["tool_ids"]}
         request_digest = hashlib.sha256(
             json.dumps(
-                arguments,
+                original,
                 ensure_ascii=False,
                 sort_keys=True,
                 separators=(",", ":"),
@@ -540,5 +543,12 @@ def register_tool_classification_tools(
         "gate_tool_classification_review": service.review_classifications,
         "gate_tool_classification_publish": service.publish_classifications,
     }
+    models: dict[str, type[BaseModel]] = {"gate_tool_classification_list": ToolClassificationListInput,
+        "gate_tool_classification_analyze": ToolClassificationAnalyzeInput, "gate_tool_classification_review": ToolClassificationReviewInput,
+        "gate_tool_classification_publish": ToolClassificationPublishInput}
+    def normalize(parsed: BaseModel, values: dict[str, Any]) -> None:
+        if isinstance(parsed, ToolClassificationPublishInput):
+            values["tool_ids"] = sorted({item.strip() for item in parsed.tool_ids if item.strip()})
     for definition in CLASSIFICATION_TOOL_DEFINITIONS:
-        registry.register(definition, handlers[definition.id], contextual=True)
+        registry.register(definition, handlers[definition.id], contextual=True,
+                          argument_preparer=model_preparer(models[definition.id], transform=normalize))

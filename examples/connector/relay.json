@@ -1,0 +1,28 @@
+{
+  "schema_version": 1,
+  "host": "0.0.0.0",
+  "port": 18882,
+  "allowed_hosts": [
+    "relay.example:18882"
+  ],
+  "tls_cert_file": "/etc/gate-connector/relay.pem",
+  "tls_key_file": "/etc/gate-connector/relay-key.pem",
+  "agents": [
+    {
+      "id": "private-agent",
+      "token_file": "/run/gate/agent-token",
+      "targets": [
+        "private-mcp"
+      ]
+    }
+  ],
+  "consumers": [
+    {
+      "id": "gate-core",
+      "token_file": "/run/gate/consumer-token",
+      "targets": [
+        "private-mcp"
+      ]
+    }
+  ]
+}

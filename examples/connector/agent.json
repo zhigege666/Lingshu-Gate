@@ -1,0 +1,14 @@
+{
+  "schema_version": 1,
+  "agent_id": "private-agent",
+  "relay_url": "wss://relay.example:18882/connector/agent",
+  "token_file": "/run/gate/agent-token",
+  "ca_file": "/etc/gate-connector/relay-ca.pem",
+  "targets": [
+    {
+      "id": "private-mcp",
+      "url": "http://127.0.0.1:18880/mcp",
+      "timeout_seconds": 30
+    }
+  ]
+}

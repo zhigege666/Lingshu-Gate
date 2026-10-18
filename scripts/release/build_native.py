@@ -12,11 +12,12 @@ import sys
 from pathlib import Path
 
 from scripts.release.common import (
-    REQUIRED_DOCUMENTATION_FILES,
     REQUIRED_LEGAL_FILES,
     REPOSITORY_ROOT,
     build_metadata,
     copy_release_file,
+    copy_release_documentation,
+    copy_package_readmes,
     create_tar_gz,
     create_zip,
     python_executable_name,
@@ -162,8 +163,10 @@ def _stage_bundle(
         stage_root,
         destination_name="lingshu-gate.env.example",
     )
-    for required in (*REQUIRED_LEGAL_FILES, *REQUIRED_DOCUMENTATION_FILES):
+    for required in REQUIRED_LEGAL_FILES:
         copy_release_file(required, stage_root)
+    copy_release_documentation(stage_root)
+    copy_package_readmes(stage_root, package="native", version=version)
     licenses_dir = stage_root / "licenses"
     licenses_dir.mkdir()
     copy_release_file(_cpython_license(), licenses_dir, destination_name="CPython-LICENSE.txt")

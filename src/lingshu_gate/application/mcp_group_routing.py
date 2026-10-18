@@ -24,6 +24,8 @@ from lingshu_gate.domain.mcp_group_routing import (
 )
 from lingshu_gate.domain.mcp_groups import McpGroupError
 from lingshu_gate.registry import RegistrySnapshotCapacityError, ToolRegistry, tool_definition_revision
+from lingshu_gate.models import ToolDefinition
+from lingshu_gate.domain.tool_structure import FrozenToolDefinition
 
 SESSION_TTL = timedelta(hours=1)
 SESSION_CONNECTION_LIMIT = 128
@@ -182,6 +184,29 @@ class McpGroupRoutingService:
                 "name": definition.name[:128], "description": definition.description[:320],
                 "schema_revision": variant.summary.variant_id})
         return summaries
+
+    def pin_contracts(self, actor: AuthPrincipal, references: list[str]) -> dict[str, ToolDefinition]:
+        """Project at most twenty requested contracts with one snapshot per group."""
+        if len(references) > 20:
+            raise self._unavailable()
+        selected: dict[str, set[str]] = {}
+        for reference in references:
+            parts = reference.split(":")
+            if len(parts) == 3 and parts[0] == "mcp-group" and len(parts[1]) == 32 and len(parts[2]) == 64:
+                selected.setdefault(parts[1], set()).add(reference)
+        result = {}
+        for group_id, wanted in selected.items():
+            try:
+                _, visible, variants = self._snapshot(group_id, actor)
+            except McpGroupError:
+                continue
+            definitions = {item.definition.id: item.definition for item in visible}
+            for variant in variants:
+                reference = logical_tool_ref(group_id, variant.summary.variant_id)
+                if reference in wanted and variant.members:
+                    definition = definitions[variant.members[0].tool_id]
+                    result[reference] = definition.copy_definition() if isinstance(definition, FrozenToolDefinition) else definition
+        return result
 
     def resolve(self, actor: AuthPrincipal, *, tool_ref: str, instance_id: str) -> CatalogTarget:
         selection = GroupToolSelection(tool_ref=tool_ref, instance_id=instance_id)

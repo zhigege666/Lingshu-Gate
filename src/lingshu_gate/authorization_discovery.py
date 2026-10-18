@@ -10,7 +10,7 @@ from typing import TYPE_CHECKING, Any, Literal
 
 from fastapi import Depends, FastAPI, HTTPException, Request
 from fastapi.responses import JSONResponse
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, model_validator
 
 if TYPE_CHECKING:
     from lingshu_gate.access_control import AccessControlStore
@@ -21,12 +21,29 @@ DiscoveryMode = Literal["on_demand", "direct"]
 AuthorizationKind = Literal["api", "builtin", "external"]
 
 
+class PinnedTool(BaseModel):
+    model_config = ConfigDict(extra="forbid", strict=True)
+    kind: Literal["tool", "group"]
+    tool_ref: str = Field(min_length=1, max_length=256)
+
+
+class ResultBudgetSetting(BaseModel):
+    model_config = ConfigDict(extra="forbid", strict=True)
+    schema_version: int = Field(default=1, ge=1, le=1)
+    enabled: bool = False
+    max_characters: int = Field(default=8192, ge=1024, le=65536)
+
+
 def discovery_setting(connection: sqlite3.Connection, kind: str, authorization_id: str) -> dict[str, Any]:
     row = connection.execute("SELECT mode,revision FROM authorization_discovery WHERE kind=? AND authorization_id=?",
                              (kind, authorization_id)).fetchone()
+    preferences = connection.execute("SELECT pinned_tools_json,result_budget_json FROM authorization_tool_preferences "
+                                     "WHERE kind=? AND authorization_id=?", (kind, authorization_id)).fetchone()
     # 新旧授权使用相同缺省；不从 URL、浏览器缓存或其他授权继承设置。
     return {"tool_discovery_mode": row["mode"] if row else "on_demand",
-            "discovery_revision": row["revision"] if row else 0}
+            "discovery_revision": row["revision"] if row else 0,
+            "pinned_tools": json.loads(preferences["pinned_tools_json"]) if preferences else [],
+            "result_budget": json.loads(preferences["result_budget_json"]) if preferences else ResultBudgetSetting().model_dump()}
 
 
 def principal_authorization(principal: AuthPrincipal) -> tuple[str, str] | None:
@@ -42,6 +59,23 @@ class DiscoveryRequest(BaseModel):
     tool_discovery_mode: DiscoveryMode
     expected_revision: int = Field(ge=0)
     csrf: str = Field(min_length=43, max_length=43)
+    pinned_tools: list[PinnedTool] | None = Field(default=None, max_length=20)
+    result_budget: ResultBudgetSetting | None = None
+
+    @model_validator(mode="after")
+    def preferences(self) -> DiscoveryRequest:
+        for key in ("pinned_tools", "result_budget"):
+            if key in self.model_fields_set and getattr(self, key) is None:
+                raise ValueError("preference_must_not_be_null")
+        pins = self.pinned_tools or []
+        if len({(pin.kind, pin.tool_ref) for pin in pins}) != len(pins):
+            raise ValueError("duplicate_pinned_tool")
+        return self
+
+    def target(self, current: dict[str, Any]) -> dict[str, Any]:
+        return {"tool_discovery_mode": self.tool_discovery_mode,
+                "pinned_tools": [p.model_dump() for p in self.pinned_tools] if self.pinned_tools is not None else current["pinned_tools"],
+                "result_budget": self.result_budget.model_dump() if self.result_budget is not None else current["result_budget"]}
 
 
 def register_authorization_discovery_routes(app: FastAPI, auth: AuthStore, access: AccessControlStore,
@@ -79,6 +113,9 @@ def register_authorization_discovery_routes(app: FastAPI, auth: AuthStore, acces
         setting = discovery_setting(connection, kind, authorization_id)
         # 绑定基础授权记录；预览后撤销或该记录变化都不能套用原确认。
         record.pop("last_used_at", None)
+        if kind == "api":
+            policy = connection.execute("SELECT * FROM api_token_authorizations WHERE token_id=?", (authorization_id,)).fetchone()
+            record["independent_authorization"] = dict(policy) if policy else None
         record_digest = hashlib.sha256(json.dumps(record, sort_keys=True, default=str).encode()).hexdigest()
         return {**setting, "record_digest": record_digest}
 
@@ -106,8 +143,7 @@ def register_authorization_discovery_routes(app: FastAPI, auth: AuthStore, acces
             ticket = csrf.issue(principal, session, f"discovery:{kind}:{authorization_id}", binding(current))
         except ConsoleCsrfError as exc:
             raise HTTPException(exc.status, detail=exc.code) from exc
-        return reply({"tool_discovery_mode": current["tool_discovery_mode"],
-                      "discovery_revision": current["discovery_revision"], **ticket})
+        return reply({key: value for key, value in {**current, **ticket}.items() if key != "record_digest"})
 
     def write(request: Request, body: DiscoveryRequest, kind: str, authorization_id: str,
               identity: tuple, *, save: bool) -> JSONResponse:
@@ -122,22 +158,27 @@ def register_authorization_discovery_routes(app: FastAPI, auth: AuthStore, acces
             current = state(connection, principal, kind, authorization_id)
             if current["discovery_revision"] != body.expected_revision:
                 raise HTTPException(409, detail="revision_conflict")
-            confirmed = {**current, "target_mode": body.tool_discovery_mode}
+            preferences = body.target(current)
+            confirmed = {**current, "target_settings": preferences}
             consume(connection, principal, session, body.csrf, target + (":confirm" if save else ""), confirmed if save else current)
             if save:
                 connection.execute("INSERT INTO authorization_discovery(kind,authorization_id,mode,revision) VALUES(?,?,?,?) "
                     "ON CONFLICT(kind,authorization_id) DO UPDATE SET mode=excluded.mode,revision=excluded.revision",
                     (kind, authorization_id, body.tool_discovery_mode, body.expected_revision + 1))
+                connection.execute("INSERT INTO authorization_tool_preferences VALUES(?,?,?,?) "
+                    "ON CONFLICT(kind,authorization_id) DO UPDATE SET pinned_tools_json=excluded.pinned_tools_json,result_budget_json=excluded.result_budget_json",
+                    (kind, authorization_id, json.dumps(preferences["pinned_tools"]), json.dumps(preferences["result_budget"])))
                 observability.emit_event("gate.auth.discovery_updated", source="authorization_discovery",
                     subject_type=kind, subject_id=authorization_id,
                     payload={"actor_id": principal.id, "previous": current["tool_discovery_mode"],
-                             "mode": body.tool_discovery_mode, "revision": body.expected_revision + 1}, connection=connection)
+                             "mode": body.tool_discovery_mode, "revision": body.expected_revision + 1,
+                             "pinned_tools": preferences["pinned_tools"], "result_budget": preferences["result_budget"]}, connection=connection)
                 return reply(discovery_setting(connection, kind, authorization_id))
         try:
             ticket = csrf.issue(principal, session, target + ":confirm", binding(confirmed))
         except ConsoleCsrfError as exc:
             raise HTTPException(exc.status, detail=exc.code) from exc
-        return reply({**ticket, "previous": current["tool_discovery_mode"], "tool_discovery_mode": body.tool_discovery_mode,
+        return reply({**ticket, "previous": current["tool_discovery_mode"], **preferences,
                       "expected_revision": body.expected_revision})
 
     @app.post("/v1/auth/authorizations/{kind}/{authorization_id}/discovery-preview", tags=["access"])

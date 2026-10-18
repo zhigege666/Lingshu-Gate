@@ -164,3 +164,9 @@ Cache Miss 可能增加延迟或重复工具链检查，但不能绕过校验或
 - 长时间事件流会占用连接，应明确设置代理空闲行为。
 - Upload、Build Artifact、日志和审计都在 Data 目录增长，应监控空间并按环境制定保留策略。
 - 下游故障应与 Gate Readiness 隔离，但重复重试仍可能消耗资源；应使用受限的重启和请求策略。
+
+## 参数策略与标准观测
+
+工具的“参数策略”操作要求 `grants.manage`。编辑器纯评估示例而不执行，当前规则在最终派发时限制实际参数。已准入但从未执行的拒绝记录零次尝试；拒绝恢复重试时保留之前的真实尝试。见[参数策略](argument-policies.md)。
+
+可选 `GET /v1/observability/metrics`、`GET /v1/observability/telemetry` 要求当前认证及 `operations.manage`、`observability.read.all` 两项权限。HTTP 请求、逻辑调用与实际执行分别计数。指标和 trace 默认关闭，导出失败不新增业务重试。配置、标签、关联标识和隐私见[标准观测](telemetry.md)。

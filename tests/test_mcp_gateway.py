@@ -96,7 +96,7 @@ class FakeAccessStore:
         principal: AuthPrincipal,
         tool_id: str,
         arguments: dict[str, object],
-        *, dispatch_guard=None,
+        *, dispatch_guard=None, correlation_id=None,
     ):
         if principal.role == "viewer" and tool_id != SYSTEM_DEBUG_TOOL_ID:
             raise AccessDeniedError(
@@ -107,7 +107,7 @@ class FakeAccessStore:
         from lingshu_gate.registry import ToolInvocationContext
         return registry.invoke(tool_id, arguments, dispatch_guard=dispatch_guard, context=ToolInvocationContext(
             actor_id=principal.id, username=principal.username, auth_type=principal.auth_type,
-            token_id=None, correlation_id="synthetic", roles=(principal.role,),
+            token_id=None, correlation_id=correlation_id or "synthetic", roles=(principal.role,),
         ))
 
 

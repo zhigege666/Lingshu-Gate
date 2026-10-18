@@ -1,25 +1,75 @@
 # Lingshu Gate
 
-面向自托管 MCP 服务的聚合网关与控制面，让身份、工具权限、凭据、审计和项目交付保留明确边界。
+自托管 MCP 网关：连接工具，限定谁可以调用，并记录调用结果。
 
-[English](README.md) · [完整文档](docs/zh-CN/README.md) · [安全](SECURITY.zh-CN.md) · [参与开发](CONTRIBUTING.md)
+[English](README.md) · [下载 0.5.0](https://github.com/zhigege666/Lingshu-Gate/releases/tag/v0.5.0) · [开始使用](docs/zh-CN/getting-started.md) · [文档](docs/zh-CN/README.md) · [安全](SECURITY.zh-CN.md)
 
-适用于集中管理多个 MCP 服务、向远程 MCP 客户端提供受控工具访问，以及在可信原生主机上交付项目。通过一个 MCP Gateway、Web Console 和控制 API 管理服务与用户。
+<img src="docs/images/console/zh-CN/v0.5.0-discovery.png" alt="Lingshu Gate 0.5.0：每条授权的固定工具、逻辑组和有界文本预览" width="1200">
 
-> [!NOTE]
-> **0.4.10 版本状态与边界声明**
->
-> - **Stdio 配置修复**：Stdio 的空或纯空白 `transport.endpoint` 按未填写处理，预检、保存及重新读取保持一致；HTTP 地址与内网信任限制不变。表单切换不丢弃原有 HTTP 字段。
-> - **发行身份检查修复**：中性化文档和测试辅助命名；仅固定已审查历史快照和概念图来源元数据，保留图片原字节、历史标签与全部正式发行检查。
-> - **MCP 重启与平滑升级保留工具审核与授权快照**：同一 MCP 服务发生普通重启、临时连接中断恢复或平滑升级时，只要工具定义保持未变，保留原分类、审核时间戳与已确认的 OAuth 授权快照，避免重复授权与重新审核。离线工具立即退出可调用目录。
-> - **统一授权与 MCP 持续范围**：Web Console 在[我的授权](docs/zh-CN/my-authorizations.md)中统一管理个人 API 令牌、Gate OAuth 授权和外部身份授权。业务授权支持整服务级持续授权（只读或读写模式），后续发布工具自动授权，并支持可配置的每分钟（默认 6000）与并发（默认 100）调用上限。
-> - **按需工具发现**：业务授权默认六个有界发现/会话入口，每条授权可独立切换完整工具列表；忽略请求级参数覆盖。客户端刷新及兼容边界见[指南](docs/zh-CN/on-demand-tools.md)。
-> - **分组用途区分**：显式区分多实例执行（`execution`）与多数据源查询（`data_source`），历史分组保持 `unspecified` 并保留升级兼容性。
-> - **Console 与发现**：Web Console 从 `/` 打开，保留旧 `/console` 链接兼容跳转与 JSON 服务发现。登录页与 Console 从 `/healthz` 显示运行中的后端版本。
-> - **OAuth 治理**：内置 OAuth 与独立的 `/mcp/manage` 资源默认关闭且须显式启用。私有 OAuth 选择使用有界分页、保留草稿，并在再次确认前核对写入结果未知的现场。
-> - **Native 执行器边界**：可选 Native/Linux rootless Podman 执行器默认关闭，宿主准备/readiness 需要单独审核。离线安装/构建路径已有合成回归证据，真实 Podman 宿主和多机器验收仍未完成。Core 仍仅为 gateway。
->
-> 详见[发行摘要](packaging/release-notes.md)与 [0.4.10 验证记录](docs/zh-CN/release-validation-0.4.10.md)。
+*0.5.0 Console，以合成用户和服务在 2560×1440 下实际截图。[捕获记录](docs/images/console/v0.5.0-capture.json)。*
+
+## 适合哪些场景
+
+- **统一受控工具入口：** 接入多个 MCP 服务，审核并发布工具，再通过一个 `/mcp` 入口为不同用户和授权提供限定范围。
+- **接入已有服务：** 通过明确配置的连接器访问私网 HTTP MCP，或将本地 OpenAPI 快照中的选定操作转换为工具。可信本地 stdio 和项目交付使用原生 Gate。
+- **核对运行结果：** 查看调用决策，限制实际工具参数，并按需接入 Prometheus 指标或 OTLP 链路。
+
+## 快速开始
+
+| 目标 | 选择 | 入口 |
+|---|---|---|
+| 试用已发布版本 | 原生归档，或使用发行镜像的 Docker 本机试用 | [下载并启动](docs/zh-CN/getting-started.md) |
+| 生产部署 | HTTPS 后固定 digest 的 Core，或托管原生服务 | [部署、备份和升级](docs/zh-CN/deployment.md) |
+| 开发 Gate | 源码仓库和锁定依赖 | [本地开发](docs/zh-CN/local-development.md) |
+
+### 预编译原生包
+
+下载匹配系统、CPU 的归档及 `SHA256SUMS`，[校验](docs/zh-CN/releases.md)后解压并进入目录。Linux/macOS 运行 `./start.sh`，Windows 运行 `.\start.cmd`。Gate 本身不需要宿主安装 Python、Node.js 或 Git。
+
+打开 [http://127.0.0.1:8000/](http://127.0.0.1:8000/)，在本机读取 `data/initial-admin-credentials.json`，登录、修改密码并重新登录。生成的初始文件会删除，旧会话会撤销。包内中英文 README 提供对应平台的完整步骤。
+
+### 已发布 Docker 本机试用
+
+校验并解压 `lingshu-gate-v0.5.0-docker-compose.tar.gz`，进入该目录后执行：
+
+```bash
+cp .env.quickstart.example .env.quickstart
+docker compose --env-file .env.quickstart -f compose.quickstart.yaml up -d --no-build --wait --wait-timeout 120 core
+docker compose --env-file .env.quickstart -f compose.quickstart.yaml exec core cat /data/initial-admin-credentials.json
+```
+
+打开 [http://127.0.0.1:8000/](http://127.0.0.1:8000/)，用本机一次性凭据登录并改密。该方式使用发行镜像、仅限 loopback 的 HTTP、认证、独立试用卷、UID/GID `10001`、只读根文件系统且无引擎 socket。PowerShell 第一行可使用 `Copy-Item`。端口和离线镜像说明见[开始使用](docs/zh-CN/getting-started.md)。
+
+### 生产部署
+
+使用包内默认 `compose.yaml` 和配对 `DEPLOYMENT.md` / `DEPLOYMENT.zh-CN.md`：选择正式 digest，准备正确可读且受保护的 bootstrap 凭据、持久存储及启用 Secure cookie 的 HTTPS。按[部署指南](docs/zh-CN/deployment.md)配置精确代理、Origin、备份与升级。每个数据库只运行一个 Core。
+
+### 从源码运行
+
+需要 Git、Python 3.11–3.13、uv、Node.js 22.x 的 22.12+、24.x 或 26+，以及 npm。
+
+```bash
+git clone https://github.com/zhigege666/Lingshu-Gate.git
+cd Lingshu-Gate
+uv sync --frozen
+npm --prefix web ci
+npm --prefix web run build
+uv run lingshu-gate
+```
+
+源码 Docker 构建在该仓库根目录执行 `mkdir -p runtime/workspace` 和 `docker compose up -d --build --wait --wait-timeout 120 core`。[本地开发](docs/zh-CN/local-development.md)说明独立路径、凭据和测试命令。
+
+## 首次授权调用
+
+[内置 demo 流程](docs/zh-CN/first-call.md)不需要外部服务账号或桌面 MCP 客户端。启动独立内存 demo，在 Gate 中接入，审核并发布三个工具，创建独立只读调用者，再使用实际返回的引用和修订完成 `tools/list → gate_catalog_search → gate_tool_describe → gate_tool_invoke`。
+
+核对成功审计、写入拒绝且计数不变、错误修订拒绝、demo 停止/恢复和调用者撤销。Gate 启动、工具发现、分类确认、发布分别进行；访问仍须同时满足资源权限和 token scope。
+
+## 0.5.0 版本
+
+本版本增加固定工具与文本预览、四类参数规则、私网 HTTP 连接器、选定操作的 OpenAPI 适配器，以及默认关闭的标准观测。原生和 Compose 归档包含适合包型的中英文开始页及可运行 demo。参见[变更记录](CHANGELOG.zh-CN.md)和[双语发行说明](packaging/release-notes.md)。
+
+两项数据库迁移增加发现偏好和参数策略。升级前一致备份数据库、配置及凭据密钥；旧版本不会执行新增策略。
 
 ## 架构总览
 
@@ -31,7 +81,7 @@ flowchart TB
     end
 
     subgraph Gate["Lingshu Gate (网关与控制面)"]
-        Gateway["MCP 网关 (/mcp)<br/>完整目录 | 按需发现模式"]
+        Gateway["MCP 网关 (/mcp) · 完整目录 | 按需发现模式"]
         Auth["认证与 RBAC 权限"]
         Governance["工具治理与分类审核"]
         Delivery["项目交付与构建引擎"]
@@ -57,13 +107,16 @@ flowchart TB
 
 ## 现有功能
 
-[集成验证](docs/zh-CN/on-demand-integration-validation.md) 保留先前准确源码检查点、50,000 工具合成测量、native worker 证据及未测试边界。0.4.7 记录将当前重试检查、新包候选与历史结果分别记录。
 
 | 功能 | 能力与边界 | 指南 |
 |---|---|---|
 | MCP 聚合网关与传输 | 统一认证的 Model Context Protocol 入口；无状态 JSON `/mcp`、Streamable HTTP 远程 MCP、原生 stdio、明确版本与有界旧协议协商。聚合工具，不提供通用 resource/prompt 托管。 | [指南](docs/zh-CN/mcp-gateway.md) |
 | MCP 分组与实例会话 | 逻辑分组引用已有实例，不复制凭据且不自动授权；合同分区与连接绑定的实例会话。 | [指南](docs/zh-CN/mcp-groups.md) |
-| 按需工具发现 | 开发源码中新旧业务授权均默认 6 个有界入口，每条授权可切换完整列表；调用时继续复核实际权限。 | [指南](docs/zh-CN/on-demand-tools.md) |
+| 按需工具发现 | 默认六个入口、最多 20 个有权固定工具/分组及可选文本结果分页；每条授权保持独立范围。 | [指南](docs/zh-CN/on-demand-tools.md) |
+| 参数限制 | 对实际参数执行等值、候选集合、数值范围和字符串前缀限制，纯预览、版本化保存与原子审计。 | [指南](docs/zh-CN/argument-policies.md) |
+| 私网 HTTP MCP 连接器 | 固定目标 relay/agent、独立凭据、有界会话，不自动重放业务。 | [指南](docs/zh-CN/private-connector.md) |
+| OpenAPI 适配器 | 本地 OpenAPI 3.0/3.1 快照的选定操作、固定来源与绑定执行合同的工具名称。 | [指南](docs/zh-CN/openapi-adapter.md) |
+| 标准观测 | 默认关闭的 Prometheus 聚合与 OTLP/HTTP 追踪，受控入口、有界导出。 | [指南](docs/zh-CN/telemetry.md) |
 | 用户与 RBAC | 本地登录、注册审核、自定义角色和权限类型、服务/工具授权与到期、限定范围的个人 API 令牌及用户状态管理。 | [指南](docs/zh-CN/configuration.md) |
 | 工具权限治理 | 发现 → 规则分析 → 人工审核 → 发布；读写、破坏性与幂等分类、指纹检查、批量审核和过期定义对账。发现不授予权限。 | [指南](docs/zh-CN/mcp-gateway.md) |
 | 内置 OAuth 与远程访问 | 明确启用的授权码流程，面向 OAuth 2.1 / PKCE 客户端：机密静态客户端、S256、每用户工具同意、加密 RS256 签名密钥、刷新轮换与撤销。独立公网同意页；不支持 DCR/CIMD，不宣称全面规范合规。 | [指南](docs/zh-CN/builtin-oauth.md) |
@@ -80,125 +133,6 @@ flowchart TB
 | Console、API、自动化与发行包 | 中英文、明暗主题、桌面布局、筛选/分页、私有 REST/OpenAPI 和 CLI；带确认边界的 `gate_*` 工具与 Delivery Skill。原生包、Docker Core、离线镜像、校验和、SBOM 及备份/升级流程。 | [指南](docs/zh-CN/releases.md) |
 
 完整操作入口见下方文档索引。[调用内容记录](docs/zh-CN/invocation-recording.md) · [Git 执行决策](docs/zh-CN/git-executor-decision.md)
-
-## Console 截图
-
-以下截图由 0.4.0 候选代码在隔离的本地测试实例中分别切换中英文拍摄，使用合成用户、服务和项目；没有真实外部账户、用户代理或生产凭据。Git 阻断和 OAuth 关闭状态如实展示。截图是界面证据，不是生产接入验收。[拍摄与验证记录](docs/zh-CN/release-validation.md)。
-
-<img src="docs/images/console/zh-CN/v0.4.0-overview.png" alt="总览与调用统计" width="1000">
-
-*总览与调用统计 · 合成测试实例*
-
-<img src="docs/images/console/zh-CN/v0.4.0-tool-catalog.png" alt="MCP 工具目录与有效权限" width="1000">
-
-*MCP 工具目录与有效权限 · 合成测试实例*
-
-<details>
-<summary>审核、个人工作区、交付、Git、网络、OAuth 与工具调试</summary>
-
-<img src="docs/images/console/zh-CN/v0.4.0-classification.png" alt="工具分类审核与发布" width="1000">
-
-*工具分类审核与发布 · 合成测试实例*
-
-<img src="docs/images/console/zh-CN/v0.4.0-personal.png" alt="个人 MCP 工作区" width="1000">
-
-*个人 MCP 工作区 · 合成测试实例*
-
-<img src="docs/images/console/zh-CN/v0.4.0-delivery.png" alt="可信 ZIP 项目交付工作区" width="1000">
-
-*可信 ZIP 项目交付工作区 · 合成测试实例*
-
-<img src="docs/images/console/zh-CN/v0.4.0-git-import.png" alt="Git 来源表单与执行器未实现的阻断状态" width="1000">
-
-*Git 来源表单与执行器未实现的阻断状态 · 合成测试实例*
-
-<img src="docs/images/console/zh-CN/v0.4.0-network-settings.png" alt="系统设置：网络配置与依赖源" width="1000">
-
-*系统设置：网络配置与依赖源 · 合成测试实例*
-
-<img src="docs/images/console/zh-CN/v0.4.0-oauth.png" alt="内置 OAuth 管理，默认关闭" width="1000">
-
-*内置 OAuth 管理，默认关闭 · 合成测试实例*
-
-<img src="docs/images/console/zh-CN/v0.4.0-tool-invoke.png" alt="工具调试与结果复核" width="1000">
-
-*工具调试与结果复核 · 合成测试实例*
-
-</details>
-
-## 快速开始
-
-### Docker Compose
-
-Docker Compose 是启动隔离控制平面和 HTTP 网关的最短路径：
-
-```bash
-mkdir -p runtime/workspace
-docker compose up -d --build core
-docker compose ps
-```
-
-打开 <http://127.0.0.1:8000/>。空数据卷首次启动时，Gate 会把一次性管理员密码写入 `/data/initial-admin-credentials.json`：
-
-```bash
-docker compose exec core sh -c 'cat /data/initial-admin-credentials.json'
-```
-
-登录后立即修改密码，再创建最小权限的用户或 API Token。密码修改成功后，一次性凭据文件会自动删除。
-
-默认 Compose 服务只绑定 `127.0.0.1`，以 UID/GID `10001` 运行，根文件系统只读，并保持认证开启。Core 镜像用于连接外部 Streamable HTTP 服务；当 Gate 需要启动本机 stdio 进程或执行项目构建时，请使用原生安装。
-
-### 预构建原生包
-
-从 [GitHub Releases](https://github.com/zhigege666/Lingshu-Gate/releases) 下载对应平台的压缩包和 `SHA256SUMS`，完成校验并解压，然后运行：
-
-```bash
-./start.sh
-```
-
-Windows：
-
-```powershell
-.\start.cmd
-```
-
-启动器会创建包内的 `data`、`config` 和 `workspace` 目录。也可以直接运行 `lingshu-gate`（Windows 为 `lingshu-gate.exe`），此时应通过 `LINGSHU_GATE_*` 环境变量提供所需路径。
-
-### 从源码运行
-
-要求 Python 3.11、3.12 或 3.13、Node.js 22.12+（22.x）、24.x 或 26+、npm 和 `uv`。
-
-```bash
-uv sync --frozen
-npm --prefix web ci
-npm --prefix web run build
-uv run lingshu-gate
-```
-
-Gate 默认监听 `127.0.0.1:8000`。浏览器在 `/` 打开 Web Console，OpenAPI 文档位于 `/docs`，就绪探针位于 `/readyz`。`/v1/meta` 始终提供 JSON 服务信息；默认 curl/程序请求及显式可接受 `application/json` 的 `/` 请求仍得到 JSON。旧 `/console` 书签跳转到 `/`，保留 query 与 hash 导航。独立 OAuth 入口仍为 `/oauth/consent`。
-
-## 第一个服务
-
-在配置的 `mcp.d` 目录中创建通用 Manifest，或使用 Console：
-
-```yaml
-id: example-http
-name: Example HTTP server
-enabled: true
-launch:
-  type: external
-transport:
-  type: streamable_http
-  endpoint: https://service.example/mcp
-  protocol_version: "2026-07-28"
-auto_start: false
-```
-
-`protocol_version` 可设为 `auto` 或受支持的显式版本；省略时优先尝试 `2026-07-28`。HTTP 与 stdio 的兼容版本范围不同，详见 [协议协商](docs/zh-CN/mcp-gateway.md)。
-
-校验并保存 Manifest，检查发现的工具，将其分类为只读或写入，人工复核后只发布允许调用的分类。最终访问权限是控制权限、资源授权、已发布分类和 API Token scope 的交集。
-
-本机 stdio 配置、凭据引用、生命周期行为和网关请求见 [MCP 网关与下游服务](docs/zh-CN/mcp-gateway.md)。
 
 ## 项目交付与远程访问
 
@@ -231,7 +165,11 @@ auto_start: false
 | macOS ARM64 | `lingshu-gate-v<version>-macos-arm64.tar.gz` |
 | Docker Compose | `lingshu-gate-v<version>-docker-compose.tar.gz` |
 
-Tag 发行还提供 `amd64` 和 `arm64` 的 Linux Core 离线镜像，以及应用 SPDX SBOM。每个原生包都包含 `SBOM.spdx.json`、`BUILD-INFO.json`、`LICENSE`、`NOTICE`、`THIRD_PARTY_NOTICES.md` 和本 README。解压前应按 `SHA256SUMS` 校验所选归档，详见 [发行产物](docs/zh-CN/releases.md)。
+Tag 发行还提供 `amd64` 和 `arm64` 的 Linux Core 离线镜像，以及应用 SPDX SBOM。每个原生包都包含 `SBOM.spdx.json`、`BUILD-INFO.json`、`LICENSE`、`NOTICE`、`THIRD_PARTY_NOTICES.md` 和包型专用的中英文 README。解压前应按 `SHA256SUMS` 校验所选归档，详见 [发行产物](docs/zh-CN/releases.md)。
+
+原生与 Compose 包还包含配对指南、中性示例、更新记录、安全说明、发行摘要和 Project Delivery Skill。可从[首次授权调用](docs/zh-CN/first-call.md)开始。
+
+Core 管理的凭据加密保存；辅助进程使用独立受保护本地凭据文件。
 
 ## 支持矩阵
 
@@ -256,6 +194,13 @@ Tag 发行还提供 `amd64` 和 `arm64` 的 Linux Core 离线镜像，以及应�
 
 ## 文档
 
+- [开始使用：原生、Docker、生产与源码](docs/zh-CN/getting-started.md)
+- [第一次成功与拒绝调用](docs/zh-CN/first-call.md)
+- [工具参数限制](docs/zh-CN/argument-policies.md)
+- [私网 HTTP MCP 连接器](docs/zh-CN/private-connector.md)
+- [选定 OpenAPI 操作](docs/zh-CN/openapi-adapter.md)
+- [Prometheus 指标与 OTLP 追踪](docs/zh-CN/telemetry.md)
+
 - [MCP 网关、协议、工具权限与文件引用](docs/zh-CN/mcp-gateway.md)
 - [MCP 分组与路由适配](docs/zh-CN/mcp-groups.md)
 - [按需工具发现模式](docs/zh-CN/on-demand-tools.md)
@@ -279,6 +224,10 @@ Tag 发行还提供 `amd64` 和 `arm64` 的 Linux Core 离线镜像，以及应�
 - [UI 与可访问性验收约定](docs/zh-CN/ui-interaction-contract.md)
 - [0.4.0 验证与截图来源](docs/zh-CN/release-validation.md)
 - [0.4.7 验证与发行门禁](docs/zh-CN/release-validation-0.4.7.md)
+
+## 参与改进
+
+如果 Gate 解决了你的问题，可以 Star 便于再次找到项目，并使用 GitHub Watch → Custom → Releases 订阅发行通知。反馈问题时附最小脱敏复现，也欢迎提交带权限与失败案例的小型接入示例。[第一次调用指南](docs/zh-CN/first-call.md)适合试用或向同事演示。
 
 ## 开源协议
 

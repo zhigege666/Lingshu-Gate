@@ -12,6 +12,8 @@ which the matching JSON-RPC response is extracted.
 
 from __future__ import annotations
 
+from lingshu_gate.telemetry import trace_headers
+
 import json
 import logging
 import threading
@@ -378,10 +380,13 @@ class StreamableHttpMcpClient:
 
     def _http_headers(self, protocol_headers: dict[str, str]) -> dict[str, str]:
         # 协议头由连接状态生成，不能被配置中的大小写变体覆盖。
-        reserved = {"content-type", "accept", "mcp-session-id", "mcp-protocol-version", "mcp-method", "mcp-name"}
+        reserved = {"content-type", "accept", "mcp-session-id", "mcp-protocol-version", "mcp-method", "mcp-name",
+                    "traceparent", "tracestate", "baggage", "x-correlation-id"}
         headers = {key: value for key, value in self._resolved_headers.items() if key.lower() not in reserved}
         headers.update({"Content-Type": "application/json", "Accept": "application/json, text/event-stream"})
-        headers.update(protocol_headers)
+        headers.update({key: value for key, value in protocol_headers.items()
+                        if key.lower() not in {"traceparent", "tracestate", "baggage", "x-correlation-id"}})
+        headers.update(trace_headers())
         if self.session_id:
             headers["Mcp-Session-Id"] = self.session_id
         return headers

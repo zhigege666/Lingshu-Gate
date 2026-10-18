@@ -1,0 +1,6 @@
+# Opt-in override. Files are supplied by the operator, never by the image.
+services:
+  core:
+    volumes:
+      - /srv/gate/otlp-token:/run/gate/otlp-token:ro
+      - /srv/gate/telemetry-ca.pem:/run/gate/telemetry-ca.pem:ro

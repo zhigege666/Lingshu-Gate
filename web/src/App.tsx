@@ -420,7 +420,7 @@ export default function App() {
             {view === "uploads" && <UploadsPage t={t} />}
             {view === "systemSettings" && <SystemSettingsPage t={t} />}
             {view === "diagnostics" && <DiagnosticsPage diagnostics={diagnostics} t={t} busy={busy} onRefreshDiagnostics={async () => { setDiagnostics(await api.diagnostics()) }} onRunDiagnostics={runDiagnostics} />}
-            {view === "tools" && <ToolsPage locale={locale} tools={tools} servers={servers} loading={!toolsLoaded && !toolsError} error={toolsError} t={t} viewState={toolCatalogView} onViewStateChange={setToolCatalogView} onRefresh={() => void refreshCurrentPage()} onInvoke={async toolId => { if (await navigate("invoke")) setSelectedToolId(toolId) }} />}
+            {view === "tools" && <ToolsPage locale={locale} tools={tools} servers={servers} loading={!toolsLoaded && !toolsError} error={toolsError} t={t} viewState={toolCatalogView} onViewStateChange={setToolCatalogView} canManageArgumentPolicy={user.auth_type !== "disabled" && can("grants.manage")} onRefresh={() => void refreshCurrentPage()} onInvoke={async toolId => { if (await navigate("invoke")) setSelectedToolId(toolId) }} />}
             {view === "invoke" && <InvokePage locale={locale} t={t} tools={tools} servers={servers} toolsLoaded={toolsLoaded} toolsError={toolsError} selectedToolId={selectedToolId} onToolChange={setSelectedToolId} onLeaveStateChange={setLeaveState} onRefresh={refreshCurrentPage} />}
           </Suspense>
         </RouteErrorBoundary>

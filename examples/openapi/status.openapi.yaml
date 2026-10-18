@@ -1,0 +1,19 @@
+openapi: 3.1.0
+info:
+  title: Example status service
+  version: '1'
+paths:
+  /status:
+    get:
+      operationId: readStatus
+      summary: Read the service status
+      responses:
+        '200':
+          description: Current status
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status:
+                    type: string

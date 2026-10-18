@@ -299,11 +299,11 @@ def test_resolved_group_rejections_use_one_physical_not_invoked_audit(gate, inte
     else:
         body["schema_revision"] = "0" * 64
     with pytest.raises(ToolExecutionError):
-        catalog.call("gate_tool_invoke", body, actor, correlation_id="resolved-group-rejection")
+        catalog.call("gate_tool_invoke", body, actor, correlation_id="3" * 32)
     rows = gate["database"].query_all("SELECT * FROM invocation_audits")
     assert len(rows) == 1 and rows[0]["outcome"] == "not_invoked"
     assert rows[0]["tool_id"] == f'mcp.{body["instance_id"]}.inspect'
-    assert rows[0]["correlation_id"] == "resolved-group-rejection"
+    assert rows[0]["correlation_id"] == "3" * 32
     assert "never-record-this-secret" not in rows[0]["payload_json"]
     assert not gate["database"].query_all("SELECT * FROM invocation_payloads")
     assert all(not peer.calls for peer in peers.values())

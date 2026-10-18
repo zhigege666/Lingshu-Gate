@@ -24,7 +24,7 @@ External-provider grants retain their existing provider/local allowlist contract
 
 ## Tool discovery
 
-The Tool discovery column opens a centered editor for that record with On demand and Full tool list radio choices. **New and existing business authorizations default to on-demand**. Each API token, built-in business OAuth grant and external OAuth local grant saves its own mode; management retains fixed tools. On-demand exposes six discovery/invocation/instance-session entries, while direct mode lists currently permitted tools. Both keep the same authority checks.
+The Tool discovery column opens a centered editor for that record with On demand and Full tool list radio choices. **New and existing business authorizations default to on-demand**. Each API token, built-in business OAuth grant and external OAuth local grant saves its own mode; management retains fixed tools. On-demand exposes six default discovery/invocation/instance-session entries, optional authorized pins and the result reader when enabled; direct mode lists currently permitted tools. Both keep the same authority checks.
 
 Client settings now save only the name and endpoint; generated configuration omits `tool_mode`, including when reading old browser preferences. Legacy URL/header mode hints are ignored; only the authorization setting applies. Refresh the client tool cache or reconnect after switching. Owner confirmation, CSRF, revision checks and atomic audit protect changes; unknown outcomes require readback before retrying. This does not edit global rules, MCP client plugin configuration or the host's local-MCP/plugin routing preference.
 
@@ -45,3 +45,7 @@ The API-token creation/editor directory currently supports a complete candidate 
 The Console follows the [UI interaction contract](ui-interaction-contract.md): compact tables, left labels/right controls, accessible mode radios, no repeated page introductions, and contextual errors or requested help. A source read failure is not displayed as an empty complete list.
 
 Gate reevaluates subsequent requests and rechecks queued calls before dispatch. It does not push a replacement tool list or broaden client OAuth authorization. Clients may cache their directory and need a refresh. Actual provider/ChatGPT connection behavior, cache refresh, deployment and production capacity require separate acceptance; source and synthetic tests do not establish those outcomes.
+
+## Saved discovery preferences
+
+The discovery editor also manages up to 20 pins and an optional plain-text result budget. Mode, pins and budget share one reviewed revision and atomic save. Switching mode preserves other draft fields; unavailable discovery is an error, not an empty selection. Refresh after a conflict before confirming again. Preferences preserve the credential's scope and expiry. See [pinned tools and result budgets](on-demand-tools.md#pinned-tools-and-result-budgets) for limits and group-session requirements.

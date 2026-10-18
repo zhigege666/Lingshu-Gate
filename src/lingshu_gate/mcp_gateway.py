@@ -2,6 +2,9 @@
 
 from __future__ import annotations
 
+from lingshu_gate.telemetry_http import request_correlation
+from lingshu_gate.telemetry import exception_outcome, invocation_entry, protocol_outcome
+
 import json
 from collections.abc import Callable
 from typing import Any
@@ -25,6 +28,8 @@ from lingshu_gate.protocol.tool_namespace import (
 )
 from lingshu_gate.registry import ToolExecutionError, ToolNotFoundError, ToolRegistry
 from lingshu_gate.tool_catalog import CATALOG_TOOL_NAMES, ToolCatalog, catalog_tools
+from lingshu_gate.pinned_tools import project_pins
+from lingshu_gate.result_budget import RESULT_TOOL, ResultCache, ResultRead, ResultTarget, result_read_tool
 from lingshu_gate.transports.http import (
     HttpProtocolContext,
     HttpProtocolValidationError,
@@ -57,10 +62,12 @@ def register_mcp_gateway_route(
     path: str = "/mcp",
     metadata_path: str | None = None,
     catalog: ToolCatalog | None = None,
+    result_cache: ResultCache | None = None,
 ) -> None:
     """注册聚合 MCP 网关；发现与调用都复用统一访问策略。"""
 
     capability_policy = GatewayCapabilityPolicy()
+    result_cache = result_cache or ResultCache(registry, access_store, catalog)
     allowed_origins = resolve_allowed_origins(
         settings.mcp_allowed_origins,
         settings.port,
@@ -135,12 +142,15 @@ def register_mcp_gateway_route(
         from lingshu_gate.authorization_discovery import discovery_setting, principal_authorization
 
         authorization = principal_authorization(principal) if path == "/mcp" else None
-        def saved_mode(actor: AuthPrincipal) -> str:
+        def saved_preferences(actor: AuthPrincipal) -> dict[str, Any]:
             key = principal_authorization(actor)
             if key is None or key != authorization:
                 raise AccessDeniedError("authorization changed", required_access="invoke", granted_access="none")
             with access_store.database.session() as connection:
-                return str(discovery_setting(connection, *key)["tool_discovery_mode"])
+                return discovery_setting(connection, *key)
+
+        def saved_mode(actor: AuthPrincipal) -> str:
+            return str(saved_preferences(actor)["tool_discovery_mode"])
 
         # 每条业务授权决定工具呈现；旧客户端参数与请求头（含重复、冲突或未知值）均忽略。
         # Console 会话与管理资源沿用其既有请求级校验合同。
@@ -159,35 +169,80 @@ def register_mcp_gateway_route(
                 raise AccessDeniedError("discovery mode changed before dispatch", required_access="invoke", granted_access="none")
             return current
 
+        preferences: dict[str, Any] = saved_preferences(principal) if authorization else {"tool_discovery_mode": mode, "pinned_tools": [], "result_budget": {"enabled": False}}
+        budget_enabled = bool(authorization and preferences["result_budget"]["enabled"])
+        call_params = message.get("params")
+        if method == "tools/call" and isinstance(call_params, dict) and call_params.get("name") == RESULT_TOOL and path == "/mcp":
+            try:
+                if not budget_enabled:
+                    raise result_cache.unavailable()
+                query = ResultRead.model_validate(call_params.get("arguments", {}))
+                result = await run_in_threadpool(_read_saved_result, result_cache, request, require_current_mode, query)
+                result = OfficialSdkTypesAdapter.call_tool(result, server_name=SERVER_NAME,
+                    server_version=settings.version, protocol_version=protocol_context.protocol_version)
+                return _result_response(request_id, result, settings, protocol_version=protocol_context.protocol_version)
+            except ValidationError:
+                protocol_outcome("invalid")
+                return _tool_error(request_id, "Invalid saved-result parameters", settings,
+                    structured_content={"error": {"code": "result_parameters_invalid"}}, protocol_context=protocol_context)
+            except ToolExecutionError as exc:
+                protocol_outcome(exception_outcome(exc))
+                return _tool_error(request_id, exc.message, settings,
+                    structured_content={"error": {"code": exc.code}}, protocol_context=protocol_context)
+            except AccessDeniedError:
+                protocol_outcome("denied")
+                return _tool_error(request_id, "The saved result is unavailable", settings,
+                    structured_content={"error": {"code": "result_unavailable"}}, protocol_context=protocol_context)
+
         if mode == "on_demand" and method in {"tools/list", "tools/call"}:
             assert catalog is not None
             try:
                 catalog.check_namespace()
                 if method == "tools/list":
-                    result = OfficialSdkTypesAdapter.list_tools(catalog_tools(), server_name=SERVER_NAME,
+                    pins = await run_in_threadpool(project_pins, catalog, principal, preferences)
+                    tools = [*catalog_tools(), *(pin.payload for pin in pins), *([result_read_tool()] if budget_enabled else [])]
+                    result = OfficialSdkTypesAdapter.list_tools(tools, server_name=SERVER_NAME,
                         server_version=settings.version, protocol_version=protocol_context.protocol_version)
                     return _result_response(request_id, result, settings, protocol_version=protocol_context.protocol_version)
                 params = message.get("params")
-                if (not isinstance(params, dict) or params.get("name") not in CATALOG_TOOL_NAMES
+                if (not isinstance(params, dict) or not isinstance(params.get("name"), str)
+                        or params["name"] not in CATALOG_TOOL_NAMES and not params["name"].startswith("gate_pinned_")
                         or not isinstance(params.get("arguments", {}), dict)):
                     return _error_response(request_id, -32602, "Select a catalog entry with object arguments", settings,
                         status_code=400, protocol_version=protocol_context.protocol_version)
-                invocation = await run_in_threadpool(_call_catalog_authenticated, catalog, request,
-                    require_current_mode, params["name"], params.get("arguments", {}))
+                target = None
+                business = params["name"] == "gate_tool_invoke" or params["name"] not in CATALOG_TOOL_NAMES
+                if params["name"] in CATALOG_TOOL_NAMES:
+                    if budget_enabled and business:
+                        from lingshu_gate.tool_catalog import CatalogInvoke
+
+                        selected = CatalogInvoke.model_validate(params.get("arguments", {}))
+                        target = await run_in_threadpool(result_cache.capture, principal, selected.tool_ref,
+                            instance_id=selected.instance_id, session_id=selected.session_id, revision=selected.schema_revision)
+                    invocation = await run_in_threadpool(_call_catalog_authenticated, catalog, request,
+                        require_current_mode, params["name"], params.get("arguments", {}))
+                else:
+                    invocation, target = await run_in_threadpool(_call_pin_authenticated, catalog, request,
+                        require_current_mode, params["name"], params.get("arguments", {}), result_cache if budget_enabled else None)
             except ValidationError:
+                protocol_outcome("invalid")
                 return _tool_error(request_id, "Invalid catalog parameters", settings,
                     structured_content={"error": {"code": "catalog_parameters_invalid"}}, protocol_context=protocol_context)
             except ToolExecutionError as exc:
+                protocol_outcome(exception_outcome(exc))
                 return _tool_error(request_id, exc.message, settings, structured_content=exc.to_payload(),
                     protocol_context=protocol_context)
             except AccessDeniedError:
+                protocol_outcome("denied")
                 return _tool_error(request_id, "The selected tool is unavailable", settings,
                     structured_content={"error": {"code": "catalog_tool_unavailable"}}, protocol_context=protocol_context)
             if not invocation.ok:
                 return _tool_error(request_id, invocation.error or "Tool invocation failed", settings,
                     structured_content=invocation.output or None, protocol_context=protocol_context)
-            result = (_normalize_tool_result(invocation.output) if params["name"] == "gate_tool_invoke" else
+            result = (_normalize_tool_result(invocation.output) if business else
                       {"content": [], "structuredContent": invocation.output, "isError": False})
+            if budget_enabled and business:
+                result = await run_in_threadpool(_budget_result, result_cache, result, request, require_current_mode, target)
             result = OfficialSdkTypesAdapter.call_tool(result, server_name=SERVER_NAME,
                 server_version=settings.version, protocol_version=protocol_context.protocol_version)
             return _result_response(request_id, result, settings, protocol_version=protocol_context.protocol_version)
@@ -234,6 +289,8 @@ def register_mcp_gateway_route(
                     [entry.definition for entry in namespace.entries],
                 )
                 tools = [item[1] for item in _gateway_tools(registry, definitions, namespace=namespace)]
+                if budget_enabled:
+                    tools.append(result_read_tool())
             except ToolNamespaceCollisionError as exc:
                 return _namespace_collision_response(request_id, exc, settings, protocol_context,
                     disclose_name=await run_in_threadpool(_can_disclose_collision, exc, registry, access_store, principal))
@@ -260,6 +317,7 @@ def register_mcp_gateway_route(
                 protocol_context,
                 request,
                 require_current_mode,
+                result_cache if budget_enabled else None,
             )
         return _error_response(
             request_id,
@@ -281,6 +339,7 @@ async def _call_tool(
     protocol_context: HttpProtocolContext,
     request: Request,
     require_principal: Callable[[Request], AuthPrincipal],
+    result_cache: ResultCache | None = None,
 ) -> JSONResponse:
     if not isinstance(params, dict):
         return _error_response(
@@ -292,6 +351,7 @@ async def _call_tool(
         )
     tool_name = params.get("name")
     if not isinstance(tool_name, str) or not tool_name:
+        protocol_outcome("invalid")
         return _tool_error(
             request_id,
             "Tool name must be a non-empty string",
@@ -327,6 +387,7 @@ async def _call_tool(
         )
 
     try:
+        target = await run_in_threadpool(result_cache.capture, principal, definition.id) if result_cache else None
         invocation = await run_in_threadpool(
             _invoke_authenticated_tool,
             request,
@@ -335,8 +396,10 @@ async def _call_tool(
             registry,
             definition.id,
             arguments,
+            target.revision if target else None,
         )
     except AccessDeniedError as exc:
+        protocol_outcome("denied")
         return _tool_error(
             request_id,
             f"Access denied: {exc.reason}",
@@ -344,6 +407,7 @@ async def _call_tool(
             protocol_context=protocol_context,
         )
     except ToolNotFoundError:
+        protocol_outcome("invalid")
         return _tool_error(
             request_id,
             f"Tool is no longer available: {tool_name}",
@@ -359,6 +423,8 @@ async def _call_tool(
             protocol_context=protocol_context,
         )
     result = _normalize_tool_result(invocation.output)
+    if result_cache:
+        result = await run_in_threadpool(_budget_result, result_cache, result, request, require_principal, target)
     result = OfficialSdkTypesAdapter.call_tool(
         result,
         server_name=SERVER_NAME,
@@ -375,7 +441,7 @@ async def _call_tool(
 
 def _invoke_authenticated_tool(request: Request, require_principal: Callable[[Request], AuthPrincipal],
                                access_store: AccessControlStore, registry: ToolRegistry,
-                               tool_id: str, arguments: dict[str, Any]) -> ToolInvokeResponse:
+                               tool_id: str, arguments: dict[str, Any], expected_revision: str | None = None) -> ToolInvokeResponse:
     # Re-read the inbound credential in the dispatch thread after body parsing
     # and thread-pool admission. Never use a handshake/session-cached principal.
     principal = require_principal(request)
@@ -389,15 +455,67 @@ def _invoke_authenticated_tool(request: Request, require_principal: Callable[[Re
                 or not access_store.evaluate(current, registry.get_definition(tool_id))["allowed"]):
             raise AccessDeniedError("authorization changed before dispatch", required_access="invoke", granted_access="none")
 
-    return access_store.invoke_tool(registry, principal, tool_id, arguments, dispatch_guard=guard)
+    options: dict[str, Any] = {"dispatch_guard": guard, "correlation_id": request_correlation(request)}
+    if expected_revision is not None:
+        options["expected_definition_revision"] = expected_revision
+    return access_store.invoke_tool(registry, principal, tool_id, arguments, **options)
+
+
+def _read_saved_result(cache: ResultCache, request: Request, require_principal: Callable[[Request], AuthPrincipal],
+                       query: ResultRead) -> dict[str, Any]:
+    return cache.read(require_principal(request), request.headers.get("authorization", ""), query,
+                      refresh_principal=lambda: require_principal(request))
+
+
+def _budget_result(cache: ResultCache, result: dict[str, Any], request: Request,
+                   require_principal: Callable[[Request], AuthPrincipal], target: ResultTarget | None) -> dict[str, Any]:
+    try:
+        return cache.apply(result, require_principal(request), request.headers.get("authorization", ""), target,
+                           refresh_principal=lambda: require_principal(request))
+    except (HTTPException, AccessDeniedError, ToolExecutionError):
+        # The business call already completed. A changed preference/credential must
+        # never create a cache entry or cause the original operation to be replayed.
+        return result
+
+
+def _call_pin_authenticated(catalog: ToolCatalog, request: Request,
+                            require_principal: Callable[[Request], AuthPrincipal], name: str,
+                            arguments: dict[str, Any], cache: ResultCache | None) -> tuple[ToolInvokeResponse, ResultTarget | None]:
+    from lingshu_gate.authorization_discovery import discovery_setting, principal_authorization
+
+    principal = require_principal(request)
+    authorization = principal_authorization(principal)
+    if not authorization:
+        raise ToolExecutionError("catalog_tool_unavailable", "The selected tool is unavailable.")
+    with catalog.database.session() as connection:
+        setting = discovery_setting(connection, *authorization)
+    pin = next((item for item in project_pins(catalog, principal, setting) if item.payload["name"] == name), None)
+    if pin is None:
+        raise ToolExecutionError("catalog_tool_unavailable", "The selected tool is unavailable.")
+    selected = pin.invocation(arguments)
+
+    def refresh() -> AuthPrincipal:
+        current = require_principal(request)
+        with catalog.database.session() as connection:
+            latest = discovery_setting(connection, *authorization)
+        if latest["discovery_revision"] != setting["discovery_revision"] or {"kind": pin.kind, "tool_ref": pin.tool_ref} not in latest["pinned_tools"]:
+            raise ToolExecutionError("catalog_tool_unavailable", "The selected tool is unavailable.")
+        return current
+
+    target = cache.capture(principal, selected.tool_ref, instance_id=selected.instance_id,
+                           session_id=selected.session_id, revision=selected.schema_revision) if cache else None
+    with invocation_entry("pin"):
+        return (catalog.invoke(principal, selected, refresh_principal=refresh,
+                               correlation_id=request_correlation(request)), target)
 
 
 def _call_catalog_authenticated(catalog: ToolCatalog, request: Request,
                                 require_principal: Callable[[Request], AuthPrincipal],
                                 name: str, arguments: dict[str, Any]) -> ToolInvokeResponse:
-    return catalog.call(name, arguments, require_principal(request),
-        refresh_principal=lambda: require_principal(request),
-        correlation_id=request.headers.get("x-correlation-id"))
+    with invocation_entry("catalog"):
+        return catalog.call(name, arguments, require_principal(request),
+            refresh_principal=lambda: require_principal(request),
+            correlation_id=request_correlation(request))
 
 
 def _gateway_tools(
@@ -466,7 +584,9 @@ def _tool_error(
     *,
     structured_content: dict[str, Any] | None = None,
     protocol_context: HttpProtocolContext | None = None,
+    outcome: str = "error",
 ) -> JSONResponse:
+    protocol_outcome(outcome)
     result: dict[str, Any] = {
         "content": [{"type": "text", "text": message}],
         "isError": True,
@@ -495,6 +615,8 @@ def _result_response(
     *,
     protocol_version: str | None = None,
 ) -> JSONResponse:
+    if result.get("isError") is True:
+        protocol_outcome("error")
     return JSONResponse(
         {"jsonrpc": JSONRPC_VERSION, "id": request_id, "result": result},
         headers={"MCP-Protocol-Version": protocol_version or MCP_PROTOCOL_VERSION},
@@ -511,6 +633,7 @@ def _error_response(
     status_code: int = 200,
     protocol_version: str | None = None,
 ) -> JSONResponse:
+    protocol_outcome("invalid" if code in {-32700, -32600, -32601, -32602} else "error")
     headers = (
         {"MCP-Protocol-Version": protocol_version or MCP_PROTOCOL_VERSION}
         if settings

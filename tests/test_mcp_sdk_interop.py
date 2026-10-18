@@ -45,7 +45,7 @@ class _AccessStore:
         principal: AuthPrincipal,
         tool_id: str,
         arguments: dict[str, object],
-        *, dispatch_guard=None,
+        *, dispatch_guard=None, correlation_id=None,
     ):
         del principal
         if dispatch_guard is not None:

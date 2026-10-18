@@ -3,7 +3,7 @@
 
 from pathlib import Path
 
-from PyInstaller.utils.hooks import collect_data_files, collect_submodules
+from PyInstaller.utils.hooks import collect_data_files, collect_submodules, copy_metadata
 
 repository_root = Path(SPECPATH).parent
 source_root = repository_root / "src"
@@ -11,6 +11,13 @@ source_root = repository_root / "src"
 datas = collect_data_files("lingshu_gate", include_py_files=False)
 datas.append((str(source_root / "lingshu_gate" / "adapters" / "native_executor" / "runner.py"), "lingshu_gate/adapters/native_executor"))
 hiddenimports = sorted(set(collect_submodules("lingshu_gate")))
+for distribution in ("opentelemetry-api", "opentelemetry-sdk", "opentelemetry-exporter-otlp-proto-http"):
+    datas += copy_metadata(distribution)
+for module in ("opentelemetry.exporter.otlp.proto.http.trace_exporter", "opentelemetry.proto.collector.trace",
+               "opentelemetry.proto.trace", "opentelemetry.proto.common", "opentelemetry.proto.resource"):
+    hiddenimports += collect_submodules(module)
+hiddenimports = sorted(set(hiddenimports))
+hiddenimports.append("opentelemetry.context.contextvars_context")
 
 analysis = Analysis(
     [str(repository_root / "packaging" / "pyinstaller_entry.py")],

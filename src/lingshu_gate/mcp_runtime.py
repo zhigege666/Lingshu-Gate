@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from lingshu_gate.telemetry import execution, mark_execution_started, phase, queue_lock, response_outcome
+
 import copy
 import hashlib
 import json
@@ -72,6 +74,25 @@ def _parse_dt(value: str | None) -> datetime | None:
     except ValueError:
         return None
 
+
+
+def _guarded_tool_call(client: Any, tool_name: str, arguments: dict[str, Any], *, transport: str,
+                       retry: bool = False, dispatch_guard: Callable[[], None] | None = None,
+                       arguments_guard: Callable[[dict[str, Any]], None] | None = None,
+                       dispatch_started: Callable[[], None] | None = None) -> dict[str, Any]:
+    # Prepare the span before the final authority/policy guard. Only local
+    # bookkeeping is allowed between that guard and the actual client handoff.
+    with execution(transport, retry=retry) as observed:
+        if dispatch_guard is not None:
+            dispatch_guard()
+        if arguments_guard is not None:
+            arguments_guard(arguments)
+        if dispatch_started is not None:
+            dispatch_started()
+        mark_execution_started()
+        result: dict[str, Any] = client.call_tool(tool_name, arguments)
+        observed.outcome = response_outcome(result)
+        return result
 
 class McpServerState(StrEnum):
     LOADED = "loaded"
@@ -1329,27 +1350,32 @@ class McpRuntimeManager:
     def invoke_mcp_tool(
         self, server_id: str, tool_name: str, arguments: dict[str, Any], *, retry_read_only: bool = False,
         dispatch_guard: Callable[[], None] | None = None,
+        arguments_guard: Callable[[dict[str, Any]], None] | None = None,
+        dispatch_started: Callable[[], None] | None = None,
     ) -> dict[str, Any]:
         runtime = self._get_runtime(server_id)
-        with runtime.lock:
+        with queue_lock(runtime.lock):
             if runtime.state != McpServerState.RUNNING or not runtime.client:
                 raise RuntimeError(f"MCP server is not running: {server_id} ({runtime.state.value})")
             try:
-                if dispatch_guard is not None:
-                    dispatch_guard()
-                return runtime.client.call_tool(tool_name, arguments)
+                return _guarded_tool_call(runtime.client, tool_name, arguments, transport=runtime.manifest.transport.type,
+                    dispatch_guard=dispatch_guard, arguments_guard=arguments_guard, dispatch_started=dispatch_started)
             except McpSessionExpiredError:
                 if runtime.manifest.launch.type != "external":
                     raise
                 return self._recover_expired_session_locked(
                     server_id, runtime, tool_name, arguments, retry_read_only=retry_read_only,
                     dispatch_guard=dispatch_guard,
+                    arguments_guard=arguments_guard,
+                    dispatch_started=dispatch_started,
                 )
 
     def _recover_expired_session_locked(
         self, server_id: str, runtime: McpServerRuntime, tool_name: str,
         arguments: dict[str, Any], *, retry_read_only: bool,
         dispatch_guard: Callable[[], None] | None = None,
+        arguments_guard: Callable[[dict[str, Any]], None] | None = None,
+        dispatch_started: Callable[[], None] | None = None,
     ) -> dict[str, Any]:
         """持有服务锁，只重连一次；写调用与变更后的工具定义不重放。"""
         client = runtime.client
@@ -1363,8 +1389,9 @@ class McpRuntimeManager:
         try:
             # 客户端已经清除了失效的 session id；初始化继续使用原凭据和协议配置。
             runtime.advance_connection_generation()
-            client.start()
-            tools = client.list_tools()
+            with phase("retry"):
+                client.start()
+                tools = client.list_tools()
             records = self._mcp_tool_records(runtime, tools, strict=True)
             self.registry.replace_by_metadata("server_id", server_id, records, source="mcp")
             runtime.tools = tools
@@ -1396,9 +1423,8 @@ class McpRuntimeManager:
                 next_action="Check the original operation result before invoking again.",
             )
         try:
-            if dispatch_guard is not None:
-                dispatch_guard()
-            return client.call_tool(tool_name, arguments)
+            return _guarded_tool_call(client, tool_name, arguments, transport=runtime.manifest.transport.type, retry=True,
+                dispatch_guard=dispatch_guard, arguments_guard=arguments_guard, dispatch_started=dispatch_started)
         except McpSessionExpiredError as exc:
             # 新会话仍失效时到此停止，避免递归重连或无限重试。
             self._fail_session_recovery_locked(server_id, runtime)
@@ -1450,6 +1476,8 @@ class McpRuntimeManager:
         user_id: str, retry_read_only: bool = False,
         audit_snapshot: Callable[[dict[str, Any]], None] | None = None,
         dispatch_guard: Callable[[], None] | None = None,
+        arguments_guard: Callable[[dict[str, Any]], None] | None = None,
+        dispatch_started: Callable[[], None] | None = None,
     ) -> dict[str, Any]:
         # Secrets stay local to this invocation and are never handed to audit storage.
         secrets: list[str] = []
@@ -1459,6 +1487,8 @@ class McpRuntimeManager:
                 retry_read_only=retry_read_only,
                 audit_secrets=secrets if audit_snapshot is not None else None,
                 dispatch_guard=dispatch_guard,
+                arguments_guard=arguments_guard,
+                dispatch_started=dispatch_started,
             )
         except Exception as exc:
             if audit_snapshot is not None and not isinstance(exc, UserCredentialBindingError):
@@ -1482,11 +1512,13 @@ class McpRuntimeManager:
         retry_read_only: bool = False,
         audit_secrets: list[str] | None = None,
         dispatch_guard: Callable[[], None] | None = None,
+        arguments_guard: Callable[[dict[str, Any]], None] | None = None,
+        dispatch_started: Callable[[], None] | None = None,
     ) -> dict[str, Any]:
         """解析用户文件引用，并在需要时使用当前用户自己的下游凭据。"""
 
         runtime = self._get_runtime(server_id)
-        with runtime.lock:
+        with queue_lock(runtime.lock):
             if runtime.state != McpServerState.RUNNING or not runtime.client:
                 raise RuntimeError(f"MCP server is not running: {server_id} ({runtime.state.value})")
             manifest = runtime.manifest
@@ -1516,8 +1548,15 @@ class McpRuntimeManager:
                 raise RuntimeError(f"fileRef resolution failed ({exc.code}): {exc}") from exc
         if not slots:
             try:
+                guards: dict[str, Any] = {}
+                if dispatch_guard is not None:
+                    guards["dispatch_guard"] = dispatch_guard
+                if arguments_guard is not None:
+                    guards["arguments_guard"] = arguments_guard
+                if dispatch_started is not None:
+                    guards["dispatch_started"] = dispatch_started
                 return self.invoke_mcp_tool(server_id, tool_name, prepared_arguments, retry_read_only=retry_read_only,
-                                            **({"dispatch_guard": dispatch_guard} if dispatch_guard is not None else {}))
+                                            **guards)
             finally:
                 # Reconnection can replace/refresh the client's resolved credentials.
                 if audit_secrets is not None and hasattr(runtime.client, "audit_redaction_values"):
@@ -1562,21 +1601,23 @@ class McpRuntimeManager:
         )
         session_started = False
         try:
-            client.start()
+            with phase("prepare"):
+                client.start()
             session_started = True
             if audit_secrets is not None and hasattr(client, "audit_redaction_values"):
                 audit_secrets.extend(client.audit_redaction_values())
             try:
-                if dispatch_guard is not None:
-                    with runtime.lock:
-                        dispatch_guard()
-                        return client.call_tool(tool_name, prepared_arguments)
-                return client.call_tool(tool_name, prepared_arguments)
+                if dispatch_guard is not None or arguments_guard is not None or dispatch_started is not None:
+                    with queue_lock(runtime.lock):
+                        return _guarded_tool_call(client, tool_name, prepared_arguments, transport=manifest.transport.type,
+                            dispatch_guard=dispatch_guard, arguments_guard=arguments_guard, dispatch_started=dispatch_started)
+                return _guarded_tool_call(client, tool_name, prepared_arguments, transport=manifest.transport.type)
             except McpSessionExpiredError:
                 # 用户会话仍使用当前用户凭据，不能借用或覆盖共享客户端与健康状态。
                 try:
-                    client.start()
-                    tools = client.list_tools()
+                    with phase("retry"):
+                        client.start()
+                        tools = client.list_tools()
                 except Exception as exc:
                     raise ToolExecutionError(
                         "mcp_session_reconnect_failed", "User MCP session reconnect failed; the call was not replayed",
@@ -1595,11 +1636,11 @@ class McpRuntimeManager:
                         next_action="Check the original operation result before invoking again.",
                     )
                 try:
-                    if dispatch_guard is not None:
-                        with runtime.lock:
-                            dispatch_guard()
-                            return client.call_tool(tool_name, prepared_arguments)
-                    return client.call_tool(tool_name, prepared_arguments)
+                    if dispatch_guard is not None or arguments_guard is not None or dispatch_started is not None:
+                        with queue_lock(runtime.lock):
+                            return _guarded_tool_call(client, tool_name, prepared_arguments, transport=manifest.transport.type, retry=True,
+                                dispatch_guard=dispatch_guard, arguments_guard=arguments_guard, dispatch_started=dispatch_started)
+                    return _guarded_tool_call(client, tool_name, prepared_arguments, transport=manifest.transport.type, retry=True)
                 except McpSessionExpiredError as exc:
                     raise ToolExecutionError(
                         "mcp_session_reconnect_failed", "The new user MCP session expired during the single read-only retry",

@@ -36,9 +36,13 @@ from lingshu_gate.external_mcp_config_mcp import register_external_mcp_config_to
 from lingshu_gate.interfaces.control_api.external_mcp_config_routes import register_external_mcp_config_routes
 from lingshu_gate.mcp_http_trust import McpHttpTrustStore
 from lingshu_gate.auth import AuthStore
+from lingshu_gate.interfaces.control_api.argument_policy_routes import register_argument_policy_routes
 from lingshu_gate.build_deploy import BuildDeployStore
 from lingshu_gate.build_deploy_routes import register_build_deploy_routes
 from lingshu_gate.config import Settings
+from lingshu_gate.telemetry import TelemetryService
+from lingshu_gate.telemetry_http import TelemetryMiddleware
+from lingshu_gate.interfaces.control_api.telemetry_routes import register_telemetry_routes
 from lingshu_gate.credential_store import CredentialStore
 from lingshu_gate.network_settings import NetworkSettingsStore
 from lingshu_gate.git_import_mcp import GitImportService, register_git_import_tools
@@ -62,6 +66,7 @@ from lingshu_gate.interfaces.control_api.dependencies import (
 from lingshu_gate.logging import configure_logging, log_event
 from lingshu_gate.mcp_config_store import McpConfigStore
 from lingshu_gate.mcp_gateway import register_mcp_gateway_route
+from lingshu_gate.result_budget import ResultCache
 from lingshu_gate.tool_catalog import ToolCatalog
 from lingshu_gate.oauth_candidate_catalog import OAuthCandidateCatalog
 from lingshu_gate.interfaces.control_api.catalog_routes import register_catalog_routes
@@ -100,12 +105,16 @@ def create_app() -> FastAPI:
 
     settings = Settings.from_env()
     configure_logging(settings.log_level)
+    telemetry = TelemetryService(settings.telemetry)
 
     registry = create_registry()
     database = SQLiteDatabase(settings.db_url, settings.data_dir)
     access_store = AccessControlStore(database)
     tool_catalog = ToolCatalog(registry, access_store)
     auth_store = AuthStore(settings, database)
+    from lingshu_gate.application.tool_authority import current_tool_principal
+
+    access_store.refresh_principal = lambda actor: current_tool_principal(auth_store, actor) if auth_store.enabled else actor
     observability_store = ObservabilityStore(database)
     retention_store = RetentionStore(database)
     retention_worker = RetentionWorker(retention_store, enabled=settings.retention_worker_enabled,
@@ -209,7 +218,7 @@ def create_app() -> FastAPI:
     )
 
     @asynccontextmanager
-    async def lifespan(app: FastAPI) -> AsyncIterator[None]:
+    async def application_lifespan(app: FastAPI) -> AsyncIterator[None]:
         startup_failed = False
         startup_state.mark_starting()
         try:
@@ -319,6 +328,15 @@ def create_app() -> FastAPI:
                 "Lingshu Gate shutdown complete",
             )
 
+    @asynccontextmanager
+    async def lifespan(app: FastAPI) -> AsyncIterator[None]:
+        telemetry.start()
+        try:
+            async with application_lifespan(app):
+                yield
+        finally:
+            telemetry.stop()
+
     app = FastAPI(
         title="Lingshu Gate",
         description="A self-hosted MCP gateway, tool registry, and runtime control plane.",
@@ -328,6 +346,7 @@ def create_app() -> FastAPI:
 
     state = app.state
     state.settings = settings
+    state.telemetry = telemetry
     state.registry = registry
     state.database = database
     state.access_store = access_store
@@ -402,6 +421,7 @@ def create_app() -> FastAPI:
         observability_store=observability_store,
         require_viewer=require_authenticated,
     )
+    register_argument_policy_routes(app, auth=auth_store, access=access_store, registry=registry, observability=observability_store)
     register_observability_routes(
         app,
         observability_store=observability_store,
@@ -499,12 +519,15 @@ def create_app() -> FastAPI:
         auth_store.authenticate_mcp_request,
         oauth_boundary=external_oauth_discovery,
         catalog=tool_catalog,
+        result_cache=ResultCache(registry, access_store, tool_catalog),
     )
     register_mcp_gateway_route(
         app, settings, registry, access_store, auth_store.authenticate_mcp_request,
         oauth_boundary=management_oauth_discovery, path="/mcp/manage",
         metadata_path="/.well-known/oauth-protected-resource/mcp/manage",
     )
+    register_telemetry_routes(app, service=telemetry, auth=auth_store, access=access_store)
+    app.add_middleware(TelemetryMiddleware, service=telemetry, routes=app.routes)
     return app
 
 

@@ -560,7 +560,7 @@ def _is_first_party_artifact_path(relative_path: PurePosixPath) -> bool:
         return False
     if any(parts[index : index + 2] == ("_internal", "lingshu_gate") for index in range(len(parts) - 1)):
         return True
-    if parts[0] in {"config", "docs", "scripts"}:
+    if parts[0] in {"config", "docs", "examples", "scripts"} or parts[:2] == (".agents", "skills"):
         return True
     name = parts[-1]
     if len(parts) == 1:
@@ -588,9 +588,16 @@ def _without_artifact_root(relative_path: PurePosixPath, root_name: str | None) 
     return relative_path
 
 
-def _artifact_path_rule_ids(raw_path: PurePosixPath, logical_path: PurePosixPath) -> set[str]:
+def _artifact_path_rule_ids(
+    raw_path: PurePosixPath, logical_path: PurePosixPath, *, is_directory: bool = False
+) -> set[str]:
     if _is_first_party_artifact_path(logical_path):
-        return _matching_path_rules(logical_path.as_posix())
+        rules = _matching_path_rules(logical_path.as_posix())
+        if is_directory and _normalize_path(logical_path) == _normalize_path(_ALLOWED_SKILL_ROOT.parent):
+            # Archive containers include the parent directory itself. It is
+            # not an additional Skill; regular files at this path stay strict.
+            rules.discard("SKILL-004")
+        return rules
     return _matching_path_rules(raw_path.as_posix()) & _ARTIFACT_GLOBAL_PATH_RULE_IDS
 
 
@@ -748,6 +755,15 @@ def _safe_member_path(value: str) -> PurePosixPath | None:
     return member
 
 
+def _scan_artifact_bytes(
+    data: bytes, logical_path: PurePosixPath, location: str, *, strict_text: bool
+) -> list[Violation]:
+    # Use the already validated bundle-relative path for the same narrow source
+    # exceptions. Diagnostics retain the full archive/member or on-disk path.
+    return [Violation(finding.rule_id, location, finding.line)
+            for finding in _scan_bytes(data, logical_path.as_posix(), strict_text=strict_text)]
+
+
 def _scan_zip_bytes(data: bytes, location: str) -> list[Violation]:
     violations: list[Violation] = []
     try:
@@ -764,7 +780,7 @@ def _scan_zip_bytes(data: bytes, location: str) -> list[Violation]:
                 logical_path = _without_artifact_root(member_path, root_name)
                 violations.extend(
                     Violation(rule_id, member_location, 1)
-                    for rule_id in _artifact_path_rule_ids(member_path, logical_path)
+                    for rule_id in _artifact_path_rule_ids(member_path, logical_path, is_directory=member.is_dir())
                 )
                 if member.is_dir():
                     continue
@@ -794,7 +810,8 @@ def _scan_zip_bytes(data: bytes, location: str) -> list[Violation]:
                 if member.file_size > member_limit:
                     violations.append(Violation("ARCHIVE-002", member_location, 1))
                     continue
-                violations.extend(_scan_bytes(archive.read(member), member_location, strict_text=known_text))
+                violations.extend(_scan_artifact_bytes(archive.read(member), logical_path, member_location,
+                                                        strict_text=known_text))
     except (EOFError, OSError, RuntimeError, ValueError, zipfile.BadZipFile, zlib.error):
         violations.append(Violation("ARCHIVE-003", location, 1))
     return violations
@@ -816,7 +833,7 @@ def _scan_tar_bytes(data: bytes, location: str) -> list[Violation]:
                 logical_path = _without_artifact_root(member_path, root_name)
                 violations.extend(
                     Violation(rule_id, member_location, 1)
-                    for rule_id in _artifact_path_rule_ids(member_path, logical_path)
+                    for rule_id in _artifact_path_rule_ids(member_path, logical_path, is_directory=member.isdir())
                 )
                 if member.issym() or member.islnk():
                     if _safe_member_path(member.linkname) is None:
@@ -840,7 +857,8 @@ def _scan_tar_bytes(data: bytes, location: str) -> list[Violation]:
                 if source is None:
                     violations.append(Violation("ARCHIVE-003", member_location, 1))
                     continue
-                violations.extend(_scan_bytes(source.read(), member_location, strict_text=known_text))
+                violations.extend(_scan_artifact_bytes(source.read(), logical_path, member_location,
+                                                        strict_text=known_text))
     except (EOFError, OSError, ValueError, tarfile.TarError):
         violations.append(Violation("ARCHIVE-003", location, 1))
     return violations
@@ -953,7 +971,8 @@ def _scan_artifact_file(
     if _is_archive(relative_path):
         violations.extend(_scan_archive_bytes(data, relative_path, location))
     else:
-        violations.extend(_scan_bytes(data, location, strict_text=_is_known_text_candidate(logical_path)))
+        violations.extend(_scan_artifact_bytes(data, logical_path, location,
+                                                strict_text=_is_known_text_candidate(logical_path)))
     return violations
 
 

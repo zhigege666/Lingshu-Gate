@@ -31,12 +31,14 @@ def test_resolved_physical_rejection_has_exactly_one_not_invoked_audit(catalog, 
             arguments = {"child": arguments}
     request = CatalogInvoke(tool_ref=definition.id, instance_id=instance,
         schema_revision=schema_revision(definition), arguments=arguments)
-    with pytest.raises(ToolExecutionError):
-        service.invoke(actor, request, correlation_id="known-rejection")
+    with pytest.raises(ToolExecutionError) as error:
+        service.invoke(actor, request, correlation_id="11111111-1111-4111-8111-111111111111")
+    if reason == "arguments":
+        assert error.value.code == "catalog_arguments_invalid"
     audits = service.database.query_all("SELECT * FROM invocation_audits")
     assert len(audits) == 1
     assert (audits[0]["tool_id"], audits[0]["server_id"], audits[0]["outcome"], audits[0]["correlation_id"]) == (
-        definition.id, "one", "not_invoked", "known-rejection")
+        definition.id, "one", "not_invoked", "11111111-1111-4111-8111-111111111111")
     assert "never-record-this-secret" not in audits[0]["payload_json"]
     assert not service.database.query_all("SELECT * FROM invocation_payloads")
 
@@ -45,13 +47,36 @@ def test_unknown_ref_uses_hashed_correlation_event_without_raw_reference_or_valu
     service, actor = catalog
     with pytest.raises(ToolExecutionError) as error:
         service.invoke(actor, CatalogInvoke(tool_ref="unknown-private-reference", schema_revision="0" * 64,
-            arguments={"token": "never-record-this-secret"}), correlation_id="unknown-rejection")
+            arguments={"token": "never-record-this-secret"}), correlation_id="2" * 32)
     assert error.value.code == "catalog_tool_unavailable"
     assert not service.database.query_all("SELECT * FROM invocation_audits")
     row = service.database.query_one("SELECT payload_json FROM events WHERE type='gate.catalog.invocation_rejected'")
     payload = json.loads(row[0])
-    assert payload["correlation_id"] == "unknown-rejection" and len(payload["reference_sha256"]) == 64
+    assert payload["correlation_id"] == "2" * 32 and len(payload["reference_sha256"]) == 64
     assert "unknown-private-reference" not in row[0] and "never-record-this-secret" not in row[0]
+
+
+@pytest.mark.parametrize("resolved", [True, False])
+def test_invalid_correlation_cannot_become_a_rejection_audit_payload(catalog, resolved):
+    from lingshu_gate.telemetry import valid_correlation
+
+    service, actor = catalog
+    definition = service.registry.get_definition("mcp.one.read_0")
+    service.database.execute("DELETE FROM mcp_resource_grants")
+    with pytest.raises(ToolExecutionError):
+        service.invoke(actor, CatalogInvoke(
+            tool_ref=definition.id if resolved else "unknown-reference",
+            schema_revision=schema_revision(definition), arguments={}),
+            correlation_id="invalid-correlation-private-canary")
+    if resolved:
+        row = service.database.query_one("SELECT correlation_id,payload_json FROM invocation_audits")
+        correlation, payload = row["correlation_id"], row["payload_json"]
+    else:
+        row = service.database.query_one("SELECT payload_json FROM events WHERE type='gate.catalog.invocation_rejected'")
+        payload = row["payload_json"]
+        correlation = json.loads(payload)["correlation_id"]
+    assert valid_correlation(correlation) == correlation
+    assert "invalid-correlation-private-canary" not in correlation + payload
 
 
 def test_rate_admission_precedes_schema_work_and_serialization(catalog, monkeypatch):

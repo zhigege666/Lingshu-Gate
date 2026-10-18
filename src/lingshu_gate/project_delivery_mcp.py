@@ -22,6 +22,7 @@ from uuid import uuid4
 from pydantic import BaseModel, ConfigDict, Field, ValidationError
 
 from lingshu_gate.application.delivery_drafts import DeliveryDraftStore
+from lingshu_gate.argument_preparation import model_preparer
 from lingshu_gate.node_toolchain import NodeToolchainOverride
 from lingshu_gate.build_deploy import (
     TERMINAL_BUILD_STATUSES,
@@ -44,6 +45,7 @@ from lingshu_gate.registry import (
     ToolExecutionError,
     ToolInvocationContext,
     ToolRegistry,
+    receipt_arguments,
 )
 from lingshu_gate.user_credential_store import UserCredentialStore
 from lingshu_gate.network_settings import require_network_permission
@@ -614,8 +616,10 @@ class ProjectDeliveryMcpService:
         tool_id: str,
         idempotency_key: str,
         arguments: dict[str, Any],
+        *,
+        arguments_are_receipt: bool = False,
     ) -> tuple[str, dict[str, Any] | ToolExecutionError | None]:
-        request_digest = _request_digest(arguments)
+        request_digest = _request_digest(arguments if arguments_are_receipt else receipt_arguments(context, tool_id, arguments))
         operation_id = uuid4().hex
         now = _iso()
         with self.database.connect() as connection:
@@ -779,12 +783,15 @@ class ProjectDeliveryMcpService:
         arguments: dict[str, Any],
         resource_type: str,
         action: IdempotentAction,
+        *,
+        arguments_are_receipt: bool = False,
     ) -> dict[str, Any]:
         operation_id, replay = self._reserve_operation(
             context,
             tool_id,
             idempotency_key,
             arguments,
+            arguments_are_receipt=arguments_are_receipt,
         )
         if isinstance(replay, ToolExecutionError):
             raise replay
@@ -2891,9 +2898,19 @@ def register_project_delivery_tools(
         "gate_server_status": service.server_status,
         "gate_server_refresh_tools": service.server_refresh_tools,
     }
+    models: dict[str, type[BaseModel]] = {
+        "gate_project_upload_begin": UploadBeginInput, "gate_project_upload_chunk": UploadChunkInput,
+        "gate_project_upload_commit": UploadCommitInput, "gate_project_upload_abort": UploadAbortInput,
+        "gate_build_preflight": BuildPreflightInput, "gate_build_plan": BuildPlanInput,
+        "gate_build_create": BuildCreateInput, "gate_build_status": BuildStatusInput, "gate_build_cancel": BuildCancelInput,
+        "gate_deploy_build": DeployBuildInput, "gate_deployment_status": DeploymentStatusInput,
+        "gate_server_start": ServerStartInput, "gate_server_status": ServerStatusInput,
+        "gate_server_refresh_tools": ServerRefreshToolsInput,
+    }
     for definition in PROJECT_DELIVERY_TOOL_DEFINITIONS:
         registry.register(
             definition,
             handlers[definition.id],
             contextual=True,
+            argument_preparer=model_preparer(models[definition.id]),
         )

@@ -1,5 +1,6 @@
 """Thin MCP adapter for the shared external configuration application service."""
 from __future__ import annotations
+from lingshu_gate.argument_preparation import model_preparer
 
 from collections.abc import Callable
 from typing import Any
@@ -43,4 +44,4 @@ def register_external_mcp_config_tools(registry: ToolRegistry, service: External
                                  open_world=name in {"gate_mcp_config_plan", "gate_mcp_config_apply"},
                                  sensitive_inputs=["manifest"])
         definition.metadata["server_id"] = "gate_mcp_configuration"
-        registry.register(definition, _management_handler(handler), contextual=True)
+        registry.register(definition, _management_handler(handler), contextual=True, argument_preparer=model_preparer(model))

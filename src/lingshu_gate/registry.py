@@ -2,18 +2,21 @@
 
 from __future__ import annotations
 
+from lingshu_gate.telemetry import mark_execution_started, observed_builtin, queue_lock, remember_failure
+
 import logging
 import hashlib
 import json
 import re
 import threading
 from collections.abc import Callable, Iterable
-from dataclasses import dataclass
+from dataclasses import dataclass, field, replace as replace_dataclass
 from typing import Any
 
 from lingshu_gate.logging import log_event
 from lingshu_gate.models import ToolDefinition, ToolInvokeResponse
 from lingshu_gate.domain.tool_structure import FrozenToolDefinition, freeze_tool_definition
+from lingshu_gate.argument_preparation import ArgumentPreparer, owned_arguments
 
 ToolHandler = Callable[..., dict[str, Any]]
 CatalogListener = Callable[[dict[str, ToolDefinition | None], frozenset[str]], None]
@@ -66,6 +69,15 @@ class ToolInvocationContext:
     external_expires_at: str | None = None
     external_rate_per_minute: int = 0
     external_concurrency: int = 0
+    receipt_tool_id: str | None = field(default=None, repr=False, compare=False)
+    receipt_arguments_json: str | None = field(default=None, repr=False, compare=False)
+
+
+def receipt_arguments(context: ToolInvocationContext, tool_id: str, fallback: dict[str, Any]) -> dict[str, Any]:
+    """Preserve existing idempotency digests without changing effective inputs."""
+    if context.receipt_tool_id == tool_id and context.receipt_arguments_json is not None:
+        return json.loads(context.receipt_arguments_json)
+    return fallback
 
 
 class ToolExecutionError(RuntimeError):
@@ -104,6 +116,15 @@ class ToolRecord:
     definition: ToolDefinition
     handler: ToolHandler
     contextual: bool = False
+    argument_preparer: ArgumentPreparer | None = None
+
+
+@dataclass(frozen=True)
+class PreparedInvocation:
+    record: ToolRecord = field(repr=False)
+    definition_revision: str
+    arguments: dict[str, Any] = field(repr=False)
+    receipt_arguments_json: str = field(repr=False)
 
 
 @dataclass(frozen=True)
@@ -182,6 +203,7 @@ class ToolRegistry:
         *,
         replace: bool = False,
         contextual: bool = False,
+        argument_preparer: ArgumentPreparer | None = None,
     ) -> None:
         structure = freeze_tool_definition(definition)
         owned = structure.copy_definition()
@@ -193,6 +215,7 @@ class ToolRegistry:
                 definition=owned,
                 handler=handler,
                 contextual=contextual,
+                argument_preparer=argument_preparer,
             )
             self._revision += 1
             self._index_change(previous, current, structure)
@@ -222,7 +245,7 @@ class ToolRegistry:
                     or any(owned.metadata.get(key) != previous.definition.metadata.get(key)
                            for key in ("server_id", "original_tool_name"))):
                 raise ValueError("Tool identity changes require explicit registration with a handler")
-            current = ToolRecord(owned, previous.handler, previous.contextual)
+            current = ToolRecord(owned, previous.handler, previous.contextual, previous.argument_preparer)
             self._revision += 1
             self._index_change(previous, current, structure)
             self._structures[owned.id] = structure
@@ -303,7 +326,7 @@ class ToolRegistry:
                 )
             if definition.id in replacement:
                 raise ValueError(f"Duplicate replacement tool: {definition.id}")
-            replacement[definition.id] = ToolRecord(definition, record.handler, record.contextual)
+            replacement[definition.id] = ToolRecord(definition, record.handler, record.contextual, record.argument_preparer)
             structures[definition.id] = structure
 
         with self._lock:
@@ -393,6 +416,21 @@ class ToolRegistry:
                 raise ToolNotFoundError(tool_id) from exc
         return structure.copy_definition()
 
+    def prepare(self, tool_id: str, arguments: dict[str, Any], *, expected_definition: ToolDefinition | None = None) -> PreparedInvocation:
+        with queue_lock(self._lock):
+            record = self._tools.get(tool_id)
+            if record is None:
+                raise ToolNotFoundError(tool_id)
+            revision = tool_definition_revision(record.definition)
+            if expected_definition is not None and revision != tool_definition_revision(expected_definition):
+                raise ToolDispatchRejectedError("catalog_schema_revision_conflict", "The selected tool definition changed before preparation.")
+        effective = owned_arguments(arguments)
+        raw = json.dumps(effective, ensure_ascii=False, sort_keys=True, separators=(",", ":"), allow_nan=False)
+        if record.argument_preparer is not None:
+            effective = owned_arguments(record.argument_preparer(effective))
+        return PreparedInvocation(record, revision, effective, raw)
+
+    @observed_builtin
     def invoke(
         self,
         tool_id: str,
@@ -401,14 +439,16 @@ class ToolRegistry:
         context: ToolInvocationContext | None = None,
         dispatch_guard: Callable[[], None] | None = None,
         expected_definition: ToolDefinition | None = None,
+        prepared: PreparedInvocation | None = None,
+        arguments_guard: Callable[[dict[str, Any]], None] | None = None,
+        dispatch_started: Callable[[], None] | None = None,
     ) -> ToolInvokeResponse:
         # Only protect snapshot lookup. Handlers can perform long-running I/O and
         # may themselves register tools, so invoking them while holding the registry
         # lock would serialize unrelated traffic and risk lock-order deadlocks.
-        # Credential/database reads precede the registry lock to avoid lock cycles.
-        if dispatch_guard is not None:
-            dispatch_guard()
-        with self._lock:
+        prepared = prepared or self.prepare(tool_id, arguments, expected_definition=expected_definition)
+        arguments = prepared.arguments
+        with queue_lock(self._lock):
             try:
                 record = self._tools[tool_id]
             except KeyError as exc:
@@ -417,6 +457,22 @@ class ToolRegistry:
                     and record.definition.model_dump(mode="json") != expected_definition.model_dump(mode="json")):
                 raise ToolDispatchRejectedError("catalog_schema_revision_conflict",
                     "The selected registry record changed before dispatch.")
+            if record is not prepared.record:
+                raise ToolDispatchRejectedError("catalog_schema_revision_conflict", "The selected executor changed before dispatch.")
+
+        # No database/authority callback runs under the registry lock. Perform
+        # both final guards after queueing, on the same owned values as handler.
+        if dispatch_guard is not None:
+            dispatch_guard()
+        if arguments_guard is not None:
+            arguments_guard(arguments)
+        # A guard may itself publish or await a replacement. Read the current
+        # record without another blocking lock after the final policy check.
+        if self._tools.get(tool_id) is not record:
+            raise ToolDispatchRejectedError("catalog_schema_revision_conflict", "The selected executor changed during dispatch checks.")
+        if context is not None:
+            context = replace_dataclass(context, receipt_tool_id=tool_id,
+                                        receipt_arguments_json=prepared.receipt_arguments_json)
 
         sensitive_inputs = _metadata_fields(record.definition.metadata, "sensitive_input_fields")
         sensitive_outputs = _metadata_fields(record.definition.metadata, "sensitive_output_fields")
@@ -436,8 +492,14 @@ class ToolRegistry:
                         "invocation_context_missing",
                         "Authenticated tool invocation context is required",
                     )
+                if dispatch_started is not None:
+                    dispatch_started()
+                mark_execution_started()
                 output = record.handler(arguments, context)
             else:
+                if dispatch_started is not None:
+                    dispatch_started()
+                mark_execution_started()
                 output = record.handler(arguments)
             log_event(
                 logger,
@@ -450,6 +512,7 @@ class ToolRegistry:
             )
             return ToolInvokeResponse(ok=True, tool_id=tool_id, output=output)
         except ToolExecutionError as exc:
+            remember_failure(exc)
             payload = exc.to_payload()
             log_event(
                 logger,
@@ -462,6 +525,7 @@ class ToolRegistry:
             )
             return ToolInvokeResponse(ok=False, tool_id=tool_id, output=payload, error=exc.message)
         except Exception as exc:  # noqa: BLE001 - tool boundary must normalize errors
+            remember_failure(exc)
             log_event(
                 logger,
                 logging.ERROR,

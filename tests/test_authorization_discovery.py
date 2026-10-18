@@ -175,6 +175,10 @@ def test_on_demand_dispatch_rechecks_mode_after_waiting(browser, gate):
             gate["db"].execute("INSERT INTO authorization_discovery VALUES('api',?,'direct',1)", (token["id"],))
             if dispatch_guard:
                 dispatch_guard()
+            if kwargs.get("arguments_guard"):
+                kwargs["arguments_guard"](arguments)
+            if kwargs.get("dispatch_started"):
+                kwargs["dispatch_started"]()
             calls.append(tool_name)
             return {"content": []}
 

@@ -293,3 +293,9 @@ Control APIs are `/v1/system-settings/network`, its `/profiles` collection, prof
 ## Built-in OAuth configuration
 
 Built-in OAuth is off by default and configured through permission-checked `/v1/auth/oauth/*` APIs or **Connection infrastructure → Gate built-in OAuth**. It has no environment shortcut for enablement. Save fixed HTTPS issuer/resource URLs, explicitly provision an encrypted signing key and static clients, then enable. Client secrets are returned once; signing private keys never leave encrypted storage. API tokens and external IdP verification remain available. See [the built-in OAuth guide](builtin-oauth.md) for scopes, limits and the separate public route allowlist.
+
+## Optional telemetry and separate services
+
+`LINGSHU_GATE_TELEMETRY` accepts strict JSON; absent or empty means both metrics and traces are off. For metrics alone use `{"metrics_enabled":true}`. Tracing requires an explicit complete OTLP/HTTP endpoint, with optional protected token and CA files. Both Compose templates pass the variable through. See [telemetry](telemetry.md).
+
+The [demo](first-call.md), [private connector](private-connector.md) and [OpenAPI adapter](openapi-adapter.md) are separate CLI processes; Core does not start them implicitly. Their local configuration and protected plaintext credential files are independent of Core manifests and its encrypted credential store. `examples/` uses neutral hosts and placeholders.

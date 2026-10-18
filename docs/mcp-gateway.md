@@ -82,9 +82,9 @@ Omitting `transport.protocol_version`, or setting it to `auto`, enables platform
 }
 ```
 
-Gate sends `initialize`, validates the returned version and server information, then sends `notifications/initialized`. The negotiated version must be one of the three supported handshake versions. Subsequent requests use that version and any session ID assigned during initialization. JSON and POST SSE responses are supported. Sessions are scoped to their connection and credentials, never shared between per-user clients. Closing a session sends DELETE, tolerating 404/405 responses. A session-expiry 404 invalidates the connection and fails the current operation without replaying it; reconnect before a later operation.
+Gate sends `initialize`, validates the returned version and server information, then sends `notifications/initialized`. The negotiated version must be one of the three supported handshake versions. Subsequent requests use that version and any session ID assigned during initialization. JSON and POST SSE responses are supported. Sessions are scoped to their connection and credentials, never shared between per-user clients. Closing a session sends DELETE, tolerating 404/405 responses. A session-expiry 404 invalidates the connection. Gate may recover once and retry a published read-only call once only when the contract is unchanged and current authority and argument policy still pass. Writes, grouped calls, changed contracts and failed recovery are not automatically replayed.
 
-Timeouts, HTTP/authentication errors, invalid discovery results, and business-method errors never trigger negotiation or replay. Automatic negotiation does not relaunch a stdio process that exits during discovery; a service requiring initialization before any other message can use an explicitly pinned version. This does not add the older HTTP+SSE transport with separate event and message endpoints, unsolicited server requests, or resumable GET streams. A naming collision anywhere in the registry fails both discovery and calls closed; visibility filtering cannot change tool identities.
+Timeouts, ordinary HTTP/authentication errors, invalid discovery results and business-method errors do not trigger negotiation or replay; the bounded session-expiry recovery above is separate. Automatic negotiation does not relaunch a stdio process that exits during discovery; a service requiring initialization before any other message can use an explicitly pinned version. This does not add the older HTTP+SSE transport with separate event and message endpoints, unsolicited server requests, or resumable GET streams. A naming collision anywhere in the registry fails both discovery and calls closed; visibility filtering cannot change tool identities.
 
 There are two credential layers:
 
@@ -163,3 +163,7 @@ For tools that explicitly declare file-reference support, upload at most the bou
 - A process marked running is not sufficient evidence that tool discovery succeeded.
 
 Use [Operations](operations.md) to correlate server status, logs, events, diagnostics, and invocation audits without enabling payload logging.
+
+## Optional discovery and integration
+
+[Pins and result budgets](on-demand-tools.md) retain the same invocation checks. [Argument policies](argument-policies.md) restrict effective inputs immediately before execution. The [connector](private-connector.md) and [OpenAPI adapter](openapi-adapter.md) expose separately configured HTTP MCP endpoints that must be registered, reviewed, published and authorized in Core. Gate's `/docs` describes its control API; the adapter consumes a separate local upstream OpenAPI document. The [first-call demo](first-call.md) verifies read authorization, a denied write and revocation without a desktop client.

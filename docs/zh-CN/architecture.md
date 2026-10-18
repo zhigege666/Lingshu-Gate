@@ -96,3 +96,7 @@ SQLite 是单 Core 存储边界。多个 Gate 进程不能并发共享同一个�
 ## 扩展规则
 
 新增下游支持使用通用 MCP 传输和 Manifest 模型，使 Gate 核心保持与具体厂商无关。
+
+## 可选集成与观测边界
+
+演示服务、连接器 relay/agent、OpenAPI 适配器是独立命令，在 Core 注册后仍走分类和授权。辅助进程凭据使用受保护本地文件。参数准备器保留原始确认回执并生成有界实际输入，最终派发及允许的重试重新检查当前规则与合同。固定项和缓存读取复用当前身份及权限。Prometheus 与私有 OpenTelemetry provider 均为进程内能力，默认关闭，导出采用有界队列和固定地址。见[参数策略](argument-policies.md)、[发现](on-demand-tools.md)和[观测](telemetry.md)。

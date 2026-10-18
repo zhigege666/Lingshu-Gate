@@ -6,11 +6,13 @@ import argparse
 from pathlib import Path
 
 from scripts.release.common import (
-    REQUIRED_DOCUMENTATION_FILES,
     REQUIRED_LEGAL_FILES,
     REPOSITORY_ROOT,
     build_metadata,
     copy_release_file,
+    copy_release_documentation,
+    copy_package_readmes,
+    _release_source_file,
     create_tar_gz,
     read_version,
     reset_directory,
@@ -34,11 +36,14 @@ def build(output_dir: Path) -> Path:
     stage_root.mkdir()
 
     copy_release_file(REPOSITORY_ROOT / "compose.prod.yaml", stage_root, destination_name="compose.yaml")
-    copy_release_file(
-        REPOSITORY_ROOT / "packaging" / "docker" / "README.md",
-        stage_root,
-        destination_name="DEPLOYMENT.md",
-    )
+    for suffix in ("", ".zh-CN"):
+        deployment_guide = _release_source_file(f"packaging/docker/README{suffix}.md").read_text(encoding="utf-8")
+        (stage_root / f"DEPLOYMENT{suffix}.md").write_text(
+            deployment_guide.replace("](../../", "]("), encoding="utf-8"
+        )
+    copy_release_file(_release_source_file("packaging/docker/compose.quickstart.yaml"), stage_root)
+    quickstart_env = _release_source_file("packaging/docker/.env.quickstart.example").read_text(encoding="utf-8")
+    (stage_root / ".env.quickstart.example").write_text(quickstart_env.replace("@VERSION@", version), encoding="utf-8")
     env_template = (REPOSITORY_ROOT / "packaging" / "docker" / ".env.example").read_text(encoding="utf-8")
     (stage_root / ".env.example").write_text(env_template.replace("@VERSION@", version), encoding="utf-8")
     offline_env_template = (
@@ -47,8 +52,10 @@ def build(output_dir: Path) -> Path:
     for architecture in ("amd64", "arm64"):
         rendered = offline_env_template.replace("@VERSION@", version).replace("@ARCH@", architecture)
         (stage_root / f".env.offline-{architecture}.example").write_text(rendered, encoding="utf-8")
-    for required in (*REQUIRED_LEGAL_FILES, *REQUIRED_DOCUMENTATION_FILES):
+    for required in REQUIRED_LEGAL_FILES:
         copy_release_file(required, stage_root)
+    copy_release_documentation(stage_root)
+    copy_package_readmes(stage_root, package="docker", version=version)
 
     python_components = set(collect_components("lingshu-gate")) - {"lingshu-gate"}
     npm_components, _npm_roots = collect_npm_components()

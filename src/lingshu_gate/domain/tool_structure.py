@@ -22,6 +22,12 @@ def checked_json_size(value: Any, *, max_bytes: int = MAX_SCHEMA_BYTES,
     return _walk_json(value, max_bytes=max_bytes, max_nodes=max_nodes, max_depth=max_depth, freeze=False)[0]
 
 
+def copy_bounded_json(value: Any, *, max_bytes: int, max_nodes: int, max_depth: int) -> Any:
+    """Own a bounded snapshot before exposing any nested input to an executor."""
+    _, frozen = _freeze_json(value, max_bytes=max_bytes, max_nodes=max_nodes, max_depth=max_depth)
+    return _copy_json(frozen)
+
+
 def _walk_json(value: Any, *, max_bytes: int, max_nodes: int, max_depth: int, freeze: bool,
                immutable: bool = False) -> tuple[int, Any]:
     nodes = size = 0

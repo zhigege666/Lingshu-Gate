@@ -11,6 +11,7 @@ from typing import Any, Literal
 from uuid import uuid4
 
 from pydantic import Field
+from lingshu_gate.argument_preparation import model_preparer
 
 from lingshu_gate.build_deploy import LocalExecutionBlocked
 from lingshu_gate.application.delivery_drafts import DeliveryDraftRequest
@@ -357,4 +358,4 @@ def register_git_import_tools(registry: ToolRegistry, service: GitImportService)
         ("gate_project_git_cancel", GitImportCancel, service.cancel, False, True, False),
     ):
         definition = _definition(tool_id, tool_id, "Controlled Git source delivery; requires network.use and a reviewed safe executor", model, permission="read" if read_only else "write", read_only=read_only, destructive=destructive, open_world=open_world, sensitive_inputs=["credential_ref"])
-        registry.register(definition, handler, contextual=True)
+        registry.register(definition, handler, contextual=True, argument_preparer=model_preparer(model))

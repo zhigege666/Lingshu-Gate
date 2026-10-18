@@ -48,6 +48,10 @@ def test_same_api_bearer_lists_and_calls_new_tool_only_after_publication(tokens,
         def invoke_mcp_tool_for_user(self, server_id, tool_name, arguments, *, user_id, dispatch_guard=None, **kwargs):
             if dispatch_guard is not None:
                 dispatch_guard()
+            if kwargs.get("arguments_guard"):
+                kwargs["arguments_guard"](arguments)
+            if kwargs.get("dispatch_started"):
+                kwargs["dispatch_started"]()
             calls.append((server_id, tool_name, user_id))
             return {"content": [{"type": "text", "text": "Synthetic response"}]}
 

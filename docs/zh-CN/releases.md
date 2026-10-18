@@ -4,9 +4,9 @@
 
 Lingshu Gate 发行自动化会生成可直接运行的原生包、Docker Compose 部署包，以及只在 Tag 发行提供的 Core 离线镜像。每个已发布资产都由 `SHA256SUMS` 和仓库 Build Provenance Attestation 覆盖。
 
-当前源码版本为 `0.4.10`。本补丁修复 Stdio 空地址误用 HTTP 校验，并修正发行身份检查：中性化文档/测试辅助命名，固定已审查的历史快照，保留概念图原始来源证明。HTTP 安全、权限、审核及正式发行资产要求不变；不新增数据库迁移。运行时、Python 元数据、CLI 和归档名称统一使用 `src/lingshu_gate/_version.py`。见 [0.4.10 验证与发行门禁](release-validation-0.4.10.md)；包括 v0.4.8/v0.4.9 在内的已有标签保持不变。
+当前源码版本为 `0.5.0`，增加固定发现、可选结果预算、参数策略、独立私网连接器/OpenAPI 辅助进程、默认关闭的标准观测，以及配对首次调用指南。迁移 `0022_tool_preferences`、`0023_tool_argument_policy` 要求升级前一致备份数据库、配置与密钥，旧二进制不会执行新策略。运行时、Python 元数据、CLI 和归档名称统一使用 `src/lingshu_gate/_version.py`。见中英文[发行摘要](../../packaging/release-notes.md)；已有标签保持不可变。
 
-当前源码控制台还包含卡片式工具目录，支持按具体 MCP 部署筛选、展示实际读写要求，并将选中工具带入调用编辑器。工具发现新增当前请求的 `metadata.gate_access` 展示快照，详见[运维指南](operations.md#工具目录)。该变更不新增前端依赖或数据库迁移。
+当前源码控制台还包含卡片式工具目录，支持按具体 MCP 部署筛选、展示实际读写要求，并将选中工具带入调用编辑器。工具发现新增当前请求的 `metadata.gate_access` 展示快照，详见[运维指南](operations.md#工具目录)。新参数策略和发现偏好持久化见升级说明。
 
 ## 源码发布重入校验
 
@@ -14,7 +14,7 @@ Lingshu Gate 发行自动化会生成可直接运行的原生包、Docker Compos
 
 全部资产的 Provenance 校验前置于容器提升、镜像同步、签名与 Release 创建。校验要求仓库、工作流证书身份、精确签名方及源码修订、源码 Tag、托管 Runner 和受信时间戳，见 [GitHub CLI 校验选项](https://cli.github.com/manual/gh_attestation_verify)。已有不可变 Release 使用其原有证明完成校验；其发布 Job 跳过容器提升、Registry 登录、镜像同步、签名、新增证明、Release 创建及稳定版 `latest` 更新。
 
-这些源码变更从已审查的历史恢复工作中提取，未带入固定 v0.4.5 源码覆盖入口，不改变源码版本或已发布 Tag、Release。合成回归测试覆盖正文不匹配、精确资产字节、证明失败和时间戳拒绝，不代表一次新的正式发布。
+这些源码变更从已审查的历史恢复工作中提取，未带入固定 v0.4.5 源码覆盖入口，这些重入校验不修改已发布 Tag、Release。合成回归测试覆盖正文不匹配、精确资产字节、证明失败和时间戳拒绝，不代表一次新的正式发布。
 
 ## 0.3.1 安全与发行恢复
 
@@ -24,7 +24,7 @@ Lingshu Gate 发行自动化会生成可直接运行的原生包、Docker Compos
 
 ## 产物矩阵
 
-待发布源码变更：外部 HTTP 工具调用遇到 MCP 会话过期时，重新握手并发现工具一次。仅已发布为只读且工具定义未变化的调用自动重试一次，其余调用返回可操作的结构化错误；恢复失败会反映在运行状态和健康状态中。本能力由请求触发，不定时探活或重启外部进程，需要部署更新后的源码才生效。
+既有恢复行为：外部 HTTP 工具调用遇到 MCP 会话过期时，重新握手并发现工具一次。仅已发布为只读且工具定义未变化的调用自动重试一次，其余调用返回可操作的结构化错误；恢复失败会反映在运行状态和健康状态中。本能力由请求触发，不定时探活或重启外部进程，需要部署更新后的源码才生效。
 
 | 目标 | 资产 | 构建架构 |
 |---|---|---|
@@ -59,7 +59,8 @@ Console 包含由 `web/package-lock.json` 锁定的 Ant Design 及其图标库�
 - `start.sh` 或 `start.cmd`；
 - `lingshu-gate.env.example`；
 - 空的 `data`、`config/mcp.d` 和 `workspace` 目录；
-- `README.md`、`LICENSE`、`NOTICE` 和 `THIRD_PARTY_NOTICES.md`；
+- 配对 README、更新记录及安全说明，公开 `docs/` 和 `examples/` 目录、中英文发行摘要及 Project Delivery Skill；
+- `LICENSE`、`NOTICE` 和 `THIRD_PARTY_NOTICES.md`；
 - 使用 SPDX 2.3 的 `SBOM.spdx.json`，覆盖捆绑的 Python Runtime 和 Console 生产依赖闭包；
 - `BUILD-INFO.json`，包括版本、Target、Source Revision、规范化构建时间、Builder 版本和文件摘要 Manifest。
 
@@ -77,28 +78,30 @@ Linux：
 
 ```bash
 asset='lingshu-gate-v<version>-linux-x86_64.tar.gz'
-awk -v asset="$asset" '$2 == asset {print}' SHA256SUMS | sha256sum --check -
+awk -v asset="$asset" '$2 == asset {print; n++} END {if (n != 1) exit 1}' SHA256SUMS > SHA256SUMS.selected &&
+sha256sum --check SHA256SUMS.selected
 ```
 
 macOS：
 
 ```bash
 asset='lingshu-gate-v<version>-macos-arm64.tar.gz'
-awk -v asset="$asset" '$2 == asset {print}' SHA256SUMS | shasum --algorithm 256 --check
+awk -v asset="$asset" '$2 == asset {print; n++} END {if (n != 1) exit 1}' SHA256SUMS > SHA256SUMS.selected &&
+shasum --algorithm 256 --check SHA256SUMS.selected
 ```
 
 Windows PowerShell：
 
 ```powershell
 $Asset = "lingshu-gate-v<version>-windows-x86_64.zip"
-$Line = Get-Content SHA256SUMS | Where-Object { $_ -match "  $([Regex]::Escape($Asset))$" }
-if (-not $Line) { throw "Checksum entry not found" }
-$Expected = ($Line -split "\s+")[0].ToLowerInvariant()
+$Lines = @(Get-Content SHA256SUMS | Where-Object { $_ -match "  $([Regex]::Escape($Asset))$" })
+if ($Lines.Count -ne 1) { throw "Expected exactly one checksum entry" }
+$Expected = ($Lines[0] -split "\s+")[0].ToLowerInvariant()
 $Actual = (Get-FileHash -Algorithm SHA256 $Asset).Hash.ToLowerInvariant()
 if ($Actual -ne $Expected) { throw "Checksum mismatch" }
 ```
 
-准确匹配文件名可以避免校验到另一个资产的摘要。条目缺失或不匹配都必须失败。
+准确匹配文件名可以避免校验到另一个资产的摘要。条目缺失、重复或不匹配都必须失败；校验失败时不得继续解压。
 
 作为额外来源校验，使用当前 GitHub CLI：
 
@@ -128,15 +131,24 @@ Set-Location "$Destination\lingshu-gate-v<version>-windows-x86_64"
 .\start.cmd
 ```
 
-打开 <http://127.0.0.1:8000/>，从包内 `data` 目录获取一次性凭据，并立即修改密码。
+打开 <http://127.0.0.1:8000/>，从包内 `data/initial-admin-credentials.json` 读取一次性凭据，登录并立即修改密码。修改后该自动生成文件会被删除，旧会话失效，请用新密码重新登录。先阅读包型专用的 `README.md` 或 `README.zh-CN.md`；完整安装路径见[开始使用](getting-started.md)。
 
 工作流不执行平台 Code Signing 或 macOS Notarization，因此操作系统可能显示信誉提示。请校验 Checksum 和 Attestation，检查发行记录，并遵循组织批准的执行策略；不要关闭系统级保护。
 
 ## Compose 包
 
-校验并解压后：
+校验并解压后，首次本机试用先阅读包内 `README.md` 或 `README.zh-CN.md`。把 `.env.quickstart.example` 复制为 `.env.quickstart`，使用已发布镜像，无须在本机构建：
 
-1. 阅读包内 `DEPLOYMENT.md`；
+```bash
+cp .env.quickstart.example .env.quickstart
+docker compose --env-file .env.quickstart -f compose.quickstart.yaml up -d --no-build --wait --wait-timeout 120
+```
+
+试用只监听本机回环地址，保留登录认证，并为本机 HTTP 使用非 Secure Cookie。初始凭据读取、改密、演示工具和停止步骤都在包内首页。已有数据卷不会被启动命令删除；生产和离线部署使用各自的配置文件。
+
+生产部署按以下步骤配置 HTTPS：
+
+1. 阅读包内 `DEPLOYMENT.md` 或 `DEPLOYMENT.zh-CN.md`；
 2. 把 `.env.example` 复制为 `.env`；
 3. 设置固定 Digest 的 `LINGSHU_GATE_IMAGE`；
 4. 配置 `LINGSHU_GATE_BOOTSTRAP_ADMIN_USERNAME` 和受保护的 `LINGSHU_GATE_BOOTSTRAP_PASSWORD_FILE`；
@@ -221,7 +233,7 @@ Tag 发行还会把已验证的 Core 镜像发布到 `docker.io/<DOCKERHUB_USERN
 
 Docker Hub 版本镜像同步成功后才创建 GitHub Release。已有版本标签的平台内容或 Attestation 描述符不一致时拒绝覆盖。建议在 Docker Hub 可用时配置版本标签不可变，并排除 `latest`，以防止其他客户端覆盖；GitHub Release immutability 不保护 Docker Hub 标签。
 
-Release 附件及 Attestation 验证完成后，只有被 GitHub 标记为最新稳定版的发行才更新 `docker.io/<DOCKERHUB_USERNAME>/lingshu-gate:latest`。预发布版和旧版本重跑不会移动 `latest`。发布 Job 串行执行。若更新 `latest` 失败，已发布的版本和 Release 保留，工作流失败；可重跑以重试验证和同步。GHCR、Docker Hub 和 GitHub Release 之间不是原子事务，失败时可能已有一个仓库的版本镜像发布成功。不要为重试而删除或替换已发布版本标签。
+Release 附件及 Attestation 验证完成后，只有被 GitHub 标记为最新稳定版的发行才更新 `docker.io/<DOCKERHUB_USERNAME>/lingshu-gate:latest`。预发布版和旧版本重跑不会移动 `latest`。发布 Job 串行执行。若更新 `latest` 失败，已发布的版本和 Release 保留，工作流失败。重跑检测到已有不可变 Release 时只验证它，并跳过 `latest` 提升；恢复失败的 `latest` 更新须使用已验证版本 digest，单独审核镜像同步操作。GHCR、Docker Hub 和 GitHub Release 之间不是原子事务，失败时可能已有一个仓库的版本镜像发布成功。不要为重试而删除或替换已发布版本标签。
 
 Docker Hub 镜像包含 BuildKit SBOM/Provenance Manifest。GitHub 附件 Attestation 仍属于 GitHub Release 附件；可选 Cosign 签名仍针对 GHCR Digest，不额外创建 Docker Hub 签名。
 

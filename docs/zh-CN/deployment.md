@@ -14,13 +14,17 @@
 
 所有方式都使用 SQLite，每个数据库只运行一个 Gate 进程。
 
-## Docker Compose 快速开始
+## 已发布 Docker 本机试用
+
+不克隆源码的本机试用，使用已校验的 Compose 归档，按[开始使用](getting-started.md)明确选择 `compose.quickstart.yaml` / `.env.quickstart.example`。试用使用本机 HTTP、认证、独立数据卷和发行镜像，空工作区只读。包内默认 `compose.yaml` 仍用于 HTTPS 生产配置。
+
+## 源码 Docker Compose
 
 在源码仓库中：
 
 ```bash
 mkdir -p runtime/workspace
-docker compose up -d --build core
+docker compose up -d --build --wait --wait-timeout 120 core
 docker compose ps
 curl --fail http://127.0.0.1:8000/readyz
 ```
@@ -37,7 +41,7 @@ docker compose exec core sh -c 'cat /data/initial-admin-credentials.json'
 
 ### Compose 发行包
 
-发行资产 `lingshu-gate-v<version>-docker-compose.tar.gz` 包含针对该部署的 `DEPLOYMENT.md` 和 `.env.example`。校验并解压后：
+发行资产 `lingshu-gate-v<version>-docker-compose.tar.gz` 包含包型专用中英文 README、两个 quickstart 文件和配对的 `DEPLOYMENT.md` / `DEPLOYMENT.zh-CN.md`。生产部署在校验并解压后：
 
 ```bash
 cp .env.example .env
@@ -59,14 +63,16 @@ export LINGSHU_GATE_BOOTSTRAP_PASSWORD_FILE="$PWD/secrets/bootstrap-admin-passwo
 sudo install -d -o 10001 -g 10001 -m 0750 "$LINGSHU_GATE_WORKSPACE_ROOT"
 install -d -m 0700 ./secrets
 python -c 'import secrets; print(secrets.token_urlsafe(32))' > "$LINGSHU_GATE_BOOTSTRAP_PASSWORD_FILE"
-chmod 0600 "$LINGSHU_GATE_BOOTSTRAP_PASSWORD_FILE"
+sudo chown 10001:10001 "$LINGSHU_GATE_BOOTSTRAP_PASSWORD_FILE"
+sudo chmod 0400 "$LINGSHU_GATE_BOOTSTRAP_PASSWORD_FILE"
 
 docker compose -f compose.prod.yaml config --quiet
-docker compose -f compose.prod.yaml up -d
+docker compose -f compose.prod.yaml run --rm --no-deps --entrypoint sh core -c 'test -r /run/secrets/lingshu_gate_bootstrap_admin_password'
+docker compose -f compose.prod.yaml up -d --no-build --wait --wait-timeout 120 core
 curl --fail http://127.0.0.1:8000/readyz
 ```
 
-调整密码文件所有权，让容器 UID `10001` 可以读取，同时不允许 group/world 写入。Rootless 容器引擎和桌面虚拟化使用不同 UID 映射，应在实际服务账户下验证可读性。
+以上所有权步骤适用于 Linux rootful Docker，仅允许 UID `10001` 读取文件。Rootless 容器引擎和桌面虚拟化使用不同 UID 映射，需要采用等效的受保护映射，并在实际服务账户下检查可读性。校验或读取失败时，修复后再启动。登录必须经过配置好的 HTTPS 入口；loopback 就绪探针成功不代表 Secure cookie 能用于 HTTP 登录。
 
 首次登录后修改管理员密码，并轮换 Provisioning Secret。只要 Compose 定义还引用该文件，就必须持续保护它。
 
@@ -174,3 +180,9 @@ SQLite 部署应：
 会话用途迁移仅支持已发布、只有 Console 会话的来源版本。不支持从早期未发布 OAuth 候选直接原地升级：启动新版前须离线使全部旧会话失效，或使用新数据库/匹配的已发布版本数据库。不得把旧候选同意会话保留为 Console；迁移无法推断其来源。
 
 Token/revoke 读取请求体之前先按来源限制入站；只读客户端校验通过后，才消耗已认证操作预算（交换/刷新/撤销全局每分钟 180/300/120，每客户端 30/60/30）。未认证失败不能消耗这些预算。入站/失败来源跟踪有界并会淘汰，因此换 IP、共享代理、连接/请求体洪泛以及审计/存储负载仍需边缘限制。只信任明确转发 IP 来源，并在边缘分别限制端点和认证失败流量；不能把保留操作预算视为可用性保证。
+
+## 0.5.0 升级与可选服务
+
+迁移 `0022_tool_preferences`、`0023_tool_argument_policy` 增加偏好和规则持久化。升级前停止写入者，一致备份数据库、配置和凭据密钥。旧二进制不执行参数策略；回退要求匹配备份并核对之后发生的变更。
+
+原生和 Compose 包包含配对指南及 `examples/`。[首次调用](first-call.md)使用独立演示进程或共享 Core 回环网络的辅助服务。连接器和 OpenAPI 适配器也单独运行。Core 保持无特权、根目录只读、不接触引擎 socket。[标准观测](telemetry.md)默认关闭。

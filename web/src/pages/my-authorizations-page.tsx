@@ -28,6 +28,7 @@ export function MyAuthorizationsPage({ locale, t, initialKind = "all" }: { local
   const [oauthAction, setOauthAction] = useState<OAuthGrantAction>(), [externalAction, setExternalAction] = useState<{ grant?: Grant; action: "edit" | "revoke"; nonce: number }>()
   const [details, setDetails] = useState<AuthorizationRow | null>(null), [guide, setGuide] = useState(false)
   const [discoveryTarget, setDiscoveryTarget] = useState<AuthorizationRow | null>(null)
+  const discoveryTrigger = useRef<HTMLElement | null>(null), discoveryFocusPending = useRef(false)
   const generation = useRef(0), serial = useRef(0)
   const { confirm, confirmDialog } = useConfirm(t)
   const kindLabel = (value: Kind) => ({ api: zh ? "API 令牌" : "API token", builtin: "Gate OAuth", external: zh ? "外部 OAuth" : "External OAuth" })[value]
@@ -43,6 +44,16 @@ export function MyAuthorizationsPage({ locale, t, initialKind = "all" }: { local
     setErrors(nextErrors); setBusy(false)
   }, [zh])
   useEffect(() => { void load(); return () => { generation.current++ } }, [load])
+  const restoreDiscoveryFocus = useCallback(() => {
+    const trigger = discoveryTrigger.current
+    if (!trigger?.isConnected) { discoveryFocusPending.current = false; return }
+    if (trigger.matches(":disabled")) return
+    discoveryFocusPending.current = false
+    trigger.focus({ preventScroll: true })
+  }, [])
+  useEffect(() => {
+    if (!busy && !discoveryTarget && discoveryFocusPending.current) restoreDiscoveryFocus()
+  }, [busy, discoveryTarget, restoreDiscoveryFocus])
   usePageRefresh(load, busy || Boolean(tokenTarget) || creating || Boolean(details) || Boolean(discoveryTarget))
   const rows = useMemo(() => authorizationRows(tokens, builtin, external, zh), [tokens, builtin, external, zh])
   const filtered = rows.filter(row => (kind === "all" || row.kind === kind) && (state === "all" || row.status === state) && (purpose === "all" || row.purpose === purpose) && `${row.name} ${row.id} ${row.identifier}`.toLowerCase().includes(query.toLowerCase()))
@@ -64,7 +75,7 @@ export function MyAuthorizationsPage({ locale, t, initialKind = "all" }: { local
       { title: zh ? "访问范围" : "Access scope", dataIndex: "scope" },
       { title: zh ? "工具发现" : "Tool discovery", render: (_, row) => {
         const mode = "tool_discovery_mode" in row.source && row.source.tool_discovery_mode === "direct" ? "direct" : "on_demand"
-        return row.purpose === "management" ? zh ? "固定管理工具" : "Fixed management tools" : <Button type="link" disabled={busy || row.status !== "active" || Boolean(errors[row.kind])} onClick={() => setDiscoveryTarget(row)}>{discoveryLabel(mode, zh)}</Button>
+        return row.purpose === "management" ? zh ? "固定管理工具" : "Fixed management tools" : <Button type="link" disabled={busy || row.status !== "active" || Boolean(errors[row.kind])} onClick={event => { discoveryTrigger.current = event.currentTarget; discoveryFocusPending.current = false; setDiscoveryTarget(row) }}>{discoveryLabel(mode, zh)}</Button>
       } },
       { title: zh ? "调用配额" : "Call limits", render: (_, row) => row.rate === null ? zh ? "未设置" : "Not set" : <>{row.rate} / min<div>{zh ? "并发" : "Concurrent"} {row.concurrency ?? "—"}</div></> },
       { title: t("status"), render: (_, row) => <Tag color={row.status === "active" ? "green" : undefined}>{stateLabel(row.status)}</Tag> },
@@ -72,7 +83,9 @@ export function MyAuthorizationsPage({ locale, t, initialKind = "all" }: { local
       { title: t("actions"), width: 250, render: (_, row) => <div className="flex flex-wrap gap-2"><Button size="small" disabled={busy} onClick={() => act(row, "view")}>{zh ? "详情" : "Details"}</Button>{row.status === "active" && <><Button size="small" disabled={busy || Boolean(errors[row.kind])} onClick={() => act(row, "edit")}>{zh ? "调整授权" : "Adjust"}</Button><Button size="small" danger disabled={busy || Boolean(errors[row.kind])} onClick={() => act(row, "revoke")}>{zh ? "撤销" : "Revoke"}</Button></>}</div> },
     ]} />
     <TokenAuthorizationDialog target={tokenTarget} create={creating} locale={locale} t={t} onClose={() => { setTokenTarget(null); setCreating(false) }} onSaved={() => void load()} />
-    <DiscoveryModeDialog target={discoveryTarget} locale={locale} t={t} onClose={() => setDiscoveryTarget(null)} onSaved={() => void load()} />
+    <DiscoveryModeDialog target={discoveryTarget} locale={locale} t={t} onClose={() => setDiscoveryTarget(null)} onSaved={() => void load()} onCloseAutoFocus={event => {
+      if (discoveryTrigger.current?.isConnected) { event.preventDefault(); discoveryFocusPending.current = true; restoreDiscoveryFocus() }
+    }} />
     <PageRefreshContext.Provider value={null}><BuiltinOAuthGrants embedded locale={locale} t={t} action={oauthAction} onChanged={() => void load()} />
     <ExternalIdentityGrants embedded locale={locale} t={t} action={externalAction} onChanged={() => void load()} /></PageRefreshContext.Provider>
     <FormDialog open={Boolean(details)} title={zh ? "授权详情" : "Authorization details"} closeLabel={t("close")} onClose={() => setDetails(null)} footer={<Button onClick={() => setDetails(null)}>{t("close")}</Button>}>{details && <div className="space-y-3"><p>{details.name} · {kindLabel(details.kind)}</p><Input readOnly aria-label="ID" value={details.id} /><p>{details.scope}</p>{details.kind === "api" && <><TokenScopeSummary scopes={(details.source as PersonalToken).scopes} locale={locale} /><p>{zh ? "最近使用" : "Last used"}: {(details.source as PersonalToken).last_used_at ? formatDateTime((details.source as PersonalToken).last_used_at!) : zh ? "未提供" : "Not provided"}</p><McpClientSettingsDialog locale={locale} t={t} /></>}</div>}</FormDialog>

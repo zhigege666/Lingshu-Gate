@@ -1,0 +1,14 @@
+id: private-mcp
+name: Private HTTP MCP through relay
+enabled: true
+launch:
+  type: external
+transport:
+  type: streamable_http
+  endpoint: https://relay.example:18882/connector/mcp/private-mcp
+  protocol_version: auto
+  headers:
+    Authorization: 'Bearer ${credential:connector-consumer}'
+timeout_seconds: 40
+startup_policy: gate_start_v1
+auto_start: false
