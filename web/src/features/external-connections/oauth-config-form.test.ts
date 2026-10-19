@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest"
-import { canEnableOAuth, editOAuthIssuer, showOAuthSetupSteps, signingKeyState, suggestedMcpResource, type SigningKeyState } from "./oauth-config-form"
+import { canEnableOAuth, editOAuthIssuer, oauthSetupGuidance, signingKeyState, suggestedMcpResource, type SigningKeyState } from "./oauth-config-form"
 
 describe("OAuth URL suggestions", () => {
   it("derives only empty or previously automatic resource values on issuer edits", () => {
@@ -47,19 +47,28 @@ describe("OAuth signing prerequisites", () => {
   })
 })
 
-describe("OAuth management setup disclosure", () => {
+describe("OAuth first-time setup guidance", () => {
   const saved = { enabled: true, issuer: "https://gate.example.test", resource: "https://gate.example.test/mcp" }
+  const disabled = { ...saved, enabled: false }
   const ready: SigningKeyState = { phase: "ready", count: 1 }
-  it("hides first-time steps only when all saved prerequisites were read", () => {
-    expect(showOAuthSetupSteps(saved, ready, true, [{ enabled: true }])).toBe(false)
-    expect(showOAuthSetupSteps({ ...saved, enabled: false }, ready, true, [{ enabled: true }])).toBe(true)
-    expect(showOAuthSetupSteps(null, ready, true, [{ enabled: true }])).toBe(true)
-    expect(showOAuthSetupSteps({ ...saved, issuer: "" }, ready, true, [{ enabled: true }])).toBe(true)
+  it("offers only the next missing saved prerequisite on a first-time setup", () => {
+    expect(oauthSetupGuidance({ ...disabled, issuer: "", resource: "" }, { phase: "ready", count: 0 }, true, [])).toBe("urls")
+    expect(oauthSetupGuidance(disabled, { phase: "ready", count: 0 }, true, [])).toBe("signing-key")
+    expect(oauthSetupGuidance(disabled, ready, true, [])).toBe("client")
   })
-  it("keeps missing or unknown key/client prerequisites visible", () => {
-    for (const keys of [{ phase: "loading" }, { phase: "error" }, { phase: "ready", count: 0 }] as SigningKeyState[]) expect(showOAuthSetupSteps(saved, keys, true, [{ enabled: true }])).toBe(true)
-    expect(showOAuthSetupSteps(saved, ready, false, [{ enabled: true }])).toBe(true)
-    expect(showOAuthSetupSteps(saved, ready, true, [])).toBe(true)
-    expect(showOAuthSetupSteps(saved, ready, true, [{ enabled: false }])).toBe(true)
+  it("does not turn a deliberately disabled ready service or disabled clients into onboarding", () => {
+    expect(oauthSetupGuidance(disabled, ready, true, [{ enabled: true }])).toBeNull()
+    expect(oauthSetupGuidance(disabled, ready, true, [{ enabled: false }])).toBeNull()
+    expect(oauthSetupGuidance(saved, ready, true, [])).toBeNull()
+    expect(oauthSetupGuidance(saved, { phase: "ready", count: 0 }, true, [])).toBeNull()
+  })
+  it("does not describe unread or failed state as a missing first-time prerequisite", () => {
+    expect(oauthSetupGuidance(null, ready, true, [])).toBeNull()
+    for (const keys of [{ phase: "loading" }, { phase: "error" }] as SigningKeyState[]) {
+      expect(oauthSetupGuidance(disabled, keys, true, [])).toBeNull()
+      expect(oauthSetupGuidance({ ...disabled, issuer: "", resource: "" }, keys, true, [])).toBeNull()
+    }
+    expect(oauthSetupGuidance(disabled, ready, false, [])).toBeNull()
+    expect(oauthSetupGuidance({ ...disabled, issuer: "", resource: "" }, ready, false, [])).toBeNull()
   })
 })

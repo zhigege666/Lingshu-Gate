@@ -40,8 +40,11 @@ for (const [width, height] of [[2048, 1119], [1188, 761], [1366, 768], [390, 844
   mkdirSync(output!, { recursive: true })
   for (const view of ['downstreamCredentials', 'myConnections']) {
     await page.goto(`/console/#/${view}`)
-    if (view === 'myConnections') await page.getByRole('tab', { name: '外部身份提供方', exact: true }).click()
-    const viewport = page.locator('.bounded-list-scroll')
+    if (view === 'myConnections') {
+      await page.getByRole('radiogroup', { name: '授权方式', exact: true }).getByRole('radio', { name: '外部 OAuth', exact: true }).check()
+      await page.getByRole('radiogroup', { name: '授权状态', exact: true }).getByRole('radio', { name: '已关闭', exact: true }).check()
+    }
+    const viewport = page.locator(view === 'myConnections' ? '.my-authorizations-page .ant-table-body' : '.bounded-list-scroll')
     await expect(viewport.locator('tbody tr').first()).toContainText('synthetic')
     measures.push({ view, geometry: await expectUsesSpace(viewport) })
     if (view === 'downstreamCredentials') {
@@ -66,7 +69,7 @@ for (const [width, height] of [[2048, 1119], [1188, 761], [1366, 768], [390, 844
       await expectInViewportAndUnobscured(viewport.locator('tbody tr').first().locator('td').last().getByRole('button').first())
       await viewport.evaluate(el => { el.scrollLeft = 0 })
     }
-    const next = page.getByRole('button', { name: '下一页', exact: true })
+    const next = view === 'myConnections' ? page.locator('.my-authorizations-page .ant-table-pagination .ant-pagination-next') : page.getByRole('button', { name: '下一页', exact: true })
     await expectInViewportAndUnobscured(next)
     await viewport.evaluate(el => { el.scrollTop = el.scrollHeight })
     await expectInViewportAndUnobscured(next)

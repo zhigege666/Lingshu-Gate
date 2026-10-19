@@ -40,6 +40,43 @@
 @layer base {
   :root {
     color-scheme: light;
+    /* Project dimensions. AntD reads the same scale in ConsoleDesignProvider. */
+    --space-1: 4px;
+    --space-2: 8px;
+    --space-3: 12px;
+    --space-4: 16px;
+    --space-5: 20px;
+    --space-6: 24px;
+    --space-8: 32px;
+    --space-10: 40px;
+    --space-12: 48px;
+    --page-padding-inline: var(--space-6);
+    --page-padding-block: var(--space-6);
+    --section-gap: var(--space-6);
+    --panel-gap: var(--space-4);
+    --panel-padding: var(--space-6);
+    --panel-padding-compact: var(--space-4);
+    --field-gap: var(--space-4);
+    --control-gap: var(--space-2);
+    --control-height: 36px;
+    --control-height-sm: 32px;
+    --control-height-lg: 40px;
+    --control-padding-inline: 12px;
+    --button-padding-inline: 16px;
+    --form-label-width: 144px;
+    --field-help-trigger-size: var(--space-6);
+    --field-help-width: 360px;
+    --radius-control: 8px;
+    --radius-panel: 12px;
+    --radius-dialog: 16px;
+    --dialog-edge: 32px;
+    --dialog-width: 640px;
+    --table-cell-padding-inline: 16px;
+    --table-cell-padding-block: 12px;
+    --table-cell-padding-compact: 8px;
+    --table-row-height-compact: calc(var(--control-height-sm) + var(--table-cell-padding-compact) * 2 + 1px);
+    --table-header-height: 48px;
+    --action-primary: 217 76% 46%;
     --background: 220 33% 98%;
     --foreground: 222 47% 11%;
     --card: 0 0% 100%;
@@ -54,18 +91,18 @@
     --muted-foreground: 220 9% 46%;
     --accent: 217 80% 96%;
     --accent-foreground: 217 72% 43%;
-    --destructive: 0 72% 51%;
+    --destructive: 4 76% 40%;
     --destructive-foreground: 0 0% 100%;
-    --success: 142 71% 40%;
+    --success: 142 72% 29%;
     --success-foreground: 0 0% 100%;
-    --warning: 38 92% 46%;
+    --warning: 35 92% 33%;
     --warning-foreground: 0 0% 100%;
     /* Structure stays quieter than editable control boundaries. Keep in sync
        with colorBorderSecondary/colorSplit and colorBorder in the provider. */
     --border: 216 22% 86%;
     --input: 216 16% 54%;
     --ring: 217 91% 60%;
-    --sidebar: 220 25% 97%;
+    --sidebar: 0 0% 100%;
     --sidebar-foreground: 218 37% 17%;
     --sidebar-muted: 215 16% 47%;
     --sidebar-accent: 217 80% 93%;
@@ -91,12 +128,12 @@
     --muted-foreground: 214 25% 69%;
     --accent: 217 45% 19%;
     --accent-foreground: 213 90% 78%;
-    --destructive: 0 63% 46%;
-    --destructive-foreground: 0 0% 100%;
-    --success: 142 65% 45%;
-    --success-foreground: 0 0% 100%;
-    --warning: 38 90% 55%;
-    --warning-foreground: 38 92% 10%;
+    --destructive: 353 96% 82%;
+    --destructive-foreground: 353 65% 15%;
+    --success: 142 69% 58%;
+    --success-foreground: 142 72% 10%;
+    --warning: 45 97% 56%;
+    --warning-foreground: 35 92% 10%;
     --border: 216 24% 33%;
     --input: 215 20% 49%;
     --ring: 217 91% 60%;
@@ -113,6 +150,39 @@
     color: hsl(var(--foreground));
     font-family: "Microsoft YaHei UI", "Microsoft YaHei", "PingFang SC", "Noto Sans CJK SC", "Noto Sans SC", system-ui, sans-serif;
     -webkit-font-smoothing: antialiased;
+    font-size: 14px;
+    line-height: 1.5;
   }
   code, pre, textarea { font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", monospace; }
+}
+
+@layer base {
+  :root:lang(en) { --form-label-width: 160px; }
+  @media (min-width: 2200px) { :root { --page-padding-inline: var(--space-8); --page-padding-block: var(--space-8); } }
+  @media (max-width: 720px) {
+    :root { --page-padding-inline: var(--space-4); --page-padding-block: var(--space-4); --dialog-edge: 16px; --panel-padding: var(--space-4); --form-label-width: 112px; }
+    :root:lang(en) { --form-label-width: 128px; }
+  }
+}
+/* Shared primitives apply to the console and standalone OAuth entry. */
+@layer components {
+  .gate-dialog { width: calc(100vw - var(--dialog-edge) * 2); max-width: var(--dialog-width); max-height: calc(100dvh - var(--dialog-edge) * 2); padding: var(--panel-padding); gap: var(--panel-gap); border-radius: var(--radius-dialog); background: hsl(var(--card)); box-shadow: 0 24px 80px rgb(0 0 0 / .2); }
+  .gate-dialog-body { margin-inline: calc(var(--panel-padding) * -1); padding-inline: var(--panel-padding); scroll-padding-block: var(--space-2); overscroll-behavior: contain; }
+  .gate-form-fields { display: grid; gap: var(--field-gap); min-width: 0; }
+  .gate-form-row { display: grid; grid-template-columns: var(--form-label-width) minmax(0, 1fr); align-items: start; gap: var(--space-1) var(--space-3); min-width: 0; }
+  .gate-form-label { min-width: 0; min-height: var(--control-height); display: flex; align-items: center; flex-wrap: wrap; gap: var(--space-1); font-size: 14px; font-weight: 500; line-height: 1.5; overflow-wrap: anywhere; }
+  .gate-form-control { min-width: 0; display: grid; gap: var(--space-1); }
+  .gate-form-control > :is(.ant-input-number, .ant-select, .ant-picker) { width: 100%; }
+  .gate-form-help { grid-column: 2; margin: 0; font-size: 12px; line-height: 1.5; color: hsl(var(--muted-foreground)); overflow-wrap: anywhere; }
+  .gate-form-control > .gate-form-help { grid-column: auto; }
+  .gate-form-help[role="alert"] { color: hsl(var(--destructive)); }
+  .field-label { display: inline-flex; min-width: 0; min-height: var(--control-height); align-items: center; flex-wrap: nowrap; gap: var(--space-1); }
+  .field-label-text { white-space: nowrap; }
+  .field-help-trigger { display: inline-flex; flex: 0 0 var(--field-help-trigger-size); width: var(--field-help-trigger-size); height: var(--field-help-trigger-size); align-items: center; justify-content: center; border: 0; border-radius: var(--radius-control); padding: 0; background: transparent; color: hsl(var(--muted-foreground)); cursor: pointer; vertical-align: middle; }
+  .field-help-trigger > svg { width: var(--space-4); height: var(--space-4); pointer-events: none; }
+  .field-help-trigger:hover, .field-help-trigger[aria-expanded="true"] { background: hsl(var(--accent)); color: hsl(var(--accent-foreground)); }
+  .field-help-trigger:focus-visible { outline: 2px solid hsl(var(--ring)); outline-offset: 2px; }
+  .field-help-popup { max-width: min(calc(var(--field-help-width) + var(--space-6)), calc(100vw - var(--dialog-edge) * 2 - var(--space-4))); }
+  .field-help-content { max-width: min(var(--field-help-width), calc(100vw - var(--dialog-edge) * 2 - var(--space-10))); max-height: min(var(--field-help-width), 60dvh); overflow-y: auto; overflow-wrap: anywhere; white-space: normal; font-size: 14px; line-height: 1.5; }
+  .field-help-content > * + * { margin-top: var(--space-2); }
 }

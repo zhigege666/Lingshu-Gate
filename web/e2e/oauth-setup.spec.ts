@@ -11,9 +11,16 @@ const initialConfig = { enabled: false, issuer: "https://gate.example.test", res
   metadata_url: "https://gate.example.test/.well-known/oauth-authorization-server", authorization_endpoint: "https://gate.example.test/oauth/authorize", token_endpoint: "https://gate.example.test/oauth/token", jwks_uri: "https://gate.example.test/oauth/jwks", signing_keys: [] as unknown }
 const initialClient = { id: "lgc_synthetic_setup", name: "Synthetic setup client", redirect_uris: ["https://client.example.test/callback"], scopes: ["tools.read"], enabled: true, revision: 1, created_at: 1000 }
 type Locale = "en-US" | "zh-CN"
-type Model = { config: typeof initialConfig; reads: number; writes: Record<string, unknown>[]; rotations: number; configFailure: boolean; clientFailure: boolean; afterRotateRead: (() => Promise<void>) | null; client: typeof initialClient }
-async function setup(page: Page, locale: Locale, theme = "light", overrides: Partial<typeof initialConfig> = {}) {
-  const model: Model = { config: { ...initialConfig, ...overrides }, reads: 0, writes: [], rotations: 0, configFailure: false, clientFailure: false, afterRotateRead: null, client: { ...initialClient } }
+type Model = {
+  config: typeof initialConfig; reads: number; clientReads: number; writes: Record<string, unknown>[]; rotations: number;
+  configFailure: boolean; clientsReadFailure: boolean; clientFailure: boolean;
+  afterRotateRead: (() => Promise<void>) | null; holdConfigWrite: (() => Promise<void>) | null;
+  client: typeof initialClient; clients: (typeof initialClient)[];
+  mutations: { path: string; method: string; body: Record<string, unknown> }[];
+}
+async function fixture(page: Page, locale: Locale, theme = "light", overrides: Partial<typeof initialConfig> = {}) {
+  const client = { ...initialClient }
+  const model: Model = { config: { ...initialConfig, ...overrides }, reads: 0, clientReads: 0, writes: [], rotations: 0, configFailure: false, clientsReadFailure: false, clientFailure: false, afterRotateRead: null, holdConfigWrite: null, client, clients: [client], mutations: [] }
   await page.addInitScript(({ locale, theme }) => { localStorage.setItem("lingshu-gate-console-locale", locale); localStorage.setItem("lingshu-gate-console-theme", theme) }, { locale, theme })
   await page.route("**/console/", route => route.fulfill({ contentType: "text/html", body: readFileSync(path.join(assets, "index.html"), "utf8") }))
   await page.route("**/console/assets/**", route => {
@@ -23,6 +30,7 @@ async function setup(page: Page, locale: Locale, theme = "light", overrides: Par
   await page.route("**/healthz", route => route.fulfill({ json: { version: "0.4.1" } }))
   await page.route("**/v1/**", async route => {
     const pathname = new URL(route.request().url()).pathname, method = route.request().method()
+    if (method !== "GET") model.mutations.push({ path: pathname, method, body: route.request().postDataJSON() })
     if (pathname === "/v1/auth/me") return route.fulfill({ json: { id: "synthetic-manager", username: "synthetic-manager", display_name: "Synthetic manager", status: "active", role: "custom", roles: ["custom"], permissions: ["console.view", "external_connections.manage"], auth_type: "session", scopes: [], must_change_password: false } })
     if (pathname === "/v1/auth/oauth/config") {
       if (method === "GET") {
@@ -32,6 +40,7 @@ async function setup(page: Page, locale: Locale, theme = "light", overrides: Par
       }
       if (method === "PUT") {
         const body = route.request().postDataJSON(); model.writes.push(body)
+        if (model.holdConfigWrite) await model.holdConfigWrite()
         if (body.enabled && !Array.isArray(model.config.signing_keys)) return route.fulfill({ status: 409, json: { error: "signing_key_required" } })
         model.config = { ...model.config, issuer: body.issuer, resource: body.resource, enabled: body.enabled, revision: model.config.revision + 1 }
         return route.fulfill({ json: model.config })
@@ -41,21 +50,30 @@ async function setup(page: Page, locale: Locale, theme = "light", overrides: Par
       model.rotations++; model.config = { ...model.config, signing_keys: activeKeys }
       return route.fulfill({ json: model.config })
     }
-    if (pathname === "/v1/auth/oauth/clients") return route.fulfill({ json: { clients: [model.client] } })
+    if (pathname === "/v1/auth/oauth/clients" && method === "GET") {
+      model.clientReads++
+      return route.fulfill(model.clientsReadFailure ? { status: 503, json: { error: "request_failed" } } : { json: { clients: model.clients } })
+    }
+    if (pathname === "/v1/auth/oauth/management/config" && method === "GET") return route.fulfill({ json: { enabled: false, active: false, revision: 0, resource: model.config.resource ? `${model.config.resource}/manage` : "" } })
     if (pathname === `/v1/auth/oauth/clients/${model.client.id}` && method === "PATCH") {
       if (model.clientFailure) return route.fulfill({ status: 409, json: { error: "revision_conflict" } })
       model.client = { ...model.client, ...route.request().postDataJSON(), revision: model.client.revision + 1 }
+      model.clients = model.clients.map(client => client.id === model.client.id ? model.client : client)
       return route.fulfill({ json: { client: model.client } })
     }
     return route.fulfill({ status: 404, json: { error: "unmocked_synthetic_request" } })
   })
+  return model
+}
+async function setup(page: Page, locale: Locale, theme = "light", overrides: Partial<typeof initialConfig> = {}) {
+  const model = await fixture(page, locale, theme, overrides)
   await page.goto("/console/#/connectionInfrastructure")
   await expect(page.locator("#oauth-issuer")).toHaveValue(model.config.issuer)
   await expect(page.getByRole("button", { name: locale === "zh-CN" ? "登记客户端" : "Register client", exact: true })).toBeEnabled()
   return model
 }
 function enableSwitch(page: Page, zh: boolean) { return page.getByRole("switch", { name: zh ? "启用内置 OAuth" : "Enable built-in OAuth", exact: true }) }
-function save(page: Page, zh: boolean) { return page.getByRole("button", { name: zh ? "保存" : "Save", exact: true }) }
+function save(page: Page, zh: boolean) { return page.locator(".oauth-config-panel").getByRole("button", { name: zh ? "保存" : "Save", exact: true }) }
 async function capture(page: Page, name: string, state: string) {
   const directory = process.env.GATE_OAUTH_SCREENSHOT_DIR
   if (!directory) return
@@ -74,11 +92,10 @@ for (const size of sizes) for (const locale of ["en-US", "zh-CN"] as const) for 
     const issuer = page.locator("#oauth-issuer"), resource = page.locator("#oauth-resource"), toggle = enableSwitch(page, zh)
     await expect(toggle).toBeDisabled()
     await expect(resource).toHaveAttribute("placeholder", "https://gate.example.test/mcp")
-    await expect(page.locator(".oauth-setup-steps li")).toHaveCount(4)
-    await expect(page.locator("#oauth-enable-help")).toContainText(zh ? "先保存地址" : "Save URLs")
-    await capture(page, `no-key-${suffix}`, "saved URLs; no key; disabled enable switch; four prerequisite steps")
-    await page.getByRole("button", { name: zh ? "前往生成密钥" : "Go to generate key", exact: true }).click()
-    await expect(page.locator("#oauth-generate-key")).toBeFocused()
+    await expect(page.locator(".oauth-setup-guidance")).toHaveAttribute("data-setup-stage", "signing-key")
+    await expect(page.locator("#oauth-generate-key")).toHaveAccessibleName(zh ? "生成签名密钥" : "Generate signing key")
+    await expect(page.getByRole("button", { name: zh ? "前往生成密钥" : "Go to generate key", exact: true })).toHaveCount(0)
+    await capture(page, `no-key-${suffix}`, "saved URLs; no key; disabled enable switch; next signing prerequisite only")
     expect(model.rotations).toBe(0)
     await issuer.fill("https://next.example.test")
     await expect(resource).toHaveValue(initialConfig.resource)
@@ -106,6 +123,102 @@ for (const size of sizes) for (const locale of ["en-US", "zh-CN"] as const) for 
 
 for (const locale of ["en-US", "zh-CN"] as const) {
   const zh = locale === "zh-CN"
+  test(`OAuth first configuration saves revision zero and advances only saved prerequisites ${locale}`, async ({ page }) => {
+    const model = await fixture(page, locale, "light", { issuer: "", resource: "", revision: 0 })
+    model.clients = []
+    await page.goto("/console/#/connectionInfrastructure")
+    const guidance = page.locator(".oauth-setup-guidance"), panel = page.locator(".oauth-clients-panel")
+    await expect(guidance).toHaveAttribute("data-setup-stage", "urls")
+    await expect(panel.getByText(zh ? "尚未登记客户端。" : "No clients registered.", { exact: true })).toBeVisible()
+    await expect(panel.getByRole("button", { name: zh ? "登记客户端" : "Register client", exact: true })).toHaveCount(1)
+    await expect(page.getByRole("button", { name: zh ? "登记客户端" : "Register client", exact: true })).toHaveCount(1)
+    await expect(panel.getByRole("textbox", { name: zh ? "搜索客户端" : "Search clients", exact: true })).toHaveCount(0)
+    await expect(panel.locator(".ant-table-thead")).toHaveCount(0)
+    await expect(enableSwitch(page, zh)).toBeDisabled()
+    await page.locator("#oauth-issuer").fill("https://first.example.test")
+    await expect(page.locator("#oauth-resource")).toHaveValue("https://first.example.test/mcp")
+    await expect(guidance).toHaveAttribute("data-setup-stage", "urls")
+    expect(model.mutations).toHaveLength(0)
+    await save(page, zh).click()
+    await expect(guidance).toHaveAttribute("data-setup-stage", "signing-key")
+    expect(model.writes).toEqual([{ issuer: "https://first.example.test", resource: "https://first.example.test/mcp", enabled: false, expected_revision: 0 }])
+    expect(model.rotations).toBe(0)
+    await expect(enableSwitch(page, zh)).toBeDisabled()
+  })
+  for (const failedResource of ["config", "clients"] as const) {
+    test(`OAuth initial ${failedResource} read failure retains the independent successful state ${locale}`, async ({ page }) => {
+      const model = await fixture(page, locale, "light", { signing_keys: activeKeys })
+      model.configFailure = failedResource === "config"
+      model.clientsReadFailure = failedResource === "clients"
+      await page.goto("/console/#/connectionInfrastructure")
+      await expect(page.getByRole("alert").first()).toBeVisible()
+      await expect(page.locator(".oauth-setup-guidance")).toHaveCount(0)
+      const clients = page.locator(".oauth-clients-panel")
+      await expect(clients.getByText(zh ? "尚未登记客户端。" : "No clients registered.", { exact: true })).toHaveCount(0)
+      if (failedResource === "config") {
+        await expect(clients.getByRole("button", { name: initialClient.name, exact: true })).toBeVisible()
+        await expect(page.locator("#oauth-issuer")).toBeDisabled()
+        await expect(page.locator("#oauth-resource")).toBeDisabled()
+        await expect(save(page, zh)).toBeDisabled()
+        await expect(enableSwitch(page, zh)).toBeDisabled()
+      } else {
+        await expect(page.locator("#oauth-issuer")).toHaveValue(initialConfig.issuer)
+        await expect(page.locator("#oauth-resource")).toHaveValue(initialConfig.resource)
+        await expect(page.locator("#oauth-issuer")).toBeEnabled()
+      }
+      expect(model.mutations).toHaveLength(0)
+      const reads = model.reads, clientReads = model.clientReads
+      model.configFailure = false; model.clientsReadFailure = false
+      const retryLabel = failedResource === "config" ? zh ? "重试读取 OAuth 配置" : "Retry loading OAuth configuration" : zh ? "重试读取客户端" : "Retry loading clients"
+      await page.getByRole("button", { name: retryLabel, exact: true }).click()
+      await expect(page.locator("#oauth-issuer")).toHaveValue(initialConfig.issuer)
+      await expect(clients.getByRole("button", { name: initialClient.name, exact: true })).toBeVisible()
+      await expect(page.getByRole("alert")).toHaveCount(0)
+      await expect(enableSwitch(page, zh)).toBeEnabled()
+      expect(failedResource === "config" ? model.reads : model.clientReads).toBeGreaterThan(failedResource === "config" ? reads : clientReads)
+      expect(model.mutations).toHaveLength(0)
+    })
+  }
+  test(`OAuth configuration dirty and pending states retain manual URLs and prevent duplicate writes ${locale}`, async ({ page }) => {
+    const model = await setup(page, locale, "light", { signing_keys: activeKeys })
+    const resource = page.locator("#oauth-resource")
+    const otherMode = page.getByRole("tab", { name: zh ? "外部身份提供方" : "External identity provider", exact: true })
+    const refresh = page.locator(".oauth-infrastructure").getByRole("button", { name: zh ? "刷新" : "Refresh", exact: true })
+    await expect(page.locator(".oauth-setup-guidance")).toHaveCount(0)
+    await resource.fill("https://manual-draft.example.test/mcp")
+    await expect(refresh).toBeDisabled()
+    const reads = model.reads
+    await otherMode.click()
+    const discard = page.getByRole("alertdialog", { name: zh ? "放弃修改并切换授权模式？" : "Discard edits and switch authorization mode?", exact: true })
+    await discard.getByRole("button", { name: zh ? "取消" : "Cancel", exact: true }).click()
+    await expect(resource).toHaveValue("https://manual-draft.example.test/mcp")
+    expect(model.reads).toBe(reads)
+    expect(model.mutations).toHaveLength(0)
+    await page.getByRole("button", { name: zh ? "放弃配置修改" : "Discard configuration edits", exact: true }).click()
+    await expect(resource).toHaveValue(initialConfig.resource)
+    await expect(refresh).toBeEnabled()
+    await resource.fill("https://manual-draft.example.test/mcp")
+    let release!: () => void
+    const held = new Promise<void>(resolve => { release = resolve })
+    model.holdConfigWrite = () => held
+    try {
+      await save(page, zh).dblclick()
+      await expect.poll(() => model.writes.length).toBe(1)
+      await expect(save(page, zh)).toHaveAttribute("aria-busy", "true")
+      await expect(resource).toBeDisabled()
+      await expect(refresh).toBeDisabled()
+      await expect(otherMode).toBeDisabled()
+      await page.keyboard.press("Escape")
+      await expect(resource).toHaveValue("https://manual-draft.example.test/mcp")
+      expect(model.writes).toEqual([{ issuer: initialConfig.issuer, resource: "https://manual-draft.example.test/mcp", enabled: false, expected_revision: 1 }])
+    } finally { release() }
+    await expect(save(page, zh)).toHaveAttribute("aria-busy", "false")
+    await expect(save(page, zh)).toBeDisabled()
+    await expect(otherMode).toBeEnabled()
+    await expect(refresh).toBeEnabled()
+    await expect(resource).toHaveValue("https://manual-draft.example.test/mcp")
+    expect(model.writes).toHaveLength(1)
+  })
   test(`OAuth key generation needs confirmation and a fresh successful read ${locale} @permissions`, async ({ page }) => {
     const model = await setup(page, locale)
     let releaseRead!: () => void
@@ -123,6 +236,7 @@ for (const locale of ["en-US", "zh-CN"] as const) {
     await expect.poll(() => model.reads).toBeGreaterThanOrEqual(2)
     releaseRead()
     await expect(enableSwitch(page, zh)).toBeEnabled()
+    await expect(page.locator("#oauth-generate-key")).toHaveAccessibleName(zh ? "轮换签名密钥" : "Rotate signing key")
     await enableSwitch(page, zh).click()
     expect(model.writes).toHaveLength(0)
     await save(page, zh).click()
@@ -141,6 +255,8 @@ for (const locale of ["en-US", "zh-CN"] as const) {
     await page.getByRole("alertdialog").getByRole("button", { name: zh ? "生成密钥" : "Generate key", exact: true }).click()
     await expect(page.getByRole("button", { name: zh ? "重试密钥状态" : "Retry key status", exact: true })).toBeEnabled()
     await expect(enableSwitch(page, zh)).toBeDisabled()
+    await expect(page.locator("#oauth-generate-key")).toHaveCount(0)
+    await expect(page.locator(".oauth-setup-guidance")).toHaveCount(0)
     expect(model.rotations).toBe(1)
     await capture(page, `key-read-failed-${locale}`, "confirmed mock key operation; follow-up read fails; enable remains unavailable")
     model.configFailure = false
@@ -162,7 +278,7 @@ for (const locale of ["en-US", "zh-CN"] as const) {
     const model = await setup(page, locale, "light", { enabled: true, signing_keys: activeKeys })
     model.configFailure = true
     await page.getByRole("button", { name: zh ? "刷新" : "Refresh", exact: true }).click()
-    await expect(page.getByRole("button", { name: zh ? "重试密钥状态" : "Retry key status", exact: true })).toBeEnabled()
+    await expect(page.getByRole("button", { name: zh ? "重试读取 OAuth 配置" : "Retry loading OAuth configuration", exact: true })).toBeEnabled()
     await expect(enableSwitch(page, zh)).toBeChecked()
     await expect(enableSwitch(page, zh)).toBeEnabled()
     expect(model.writes).toHaveLength(0)

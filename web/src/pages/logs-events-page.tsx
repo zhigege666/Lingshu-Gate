@@ -1,5 +1,6 @@
 import "./logs-events-page.css"
 import { RetentionPolicySettings } from "@/components/retention-policy-settings"
+import { FilterRadio } from "@/components/filter-radio"
 import { changeLogScope } from "@/features/observability/model"
 import { ObservabilityMcpSelector } from "@/components/observability-mcp-selector"
 import { cleanObservabilityFilters, createRequestOwner, observabilityHash, readObservabilityHash } from "@/features/observability/model"
@@ -27,25 +28,32 @@ import { TableEmptyRow } from "@/pages/page-utils"
 const ALL_VALUE = "__all__"
 const LIMIT_OPTIONS = [50, 80, 100, 200, 500]
 const LEVEL_OPTIONS = ["debug", "info", "warning", "error"]
+type SnapshotSource = "logs" | "events"
+type QuerySnapshot = { logs: LogFilters; events: EventFilters }
 
 export function LogsEventsPage({ t, canManageRetention = false }: { t: TFunction; canManageRetention?: boolean }) {
   const [busy, setBusy] = useState(false)
-  const [error, setError] = useState<string | null>(null)
+  const [errors, setErrors] = useState<Record<SnapshotSource, string | null>>({ logs: null, events: null })
   const [logs, setLogs] = useState<ObservabilityLog[]>([])
   const [events, setEvents] = useState<ObservabilityEvent[]>([])
   const [selectedPayload, setSelectedPayload] = useState<unknown | null>(null)
-  const [lastLoadedAt, setLastLoadedAt] = useState("")
+  const [snapshotTimes, setSnapshotTimes] = useState({ logs: "", events: "" })
   const [initial] = useState(() => readObservabilityHash(typeof window === "undefined" ? "" : window.location.hash))
   const [logFilters, setLogFilters] = useState<LogFilters>(initial.logs)
   const [eventFilters, setEventFilters] = useState<EventFilters>(initial.events)
   const [applied, setApplied] = useState({ logs: { limit: 80 } as LogFilters, events: { limit: 80 } as EventFilters })
+  const appliedRef = useRef(applied)
   const [activeTab, setActiveTab] = useState<"logs" | "events">(initial.tab)
+  const activeTabRef = useRef(activeTab)
+  activeTabRef.current = activeTab
   const knownHash = useRef(typeof window === "undefined" ? "" : window.location.hash)
   const requestOwner = useRef(createRequestOwner())
   const activeRequest = useRef<AbortController | null>(null)
-  const failedSnapshot = useRef<{ logs: LogFilters; events: EventFilters } | null>(null)
+  const failedSnapshot = useRef<Partial<QuerySnapshot>>({})
   const zh = t("all") === "全部"
   const selectedScope = logFilters.server_id || ""
+  const error = errors[activeTab]
+  const lastLoadedAt = snapshotTimes[activeTab]
 
   const filterLabels: Record<string, string> = { level: t("level"), server_id: t("serverId"), subject_id: t("serverId"), tool_id: t("toolId"), event_type: t("eventType"), source: t("source"), keyword: t("keyword"), limit: t("limit") }
   const currentApplied = activeTab === "logs" ? applied.logs : applied.events
@@ -74,30 +82,45 @@ export function LogsEventsPage({ t, canManageRetention = false }: { t: TFunction
     }
   }, [])
 
-  async function loadLogsEvents(snapshot = { logs: cleanFilters(logFilters), events: cleanFilters(eventFilters) }, updateUrl = false) {
+  async function loadLogsEvents(snapshot = { logs: cleanFilters(logFilters), events: cleanFilters(eventFilters) }, updateUrl = false, sources: SnapshotSource[] = ["logs", "events"]) {
     const id = requestOwner.current.next()
     activeRequest.current?.abort()
     const controller = new AbortController()
     activeRequest.current = controller
-    setBusy(true); setError(null)
+    setBusy(true)
+    setErrors(current => ({ ...current, ...Object.fromEntries(sources.map(source => [source, null])) }))
     try {
-      const [logResponse, eventResponse] = await Promise.all([
-        api.logs(snapshot.logs, controller.signal),
-        api.events(snapshot.events, controller.signal),
-      ])
+      // Each source owns its data, successful query and recovery. A failed event
+      // read must not discard a successful log snapshot (or vice versa).
+      await Promise.allSettled(sources.map(async source => {
+        try {
+          const response = source === "logs"
+            ? await api.logs(snapshot.logs, controller.signal)
+            : await api.events(snapshot.events, controller.signal)
+          if (!requestOwner.current.owns(id) || controller.signal.aborted) return
+          if ("logs" in response) setLogs(response.logs)
+          else setEvents(response.events)
+          delete failedSnapshot.current[source]
+          const next = { ...appliedRef.current, [source]: snapshot[source] }
+          appliedRef.current = next
+          setApplied(next)
+          setSnapshotTimes(current => ({ ...current, [source]: new Date().toISOString() }))
+        } catch (err) {
+          if (!requestOwner.current.owns(id) || controller.signal.aborted) return
+          failedSnapshot.current = { ...failedSnapshot.current, [source]: snapshot[source] }
+          setErrors(current => ({ ...current, [source]: err instanceof Error ? err.message : String(err) }))
+        }
+      }))
       if (!requestOwner.current.owns(id) || controller.signal.aborted) return
-      failedSnapshot.current = null
-      setApplied(snapshot)
-      setLogs(logResponse.logs)
-      setEvents(eventResponse.events)
-      setLastLoadedAt(new Date().toISOString())
-      if (updateUrl) writeAppliedHash(snapshot, activeTab)
-    } catch (err) {
-      if (requestOwner.current.owns(id) && !controller.signal.aborted) { failedSnapshot.current = snapshot; setError(err instanceof Error ? err.message : String(err)) }
+      // The existing URL has one shared MCP scope. Never encode a partially
+      // refreshed pair as though both sources had the new successful scope.
+      const next = appliedRef.current
+      if (updateUrl && sources.every(source => !failedSnapshot.current[source])) writeAppliedHash(next, activeTabRef.current)
     } finally { if (requestOwner.current.owns(id) && !controller.signal.aborted) setBusy(false) }
   }
 
   function writeAppliedHash(snapshot: { logs: LogFilters; events: EventFilters }, tab: "logs" | "events") {
+    if ((snapshot.logs.server_id || "") !== (snapshot.events.server_id || "")) return
     knownHash.current = observabilityHash({ ...snapshot, tab })
     window.history.replaceState(window.history.state, "", knownHash.current)
   }
@@ -122,13 +145,13 @@ export function LogsEventsPage({ t, canManageRetention = false }: { t: TFunction
         description={t("logFiltersDesc")}
         helpLabel={t("pageHelp")}
         stats={[
-          { label: t("error"), value: logs.filter((item) => item.level === "error").length, tone: logs.some((item) => item.level === "error") ? "danger" : "success" },
+          { label: t("error"), value: snapshotTimes.logs ? logs.filter((item) => item.level === "error").length : "—", tone: logs.some((item) => item.level === "error") ? "danger" : "default" },
           { label: t("updatedAt"), value: lastLoadedAt ? formatDateTime(lastLoadedAt) : t("waiting") },
         ]}
         actions={<>{canManageRetention && <RetentionPolicySettings t={t} />}<Button variant="outline" onClick={resetFilters} disabled={busy}>{t("resetConditions")}</Button><Button onClick={() => void loadLogsEvents(undefined, true)} disabled={busy}>{t("applyFilters")}</Button></>}
       />
       <QueryStatus t={t} pendingChanges={querySignature(cleanFilters(logFilters)) !== querySignature(applied.logs) || querySignature(cleanFilters(eventFilters)) !== querySignature(applied.events)} lastLoadedAt={lastLoadedAt} summary={Object.entries(activeTab === "logs" ? applied.logs : applied.events).map(([key, value]) => `${filterLabels[key] || key}: ${value}`).join(" · ")} />
-      {error && <Alert variant="destructive"><AlertDescription className="flex flex-wrap items-center justify-between gap-2"><span>{error}</span><Button variant="outline" disabled={busy} onClick={() => void loadLogsEvents(failedSnapshot.current || applied, true)}>{t("retry")}</Button></AlertDescription></Alert>}
+      {error && <Alert variant="destructive" role="alert"><AlertDescription className="flex flex-wrap items-center justify-between gap-2"><span>{error}</span><Button variant="outline" disabled={busy} onClick={() => void loadLogsEvents({ ...appliedRef.current, ...failedSnapshot.current }, true, [activeTab])}>{t("retry")}</Button></AlertDescription></Alert>}
       <Card>
         <CardContent className="p-3 md:p-4" aria-busy={busy}>
           <Tabs
@@ -137,11 +160,11 @@ export function LogsEventsPage({ t, canManageRetention = false }: { t: TFunction
             items={[
               {
                 key: "logs",
-                label: `${t("logRows")} (${logs.length})`,
+                label: `${t("logRows")} (${logs.length})${errors.logs ? ` · ${t("error")}` : ""}`,
                 // 保留两个表格的分页、排序与列宽状态，切换标签不重新挂载。
                 forceRender: true,
                 children: <div className="flex flex-col gap-3">
-                  <div className="observability-filter-row">
+                  {activeTab === "logs" && <div className="observability-filter-row">
                     <ObservabilityMcpSelector value={selectedScope} onChange={changeScope} zh={zh} disabled={busy} />
                     <ObservabilityMcpSelector value={logFilters.tool_id || ""} serverId={selectedScope} onChange={tool_id => setLogFilters(current => ({ ...current, tool_id: tool_id || undefined }))} zh={zh} disabled={busy} />
                     <FilterSelect t={t} localize label={t("level")} value={logFilters.level || ALL_VALUE} options={LEVEL_OPTIONS} onChange={(value) => setLogFilters((current) => ({ ...current, level: fromSelectValue(value) }))} />
@@ -150,23 +173,23 @@ export function LogsEventsPage({ t, canManageRetention = false }: { t: TFunction
                     <FilterSelect t={t} label={t("eventType")} value={logFilters.event_type || ALL_VALUE} options={logEventTypes} onChange={(value) => setLogFilters((current) => ({ ...current, event_type: fromSelectValue(value) }))} allowCustom />
                     <FilterSelect t={t} label={t("source")} value={logFilters.source || ALL_VALUE} options={logSources} onChange={(value) => setLogFilters((current) => ({ ...current, source: fromSelectValue(value) }))} allowCustom />
                     <LimitSelect t={t} value={logFilters.limit || 80} onChange={(value) => setLogFilters((current) => ({ ...current, limit: value }))} />
-                  </div>
+                  </div>}
                   <LogTable filterKey={querySignature(applied.logs)} t={t} logs={logs} emptyLabel={emptyLabel} onSelect={setSelectedPayload} />
                 </div>,
               },
               {
                 key: "events",
-                label: `${t("events")} (${events.length})`,
+                label: `${t("events")} (${events.length})${errors.events ? ` · ${t("error")}` : ""}`,
                 forceRender: true,
                 children: <div className="flex flex-col gap-3">
-                  <div className="observability-filter-row">
+                  {activeTab === "events" && <div className="observability-filter-row">
                     <ObservabilityMcpSelector value={selectedScope} onChange={changeScope} zh={zh} disabled={busy} />
                     <FilterInput label={t("keyword")} value={eventFilters.keyword || ""} onChange={(value) => setEventFilters((current) => ({ ...current, keyword: value }))} placeholder="gate.server.failed / gate.config" />
 
                     <FilterSelect t={t} label={t("eventType")} value={eventFilters.event_type || ALL_VALUE} options={eventTypes} onChange={(value) => setEventFilters((current) => ({ ...current, event_type: fromSelectValue(value) }))} allowCustom />
                     <FilterSelect t={t} label={t("source")} value={eventFilters.source || ALL_VALUE} options={eventSources} onChange={(value) => setEventFilters((current) => ({ ...current, source: fromSelectValue(value) }))} allowCustom />
                     <LimitSelect t={t} value={eventFilters.limit || 80} onChange={(value) => setEventFilters((current) => ({ ...current, limit: value }))} />
-                  </div>
+                  </div>}
                   <EventTable filterKey={querySignature(applied.events)} t={t} events={events} emptyLabel={emptyLabel} onSelect={setSelectedPayload} />
                 </div>,
               },
@@ -186,16 +209,17 @@ export function LogsEventsPage({ t, canManageRetention = false }: { t: TFunction
 }
 
 function FilterInput({ label, value, onChange, placeholder }: { label: string; value: string; onChange: (value: string) => void; placeholder?: string }) {
-  return <label className="flex flex-col gap-1 text-xs font-medium text-muted-foreground"><span>{label}</span><Input value={value} onChange={(event) => onChange(event.target.value)} placeholder={placeholder} /></label>
+  return <label className="gate-form-row"><span className="gate-form-label">{label}</span><span className="gate-form-control"><Input value={value} onChange={(event) => onChange(event.target.value)} placeholder={placeholder} /></span></label>
 }
 
 function FilterSelect({ t, label, value, options, onChange, allowCustom = false, localize = false }: { t: TFunction; label: string; value: string; options: string[]; onChange: (value: string) => void; allowCustom?: boolean; localize?: boolean }) {
   const visibleOptions = value !== ALL_VALUE && !options.includes(value) && allowCustom ? [value, ...options] : options
-  return <label className="flex flex-col gap-1 text-xs font-medium text-muted-foreground"><span>{label}</span><Select value={value} onValueChange={onChange}><SelectTrigger><SelectValue /></SelectTrigger><SelectContent><SelectItem value={ALL_VALUE}>{t("all")}</SelectItem>{visibleOptions.map((option) => <SelectItem key={option} value={option}>{localize ? localizeStatus(t, option) : option}</SelectItem>)}</SelectContent></Select></label>
+  if (localize) return <div className="gate-form-row observability-choice-field"><span className="gate-form-label">{label}</span><div className="gate-form-control"><FilterRadio label={label} hideLabel value={value} onChange={onChange} options={[{ value: ALL_VALUE, label: t("all") }, ...visibleOptions.map(option => ({ value: option, label: localizeStatus(t, option) }))]} /></div></div>
+  return <label className="gate-form-row"><span className="gate-form-label">{label}</span><span className="gate-form-control"><Select value={value} onValueChange={onChange}><SelectTrigger aria-label={label}><SelectValue /></SelectTrigger><SelectContent><SelectItem value={ALL_VALUE}>{t("all")}</SelectItem>{visibleOptions.map((option) => <SelectItem key={option} value={option}>{option}</SelectItem>)}</SelectContent></Select></span></label>
 }
 
 function LimitSelect({ t, value, onChange }: { t: TFunction; value: number; onChange: (value: number) => void }) {
-  return <label className="flex flex-col gap-1 text-xs font-medium text-muted-foreground"><span>{t("limit")}</span><Select value={String(value)} onValueChange={(next) => onChange(Number(next))}><SelectTrigger><SelectValue /></SelectTrigger><SelectContent>{LIMIT_OPTIONS.map((option) => <SelectItem key={option} value={String(option)}>{option}</SelectItem>)}</SelectContent></Select></label>
+  return <div className="gate-form-row observability-choice-field"><span className="gate-form-label">{t("limit")}</span><div className="gate-form-control"><FilterRadio label={t("limit")} hideLabel value={String(value)} onChange={next => onChange(Number(next))} options={LIMIT_OPTIONS.map(option => ({ value: String(option), label: option }))} /></div></div>
 }
 
 function EventTable({ t, events, emptyLabel, onSelect, filterKey }: { filterKey: string; emptyLabel: string; t: TFunction; events: ObservabilityEvent[]; onSelect: (value: unknown) => void }) {

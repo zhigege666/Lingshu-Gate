@@ -13,7 +13,6 @@ import { Button } from "@/components/ui/button"
 import { Dialog, DialogBody, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Switch } from "@/components/ui/switch"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { Textarea } from "@/components/ui/textarea"
@@ -297,7 +296,7 @@ export function AccessRolesPage({ locale, t }: { locale: Locale; t: TFunction })
         <fieldset disabled={busy} className="access-editor-fields role-editor-layout">
           <div className="role-editor-basics">
           <div className="grid gap-4 sm:grid-cols-2">
-            <Field label={c.code} id="access-role-code" error={identityMessage(roleErrors.code, "code")}><Input id="access-role-code" aria-label={c.code} aria-required="true" aria-invalid={Boolean(identityMessage(roleErrors.code, "code"))} aria-describedby={identityMessage(roleErrors.code, "code") ? "access-role-code-error" + " access-role-code-hint" : "access-role-code-hint"} value={roleForm.code} disabled={busy || (editingRole !== "new" && Boolean(editingRole && editingRole.is_system))} onChange={event => setRoleForm(current => ({ ...current, code: event.target.value }))} /><p id="access-role-code-hint" className="text-xs text-muted-foreground">{c.codeHint}</p></Field>
+            <Field label={c.code} id="access-role-code" help={c.codeHint} helpId="access-role-code-hint" zh={locale === "zh-CN"} error={identityMessage(roleErrors.code, "code")}><Input id="access-role-code" aria-label={c.code} aria-required="true" aria-invalid={Boolean(identityMessage(roleErrors.code, "code"))} aria-describedby={identityMessage(roleErrors.code, "code") ? "access-role-code-error" + " access-role-code-hint" : "access-role-code-hint"} value={roleForm.code} disabled={busy || (editingRole !== "new" && Boolean(editingRole && editingRole.is_system))} onChange={event => setRoleForm(current => ({ ...current, code: event.target.value }))} /></Field>
             <Field label={c.name} id="access-role-name" error={identityMessage(roleErrors.name, "name")}><Input id="access-role-name" aria-label={c.name} aria-required="true" aria-invalid={Boolean(identityMessage(roleErrors.name, "name"))} aria-describedby={identityMessage(roleErrors.name, "name") ? "access-role-name-error" : undefined} value={roleForm.name} disabled={busy} onChange={event => setRoleForm(current => ({ ...current, name: event.target.value }))} /></Field>
           </div>
           <Field label={c.descriptionLabel} id="access-role-description"><Textarea rows={3} className="min-h-20" id="access-role-description" aria-label={c.descriptionLabel} value={roleForm.description} disabled={busy} onChange={event => setRoleForm(current => ({ ...current, description: event.target.value }))} /></Field>
@@ -321,10 +320,10 @@ export function AccessRolesPage({ locale, t }: { locale: Locale; t: TFunction })
       <form id="access-type-editor" onSubmit={event => { event.preventDefault(); void saveType() }}>
         <fieldset disabled={busy} className="access-editor-fields">
           <div className="grid gap-4 sm:grid-cols-2">
-            <Field label={c.code} id="access-type-code" error={identityMessage(typeErrors.code, "code")}><Input id="access-type-code" aria-label={c.code} aria-required="true" aria-invalid={Boolean(identityMessage(typeErrors.code, "code"))} aria-describedby={identityMessage(typeErrors.code, "code") ? "access-type-code-error" + " access-type-code-hint" : "access-type-code-hint"} value={typeForm.code} disabled={busy || (editingType !== "new" && Boolean(editingType && editingType.is_system))} onChange={event => setTypeForm(current => ({ ...current, code: event.target.value }))} /><p id="access-type-code-hint" className="text-xs text-muted-foreground">{c.codeHint}</p></Field>
+            <Field label={c.code} id="access-type-code" help={c.codeHint} helpId="access-type-code-hint" zh={locale === "zh-CN"} error={identityMessage(typeErrors.code, "code")}><Input id="access-type-code" aria-label={c.code} aria-required="true" aria-invalid={Boolean(identityMessage(typeErrors.code, "code"))} aria-describedby={identityMessage(typeErrors.code, "code") ? "access-type-code-error" + " access-type-code-hint" : "access-type-code-hint"} value={typeForm.code} disabled={busy || (editingType !== "new" && Boolean(editingType && editingType.is_system))} onChange={event => setTypeForm(current => ({ ...current, code: event.target.value }))} /></Field>
             <Field label={c.name} id="access-type-name" error={identityMessage(typeErrors.name, "name")}><Input id="access-type-name" aria-label={c.name} aria-required="true" aria-invalid={Boolean(identityMessage(typeErrors.name, "name"))} aria-describedby={identityMessage(typeErrors.name, "name") ? "access-type-name-error" : undefined} value={typeForm.name} disabled={busy} onChange={event => setTypeForm(current => ({ ...current, name: event.target.value }))} /></Field>
           </div>
-          <Field label={c.baseLevel} id="access-type-level"><Select value={typeForm.base_level} disabled={busy || (editingType !== "new" && Boolean(editingType && editingType.is_system))} onValueChange={value => setTypeForm(current => ({ ...current, base_level: value as PermissionTypeSaveRequest["base_level"] }))}><SelectTrigger id="access-type-level" aria-label={c.baseLevel}><SelectValue /></SelectTrigger><SelectContent><SelectItem value="none">{c.noneLevel}</SelectItem><SelectItem value="read">{c.readLevel}</SelectItem><SelectItem value="write">{c.writeLevel}</SelectItem></SelectContent></Select></Field>
+          <Field label={c.baseLevel} id="access-type-level"><FilterRadio id="access-type-level" hideLabel label={c.baseLevel} value={typeForm.base_level} disabled={busy || (editingType !== "new" && Boolean(editingType && editingType.is_system))} onChange={value => setTypeForm(current => ({ ...current, base_level: value as PermissionTypeSaveRequest["base_level"] }))} options={[{ value: "none", label: c.noneLevel }, { value: "read", label: c.readLevel }, { value: "write", label: c.writeLevel }]} /></Field>
           <Field label={c.descriptionLabel} id="access-type-description"><Textarea id="access-type-description" aria-label={c.descriptionLabel} value={typeForm.description} disabled={busy} onChange={event => setTypeForm(current => ({ ...current, description: event.target.value }))} /></Field>
           <label className="flex items-center justify-between gap-3"><span className="text-sm font-medium">{c.enabled}</span><Switch aria-label={c.enabled} checked={typeForm.enabled} disabled={busy || (editingType !== "new" && Boolean(editingType && editingType.is_system))} onCheckedChange={enabled => setTypeForm(current => ({ ...current, enabled }))} /></label>
           {editingType && editingType !== "new" && editingType.is_system && <p className="text-xs text-muted-foreground">{c.systemTypeRestricted}</p>}
@@ -336,8 +335,8 @@ export function AccessRolesPage({ locale, t }: { locale: Locale; t: TFunction })
   </div>
 }
 
-function Field({ label, id, error, children }: { label: string; id: string; error?: string; children: React.ReactNode }) {
-  return <div className="flex flex-col gap-2"><Label htmlFor={id}>{label}</Label>{children}{error && <p id={`${id}-error`} className="text-sm text-destructive" role="alert">{error}</p>}</div>
+function Field({ label, id, error, help, helpId, zh, children }: { label: string; id: string; error?: string; help?: React.ReactNode; helpId?: string; zh?: boolean; children: React.ReactNode }) {
+  return <div className="authorization-field"><Label htmlFor={id} help={help} helpLabel={label} helpId={helpId} zh={zh}>{label}</Label><div className="authorization-field-control">{children}{error && <p id={`${id}-error`} className="text-sm text-destructive" role="alert">{error}</p>}</div></div>
 }
 
 function AccessStatus({ enabled, locale }: { enabled: boolean; locale: Locale }) {

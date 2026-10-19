@@ -12,13 +12,14 @@ import type { Locale, TFunction } from "@/i18n"
 import { Metric } from "@/pages/page-utils"
 import "@/pages/dashboard-page.css"
 
-export function DashboardPage({ health, healthError, servers, tools, principalId, globalRefreshId, operationsAllowed, canReadAudit, canReadTools, toolsLoaded, toolsError, serversLoaded, serversError, t }: { health: HealthResponse | null; healthError: string | null; servers: McpServer[]; tools: ToolDefinition[]; principalId: string; globalRefreshId: number; operationsAllowed: boolean; canReadAudit: boolean; canReadTools: boolean; toolsLoaded: boolean; toolsError: string | null; serversLoaded: boolean; serversError: string | null; t: TFunction }) {
+export function DashboardPage({ health, healthError, servers, tools, principalId, globalRefreshId, onBusyChange, operationsAllowed, canReadAudit, canReadTools, toolsLoaded, toolsError, serversLoaded, serversError, t }: { health: HealthResponse | null; healthError: string | null; servers: McpServer[]; tools: ToolDefinition[]; principalId: string; globalRefreshId: number; onBusyChange?: (busy: boolean) => void; operationsAllowed: boolean; canReadAudit: boolean; canReadTools: boolean; toolsLoaded: boolean; toolsError: string | null; serversLoaded: boolean; serversError: string | null; t: TFunction }) {
   const { locale } = useConsoleDesign()
   const [hours, setHours] = useState<24 | 168>(24)
   const [refreshId, setRefreshId] = useState(0)
   const [statistics, setStatistics] = useState<{ key: string; data: InvocationStatistics } | null>(null)
   const [statisticsLoading, setStatisticsLoading] = useState(canReadAudit)
   const [statisticsError, setStatisticsError] = useState(false)
+  useEffect(() => { onBusyChange?.(statisticsLoading); return () => onBusyChange?.(false) }, [statisticsLoading, onBusyChange])
   const statisticsKey = `${principalId}:${hours}`
   const currentStatistics = statistics?.key === statisticsKey ? statistics.data : null
   useEffect(() => {
@@ -28,7 +29,6 @@ export function DashboardPage({ health, healthError, servers, tools, principalId
       setStatisticsError(false)
       return
     }
-    if (globalRefreshId === 0) return
     let active = true
     setStatisticsLoading(true)
     setStatisticsError(false)

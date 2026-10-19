@@ -34,9 +34,9 @@
   .maintenance-list-content .maintenance-table th:first-child { width: 200px; min-width: 200px; }
   .maintenance-list-content .maintenance-table td:first-child { overflow-wrap: anywhere; }
   .maintenance-list-content .maintenance-table th:last-child,
-  .maintenance-list-content .maintenance-table td:last-child { width: 112px; min-width: 112px; max-width: 112px; padding-left: 6px; padding-right: 6px; }
-  .maintenance-list-content .maintenance-table td:last-child > div { display: flex; flex-direction: column; align-items: stretch; gap: 4px; min-width: 0; }
-  .maintenance-list-content .maintenance-table td:last-child button { width: 100%; min-width: 0; white-space: normal; height: auto; min-height: 28px; padding: 4px; text-align: center; justify-content: center; }
+  .maintenance-list-content .maintenance-table td:last-child { width: 112px; min-width: 112px; max-width: 112px; padding-left: var(--space-2); padding-right: var(--space-2); }
+  .maintenance-list-content .maintenance-table td:last-child > div { display: flex; flex-direction: column; align-items: stretch; gap: var(--space-1); min-width: 0; }
+  .maintenance-list-content .maintenance-table td:last-child button { width: 100%; min-width: 0; white-space: normal; height: auto; min-height: 28px; padding: var(--space-1); text-align: center; justify-content: center; }
   .maintenance-list-content .maintenance-config-table th:nth-child(2) { width: 130px; }
   .maintenance-list-content .maintenance-config-table th:nth-child(3) { width: 120px; }
   .maintenance-list-content .maintenance-config-table th:nth-child(4) { width: 220px; }
@@ -48,7 +48,7 @@
   .maintenance-list-content .maintenance-cache-table th:nth-child(4) { width: 100px; }
   .maintenance-list-content .maintenance-cache-table th:nth-child(5) { width: 170px; }
   .maintenance-list-content .maintenance-cache-table th:nth-child(6) { width: 220px; }
-  .maintenance-row-summary { display: flex; flex-direction: column; align-items: flex-start; gap: 4px; margin-top: 6px; font-size: 12px; color: hsl(var(--muted-foreground)); }
+  .maintenance-row-summary { display: flex; flex-direction: column; align-items: flex-start; gap: var(--space-1); margin-top: var(--space-2); font-size: 12px; color: hsl(var(--muted-foreground)); }
 }
 
 /* Long paths remain scannable on desktop too; details retain the full value. */

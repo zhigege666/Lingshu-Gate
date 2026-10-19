@@ -4,9 +4,9 @@ import { join } from 'node:path'
 import { login, expectInViewportAndUnobscured } from './helpers'
 import { servers, tools, classifications, listFixtures } from './synthetic-data'
 
-async function expectDrawerSettled(drawer: Locator) {
-  await expect.poll(() => drawer.evaluate(async el => {
-    const wrapper = el.closest('.ant-drawer-content-wrapper') || el
+async function expectDialogSettled(dialog: Locator) {
+  await expect.poll(() => dialog.evaluate(async el => {
+    const wrapper = el
     if (wrapper.getAnimations().some(animation => animation.playState === 'running')) return false
     const samples: number[][] = []
     for (let i = 0; i < 3; i++) {
@@ -22,7 +22,7 @@ async function expectDrawerSettled(drawer: Locator) {
 
 const output = process.env.GATE_PERSONAL_LAYOUT_DIR
 for (const [width, height] of [[1188, 761], [2048, 1119], [1366, 768], [390, 844]]) {
-  test(`E2E-53${width === 1188 ? 0 : width === 2048 ? 1 : width === 1366 ? 2 : 3} @personal-layout personal lists, tool drawer and service entry actions ${width}`, async ({ page }) => {
+  test(`E2E-53${width === 1188 ? 0 : width === 2048 ? 1 : width === 1366 ? 2 : 3} @personal-layout personal lists, tool dialog and service entry actions ${width}`, async ({ page }) => {
     test.skip(!output, 'Opt-in personal workspace and service-entry layout regression')
     test.setTimeout(45_000)
     await login(page)
@@ -78,49 +78,49 @@ for (const [width, height] of [[1188, 761], [2048, 1119], [1366, 768], [390, 844
     for (const amount of [0, 1]) {
       toolCount = amount
       await page.getByRole('button', { name: '合成服务 0', exact: true }).click()
-      const smallDrawer = page.getByRole('dialog')
-      const smallTable = smallDrawer.locator('.ant-table-wrapper')
+      const smallDialog = page.getByRole('dialog')
+      const smallTable = smallDialog.locator('.ant-table-wrapper')
       if (amount === 0) await expect(smallTable.locator('.ant-empty')).toBeVisible()
-      else await expect(smallDrawer.getByText('合成只读工具 0', { exact: true })).toBeVisible()
-      await expect(smallDrawer.locator('.ant-spin-spinning')).toHaveCount(0)
-      await expectDrawerSettled(smallDrawer)
-      await expectInViewportAndUnobscured(smallDrawer.getByRole('button', { name: /Close|关闭/ }).first())
+      else await expect(smallDialog.getByText('合成只读工具 0', { exact: true })).toBeVisible()
+      await expect(smallDialog.locator('.ant-spin-spinning')).toHaveCount(0)
+      await expectDialogSettled(smallDialog)
+      await expectInViewportAndUnobscured(smallDialog.getByRole('button', { name: /Close|关闭/ }).first())
       await expectInViewportAndUnobscured(smallTable.locator('thead th').last())
-      if (amount === 1) await expectInViewportAndUnobscured(smallDrawer.getByRole('button', { name: '测试工具', exact: true }))
+      if (amount === 1) await expectInViewportAndUnobscured(smallDialog.getByRole('button', { name: '测试工具', exact: true }))
       await expect(smallTable.locator('.ant-pagination')).toHaveCount(0)
       const geometry = await smallTable.locator('.ant-table-body').evaluate(el => ({ mode: getComputedStyle(el).overflowY, client: el.clientHeight, content: el.scrollHeight }))
       expect(geometry.mode).toBe('auto')
       expect(geometry.content).toBeLessThanOrEqual(geometry.client + 1)
       expect(geometry.client).toBeLessThanOrEqual(amount === 0 ? 220 : 100)
-      measures.push({ smallDrawerTools: amount, geometry })
+      measures.push({ smallDialogTools: amount, geometry })
       await page.screenshot({ path: join(output!, `my-mcp-tools-${amount}-${width}x${height}.png`) })
-      await smallDrawer.getByRole('button', { name: /Close|关闭/ }).first().click()
-      await expect(smallDrawer).toHaveCount(0)
+      await smallDialog.getByRole('button', { name: /Close|关闭/ }).first().click()
+      await expect(smallDialog).toHaveCount(0)
     }
     toolCount = 41
     await page.getByRole('button', { name: '合成服务 0', exact: true }).click()
-    const drawer = page.getByRole('dialog')
-    await expect(drawer.getByText('合成只读工具 0', { exact: true })).toBeVisible()
-    await expectDrawerSettled(drawer)
-    const drawerBody = drawer.locator('.ant-drawer-body')
-    const toolBody = drawer.locator('.ant-table-body')
-    const pager = drawer.locator('.ant-pagination')
+    const dialog = page.getByRole('dialog')
+    await expect(dialog.getByText('合成只读工具 0', { exact: true })).toBeVisible()
+    await expectDialogSettled(dialog)
+    const dialogBody = dialog.locator('.personal-tools-dialog-body')
+    const toolBody = dialog.locator('.ant-table-body')
+    const pager = dialog.locator('.ant-pagination')
     const geometry = await toolBody.evaluate(el => {
-      const container = el.closest('.ant-drawer-body')!, pagination = container.querySelector('.ant-pagination')!
+      const container = el.closest('.personal-tools-dialog-body')!, pagination = container.querySelector('.ant-pagination')!
       const bodyStyle = getComputedStyle(container), pagerStyle = getComputedStyle(pagination)
       const reserve = Number.parseFloat(bodyStyle.paddingBottom) + pagination.getBoundingClientRect().height + Number.parseFloat(pagerStyle.marginTop) + Number.parseFloat(pagerStyle.marginBottom)
       return { clientHeight: el.clientHeight, scrollHeight: el.scrollHeight, reserve, paddingBottom: bodyStyle.paddingBottom, pagerMargins: [pagerStyle.marginTop, pagerStyle.marginBottom], available: container.getBoundingClientRect().bottom - el.getBoundingClientRect().top - reserve }
     })
-    writeFileSync(join(output!, `drawer-geometry-${width}x${height}.json`), JSON.stringify(geometry, null, 2))
+    writeFileSync(join(output!, `dialog-geometry-${width}x${height}.json`), JSON.stringify(geometry, null, 2))
     expect(geometry.clientHeight).toBeGreaterThanOrEqual(Math.min(geometry.scrollHeight, geometry.available) - 2)
     await expectInViewportAndUnobscured(pager.locator('.ant-pagination-next button'))
     await toolBody.evaluate(el => { el.scrollTop = el.scrollHeight; el.scrollLeft = el.scrollWidth })
-    await expectInViewportAndUnobscured(drawer.getByRole('button', { name: '测试工具', exact: true }).last())
-    measures.push({ drawer: geometry, drawerHeight: await drawerBody.evaluate(el => el.clientHeight) })
+    await expectInViewportAndUnobscured(dialog.getByRole('button', { name: '测试工具', exact: true }).last())
+    measures.push({ dialog: geometry, dialogHeight: await dialogBody.evaluate(el => el.clientHeight) })
     await page.screenshot({ path: join(output!, `my-mcp-tools-bottom-${width}x${height}.png`) })
     await pager.locator('.ant-pagination-next button').click()
-    await expect(drawer.getByText('合成只读工具 20', { exact: true })).toBeVisible()
-    await drawer.getByRole('button', { name: '测试工具', exact: true }).first().click()
+    await expect(dialog.getByText('合成只读工具 20', { exact: true })).toBeVisible()
+    await dialog.getByRole('button', { name: '测试工具', exact: true }).first().click()
     await expect(page).toHaveURL(/#\/invoke$/)
     await page.goto('/console/#/servers')
     const header = page.locator('.service-directory-header')

@@ -271,7 +271,7 @@ export function InvocationAuditPage({ locale, t, canReadPayload = false }: { loc
 }
 
 function FilterField({ label, children }: { label: string; children: React.ReactNode }) {
-  return <div className="flex flex-col gap-1"><Label className="text-xs">{label}</Label>{children}</div>
+  return <div className="gate-form-row"><Label className="gate-form-label">{label}</Label><div className="gate-form-control">{children}</div></div>
 }
 
 function Detail({ label, value }: { label: string; value?: string | null }) {

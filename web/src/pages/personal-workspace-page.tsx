@@ -1,9 +1,10 @@
 import { InvocationPayloadPanel, payloadText, type InvocationDetail } from "@/components/invocation-payload-panel"
 import { MyAuthorizationsPage as ExternalGrantsPage } from "@/pages/my-authorizations-page"
 import { useCallback, useEffect, useRef, useState } from "react"
-import { Alert, Button, Drawer, Input, Table } from "antd"
+import { Alert, Button, Input, Table } from "antd"
 import { request, queryString } from "@/api/http"
 import { PageHeader } from "@/components/page-shell"
+import { FormDialog } from "@/components/form-dialog"
 import { useRemainingViewport } from "@/components/use-remaining-viewport"
 import { usePageRefresh } from "@/components/page-refresh"
 import { formatDateTime } from "@/lib/utils"
@@ -57,6 +58,8 @@ function PersonalResourcesPage({ view, locale, t, onInvoke, viewState = initialP
   const [auditSelected, setAuditSelected] = useState("")
   const [auditDetail, setAuditDetail] = useState<InvocationDetail | null>(null)
   const [auditError, setAuditError] = useState("")
+  const detailTrigger = useRef<HTMLElement | null>(null)
+  const auditTrigger = useRef<HTMLElement | null>(null)
   const auditGeneration = useRef(0)
   const [detailError, setDetailError] = useState("")
   const generation = useRef(0)
@@ -135,7 +138,7 @@ function PersonalResourcesPage({ view, locale, t, onInvoke, viewState = initialP
       <Input.Search aria-label={zh ? "搜索" : "Search"} placeholder={view === "myServers" ? (zh ? "搜索获准的服务或工具" : "Search authorized services or tools") : (zh ? "搜索已加载的最近500条本人记录" : "Search up to 500 loaded personal records")} value={query} onChange={event => { setQuery(event.target.value); changePage(1) }} allowClear />
       {view === "myServers" && <p className="text-sm text-muted-foreground">{zh ? "仅显示当前账号获准查看的工具所属服务；已配置但没有可见工具的服务不会列在这里。" : "Services with tools visible to your account. Configured services without visible tools are not listed here."}</p>}
       {view === "myServers" ? <Table locale={{ emptyText: query.trim() ? t("noMatchingRecords") : t("noData") }} className="personal-services-table" rowKey="id" size="small" loading={busy} onScroll={event => { restoreTop.current = event.currentTarget.scrollTop; setScrollTop(event.currentTarget.scrollTop) }} dataSource={error ? [] : services} scroll={{ x: 500, y: "100%" }} pagination={{ current: page, pageSize: 20, total, hideOnSinglePage: true, showSizeChanger: false, onChange: changePage }} columns={[
-        { title: zh ? "服务" : "Service", dataIndex: "name", render: (name: string, item: Service) => <Button type="link" onClick={() => void openDetail(item.id)}>{name}</Button> },
+        { title: zh ? "服务" : "Service", dataIndex: "name", render: (name: string, item: Service) => <Button type="link" onClick={event => { detailTrigger.current = event.currentTarget; openDetail(item.id) }}>{name}</Button> },
         { title: zh ? "可见工具" : "Visible tools", dataIndex: "tool_count" },
         { title: zh ? "只读" : "Read", dataIndex: "read_tool_count" },
         { title: zh ? "写入" : "Write", dataIndex: "write_tool_count" },
@@ -144,19 +147,31 @@ function PersonalResourcesPage({ view, locale, t, onInvoke, viewState = initialP
         <Table locale={{ emptyText: query.trim() ? t("noMatchingRecords") : t("noData") }} rowKey="id" size="small" loading={busy} onScroll={event => { restoreTop.current = event.currentTarget.scrollTop; setScrollTop(event.currentTarget.scrollTop) }} dataSource={error ? [] : filtered} pagination={{ current: page, pageSize: 20, showSizeChanger: false, hideOnSinglePage: true, onChange: changePage }} scroll={{ x: 700, y: "100%" }} columns={[
           { title: zh ? "时间" : "Time", dataIndex: "created_at", render: (value: string) => formatDateTime(value) }, { title: zh ? "服务" : "Service", dataIndex: "server_id" },
           { title: zh ? "工具" : "Tool", dataIndex: "tool_id" }, { title: zh ? "授权决定" : "Decision", dataIndex: "decision", render: (value: string) => personalCallLabel(value, locale) }, { title: zh ? "结果" : "Outcome", dataIndex: "outcome", render: (value: string) => personalCallLabel(value, locale) },
-          { title: zh ? "操作" : "Actions", key: "detail", fixed: "right", width: 132, render: (_, item: Audit) => <Button onClick={() => void loadAudit(item.id)}>{zh ? "查看详情" : "Details"}</Button> },
+          { title: zh ? "操作" : "Actions", key: "detail", fixed: "right", width: 132, render: (_, item: Audit) => <Button onClick={event => { auditTrigger.current = event.currentTarget; void loadAudit(item.id) }}>{zh ? "查看详情" : "Details"}</Button> },
         ]} />
       </>}
     </>}
-    <Drawer className="personal-tools-drawer" title={detail?.name || (zh ? "服务工具" : "Service tools")} open={view === "myServers" && Boolean(selected)} onClose={() => { detailGeneration.current++; setSelected(""); setDetail(null) }} size="large">
+    <FormDialog className="personal-tools-dialog max-w-5xl" bodyClassName="personal-tools-dialog-body" title={detail?.name || (zh ? "服务工具" : "Service tools")} closeLabel={t("close")} open={view === "myServers" && Boolean(selected)} onClose={() => { detailGeneration.current++; setSelected(""); setDetail(null) }} footer={null}
+      onCloseAutoFocus={event => {
+        event.preventDefault()
+        const target = detailTrigger.current
+        if (target?.isConnected && !target.matches(":disabled") && target.getClientRects().length) target.focus()
+        else tableRegion.current?.querySelector<HTMLInputElement>("input")?.focus()
+      }}>
       <p className="mb-3 break-all text-xs text-muted-foreground">{zh ? "服务 ID" : "Service ID"}: {selected}</p>
       {detailError && <Alert type="error" title={detailError} action={<Button onClick={() => void fetchDetail(selected)}>{t("refresh")}</Button>} />}
       <Table rowKey="id" size="small" loading={!detail && !detailError} dataSource={detail?.tools || []} pagination={{ current: detailPage, pageSize: 20, hideOnSinglePage: true, showSizeChanger: false, onChange: setDetailPage }} scroll={{ x: 420, y: "100%" }} columns={[
         { title: zh ? "工具" : "Tool", dataIndex: "name" }, { title: zh ? "权限" : "Access", dataIndex: "required_access", width: 110, render: (access: string) => <span className="whitespace-nowrap">{personalToolAccessLabel(access, locale)}</span> },
         { title: zh ? "操作" : "Actions", key: "actions", render: (_, item) => <Button onClick={() => onInvoke(item.id)}>{zh ? "测试工具" : "Test tool"}</Button> },
       ]} />
-    </Drawer>
-    <Drawer title={zh ? "本人调用详情" : "My invocation detail"} open={Boolean(auditSelected)} onClose={() => { auditGeneration.current++; setAuditSelected(""); setAuditDetail(null); setAuditError("") }} size="large">
+    </FormDialog>
+    <FormDialog className="max-w-5xl" title={zh ? "本人调用详情" : "My invocation detail"} closeLabel={t("close")} open={Boolean(auditSelected)} onClose={() => { auditGeneration.current++; setAuditSelected(""); setAuditDetail(null); setAuditError("") }} footer={null}
+      onCloseAutoFocus={event => {
+        event.preventDefault()
+        const target = auditTrigger.current
+        if (target?.isConnected && !target.matches(":disabled") && target.getClientRects().length) target.focus()
+        else tableRegion.current?.querySelector<HTMLInputElement>("input")?.focus()
+      }}>
       <div className="space-y-4">
         <p className="break-all text-sm">{auditSelected}</p>
         <p className="text-sm text-muted-foreground">{zh ? "仅显示记录时已保留、已脱敏的内容。未记录或已清理的原文不可恢复；脱敏无法自动识别所有业务秘密。" : "Only retained, redacted content is available. Unrecorded or deleted originals cannot be recovered; redaction cannot identify every business secret."}</p>
@@ -168,6 +183,6 @@ function PersonalResourcesPage({ view, locale, t, onInvoke, viewState = initialP
           <InvocationPayloadPanel key={`${auditSelected}:output`} title={zh ? "输出" : "Output"} payload={auditDetail.output} locale={locale} onCopy={() => copyAudit("output")} />
         </>}
       </div>
-    </Drawer>
+    </FormDialog>
   </div>
 }

@@ -1,5 +1,4 @@
-.observability-filter-row { display: flex; flex-wrap: wrap; align-items: end; gap: 12px; }
-.observability-filter-row > * { flex: 1 1 160px; min-width: 0; }
-.observability-filter-row > :first-child { flex-basis: 220px; }
-.observability-filter-row > :last-child { flex: 0 1 120px; min-width: 100px; }
-@media (max-width: 640px) { .observability-filter-row > *, .observability-filter-row > :first-child, .observability-filter-row > :last-child { flex: 1 1 100%; } }
+.observability-filter-row { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 360px), 1fr)); align-items: start; gap: var(--field-gap); }
+.observability-filter-row > * { min-width: 0; }
+.observability-filter-row > .observability-choice-field { grid-column: 1 / -1; }
+.observability-choice-field.gate-form-row { display: grid; grid-template-columns: var(--form-label-width) minmax(0, 1fr); gap: var(--space-1) var(--space-3); }

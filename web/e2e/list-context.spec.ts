@@ -27,22 +27,23 @@ for (let index = 0; index < cases.length; index++) {
       else await route.continue()
     })
     await page.goto(`/console/#/${view}`)
-    const viewport = page.locator('.bounded-list-scroll:visible').first()
-    const rows = viewport.locator('tbody tr')
+    const authorizations = view === 'personalTokens'
+    const viewport = page.locator(authorizations ? '.my-authorizations-page .ant-table-body' : '.bounded-list-scroll:visible').first()
+    const rows = viewport.locator(authorizations ? 'tbody tr.ant-table-row' : 'tbody tr')
     await expect(rows.first()).toContainText(/synthetic/i)
-    const search = page.locator('main input[type="search"], main input[placeholder]').first()
-    const next = page.getByRole('button', { name: matrix ? '下一页' : 'Next page', exact: true })
-    const previous = page.getByRole('button', { name: matrix ? '上一页' : 'Previous page', exact: true })
+    const search = authorizations ? page.getByLabel(matrix ? '搜索授权' : 'Search authorizations', { exact: true }) : page.locator('main input[type="search"], main input[placeholder]').first()
+    const next = authorizations ? page.locator('.my-authorizations-page .ant-pagination-next button') : page.getByRole('button', { name: matrix ? '下一页' : 'Next page', exact: true })
+    const previous = authorizations ? page.locator('.my-authorizations-page .ant-pagination-prev button') : page.getByRole('button', { name: matrix ? '上一页' : 'Previous page', exact: true })
     // Wide tables scroll horizontally; the pinned first column remains in view.
     // The entire header can extend beyond the viewport without hiding context.
-    const header = viewport.locator('thead th').first()
+    const header = authorizations ? page.locator('.my-authorizations-page .ant-table-header thead th').first() : viewport.locator('thead th').first()
     if (matrix) {
-      await expect.poll(() => viewport.evaluate(el => {
-        const owner = el.closest('.remaining-list-group, .maintenance-list-page, .tool-review-workspace')!
+      await expect.poll(() => viewport.evaluate((el, isAuthorizations) => {
+        const owner = el.closest(isAuthorizations ? '.my-authorizations-page' : '.remaining-list-group, .maintenance-list-page, .tool-review-workspace')!
         const budget = Number.parseFloat(getComputedStyle(owner).maxHeight)
         const reserved = owner.getBoundingClientRect().height - el.getBoundingClientRect().height
         return Number.isFinite(budget) && el.clientHeight >= Math.min(el.scrollHeight, budget - reserved) - 2
-      })).toBe(true)
+      }, authorizations)).toBe(true)
     }
     await expectInViewportAndUnobscured(search)
     await expectInViewportAndUnobscured(next)
@@ -64,16 +65,36 @@ for (let index = 0; index < cases.length; index++) {
     await page.screenshot({ path: testInfo.outputPath(`list-${view}-${width}x${height}-bottom.png`) })
     await next.click()
     await expect(previous).toBeEnabled()
+    if (authorizations) {
+      await expect(page.locator('.my-authorizations-page .ant-pagination-item-active')).toHaveText('2')
+      await expect(rows.first().getByRole('button', { name: 'Synthetic token 15', exact: true })).toBeVisible()
+    }
     await expect.poll(() => viewport.evaluate(el => el.scrollTop)).toBe(0)
     await search.fill(query)
     await expect(previous).toHaveCount(0)
     await expect(rows.first()).toContainText(/synthetic/i)
+    if (authorizations) {
+      await expect(rows).toHaveCount(1)
+      await expect(rows.first().getByRole('button', { name: query, exact: true })).toBeVisible()
+    }
     await expect.poll(() => viewport.evaluate(el => el.scrollTop)).toBe(0)
     await expectInViewportAndUnobscured(header)
     await search.fill('')
-    // Clearing a filter may intentionally restore the prior page.
-    await expect.poll(async () => (await next.isEnabled()) || (await previous.isEnabled())).toBe(true)
-    expect(await rows.count()).toBeLessThanOrEqual(50)
+    if (authorizations) {
+      await expect(page.locator('.my-authorizations-page .ant-pagination-item-active')).toHaveText('1')
+      await expect(previous).toBeDisabled()
+      await expect(next).toBeEnabled()
+      await expect(rows).toHaveCount(15)
+      await expect(rows.first().getByRole('button', { name: 'Synthetic token 0', exact: true })).toBeVisible()
+      await expect.poll(() => viewport.evaluate(el => el.scrollTop)).toBe(0)
+      await expectInViewportAndUnobscured(header)
+      await expectInViewportAndUnobscured(search)
+      await expectInViewportAndUnobscured(next)
+    } else {
+      // Clearing a filter may intentionally restore the prior page.
+      await expect.poll(async () => (await next.isEnabled()) || (await previous.isEnabled())).toBe(true)
+      expect(await rows.count()).toBeLessThanOrEqual(50)
+    }
     expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(width)
   })
 }

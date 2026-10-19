@@ -1,17 +1,23 @@
 import { useState } from "react"
-import { Button, Input, InputNumber, Select } from "antd"
+import { Button, Input, Select } from "antd"
 import { Plus, Trash2 } from "lucide-react"
 import { pointerFor, type ValidationIssue } from "@/lib/validation"
+import { FilterRadio } from "@/components/filter-radio"
+import { FieldHelp } from "@/components/field-help"
 import type { InvokeCopy } from "./copy"
 import { emptyFieldValue, fieldSchema, isRecord, owns, schemaFields, sensitiveField, supportsField, valueAt, type Arguments, type Field, type Schema } from "./schema"
-import type { PendingArgumentEntries } from "./model"
+import { clearPendingArgumentLabel, parseArgumentNumber, pendingArgumentText, type ArgumentChangeIntent, type PendingArgumentEntries, type PendingArgumentEntry } from "./model"
 
-type FormProps = { schema:Schema; value:Arguments; disabled:boolean; c:InvokeCopy; issues?:ValidationIssue[]; pendingEntries:PendingArgumentEntries; onPendingEntryChange:(path:string[],value:string)=>void; onChange:(path:string[],value:unknown)=>boolean|void; onJSON:()=>void }
+type FormProps = { schema:Schema; value:Arguments; disabled:boolean; c:InvokeCopy; issues?:ValidationIssue[]; pendingEntries:PendingArgumentEntries; onPendingEntryChange:(path:string[],value:PendingArgumentEntry)=>void; onChange:(path:string[],value:unknown,intent?:ArgumentChangeIntent)=>boolean|void; onJSON:()=>void }
 type FieldProps = Omit<FormProps,"schema"|"value"> & {field:Field;path:string[];root:Schema;value:unknown;depth?:number}
 const fieldType = (schema: Schema) => typeof schema.type === "string" ? `${schema.type}${schema.nullable ? " | null" : ""}` : "JSON"
 const text = (value:unknown) => typeof value === "string" ? value : ""
-const display = (value:unknown) => JSON.stringify(value)
+const display = (value:unknown) => JSON.stringify(value) ?? ""
 export const argumentFieldId = (path:string[]) => `invoke-field-${encodeURIComponent(JSON.stringify(path))}`
+
+function PendingTypeConflict({entry,id,c,disabled,onClear}:{entry:PendingArgumentEntry;id:string;c:InvokeCopy;disabled:boolean;onClear:()=>void}) {
+  return <div className="invoke-pending-entry"><p id={`${id}-pending-kind`} className="invoke-field-error">{c.required === "必填" ? "参数定义已变化，未完成的输入仍已保留。请先清除此草稿，再配置当前字段。" : "The schema changed. This unfinished input is retained; clear its draft before configuring the current field."} <code>{pendingArgumentText(entry)}</code></p><Button type="link" size="small" disabled={disabled} onClick={onClear}>{clearPendingArgumentLabel(entry,c)}</Button></div>
+}
 
 /** Array updates are whole-array transactions; row identities survive removal. */
 function ArrayField(props:FieldProps) {
@@ -34,12 +40,15 @@ function ArrayField(props:FieldProps) {
 /** Only typed maps are editable here; arbitrary JSON maps keep their raw editor. */
 function MapField(props:FieldProps) {
   const {field:{schema},value,path,root,c,disabled,onChange,pendingEntries,onPendingEntryChange}=props
-  const newKey=pendingEntries[pointerFor(path)] || ""
+  const entry=pendingEntries[pointerFor(path)]
+  const numberConflict=Boolean(entry && typeof entry !== "string")
+  const newKey=typeof entry === "string" ? entry : ""
   const [keyError,setKeyError]=useState<string|null>(null)
   const values=isRecord(value) ? value : {}
   const itemSchema=fieldSchema(schema.additionalProperties,root)
   const pendingError=Boolean(newKey && props.issues?.some(issue=>issue.code === "pendingEntry" && issue.path === pointerFor(path)))
   function add() {
+    if (numberConflict) return
     if (!newKey) {setKeyError(c.emptyKey);return}
     if (owns(values,newKey)) {setKeyError(c.duplicateKey);return}
     if (onChange([...path,newKey],emptyFieldValue(itemSchema)) === false) return
@@ -51,7 +60,8 @@ function MapField(props:FieldProps) {
       <ArgumentField {...props} field={{name:key,schema:itemSchema,required:true}} path={[...path,key]} value={item} depth={(props.depth || 0)+1}/>
       <Button className="invoke-remove-row" type="text" icon={<Trash2 size={15}/>} disabled={disabled} aria-label={`${c.removeItem} ${key}`} onClick={()=>onChange([...path,key],undefined)}/>
     </div>)}
-    <div className="invoke-map-add"><label className="sr-only" htmlFor={id}>{c.mapKey}</label><Input id={id} value={newKey} disabled={disabled} placeholder={c.mapKey} aria-invalid={Boolean(keyError) || pendingError} aria-describedby={keyError ? `${id}-key-error` : newKey ? `${id}-pending-hint` : undefined} onChange={event=>{onPendingEntryChange(path,event.target.value);setKeyError(null)}} onPressEnter={event=>{event.preventDefault();add()}}/><Button icon={<Plus size={15}/>} disabled={disabled} onClick={add}>{c.addKey}</Button></div>
+    <div className="invoke-map-add"><label className="sr-only" htmlFor={id}>{c.mapKey}</label><Input id={id} value={newKey} disabled={disabled} readOnly={numberConflict} placeholder={c.mapKey} aria-invalid={Boolean(keyError) || pendingError || numberConflict} aria-describedby={numberConflict ? `${id}-pending-kind` : keyError ? `${id}-key-error` : newKey ? `${id}-pending-hint` : undefined} onChange={event=>{if (numberConflict) return;onPendingEntryChange(path,event.target.value);setKeyError(null)}} onPressEnter={event=>{event.preventDefault();add()}}/><Button icon={<Plus size={15}/>} disabled={disabled || numberConflict} onClick={add}>{c.addKey}</Button></div>
+    {numberConflict && <PendingTypeConflict entry={entry} id={id} c={c} disabled={disabled} onClear={()=>{onPendingEntryChange(path,"");setKeyError(null)}}/>}
     {newKey && <div className="invoke-pending-entry"><p id={`${id}-pending-hint`} className={pendingError ? "invoke-field-error" : undefined}>{c.pendingEntryHint}</p><Button type="link" size="small" disabled={disabled} onClick={()=>{onPendingEntryChange(path,"");setKeyError(null)}}>{c.clearPendingEntry}</Button></div>}
     {value === undefined && <Button type="link" disabled={disabled} onClick={()=>onChange(path,{})}>{c.useEmptyObject}</Button>}
     {keyError && <p className="invoke-field-error" id={`${id}-key-error`} role="alert">{keyError}</p>}
@@ -66,28 +76,47 @@ function ArgumentField({ field,path,root,value,disabled,c,onChange,onJSON,pendin
   const object=schema.type === "object" || isRecord(schema.properties)
   const supported=depth < 10 && supportsField(schema,value,root)
   const options=Array.isArray(schema.enum) ? schema.enum : schema.type === "boolean" ? [false,true] : null
+  const optionLabel=(item:unknown)=>item === true ? c.true : item === false ? c.false : item === null ? c.null : typeof item === "string" ? item : display(item)
+  const directOptions=options && options.length >= 2 && options.length <= 5 && options.every(item=>optionLabel(item).length <= 32)
   const errors=issues.filter(issue=>issue.path === pointerFor(path))
   const help=text(schema.description)
-  const common={id,disabled,"aria-describedby":[help ? `${id}-help` : "",errors.length ? `${id}-error` : ""].filter(Boolean).join(" ") || undefined,"aria-required":required,"aria-invalid":errors.length > 0}
   const childProps={field,path,root,value,disabled,c,onChange,onJSON,issues,depth,pendingEntries,onPendingEntryChange}
   const fields=object ? schemaFields(schema,root) || [] : []
   const map=object && !fields.length && isRecord(schema.additionalProperties)
+  const entry=pendingEntries[pointerFor(path)]
+  const numeric=supported && value !== null && !options && (schema.type === "integer" || schema.type === "number")
+  const numericDraft=numeric && entry && typeof entry !== "string" ? entry : null
+  const activeMap=supported && map && value !== null
+  const incompatibleEntry=Boolean(entry && !(activeMap && typeof entry === "string") && !(numeric && typeof entry !== "string"))
+  const numberHint=c.required === "必填" ? schema.type === "integer" ? "请输入完整且在安全精度范围内的整数，或清除数值草稿以恢复原值。" : "请输入完整的有限数字，整数须在安全精度范围内；也可清除数值草稿以恢复原值。" : schema.type === "integer" ? "Enter a complete safe integer, or clear the numeric draft to restore the previous value." : "Enter a complete finite number; integers must stay within the safe range. You can clear the numeric draft to restore the previous value."
+  const common={id,disabled,"aria-describedby":[help ? `${id}-help` : "",errors.length || numericDraft ? `${id}-error` : "",incompatibleEntry ? `${id}-pending-kind` : ""].filter(Boolean).join(" ") || undefined,"aria-required":required,"aria-invalid":errors.length > 0 || Boolean(numericDraft) || incompatibleEntry}
   // The rendered map owns its pending-row message, including at the root.
-  const displayErrors=errors.filter(issue=>!(issue.code === "pendingEntry" && supported && map && value !== null && pendingEntries[pointerFor(path)]))
+  const displayErrors=errors.filter(issue=>!(issue.code === "pendingEntry" && activeMap && entry) && !(issue.code === "pendingNumber" && numericDraft))
+  const errorText=[numericDraft ? numberHint : "",...displayErrors.map(issue=>issue.message)].filter(Boolean).join("; ")
   const unknown=object && !map && isRecord(value) ? Object.keys(value).filter(key=>!fields.some(child=>child.name === key)) : []
-  return <div className="invoke-field">
-    <div className="invoke-field-label"><label htmlFor={id}>{title}{required && <span className="invoke-required" title={c.required}> *</span>}</label>{title !== name && <code>{name}</code>}{!required && value !== undefined && <Button type="link" size="small" disabled={disabled} onClick={()=>onChange(path,undefined)} aria-label={`${c.omit} ${name}`}>{c.omit}</Button>}</div>
+  return <div className="invoke-field gate-form-row" data-compound={supported && (object || schema.type === "array")}>
+    <div className="invoke-field-label gate-form-label">
+      {supported && directOptions && !object && schema.type !== "array"
+        ? <span title={title}>{title}{required && <span className="invoke-required" title={c.required}> *</span>}</span>
+        : <label htmlFor={id} title={title}>{title}{required && <span className="invoke-required" title={c.required}> *</span>}</label>}
+      {help && <FieldHelp label={title} id={`${id}-help`} zh={c.required === "必填"}>{help}</FieldHelp>}
+    </div>
+    <div className="gate-form-control">
+    {(title !== name || !required && value !== undefined) && <div className="invoke-field-meta">{title !== name && <code>{name}</code>}{!required && value !== undefined && <Button type="link" size="small" disabled={disabled} onClick={()=>onChange(path,undefined)} aria-label={`${c.omit} ${name}`}>{c.omit}</Button>}</div>}
     {!supported ? <div className="invoke-complex"><span>{c.complex}</span><Button id={id} type="link" size="small" disabled={disabled} onClick={onJSON}>{c.editJson}</Button></div>
-      : value === null ? <div className="invoke-complex"><span>{c.null}</span>{(!Array.isArray(schema.enum) || schema.enum.some(item=>item !== null)) && <Button id={id} type="link" size="small" disabled={disabled} onClick={()=>onChange(path,emptyFieldValue(schema))}>{c.setValue}</Button>}</div>
+      : value === null && !directOptions ? <div className="invoke-complex"><span>{c.null}</span>{(!Array.isArray(schema.enum) || schema.enum.some(item=>item !== null)) && <Button id={id} type="link" size="small" disabled={disabled} onClick={()=>onChange(path,emptyFieldValue(schema))}>{c.setValue}</Button>}</div>
       : schema.type === "array" ? <ArrayField {...childProps}/>
       : map ? <MapField {...childProps}/>
       : object ? <div className="invoke-nested">{value === undefined ? <Button id={id} disabled={disabled} onClick={()=>onChange(path,{})}>{c.addObject}</Button> : <><div id={id} tabIndex={-1}/>{fields.map(child=><ArgumentField key={child.name} field={child} path={[...path,child.name]} root={root} value={valueAt(value,[child.name])} disabled={disabled} c={c} onChange={onChange} onJSON={onJSON} issues={issues} depth={depth+1} pendingEntries={pendingEntries} onPendingEntryChange={onPendingEntryChange}/>)}</>}{unknown.length > 0 && <div className="invoke-retained">{c.unknownFields} <code>{unknown.join(", ")}</code><Button type="link" size="small" disabled={disabled} onClick={onJSON}>{c.editJson}</Button></div>}</div>
-      : options ? <Select {...common} className="invoke-field-control" value={value === undefined ? undefined : display(value)} placeholder={required ? c.choose : c.omit} allowClear={!required} onChange={next=>onChange(path,next === undefined ? undefined : JSON.parse(next))} options={options.map(item=>({value:display(item),label:item === true ? c.true : item === false ? c.false : item === null ? c.null : typeof item === "string" ? item : display(item)}))}/>
-      : schema.type === "integer" || schema.type === "number" ? <InputNumber {...common} className="invoke-field-control" value={typeof value === "number" ? value : null} step={schema.type === "integer" ? 1 : 0.1} placeholder={required ? c.enter : c.omit} onChange={next=>onChange(path,next === null ? undefined : next)}/>
+      : options ? directOptions ? <FilterRadio {...common} label={title} hideLabel value={value === undefined ? "" : display(value)} onChange={next=>onChange(path,JSON.parse(next))} options={options.map(item=>({value:display(item),label:optionLabel(item)}))}/>
+        : <Select {...common} className="invoke-field-control" value={value === undefined ? undefined : display(value)} placeholder={required ? c.choose : c.omit} allowClear={!required} onChange={next=>onChange(path,next === undefined ? undefined : JSON.parse(next))} options={options.map(item=>({value:display(item),label:optionLabel(item)}))}/>
+      : schema.type === "integer" || schema.type === "number" ? <Input {...common} type="text" inputMode={schema.type === "integer" ? "numeric" : "decimal"} autoComplete="off" className="invoke-field-control" readOnly={incompatibleEntry} value={numericDraft ? numericDraft.raw : typeof value === "number" ? value : ""} placeholder={required ? c.enter : c.omit} onChange={event=>{if (incompatibleEntry) return;const raw=event.target.value,next=parseArgumentNumber(raw,schema.type === "integer");if (next.ok) onChange(path,next.value,"resolve-number");else onPendingEntryChange(path,{kind:"number",raw})}}/>
       : <Input {...common} type={sensitive ? "password" : "text"} autoComplete="off" value={typeof value === "string" ? value : ""} placeholder={required ? c.enter : c.omit} onChange={event=>onChange(path,event.target.value)}/>}
-    {help && <p id={`${id}-help`} className="invoke-field-help">{help}</p>}
-    {displayErrors.length > 0 && <p id={`${id}-error`} className="invoke-field-error">{displayErrors.map(issue=>issue.message).join("; ")}</p>}
+    {incompatibleEntry && !activeMap && <PendingTypeConflict entry={entry} id={id} c={c} disabled={disabled} onClear={()=>onPendingEntryChange(path,"")}/>}
+    {errorText && <p id={`${id}-error`} className="invoke-field-error">{errorText}</p>}
+    {numericDraft && <Button type="link" size="small" disabled={disabled} onClick={()=>onPendingEntryChange(path,"")}>{clearPendingArgumentLabel(numericDraft,c)}</Button>}
     <div className="invoke-field-meta"><span>{fieldType(schema)}</span>{typeof schema.minimum === "number" && <span>≥ {schema.minimum}</span>}{typeof schema.maximum === "number" && <span>≤ {schema.maximum}</span>}{owns(schema,"default") && !sensitive && <span>{c.defaultValue}: <code>{display(schema.default)}</code></span>}{schema.nullable === true && value !== null && !options && <Button type="link" size="small" disabled={disabled} onClick={()=>onChange(path,null)}>{c.setNull}</Button>}</div>
+    </div>
   </div>
 }
 

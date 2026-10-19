@@ -1,3 +1,5 @@
+import { parseJsonSource } from "@/lib/json-source"
+
 export type ManifestLike = Record<string, unknown> & {
   id?: unknown
   name?: unknown
@@ -9,7 +11,7 @@ export type ManifestLike = Record<string, unknown> & {
   restart_policy?: Record<string, unknown>
 }
 
-export type RuntimeMode = "managed_stdio" | "external_http" | "managed_http" | "advanced"
+export type RuntimeMode = "managed_stdio" | "external_http" | "managed_http" | "managed_container_stdio" | "advanced"
 
 export type PrecheckResult = { errors: string[]; warnings: string[] }
 
@@ -93,6 +95,7 @@ export type ManifestPrecheckMessageKey =
   | "containerVolumesUnsupported"
   | "containerMountsError"
   | "containerEnvironmentProtected"
+  | "containerTransportUnsupported"
   | "launchTypeWarning"
   | "argsWarning"
   | "transportTypeRequired"
@@ -118,7 +121,7 @@ const DOCKER_PROCESS_CONTROL_NAMES = new Set([
 ])
 
 export function parseManifest(value: string): ManifestLike {
-  const parsed = JSON.parse(value)
+  const parsed = parseJsonSource(value)
   if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) {
     throw new Error("Manifest root must be a JSON object")
   }
@@ -170,14 +173,17 @@ export function runtimeModeFromManifest(manifest: ManifestLike): RuntimeMode {
   if (launchType === "external" && transportType === "streamable_http") return "external_http"
   if (launchType === "managed_process" && transportType === "streamable_http") return "managed_http"
   if (launchType === "managed_process" && transportType === "stdio") return "managed_stdio"
+  if (launchType === "managed_container" && transportType === "stdio") return "managed_container_stdio"
   return "advanced"
 }
 
 /** Advanced JSON is an editing capability, not a different launch protocol. */
 export function changeRuntimeMode(manifest: ManifestLike, mode: RuntimeMode): ManifestLike {
   if (mode === "advanced") return manifest
-  let next = patchManifestField(manifest, ["launch", "type"], { kind: "set", value: mode === "external_http" ? "external" : "managed_process" })
-  next = patchManifestField(next, ["transport", "type"], { kind: "set", value: mode === "managed_stdio" ? "stdio" : "streamable_http" })
+  const launchType = mode === "external_http" ? "external" : mode === "managed_container_stdio" ? "managed_container" : "managed_process"
+  const transportType = mode === "managed_stdio" || mode === "managed_container_stdio" ? "stdio" : "streamable_http"
+  let next = patchManifestField(manifest, ["launch", "type"], { kind: "set", value: launchType })
+  next = patchManifestField(next, ["transport", "type"], { kind: "set", value: transportType })
   return next
 }
 
@@ -280,7 +286,7 @@ export function precheckManifest(
       })
       if (protectedEnvironment) errors.push(copy("containerEnvironmentProtected"))
     }
-    if (!["managed_process", "external"].includes(launchType)) warnings.push(copy("launchTypeWarning"))
+    if (!["managed_process", "managed_container", "external"].includes(launchType)) warnings.push(copy("launchTypeWarning"))
     if (Array.isArray(launch.args) && launch.args.some((item) => typeof item !== "string")) warnings.push(copy("argsWarning"))
   }
 
@@ -293,6 +299,7 @@ export function precheckManifest(
 
   const launchType = String(launch?.type || "")
   const transportType = String(transport?.type || "")
+  if (launchType === "managed_container" && transportType && transportType !== "stdio") errors.push(copy("containerTransportUnsupported"))
   const restartSupported = launchType === "managed_process" && ["stdio", "streamable_http"].includes(transportType)
     || launchType === "managed_container" && transportType === "stdio"
   const policy = getRecord(manifest.restart_policy)

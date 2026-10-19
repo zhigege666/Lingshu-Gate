@@ -1,11 +1,14 @@
-import { useContext, useEffect, useRef, useState } from "react"
-import { Alert, Button, Card, Drawer, Input, Select, Tag } from "antd"
+import { useContext, useEffect, useId, useRef, useState } from "react"
+import { Alert, Button, Card, Input, Select, Tag } from "antd"
 import { networkApi, type GitImport, type GitPlan, type GitSource, type NetworkProfile } from "@/api/network"
 import type { ProjectUpload } from "@/api/builds"
 import { useAuth } from "@/components/auth-gate"
 import { EditorNavigationContext } from "@/components/editor-navigation-guard"
 import { useConfirm } from "@/components/confirm-dialog"
 import { JsonPanel } from "@/components/json-panel"
+import { FormDialog } from "@/components/form-dialog"
+import { FilterRadio } from "@/components/filter-radio"
+import { FieldLabel } from "@/components/field-help"
 import { NetworkSettingsPanel } from "./network-settings-panel"
 import { networkPermission, selectionFromKey, selectionKey, selectionOptions } from "./model"
 import type { TFunction } from "@/i18n"
@@ -14,10 +17,11 @@ import "./network-settings.css"
 const initial: GitSource = { repository_url: "", ref_type: "branch", ref: "main", project_root: ".", credential_ref: null, git_network: { mode: "inherit" }, install_network: { mode: "inherit" }, runtime_template: "node" }
 
 export function GitImportForm({ t, onImported, onState }: { t: TFunction; onImported: (upload: ProjectUpload) => void; onState?: (state: { dirty: boolean; pending: boolean }) => void }) {
+  const fieldId = useId()
   const { user } = useAuth()
   const zh = t("uploads") === "项目上传"
   const copy = (cn: string, en: string) => zh ? cn : en
-  const { confirm, confirmDialog } = useConfirm(t)
+  const { confirm, confirmDialog } = useConfirm(t, true)
   const [source, setSource] = useState<GitSource>(initial)
   const [profiles, setProfiles] = useState<NetworkProfile[]>([])
   const [plan, setPlan] = useState<GitPlan | null>(null)
@@ -28,6 +32,7 @@ export function GitImportForm({ t, onImported, onState }: { t: TFunction; onImpo
   const [settingsState, setSettingsState] = useState({ dirty: false, pending: false })
   const mounted = useRef(true)
   const pending = useRef(false)
+  const settingsTrigger = useRef<HTMLElement | null>(null)
   const operationKey = useRef("")
   const published = useRef("")
   const registerExit = useContext(EditorNavigationContext)
@@ -81,19 +86,18 @@ export function GitImportForm({ t, onImported, onState }: { t: TFunction; onImpo
     setSettingsOpen(false); setSettingsState({ dirty: false, pending: false }); void loadProfiles()
   }
 
-  return <Card title={copy("从 Git 仓库导入", "Import from a Git repository")} extra={canManage && <Button disabled={busy || active} onClick={() => setSettingsOpen(true)}>{copy("网络设置", "Network settings")}</Button>}>
+  return <Card title={copy("从 Git 仓库导入", "Import from a Git repository")} extra={canManage && <Button disabled={busy || active} onClick={event => { settingsTrigger.current = event.currentTarget; setSettingsOpen(true) }}>{copy("网络设置", "Network settings")}</Button>}>
     {!canUse && <Alert type="warning" showIcon title={copy("需要独立的 network.use 权限才能调用交付网络", "The separate network.use permission is required to invoke delivery networking")} />}
     {error && <Alert className="mb-3" type="error" showIcon title={error} />}
     <div className="git-source-form">
-      <label className="network-settings-field git-source-full"><span>{copy("仓库 URL（HTTPS）", "Repository URL (HTTPS)")}</span><Input disabled={busy || active} autoComplete="off" placeholder="https://git.example.invalid/team/mcp-server.git" value={source.repository_url} onChange={event => update({ repository_url: event.target.value })} /></label>
-      <label className="network-settings-field"><span>{copy("来源类型", "Ref type")}</span><Select disabled={busy || active} value={source.ref_type} options={[{ value: "branch", label: copy("分支", "Branch") }, { value: "tag", label: "Tag" }, { value: "commit", label: "Commit SHA" }]} onChange={ref_type => update({ ref_type })} /></label>
-      <label className="network-settings-field"><span>{source.ref_type === "commit" ? "Commit SHA" : copy("分支 / tag", "Branch / tag")}</span><Input disabled={busy || active} autoComplete="off" value={source.ref} onChange={event => update({ ref: event.target.value })} /></label>
-      <label className="network-settings-field"><span>{copy("项目子目录", "Project subdirectory")}</span><Input disabled={busy || active} value={source.project_root} onChange={event => update({ project_root: event.target.value })} /></label>
-      <label className="network-settings-field"><span>{copy("私有库凭据引用 ID（可选）", "Private repository credential reference ID (optional)")}</span><Input disabled={busy || active} autoComplete="off" value={source.credential_ref || ""} onChange={event => update({ credential_ref: event.target.value || null })} /></label>
-      {(["git_network", "install_network"] as const).map(phase => <label className="network-settings-field" key={phase}><span>{phase === "git_network" ? copy("Git 拉取网络", "Git acquisition network") : copy("依赖安装网络", "Dependency installation network")}</span><Select aria-label={phase === "git_network" ? copy("Git 拉取网络", "Git acquisition network") : copy("依赖安装网络", "Dependency installation network")} disabled={busy || active} value={selectionKey(source[phase])} options={selectionOptions(profiles, zh)} onChange={key => update({ [phase]: selectionFromKey(key) })} /></label>)}
-      <label className="network-settings-field"><span>{copy("运行模板", "Runtime template")}</span><Select aria-label={copy("运行模板", "Runtime template")} disabled={busy || active} value={source.runtime_template} options={[{ value: "node", label: "Node.js · stdio" }, { value: "python", label: "Python · stdio" }]} onChange={runtime_template => update({ runtime_template })} /></label>
+      <label className="network-settings-field gate-form-row git-source-full" htmlFor={`${fieldId}-repository`}><FieldLabel className="gate-form-label" label={copy("仓库地址", "Repository")} zh={zh} helpId={`${fieldId}-repository-help`} help={copy("计划固定 commit 与配置版本；HTTPS 重定向、SSH、submodule 和 LFS 均不自动执行，不预置 SSH 密钥。示例主机需管理员显式配置。", "Plans pin commit and configuration versions. HTTPS redirects, SSH, submodules and LFS are not automatically executed; no SSH keys are provisioned. Example hosts require explicit administrator configuration.")} /><span className="gate-form-control"><Input id={`${fieldId}-repository`} aria-label={copy("仓库 URL（HTTPS）", "Repository URL (HTTPS)")} aria-describedby={`${fieldId}-repository-help`} disabled={busy || active} autoComplete="off" placeholder="https://git.example.invalid/team/mcp-server.git" value={source.repository_url} onChange={event => update({ repository_url: event.target.value })} /></span></label>
+      <div className="network-settings-field gate-form-row git-source-full"><span className="gate-form-label">{copy("来源类型", "Ref type")}</span><div className="gate-form-control"><FilterRadio label={copy("来源类型", "Ref type")} hideLabel disabled={busy || active} value={source.ref_type} options={[{ value: "branch", label: copy("分支", "Branch") }, { value: "tag", label: "Tag" }, { value: "commit", label: "Commit SHA" }]} onChange={ref_type => update({ ref_type: ref_type as GitSource["ref_type"] })} /></div></div>
+      <label className="network-settings-field gate-form-row"><span className="gate-form-label">{source.ref_type === "commit" ? "Commit SHA" : copy("分支 / tag", "Branch / tag")}</span><span className="gate-form-control"><Input disabled={busy || active} autoComplete="off" value={source.ref} onChange={event => update({ ref: event.target.value })} /></span></label>
+      <label className="network-settings-field gate-form-row"><span className="gate-form-label">{copy("项目子目录", "Subdirectory")}</span><span className="gate-form-control"><Input aria-label={copy("项目子目录", "Project subdirectory")} disabled={busy || active} value={source.project_root} onChange={event => update({ project_root: event.target.value })} /></span></label>
+      <label className="network-settings-field gate-form-row git-source-full"><span className="gate-form-label">{copy("私有库凭据 ID", "Credential ID")}</span><span className="gate-form-control"><Input aria-label={copy("私有库凭据引用 ID（可选）", "Private repository credential reference ID (optional)")} placeholder={copy("可选", "Optional")} disabled={busy || active} autoComplete="off" value={source.credential_ref || ""} onChange={event => update({ credential_ref: event.target.value || null })} /></span></label>
+      {(["git_network", "install_network"] as const).map(phase => <label className="network-settings-field gate-form-row" key={phase}><span className="gate-form-label">{phase === "git_network" ? copy("Git 拉取网络", "Git network") : copy("依赖安装网络", "Install network")}</span><span className="gate-form-control"><Select getPopupContainer={(trigger: HTMLElement) => trigger.closest<HTMLElement>('[role="dialog"]') || trigger.parentElement!} aria-label={phase === "git_network" ? copy("Git 拉取网络", "Git acquisition network") : copy("依赖安装网络", "Dependency installation network")} disabled={busy || active} value={selectionKey(source[phase])} options={selectionOptions(profiles, zh)} onChange={key => update({ [phase]: selectionFromKey(key) })} /></span></label>)}
+      <div className="network-settings-field gate-form-row git-source-full"><span className="gate-form-label">{copy("运行模板", "Runtime template")}</span><div className="gate-form-control"><FilterRadio label={copy("运行模板", "Runtime template")} hideLabel disabled={busy || active} value={source.runtime_template} options={[{ value: "node", label: "Node.js · stdio" }, { value: "python", label: "Python · stdio" }]} onChange={runtime_template => update({ runtime_template: runtime_template as GitSource["runtime_template"] })} /></div></div>
       <div className="network-settings-actions self-end"><Button type="primary" loading={busy} disabled={!canUse || active || !source.repository_url.trim() || !source.ref.trim()} onClick={() => void preview()}>{copy("检查并生成计划", "Inspect and plan")}</Button></div>
-      <p className="git-source-full text-xs text-muted-foreground">{copy("计划固定 commit 与配置版本；HTTPS 重定向、SSH、submodule 和 LFS 均不自动执行，不预置 SSH 密钥。示例主机需管理员显式配置。", "Plans pin commit and configuration versions. HTTPS redirects, SSH, submodules and LFS are not automatically executed; no SSH keys are provisioned. Example hosts require explicit administrator configuration.")}</p>
       {plan?.status === "blocked" && <Alert className="git-source-full" type="warning" showIcon title={copy("导入被执行边界阻断", "Import blocked by the execution boundary")} description={`${plan.error?.code}: ${plan.error?.message} · ${plan.error?.next_action}`} />}
       {plan?.status === "ready" && <div className="git-source-review git-source-full">
         <dl><dt>Commit</dt><dd><code>{plan.plan?.commit_sha}</code></dd><dt>{copy("计划摘要", "Plan digest")}</dt><dd><code>{plan.plan_digest}</code></dd><dt>{copy("截止时间", "Expires")}</dt><dd>{plan.expires_at}</dd></dl>
@@ -105,9 +109,11 @@ export function GitImportForm({ t, onImported, onState }: { t: TFunction; onImpo
         <Button disabled={busy} onClick={() => void run(async () => setTask(await networkApi.status(task.import_id)))}>{copy("查询现有任务", "Check existing task")}</Button>
       </div></div>}
     </div>
-    <Drawer className="network-settings-drawer" size={960} title={copy("系统设置 · 网络与依赖", "System settings · Network and dependencies")} open={settingsOpen} onClose={() => void closeSettings()} maskClosable={!settingsState.pending} keyboard={!settingsState.pending} closable={!settingsState.pending}>
+    <FormDialog className="max-w-[1200px] gate-network-dialog" bodyClassName="network-settings-dialog" title={copy("系统设置 · 网络与依赖", "System settings · Network and dependencies")} closeLabel={t("close")} open={settingsOpen} onClose={() => void closeSettings()} dirty={settingsState.dirty} pending={settingsState.pending}
+      onCloseAutoFocus={event => { if (settingsTrigger.current?.isConnected) { event.preventDefault(); settingsTrigger.current.focus() } }}
+      footer={<Button disabled={settingsState.pending} onClick={() => void closeSettings()}>{copy("返回导入", "Back to import")}</Button>}>
       {settingsOpen && <NetworkSettingsPanel t={t} onState={setSettingsState} onSaved={() => { void loadProfiles(); setPlan(null); operationKey.current = "" }} />}
-    </Drawer>
+    </FormDialog>
     {confirmDialog}
   </Card>
 }

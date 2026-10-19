@@ -1,6 +1,6 @@
-.filter-radio { display: flex; flex-wrap: wrap; align-items: center; gap: 4px; min-width: 0; }
-.filter-radio-label { color: hsl(var(--muted-foreground)); font-size: 12px; margin-right: 4px; }
-.filter-radio > label { display: inline-flex; align-items: center; gap: 6px; padding: 6px 8px; min-height: 34px; border: 1px solid transparent; border-radius: 6px; cursor: pointer; font-size: 13px; white-space: nowrap; }
+.filter-radio { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-2); min-width: 0; }
+.filter-radio-label { color: hsl(var(--muted-foreground)); font-size: 12px; margin-right: var(--space-1); }
+.filter-radio > label { display: inline-flex; align-items: center; gap: var(--space-2); padding: var(--space-1) var(--space-3); min-height: var(--control-height); border: 1px solid transparent; border-radius: var(--radius-control); cursor: pointer; font-size: 13px; white-space: nowrap; }
 .filter-radio > label[data-selected=true] { color: hsl(var(--primary)); background: hsl(var(--primary)/.08); border-color: hsl(var(--primary)/.3); }
 .filter-radio > label:focus-within { outline: 2px solid hsl(var(--ring)); outline-offset: 1px; }
 .filter-radio input { accent-color: hsl(var(--primary)); }
@@ -8,3 +8,8 @@
 
 .filter-radio > label { transition: background-color var(--motion-fast) var(--motion-ease), border-color var(--motion-fast) var(--motion-ease), color var(--motion-fast) var(--motion-ease); }
 @media (hover: hover) { .filter-radio > label:not(:has(input:disabled)):hover { background: hsl(var(--accent)); } }
+@media (max-width: 720px) {
+  .gate-form-control .filter-radio > label { min-width: 0; max-width: 100%; }
+  .gate-form-control .filter-radio > label > span { min-width: 0; white-space: normal; overflow-wrap: anywhere; }
+  .gate-form-control .filter-radio input { flex-shrink: 0; }
+}

@@ -2,7 +2,7 @@
 
 A self-hosted MCP gateway that connects tools, limits who can call them, and records what happened.
 
-[简体中文](README.zh-CN.md) · [Download 0.5.0](https://github.com/zhigege666/Lingshu-Gate/releases/tag/v0.5.0) · [Get started](docs/getting-started.md) · [Documentation](docs/README.md) · [Security](SECURITY.md)
+[简体中文](README.zh-CN.md) · [Download 0.5.1](https://github.com/zhigege666/Lingshu-Gate/releases/tag/v0.5.1) · [Get started](docs/getting-started.md) · [Documentation](docs/README.md) · [Security](SECURITY.md)
 
 <img src="docs/images/console/en-US/v0.5.0-discovery.png" alt="Lingshu Gate 0.5.0: per-authorization pinned tools, logical groups and bounded text previews" width="1200">
 
@@ -30,7 +30,7 @@ Open [http://127.0.0.1:8000/](http://127.0.0.1:8000/). Read `data/initial-admin-
 
 ### Released Docker trial
 
-Verify and extract `lingshu-gate-v0.5.0-docker-compose.tar.gz`, enter that directory and run:
+Verify and extract `lingshu-gate-v0.5.1-docker-compose.tar.gz`, enter that directory and run:
 
 ```bash
 cp .env.quickstart.example .env.quickstart
@@ -65,11 +65,11 @@ The [included demo walkthrough](docs/first-call.md) needs no external service ac
 
 Check the successful audit, deny a write with an unchanged counter, reject an invalid revision, stop/restart the demo and revoke the caller. Gate startup, tool discovery, classification confirmation and publication are separate steps; access still requires both resource grants and token scope.
 
-## 0.5.0 release
+## 0.5.1 release
 
-This version adds pinned discovery and text previews, four argument-policy rules, private HTTP connectors, a selected-operation OpenAPI adapter and default-off standard telemetry. Native and Compose archives include package-specific bilingual start pages and the runnable demo. See [changes](CHANGELOG.md) and the [bilingual release notes](packaging/release-notes.md).
+This patch refines all 23 signed-in Console routes with shared spacing, compact actions, centered dialogs and click-to-open field help. MCP and invocation editors preserve drafts and advanced JSON fields, while the built-in OAuth page separates connection settings, management access and client operations with independent error recovery. See [changes](CHANGELOG.md) and the [bilingual release notes](packaging/release-notes.md).
 
-Two database migrations add preferences and argument policies. Back up the database, configuration and credential keys consistently before upgrading; old binaries do not enforce the new policies.
+Desktop layouts use 2560×1440 as the baseline and support 1920×1080, 1600×900 and 2560×1080 in English and Simplified Chinese. This patch adds no database migrations and does not widen existing authorizations. Upgrades from versions before 0.5.0 still require the 0.5.0 migrations and a consistent backup of the database, configuration and credential keys.
 
 ## Architecture overview
 

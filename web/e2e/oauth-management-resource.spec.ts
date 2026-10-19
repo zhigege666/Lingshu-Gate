@@ -26,19 +26,26 @@ async function assets(page: Page, locale: Locale, theme: string, publicPage = fa
 }
 async function setup(page: Page, locale: Locale, theme = "light", signingKeys: unknown = [{ kid: "synthetic-active", active: true, retire_at: null }]) {
   await assets(page, locale, theme)
-  const model = { grant: { ...initialGrant, management_targets: { ...targets } }, management: { enabled: false, active: false, revision: 1, resource: initialGrant.resource }, keys: signingKeys,
-    reads: 0, managementFailure: false, targetFailure: false, previewFailure: false, saveFailure: false, holdTargets: null as (() => Promise<void>) | null,
+  const model = { grant: { ...initialGrant, management_targets: { ...targets } }, management: { enabled: false, active: false, revision: 1, resource: initialGrant.resource }, businessEnabled: true, keys: signingKeys,
+    reads: 0, managementFailure: false, targetFailure: false, previewFailure: false, saveFailure: false, holdTargets: null as (() => Promise<void>) | null, holdManagementRead: null as (() => Promise<void>) | null, holdManagementWrite: null as (() => Promise<void>) | null,
     writes: [] as { path: string; body: Record<string, unknown>; csrf?: string }[], previews: [] as Record<string, unknown>[], clients: [] as Record<string, unknown>[] }
   await page.route("**/v1/**", async route => {
     const pathname = new URL(route.request().url()).pathname, method = route.request().method()
     if (pathname === "/v1/mcp/servers") return route.fulfill({ json: { servers: [], load_errors: [] } })
     if (pathname === "/v1/mcp/configs") return route.fulfill({ json: { configs: [], errors: [] } })
     if (pathname === "/v1/auth/me") return route.fulfill({ json: { id: "synthetic-admin", username: "synthetic-admin", display_name: "Synthetic administrator", status: "active", role: "admin", roles: ["admin"], permissions: ["console.view", "credentials.manage.self", "external_connections.manage", "operations.manage", "tools.invoke"], auth_type: "session", scopes: [], must_change_password: false } })
-    if (pathname === "/v1/auth/oauth/config") return route.fulfill({ json: { enabled: true, issuer: "https://gate.example.test", resource: "https://gate.example.test/mcp", revision: 1, metadata_url: "https://gate.example.test/.well-known/oauth-authorization-server", authorization_endpoint: "https://gate.example.test/oauth/authorize", token_endpoint: "https://gate.example.test/oauth/token", jwks_uri: "https://gate.example.test/oauth/jwks", signing_keys: model.keys } })
+    if (pathname === "/v1/auth/tokens" && method === "GET") return route.fulfill({ json: { tokens: [] } })
+    if (pathname === "/v1/auth/external-grants" && method === "GET") return route.fulfill({ json: { grants: [], connection_ready: false, activation_errors: [], allowed_client_ids: [] } })
+    if (pathname === "/v1/auth/oauth/config") return route.fulfill({ json: { enabled: model.businessEnabled, issuer: "https://gate.example.test", resource: "https://gate.example.test/mcp", revision: 1, metadata_url: "https://gate.example.test/.well-known/oauth-authorization-server", authorization_endpoint: "https://gate.example.test/oauth/authorize", token_endpoint: "https://gate.example.test/oauth/token", jwks_uri: "https://gate.example.test/oauth/jwks", signing_keys: model.keys } })
     if (pathname === "/v1/auth/oauth/management/config") {
-      if (method === "GET") { model.reads++; return route.fulfill(model.managementFailure ? { status: 503, json: { error: "request_failed" } } : { json: model.management }) }
+      if (method === "GET") {
+        model.reads++
+        if (model.holdManagementRead) await model.holdManagementRead()
+        return route.fulfill(model.managementFailure ? { status: 503, json: { error: "request_failed" } } : { json: model.management })
+      }
       const body = route.request().postDataJSON(); model.writes.push({ path: pathname, body, csrf: route.request().headers()["x-csrf-token"] })
-      model.management = { ...model.management, enabled: body.enabled, active: body.enabled, revision: model.management.revision + 1 }
+      if (model.holdManagementWrite) await model.holdManagementWrite()
+      model.management = { ...model.management, enabled: body.enabled, active: Boolean(body.enabled && model.businessEnabled), revision: model.management.revision + 1 }
       return route.fulfill({ json: model.management })
     }
     if (pathname === "/v1/auth/oauth/management/csrf") { model.writes.push({ path: pathname, body: route.request().postDataJSON() }); return route.fulfill({ json: { csrf: "synthetic-management-csrf" } }) }
@@ -72,10 +79,19 @@ async function infrastructure(page: Page, zh: boolean) {
   await page.goto("/console/#/connectionInfrastructure")
   await expect(page.getByRole("button", { name: zh ? "登记客户端" : "Register client", exact: true })).toBeEnabled()
 }
+function managementGrantRow(page: Page) {
+  return page.locator(`.my-authorizations-page .ant-table-tbody > tr[data-row-key="builtin:${initialGrant.id}"]`)
+}
+function managementGrantTrigger(page: Page, zh: boolean) {
+  return managementGrantRow(page).getByRole("button", { name: zh ? "调整授权" : "Adjust", exact: true })
+}
 async function personal(page: Page, zh: boolean) {
   await page.goto("/console/#/myConnections")
-  await page.getByRole("tab", { name: zh ? "Gate 内置 OAuth" : "Gate built-in OAuth", exact: true }).click()
-  await expect(page.getByRole("button", { name: zh ? "调整管理目标" : "Adjust targets", exact: true })).toBeVisible()
+  await page.getByRole("radiogroup", { name: zh ? "授权方式" : "Authorization type", exact: true }).getByRole("radio", { name: "Gate OAuth", exact: true }).check()
+  await expect(managementGrantRow(page).getByRole("button", { name: initialGrant.client_name, exact: true })).toBeVisible()
+  await expect(managementGrantRow(page)).toContainText(initialGrant.client_id)
+  await expect(managementGrantRow(page).getByText(zh ? "管理" : "Management", { exact: true })).toBeVisible()
+  await expect(managementGrantTrigger(page, zh)).toBeVisible()
 }
 async function capture(page: Page, name: string) {
   const directory = process.env.GATE_OAUTH_SCREENSHOT_DIR
@@ -109,6 +125,7 @@ for (const size of sizes) for (const locale of ["en-US", "zh-CN"] as const) for 
     expect(model.writes).toHaveLength(0)
     await confirm.getByRole("button", { name: zh ? "启用管理资源" : "Enable management resource", exact: true }).click()
     await expect(toggle).toBeChecked()
+    await expect(page.locator(".oauth-management-status")).toHaveText(zh ? "已生效" : "Active")
     expect(model.writes).toEqual([{ path: "/v1/auth/oauth/management/csrf", body: { enabled: true, expected_revision: 1 } }, { path: "/v1/auth/oauth/management/config", body: { enabled: true, expected_revision: 1 }, csrf: "synthetic-management-csrf" }])
     await page.getByRole("button", { name: zh ? "登记客户端" : "Register client", exact: true }).click()
     const editor = page.getByRole("dialog", { name: zh ? "登记客户端" : "Register client", exact: true })
@@ -130,7 +147,7 @@ for (const size of sizes) for (const locale of ["en-US", "zh-CN"] as const) for 
     await page.setViewportSize(size)
     const model = await setup(page, locale, theme)
     await personal(page, zh)
-    const trigger = page.getByRole("button", { name: zh ? "调整管理目标" : "Adjust targets", exact: true })
+    const trigger = managementGrantTrigger(page, zh)
     await trigger.click()
     const editor = page.getByRole("dialog", { name: zh ? "调整管理目标" : "Adjust management targets", exact: true })
     const first = editor.getByRole("textbox", { name: zh ? "服务 ID 1" : "Server ID 1", exact: true })
@@ -163,6 +180,65 @@ for (const size of sizes) for (const locale of ["en-US", "zh-CN"] as const) for 
 }
 for (const locale of ["en-US", "zh-CN"] as const) {
   const zh = locale === "zh-CN"
+  test(`management configured state stays distinct from active and pending reads or writes protect navigation ${locale}`, async ({ page }) => {
+    const model = await setup(page, locale)
+    model.businessEnabled = false
+    model.management = { ...model.management, enabled: true, active: false }
+    await infrastructure(page, zh)
+    const panel = page.locator(".oauth-management-panel"), status = panel.locator(".oauth-management-status")
+    const toggle = panel.getByRole("switch", { name: zh ? "启用管理 OAuth" : "Enable management OAuth", exact: true })
+    const reload = panel.getByRole("button", { name: zh ? "重读管理状态" : "Reload management state", exact: true })
+    const otherMode = page.getByRole("tab", { name: zh ? "外部身份提供方" : "External identity provider", exact: true })
+    await expect(status).toContainText(zh ? "已配置，未生效" : "Configured, inactive")
+    await expect(toggle).toBeChecked(); await expect(toggle).toBeEnabled()
+    let releaseRead!: () => void
+    const readHeld = new Promise<void>(resolve => { releaseRead = resolve })
+    model.holdManagementRead = () => readHeld
+    model.managementFailure = true
+    try {
+      await reload.click()
+      await expect(reload).toBeDisabled()
+      await expect(toggle).toBeDisabled()
+      await expect(otherMode).toBeDisabled()
+      await page.keyboard.press("Escape")
+      await expect(panel).toBeVisible()
+      expect(model.writes).toHaveLength(0)
+    } finally { releaseRead() }
+    await expect(status).toContainText(zh ? "状态读取失败" : "Status unavailable")
+    await expect(panel.getByRole("alert")).toContainText(zh ? "上次读取：已配置，未生效" : "Last read: configured, inactive")
+    await expect(toggle).toBeChecked(); await expect(toggle).toBeEnabled()
+    await expect(otherMode).toBeEnabled()
+    model.managementFailure = false; model.holdManagementRead = null
+    await reload.click()
+    await expect(panel.getByRole("alert")).toHaveCount(0)
+    await expect(status).not.toContainText(zh ? "状态读取失败" : "Status unavailable")
+    await expect(status).toContainText(zh ? "已配置，未生效" : "Configured, inactive")
+    expect(model.writes).toHaveLength(0)
+    let releaseWrite!: () => void
+    const writeHeld = new Promise<void>(resolve => { releaseWrite = resolve })
+    model.holdManagementWrite = () => writeHeld
+    await toggle.click()
+    const confirmation = page.getByRole("alertdialog", { name: zh ? "关闭管理 OAuth？" : "Disable management OAuth?", exact: true })
+    await expect(confirmation).toContainText(zh ? "仅撤销管理资源" : "Revoke only management-resource")
+    expect(model.writes).toHaveLength(0)
+    try {
+      await confirmation.getByRole("button", { name: zh ? "关闭管理资源" : "Disable management resource", exact: true }).click()
+      await expect.poll(() => model.writes.length).toBe(2)
+      await expect(toggle).toBeDisabled()
+      await expect(otherMode).toBeDisabled()
+      await page.keyboard.press("Escape")
+      await expect(panel).toBeVisible()
+      expect(model.writes).toEqual([
+        { path: "/v1/auth/oauth/management/csrf", body: { enabled: false, expected_revision: 1 } },
+        { path: "/v1/auth/oauth/management/config", body: { enabled: false, expected_revision: 1 }, csrf: "synthetic-management-csrf" },
+      ])
+    } finally { releaseWrite() }
+    await expect(toggle).not.toBeChecked()
+    await expect(toggle).toBeDisabled()
+    await expect(otherMode).toBeEnabled()
+    await expect(reload).toBeEnabled()
+    expect(model.writes).toHaveLength(2)
+  })
   test(`management unknown key state prevents enable but preserves explicit disable ${locale}`, async ({ page }) => {
     const model = await setup(page, locale, "light", null)
     await infrastructure(page, zh)
@@ -178,11 +254,41 @@ for (const locale of ["en-US", "zh-CN"] as const) {
     await page.getByRole("alertdialog").getByRole("button", { name: zh ? "关闭管理资源" : "Disable management resource", exact: true }).click()
     await expect(toggle).not.toBeChecked()
     expect(model.writes.at(-1)!.body).toEqual({ enabled: false, expected_revision: 1 })
+    // A failed reread must also block new enablement when the other prerequisites
+    // are ready; unknown keys alone would mask a stale-disabled-state regression.
+    const writeCount = model.writes.length
+    model.keys = [{ kid: "synthetic-active", active: true, retire_at: null }]
+    model.managementFailure = false
+    await page.locator(".oauth-infrastructure").getByRole("button", { name: zh ? "刷新" : "Refresh", exact: true }).click()
+    await expect(page.locator("#oauth-generate-key")).toHaveAccessibleName(zh ? "轮换签名密钥" : "Rotate signing key")
+    await expect(toggle).not.toBeChecked(); await expect(toggle).toBeEnabled()
+    model.managementFailure = true
+    await page.getByRole("button", { name: zh ? "重读管理状态" : "Reload management state", exact: true }).click()
+    await expect(page.locator(".oauth-management-status")).toHaveText(zh ? "状态读取失败" : "Status unavailable")
+    await expect(toggle).not.toBeChecked(); await expect(toggle).toBeDisabled()
+    expect(model.writes).toHaveLength(writeCount)
+    model.managementFailure = false
+    await page.getByRole("button", { name: zh ? "重读管理状态" : "Reload management state", exact: true }).click()
+    await expect(page.locator(".oauth-management-status")).toHaveText(zh ? "已关闭" : "Disabled")
+    await expect(toggle).not.toBeChecked(); await expect(toggle).toBeEnabled()
+    expect(model.writes).toHaveLength(writeCount)
+    // Another administrator changes management only. Refresh must reread it
+    // even though the business OAuth enabled dependency stays unchanged.
+    const managementReads = model.reads, businessEnabled = model.businessEnabled
+    model.management = { ...model.management, enabled: true, active: true, revision: model.management.revision + 1 }
+    await expect(page.getByRole("switch", { name: zh ? "启用内置 OAuth" : "Enable built-in OAuth", exact: true })).toBeChecked()
+    await page.locator(".oauth-infrastructure").getByRole("button", { name: zh ? "刷新" : "Refresh", exact: true }).click()
+    await expect(page.locator(".oauth-management-status")).toHaveText(zh ? "已生效" : "Active")
+    await expect(toggle).toBeChecked(); await expect(toggle).toBeEnabled()
+    await expect(page.getByRole("switch", { name: zh ? "启用内置 OAuth" : "Enable built-in OAuth", exact: true })).toBeChecked()
+    expect(model.businessEnabled).toBe(businessEnabled)
+    expect(model.reads).toBe(managementReads + 1)
+    expect(model.writes).toHaveLength(writeCount)
   })
   test(`management target error and dirty keyboard close retain edits ${locale}`, async ({ page }) => {
     const model = await setup(page, locale)
     await personal(page, zh)
-    await page.getByRole("button", { name: zh ? "调整管理目标" : "Adjust targets", exact: true }).click()
+    await managementGrantTrigger(page, zh).click()
     const editor = page.getByRole("dialog", { name: zh ? "调整管理目标" : "Adjust management targets", exact: true })
     const first = editor.getByRole("textbox", { name: zh ? "服务 ID 1" : "Server ID 1", exact: true })
     await first.fill("service-retry")
@@ -203,7 +309,7 @@ for (const locale of ["en-US", "zh-CN"] as const) {
     await page.keyboard.press("Escape")
     await page.getByRole("alertdialog").getByRole("button", { name: zh ? "放弃修改" : "Discard changes", exact: true }).click()
     await expect(editor).toHaveCount(0)
-    await expect(page.getByRole("button", { name: zh ? "调整管理目标" : "Adjust targets", exact: true })).toBeFocused()
+    await expect(managementGrantTrigger(page, zh)).toBeFocused()
     expect(model.writes).toHaveLength(0)
   })
   test(`management pending read cannot be closed by keyboard ${locale}`, async ({ page }) => {
@@ -212,14 +318,14 @@ for (const locale of ["en-US", "zh-CN"] as const) {
     const held = new Promise<void>(resolve => { release = resolve })
     model.holdTargets = () => held
     await personal(page, zh)
-    await page.getByRole("button", { name: zh ? "调整管理目标" : "Adjust targets", exact: true }).click()
+    await managementGrantTrigger(page, zh).click()
     const editor = page.getByRole("dialog", { name: zh ? "调整管理目标" : "Adjust management targets", exact: true })
     await expect(editor).toHaveAttribute("aria-busy", "true")
     await page.keyboard.press("Escape"); await expect(editor).toBeVisible()
     release()
     await expect(editor.getByRole("textbox", { name: zh ? "服务 ID 1" : "Server ID 1", exact: true })).toHaveValue("service-0000")
     await page.keyboard.press("Escape"); await expect(editor).toHaveCount(0)
-    await expect(page.getByRole("button", { name: zh ? "调整管理目标" : "Adjust targets", exact: true })).toBeFocused()
+    await expect(managementGrantTrigger(page, zh)).toBeFocused()
     expect(model.writes).toHaveLength(0)
   })
   test(`management consent validates exact targets and keeps read-only scope ${locale}`, async ({ page }) => {
@@ -230,7 +336,8 @@ for (const locale of ["en-US", "zh-CN"] as const) {
     await page.goto("/oauth/consent#request=synthetic-management-request")
     const picker = page.getByRole("region", { name: zh ? "MCP 和工具授权范围" : "MCP and tool authorization scope", exact: true })
     await picker.getByRole("checkbox").first().check()
-    const allow = page.getByRole("button", { name: zh ? "允许 2 个工具" : "Allow 2 tools", exact: true })
+    await expect(page.locator(".oauth-selection-counts")).toContainText(zh ? "2 个当前工具" : "2 current tools")
+    const allow = page.getByRole("button", { name: zh ? "允许授权" : "Allow authorization", exact: true })
     await allow.click()
     expect(decisions).toHaveLength(0)
     await expect(page.getByText(zh ? "逐项填写精确服务 ID 和创建/更新操作；不支持重复 ID、通配符或其他操作。" : "Enter exact server IDs and create/update actions. Duplicate IDs, wildcards and other actions are unsupported.", { exact: true })).toBeVisible()

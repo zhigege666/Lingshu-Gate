@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react"
 import { Alert, Button, Input, Select, Segmented, Table, Tag } from "antd"
-import { McpAuthorizationEditor, McpPolicyDifference, QuotaFields, validQuotas, policyGroups, type McpServerPolicy, type McpAuthorizationMode } from "@/features/external-connections/mcp-authorization-editor"
+import { McpAuthorizationEditor, McpPolicyDifference, QuotaSettings, validQuotas, policyGroups, type McpServerPolicy, type McpAuthorizationMode } from "@/features/external-connections/mcp-authorization-editor"
 import { PageHeader } from "@/components/page-shell"
 import { FormDialog } from "@/components/form-dialog"
 import { useConfirm } from "@/components/confirm-dialog"
@@ -24,7 +24,7 @@ import "@/features/external-connections/oauth.css"
 import "@/features/external-connections/authorization-editor.css"
 
 export type OAuthGrantAction = { grant: OAuthGrant; action: "edit" | "view" | "revoke"; nonce: number }
-export function BuiltinOAuthGrants({ locale, t, embedded = false, action, onChanged }: { locale: Locale; t: TFunction; embedded?: boolean; action?: OAuthGrantAction; onChanged?: () => void }) {
+export function BuiltinOAuthGrants({ locale, t, embedded = false, action, onChanged, returnFocusState = "ready" }: { locale: Locale; t: TFunction; embedded?: boolean; action?: OAuthGrantAction; onChanged?: () => void; returnFocusState?: "pending" | "ready" | "error" }) {
   const zh = locale === "zh-CN"
   const [grants, setGrants] = useState<OAuthGrant[]>([])
   const [query, setQuery] = useState("")
@@ -40,6 +40,9 @@ export function BuiltinOAuthGrants({ locale, t, embedded = false, action, onChan
   const viewingGeneration = useRef(0)
   const viewTrigger = useRef<HTMLElement | null>(null)
   const targetTrigger = useRef<HTMLElement | null>(null)
+  const editTrigger = useRef<HTMLElement | null>(null)
+  const editReturnScope = useRef<HTMLElement | null>(null)
+  const editFocusPending = useRef(false)
   const [copyMessage, setCopyMessage] = useState("")
   const [targetEditing, setTargetEditing] = useState<OAuthGrant | null>(null)
   const [editing, setEditing] = useState<OAuthGrant | null>(null)
@@ -67,6 +70,7 @@ export function BuiltinOAuthGrants({ locale, t, embedded = false, action, onChan
   const version = useRef(0)
   const { confirm, confirmDialog } = useConfirm(t)
   const editorTools = useMemo(() => scopeEditorTools(rememberedTools, scopeOptions?.tools ?? null, selected), [rememberedTools, scopeOptions, selected])
+  const eligibleScopeTools = useMemo(() => scopeOptions?.tools.filter(tool => modes[tool.server_id] === "selected") ?? null, [scopeOptions?.tools, modes])
   const activeOptions = scopeCatalog || scopeOptions
   const paged = editing?.scope_catalog_mode === "paged"
   const availableIds = useMemo(() => new Set(paged ? scopeSelection?.available_ids || [] : scopeOptions?.tools.map(tool => tool.id) || []), [paged, scopeSelection, scopeOptions])
@@ -82,6 +86,16 @@ export function BuiltinOAuthGrants({ locale, t, embedded = false, action, onChan
   const unknownSaveMessage = zh ? "保存结果未知；草稿已保留。请刷新可授权范围，读取实际已保存状态后再决定是否更新。" : "Save result is unknown; your draft is retained. Refresh available scope to read the saved state before deciding whether to update."
   function closeEditor() { scopeGeneration.current++; setEditing(null); setScopeOptions(null); setScopeCatalog(null); setScopeSelection(null); setRememberedTools([]); setScopeLoading(false); setScopeInfoOpen(false); setSaveUncertain(false); setScopeReadNotice("") }
   const close = useDraftCloseGuard({ dirty, pending: busy, locale, confirm, onClose: closeEditor })
+  const restoreEditFocus = useCallback(() => {
+    if (busy || returnFocusState === "pending") return
+    const trigger = editTrigger.current
+    const scope = editReturnScope.current
+    const target = [trigger, scope?.querySelector<HTMLElement>('[data-authorization-retry]'), scope?.querySelector<HTMLElement>('[data-authorization-create]'), scope?.querySelector<HTMLElement>('[data-authorization-refresh]')]
+      .find(element => element?.isConnected && !element.matches(':disabled, [aria-disabled="true"]') && !element.closest('[inert], [aria-hidden="true"]') && element.getClientRects().length > 0)
+    editFocusPending.current = false
+    target?.focus({ preventScroll: target === trigger })
+  }, [busy, returnFocusState])
+  useEffect(() => { if (!editing && editFocusPending.current) restoreEditFocus() }, [editing, restoreEditFocus])
   async function load() {
     const current = ++version.current
     setBusy(true); setError(""); setNotice("")
@@ -94,7 +108,7 @@ export function BuiltinOAuthGrants({ locale, t, embedded = false, action, onChan
     } catch (cause) { if (current === version.current) setError(oauthError(cause, zh)) }
     finally { if (current === version.current) setBusy(false) }
   }
-  useEffect(() => { void load(); return () => { version.current++; viewingGeneration.current++; scopeGeneration.current++ } }, [])
+  useEffect(() => { if (!embedded) void load(); return () => { version.current++; viewingGeneration.current++; scopeGeneration.current++ } }, [embedded])
   usePageRefresh(load, busy || Boolean(editing) || Boolean(viewing) || Boolean(targetEditing))
   const filtered = useMemo(() => filterGrants(grants, filter, query, snapshotAt), [grants, filter, query, snapshotAt])
   const shownPage = Math.min(page, Math.max(1, Math.ceil(filtered.length / 15)))
@@ -104,6 +118,9 @@ export function BuiltinOAuthGrants({ locale, t, embedded = false, action, onChan
   function closeView() { viewingGeneration.current++; setViewing(null); setCopyMessage("") }
   function edit(grant: OAuthGrant) {
     if (grantState(grant, Math.floor(Date.now() / 1000)) !== "active") return
+    editTrigger.current = document.activeElement instanceof HTMLElement ? document.activeElement : null
+    editReturnScope.current = editTrigger.current?.closest<HTMLElement>('[data-authorization-page]') || null
+    editFocusPending.current = false
     setPolicies(grant.server_policies || []); setModes(Object.fromEntries(grant.tools.map(tool => [tool.server_id, "selected"]))); setEditing(grant); setSelected(grant.tools.map(tool => tool.id)); setExpiry(grant.expires_at); setRate(grant.rate_per_minute); setConcurrency(grant.concurrency); setFormError(""); setSaveUncertain(false); setScopeReadNotice("")
     setScopeOptions(null); setScopeCatalog(null); setScopeSelection(null); setScopeInfoOpen(false); setRememberedTools(grant.tools); void readScopeOptions(grant, grant.tools.map(tool => tool.id))
   }
@@ -230,11 +247,11 @@ export function BuiltinOAuthGrants({ locale, t, embedded = false, action, onChan
     try { await navigator.clipboard.writeText(value); if (current === viewingGeneration.current) setCopyMessage(zh ? "标识已复制。" : "Identifier copied.") }
     catch { if (current === viewingGeneration.current) setCopyMessage(zh ? "复制失败，请从只读字段手动复制。" : "Copy failed; copy from the read-only field.") }
   }
-  return <div className="space-y-4">
+  return <div className="space-y-4" data-authorization-page={!embedded ? "" : undefined}>
     {!embedded && <>
-    <PageHeader title={zh ? "我的 OAuth 授权" : "My OAuth grants"} closeLabel={t("close")} actions={<Button disabled={busy || Boolean(editing) || Boolean(viewing) || Boolean(targetEditing)} onClick={() => void load()}>{t("refresh")}</Button>} />
+    <PageHeader title={zh ? "我的 OAuth 授权" : "My OAuth grants"} closeLabel={t("close")} actions={<Button data-authorization-refresh disabled={busy || Boolean(editing) || Boolean(viewing) || Boolean(targetEditing)} onClick={() => void load()}>{t("refresh")}</Button>} />
     <p>{zh ? "这里只展示本人的授权。在 Gate 内明确确认即可增加或减少现有 OAuth scope 内的 MCP 和工具，无需客户端再次 OAuth；可随时撤销。" : "Only your own grants appear here. Explicit confirmation in Gate adds or removes MCPs and tools within existing OAuth scopes, without another client OAuth flow. You can revoke at any time."}</p>
-    {error && <Alert type="error" title={error} action={<Button disabled={busy} onClick={() => void load()}>{t("retry")}</Button>} />}
+    {error && <Alert type="error" title={error} action={<Button data-authorization-retry disabled={busy} onClick={() => void load()}>{t("retry")}</Button>} />}
     <div className="oauth-grants-toolbar"><Segmented aria-label={zh ? "授权状态" : "Grant state"} value={filter} onChange={value => { setFilter(value as GrantFilter); setPage(1); setSnapshotAt(Math.floor(Date.now() / 1000)) }} options={[{ value: "active", label: zh ? "有效" : "Active" }, { value: "expired", label: zh ? "已过期" : "Expired" }, { value: "revoked", label: zh ? "已撤销" : "Revoked" }, { value: "all", label: zh ? "全部" : "All" }]} /><Input aria-label={zh ? "搜索我的授权" : "Search my grants"} placeholder={zh ? "搜索客户端、MCP 或工具" : "Search client, MCP or tool"} allowClear value={query} onChange={event => { setQuery(event.target.value); setPage(1); setSnapshotAt(Math.floor(Date.now() / 1000)) }} /></div>
     <p className="oauth-muted" role="status">{zh ? `匹配 ${filtered.length} / 已读取 ${grants.length} 条本人授权；到期时间为 UTC，剩余时间按本次读取或筛选计算。` : `${filtered.length} matching / ${grants.length} loaded personal grants; expiry is UTC, remaining time reflects the latest read or filter.`}</p>
     <Table<OAuthGrant> rowKey="id" size="small" loading={busy && !grants.length} scroll={{ x: 1160 }} dataSource={filtered}
@@ -254,16 +271,16 @@ export function BuiltinOAuthGrants({ locale, t, embedded = false, action, onChan
       {viewing && <><p>{viewing.client_name} · {stateLabel(grantState(viewing, snapshotAt))}</p><p className="oauth-wrap">{viewing.resource}</p><div className="oauth-grant-identifiers"><label>Grant ID<Input readOnly value={viewing.id} /></label><Button onClick={() => void copyId(viewing.id)}>{zh ? "复制授权 ID" : "Copy grant ID"}</Button><label>Client ID<Input readOnly value={viewing.client_id} /></label><Button onClick={() => void copyId(viewing.client_id)}>{zh ? "复制客户端 ID" : "Copy client ID"}</Button></div>{copyMessage && <p role="status">{copyMessage}</p>}<p className="text-sm">{zh ? "这是已保存的工具范围；历史记录不代表当前仍获准调用。" : "This is recorded tool scope; historical records do not establish current invocation permission."}</p>{viewing.resource_kind === "management" && <ManagementTargetsEditor rows={managementTargetRows(viewing.management_targets || {})} onChange={() => undefined} zh={zh} readOnly />}<OAuthToolPicker key={viewing.id} tools={viewing.tools} selected={[]} onChange={() => undefined} zh={zh} readOnly fillViewport={viewing.resource_kind !== "management"} /></>}
     </FormDialog>
     <ManagementTargetsDialog grant={targetEditing} locale={locale} t={t} onCloseAutoFocus={event => { if (targetTrigger.current?.isConnected) { event.preventDefault(); targetTrigger.current.focus() } }} onClose={() => setTargetEditing(null)} onSaved={next => { onChanged?.(); setGrants(items => items.map(item => item.id === next.id ? next : item)); setSnapshotAt(Math.floor(Date.now() / 1000)); setNotice(zh ? "管理目标已更新；旧计划失效，权限上限未改变。" : "Management targets updated; old plans are stale and scope ceilings unchanged.") }} />
-    <FormDialog open={Boolean(editing)} title={zh ? "调整授权范围" : "Adjust authorization scope"} description={editing?.client_name} closeLabel={t("close")} onClose={() => void close()} onEscapeKeyDown={event => { preventOAuthMcpPopupDismiss(event); if (!event.defaultPrevented && scopeInfoOpen) { event.preventDefault(); setScopeInfoOpen(false) } }} dirty={dirty} pending={busy} error={saveUncertain ? [unknownSaveMessage, formError].filter(Boolean).join(" ") : formError} className="oauth-grant-scope-dialog oauth-grant-edit-dialog" bodyClassName="oauth-grant-scope-body oauth-grant-edit-body" footer={<><span className="oauth-grant-delta" role="status">{zh ? `新增 ${addedCount} · 移除 ${removedCount} · 新增写入 ${addedWriteCount}` : `${addedCount} added · ${removedCount} removed · ${addedWriteCount} added write`}</span><Button disabled={busy} onClick={() => void close()}>{t("cancel")}</Button><Button type="primary" disabled={busy || saveUncertain || scopeLoading || !dirty || !validQuotas(rate, concurrency) || (!selected.length && !policies.length) || (unavailableSelected.length > 0 && !quotaOnly) || !editing || !activeOptions || grantState(editing, Math.floor(Date.now() / 1000)) !== "active"} onClick={() => void save()}>{zh ? "保存授权" : "Save authorization"}</Button></>}>
+    <FormDialog onCloseAutoFocus={event => { event.preventDefault(); editFocusPending.current = true; restoreEditFocus() }} open={Boolean(editing)} title={zh ? "调整授权范围" : "Adjust authorization scope"} description={editing?.client_name} closeLabel={t("close")} onClose={() => void close()} onEscapeKeyDown={event => { preventOAuthMcpPopupDismiss(event); if (!event.defaultPrevented && scopeInfoOpen) { event.preventDefault(); setScopeInfoOpen(false) } }} dirty={dirty} pending={busy} error={saveUncertain ? [unknownSaveMessage, formError].filter(Boolean).join(" ") : formError} className="oauth-grant-scope-dialog oauth-grant-edit-dialog" bodyClassName="oauth-grant-scope-body oauth-grant-edit-body" footer={<><span className="oauth-grant-delta" role="status">{zh ? `新增 ${addedCount} · 移除 ${removedCount} · 新增写入 ${addedWriteCount}` : `${addedCount} added · ${removedCount} removed · ${addedWriteCount} added write`}</span><Button disabled={busy} onClick={() => void close()}>{t("cancel")}</Button><Button type="primary" disabled={busy || saveUncertain || scopeLoading || !dirty || !validQuotas(rate, concurrency) || (!selected.length && !policies.length) || (unavailableSelected.length > 0 && !quotaOnly) || !editing || !activeOptions || grantState(editing, Math.floor(Date.now() / 1000)) !== "active"} onClick={() => void save()}>{zh ? "保存授权" : "Save authorization"}</Button></>}>
       {editing && <>{scopeReadNotice && <p className="oauth-muted oauth-scope-refresh-status" role="status">{scopeReadNotice}</p>}<div className="oauth-grant-context"><ScopeRules summary={stateLabel(grantState(editing, Math.floor(Date.now() / 1000)))} options={activeOptions} grant={editing} loading={scopeLoading} added={addedCount} addedWrite={addedWriteCount} removed={removedCount} zh={zh} open={scopeInfoOpen} onOpenChange={setScopeInfoOpen} />
         {activeOptions && <ScopeAvailability options={activeOptions} grantId={paged ? editing.id : undefined} zh={zh} />}</div>
         {unavailableSelected.length > 0 && <Alert className="oauth-unavailable-selection" type="warning" title={quotaOnly ? zh ? `${unavailableSelected.length} 项当前不可授权；本次仅调整配额，保留原快照，不恢复访问。` : `${unavailableSelected.length} selections are unavailable. This update changes quotas only and preserves original snapshots without restoring access.` : zh ? `${unavailableSelected.length} 项当前不可授权；调整范围前须移除，仅改配额可保留原范围。` : `${unavailableSelected.length} selections are unavailable. Remove them before changing scope; quota-only changes can retain the original scope.`} action={<Button type="link" size="small" disabled={busy || scopeLoading} onClick={() => { if (paged) void resolveSelection({ mode: "ids", tool_ids: selected.filter(id => availableIds.has(id)) }); else setSelected(ids => ids.filter(id => availableIds.has(id))) }}>{zh ? "移除不可授权选择" : "Remove unavailable selections"}</Button>} />}
         <div className="authorization-field"><label>{zh ? "到期时间（UTC）" : "Expiry (UTC)"}</label><Input type="datetime-local" aria-label={zh ? "到期时间（UTC）" : "Expiry (UTC)"} disabled={busy} max={new Date(editing.expires_at * 1000).toISOString().slice(0, 16)} value={new Date(expiry * 1000).toISOString().slice(0, 16)} onChange={event => { const next = Date.parse(`${event.target.value}:00Z`); if (Number.isFinite(next)) setExpiry(Math.floor(next / 1000)) }} /></div>
-        <QuotaFields rate={rate} concurrency={concurrency} onRate={setRate} onConcurrency={setConcurrency} disabled={busy} zh={zh} />
+        <QuotaSettings rate={rate} concurrency={concurrency} onRate={setRate} onConcurrency={setConcurrency} disabled={busy} zh={zh} />
         <Button className="self-start" disabled={busy || scopeLoading} loading={scopeLoading} onClick={() => void readScopeOptions(editing, selected, saveUncertain)}>{zh ? "刷新可授权范围" : "Refresh available scope"}</Button>
         <McpAuthorizationEditor groups={paged ? serverGroups : activeOptions?.servers || policyGroups(editorTools, policies)} policies={policies} modes={modes} onMode={(server, mode) => void changeServerMode(server, mode)} onAccess={(server, access) => setPolicies(items => items.map(policy => policy.server_id === server ? { ...policy, access } : policy))} canWrite={Boolean(activeOptions?.effective_scopes.includes("tools.invoke"))} disabled={busy || scopeLoading || !activeOptions} zh={zh} />
         {Object.values(modes).includes("selected") && <Select aria-label={zh ? "选择工具所属 MCP" : "MCP for tool selection"} value={modes[toolServer] === "selected" ? toolServer : Object.keys(modes).find(id => modes[id] === "selected")} onChange={setToolServer} options={Object.keys(modes).filter(id => modes[id] === "selected").map(value => ({ value, label: serverGroups.find(group => group.server_id === value)?.server_name || value }))} />}
-        {Object.values(modes).includes("selected") && (paged ? <OAuthPagedToolPicker serverId={modes[toolServer] === "selected" ? toolServer : Object.keys(modes).find(id => modes[id] === "selected")} key={`${editing.id}:${toolServer}`} grantId={editing.id} catalog={scopeCatalog} selection={scopeSelection} selected={selected} refreshKey={scopeRefreshKey} zh={zh} disabled={busy || scopeLoading} onResolve={resolveSelection} onRefresh={() => void readScopeOptions(editing, selected, saveUncertain)} onCatalog={setScopeCatalog} onLoading={setScopeLoading} onError={cause => { setScopeCatalog(null); setFormError(oauthError(cause, zh)) }} /> : <OAuthToolPicker tools={editorTools.filter(tool => modes[tool.server_id] === "selected")} eligibleTools={scopeOptions?.tools.filter(tool => modes[tool.server_id] === "selected") ?? null} selected={selected} onChange={setSelected} zh={zh} disabled={busy || scopeLoading || !scopeOptions} fillViewport bulkActions compact quickAction={<Button type="text" aria-label={zh ? "刷新可授权范围" : "Refresh available scope"} aria-busy={scopeLoading} loading={scopeLoading} disabled={busy || scopeLoading} onClick={() => void readScopeOptions(editing, selected, saveUncertain)}>{zh ? "刷新可授权范围" : "Refresh available scope"}</Button>} />)}</>}
+        {Object.values(modes).includes("selected") && (paged ? <OAuthPagedToolPicker serverId={modes[toolServer] === "selected" ? toolServer : Object.keys(modes).find(id => modes[id] === "selected")} key={`${editing.id}:${toolServer}`} grantId={editing.id} catalog={scopeCatalog} selection={scopeSelection} selected={selected} refreshKey={scopeRefreshKey} zh={zh} disabled={busy || scopeLoading} onResolve={resolveSelection} onRefresh={() => void readScopeOptions(editing, selected, saveUncertain)} onCatalog={setScopeCatalog} onLoading={setScopeLoading} onError={cause => { setScopeCatalog(null); setFormError(oauthError(cause, zh)) }} /> : <OAuthToolPicker tools={editorTools.filter(tool => modes[tool.server_id] === "selected")} eligibleTools={eligibleScopeTools} selected={selected} onChange={setSelected} zh={zh} disabled={busy || scopeLoading || !scopeOptions} fillViewport bulkActions compact quickAction={<Button type="text" aria-label={zh ? "刷新可授权范围" : "Refresh available scope"} aria-busy={scopeLoading} loading={scopeLoading} disabled={busy || scopeLoading} onClick={() => void readScopeOptions(editing, selected, saveUncertain)}>{zh ? "刷新可授权范围" : "Refresh available scope"}</Button>} />)}</>}
     </FormDialog>{confirmDialog}<Toaster toast={toast} onClose={dismissToast} closeLabel={t("close")} />
   </div>
 }

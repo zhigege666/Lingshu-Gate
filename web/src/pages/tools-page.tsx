@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from "react"
 import { Select } from "antd"
+import { FilterRadio } from "@/components/filter-radio"
 import { useRemainingViewport } from "@/components/use-remaining-viewport"
 import { ArrowUpRight, ChevronLeft, ChevronRight, Eye, PencilLine, Play, Plug, Server, Wrench } from "lucide-react"
 import type { McpServer, ToolDefinition } from "@/api/client"
@@ -99,9 +100,9 @@ export function ToolsPage({ tools, servers, loading, error, t, onInvoke, onRefre
           ]}
           notFoundContent={t("noData")}
         />
-        <Select
-          className="tool-access-filter" aria-label={t("permission")}
-          value={access} onChange={value => { setAccess(value); setPage(1) }}
+        <FilterRadio
+          label={t("permission")}
+          value={access} onChange={value => { setAccess(value as "all" | ToolAccess); setPage(1) }}
           options={[
             { value: "all", label: t("allToolPermissions") },
             { value: "read", label: t("toolReadOnly") },

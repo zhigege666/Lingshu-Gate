@@ -30,7 +30,10 @@ export function canEnableOAuth(keys: SigningKeyState): boolean {
   return keys.phase === "ready" && keys.count > 0
 }
 
-/** Saved prerequisites only; this does not claim external connectivity. */
-export function showOAuthSetupSteps(config: Pick<OAuthConfig, "issuer" | "resource" | "enabled"> | null, keys: SigningKeyState, clientsReady: boolean, clients: Pick<OAuthClient, "enabled">[]): boolean {
-  return !config?.enabled || !config.issuer || !config.resource || !canEnableOAuth(keys) || !clientsReady || !clients.some(client => client.enabled)
+/** Suggest one next setup action from known, saved state; registration is not an enablement gate. */
+export function oauthSetupGuidance(config: Pick<OAuthConfig, "issuer" | "resource" | "enabled"> | null, keys: SigningKeyState, clientsReady: boolean, clients: Pick<OAuthClient, "enabled">[]): "urls" | "signing-key" | "client" | null {
+  if (!config || config.enabled || keys.phase !== "ready" || !clientsReady) return null
+  if (!config.issuer || !config.resource) return "urls"
+  if (keys.count === 0) return "signing-key"
+  return clients.length === 0 ? "client" : null
 }

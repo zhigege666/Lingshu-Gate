@@ -4,6 +4,7 @@ import Ajv2020 from "ajv/dist/2020"
 import addFormats from "ajv-formats"
 import type { InvokeCopy } from "./copy"
 import { pathFor, pointerFor, type ValidationIssue } from "@/lib/validation"
+import { JsonSourceError, parseJsonSource, type JsonSourceErrorCode, type JsonSourceRange } from "@/lib/json-source"
 
 export type Schema = Record<string, unknown>
 export type Arguments = Record<string, unknown>
@@ -49,10 +50,10 @@ export function schemaFields(raw: Schema, root = raw): Field[] | null {
   return Object.entries(isRecord(schema.properties) ? schema.properties : {}).map(([name,property]) => ({ name, schema: fieldSchema(property,root), required: Array.isArray(schema.required) && schema.required.includes(name) }))
 }
 
-export type ParsedArguments = { ok: true; value: Arguments } | { ok: false; error: "invalidJson" | "objectRequired" }
+export type ParsedArguments = { ok: true; value: Arguments } | { ok: false; error: "invalidJson" | "objectRequired" | JsonSourceErrorCode; path?: string; range?: JsonSourceRange }
 export function parseArguments(text: string): ParsedArguments {
-  try { const value: unknown = JSON.parse(text); return isRecord(value) ? { ok:true,value } : { ok:false,error:"objectRequired" } }
-  catch { return { ok:false,error:"invalidJson" } }
+  try { const value = parseJsonSource(text); return isRecord(value) ? { ok:true,value } : { ok:false,error:"objectRequired" } }
+  catch (error) { return error instanceof JsonSourceError ? { ok:false,error:error.code,path:error.path,range:error.range } : { ok:false,error:"invalidJson" } }
 }
 export function valueAt(value: unknown,path: string[]): unknown {
   return path.reduce<unknown>((node,key) => (isRecord(node) || Array.isArray(node)) && owns(node,key) ? (node as Record<string,unknown>)[key] : undefined,value)
@@ -132,7 +133,10 @@ const compiled = new WeakMap<Schema,ValidateFunction | null>()
 export function validateArguments(schema: Schema,text: string,c: InvokeCopy,revision=0): { ok:true;value:Arguments } | { ok:false;error:string;issues:ValidationIssue[] } {
   const failure=(messageKey:keyof InvokeCopy,source:ValidationIssue["source"])=>({ok:false as const,error:c[messageKey],issues:[{code:messageKey,messageKey,message:c[messageKey],source,severity:"error" as const,path:"",revision}]})
   const parsed=parseArguments(text)
-  if (!parsed.ok) return failure(parsed.error,"syntax")
+  if (!parsed.ok) {
+    const result = failure(parsed.error,"syntax")
+    return { ...result, issues: result.issues.map(issue => ({ ...issue, path: parsed.path || "", ...(parsed.range ? { range: parsed.range } : {}) })) }
+  }
   let validate=compiled.get(schema)
   if (validate === undefined) {
     try {

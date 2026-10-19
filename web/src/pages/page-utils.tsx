@@ -44,7 +44,7 @@ export function Metric({ title, value, hint, badge, icon }: { title: string; val
       <CardContent className="flex items-start justify-between gap-3 p-5">
         <div className="min-w-0">
           <div className="text-sm font-medium text-muted-foreground">{title}</div>
-          <div className="mt-1.5 truncate text-2xl font-semibold tracking-tight">{value}</div>
+          <div className="mt-2 truncate text-2xl font-semibold tracking-tight">{value}</div>
           {hint && <div className="mt-1 text-xs text-muted-foreground">{hint}</div>}
         </div>
         <div className="flex shrink-0 flex-col items-end gap-2">

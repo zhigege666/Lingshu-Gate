@@ -171,7 +171,9 @@ test('E2E-205 @full form and JSON share enabled state, preserve draft fields and
   await expect(enabled).not.toBeChecked()
   await expect(editor.getByText('Access declarations', { exact: true })).not.toBeVisible()
   await editor.getByText('Advanced configuration', { exact: true }).click()
-  await expect(editor.getByText('Declarations are for review; they do not grant user access or replace tool classification and connection grants.', { exact: true })).toBeVisible()
+  await editor.getByRole('button', { name: 'Access declarations help', exact: true }).click()
+  await expect(editor.locator('[data-field-help-content]')).toHaveText('Declarations are for review; they do not grant user access or replace tool classification and connection grants.')
+  await page.keyboard.press('Escape')
 })
 
 test('E2E-206 @full one precheck status, visible error location and edited drafts clear prior results', async ({ page }) => {
@@ -266,7 +268,10 @@ for (const external of [false, true]) {
     const startup = editor.getByRole('switch', { name: 'Start automatically when Gate starts', exact: true })
     await expect(startup).not.toBeChecked()
     const helper = external ? 'Connect automatically without starting a remote process.' : 'Start the MCP process automatically and connect.'
-    await expect(editor.getByText(`${helper} Legacy policy: restore the last state. Edit the switch to adopt the startup policy.`, { exact: true })).toBeVisible()
+    await expect(editor.getByText('Legacy policy · Restore last state', { exact: true })).toBeVisible()
+    await editor.getByRole('button', { name: 'Start automatically when Gate starts help', exact: true }).click()
+    await expect(editor.locator('[data-field-help-content]')).toHaveText(`${helper} Legacy policy: restore the last state. Edit the switch to adopt the startup policy.`)
+    await page.keyboard.press('Escape')
     await startup.click()
     await editor.getByRole('button', { name: 'JSON', exact: true }).click()
     expect(JSON.parse(await json.inputValue())).toMatchObject({ auto_start: true, startup_policy: 'gate_start_v1' })
@@ -301,7 +306,7 @@ for (const viewport of [{ width: 1600, height: 900 }, { width: 1920, height: 108
       if (dark) await expect(page.locator('html')).toHaveClass(/dark/)
       else await expect(page.locator('html')).not.toHaveClass(/dark/)
       await expect(editor.getByRole('radio', { name: zh ? '外部 HTTP' : 'External HTTP', exact: true })).toBeChecked()
-      await expect(editor.locator('.manifest-form').getByRole('radio')).toHaveCount(3)
+      await expect(editor.locator('.manifest-form').getByRole('radio')).toHaveCount(4)
       const save = editor.getByRole('button', { name: zh ? '保存配置' : 'Save configuration', exact: true })
       await expectInViewportAndUnobscured(save)
       const geometry = await editor.evaluate(element => {

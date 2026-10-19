@@ -1,28 +1,28 @@
 /* Creation stays with the service directory identity, above search and results. */
-.mcp-group-view-switch { margin-bottom: 12px; }
-.mcp-group-entry-purpose.ant-tag { display: block; width: fit-content; max-width: 100%; margin: 4px 0; white-space: normal; overflow-wrap: anywhere; }
-.mcp-group-detail { display: flex; flex-direction: column; gap: 16px; }
-.mcp-group-recovery .ant-alert-description > div { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 8px; }
+.mcp-group-view-switch { margin-bottom: var(--space-3); }
+.mcp-group-entry-purpose.ant-tag { display: block; width: fit-content; max-width: 100%; margin: var(--space-1) 0; white-space: normal; overflow-wrap: anywhere; }
+.mcp-group-detail { display: flex; flex-direction: column; gap: var(--space-4); }
+.mcp-group-recovery .ant-alert-description > div { display: flex; flex-wrap: wrap; gap: var(--space-2); margin-top: var(--space-2); }
 .mcp-group-policy { margin: 0; line-height: 1.65; overflow-wrap: anywhere; white-space: normal; overflow: visible; text-overflow: clip; }
-.mcp-group-query { display: flex; align-items: center; gap: 12px; min-width: 0; }
+.mcp-group-query { display: flex; align-items: center; gap: var(--space-3); min-width: 0; }
 .mcp-group-query .ant-input-search { flex: 1; min-width: 0; }
 .mcp-group-query > [role="status"] { white-space: nowrap; }
 .mcp-group-members-scroll { flex: 1; min-height: 0; overflow: auto; }
 .mcp-group-instance-link { max-width: 100%; overflow: hidden; text-overflow: ellipsis; }
-.mcp-group-tags { display: flex; gap: 4px; flex-wrap: wrap; overflow-wrap: anywhere; }
+.mcp-group-tags { display: flex; gap: var(--space-1); flex-wrap: wrap; overflow-wrap: anywhere; }
 .mcp-group-tags .ant-tag { max-width: 180px; overflow: hidden; text-overflow: ellipsis; margin: 0; }
 .mcp-group-dialog { width: min(1200px, calc(100vw - 96px)); max-width: min(1200px, calc(100vw - 96px)); max-height: calc(100dvh - 64px); }
-.mcp-group-dialog-body { display: flex; flex-direction: column; gap: 16px; }
-.mcp-group-form-row { display: grid; grid-template-columns: 112px minmax(0, 1fr); align-items: center; gap: 16px; }
+.mcp-group-dialog-body { display: flex; flex-direction: column; gap: var(--space-4); }
+.mcp-group-form-row { display: grid; grid-template-columns: 112px minmax(0, 1fr); align-items: center; gap: var(--space-4); }
 .mcp-group-form-row > label, .mcp-group-form-row > span { white-space: nowrap; }
 .mcp-group-help { color: hsl(var(--muted-foreground)); font-size: 12px; line-height: 1.6; }
-.mcp-group-member-heading { display: flex; align-items: center; justify-content: space-between; gap: 16px; }
+.mcp-group-member-heading { display: flex; align-items: center; justify-content: space-between; gap: var(--space-4); }
 .mcp-group-member-heading h3 { font-weight: 600; margin: 0; }
-.mcp-group-missing { display: flex; flex-wrap: wrap; gap: 4px; margin-top: 8px; overflow-wrap: anywhere; }
+.mcp-group-missing { display: flex; flex-wrap: wrap; gap: var(--space-1); margin-top: var(--space-2); overflow-wrap: anywhere; }
 .mcp-group-pagination { display: flex; justify-content: flex-end; }
 @media (max-width: 767px) {
   .mcp-group-dialog { width: calc(100vw - 32px); max-width: calc(100vw - 32px); }
-  .mcp-group-form-row { grid-template-columns: 88px minmax(0, 1fr); gap: 8px; }
+  .mcp-group-form-row { grid-template-columns: 88px minmax(0, 1fr); gap: var(--space-2); }
 }
 
 .service-directory-heading {
@@ -38,7 +38,7 @@
   flex: 1 1 170px;
   flex-wrap: wrap;
   justify-content: flex-end;
-  gap: 6px;
+  gap: var(--space-2);
   min-width: 0;
 }
 .service-directory-create-actions .ant-btn {
@@ -53,12 +53,12 @@
 
 /* Query the actual detail width, not the screen behind the two sidebars. */
 .service-detail { container-type: inline-size; }
-.service-summary-grid { gap: 20px; }
+.service-summary-grid { gap: var(--section-gap); }
 .service-summary-grid > section { min-width: 0; }
-.service-summary-grid > section + section { padding-left: 20px; }
-.service-summary-grid .service-facts { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 12px; }
-.service-facts .service-fact-note-wide { grid-column: 1 / -1; margin: -4px 0 4px; line-height: 1.65; }
+.service-summary-grid > section + section { padding-left: var(--section-gap); }
+.service-summary-grid .service-facts { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: var(--space-3); }
+.service-facts .service-fact-note-wide { grid-column: 1 / -1; margin: calc(var(--space-1) * -1) 0 var(--space-1); line-height: 1.65; }
 @container (max-width: 540px) {
- .service-summary-grid { grid-template-columns: minmax(0, 1fr); gap: 20px; }
- .service-summary-grid > section + section { padding-left: 0; border-left: 0; border-top: 1px solid hsl(var(--border)); padding-top: 20px; }
+ .service-summary-grid { grid-template-columns: minmax(0, 1fr); gap: var(--section-gap); }
+ .service-summary-grid > section + section { padding-left: 0; border-left: 0; border-top: 1px solid hsl(var(--border)); padding-top: var(--section-gap); }
 }

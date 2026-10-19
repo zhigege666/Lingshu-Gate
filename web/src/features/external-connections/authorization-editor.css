@@ -1,9 +1,32 @@
-.authorization-field { display:grid; grid-template-columns: max-content minmax(0,1fr); align-items:center; gap:12px; }
-.authorization-field > label { min-width:144px; white-space:nowrap; }
-.authorization-quota-fields { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:16px; }
-.authorization-field .ant-input-number { width:100%; max-width:240px; }
-.authorization-mcp-editor { display:flex; flex-direction:column; gap:12px; min-width:0; }
-.authorization-mcp-editor .ant-radio-group { display:flex; flex-wrap:wrap; gap:4px; }
-.authorization-toolbar { display:flex; flex-wrap:wrap; align-items:center; gap:12px; }
-.authorization-toolbar > .ant-input-affix-wrapper { max-width:320px; }
-@media(max-width:900px) { .authorization-quota-fields { grid-template-columns:1fr; } }
+.authorization-field { display: grid; grid-template-columns: var(--form-label-width) minmax(0, 1fr); align-items: start; gap: var(--space-1) var(--space-3); min-width: 0; }
+.authorization-field > label { display: flex; align-items: center; min-width: 0; min-height: var(--control-height); font-weight: 500; line-height: 1.5; overflow-wrap: anywhere; }
+.authorization-field-control { display: grid; min-width: 0; gap: var(--space-1); }
+.authorization-field-control > :is(.ant-select, .ant-input-number, .ant-picker) { width: 100%; }
+.authorization-field-control > :is(p, [role="alert"]) { margin: 0; font-size: 12px; line-height: 1.5; overflow-wrap: anywhere; }
+.authorization-quota-fields { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: var(--field-gap); }
+.authorization-quota-fields--single { grid-template-columns: minmax(0, 1fr); }
+.authorization-field .ant-input-number { width: 100%; }
+.authorization-quota-fields [role="alert"] { margin-top: var(--space-1); font-size: 12px; line-height: 1.5; color: hsl(var(--destructive)); }
+.authorization-quota-settings { border-radius: var(--radius-control); }
+.authorization-quota-summary { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-1) var(--space-3); }
+.authorization-quota-values { font-size: 12px; color: hsl(var(--muted-foreground)); font-variant-numeric: tabular-nums; }
+.authorization-mcp-editor { display: flex; flex-direction: column; gap: var(--panel-gap); min-width: 0; }
+.authorization-mcp-editor .ant-radio-group { display: flex; flex-wrap: wrap; gap: var(--control-gap); }
+.authorization-mcp-editor .ant-radio-wrapper { margin-inline-end: 0; }
+.authorization-toolbar, .authorization-current-actions { display: flex; flex-wrap: wrap; align-items: center; gap: var(--control-gap); }
+.authorization-toolbar > .ant-input-affix-wrapper { max-width: 320px; }
+.authorization-current-actions .ant-btn { min-height: var(--control-height-sm); }
+@media (max-width: 1100px) { .authorization-quota-fields { grid-template-columns: minmax(0, 1fr); } }
+
+/* Keep the authorization toolbar and pager visible while long lists scroll. */
+.my-authorizations-page { min-width: 0; display: flex; flex-direction: column; gap: var(--section-gap); max-height: var(--remaining-viewport-height); }
+.my-authorizations-page > :not(.ant-table-wrapper) { flex-shrink: 0; }
+.my-authorizations-page .ant-table-wrapper,
+.my-authorizations-page .ant-table-wrapper > .ant-spin,
+.my-authorizations-page .ant-spin-nested-loading,
+.my-authorizations-page .ant-spin-container,
+.my-authorizations-page .ant-table,
+.my-authorizations-page .ant-table-container { display: flex; flex-direction: column; min-height: 0; min-width: 0; flex: 0 1 auto; }
+.my-authorizations-page .ant-table-header,
+.my-authorizations-page .ant-table-pagination { flex-shrink: 0; }
+.my-authorizations-page .ant-table-body { flex: 0 1 auto; min-height: 0; max-height: none !important; overflow-y: auto !important; }

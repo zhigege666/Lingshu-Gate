@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef, useState, type ComponentProps } from "react"
 import { Button, Input, Radio, Switch } from "antd"
 import { FormDialog } from "@/components/form-dialog"
+import { FieldLabel } from "@/components/field-help"
 import { useConfirm } from "@/components/confirm-dialog"
 import { useDraftCloseGuard } from "@/components/use-draft-close-guard"
 import type { Locale, TFunction } from "@/i18n"
@@ -99,16 +100,16 @@ export function DiscoveryModeDialog({ target, locale, t, onClose, onSaved, onClo
       <Switch id="result-budget-enabled" className="justify-self-start" checked={budget.enabled} disabled={busy || !saved || refreshRequired}
         onChange={enabled => setBudgetDraft(previous => ({ ...previous, enabled, max_characters: !enabled && !validPreviewLength(previous.max_characters) ? lastValidLength.current : previous.max_characters }))} />
     </div>
-    {budget.enabled && <div className="authorization-field !items-start"><label htmlFor="result-budget-characters">{zh ? "预览长度" : "Preview length"}</label><div>
-      <Input id="result-budget-characters" type="number" inputMode="numeric" min={1024} max={65536} step={1} className="max-w-[240px]" value={budgetDraft.max_characters} status={budgetValid ? undefined : "error"}
-        aria-invalid={!budgetValid} aria-describedby={budgetValid ? "result-budget-help" : "result-budget-error result-budget-help"}
+    {budget.enabled && <div className="authorization-field !items-start"><label htmlFor="result-budget-characters"><FieldLabel label={zh ? "预览长度" : "Preview length"} help={zh ? "1024～65536 个 Unicode 字符。仅成功的单段纯文本适用，原文保留五分钟，可分段取回。" : "1,024–65,536 Unicode characters. Applies to successful single plain-text results. Originals remain available for five minutes."} helpId="result-budget-help" zh={zh} /></label><div>
+      <Input id="result-budget-characters" aria-label={zh ? "预览长度" : "Preview length"} type="number" inputMode="numeric" min={1024} max={65536} step={1} className="max-w-[240px]" value={budgetDraft.max_characters} status={budgetValid ? undefined : "error"}
+        aria-invalid={!budgetValid} aria-describedby={budgetValid ? "result-budget-help result-budget-effect" : "result-budget-error result-budget-help result-budget-effect"}
         disabled={busy || !saved || refreshRequired} onChange={event => {
           const value = event.target.value
           if (validPreviewLength(value)) lastValidLength.current = value
           setBudgetDraft(previous => ({ ...previous, max_characters: value }))
         }} />
       {!budgetValid && <p id="result-budget-error" role="alert" className="mt-2 text-sm text-destructive">{zh ? "请输入 1024～65536 的整数，或关闭长文本预览。" : "Enter an integer from 1,024 to 65,536, or turn off long text preview."}</p>}
-      <p id="result-budget-help" className="mt-2 text-xs text-muted-foreground">{zh ? "1024～65536 个 Unicode 字符。仅成功的单段纯文本适用，原文保留五分钟，可分段取回。设置变化会使已有结果引用失效。" : "1,024–65,536 Unicode characters. Applies to successful single plain-text results. Originals remain available for five minutes; changing these settings invalidates saved references."}</p>
+      <p id="result-budget-effect" className="mt-2 text-xs text-muted-foreground">{zh ? "设置变化会使已有结果引用失效。" : "Changing these settings invalidates saved references."}</p>
     </div></div>}
   </FormDialog>{confirmDialog}</>
 }

@@ -106,7 +106,7 @@ export function ConsoleShell({ view, title, user, version, groups, items, busy, 
       <span className="console-header-divider" />
       <span className="console-context" title={title}>{title}</span>
       <div className="console-header-actions">
-        <Tooltip title={zh ? "搜索 · Ctrl K" : "Search · Ctrl K"}><Button type="text" icon={<SearchOutlined />} onClick={onSearch} aria-label={zh ? "搜索" : "Search"} /></Tooltip>
+        <Tooltip title={zh ? "搜索 · Ctrl K" : "Search · Ctrl K"}><Button className="console-search-trigger" type="text" icon={<SearchOutlined />} onClick={onSearch} aria-label={zh ? "搜索" : "Search"}><span>{zh ? "搜索页面或操作" : "Search pages or actions"}</span><kbd aria-hidden="true">Ctrl K</kbd></Button></Tooltip>
         <Tooltip title={zh ? "刷新当前页面" : "Refresh current page"}><Button type="text" icon={<ReloadOutlined />} loading={busy} onClick={onRefresh} aria-label={zh ? "刷新当前页面" : "Refresh current page"} /></Tooltip>
         <Select className="console-language" size="small" value={locale} onChange={setLocale} prefix={<GlobalOutlined />} variant="borderless" aria-label={zh ? "语言" : "Language"} options={languageOptions} />
         <Tooltip title={theme === "dark" ? (zh ? "切换浅色" : "Light theme") : (zh ? "切换深色" : "Dark theme")}>
@@ -147,7 +147,7 @@ export function ConsoleShell({ view, title, user, version, groups, items, busy, 
         </div>
       })}
     </nav>
-    <Drawer title="Lingshu Gate" placement="left" size={280} open={mobileOpen} onClose={() => setMobileOpen(false)} styles={{ body: { padding: 12 } }} footer={<Select style={{ width: "100%" }} value={locale} onChange={setLocale} prefix={<GlobalOutlined />} aria-label={zh ? "语言" : "Language"} options={languageOptions} />}>
+    <Drawer title="Lingshu Gate" placement="left" size={280} open={mobileOpen} onClose={() => setMobileOpen(false)} styles={{ body: { padding: "var(--space-3)" } }} footer={<Select style={{ width: "100%" }} value={locale} onChange={setLocale} prefix={<GlobalOutlined />} aria-label={zh ? "语言" : "Language"} options={languageOptions} />}>
       <Menu items={mobileItems} selectedKeys={[view]} mode="inline" onClick={({ key }) => navigate(key)} />
     </Drawer>
     <main className="console-main">

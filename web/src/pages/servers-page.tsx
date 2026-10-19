@@ -8,10 +8,11 @@ import {
   ArrowLeftOutlined, ArrowRightOutlined, CloudServerOutlined, CodeOutlined, ExportOutlined,
   InfoCircleOutlined, PlusOutlined, ReloadOutlined, SearchOutlined, UnorderedListOutlined,
 } from "@ant-design/icons"
-import { Alert, Badge, Button, Collapse, Drawer, Empty, Grid, Input, Pagination, Segmented, Skeleton, Table, Tabs, Tag, Tooltip, type TableColumnsType } from "antd"
+import { Alert, Badge, Button, Collapse, Empty, Grid, Input, Pagination, Segmented, Skeleton, Table, Tabs, Tag, Tooltip, type TableColumnsType } from "antd"
 import type { McpServer, McpServerDetailSlice, ToolClassification, ToolDefinition } from "@/api/client"
 import { ServiceConfigDrawer } from "@/features/servers/service-config-drawer"
 import { JsonPanel } from "@/components/json-panel"
+import { FormDialog } from "@/components/form-dialog"
 import { PageHeader, PageToolbar } from "@/components/page-shell"
 import { serverCopy, type ServerCopy } from "@/features/servers/copy"
 import { useServerDetails, type DetailSection, type DetailState } from "@/features/servers/use-server-details"
@@ -81,6 +82,7 @@ export function ServersPage(props: Props) {
   const [toolQuery, setToolQuery] = useState("")
   const [selectedTool, setSelectedTool] = useState<ToolRow | null>(null)
   const [selectedRecord, setSelectedRecord] = useState<RecordValue | null>(null)
+  const detailTrigger = useRef<HTMLElement | null>(null)
   const [actionBusy, setActionBusy] = useState(false)
   const selected = servers.find(server => server.id === selectedId) || null
   const { states, load } = useServerDetails(selected?.id || null, servers, props.canManageClassifications)
@@ -149,7 +151,7 @@ export function ServersPage(props: Props) {
   }
 
   const toolColumns: TableColumnsType<ToolRow> = [
-    { title: c.name, dataIndex: "name", key: "name", width: "30%", render: (_, row) => <Button type="link" size="small" className="service-tool-name" onClick={() => setSelectedTool(row)} title={row.name}>{row.name}</Button> },
+    { title: c.name, dataIndex: "name", key: "name", width: "30%", render: (_, row) => <Button type="link" size="small" className="service-tool-name" onClick={event => { detailTrigger.current = event.currentTarget; setSelectedTool(row) }} title={row.name}>{row.name}</Button> },
     { title: c.description, dataIndex: "description", key: "description", ellipsis: true, render: text => <span className="service-description" title={text}>{text || "-"}</span> },
     { title: c.classification, key: "classification", width: 120, render: (_, row) => classification(row) },
   ]
@@ -157,7 +159,7 @@ export function ServersPage(props: Props) {
     { title: c.time, dataIndex: "time", key: "time", width: 165 },
     { title: c.level, dataIndex: "level", key: "level", width: 80, render: value => <Tag color={value === "error" ? "error" : value === "warning" ? "warning" : undefined}>{value || "-"}</Tag> },
     { title: c.eventType, dataIndex: "type", key: "type", width: 190, ellipsis: true },
-    { title: c.message, key: "message", ellipsis: true, render: (_, row) => <Button type="link" size="small" onClick={() => setSelectedRecord(row.raw)} title={row.message}>{row.message || c.recordDetails}</Button> },
+    { title: c.message, key: "message", ellipsis: true, render: (_, row) => <Button type="link" size="small" onClick={event => { detailTrigger.current = event.currentTarget; setSelectedRecord(row.raw) }} title={row.message}>{row.message || c.recordDetails}</Button> },
   ]
   const actions = server ? server.allowed_actions ?? fallbackActions(server.status) : []
   async function runAction(action: Action) {
@@ -287,7 +289,13 @@ export function ServersPage(props: Props) {
       const target = trigger && !trigger.matches(":disabled") && trigger.getClientRects().length > 0 ? trigger : workspace.current?.querySelector<HTMLElement>('.service-entry[data-active="true"]')
       target?.focus()
     }} />}
-    <Drawer className="service-tool-drawer" title={selectedTool?.name || c.toolDetails} size={560} open={selectedTool !== null} onClose={() => setSelectedTool(null)} destroyOnHidden>
+    <FormDialog className="service-tool-dialog max-w-4xl" title={selectedTool?.name || c.toolDetails} closeLabel={t("close")} open={selectedTool !== null} onClose={() => setSelectedTool(null)} footer={null}
+      onCloseAutoFocus={event => {
+        event.preventDefault()
+        const target = detailTrigger.current
+        if (target?.isConnected && !target.matches(":disabled") && target.getClientRects().length) target.focus()
+        else workspace.current?.querySelector<HTMLElement>('.service-entry[data-active="true"]')?.focus()
+      }}>
       {selectedTool && <div className="service-panel-stack">
         {props.onInvoke && props.visibleTools?.filter(tool => tool.source === "mcp" && asRecord(tool.metadata).server_id === server?.id && (tool.id === selectedTool.raw.id || tool.name === selectedTool.name)).map(tool => <Button key={tool.id} type="primary" onClick={() => props.onInvoke?.(tool.id)}>{locale === "zh-CN" ? "测试工具" : "Test tool"}</Button>)}
         <p className="service-description" style={{ whiteSpace: "normal" }}>{selectedTool.description}</p>
@@ -295,10 +303,16 @@ export function ServersPage(props: Props) {
         <JsonPanel copyLabel={t("copy")} data={selectedTool.schema} maxHeight="max-h-[480px]" />
         <Collapse items={[{ key: "metadata", label: c.metadata, children: <JsonPanel copyLabel={t("copy")} data={selectedTool.raw} maxHeight="max-h-80" /> }]} />
       </div>}
-    </Drawer>
-    <Drawer title={c.recordDetails} size={640} open={selectedRecord !== null} onClose={() => setSelectedRecord(null)} destroyOnHidden>
+    </FormDialog>
+    <FormDialog className="max-w-4xl" title={c.recordDetails} closeLabel={t("close")} open={selectedRecord !== null} onClose={() => setSelectedRecord(null)} footer={null}
+      onCloseAutoFocus={event => {
+        event.preventDefault()
+        const target = detailTrigger.current
+        if (target?.isConnected && !target.matches(":disabled") && target.getClientRects().length) target.focus()
+        else workspace.current?.querySelector<HTMLElement>('.service-entry[data-active="true"]')?.focus()
+      }}>
       {selectedRecord && <JsonPanel copyLabel={t("copy")} data={selectedRecord} maxHeight="max-h-[calc(100vh-140px)]" />}
-    </Drawer>
+    </FormDialog>
     </div>
   </>
 }

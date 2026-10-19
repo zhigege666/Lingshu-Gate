@@ -20,9 +20,12 @@ async function open(page: Page, locale: "en-US" | "zh-CN") {
   await page.context().addCookies(ownerCookies)
   await page.addInitScript(value => localStorage.setItem("lingshu-gate-console-locale", value), locale)
   await page.goto("/console/#/myConnections")
-  await page.getByRole("tab", { name: locale === "zh-CN" ? "Gate 内置 OAuth" : "Gate built-in OAuth", exact: true }).click()
+  await page.getByRole("radiogroup", { name: locale === "zh-CN" ? "授权方式" : "Authorization type", exact: true }).getByRole("radio", { name: "Gate OAuth", exact: true }).check()
+  const row = page.locator('.my-authorizations-page .ant-table-tbody > tr[data-row-key^="builtin:"]')
+    .filter({ has: page.getByRole("button", { name: "Synthetic scale OAuth client", exact: true }) })
+  await expect(row).toHaveCount(1)
   const response = page.waitForResponse(response => new URL(response.url()).pathname.endsWith("/scope-selection"))
-  await page.getByRole("button", { name: locale === "zh-CN" ? "调整授权范围" : "Adjust scope", exact: true }).click()
+  await row.getByRole("button", { name: locale === "zh-CN" ? "调整授权" : "Adjust", exact: true }).click()
   expect((await response).status()).toBe(200)
   return page.getByRole("dialog", { name: locale === "zh-CN" ? "调整授权范围" : "Adjust authorization scope", exact: true })
 }
@@ -306,6 +309,7 @@ for (const locale of ["en-US", "zh-CN"] as const) {
     const selection = page.waitForResponse(response => new URL(response.url()).pathname.endsWith("/scope-selection"))
     await editor.getByRole("checkbox", { name: zh ? `选择 MCP ${group} 的全部当前可授权工具` : `Select all current available tools in MCP ${group}`, exact: true }).click()
     const draft = (await (await selection).json()).tool_ids as string[]
+    await expandCallLimits(editor)
     const limit = editor.getByRole("spinbutton", { name: zh ? "每分钟调用上限" : "Calls per minute", exact: true })
     await limit.fill(String(before.rate_per_minute - 1))
     let writes = 0, previews = 0, savedReads = 0
@@ -391,4 +395,9 @@ for (const locale of ["en-US", "zh-CN"] as const) {
     expect(after.scopes).toEqual(before.scopes)
     expect(after.rate_per_minute).toBe(saved.rate_per_minute - 1)
   })
+}
+
+async function expandCallLimits(editor: import("@playwright/test").Locator) {
+  const header = editor.locator(".authorization-quota-settings [aria-expanded]").first()
+  if (await header.getAttribute("aria-expanded") === "false") await header.click()
 }

@@ -1,7 +1,8 @@
 import type { Locale } from "@/i18n"
-import { JSON_SYNTAX_MESSAGE } from "@/lib/validation"
+import { JSON_SOURCE_MESSAGE, JSON_SYNTAX_MESSAGE } from "@/lib/validation"
 
 const zh = {
+  ...JSON_SOURCE_MESSAGE["zh-CN"],
   pendingEntryHint: "请先添加或清除尚未添加的字段，再运行、切换工具或编辑方式。", pendingEntryUnavailable: "参数定义或父级字段已变化，待添加字段名仍已保留。请清除此项后重新配置。", clearPendingEntry: "清除待添加项", pendingEntry: "待添加字段", locatePendingEntry: "继续编辑", useEmptyArray: "使用空数组 []", useEmptyObject: "使用空对象 {}", validationTitle: "请修正以下参数", addItem: "添加一项", removeItem: "移除", item: "项", mapKey: "字段名", addKey: "添加字段", duplicateKey: "字段名已存在，请使用其他名称。", emptyKey: "请填写字段名。", toolDetails: "工具详情", accessRead: "只读", accessWrite: "可写", accessUnknown: "权限未确定", accessPending: "待审核",
   title: "工具调用", description: "选择服务和工具，配置参数，查看返回结果。", selectTarget: "选择服务与工具", configure: "配置参数",
   service: "MCP 服务", builtin: "内置工具", otherSource: "工具来源", unknownService: "未提供服务 ID", serviceId: "服务实例 ID", tool: "工具", available: "个可用工具",
@@ -15,6 +16,7 @@ const zh = {
   run: "运行工具", running: "运行中…", target: "当前目标", result: "运行结果", idle: "未运行", success: "调用成功", failed: "调用失败", waiting: "等待首次调用", waitingHint: "运行工具后，在此查看返回结果。", runningHint: "正在等待服务返回结果。", lastResult: "上次调用", copy: "复制结果", copied: "已复制", copyFailed: "复制失败，请手动选择结果文本。", unavailable: "当前选择的工具已不可用，请重新选择。",
 } as const
 const en: Record<keyof typeof zh, string> = {
+  ...JSON_SOURCE_MESSAGE.en,
   pendingEntryHint: "Add or clear unfinished fields before running, switching tools or changing editor mode.", pendingEntryUnavailable: "The schema or parent field changed. The unfinished name is retained; clear this entry before configuring it again.", clearPendingEntry: "Clear pending entry", pendingEntry: "Pending field", locatePendingEntry: "Continue editing", useEmptyArray: "Use an empty array []", useEmptyObject: "Use an empty object {}", validationTitle: "Correct the following arguments", addItem: "Add item", removeItem: "Remove", item: "Item", mapKey: "Field name", addKey: "Add field", duplicateKey: "This field name already exists. Choose another name.", emptyKey: "Enter a field name.", toolDetails: "Tool details", accessRead: "Read", accessWrite: "Write", accessUnknown: "Access undetermined", accessPending: "Pending review",
   title: "Invoke tool", description: "Select a service and tool, edit arguments, and inspect the response.", selectTarget: "Select service and tool", configure: "Configure arguments",
   service: "MCP service", builtin: "Built-in tools", otherSource: "Tool source", unknownService: "Service ID unavailable", serviceId: "Service instance ID", tool: "Tool", available: "available tools",

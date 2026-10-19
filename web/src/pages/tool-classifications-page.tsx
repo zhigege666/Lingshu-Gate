@@ -450,29 +450,51 @@ export function ToolClassificationsPage({ locale, t }: { locale: Locale; t: TFun
   }
 
   async function publish() {
-    const selected = publishableSelectedItems
+    if (busy || submitting.current) return
+    const selected = [...publishableSelectedItems]
     if (!selected.length) return
-    if (!(await confirm({
-      title: `${c.publishSelected} (${selected.length})`,
-      description: c.publishConfirm,
-    }))) return
-    setBusy(true)
-    setError(null)
+    const selectionSnapshot = [...selectedItems]
+    submitting.current = true
     try {
-      const groupedServer = new Set(selected.map((item) => item.server_id))
-      if (groupedServer.size === 1) {
-        await api.publishToolClassifications({ server_id: selected[0].server_id, tool_ids: selected.map((item) => item.tool_id) })
-      } else {
-        for (const item of selected) {
-          await api.publishToolClassifications({ server_id: item.server_id, tool_ids: [item.tool_id] })
-        }
+      if (!(await confirm({
+        title: `${c.publishSelected} (${selected.length})`,
+        description: c.publishConfirm,
+        details: <ul className="space-y-2 text-sm">{selected.map(item => <li key={item.id} className="break-words"><strong>{item.tool_name}</strong> · {item.server_id} · {item.effective_access === "write" ? c.writeAccess : c.readAccess}{item.destructive ? ` · ${c.destructive}` : ""}</li>)}</ul>,
+      }))) return
+      setBusy(true)
+      setError(null)
+      setMessage(null)
+      const result = await publishClassificationBatches(selected, api.publishToolClassifications)
+      const confirmed = new Map(result.published.map(item => [item.id, item]))
+      // Successful response records remain visible even when the following
+      // refresh fails. A failed write is never replayed automatically.
+      setItems(current => current.map(item => confirmed.get(item.id) || item))
+      let refreshed: ToolClassification[] | null = null
+      let refreshError: string | null = null
+      try {
+        const response = await api.toolClassifications()
+        refreshed = response.classifications
+        setItems(refreshed)
+      } catch (cause) {
+        refreshError = cause instanceof Error ? cause.message : String(cause)
       }
-      setMessage(`${c.published}: ${selected.length}`)
-      setSelectedIds([])
-      await load()
-    } catch (err) {
-      setError(err instanceof Error ? err.message : String(err))
+      const completed = publishedSelectionIds(selected, refreshed ?? result.published)
+      setSelectedIds(current => current.filter(id => !completed.has(id)))
+      const remaining = selectionSnapshot.filter(item => !completed.has(item.id)).length
+      const unfinished = selected.length - completed.size
+      const summary = locale === "zh-CN"
+        ? `已发布 ${completed.size} 项；${remaining} 项保留选择。`
+        : `${completed.size} published; ${remaining} ${remaining === 1 ? "item remains" : "items remain"} selected.`
+      if (result.error || unfinished || refreshError) {
+        const recovery = refreshError
+          ? locale === "zh-CN" ? "最新状态刷新失败；请先刷新核对，再重试未完成项。" : "Latest status could not be refreshed. Refresh and review the unfinished items before retrying."
+          : locale === "zh-CN" ? "已刷新最新状态，请核对仍保留选择的项目。" : "Latest status was refreshed. Review the items that remain selected."
+        setError([summary, recovery, result.error, refreshError].filter(Boolean).join(" "))
+      } else {
+        setMessage(summary)
+      }
     } finally {
+      submitting.current = false
       setBusy(false)
     }
   }
@@ -558,9 +580,9 @@ export function ToolClassificationsPage({ locale, t }: { locale: Locale; t: TFun
         title={`${c.batchClassify} (${batchItems.length})`} description={c.batchDescription}
         closeLabel={t("cancel")} pending={busy} className="max-w-lg" error={formError}
         footer={<><Button variant="outline" onClick={() => void closeBatch()} disabled={busy}>{t("cancel")}</Button><Button onClick={() => void applyBatchReview()} disabled={busy || batchItems.length === 0}>{busy ? c.saving : `${c.applyBatch} (${batchItems.length})`}</Button></>}>
-        <div className="flex flex-col gap-4">
-          <div><Label htmlFor="classification-batch-access">{c.batchAccess}</Label><Select value={batchAccess} disabled={busy} onValueChange={(value) => setBatchAccess(value as typeof batchAccess)}><SelectTrigger id="classification-batch-access" aria-label={c.batchAccess} className="mt-2"><SelectValue /></SelectTrigger><SelectContent><SelectItem value="read">{c.readAccess}</SelectItem><SelectItem value="write">{c.writeAccess}</SelectItem><SelectItem value="unknown">{c.unknown}</SelectItem></SelectContent></Select>{batchAccess === "unknown" && <p className="mt-2 text-xs text-foreground/65">{c.batchPendingHint}</p>}</div>
-          <div><Label htmlFor="classification-batch-note">{c.batchNote}</Label><Textarea id="classification-batch-note" className="mt-2 min-h-24" disabled={busy} value={batchNote} placeholder={c.batchNotePlaceholder} onChange={(event) => setBatchNote(event.target.value)} /></div>
+        <div className="gate-form-fields">
+          <div className="gate-form-row"><Label className="gate-form-label" htmlFor="classification-batch-access">{c.batchAccess}</Label><div className="gate-form-control"><FilterRadio id="classification-batch-access" label={c.batchAccess} hideLabel value={batchAccess} disabled={busy} onChange={value => setBatchAccess(value as typeof batchAccess)} options={[{ value: "read", label: c.readAccess }, { value: "write", label: c.writeAccess }, { value: "unknown", label: c.unknown }]} aria-describedby={batchAccess === "unknown" ? "classification-batch-access-hint" : undefined} />{batchAccess === "unknown" && <p id="classification-batch-access-hint" className="gate-form-help">{c.batchPendingHint}</p>}</div></div>
+          <div className="gate-form-row"><Label className="gate-form-label" htmlFor="classification-batch-note">{c.batchNote}</Label><div className="gate-form-control"><Textarea id="classification-batch-note" className="min-h-24" disabled={busy} value={batchNote} placeholder={c.batchNotePlaceholder} onChange={(event) => setBatchNote(event.target.value)} /></div></div>
         </div>
       </FormDialog>
 
@@ -569,12 +591,12 @@ export function ToolClassificationsPage({ locale, t }: { locale: Locale; t: TFun
         title={c.edit} description={editing ? `${sourceDisplayName(editing, locale)} · ${editing.tool_id}` : ""}
         closeLabel={t("cancel")} pending={busy} className="max-w-3xl" error={formError}
         footer={<><Button variant="outline" onClick={() => void closeReview()} disabled={busy}>{t("cancel")}</Button><Button onClick={() => void saveReview()} disabled={busy || access === "unknown"}>{busy ? c.saving : c.saveDecision}</Button></>}>
-        <div className="flex flex-col gap-4">
+        <div className="gate-form-fields">
           {editing && <div><div className="flex flex-wrap items-center gap-2"><span className="font-medium">{editing.tool_name}</span><SourceBadge registrySource={editing.registry_source} locale={locale} labels={c} /></div><p className="mt-1 break-all font-mono text-xs text-muted-foreground">{editing.server_id}/{editing.tool_id}</p></div>}
-          <div><Label htmlFor="classification-review-access">{c.effective}</Label><Select value={access} disabled={busy} onValueChange={(value) => setAccess(value as typeof access)}><SelectTrigger id="classification-review-access" aria-label={c.effective} className="mt-2"><SelectValue /></SelectTrigger><SelectContent><SelectItem value="read">{c.readAccess}</SelectItem><SelectItem value="write">{c.writeAccess}</SelectItem><SelectItem value="unknown">{c.unknown}</SelectItem></SelectContent></Select></div>
-          <div className="flex items-center justify-between gap-3"><Label htmlFor="classification-destructive">{c.destructive}</Label><Switch id="classification-destructive" disabled={busy} checked={destructive} onCheckedChange={setDestructive} /></div>
-          <div className="flex items-center justify-between gap-3"><Label htmlFor="classification-idempotent">{c.idempotent}</Label><Switch id="classification-idempotent" disabled={busy} checked={idempotent} onCheckedChange={setIdempotent} /></div>
-          <div><Label htmlFor="classification-review-note">{c.note}</Label><Textarea id="classification-review-note" className="mt-2 min-h-28" disabled={busy} value={note} onChange={(event) => setNote(event.target.value)} /></div>
+          <div className="gate-form-row"><Label className="gate-form-label" htmlFor="classification-review-access">{c.effective}</Label><div className="gate-form-control"><FilterRadio id="classification-review-access" label={c.effective} hideLabel value={access} disabled={busy} onChange={value => setAccess(value as typeof access)} options={[{ value: "read", label: c.readAccess }, { value: "write", label: c.writeAccess }, { value: "unknown", label: c.unknown }]} /></div></div>
+          <div className="gate-form-row"><Label className="gate-form-label" htmlFor="classification-destructive">{c.destructive}</Label><div className="gate-form-control min-h-[var(--control-height)] items-center"><Switch id="classification-destructive" disabled={busy} checked={destructive} onCheckedChange={setDestructive} /></div></div>
+          <div className="gate-form-row"><Label className="gate-form-label" htmlFor="classification-idempotent">{c.idempotent}</Label><div className="gate-form-control min-h-[var(--control-height)] items-center"><Switch id="classification-idempotent" disabled={busy} checked={idempotent} onCheckedChange={setIdempotent} /></div></div>
+          <div className="gate-form-row"><Label className="gate-form-label" htmlFor="classification-review-note">{c.note}</Label><div className="gate-form-control"><Textarea id="classification-review-note" className="min-h-28" disabled={busy} value={note} onChange={(event) => setNote(event.target.value)} /></div></div>
           <details><summary className="cursor-pointer text-sm font-medium">{c.evidence}</summary><div className="mt-2"><JsonPanel copyLabel={t("copy")} data={editing?.evidence || {}} maxHeight="max-h-80" /></div></details>
         </div>
       </FormDialog>
@@ -582,6 +604,42 @@ export function ToolClassificationsPage({ locale, t }: { locale: Locale; t: TFun
       <Toaster toast={toast} onClose={() => setMessage(null)} />
     </div>
   )
+}
+
+/** Only a matching published snapshot completes the selected review decision. */
+export function publishedSelectionIds(selected: readonly ToolClassification[], records: readonly ToolClassification[]) {
+  const byId = new Map(records.map(item => [item.id, item]))
+  return new Set(selected.filter(item => {
+    const current = byId.get(item.id)
+    return current?.status === "published" && current.server_id === item.server_id
+      && current.tool_id === item.tool_id && current.fingerprint === item.fingerprint
+      && current.effective_access === item.effective_access
+  }).map(item => item.id))
+}
+
+/** Explicit service batches; retain confirmed work and stop after uncertainty. */
+export async function publishClassificationBatches(selected: readonly ToolClassification[], publishBatch: (payload: { server_id: string; tool_ids: string[] }) => Promise<{ classifications: ToolClassification[] }>) {
+  const groups = new Map<string, ToolClassification[]>()
+  for (const item of selected) {
+    const group = groups.get(item.server_id)
+    if (group) group.push(item)
+    else groups.set(item.server_id, [item])
+  }
+  const published: ToolClassification[] = []
+  for (const [serverId, items] of groups) {
+    for (let index = 0; index < items.length; index += CONFIRM_BATCH_SIZE) {
+      const batch = items.slice(index, index + CONFIRM_BATCH_SIZE)
+      try {
+        const response = await publishBatch({ server_id: serverId, tool_ids: batch.map(item => item.tool_id) })
+        const completed = publishedSelectionIds(batch, response.classifications)
+        published.push(...response.classifications.filter(item => completed.has(item.id)))
+        if (completed.size !== batch.length) return { published, error: null }
+      } catch (cause) {
+        return { published, error: cause instanceof Error ? cause.message : String(cause) }
+      }
+    }
+  }
+  return { published, error: null }
 }
 
 function AccessBadge({ access, labels }: { access: ToolClassification["effective_access"]; labels: Record<string, string> }) {

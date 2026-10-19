@@ -1,8 +1,7 @@
-import { RemainingList, ListPagination, ListViewport, useListPage } from "@/components/list-pagination"
+import { ListPagination, ListViewport, useListPage } from "@/components/list-pagination"
 import type { BuildRecord, DeploymentRecord } from "@/api/builds"
 import { ActionMenu, ActionMenuItem } from "@/components/action-menu"
 import { Badge } from "@/components/ui/badge"
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { localizeStatus, type TFunction } from "@/i18n"
 import { uploadCopy } from "@/components/uploads/upload-copy"
 import type { UploadItem } from "@/components/uploads/upload-types"
@@ -11,10 +10,7 @@ export function UploadList({ uploads, builds, deployments, selectedId, busy, loa
   const c = uploadCopy(t)
   const paging = useListPage(uploads, uploads.map(item => item.id).join("|"), 20)
   return (
-    <Card className="min-w-0">
-      <CardHeader><CardTitle>{c.records}</CardTitle></CardHeader>
-      <CardContent className="flex flex-col gap-2" aria-busy={loading}>
-        <RemainingList className="gap-2" bottomGap={48}>
+    <div className="upload-history-list flex min-h-0 min-w-0 flex-1 flex-col gap-3" aria-busy={loading}>
         {loading && <p role="status" className="text-sm text-muted-foreground">{c.loading}</p>}
         <ListPagination paging={paging} t={t} />
         <ListViewport viewport={paging.viewport} label={c.records}>
@@ -34,9 +30,7 @@ export function UploadList({ uploads, builds, deployments, selectedId, busy, loa
           </div>
         ))}
         </ListViewport>
-        </RemainingList>
-      </CardContent>
-    </Card>
+    </div>
   )
 }
 

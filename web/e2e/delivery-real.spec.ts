@@ -22,7 +22,7 @@ test('E2E-007 @delivery real upload, build, configure, deploy and start', async 
   const uploadResponse = await uploaded
   expect(uploadResponse.status()).toBe(200)
   const project = await uploadResponse.json()
-  await page.getByRole('combobox', { name: 'Runtime Type', exact: true }).selectOption('python')
+  await page.getByRole('radiogroup', { name: 'Runtime Type', exact: true }).getByRole('radio', { name: 'Python', exact: true }).check()
   await page.getByLabel('Target server', { exact: true }).fill('synthetic-browser-delivery')
   await selectLocale(page, 'zh-CN')
   for (const viewport of [{ width: 1672, height: 941 }, { width: 1366, height: 768 }, { width: 390, height: 844 }]) {
@@ -49,7 +49,7 @@ test('E2E-007 @delivery real upload, build, configure, deploy and start', async 
       return form.width <= 921 && Math.abs((form.left + form.right) - (parent.left + parent.right)) <= 3
     })).toBe(true)
     await expectInViewportAndUnobscured(page.getByRole('button', { name: '创建构建', exact: true }).last())
-    await expectInViewportAndUnobscured(page.getByRole('button', { name: '上一步', exact: true }))
+    await expectInViewportAndUnobscured(page.getByRole('button', { name: '更换项目或来源', exact: true }))
     await expect.poll(() => page.evaluate(() => document.documentElement.scrollHeight - innerHeight)).toBeLessThanOrEqual(1)
     await page.screenshot({ path: testInfo.outputPath(`real-upload-analysis-${viewport.width}x${viewport.height}.png`), animations: 'disabled' })
     if (viewport.width === 390) {
@@ -59,7 +59,7 @@ test('E2E-007 @delivery real upload, build, configure, deploy and start', async 
       await lastField.scrollIntoViewIfNeeded()
       await expectInViewportAndUnobscured(lastField)
       await expectInViewportAndUnobscured(page.getByRole('button', { name: '创建构建', exact: true }).last())
-      await expectInViewportAndUnobscured(page.getByRole('button', { name: '上一步', exact: true }))
+      await expectInViewportAndUnobscured(page.getByRole('button', { name: '更换项目或来源', exact: true }))
       expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(390)
       await page.screenshot({ path: testInfo.outputPath('real-upload-advanced-bottom-390x844.png'), animations: 'disabled' })
       await advanced.locator('summary').click()

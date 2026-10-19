@@ -90,6 +90,8 @@ export function ConfigsPage(props: {
         return <Badge variant="outline" className="bg-purple-500/10 text-purple-600 dark:text-purple-400 border-purple-500/20 font-mono text-[11px]">{FORM_COPY[props.locale].managedHttp}</Badge>
       case "external_http":
         return <Badge variant="outline" className="bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border-emerald-500/20 font-mono text-[11px]">{FORM_COPY[props.locale].externalHttp}</Badge>
+      case "managed_container_stdio":
+        return <Badge variant="outline" className="bg-blue-500/10 text-blue-600 dark:text-blue-400 border-blue-500/20 font-mono text-[11px]">{FORM_COPY[props.locale].containerStdio}</Badge>
       case "advanced":
       default:
         return <Badge variant="outline" className="bg-amber-500/10 text-amber-600 dark:text-amber-400 border-amber-500/20 font-mono text-[11px]">{FORM_COPY[props.locale].advancedMode}</Badge>
@@ -119,7 +121,7 @@ export function ConfigsPage(props: {
                 <TableRow className="bg-muted/40 hover:bg-muted/40">
                   <TableHead className="w-[280px] font-semibold">{zh ? "服务与配置 ID" : "Server & Config ID"}</TableHead>
                   <TableHead className="w-[140px] font-semibold">{zh ? "运行方式" : "Runtime Mode"}</TableHead>
-                  <TableHead className="w-[110px] font-semibold">{zh ? "自启动" : "Auto Start"}</TableHead>
+                  <TableHead className="w-[160px] font-semibold">{zh ? "启动策略" : "Startup policy"}</TableHead>
                   <TableHead className="font-semibold">{t("path")}</TableHead>
                   <TableHead className="min-w-[240px] text-right font-semibold">{t("actions")}</TableHead>
                 </TableRow>
@@ -130,7 +132,7 @@ export function ConfigsPage(props: {
                 ) : paging.items.map((config) => {
                   const isSelected = selectedConfigId === config.id
                   const name = typeof config.manifest?.name === "string" ? config.manifest.name : null
-                  const isAutoStart = Boolean(config.manifest?.auto_start)
+                  const startup = configStartupDisplay(config.manifest, locale)
                   return (
                     <TableRow
                       key={config.id}
@@ -140,20 +142,20 @@ export function ConfigsPage(props: {
                         <div className="flex flex-col gap-0.5">
                           <code className="font-semibold text-xs tracking-tight text-foreground">{config.id}</code>
                           {name && <span className="text-xs text-muted-foreground">{name}</span>}
-                          <div className="maintenance-row-summary">{renderRuntimeBadge(config)}<span>{zh ? "自启动" : "Auto start"}: {isAutoStart ? (zh ? "开启" : "Enabled") : (zh ? "手动" : "Disabled")}</span></div>
+                          <div className="maintenance-row-summary">{renderRuntimeBadge(config)}<span title={startup.description}>{zh ? "启动策略" : "Startup policy"}: {startup.label}</span></div>
                         </div>
                       </TableCell>
                       <TableCell className="py-3">
                         {renderRuntimeBadge(config)}
                       </TableCell>
                       <TableCell className="py-3">
-                        {isAutoStart ? (
-                          <span className="inline-flex items-center gap-1.5 text-xs text-emerald-600 dark:text-emerald-400 font-medium">
+                        {startup.automatic ? (
+                          <span title={startup.description} className="inline-flex items-center gap-2 text-xs text-emerald-600 dark:text-emerald-400 font-medium">
                             <span className="size-1.5 rounded-full bg-emerald-500" />
-                            {zh ? "开启" : "Enabled"}
+                            {startup.label}
                           </span>
                         ) : (
-                          <span className="text-xs text-muted-foreground/70">{zh ? "手动" : "Disabled"}</span>
+                          <span title={startup.description} className="text-xs text-muted-foreground">{startup.label}</span>
                         )}
                       </TableCell>
                       <TableCell className="py-3 max-w-md">
@@ -162,33 +164,33 @@ export function ConfigsPage(props: {
                         </span>
                       </TableCell>
                       <TableCell className="min-w-[240px] py-3 text-right" onClick={(event) => event.stopPropagation()}>
-                        <div className="flex items-center justify-end gap-1.5 whitespace-nowrap">
+                        <div className="flex items-center justify-end gap-2 whitespace-nowrap">
                           <Button
                             size="sm"
                             variant="ghost"
-                            className="h-7 px-2 text-xs font-normal text-foreground/80 hover:text-foreground"
+                            className="text-xs font-normal text-foreground/80 hover:text-foreground"
                             onClick={() => handleEdit(config)}
                             disabled={busy}
                           >
-                            <Edit3 className="size-3.5 mr-1" />{t("edit")}
+                            <Edit3 className="size-3.5" />{t("edit")}
                           </Button>
                           <Button
                             size="sm"
                             variant="ghost"
-                            className="h-7 px-2 text-xs font-normal text-primary hover:text-primary/90"
+                            className="text-xs font-normal text-primary hover:text-primary/90"
                             disabled={busy}
                             onClick={() => onApplyConfig(config.id)}
                           >
-                            <Play className="size-3.5 mr-1" />{t("apply")}
+                            <Play className="size-3.5" />{t("apply")}
                           </Button>
                           <Button
                             size="sm"
                             variant="ghost"
-                            className="h-7 px-2 text-xs font-normal text-destructive hover:bg-destructive/10 hover:text-destructive"
+                            className="text-xs font-normal text-destructive hover:bg-destructive/10 hover:text-destructive"
                             disabled={busy}
                             onClick={() => onDeleteConfig(config.id)}
                           >
-                            <Trash2 className="size-3.5 mr-1" />{t("delete")}
+                            <Trash2 className="size-3.5" />{t("delete")}
                           </Button>
                         </div>
                       </TableCell>
@@ -238,4 +240,17 @@ export function ConfigsPage(props: {
       {confirmDialog}
     </div>
   )
+}
+
+export function configStartupDisplay(manifest: McpConfig["manifest"], locale: Locale) {
+  const zh = locale === "zh-CN"
+  if (manifest.startup_policy === undefined || manifest.startup_policy === "legacy_restore") {
+    return { label: zh ? "恢复上次状态" : "Restore last state", automatic: false,
+      description: zh ? "旧启动策略：Gate 启动时恢复已保存的运行意图；未保存意图时才使用 auto_start。修改配置中的启动开关可切换新策略。" : "Legacy policy: Gate restores the saved runtime intent at startup, falling back to auto_start when no intent exists. Edit the startup switch in the configuration to select the new policy." }
+  }
+  if (manifest.startup_policy !== "gate_start_v1") return { label: zh ? "策略待确认" : "Unconfirmed policy", automatic: false,
+    description: zh ? "无法识别此启动策略，请检查配置。" : "This startup policy is unrecognized. Review the configuration." }
+  return { label: manifest.auto_start === true ? (zh ? "启动时自动" : "Automatic on startup") : (zh ? "手动启动" : "Manual start"),
+    automatic: manifest.auto_start === true && manifest.enabled !== false,
+    description: zh ? "Gate 启动时按启用状态和自动启动开关执行一次；禁用的服务不会自动启动或连接。" : "At Gate startup, enabled services follow the automatic-start switch once. Disabled services are not started or connected automatically." }
 }

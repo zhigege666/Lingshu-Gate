@@ -1,16 +1,17 @@
 import { useEffect, useMemo, useRef, useState } from "react"
-import { App as AntApp, Alert, Button, Empty, Input, Segmented, Select, Spin, Tag } from "antd"
+import { App as AntApp, Alert, Button, Empty, Input, Select, Spin, Tag } from "antd"
 import { Braces, ChevronDown, ChevronRight, Copy, FileInput, Info, Play, RotateCcw, Server } from "lucide-react"
 import { api, type McpServer, type ToolDefinition } from "@/api/client"
 import { PageHeader } from "@/components/page-shell"
+import { FilterRadio } from "@/components/filter-radio"
 import { ResultViewer } from "@/features/invoke/result-viewer"
 import { JsonPanel } from "@/components/json-panel"
 import { ValidationErrors } from "@/components/validation-errors"
 import { pathFor, pointerFor, type ValidationIssue } from "@/lib/validation"
 import { ArgumentForm, ArgumentReference, argumentFieldId } from "@/features/invoke/argument-form"
 import { invokeCopy } from "@/features/invoke/copy"
-import { argumentChangeHidesPendingEntry, createInvokeDraft, draftKey, hasPendingArgumentEntries, invokeDraftIsDirty, prepareInvokeArguments, responseSucceeded, serviceOptions, snapshotArguments, toolServiceKey, updateDraft, type ArgumentSnapshot, type InvokeDraft } from "@/features/invoke/model"
-import { changeArgument, createArgumentExample, parseArguments, schemaFields } from "@/features/invoke/schema"
+import { changeInvokeArgument, clearPendingArgumentLabel, createInvokeDraft, draftKey, hasPendingArgumentEntries, invokeDraftIsDirty, pendingArgumentHint, pendingArgumentText, prepareInvokeArguments, responseSucceeded, serviceOptions, snapshotArguments, toolServiceKey, updateDraft, type ArgumentChangeIntent, type ArgumentSnapshot, type InvokeDraft, type PendingArgumentEntry } from "@/features/invoke/model"
+import { createArgumentExample, parseArguments, schemaFields } from "@/features/invoke/schema"
 import { getToolAccessDisplay } from "@/features/tool-access"
 import type { Locale, TFunction } from "@/i18n"
 import "./invoke-page.css"
@@ -59,6 +60,8 @@ function InvokeWorkspace({locale,t,tools,servers,toolsLoaded,toolsError,selected
   const accessLabel=access?.pending ? c.accessPending : access?.access === "read" ? c.accessRead : access?.access === "write" ? c.accessWrite : c.accessUnknown
   const dirty=Object.values(drafts).some(invokeDraftIsDirty)
   const pending=Object.values(drafts).some(item=>item.pending)
+  const numericEntry=draft && Object.values(draft.pendingEntries).find(entry=>typeof entry !== "string" && entry.raw.length > 0)
+  const pendingHint=numericEntry ? pendingArgumentHint(numericEntry,c) : c.pendingEntryHint
 
   useEffect(()=>{mounted.current=true;return ()=>{mounted.current=false}},[])
   useEffect(()=>{onLeaveStateChange?.({dirty,pending})},[dirty,pending,onLeaveStateChange])
@@ -74,21 +77,24 @@ function InvokeWorkspace({locale,t,tools,servers,toolsLoaded,toolsError,selected
   }
   function revealPendingEntry(pointer:string) {
     const input=document.getElementById(argumentFieldId(pathFor(pointer)))
-    if (!input) patch({error:c.pendingEntryUnavailable})
+    if (!input) patch({error:typeof draft?.pendingEntries[pointer] === "string" ? c.pendingEntryUnavailable : locale === "zh-CN" ? "参数定义或父级字段已变化，数值草稿仍已保留。请清除此项后重新配置。" : "The schema or parent field changed. The numeric draft is retained; clear it before configuring this field again."})
     const field=input || document.getElementById("invoke-pending-entries")
     field?.focus();field?.scrollIntoView({block:"center",behavior:"smooth"})
   }
   function blockPendingEntries() {
     if (!draft || !hasPendingArgumentEntries(draft)) return false
-    patch({error:c.pendingEntryHint})
+    patch({error:pendingHint})
     revealPendingEntry(Object.keys(draft.pendingEntries)[0])
     return true
   }
-  function changePendingEntry(path:string[],value:string) {
+  function changePendingEntry(path:string[],value:PendingArgumentEntry) {
     if (!draft || draft.pending) return
     const pendingEntries={...draft.pendingEntries}
-    if (value.length) pendingEntries[pointerFor(path)]=value
-    else delete pendingEntries[pointerFor(path)]
+    const pointer=pointerFor(path),previous=pendingEntries[pointer]
+    // A refreshed schema cannot reinterpret a numeric draft as a new map name.
+    if (pendingArgumentText(value).length && previous && typeof previous !== typeof value) {blockPendingEntries();return}
+    if (pendingArgumentText(value).length) pendingEntries[pointer]=value
+    else delete pendingEntries[pointer]
     patch({pendingEntries,error:null})
   }
   function selectTool(id:string) {
@@ -120,12 +126,11 @@ function InvokeWorkspace({locale,t,tools,servers,toolsLoaded,toolsError,selected
     setUndo({key,snapshot:snapshotArguments(draft)})
     patch({...createArgumentExample(selectedTool.input_schema,mode),source:mode,error:null,schemaVersion:JSON.stringify(selectedTool.input_schema)})
   }
-  function changeField(path:string[],value:unknown) {
+  function changeField(path:string[],value:unknown,intent?:ArgumentChangeIntent) {
     if (!draft || draft.pending) return false
-    if (argumentChangeHidesPendingEntry(draft.pendingEntries,path)) {blockPendingEntries();return false}
-    const text=changeArgument(draft.text,path,value)
-    if (text === null) return false
-    patch({text,source:"edited",error:null})
+    const changed=changeInvokeArgument(draft,path,value,intent)
+    if (!changed.ok) {if (changed.reason === "pending-entry") blockPendingEntries();return false}
+    patch({text:changed.text,pendingEntries:changed.pendingEntries,source:"edited",error:null})
     return true
   }
   function format() {
@@ -169,8 +174,8 @@ function InvokeWorkspace({locale,t,tools,servers,toolsLoaded,toolsError,selected
   return <div className="invoke-workspace">
     <PageHeader closeLabel={t("close")} title={c.title} description={c.description} helpLabel={t("pageHelp")} toolbar={(toolsLoaded || toolsError) && groups.length > 0 ? <section className="invoke-target" aria-label={c.selectTarget}>
           <div className="invoke-target-selectors">
-            <div><label className="invoke-selection-label" htmlFor="invoke-service">{c.service}</label><Select id="invoke-service" showSearch optionFilterProp="label" aria-label={c.service} className="invoke-selector" value={selectedService || undefined} onChange={selectService} placeholder={c.searchServices} prefix={<Server size={16}/>} options={groups.map(group=>({value:group.key,label:group.label}))}/></div>
-            <div><label className="invoke-selection-label" htmlFor="invoke-tool">{c.tool}</label><Select id="invoke-tool" showSearch optionFilterProp="label" aria-label={c.tool} className="invoke-selector" value={selectedTool?.id} onChange={selectTool} placeholder={c.searchTools} notFoundContent={service?.tools.length ? t("noMatchingTools") : c.noTools} options={(service?.tools || []).map(tool=>({value:tool.id,label:tool.name && tool.name !== tool.id ? `${tool.name} · ${tool.id}` : tool.id}))}/></div>
+            <div className="gate-form-row"><label className="invoke-selection-label gate-form-label" htmlFor="invoke-service">{c.service}</label><div className="gate-form-control"><Select id="invoke-service" showSearch optionFilterProp="label" aria-label={c.service} className="invoke-selector" value={selectedService || undefined} onChange={selectService} placeholder={c.searchServices} prefix={<Server size={16}/>} options={groups.map(group=>({value:group.key,label:group.label}))}/></div></div>
+            <div className="gate-form-row"><label className="invoke-selection-label gate-form-label" htmlFor="invoke-tool">{c.tool}</label><div className="gate-form-control"><Select id="invoke-tool" showSearch optionFilterProp="label" aria-label={c.tool} className="invoke-selector" value={selectedTool?.id} onChange={selectTool} placeholder={c.searchTools} notFoundContent={service?.tools.length ? t("noMatchingTools") : c.noTools} options={(service?.tools || []).map(tool=>({value:tool.id,label:tool.name && tool.name !== tool.id ? `${tool.name} · ${tool.id}` : tool.id}))}/></div></div>
           </div>
           {selectedTool && <details className="invoke-tool-details"><summary>{c.toolDetails} <Tag color={access?.access === "write" ? "orange" : undefined}>{accessLabel}</Tag></summary><dl><dt>{c.serviceId}</dt><dd><code>{service?.id || "—"}</code></dd><dt>{c.tool}</dt><dd><code>{selectedTool.id}</code></dd></dl>{selectedTool.description && <p className="invoke-tool-description">{selectedTool.description}</p>}</details>}
         </section> : undefined}/>
@@ -181,9 +186,9 @@ function InvokeWorkspace({locale,t,tools,servers,toolsLoaded,toolsError,selected
         <div className="invoke-workbench"><div className="invoke-input-pane">
         <section className="invoke-parameters" aria-label={c.configure}>
           {selectedTool && draft ? <>
-            <div className="invoke-editor-toolbar"><Segmented aria-label={c.editorMode} value={draft.mode} disabled={runningHere} onChange={value=>switchMode(value as "form"|"json")} options={[{value:"form",label:c.form},{value:"json",label:c.json}]}/><div className="invoke-editor-actions"><Button type="link" icon={<FileInput size={16}/>} disabled={runningHere} onClick={()=>replaceArguments("example")}>{c.example}</Button><Button type="link" icon={<RotateCcw size={16}/>} disabled={runningHere} onClick={()=>replaceArguments("defaults")}>{c.defaults}</Button>{undo?.key === key && <Button type="link" disabled={runningHere} onClick={()=>{if (blockPendingEntries()) return;patch({...undo.snapshot,error:null});setUndo(null)}}>{c.undo}</Button>}</div></div>
+            <div className="invoke-editor-toolbar"><FilterRadio label={c.editorMode} hideLabel value={draft.mode} disabled={runningHere} onChange={value=>switchMode(value as "form"|"json")} options={[{value:"form",label:c.form},{value:"json",label:c.json}]}/><div className="invoke-editor-actions"><Button type="link" icon={<FileInput size={16}/>} disabled={runningHere} onClick={()=>replaceArguments("example")}>{c.example}</Button><Button type="link" icon={<RotateCcw size={16}/>} disabled={runningHere} onClick={()=>replaceArguments("defaults")}>{c.defaults}</Button>{undo?.key === key && <Button type="link" disabled={runningHere} onClick={()=>{if (blockPendingEntries()) return;patch({...undo.snapshot,error:null});setUndo(null)}}>{c.undo}</Button>}</div></div>
             {schemaChanged && <Alert type="warning" showIcon title={c.schemaChanged}/>}
-            {hasPendingArgumentEntries(draft) && <div id="invoke-pending-entries" tabIndex={-1} className="invoke-pending-notice"><Alert type="warning" showIcon title={c.pendingEntryHint} description={<ul className="invoke-pending-list">{Object.entries(draft.pendingEntries).map(([pointer,value])=><li key={pointer}><span><code>{pointer || c.json}</code>: {value}</span><div><Button type="link" size="small" disabled={runningHere} onClick={()=>revealPendingEntry(pointer)}>{c.locatePendingEntry}</Button><Button type="link" size="small" disabled={runningHere} onClick={()=>changePendingEntry(pathFor(pointer),"")}>{c.clearPendingEntry}</Button></div></li>)}</ul>}/></div>}
+            {hasPendingArgumentEntries(draft) && <div id="invoke-pending-entries" tabIndex={-1} className="invoke-pending-notice"><Alert type="warning" showIcon title={pendingHint} description={<ul className="invoke-pending-list">{Object.entries(draft.pendingEntries).map(([pointer,entry])=><li key={pointer}><span><code>{pointer || c.json}</code>: {pendingArgumentText(entry)}</span><div><Button type="link" size="small" disabled={runningHere} onClick={()=>revealPendingEntry(pointer)}>{c.locatePendingEntry}</Button><Button type="link" size="small" disabled={runningHere} onClick={()=>changePendingEntry(pathFor(pointer),"")}>{clearPendingArgumentLabel(entry,c)}</Button></div></li>)}</ul>}/></div>}
             <ValidationErrors id="invoke-validation-summary" issues={issues} title={c.validationTitle} onSelect={focusIssue}/>
             {draft.error && <Alert type="error" showIcon role="alert" title={draft.error}/>}
             {draft.mode === "form" && parsed.ok ? <ArgumentForm key={key} schema={selectedTool.input_schema} value={parsed.value} disabled={runningHere} c={c} issues={issues} pendingEntries={draft.pendingEntries} onPendingEntryChange={changePendingEntry} onChange={changeField} onJSON={()=>switchMode("json")}/> : <>

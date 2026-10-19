@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from "react"
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react"
 import { Button, Collapse, Input, Radio } from "antd"
 import { useAuth } from "@/components/auth-gate"
 import { FormDialog } from "@/components/form-dialog"
@@ -10,12 +10,12 @@ import type { PersonalToken } from "@/api/client"
 import type { Locale, TFunction } from "@/i18n"
 import { oauthError, oauthRequest, OAuthRequestError, type OAuthScopeGroup, type OAuthTool } from "./oauth-api"
 import { OAuthToolPicker } from "./oauth-tool-picker"
-import { McpAuthorizationEditor, McpPolicyDifference, QuotaFields, validQuotas, type McpServerPolicy, type McpAuthorizationMode } from "./mcp-authorization-editor"
+import { McpAuthorizationEditor, McpPolicyDifference, QuotaSettings, validQuotas, type McpServerPolicy, type McpAuthorizationMode } from "./mcp-authorization-editor"
 import "./authorization-editor.css"
 
 type TokenOptions = { scope_editable?: boolean; catalog_complete?: boolean; revision: number; mode: "account" | "independent"; scopes: string[]; tool_ids: string[]; server_policies: McpServerPolicy[]; rate_per_minute: number | null; concurrency: number | null; csrf: string; catalog_revision: string; tools: OAuthTool[]; selected_tools?: OAuthTool[]; servers: { server_id: string; server_name: string | null; server_binding?: string; tool_count: number }[] }
 type TokenPreview = { confirmation: string; scopes: string[]; tool_ids: string[]; server_policies: McpServerPolicy[]; rate_per_minute: number; concurrency: number; added: string[]; removed: string[] }
-export function TokenAuthorizationDialog({ target, create, locale, t, onClose, onSaved }: { target: PersonalToken | null; create: boolean; locale: Locale; t: TFunction; onClose: () => void; onSaved: () => void }) {
+export function TokenAuthorizationDialog({ target, create, locale, t, onClose, onSaved, returnFocusState = "ready" }: { target: PersonalToken | null; create: boolean; locale: Locale; t: TFunction; onClose: () => void; onSaved: () => void; returnFocusState?: "pending" | "ready" | "error" }) {
   const zh = locale === "zh-CN"
   let user: any = undefined
   try {
@@ -32,11 +32,31 @@ export function TokenAuthorizationDialog({ target, create, locale, t, onClose, o
   const [busy, setBusy] = useState(false), [error, setError] = useState("")
   const [secret, setSecret] = useState(""), [copied, setCopied] = useState(false), [uncertain, setUncertain] = useState(false)
   const generation = useRef(0), baseline = useRef(""), locked = useRef(false)
+  const editTrigger = useRef<HTMLElement | null>(null), editFocusPending = useRef(false), wasOpen = useRef(false)
+  const editReturnScope = useRef<HTMLElement | null>(null)
   const { confirm, confirmDialog } = useConfirm(t)
   const open = create || Boolean(target)
   const path = target ? `/v1/auth/tokens/${encodeURIComponent(target.id)}` : "/v1/auth/tokens"
   const draft = JSON.stringify({ name, expiresAt, scopes, selected, policies, mode, rate, concurrency })
   const dirty = open && !secret && Boolean(options) && baseline.current !== draft
+  const restoreEditFocus = useCallback(() => {
+    if (returnFocusState === "pending") return
+    const trigger = editTrigger.current
+    const scope = editReturnScope.current
+    const target = [trigger, scope?.querySelector<HTMLElement>('[data-authorization-retry]'), scope?.querySelector<HTMLElement>('[data-authorization-create]')]
+      .find(element => element?.isConnected && !element.matches(':disabled, [aria-disabled="true"]') && !element.closest('[inert], [aria-hidden="true"]') && element.getClientRects().length > 0)
+    editFocusPending.current = false
+    target?.focus({ preventScroll: target === trigger })
+  }, [returnFocusState])
+  useLayoutEffect(() => {
+    if (open && !wasOpen.current) {
+      editTrigger.current = document.querySelector<HTMLElement>(".ant-dropdown-trigger.ant-dropdown-open") || (document.activeElement instanceof HTMLElement ? document.activeElement : null)
+      editReturnScope.current = editTrigger.current?.closest<HTMLElement>('[data-authorization-page]') || null
+      editFocusPending.current = false
+    }
+    wasOpen.current = open
+  }, [open])
+  useEffect(() => { if (!open && editFocusPending.current) restoreEditFocus() }, [open, restoreEditFocus])
   function finishClose() { generation.current++; setSecret(""); onClose() }
   const closeDraft = useDraftCloseGuard({ dirty, pending: busy, locale, confirm, onClose: finishClose })
   async function close() {
@@ -98,7 +118,7 @@ export function TokenAuthorizationDialog({ target, create, locale, t, onClose, o
       setError(oauthError(cause, zh))
     } } finally { locked.current = false; if (current === generation.current) setBusy(false) }
   }
-  return <><FormDialog open={open} title={target ? zh ? "调整授权" : "Adjust authorization" : zh ? "创建 API 令牌" : "Create API token"} description={target ? `${target.name} · ${target.token_prefix}` : undefined} closeLabel={t("close")} className="max-w-6xl" pending={busy} dirty={dirty || Boolean(secret)} error={error} onClose={() => void close()} footer={secret ? <><Button onClick={() => void close()}>{t("close")}</Button><Button type="primary" onClick={async () => { try { await navigator.clipboard.writeText(secret); setCopied(true) } catch { setError(zh ? "复制失败，请手动复制。" : "Copy failed. Copy manually.") } }}>{copied ? zh ? "已复制" : "Copied" : zh ? "复制令牌" : "Copy token"}</Button></> : <><Button disabled={busy} onClick={() => void close()}>{t("cancel")}</Button><Button type="primary" disabled={busy || !options || uncertain || !validQuotas(rate, concurrency) || !scopes.length || (!target && !name.trim()) || (Boolean(target) && !dirty)} onClick={() => void save()}>{zh ? "保存授权" : "Save authorization"}</Button></>}>
+  return <><FormDialog onCloseAutoFocus={event => { event.preventDefault(); editFocusPending.current = true; restoreEditFocus() }} open={open} title={target ? zh ? "调整授权" : "Adjust authorization" : zh ? "创建 API 令牌" : "Create API token"} description={target ? `${target.name} · ${target.token_prefix}` : undefined} closeLabel={t("close")} className="max-w-6xl" pending={busy} dirty={dirty || Boolean(secret)} error={error} onClose={() => void close()} footer={secret ? <><Button onClick={() => void close()}>{t("close")}</Button><Button type="primary" onClick={async () => { try { await navigator.clipboard.writeText(secret); setCopied(true) } catch { setError(zh ? "复制失败，请手动复制。" : "Copy failed. Copy manually.") } }}>{copied ? zh ? "已复制" : "Copied" : zh ? "复制令牌" : "Copy token"}</Button></> : <><Button disabled={busy} onClick={() => void close()}>{t("cancel")}</Button><Button type="primary" disabled={busy || !options || uncertain || !validQuotas(rate, concurrency) || !scopes.length || (!target && !name.trim()) || (Boolean(target) && !dirty)} onClick={() => void save()}>{zh ? "保存授权" : "Save authorization"}</Button></>}>
     {secret ? <div><p>{zh ? "令牌明文只显示一次，请保存。" : "This token is shown only once. Save it now."}</p><code className="block break-all rounded border p-3">{secret}</code></div> : <div className="space-y-4">
       {!options && <Button loading={busy} onClick={() => void load()}>{zh ? "读取授权范围" : "Load authorization scope"}</Button>}
       {uncertain && <div role="alert">{zh ? "保存结果未知。草稿已保留，请先读取实际记录；不要重复创建令牌。" : "Save result unknown. Your draft is retained. Read the saved state before retrying; do not create another token."}<Button onClick={() => void load(true)}>{zh ? "读取实际记录" : "Read saved state"}</Button></div>}
@@ -106,7 +126,7 @@ export function TokenAuthorizationDialog({ target, create, locale, t, onClose, o
         {options.scope_editable === false && <div role="alert">{zh ? "候选目录超出当前支持上限，仅可调整配额。" : "The candidate catalog exceeds current limits; only call limits can be edited."}</div>}
         {!target && <><div className="authorization-field"><label htmlFor="authorization-token-name">{zh ? "授权名称" : "Authorization name"}</label><Input id="authorization-token-name" value={name} disabled={busy} onChange={event => setName(event.target.value)} /></div><div className="authorization-field"><label htmlFor="authorization-token-expiry">{zh ? "到期时间" : "Expires at"}</label><Input id="authorization-token-expiry" type="datetime-local" value={expiresAt} disabled={busy} onChange={event => setExpiresAt(event.target.value)} /></div></>}
         <Button disabled={busy} onClick={() => void load(true)}>{zh ? "刷新可授权范围" : "Refresh available scope"}</Button>
-        <QuotaFields rate={rate} concurrency={concurrency} onRate={setRate} onConcurrency={setConcurrency} disabled={busy} zh={zh} />
+        <QuotaSettings rate={rate} concurrency={concurrency} onRate={setRate} onConcurrency={setConcurrency} disabled={busy} zh={zh} />
         <Collapse items={[{ key: "scopes", label: zh ? "功能权限" : "Functional permissions", children: <TokenScopeSelector options={getTokenScopeOptions(getAvailableTokenScopes(user), target?.scopes)} selected={scopes} locale={locale} disabled={busy || options.scope_editable === false} onChange={setScopes} /> }]} />
         {mode === "account" ? <div className="authorization-field"><span>{zh ? "跟随账号资源权限（现有模式）" : "Follows account resource access (existing mode)"}</span><Button disabled={busy || options.scope_editable === false} onClick={() => setMode("independent")}>{zh ? "改为独立 MCP 范围" : "Use independent MCP scope"}</Button></div> : <>
           <McpAuthorizationEditor groups={groups} policies={policies} modes={modes} onMode={changeMode} onAccess={(server, access) => setPolicies(current => current.map(policy => policy.server_id === server ? { ...policy, access } : policy))} canWrite={scopes.includes("tools.invoke") || scopes.includes("*")} disabled={busy || options.scope_editable === false} zh={zh} />

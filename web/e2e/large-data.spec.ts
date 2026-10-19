@@ -118,11 +118,24 @@ test('E2E-121 @large-data advanced configs render 50 of 100 manifests', async ({
 
 test('E2E-122 @large-data 200 disabled personal scope drafts render one page', async ({ page }) => {
   await page.goto('/console/#/myConnections')
-  await page.getByRole('tab', { name: 'External identity provider', exact: true }).click()
-  const rows = page.locator('tbody tr:visible')
+  const workspace = page.locator('.my-authorizations-page')
+  await workspace.getByRole('radiogroup', { name: 'Authorization type', exact: true }).getByRole('radio', { name: 'External OAuth', exact: true }).check()
+  await workspace.getByRole('radiogroup', { name: 'Authorization status', exact: true }).getByRole('radio', { name: 'Disabled', exact: true }).check()
+  const rows = workspace.locator('.ant-table-tbody > tr.ant-table-row')
   await expect(rows.first()).toContainText('synthetic-client')
-  expect(await rows.count()).toBeLessThanOrEqual(50)
-  await expectInViewportAndUnobscured(page.getByRole('button', { name: 'New personal grant', exact: true }))
+  await expect(rows).toHaveCount(15)
+  const pager = workspace.locator('.ant-table-pagination')
+  await expect(pager).toContainText('200 total')
+  await expect(pager.locator('.ant-pagination-item-active')).toHaveText('1')
+  await expectInViewportAndUnobscured(pager.locator('.ant-pagination-next button'))
+  await pager.locator('.ant-pagination-next button').click()
+  await expect(pager.locator('.ant-pagination-item-active')).toHaveText('2')
+  await expect(rows).toHaveCount(15)
+  await expect(rows.first().getByRole('button', { name: 'synthetic-client-15', exact: true })).toBeVisible()
+  const create = workspace.getByRole('button', { name: 'New authorization', exact: true })
+  await expectInViewportAndUnobscured(create)
+  await create.click()
+  await expectInViewportAndUnobscured(page.getByRole('menuitem', { name: 'Configure external authorization', exact: true }))
 })
 
 test('E2E-123 @large-data 30 permission types remain bounded', async ({ page }) => {

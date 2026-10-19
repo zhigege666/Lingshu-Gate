@@ -2,6 +2,7 @@ export const retentionCopy = {
   "zh-CN": {
     title: "记录与保留策略", description: "修改全站记录策略。保存设置与立即清理是两个独立操作。",
     logs: "运行日志保留天数", events: "事件保留天数", calls: "调用记录保留天数", days: "天", revision: "策略修订",
+    logsLabel: "日志（天）", eventsLabel: "事件（天）", callsLabel: "调用（天）", modeLabel: "调用内容",
     defaults: "默认各保留 7 天；调用输入、输出内容随调用记录一起到期。",
     mode: "调用内容记录", metadata: "仅元数据（默认）", redacted: "记录脱敏后的内容",
     privacy: "敏感字段会脱敏，但不能保证识别所有业务秘密。开启内容记录仅影响后续调用，历史未记录内容无法补回。",
@@ -18,6 +19,7 @@ export const retentionCopy = {
   "en-US": {
     title: "Recording and retention", description: "Configure recording across Gate. Saving policy and immediate cleanup are separate actions.",
     logs: "Runtime log retention days", events: "Event retention days", calls: "Invocation retention days", days: "days", revision: "Policy revision",
+    logsLabel: "Logs (days)", eventsLabel: "Events (days)", callsLabel: "Calls (days)", modeLabel: "Call content",
     defaults: "Each defaults to 7 days. Recorded inputs and outputs expire with their invocation records.",
     mode: "Invocation content recording", metadata: "Metadata only (default)", redacted: "Record redacted content",
     privacy: "Sensitive fields are redacted, but not all business secrets can be recognized. Recording applies to future calls; previously unrecorded content cannot be recovered.",

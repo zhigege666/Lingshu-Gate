@@ -2,6 +2,17 @@
 
 ## Unreleased
 
+## 0.5.1
+
+- Refine all 23 signed-in Console routes with shared spacing and control sizes, compact headers, centered dialogs and bounded table scrolling for four desktop sizes in English and Simplified Chinese.
+- Move static field explanations behind label-adjacent help buttons, with click, keyboard, Escape and focus recovery; keep validation errors, live status and confirmation facts visible.
+- Preserve advanced MCP JSON fields and incomplete numeric/key-value drafts across Form/JSON editing. Reject duplicate object keys, unsafe integers and non-finite numbers before lossy conversion while retaining the source text.
+- Add managed-container stdio form fields for digest-pinned images, arguments, environment, lifecycle and health settings. Keep process/container environments distinct, credential references explicit and unsupported container HTTP transport blocked.
+- Reorganize built-in OAuth into connection settings, independent management access and client operations. Show only the next relevant setup recommendation, distinguish configured and active management states, and recover configuration/client/key reads independently.
+- Improve authorization catalog paging, current-tool selection and preset limits while preserving scope, revision, confirmation and one-time-secret boundaries.
+- Preserve actionable drafts and failed selections across classification publication, project delivery, network settings and observability recovery; restore focus after delayed reads and dialogs.
+- Synchronize the single runtime version, paired release overviews and release notes, and use tag-pinned documentation links in GitHub Release text. No additional database migration is introduced over 0.5.0.
+
 ## 0.5.0
 
 - Add persistent pinned tools and optional plain-text result budgets to business authorizations, with current authorization, contract, group-session and cache-isolation checks.

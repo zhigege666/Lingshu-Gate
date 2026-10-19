@@ -1,6 +1,6 @@
 import { useRemainingViewport } from "@/components/use-remaining-viewport"
 import { UploadOutlined, FileSearchOutlined, BuildOutlined, CloudUploadOutlined, PlayCircleOutlined } from "@ant-design/icons"
-import { Drawer, Segmented } from "antd"
+import { Segmented } from "antd"
 import { GitImportForm } from "@/features/network/git-import-form"
 import { networkApi } from "@/api/network"
 import { EditorNavigationContext } from "@/components/editor-navigation-guard"
@@ -9,6 +9,7 @@ import { deliveryDraftRequest, manifestPatch, mergeManifestPatch } from "@/featu
 import { useContext, useEffect, useMemo, useRef, useState } from "react"
 import { buildApi, type BuildRecord, type DeploymentRecord, type ProjectUpload, type DeliveryDraft, type PackageManagerOverride } from "@/api/builds"
 import { useConfirm } from "@/components/confirm-dialog"
+import { FormDialog } from "@/components/form-dialog"
 import { usePageRefresh } from "@/components/page-refresh"
 import { PageHeader, PageToolbar, WorkflowSteps } from "@/components/page-shell"
 import { UploadForm } from "@/components/uploads/upload-form"
@@ -36,6 +37,7 @@ export function UploadsPage({ t }: { t: TFunction }) {
   const workspace = useRemainingViewport<HTMLDivElement>(12)
   const manifestBases = useRef<Record<string, Record<string, unknown>>>({})
   const [historyOpen, setHistoryOpen] = useState(false)
+  const historyTrigger = useRef<HTMLButtonElement | null>(null)
   const [sourceMode, setSourceMode] = useState<"zip" | "git">("zip")
   const [gitState, setGitState] = useState({ dirty: false, pending: false })
   const [taskResetVersion, setTaskResetVersion] = useState(0)
@@ -61,7 +63,7 @@ export function UploadsPage({ t }: { t: TFunction }) {
   const loadRequest = useRef(0)
   const actionRequest = useRef(0)
   const selectionRevision = useRef(0)
-  const { confirm, confirmDialog } = useConfirm(t)
+  const { confirm, confirmDialog } = useConfirm(t, true)
   const tx = (key: string) => buildPageText(t, key)
   const c = uploadCopy(t)
   const selectedUploadId = selection?.id || ""
@@ -252,8 +254,9 @@ export function UploadsPage({ t }: { t: TFunction }) {
     const saved = await run(uploadId, "save", () => buildApi.saveDeliveryDraft(uploadId, deliveryDraftRequest(current, options)))
     if (!saved || !mounted.current) return
     setDrafts(previous => ({ ...previous, [uploadId]: saved }))
-    setSelectionDirty(false)
-    setTaskResetVersion(value => value + 1)
+    // Saving these fields updates their baseline without replacing the editing
+    // session. Target, deployment and install inputs may still be unsaved.
+    // ProjectDetailPanel reports the remaining dirty state against this draft.
   }
 
   async function deployProject(buildId: string, options: { server_id?: string; start: boolean; overwrite: boolean }) {
@@ -301,7 +304,7 @@ export function UploadsPage({ t }: { t: TFunction }) {
 
   return <div ref={workspace} className="delivery-focus-workspace">
     <PageHeader closeLabel={t("close")} eyebrow={t("projectDelivery")} title={t("uploads")} description={t("uploadDesc")} helpLabel={t("pageHelp")}
-      actions={<><Button variant="outline" disabled={gitState.pending} onClick={() => setHistoryOpen(true)}>{zh ? "查看上传记录" : "View upload history"}</Button><Button asChild variant="outline"><a href={selectedBuild ? `#/builds/${encodeURIComponent(selectedBuild.id)}` : "#/builds"}>{t("builds")}</a></Button></>} />
+      actions={<><Button ref={historyTrigger} variant="outline" disabled={gitState.pending} onClick={() => setHistoryOpen(true)}>{zh ? "查看上传记录" : "View upload history"}</Button><Button asChild variant="outline"><a href={selectedBuild ? `#/builds/${encodeURIComponent(selectedBuild.id)}` : "#/builds"}>{t("builds")}</a></Button></>} />
     <p className="delivery-mobile-progress" role="status">{zh ? "当前步骤" : "Current step"} {selectedDeployment?.status === "success" ? 5 : selectedBuild?.status === "success" ? 4 : selection ? 3 : 1}/5 · {selectedDeployment?.status === "success" ? t("start") : selectedBuild?.status === "success" ? (zh ? "部署" : "Deploy") : selection ? (zh ? "构建" : "Build") : (zh ? "上传" : "Upload")} · {currentStepStatus}</p>
     <WorkflowSteps stacked stateLabels={zh ? { done: "已完成", current: "当前步骤", next: "未开始" } : { done: "Completed", current: "Current step", next: "Not started" }} responsive={false} ariaLabel={t("workflowProgress")} steps={[
       { icon: <UploadOutlined />, statusLabel: selection ? completedStatus : (zh ? "待上传" : "Awaiting upload"), label: zh ? "上传" : "Upload", state: selection ? "done" : "current" },
@@ -327,14 +330,20 @@ export function UploadsPage({ t }: { t: TFunction }) {
       </>}
     </div>
     <footer className="delivery-focus-footer">
-      <Button variant="outline" disabled={!selection || busy} onClick={() => void requestSelection(null)}>{zh ? "上一步" : "Previous"}</Button>
+      {selection && <Button variant="outline" disabled={busy || gitState.pending} onClick={() => void requestSelection(null)}>{zh ? "更换项目或来源" : "Change project or source"}</Button>}
       <div className="delivery-focus-summary"><strong>{selection?.filename || selectedFile?.name || (sourceMode === "git" ? (zh ? "检查 Git 来源" : "Inspect Git source") : (zh ? "选择 ZIP 项目" : "Select a ZIP project"))}</strong>{selection && <span>{selection.id}</span>}</div>
       <div ref={setActionContainer} className="flex flex-wrap gap-2" />
     </footer>
-    <Drawer zIndex={40} open={historyOpen} title={zh ? "上传记录" : "Upload history"} size={760} onClose={() => setHistoryOpen(false)}>
+    <FormDialog className="upload-history-dialog max-w-5xl" bodyClassName="upload-history-dialog-body flex min-h-0 flex-col gap-4 overflow-hidden" open={historyOpen} title={zh ? "上传记录" : "Upload history"} closeLabel={t("close")} onClose={() => setHistoryOpen(false)} footer={null}
+      onCloseAutoFocus={event => {
+        event.preventDefault()
+        const target = historyTrigger.current
+        if (target?.isConnected && !target.disabled) target.focus()
+      }}>
+      {loadError && <Alert variant="destructive"><AlertDescription className="flex flex-wrap items-center justify-between gap-2"><span>{c.loadingFailed}: {loadError}</span><Button size="sm" variant="outline" disabled={loading} onClick={() => void loadUploads()}>{t("retry")}</Button></AlertDescription></Alert>}
       <PageToolbar query={query} onQueryChange={setQuery} placeholder={`${t("search")} ${t("uploads")}`} resultCount={visibleUploads.length} resultLabel={t("uploads")} clearLabel={t("clearSearch")} />
       <UploadList uploads={visibleUploads} builds={builds} deployments={deployments} selectedId={selectedUploadId} busy={busy} loading={loading} failed={Boolean(loadError)} filtered={Boolean(query.trim())} onSelect={id => void requestSelection(uploads.find(upload => upload.id === id) || null)} onDraft={id => void draftUpload(id)} onCreateBuild={id => { const upload = uploads.find(item => item.id === id); if (upload) void requestSelection(upload).then(allowed => { if (allowed) void buildProject(id, { run_install: true, run_build: true, project_root: "." }) }) }} onDelete={id => void deleteUpload(id)} t={t} />
-    </Drawer>
+    </FormDialog>
     {confirmDialog}
   </div>
 }

@@ -5,6 +5,16 @@ const c=invokeCopy("en-US")
 const search:Schema={type:"object",properties:{query:{type:"string",minLength:1,examples:["MCP configuration"]},limit:{type:"integer",minimum:1,maximum:100,default:10},archived:{type:"boolean",default:false}},required:["query"],additionalProperties:false}
 
 describe("tool argument schema editing",()=>{
+  it.each([
+    ['{"data":{"id":9007199254740993}}', 'unsafe_integer', '/data/id'],
+    ['{"data":{"limit":1e400}}', 'non_finite_number', '/data/limit'],
+    ['{"data":{"enabled":true,"enabled":false}}', 'duplicate_key', '/data/enabled'],
+  ])("blocks source loss before argument changes and execution: %s",(text,code,path)=>{
+    expect(parseArguments(text)).toMatchObject({ok:false,error:code,path})
+    expect(changeArgument(text,["query"],"safe change")).toBeNull()
+    const result=validateArguments({type:"object"},text,c,9)
+    expect(result).toMatchObject({ok:false,issues:[{code,path,revision:9,source:"syntax",range:{start:expect.any(Number),end:expect.any(Number)}}]})
+  })
   it("uses declared defaults and examples, without inventing missing required values",()=>{
     expect(JSON.parse(createArgumentExample(search).text)).toEqual({query:"MCP configuration",limit:10,archived:false})
     const defaults=createArgumentExample(search,"defaults")

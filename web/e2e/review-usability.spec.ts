@@ -42,7 +42,10 @@ for (const width of [1366, 390]) {
       expect(writes).toHaveLength(expectedRevision)
     }
     await saveAndContinue(1)
-    await expect(page.getByText('受信 issuer（每行一个 HTTPS URL）',{exact:true})).toBeVisible()
+    await expect(page.getByRole('textbox', { name: '受信 issuer', exact: true })).toBeVisible()
+    await page.getByRole('button', { name: '受信 issuer说明', exact: true }).click()
+    await expect(page.locator('[data-field-help-content]')).toContainText('每行填写一个 HTTPS URL。')
+    await page.keyboard.press('Escape')
     await saveAndContinue(2)
     await expect(page.getByText('OAuth 身份绑定',{exact:true})).toBeVisible()
     await footerAction(/^检查与验证$/).click()

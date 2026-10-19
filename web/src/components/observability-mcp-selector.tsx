@@ -68,13 +68,14 @@ export function ObservabilityMcpSelector({ value, onChange, zh, disabled = false
   function choose(id: string) { onChange(id); setQuery(""); setOffset(0); setOpen(false) }
   // Exact IDs remain a narrow escape hatch for history absent from the catalog.
   const exact = toolMode ? (query.trim() && query.trim().length <= 256 && !/[\s*]/.test(query.trim()) ? query.trim() : null) : exactScopeId(query)
-  return <div className="flex min-w-0 flex-col gap-1 text-xs">
-    <label id={labelId} className="font-medium text-muted-foreground">{label}</label>
+  return <div className="gate-form-row">
+    <label id={labelId} className="gate-form-label">{label}</label>
+    <div className="gate-form-control">
     <Select aria-labelledby={labelId} aria-label={label} value={value} onChange={id => choose(id ?? "")} disabled={disabled || unavailable}
       open={open} onOpenChange={setOpen}
       allowClear={{ label: toolMode ? (zh ? "清除工具筛选" : "Clear tool filter") : (zh ? "清除 MCP 筛选" : "Clear MCP filter") }}
       showSearch filterOption={false} onSearch={next => { setQuery(next); setOffset(0) }} searchValue={query}
-      virtual listHeight={224} loading={loading} options={options} style={{ width: "100%" }}
+      virtual listHeight={224} loading={loading} options={options} style={{ width: "100%", minWidth: 0 }}
       placeholder={zh ? "搜索名称或 ID" : "Search name or ID"}
       popupRender={menu => <>{menu}{!loading && !error && scopes.length === 0 && <div className="px-3 py-2 text-xs text-muted-foreground" onMouseDown={event => event.preventDefault()}>
         <p>{toolMode ? (zh ? "此范围内没有匹配工具" : "No matching tools in this scope") : (zh ? "没有获准的匹配 MCP" : "No authorized MCP matches")}</p>
@@ -85,5 +86,6 @@ export function ObservabilityMcpSelector({ value, onChange, zh, disabled = false
         <Button type="button" size="sm" variant="outline" disabled={loading || offset + scopePageSize >= total} onClick={() => setOffset(offset + scopePageSize)}>{zh ? "下一页" : "Next"}</Button>
       </div></>} />
     {(error || resolveError) && <div role="alert" className="flex flex-wrap items-center gap-2 text-destructive"><span>{error || (zh ? "无法取得此 ID 的名称；精确查询仍受权限限制。" : "Unable to resolve this ID's name. Exact queries remain permission-scoped.")}</span><Button type="button" variant="outline" size="sm" onClick={() => setRetry(current => current + 1)}>{zh ? "重试" : "Retry"}</Button></div>}
+    </div>
   </div>
 }

@@ -1,8 +1,9 @@
-import { useCallback, useEffect, useId, useRef, useState, type ReactNode } from "react"
+import { cloneElement, isValidElement, useCallback, useEffect, useId, useRef, useState, type ReactNode } from "react"
 import { Alert, Button, Input, Radio, Switch } from "antd"
 import { argumentPolicyApi, ArgumentPolicyRequestError, type ArgumentPolicy, type ArgumentPreview } from "@/api/argument-policy"
 import type { ToolDefinition } from "@/api/client"
 import { FormDialog } from "@/components/form-dialog"
+import { FieldLabel } from "@/components/field-help"
 import { useConfirm } from "@/components/confirm-dialog"
 import { useDraftCloseGuard } from "@/components/use-draft-close-guard"
 import type { Locale, TFunction } from "@/i18n"
@@ -136,8 +137,11 @@ export function ArgumentPolicyDialog({ tool, locale, t, onClose }: {
   const touch = (index: number, field: string) => setTouched(previous => new Set(previous).add(index + ":" + field))
   function rowField(index: number, field: string, label: string, control: ReactNode, help?: string) {
     const issue = visibleIssues.find(item => item.index === index && item.field === field)
-    return <div className="argument-policy-row"><label htmlFor={fieldId(index, field)}>{label}</label><div className="min-w-0">
-      {control}{help && <p className="mt-1 text-xs text-muted-foreground">{help}</p>}
+    const helpId = fieldId(index, field) + "-help"
+    const describedControl = isValidElement<{ "aria-label"?: string; "aria-describedby"?: string }>(control)
+      ? cloneElement(control, { "aria-label": control.props["aria-label"] || label, ...(help ? { "aria-describedby": [control.props["aria-describedby"], helpId].filter(Boolean).join(" ") } : {}) }) : control
+    return <div className="argument-policy-row"><label htmlFor={fieldId(index, field)}><FieldLabel label={label} help={help} helpId={helpId} zh={zh} /></label><div className="min-w-0">
+      {describedControl}
       {issue && <p role="alert" id={fieldId(index, field) + "-error"} className="mt-1 text-sm text-destructive">{issueText(issue.code, zh)}</p>}
     </div></div>
   }
@@ -194,11 +198,10 @@ export function ArgumentPolicyDialog({ tool, locale, t, onClose }: {
     <details open={exampleOpen} onToggle={event => setExampleOpen(event.currentTarget.open)} className="border-t pt-3">
       <summary className="cursor-pointer text-sm font-medium">{zh ? "校验示例参数" : "Validate example arguments"}</summary>
       <div className="mt-3 space-y-3">
-        <p className="text-xs text-muted-foreground">{zh ? "仅校验当前草稿和工具参数格式，不调用工具。第一方工具会补齐已知默认值；未知上游工具不会推测默认值。输入仅保留在当前窗口。" : "Checks this draft and tool-input format without invoking a tool. Known first-party defaults are prepared; unknown upstream defaults are not inferred. Input stays in this dialog."}</p>
-        <div className="argument-policy-row"><label htmlFor={prefix + "-example"}>{zh ? "示例参数" : "Example arguments"}</label><div>
-          <Input.TextArea id={prefix + "-example"} value={example} maxLength={1_048_576} disabled={locked} autoSize={{ minRows: 3, maxRows: 10 }}
+        <div className="argument-policy-row"><label htmlFor={prefix + "-example"}><FieldLabel label={zh ? "示例参数" : "Example arguments"} help={zh ? "仅校验当前草稿和工具参数格式，不调用工具。第一方工具会补齐已知默认值；未知上游工具不会推测默认值。输入仅保留在当前窗口。" : "Checks this draft and tool-input format without invoking a tool. Known first-party defaults are prepared; unknown upstream defaults are not inferred. Input stays in this dialog."} helpId={prefix + "-example-help"} zh={zh} /></label><div>
+          <Input.TextArea id={prefix + "-example"} aria-label={zh ? "示例参数" : "Example arguments"} value={example} maxLength={1_048_576} disabled={locked} autoSize={{ minRows: 3, maxRows: 10 }}
             aria-invalid={Boolean(exampleError && (exampleAttempted || example !== "{}"))}
-            aria-describedby={exampleError && (exampleAttempted || example !== "{}") ? prefix + "-example-error" : undefined}
+            aria-describedby={[exampleError && (exampleAttempted || example !== "{}") ? prefix + "-example-error" : "", prefix + "-example-help"].filter(Boolean).join(" ")}
             status={exampleError && (exampleAttempted || example !== "{}") ? "error" : undefined} onChange={event => { setExample(event.target.value); setPreview(null); changed() }} />
           {exampleError && (exampleAttempted || example !== "{}") && <p role="alert" id={prefix + "-example-error"} className="mt-1 text-sm text-destructive">{issueText(exampleError, zh)}</p>}
         </div></div>

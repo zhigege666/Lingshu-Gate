@@ -1,4 +1,4 @@
-import { expect, test, type Page } from "@playwright/test"
+import { expect, test, type Locator, type Page } from "@playwright/test"
 import { createHash } from "node:crypto"
 import { mkdirSync, readFileSync, writeFileSync } from "node:fs"
 import path from "node:path"
@@ -11,6 +11,9 @@ const sourceVersion = readFileSync(path.join(assets, "../../_version.py"), "utf8
 const bundleSha = createHash("sha256").update(readFileSync(path.join(assets, "index.html"))).digest("hex")
 type Locale = "en-US" | "zh-CN"
 const sizes = [{ width: 1600, height: 900 }, { width: 1920, height: 1080 }, { width: 2560, height: 1080 }, { width: 2560, height: 1440 }]
+// Compact table contract: 32px control + project-wide 8px compact padding on each side + 1px border.
+// Capture actual control/cell/token metrics before these assertions for CSS review.
+const compactClientRowHeight = 32 + 8 + 8 + 1
 const now = Math.floor(Date.now() / 1000)
 async function fixture(page: Page, locale: Locale, theme = "light", count = 61) {
   const tools: OAuthTool[] = Array.from({ length: 137 }, (_, index) => ({ id: `mcp.synthetic-density-${Math.floor(index / 23)}.tool-${index}`, name: index < 2 ? locale === "zh-CN" ? "项目详情" : "Project details" : locale === "zh-CN" ? `项目工具 ${index}` : `Project tool ${index}`, server_id: `synthetic-density-${Math.floor(index / 23)}`, server_name: `Synthetic MCP ${Math.floor(index / 23)}`, access: index % 2 ? "write" : "read", snapshot: "synthetic-density", currently_authorized: true }))
@@ -20,14 +23,16 @@ async function fixture(page: Page, locale: Locale, theme = "light", count = 61) 
   const model = { grant, config, clients, clientWriteFailure: false, reads: 0, writes: [] as { path: string; body: Record<string, unknown> }[] }
   await page.addInitScript(({ locale, theme }) => { localStorage.setItem("lingshu-gate-console-locale", locale); localStorage.setItem("lingshu-gate-console-theme", theme); Object.defineProperty(navigator, "clipboard", { configurable: true, value: { writeText: async () => undefined } }) }, { locale, theme })
   await page.route("**/console/", route => route.fulfill({ contentType: "text/html", body: readFileSync(path.join(assets, "index.html")) }))
-  await page.route("**/console/assets/**", route => { const name = path.basename(new URL(route.request().url()).pathname); return route.fulfill({ contentType: name.endsWith(".css") ? "text/css" : "application/javascript", body: readFileSync(path.join(assets, "assets", name)) }) })
+  await page.route("**/assets/**", route => { const name = path.basename(new URL(route.request().url()).pathname); return route.fulfill({ contentType: name.endsWith(".css") ? "text/css" : "application/javascript", body: readFileSync(path.join(assets, "assets", name)) }) })
   await page.route("**/healthz", route => route.fulfill({ json: { version: sourceVersion } }))
   await page.route("**/v1/**", route => {
     const pathname = new URL(route.request().url()).pathname, method = route.request().method()
     if (pathname === "/v1/auth/me") return route.fulfill({ json: { id: "synthetic-density-owner", username: "synthetic-density-owner", display_name: "Synthetic owner", status: "active", role: "custom", roles: ["custom"], permissions: ["console.view", "credentials.manage.self", "external_connections.manage"], auth_type: "session", scopes: [], must_change_password: false } })
     if (pathname === "/v1/auth/oauth/config" && method === "GET") return route.fulfill({ json: model.config })
     if (pathname === "/v1/auth/oauth/clients") return route.fulfill({ json: { clients: model.clients } })
-    if (pathname === "/v1/auth/oauth/management/config") return route.fulfill({ json: { enabled: false, resource: "https://gate.example.test/mcp/manage", revision: 1 } })
+    if (pathname === "/v1/auth/oauth/management/config") return route.fulfill({ json: { enabled: false, active: false, resource: "https://gate.example.test/mcp/manage", revision: 1 } })
+    if (pathname === "/v1/auth/tokens" && method === "GET") return route.fulfill({ json: { tokens: [] } })
+    if (pathname === "/v1/auth/external-grants" && method === "GET") return route.fulfill({ json: { grants: [], connection_ready: true, activation_errors: [], allowed_client_ids: [] } })
     if (pathname === "/v1/auth/oauth/grants") return route.fulfill({ json: { grants: [model.grant] } })
     if (pathname.endsWith("/scope-options")) { model.reads++; return route.fulfill({ json: { csrf: "synthetic-density-csrf-" + "s".repeat(32), expires_at: now + 600, grant_revision: model.grant.revision, tools: model.grant.tools, scopes: model.grant.scopes, effective_scopes: model.grant.scopes, family_scope_limits: [{ scopes: ["tools.read"], count: 1 }], unavailable_servers: [], can_review_classifications: false } }) }
     if (method !== "GET") model.writes.push({ path: pathname, body: route.request().postDataJSON() })
@@ -42,13 +47,27 @@ async function fixture(page: Page, locale: Locale, theme = "light", count = 61) 
   })
   return model
 }
+function moreActions(row: Locator, zh: boolean, clientName: string) {
+  return row.getByRole("button", { name: `${zh ? "更多操作" : "More actions"} ${clientName}`, exact: true })
+}
+async function clientAction(page: Page, row: Locator, zh: boolean, clientName: string, action: string) {
+  await moreActions(row, zh, clientName).click()
+  await page.getByRole("menu").getByRole("menuitem", { name: action, exact: true }).click()
+}
+async function expectClientActionEnabled(page: Page, row: Locator, zh: boolean, clientName: string, action: string) {
+  const trigger = moreActions(row, zh, clientName)
+  await trigger.click()
+  await expect(page.getByRole("menu").getByRole("menuitem", { name: action, exact: true })).toBeEnabled()
+  await page.keyboard.press("Escape")
+  await expect(trigger).toBeFocused()
+}
 async function scope(page: Page, locale: Locale, expected = 137) {
   await page.goto("/console/#/myConnections")
-  await page.getByRole("tab", { name: locale === "zh-CN" ? "Gate 内置 OAuth" : "Gate built-in OAuth", exact: true }).click()
-  await page.getByRole("button", { name: locale === "zh-CN" ? "调整授权范围" : "Adjust scope", exact: true }).click()
+  await page.getByRole("radiogroup", { name: locale === "zh-CN" ? "授权方式" : "Authorization type", exact: true }).getByRole("radio", { name: "Gate OAuth", exact: true }).check()
+  await page.locator('tr[data-row-key="builtin:synthetic-density-grant"]').getByRole("button", { name: locale === "zh-CN" ? "调整授权" : "Adjust", exact: true }).click()
   const editor = page.getByRole("dialog", { name: locale === "zh-CN" ? "调整授权范围" : "Adjust authorization scope", exact: true })
   await expect(editor.locator(".oauth-selection")).toContainText(`${expected} / ${expected}`)
-  await editor.evaluate(async element => { await Promise.all(element.getAnimations().map(animation => animation.finished)) })
+  await editor.evaluate(async element => { await Promise.allSettled(element.getAnimations({ subtree: true }).filter(animation => animation.effect?.getComputedTiming().iterations !== Infinity).map(animation => animation.finished)) })
   return editor
 }
 async function capture(page: Page, name: string, metrics: unknown) {
@@ -67,25 +86,71 @@ for (const size of sizes) for (const locale of ["en-US", "zh-CN"] as const) {
     const editor = await scope(page, locale)
     await expect(editor.locator(".oauth-scope-rule-summary")).toHaveText(zh ? "有效" : "Active")
     await expect(editor.locator(".oauth-scope-rule-summary")).not.toContainText("137")
+    const body = editor.locator(".oauth-grant-edit-body"), tools = editor.locator(".oauth-tools")
+    const limits = editor.locator(".authorization-quota-settings")
+    const quotaToggle = limits.locator('.ant-collapse-header[role="button"]')
+    await expect(quotaToggle).toHaveAttribute("aria-expanded", "false")
+    await expect(limits.locator(".authorization-quota-values")).toHaveText(zh ? "30 次/分钟 · 并发 2" : "30/min · 2 concurrent")
+    await quotaToggle.click()
+    await expect(limits.locator(".authorization-field")).toHaveCount(2)
+    const rate = limits.getByRole("spinbutton", { name: zh ? "每分钟调用上限" : "Calls per minute", exact: true })
+    await expect(rate).toHaveValue("30")
+    await expect(limits.getByRole("spinbutton", { name: zh ? "并发上限" : "Concurrent calls", exact: true })).toHaveValue("2")
+    // Enable Save so the footer's hit testing also verifies a usable control.
+    await rate.fill("31")
+    await editor.evaluate(async element => { await Promise.allSettled(element.getAnimations({ subtree: true }).filter(animation => animation.effect?.getComputedTiming().iterations !== Infinity).map(animation => animation.finished)) })
+    await body.evaluate(element => { element.scrollTop = 0 })
+    const labelMetrics = await limits.evaluate(element => Array.from(element.querySelectorAll(".authorization-field")).map(field => {
+      const label = field.querySelector("label")!, input = field.querySelector("input")!
+      const range = document.createRange(); range.selectNodeContents(label)
+      const text = range.getBoundingClientRect(), control = input.getBoundingClientRect()
+      return { label: label.textContent, lines: range.getClientRects().length, centerOffset: Math.abs((text.top + text.bottom - control.top - control.bottom) / 2), labelRight: text.right, controlLeft: control.left, controlWidth: control.width }
+    }))
+    await capture(page, `scope-limits-${locale}-${size.width}x${size.height}`, { labels: labelMetrics })
+    expect(labelMetrics).toHaveLength(2)
+    expect(labelMetrics.every(label => label.lines === 1 && label.centerOffset < 3 && label.labelRight < label.controlLeft && label.controlWidth > 0)).toBe(true)
+    const save = editor.getByRole("button", { name: zh ? "保存授权" : "Save authorization", exact: true })
+    const cancel = editor.getByRole("button", { name: zh ? "取消" : "Cancel", exact: true })
+    const refresh = body.getByRole("button", { name: zh ? "刷新可授权范围" : "Refresh available scope", exact: true }).first()
+    await expect(save).toBeEnabled()
+    for (const control of [save, cancel, refresh]) { await expectInViewportAndUnobscured(control); await control.click({ trial: true }) }
+    const mcpRows = editor.locator(".authorization-mcp-editor tr[data-row-key]")
+    await expect(mcpRows).toHaveCount(6)
+    for (const row of await mcpRows.all()) {
+      await expect(row.locator('input[type="radio"]:checked')).toHaveCount(1)
+      await expect(row.getByRole("radio", { name: zh ? "指定工具" : "Selected tools", exact: true })).toBeChecked()
+    }
+    await expect(tools.locator("tr[data-row-key]")).toHaveCount(50)
+    const footer = editor.locator(".oauth-grant-delta"), footerBounds = await footer.boundingBox()
+    const pageScroll = await page.evaluate(() => document.scrollingElement?.scrollTop || 0)
+    // Editing has two catalogs: the dialog body owns vertical scrolling. Details
+    // dialogs keep their existing table scroll contract and are not targeted here.
+    await body.evaluate(element => { element.scrollTop = element.scrollHeight })
     const metrics = await editor.evaluate(element => {
-      const body = element.querySelector(".oauth-grant-scope-body")!
-      const table = element.querySelector(".ant-table-body")!.getBoundingClientRect()
-      const rows = Array.from(element.querySelectorAll(".ant-table-body tr[data-row-key]")).map(row => row.getBoundingClientRect())
-      const labels = Array.from(element.querySelectorAll(".oauth-grant-limits label")).map(label => { const range = document.createRange(); range.selectNode(label.firstChild!); const text = range.getBoundingClientRect(), input = label.querySelector("input")!.getBoundingClientRect(); return range.getClientRects().length === 1 && Math.abs((text.top + text.bottom - input.top - input.bottom) / 2) < 3 })
-      return { rows: rows.filter(row => row.top >= table.top - 1 && row.bottom <= table.bottom + 1).length, rowHeights: rows.map(row => row.height), labels, bodyOverflow: body.scrollHeight - body.clientHeight, pageOverflow: document.documentElement.scrollWidth - innerWidth }
+      const body = element.querySelector<HTMLElement>(".oauth-grant-edit-body")!, bodyBounds = body.getBoundingClientRect()
+      const table = element.querySelector<HTMLElement>(".oauth-tools .ant-table-body")!, tableBounds = table.getBoundingClientRect()
+      const rows = Array.from(table.querySelectorAll("tr[data-row-key]")), rowBounds = rows.map(row => row.getBoundingClientRect())
+      const top = Math.max(bodyBounds.top + body.clientTop, tableBounds.top, 0), bottom = Math.min(bodyBounds.bottom, tableBounds.bottom, innerHeight)
+      const firstCell = rows[0].querySelector<HTMLElement>("td:has(.oauth-tool-name)")!, cell = getComputedStyle(firstCell), tokens = getComputedStyle(element)
+      const nestedScroll = Array.from(element.querySelectorAll<HTMLElement>(".authorization-mcp-editor .ant-table-content, .oauth-tools .ant-table-body")).map(node => ({ overflow: node.scrollHeight - node.clientHeight, top: node.scrollTop, overflowY: getComputedStyle(node).overflowY }))
+      return { rows: rowBounds.filter(row => row.top >= top - 1 && row.bottom <= bottom + 1).length, renderedRows: rows.length, rowHeights: rowBounds.map(row => row.height), toolButtonHeights: Array.from(table.querySelectorAll(".oauth-tool-name")).map(button => button.getBoundingClientRect().height), cellPadding: [cell.paddingTop, cell.paddingBottom], cellBorder: [cell.borderTopWidth, cell.borderBottomWidth], controlHeightToken: tokens.getPropertyValue("--control-height-sm").trim(), space1Token: tokens.getPropertyValue("--space-1").trim(), nestedScroll, bodyOverflow: body.scrollHeight - body.clientHeight, bodyScrollTop: body.scrollTop, bodyHeight: body.clientHeight, pageOverflow: document.documentElement.scrollWidth - innerWidth }
     })
-    await capture(page, `scope-${locale}-${size.width}x${size.height}`, metrics)
+    await capture(page, `scope-${locale}-${size.width}x${size.height}`, { ...metrics, labels: labelMetrics, scrollOwner: "dialog-body" })
+    expect(metrics.renderedRows).toBe(50)
     expect(metrics.rows).toBeGreaterThanOrEqual(8)
-    expect(metrics.rowHeights.every(height => height >= 36 && height <= 44)).toBe(true)
-    expect(metrics.labels.every(Boolean)).toBe(true)
-    expect(metrics.bodyOverflow).toBeLessThanOrEqual(1)
+    expect(metrics.rowHeights.every(height => Math.abs(height - compactClientRowHeight) < 1)).toBe(true)
+    expect(metrics.toolButtonHeights.every(height => Math.abs(height - 32) < 1)).toBe(true)
+    expect(metrics.cellPadding).toEqual(["8px", "8px"])
+    expect(metrics.nestedScroll).toHaveLength(2)
+    expect(metrics.nestedScroll.every(scroll => scroll.overflow <= 1 && scroll.top === 0)).toBe(true)
+    expect(metrics.bodyOverflow).toBeGreaterThan(0)
+    expect(metrics.bodyScrollTop).toBeGreaterThan(0)
+    expect(Math.abs(metrics.bodyScrollTop - metrics.bodyOverflow)).toBeLessThanOrEqual(1)
     expect(metrics.pageOverflow).toBeLessThanOrEqual(1)
-    for (const control of [editor.getByRole("button", { name: zh ? "保存授权" : "Save authorization", exact: true }), editor.getByRole("button", { name: zh ? "取消" : "Cancel", exact: true }), editor.getByRole("button", { name: zh ? "刷新可授权范围" : "Refresh available scope", exact: true })]) await expectInViewportAndUnobscured(control)
-    const table = editor.locator(".ant-table-body"), footer = editor.locator(".oauth-grant-delta")
-    const bounds = await footer.boundingBox()
-    await table.evaluate(element => { element.scrollTop = element.scrollHeight })
-    expect(await footer.boundingBox()).toEqual(bounds)
-    expect(await editor.locator(".oauth-grant-scope-body").evaluate(element => element.scrollTop)).toBe(0)
+    expect(await footer.boundingBox()).toEqual(footerBounds)
+    expect(await page.evaluate(() => document.scrollingElement?.scrollTop || 0)).toBe(pageScroll)
+    for (const control of [save, cancel, tools.getByRole("button", { name: `${model.grant.tools[49].name} · ${model.grant.tools[49].id}`, exact: true }), tools.locator(".ant-pagination-next")]) await expectInViewportAndUnobscured(control)
+    await save.click({ trial: true }); await cancel.click({ trial: true })
     expect(model.writes).toHaveLength(0)
   })
   test(`managed OAuth density ${locale} ${size.width}x${size.height}`, async ({ page }) => {
@@ -95,28 +160,38 @@ for (const size of sizes) for (const locale of ["en-US", "zh-CN"] as const) {
     await expect(page.locator("#oauth-issuer")).toHaveValue(model.config.issuer)
     const metrics = await page.evaluate(() => {
       const panel = document.querySelector(".oauth-admin-layout")!
-      const labels = Array.from(panel.querySelectorAll(".oauth-inline-form .ant-form-item-row")).map(row => { const label = row.querySelector("label")!.getBoundingClientRect(), control = row.querySelector("input, [role=switch]")!.getBoundingClientRect(); return Math.abs((label.top + label.bottom - control.top - control.bottom) / 2) < 4 })
+      const labels = Array.from(panel.querySelectorAll(".oauth-inline-form .ant-form-item-row")).map(row => { const label = row.querySelector("label")!.getBoundingClientRect(), control = row.querySelector(".ant-form-item-control input, .ant-form-item-control [role=switch], .ant-form-item-control #oauth-generate-key")!.getBoundingClientRect(); return Math.abs((label.top + label.bottom - control.top - control.bottom) / 2) < 4 })
       const body = panel.querySelector<HTMLElement>(".oauth-client-table .ant-table-body")!, bounds = body.getBoundingClientRect()
-      const rows = Array.from(body.querySelectorAll("tr[data-row-key]")).map(row => row.getBoundingClientRect())
-      return { labels, clientBodyHeight: body.clientHeight, clientRowHeights: rows.map(row => row.height), completeClientRows: rows.filter(row => row.top >= bounds.top - 1 && row.bottom <= bounds.bottom + 1).length, pageOverflow: document.documentElement.scrollWidth - innerWidth, setupSteps: document.querySelectorAll(".oauth-setup-steps li").length }
+      const rows = Array.from(body.querySelectorAll("tr[data-row-key]")), rowBounds = rows.map(row => row.getBoundingClientRect())
+      const cells = Array.from(rows[0].querySelectorAll("td")).map(cell => { const style = getComputedStyle(cell); return { paddingTop: style.paddingTop, paddingBottom: style.paddingBottom, borderTop: style.borderTopWidth, borderBottom: style.borderBottomWidth } })
+      const tokens = getComputedStyle(panel)
+      return { labels, clientBodyHeight: body.clientHeight, clientRowHeights: rowBounds.map(row => row.height), clientButtonHeights: Array.from(body.querySelectorAll("button")).map(button => button.getBoundingClientRect().height), clientCellMetrics: cells, controlHeightToken: tokens.getPropertyValue("--control-height-sm").trim(), space1Token: tokens.getPropertyValue("--space-1").trim(), completeClientRows: rowBounds.filter(row => row.top >= bounds.top - 1 && row.bottom <= bounds.bottom + 1).length, pageOverflow: document.documentElement.scrollWidth - innerWidth, setupGuidance: document.querySelectorAll(".oauth-setup-guidance").length }
     })
     await capture(page, `infrastructure-${locale}-${size.width}x${size.height}`, { ...metrics, fixture_clients: 61 })
-    expect(metrics.setupSteps).toBe(0)
+    expect(metrics.setupGuidance).toBe(0)
+    expect(metrics.labels.length).toBeGreaterThan(0)
     expect(metrics.labels.every(Boolean)).toBe(true)
-    expect(metrics.clientRowHeights.every(height => Math.abs(height - 40) < 1)).toBe(true)
-    expect(metrics.clientBodyHeight % 40).toBe(0)
+    expect(metrics.clientButtonHeights.length).toBeGreaterThan(0)
+    expect(metrics.clientButtonHeights.every(height => Math.abs(height - 32) < 1)).toBe(true)
+    expect(metrics.clientRowHeights.every(height => Math.abs(height - compactClientRowHeight) < 1)).toBe(true)
+    expect(Math.abs(metrics.clientBodyHeight - Math.round(metrics.clientBodyHeight / compactClientRowHeight) * compactClientRowHeight)).toBeLessThanOrEqual(1)
     expect(metrics.completeClientRows).toBeGreaterThanOrEqual(5)
     expect(metrics.pageOverflow).toBeLessThanOrEqual(1)
     const table = page.locator(".oauth-client-table")
     await expect(table.locator("tr[data-row-key]")).toHaveCount(25)
     await expect(table.getByRole("button", { name: zh ? "详情" : "Details", exact: true })).toHaveCount(0)
-    await expect(page.locator(".oauth-signing-controls [role=status]")).toHaveCount(0)
+    await expect(page.locator("#oauth-generate-key")).toHaveAccessibleName(zh ? "轮换签名密钥" : "Rotate signing key")
     await expect(page.locator("#oauth-issuer")).toBeDisabled()
     await expect(page.locator("#oauth-resource")).toBeDisabled()
     await expect(page.locator("#oauth-enable-help")).toHaveText(zh ? "先停用并保存，才能修改地址。" : "Disable and save before editing URLs.")
     const fifth = table.locator("tr[data-row-key]").nth(4)
-    for (const control of [fifth.getByRole("button", { name: "Synthetic client 4", exact: true }), fifth.getByRole("button", { name: `${zh ? "复制客户端 ID" : "Copy client ID"} ${model.clients[4].id}`, exact: true }), fifth.getByRole("button", { name: zh ? "轮换密钥" : "Rotate secret", exact: true }), fifth.getByRole("button", { name: zh ? "停用" : "Disable", exact: true }), table.locator(".ant-pagination-next")]) await expectInViewportAndUnobscured(control)
-    for (const control of [page.getByRole("button", { name: zh ? "接入指引" : "Connection guide", exact: true }), page.getByRole("button", { name: zh ? "登记客户端" : "Register client", exact: true }), page.locator("#oauth-generate-key"), table.getByRole("button", { name: zh ? "轮换密钥" : "Rotate secret", exact: true }).first(), page.getByRole("switch", { name: zh ? "启用管理 OAuth" : "Enable management OAuth", exact: true })]) await expectInViewportAndUnobscured(control)
+    const fifthMore = moreActions(fifth, zh, model.clients[4].name)
+    for (const control of [fifth.getByRole("button", { name: "Synthetic client 4", exact: true }), fifth.getByRole("button", { name: `${zh ? "复制客户端 ID" : "Copy client ID"} ${model.clients[4].id}`, exact: true }), fifth.getByRole("button", { name: zh ? "编辑" : "Edit", exact: true }), fifthMore, table.locator(".ant-pagination-next")]) await expectInViewportAndUnobscured(control)
+    for (const control of [page.getByRole("button", { name: zh ? "接入指引" : "Connection guide", exact: true }), page.getByRole("button", { name: zh ? "登记客户端" : "Register client", exact: true }), page.locator("#oauth-generate-key"), page.getByRole("switch", { name: zh ? "启用管理 OAuth" : "Enable management OAuth", exact: true })]) await expectInViewportAndUnobscured(control)
+    await fifthMore.click()
+    for (const name of [zh ? "轮换密钥" : "Rotate secret", zh ? "停用" : "Disable"]) await expectInViewportAndUnobscured(page.getByRole("menu").getByRole("menuitem", { name, exact: true }))
+    await page.keyboard.press("Escape")
+    await expect(fifthMore).toBeFocused()
     const scroll = table.locator(".ant-table-body")
     expect(await scroll.evaluate(element => element.scrollHeight > element.clientHeight)).toBe(true)
     await scroll.evaluate(element => { element.scrollTop = element.scrollHeight })
@@ -145,7 +220,7 @@ for (const locale of ["en-US", "zh-CN"] as const) {
     await expect(filters.getByRole("radio", { name: "Synthetic MCP 0", exact: true })).toBeChecked()
     await page.keyboard.press("ArrowRight")
     await expect(filters.getByRole("radio", { name: "Synthetic MCP 1", exact: true })).toBeChecked()
-    await expect(editor.locator("tr[data-row-key]")).toHaveCount(23)
+    await expect(editor.locator(".oauth-tools tr[data-row-key]")).toHaveCount(23)
     await expect(editor.locator(".oauth-selection")).toContainText("46 / 46")
     await editor.getByRole("radio", { name: zh ? "仅选全部当前只读" : "All current read-only tools", exact: true }).check()
     await expect(editor.locator(".oauth-selection")).toContainText("23 / 46")
@@ -155,7 +230,7 @@ for (const locale of ["en-US", "zh-CN"] as const) {
     await page.setViewportSize(sizes[0])
     const model = await fixture(page, locale, "dark")
     const editor = await scope(page, locale)
-    const row = editor.locator('tr[data-row-key="mcp.synthetic-density-0.tool-1"]')
+    const row = editor.locator('.oauth-tools tr[data-row-key="mcp.synthetic-density-0.tool-1"]')
     const tool = row.getByRole("button", { name: `${model.grant.tools[1].name} · ${model.grant.tools[1].id}`, exact: true })
     await tool.focus(); await page.keyboard.press("Enter")
     const details = page.getByRole("dialog", { name: zh ? "工具详情" : "Tool details", exact: true })
@@ -191,7 +266,7 @@ for (const locale of ["en-US", "zh-CN"] as const) {
     const options = page.locator(".ant-select-dropdown:not(.ant-select-dropdown-hidden) .ant-select-item-option-content")
     await expect(options).toHaveText(["synthetic-density-0", "synthetic-density-1"])
     await options.filter({ hasText: /^synthetic-density-1$/ }).click()
-    await expect(editor.locator("tr[data-row-key]")).toHaveCount(23)
+    await expect(editor.locator(".oauth-tools tr[data-row-key]")).toHaveCount(23)
     await expect(editor.locator(".oauth-selection")).toContainText("46 / 46")
     expect(model.writes).toHaveLength(0)
   })
@@ -224,6 +299,11 @@ for (const locale of ["en-US", "zh-CN"] as const) {
     await expect(editing.getByLabel(zh ? "客户端名称" : "Client name", { exact: true })).toHaveValue(model.clients[0].name)
     await editing.getByRole("button", { name: zh ? "取消" : "Cancel", exact: true }).click()
     await expect(info).toBeFocused()
+    const directEdit = page.locator(".oauth-client-table tr[data-row-key]").first().getByRole("button", { name: zh ? "编辑" : "Edit", exact: true })
+    await directEdit.focus(); await page.keyboard.press("Enter")
+    await expect(editing.getByLabel(zh ? "客户端名称" : "Client name", { exact: true })).toHaveValue(model.clients[0].name)
+    await editing.getByRole("button", { name: zh ? "取消" : "Cancel", exact: true }).click()
+    await expect(directEdit).toBeFocused()
     await capture(page, `infrastructure-dark-${locale}-1600x900`, { fixture_clients: 1, keyboardGuideDetailsAndEdit: true })
     expect(model.writes).toHaveLength(0)
   })
@@ -242,27 +322,29 @@ for (const locale of ["en-US", "zh-CN"] as const) {
     expect(model.writes).toHaveLength(0)
     await page.getByRole("button", { name: zh ? "放弃配置修改" : "Discard configuration edits", exact: true }).click()
     const row = page.locator(".oauth-client-table tr[data-row-key]").first()
+    const more = moreActions(row, zh, model.clients[0].name)
     for (const name of [zh ? "轮换密钥" : "Rotate secret", zh ? "停用" : "Disable"]) {
-      await row.getByRole("button", { name, exact: true }).click()
+      await clientAction(page, row, zh, model.clients[0].name, name)
       const confirmation = page.getByRole("alertdialog")
       await expect(confirmation).toContainText(model.clients[0].id)
       await confirmation.getByRole("button", { name: zh ? "取消" : "Cancel", exact: true }).click()
+      await expect(more).toBeFocused()
     }
     expect(model.writes).toHaveLength(0)
     model.clientWriteFailure = true
-    await row.getByRole("button", { name: zh ? "停用" : "Disable", exact: true }).click()
+    await clientAction(page, row, zh, model.clients[0].name, zh ? "停用" : "Disable")
     await page.getByRole("alertdialog").getByRole("button", { name: zh ? "停用" : "Disable", exact: true }).click()
     await expect(page.getByRole("alert")).toContainText(zh ? "对象已改变" : "This item changed")
-    await expect(row.getByRole("button", { name: zh ? "停用" : "Disable", exact: true })).toBeEnabled()
+    await expectClientActionEnabled(page, row, zh, model.clients[0].name, zh ? "停用" : "Disable")
     expect(model.writes[0].body).toMatchObject({ enabled: false, expected_revision: 1, rotate_secret: false })
     model.clientWriteFailure = false
     for (const [name, enabled, revision] of [[zh ? "停用" : "Disable", false, 1], [zh ? "启用" : "Enable", true, 2]] as const) {
-      await row.getByRole("button", { name, exact: true }).click()
+      await clientAction(page, row, zh, model.clients[0].name, name)
       await page.getByRole("alertdialog").getByRole("button", { name, exact: true }).click()
-      await expect(row.getByRole("button", { name: enabled ? zh ? "停用" : "Disable" : zh ? "启用" : "Enable", exact: true })).toBeEnabled()
+      await expectClientActionEnabled(page, row, zh, model.clients[0].name, enabled ? zh ? "停用" : "Disable" : zh ? "启用" : "Enable")
       expect(model.writes.at(-1)!.body).toMatchObject({ enabled, expected_revision: revision, rotate_secret: false })
     }
-    await row.getByRole("button", { name: zh ? "轮换密钥" : "Rotate secret", exact: true }).click()
+    await clientAction(page, row, zh, model.clients[0].name, zh ? "轮换密钥" : "Rotate secret")
     const rotate = page.getByRole("alertdialog")
     await expect(rotate).toContainText(zh ? "旧密钥立即失效" : "old secret stops working immediately")
     await rotate.getByRole("button", { name: zh ? "轮换密钥" : "Rotate secret", exact: true }).click()
@@ -272,6 +354,7 @@ for (const locale of ["en-US", "zh-CN"] as const) {
     await secret.getByRole("button", { name: zh ? "已保存，关闭" : "Saved, close", exact: true }).click()
     await expect(secret).toHaveCount(0)
     await expect(page.getByText("synthetic-density-rotated-secret", { exact: true })).toHaveCount(0)
+    await expect(more).toBeFocused()
     expect(model.writes).toHaveLength(4)
   })
 }

@@ -6,6 +6,7 @@ import {
   patchManifestField,
   canKeepMaskedEndpoint,
   changeRuntimeMode,
+  runtimeModeFromManifest,
   changeStartupPolicy,
   createMcpConfigTemplate,
   REDACTED_ENDPOINT,
@@ -22,7 +23,7 @@ describe("MCP config model", () => {
   it("enables new drafts independently of startup and preserves explicit disable across every form mode", () => {
     const draft = createMcpConfigTemplate()
     expect(draft).toMatchObject({ enabled: true, auto_start: false, startup_policy: "gate_start_v1" })
-    for (const mode of ["external_http", "managed_stdio", "managed_http"] as const) {
+    for (const mode of ["external_http", "managed_stdio", "managed_http", "managed_container_stdio"] as const) {
       expect(changeRuntimeMode(draft, mode)).toMatchObject({ enabled: true, auto_start: false, startup_policy: "gate_start_v1" })
       const disabled = parseManifest(JSON.stringify({ ...draft, enabled: false }))
       expect(changeRuntimeMode(disabled, mode).enabled).toBe(false)
@@ -108,7 +109,7 @@ describe("MCP config model", () => {
   })
 
   it("retains a pinned toolchain during a mode change and reports its incompatible runtime", () => {
-    const original = { id: "pinned", launch: { type: "managed_process", command: "node", toolchain: { manager: "node", version: "22" } }, transport: { type: "streamable_http", endpoint: "https://example.test/mcp" }, timeout_seconds: 30 }
+    const original = { id: "pinned", launch: { type: "managed_process", command: "npm", toolchain: { manager: "npm", version: "10.9.2" } }, transport: { type: "streamable_http", endpoint: "https://example.test/mcp" }, timeout_seconds: 30 }
     const external = changeRuntimeMode(original, "external_http")
     expect(external.launch?.toolchain).toEqual(original.launch.toolchain)
     expect(precheckManifest(external, copy).errors).toContain("toolchainModeUnsupported")
@@ -142,7 +143,7 @@ describe("MCP config model", () => {
   })
 
   it("keeps malformed JSON invalid instead of restoring a previous valid document", () => {
-    expect(() => parseManifest('{"id":"draft",')).toThrow()
+    expect(() => parseManifest('{"id":"draft",')).toThrow(SyntaxError)
     expect(() => parseManifest("")).toThrow()
   })
 
@@ -208,5 +209,139 @@ describe("masked container source identity", () => {
     expect(precheckManifest({ ...manifest, id: "container-b" }, copy, context).errors).toContain("containerMountsError")
     expect(precheckManifest(manifest, copy, { ...context, originalMaskedMountTargets: [] }).errors).toContain("containerMountsError")
     expect(precheckManifest({ ...manifest, launch: { ...manifest.launch, mounts: [{ source: "***", target: "/different", read_only: true }] } }, copy, context).errors).toContain("containerMountsError")
+  })
+})
+
+
+describe("managed container form mode", () => {
+  // A schema-valid declaration: advanced container values stay outside basic form edits.
+  const container = () => ({
+    id: "container-round-trip", name: null, enabled: false, auto_start: false, timeout_seconds: 120,
+    launch: {
+      type: "managed_container", command: null, cwd: null, env: {}, package: null, toolchain: null,
+      image: `example.test/synthetic@sha256:${"a".repeat(64)}`,
+      args: ["", " padded argument ", "--flag", "a=b"],
+      environment: { EMPTY: "", PADDED: " value ", EQUALS: "a=b", API_TOKEN: "${credential:synthetic}" },
+      mounts: [{ source: "/workspace/reviewed", target: "/project", read_only: true }],
+      resources: { memory: "512m", cpus: 0.1, pids_limit: 16 },
+    },
+    transport: { type: "stdio", endpoint: null, protocol_version: null, headers: {} },
+    permissions: { default: "read", review: { confirmed: false } },
+    analysis: { values: [false, 0, null, ""] },
+    restart_policy: {
+      enabled: true, max_attempts: 0, delay_seconds: 0, backoff_multiplier: 1, max_delay_seconds: 0,
+      reset_after_seconds: 0, restart_on_exit: false, exit_code_allowlist: [0, 137], exit_code_blocklist: [],
+      health_check: { enabled: true, method: "tools_list", interval_seconds: 1, timeout_seconds: 1, failure_threshold: 1 },
+    },
+  })
+
+  it("recognizes supported container stdio without changing its declaration or emitting an advanced-mode warning", () => {
+    const source = container()
+    const before = JSON.stringify(source)
+    expect(runtimeModeFromManifest(source)).toBe("managed_container_stdio")
+    expect(precheckManifest(source, copy)).toEqual({ errors: [], warnings: [] })
+    expect(JSON.stringify(source)).toBe(before)
+  })
+
+  it("preserves hidden container settings, ordered empty arguments and exact falsy values through JSON and a basic form edit", () => {
+    const source = container()
+    const parsed = parseManifest(JSON.stringify(source))
+    const renamed = patchManifestField(parsed, ["name"], { kind: "set", value: "" })
+    expect(parseManifest(JSON.stringify(renamed))).toEqual({ ...source, name: "" })
+    expect(renamed).not.toHaveProperty("startup_policy")
+    expect(source.name).toBeNull()
+    expect(runtimeModeFromManifest(renamed)).toBe("managed_container_stdio")
+    expect(precheckManifest(renamed, copy).errors).toEqual([])
+  })
+
+  it("changes only runtime types and restores every container value when returning from another mode", () => {
+    const source = container()
+    const before = JSON.stringify(source)
+    const cases = [
+      ["external_http", "external", "streamable_http"],
+      ["managed_stdio", "managed_process", "stdio"],
+      ["managed_http", "managed_process", "streamable_http"],
+    ] as const
+    for (const [mode, launchType, transportType] of cases) {
+      const switched = changeRuntimeMode(source, mode)
+      // Incompatible retained fields must be resolved explicitly; conversion does not validate or delete them.
+      expect(switched).toEqual({ ...source, launch: { ...source.launch, type: launchType }, transport: { ...source.transport, type: transportType } })
+      expect(changeRuntimeMode(parseManifest(JSON.stringify(switched)), "managed_container_stdio")).toEqual(source)
+      expect(switched).not.toHaveProperty("startup_policy")
+    }
+    expect(changeRuntimeMode(source, "advanced")).toBe(source)
+    expect(JSON.stringify(source)).toBe(before)
+  })
+
+  it("retains process-only declarations and toolchain pins when the user chooses container stdio", () => {
+    const source = {
+      id: "pinned-process", enabled: false, launch: {
+        type: "managed_process", command: "npm", args: ["run", "start", ""], cwd: "/workspace/reviewed",
+        env: { EMPTY: "", TOKEN: "${credential:synthetic}" }, toolchain: { manager: "npm", version: "10.9.2" },
+      },
+      transport: { type: "streamable_http", endpoint: "https://synthetic.example.test/mcp", headers: { "X-Empty": "" } },
+      timeout_seconds: 120,
+    }
+    const switched = changeRuntimeMode(source, "managed_container_stdio")
+    expect(switched).toEqual({ ...source, launch: { ...source.launch, type: "managed_container" }, transport: { ...source.transport, type: "stdio" } })
+    expect(precheckManifest(switched, copy).errors).toContain("toolchainModeUnsupported")
+    expect(precheckManifest(switched, copy).errors).toContain("containerImageDigestError")
+    expect(changeRuntimeMode(switched, "managed_http")).toEqual(source)
+  })
+
+  it("preserves unsupported draft extensions without claiming that the backend schema accepts them", () => {
+    const valid = container()
+    const source = {
+      ...valid, future: { flag: false, zero: 0, nullable: null, text: "" },
+      launch: { ...valid.launch, future: [false, 0, null, ""] },
+      transport: { ...valid.transport, future: { empty: "" } },
+    }
+    const edited = patchManifestField(changeRuntimeMode(parseManifest(JSON.stringify(source)), "managed_http"), ["name"], { kind: "set", value: "Edited" })
+    expect(changeRuntimeMode(edited, "managed_container_stdio")).toEqual({ ...source, name: "Edited" })
+    expect(source.name).toBeNull()
+  })
+
+  for (const transportType of ["streamable_http", "sse"]) {
+    it(`rejects container ${transportType} and recovers after an explicit stdio correction without disabling restart flags`, () => {
+      const source = container()
+      const unsupported = { ...source, transport: { ...source.transport, type: transportType, endpoint: "https://synthetic.example.test/mcp" } }
+      const before = JSON.stringify(unsupported)
+      expect(runtimeModeFromManifest(unsupported)).toBe("advanced")
+      const checked = precheckManifest(unsupported, copy)
+      expect(checked.errors).toEqual(expect.arrayContaining(["containerTransportUnsupported", "restartUnsupported", "healthRestartUnsupported"]))
+      expect(JSON.stringify(unsupported)).toBe(before)
+      const corrected = changeRuntimeMode(unsupported, "managed_container_stdio")
+      expect(corrected).toEqual({ ...unsupported, transport: { ...unsupported.transport, type: "stdio" } })
+      expect(precheckManifest(corrected, copy)).toEqual({ errors: [], warnings: [] })
+      expect(corrected.restart_policy).toEqual(source.restart_policy)
+    })
+  }
+
+  it("does not duplicate the missing transport diagnostic with an unsupported-container error", () => {
+    const source = { id: "missing-transport", launch: { type: "managed_container", image: `example.test/synthetic@sha256:${"a".repeat(64)}` }, transport: {}, timeout_seconds: 120 }
+    expect(precheckManifest(source, copy).errors).toEqual(["transportTypeRequired"])
+  })
+})
+
+
+describe("manifest JSON source validation", () => {
+  for (const { source, code, token } of [
+    { source: '{"analysis":{"count":0,"count":1}}', code: "duplicate_key", token: '"count"' },
+    { source: '{"analysis":{"count":9007199254740993}}', code: "unsafe_integer", token: "9007199254740993" },
+    { source: '{"analysis":{"count":1e400}}', code: "non_finite_number", token: "1e400" },
+  ]) {
+    it(`rejects ${code} before exposing a changed manifest and preserves the source diagnostic`, () => {
+      let error: unknown
+      try { parseManifest(source) } catch (caught) { error = caught }
+      const start = source.lastIndexOf(token)
+      expect(error).toMatchObject({ code, path: "/analysis/count", range: { start, end: start + token.length } })
+    })
+  }
+
+  it("preserves valid falsy metadata and large numeric identifiers declared as strings", () => {
+    const source = { id: "source-safe", analysis: { disabled: false, offset: 0, nullable: null, text: "", identifier: "9007199254740993" } }
+    expect(parseManifest(JSON.stringify(source))).toEqual(source)
+    expect(() => parseManifest('{"id":')).toThrow(SyntaxError)
+    expect(() => parseManifest("[]")).toThrow("Manifest root must be a JSON object")
   })
 })

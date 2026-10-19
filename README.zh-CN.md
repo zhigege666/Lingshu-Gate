@@ -2,7 +2,7 @@
 
 自托管 MCP 网关：连接工具，限定谁可以调用，并记录调用结果。
 
-[English](README.md) · [下载 0.5.0](https://github.com/zhigege666/Lingshu-Gate/releases/tag/v0.5.0) · [开始使用](docs/zh-CN/getting-started.md) · [文档](docs/zh-CN/README.md) · [安全](SECURITY.zh-CN.md)
+[English](README.md) · [下载 0.5.1](https://github.com/zhigege666/Lingshu-Gate/releases/tag/v0.5.1) · [开始使用](docs/zh-CN/getting-started.md) · [文档](docs/zh-CN/README.md) · [安全](SECURITY.zh-CN.md)
 
 <img src="docs/images/console/zh-CN/v0.5.0-discovery.png" alt="Lingshu Gate 0.5.0：每条授权的固定工具、逻辑组和有界文本预览" width="1200">
 
@@ -30,7 +30,7 @@
 
 ### 已发布 Docker 本机试用
 
-校验并解压 `lingshu-gate-v0.5.0-docker-compose.tar.gz`，进入该目录后执行：
+校验并解压 `lingshu-gate-v0.5.1-docker-compose.tar.gz`，进入该目录后执行：
 
 ```bash
 cp .env.quickstart.example .env.quickstart
@@ -65,11 +65,11 @@ uv run lingshu-gate
 
 核对成功审计、写入拒绝且计数不变、错误修订拒绝、demo 停止/恢复和调用者撤销。Gate 启动、工具发现、分类确认、发布分别进行；访问仍须同时满足资源权限和 token scope。
 
-## 0.5.0 版本
+## 0.5.1 版本
 
-本版本增加固定工具与文本预览、四类参数规则、私网 HTTP 连接器、选定操作的 OpenAPI 适配器，以及默认关闭的标准观测。原生和 Compose 归档包含适合包型的中英文开始页及可运行 demo。参见[变更记录](CHANGELOG.zh-CN.md)和[双语发行说明](packaging/release-notes.md)。
+本补丁优化全部 23 个登录后 Console 路由，统一间距、紧凑操作区、居中弹窗及点击展开的字段帮助。MCP 配置和调用编辑器保留草稿及高级 JSON 字段；内置 OAuth 页面明确划分连接配置、管理连接和客户端操作，并支持各区域独立恢复读取错误。参见[变更记录](CHANGELOG.zh-CN.md)和[双语发行说明](packaging/release-notes.md)。
 
-两项数据库迁移增加发现偏好和参数策略。升级前一致备份数据库、配置及凭据密钥；旧版本不会执行新增策略。
+桌面布局以 2560×1440 为基准，支持 1920×1080、1600×900、2560×1080 及中英文。本补丁不新增数据库迁移，也不扩大已有授权。从 0.5.0 之前的版本升级，仍需执行 0.5.0 的迁移，并一致备份数据库、配置和凭据密钥。
 
 ## 架构总览
 

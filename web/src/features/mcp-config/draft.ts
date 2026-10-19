@@ -1,4 +1,5 @@
 import { patchManifestField, type ManifestLike } from "./model"
+import { parseJsonSource } from "@/lib/json-source"
 
 // Tests and the real editor share the same conversion; no alternate runtime rules.
 export { changeRuntimeMode } from "./model"
@@ -9,7 +10,7 @@ export function updateManifestPath(manifest: ManifestLike, path: string[], value
 }
 
 export function manifestFingerprint(text: string): string {
-  try { return JSON.stringify(JSON.parse(text)) } catch { return text }
+  try { return JSON.stringify(parseJsonSource(text)) } catch { return text }
 }
 
 export const PROTECTED_HEADERS = new Set([

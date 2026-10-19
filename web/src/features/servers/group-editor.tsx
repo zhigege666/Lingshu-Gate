@@ -2,6 +2,7 @@ import { useEffect, useId, useRef, useState } from "react"
 import { Alert, Button, Input, Pagination, Radio, Table, Tag } from "antd"
 import { canonicalGroupBody, mcpGroupsApi, type McpGroup, type McpGroupDraft, type McpGroupInstance, type McpGroupType } from "@/api/mcp-groups"
 import { FormDialog } from "@/components/form-dialog"
+import { FieldHelp, FieldLabel } from "@/components/field-help"
 import { useConfirm } from "@/components/confirm-dialog"
 import { useDraftCloseGuard } from "@/components/use-draft-close-guard"
 import { localizeStatus, type Locale, type TFunction } from "@/i18n"
@@ -145,15 +146,13 @@ export function McpGroupEditor({ group, locale, t, onClose, onSaved, returnFocus
       {creationInfo && <Alert type="info" showIcon title={creationInfo} />}
       <div className="mcp-group-form-row"><label htmlFor={`${id}-name`}>{c.name}</label><Input id={`${id}-name`} autoFocus maxLength={128} value={name} disabled={pending} onChange={event => setName(event.target.value)} /></div>
       <div className="mcp-group-form-row"><label htmlFor={`${id}-description`}>{c.description}</label><Input id={`${id}-description`} maxLength={500} value={description} disabled={pending} onChange={event => setDescription(event.target.value)} /></div>
-      <div className="mcp-group-form-row"><span id={`${id}-type`}>{c.groupType}</span><div><Radio.Group aria-labelledby={`${id}-type`} aria-describedby={`${id}-type-help`} aria-invalid={typeError} disabled={pending} value={groupType}
+      <div className="mcp-group-form-row"><span className="field-label"><span id={`${id}-type`}>{c.groupType}</span><FieldHelp label={c.groupType} zh={locale === "zh-CN"} inline id={`${id}-type-help`}>{groupType === "execution" ? c.executionHint : groupType === "data_source" ? c.dataSourceHint : c.typeHint}</FieldHelp></span><div><Radio.Group aria-labelledby={`${id}-type`} aria-describedby={`${id}-type-help`} aria-invalid={typeError} disabled={pending} value={groupType}
         options={[{ value: "execution", label: c.execution }, { value: "data_source", label: c.dataSource }]} onChange={event => { setGroupType(event.target.value as McpGroupType); setTypeError(false) }} />
-        <div id={`${id}-type-help`} className="mcp-group-help">{groupType === "execution" ? c.executionHint : groupType === "data_source" ? c.dataSourceHint : c.typeHint}</div>
         {typeError && <p role="alert" className="text-destructive">{c.typeRequired}</p>}</div></div>
       <div className="mcp-group-form-row"><span id={`${id}-state`}>{c.state}</span><Radio.Group aria-labelledby={`${id}-state`} disabled={pending} value={status} options={[{ value: "active", label: c.active }, { value: "archived", label: c.archived }]} onChange={event => setStatus(event.target.value as "active" | "archived")} /></div>
-      <div className="mcp-group-member-heading"><h3>{c.members}</h3><span role="status">{selected.length} {c.selected}</span></div>
-      <div className="mcp-group-form-row"><span id={`${id}-default`}>{c.defaultInstance}</span><div role="group" aria-labelledby={`${id}-default`}><span>{defaultInstance || c.noDefault}</span>{defaultInstance && <Button type="link" size="small" disabled={pending} onClick={() => setDefaultInstance("")}>{c.clearDefault}</Button>}<div className="mcp-group-help">{c.defaultHint}</div></div></div>
+      <div className="mcp-group-member-heading"><h3 aria-label={c.members}><FieldLabel label={c.members} help={c.memberLimit} helpId={`${id}-members-help`} zh={locale === "zh-CN"} /></h3><span role="status">{selected.length} {c.selected}</span></div>
+      <div className="mcp-group-form-row"><span className="field-label"><span id={`${id}-default`}>{c.defaultInstance}</span><FieldHelp label={c.defaultInstance} inline id={`${id}-default-help`} zh={locale === "zh-CN"}>{c.defaultHint}</FieldHelp></span><div role="group" aria-labelledby={`${id}-default`} aria-describedby={`${id}-default-help`}><span>{defaultInstance || c.noDefault}</span>{defaultInstance && <Button type="link" size="small" disabled={pending} onClick={() => setDefaultInstance("")}>{c.clearDefault}</Button>}</div></div>
       {selectedVersions.size > 1 && <Alert type="warning" showIcon title={c.contractConflict} />}
-      <p className="text-xs text-muted-foreground">{c.memberLimit}</p>
       {missing.length > 0 && <Alert type="warning" showIcon title={c.missing} description={<>{c.missingHint}<div className="mcp-group-missing">{missing.map(value => <Tag key={value} closable={!pending} onClose={event => { event.preventDefault(); remove(value) }}>{value}</Tag>)}</div></>} />}
       <div className="mcp-group-query"><Input.Search aria-label={c.searchInstances} placeholder={c.searchInstances} value={query} maxLength={200} allowClear disabled={pending} onChange={event => { setQuery(event.target.value); setPage(1) }} /><Button disabled={pending || loading} onClick={() => setRefresh(value => value + 1)}>{c.refresh}</Button></div>
       {catalogError && <Alert role="alert" type="error" showIcon title={catalogError} action={<Button disabled={pending} onClick={() => setRefresh(value => value + 1)}>{c.retry}</Button>} />}
@@ -163,7 +162,7 @@ export function McpGroupEditor({ group, locale, t, onClose, onSaved, returnFocus
           onChange: keys => { const next = keys.map(String); if (next.length <= 1000) { setSelected(next); setReconfirmed(values => values.filter(value => next.includes(value))); setMissing(values => values.filter(value => next.includes(value))); if (!next.includes(defaultInstance)) setDefaultInstance("") } },
           onSelect: (record, checked) => { if (checked && snapshot?.members.some(item => item.instance_id === record.instance_id && (item.available === false || item.status === "missing"))) { setReconfirmed(values => [...new Set([...values, record.instance_id])]); setMissing(values => values.filter(value => value !== record.instance_id)) } },
           onSelectAll: (checked, _rows, changed) => { if (checked) { const restored = changed.filter(row => snapshot?.members.some(item => item.instance_id === row.instance_id && (item.available === false || item.status === "missing"))).map(row => row.instance_id); setReconfirmed(values => [...new Set([...values, ...restored])]); setMissing(values => values.filter(value => !restored.includes(value))) } },
-          getCheckboxProps: record => ({ disabled: pending || (!selected.includes(record.instance_id) && selected.length >= 1000), name: record.instance_id, "aria-label": `${record.name} · ${record.instance_id}` }),
+          getCheckboxProps: record => ({ disabled: pending || (!selected.includes(record.instance_id) && selected.length >= 1000), name: record.instance_id, "aria-label": `${record.name} · ${record.instance_id}`, "aria-describedby": `${id}-members-help` }),
         }} columns={[
           { title: groupType === "data_source" ? c.source : c.name, dataIndex: "name", ellipsis: true },
           { title: c.instanceId, dataIndex: "instance_id", ellipsis: true },

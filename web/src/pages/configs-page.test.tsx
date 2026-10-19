@@ -1,6 +1,6 @@
 import { renderToStaticMarkup } from "react-dom/server"
 import { describe, expect, it } from "vitest"
-import { ConfigsPage } from "@/pages/configs-page"
+import { configStartupDisplay, ConfigsPage } from "@/pages/configs-page"
 import { translate, type TFunction } from "@/i18n"
 
 const t: TFunction = key => translate("zh-CN", key)
@@ -51,4 +51,23 @@ describe("MCP 配置行操作", () => {
     expect(actionButtons(false, 200)).toHaveLength(50 * 3)
   })
 
+})
+
+describe("configuration startup policy labels", () => {
+  it("identifies legacy restore regardless of the auto_start fallback value", () => {
+    for (const auto_start of [true, false]) {
+      expect(configStartupDisplay({ auto_start }, "en-US").label).toBe("Restore last state")
+      expect(configStartupDisplay({ auto_start, startup_policy: "legacy_restore" }, "zh-CN").label).toBe("恢复上次状态")
+    }
+  })
+
+  it("distinguishes the new automatic and manual policy while keeping disabled services inactive", () => {
+    expect(configStartupDisplay({ startup_policy: "gate_start_v1", auto_start: true }, "en-US")).toMatchObject({ label: "Automatic on startup", automatic: true })
+    expect(configStartupDisplay({ startup_policy: "gate_start_v1", auto_start: false }, "en-US")).toMatchObject({ label: "Manual start", automatic: false })
+    expect(configStartupDisplay({ startup_policy: "gate_start_v1", auto_start: true, enabled: false }, "zh-CN")).toMatchObject({ label: "启动时自动", automatic: false })
+  })
+
+  it("does not describe an unrecognized policy as manual startup", () => {
+    expect(configStartupDisplay({ startup_policy: "unknown_policy" }, "en-US").label).toBe("Unconfirmed policy")
+  })
 })

@@ -19,15 +19,18 @@ async function management(page: Page, locale: string, registered = false) {
     return route.fulfill({ contentType: name.endsWith(".css") ? "text/css" : "application/javascript", body: readFileSync(path.join(assetsPath, "assets", name)) })
   })
   await page.route("**/healthz", route => route.fulfill({ json: { status: "ok", service: "lingshu-gate", version: "0.3.1" } }))
-  let clients = registered ? [syntheticClient] : []
-  await page.route("**/v1/**", route => {
+  const model = { clients: registered ? [syntheticClient] : [], writes: [] as Record<string, unknown>[], holdCreate: null as (() => Promise<void>) | null }
+  await page.route("**/v1/**", async route => {
     const pathname = new URL(route.request().url()).pathname
     if (pathname === "/v1/auth/me") return route.fulfill({ json: { id: "synthetic-manager", username: "synthetic-manager", display_name: "Synthetic manager", status: "active", role: "custom", roles: ["custom"], permissions: ["console.view", "external_connections.manage"], auth_type: "session", scopes: [], must_change_password: false } })
     if (pathname === "/v1/auth/oauth/config") return route.fulfill({ json: { enabled: false, issuer: "https://gate.example.test", resource: "https://gate.example.test/mcp", revision: 1, metadata_url: "https://gate.example.test/.well-known/oauth-authorization-server", authorization_endpoint: "https://gate.example.test/oauth/authorize", token_endpoint: "https://gate.example.test/oauth/token", jwks_uri: "https://gate.example.test/oauth/jwks", signing_keys: [] } })
+    if (pathname === "/v1/auth/oauth/management/config") return route.fulfill({ json: { enabled: false, active: false, resource: "https://gate.example.test/mcp/manage", revision: 0 } })
     if (pathname === "/v1/auth/oauth/clients") {
-      if (route.request().method() === "GET") return route.fulfill({ json: { clients } })
+      if (route.request().method() === "GET") return route.fulfill({ json: { clients: model.clients } })
       if (route.request().method() === "POST") {
-        clients = [syntheticClient]
+        model.writes.push(route.request().postDataJSON())
+        if (model.holdCreate) await model.holdCreate()
+        model.clients = [syntheticClient]
         return route.fulfill({ status: 201, json: { client: syntheticClient, client_secret: syntheticSecret } })
       }
     }
@@ -35,6 +38,7 @@ async function management(page: Page, locale: string, registered = false) {
   })
   await page.goto("/console/#/connectionInfrastructure")
   await expect(page.getByRole("button", { name: locale === "zh-CN" ? "登记客户端" : "Register client", exact: true })).toBeEnabled()
+  return model
 }
 
 for (const locale of ["en-US", "zh-CN"]) {
@@ -52,13 +56,33 @@ for (const locale of ["en-US", "zh-CN"]) {
   for (const closeMethod of ["X", "Escape"]) {
     test(`OAuth one-time secret ${closeMethod} retains value unless saved ${locale} @permissions`, async ({ page }) => {
       const zh = locale === "zh-CN"
-      await management(page, locale)
+      const model = await management(page, locale)
       await expect(page.getByText(zh ? "尚未登记客户端。" : "No clients registered.", { exact: true })).toBeVisible()
-      await page.getByRole("button", { name: zh ? "登记客户端" : "Register client", exact: true }).click()
+      const register = page.locator(".oauth-clients-panel").getByRole("button", { name: zh ? "登记客户端" : "Register client", exact: true })
+      await register.click()
       const create = page.getByRole("dialog", { name: zh ? "登记客户端" : "Register client", exact: true })
       await create.getByLabel(zh ? "客户端名称" : "Client name", { exact: true }).fill(syntheticClient.name)
       await create.getByLabel(zh ? "回调地址 1" : "Redirect URI 1", { exact: true }).fill(syntheticClient.redirect_uris[0])
-      await create.getByRole("button", { name: zh ? "保存" : "Save", exact: true }).click()
+      if (closeMethod === "X") await create.getByRole("button", { name: zh ? "关闭" : "Close", exact: true }).click()
+      else { await create.getByLabel(zh ? "客户端名称" : "Client name", { exact: true }).focus(); await page.keyboard.press("Escape") }
+      const discard = page.getByRole("alertdialog", { name: zh ? "放弃尚未保存的修改？" : "Discard unsaved changes?", exact: true })
+      await discard.getByRole("button", { name: zh ? "继续编辑" : "Continue editing", exact: true }).click()
+      await expect(create.getByLabel(zh ? "客户端名称" : "Client name", { exact: true })).toHaveValue(syntheticClient.name)
+      await expect(create.getByLabel(zh ? "回调地址 1" : "Redirect URI 1", { exact: true })).toHaveValue(syntheticClient.redirect_uris[0])
+      expect(model.writes).toHaveLength(0)
+      let release!: () => void
+      const held = new Promise<void>(resolve => { release = resolve })
+      model.holdCreate = () => held
+      try {
+        await create.getByRole("button", { name: zh ? "保存" : "Save", exact: true }).click()
+        await expect(create).toHaveAttribute("aria-busy", "true")
+        await expect(create.getByRole("button", { name: zh ? "关闭" : "Close", exact: true })).toBeDisabled()
+        await page.keyboard.press("Escape")
+        await expect(create).toBeVisible()
+        await expect(page.getByRole("tab", { name: zh ? "外部身份提供方" : "External identity provider", exact: true, includeHidden: true })).toBeDisabled()
+        await expect.poll(() => model.writes.length).toBe(1)
+        expect(model.writes[0]).toEqual({ name: syntheticClient.name, redirect_uris: syntheticClient.redirect_uris, scopes: ["tools.read"], resources: ["business"] })
+      } finally { release() }
       const secret = page.getByRole("dialog", { name: zh ? "仅展示一次的客户端密钥" : "One-time client secret", exact: true })
       await expect(secret.getByLabel("Client Secret", { exact: true })).toHaveValue(syntheticSecret)
       await secret.getByRole("button", { name: zh ? "复制密钥" : "Copy secret", exact: true }).click()
@@ -72,6 +96,7 @@ for (const locale of ["en-US", "zh-CN"]) {
       await secret.getByRole("button", { name: zh ? "已保存，关闭" : "Saved, close", exact: true }).click()
       await expect(secret).toHaveCount(0)
       await expect(page.getByRole("alertdialog")).toHaveCount(0)
+      await expect(register).toBeFocused()
     })
   }
 }

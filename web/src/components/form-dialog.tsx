@@ -39,7 +39,7 @@ export function FormDialog({ open, onClose, title, description, closeLabel, pend
     if (open) return registerExit?.({ dirty, pending })
   }, [open, dirty, pending, registerExit])
   return <Dialog open={open} onOpenChange={next => { if (!next && !pending) onClose() }}>
-    <DialogContent className={cn("max-h-[calc(100dvh-2rem)] gap-4", className)} closeDisabled={pending} closeLabel={closeLabel} aria-busy={pending}
+    <DialogContent className={cn("gate-form-dialog", className)} closeDisabled={pending} closeLabel={closeLabel} aria-busy={pending}
       aria-describedby={description ? descriptionId : undefined}
       onCloseAutoFocus={onCloseAutoFocus}
       onEscapeKeyDown={event => { onEscapeKeyDown?.(event); if (pending) event.preventDefault() }}
@@ -51,7 +51,7 @@ export function FormDialog({ open, onClose, title, description, closeLabel, pend
       <DialogHeader className="shrink-0"><DialogTitle className="whitespace-normal leading-snug">{title}</DialogTitle>{description && <DialogDescription id={descriptionId}>{description}</DialogDescription>}</DialogHeader>
       <DialogBody className={bodyClassName}>{children}</DialogBody>
       {error && <Alert variant="destructive" role="alert" className="max-h-[20dvh] shrink-0 overflow-y-auto"><AlertDescription>{error}</AlertDescription></Alert>}
-      {footer && <DialogFooter className="shrink-0 border-t pt-4">{footer}</DialogFooter>}
+      {footer && <DialogFooter className="shrink-0 border-t pt-[var(--space-4)]">{footer}</DialogFooter>}
     </DialogContent>
   </Dialog>
 }

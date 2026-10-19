@@ -1,24 +1,18 @@
 import { Children, cloneElement, isValidElement, useId, useState, type ReactElement, type ReactNode } from "react"
-import { Popover } from "antd"
-import { AlertCircle, Plus, Trash2, X } from "lucide-react"
+import { Plus, Trash2 } from "lucide-react"
+import { FieldHelp } from "@/components/field-help"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Switch } from "@/components/ui/switch"
 
 export function ConfigHelp({ label, children }: { label: string; children: ReactNode }) {
-  const [open, setOpen] = useState(false)
-  return <Popover trigger="click" open={open} onOpenChange={setOpen} content={
-    <div className="max-w-xs text-sm" onKeyDown={event => { if (event.key === "Escape") { event.stopPropagation(); setOpen(false) } }}>
-      <div className="mb-2 flex items-center justify-between gap-3 font-medium">{label}<button type="button" aria-label={`${label} ×`} onClick={() => setOpen(false)}><X className="size-4" /></button></div>
-      {children}
-    </div>
-  }><button type="button" aria-label={`${label} ?`} aria-expanded={open} className="inline-flex size-7 shrink-0 items-center justify-center rounded text-muted-foreground hover:bg-muted focus-visible:outline focus-visible:outline-2 focus-visible:outline-primary" onKeyDown={event => { if (event.key === "Escape") { event.stopPropagation(); setOpen(false) } }}><AlertCircle className="size-4" /></button></Popover>
+  return <FieldHelp label={label}>{children}</FieldHelp>
 }
 
 export function ConfigField({ label, help, children, className = "", search = "" }: { label: string; help?: string; children: ReactNode; className?: string; search?: string }) {
   const id = useId()
   const child = Children.only(children)
-  return <div className={`min-w-0 space-y-1.5 ${className}`} data-config-field={`${label} ${search}`}>
+  return <div className={`min-w-0 space-y-2 ${className}`} data-config-field={`${label} ${search}`}>
     <div className="flex min-h-7 items-center gap-1"><label htmlFor={id} className="text-sm font-medium">{label}</label>{help && <ConfigHelp label={label}>{help}</ConfigHelp>}</div>
     {isValidElement(child) ? cloneElement(child as ReactElement<Record<string, unknown>>, { id, "aria-label": label }) : child}
   </div>

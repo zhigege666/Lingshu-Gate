@@ -11,6 +11,7 @@ import { useDraftCloseGuard } from "@/components/use-draft-close-guard"
 import { useConfirm } from "@/components/confirm-dialog"
 import { JsonPanel } from "@/components/json-panel"
 import { PageHeader, PageToolbar } from "@/components/page-shell"
+import { FilterRadio } from "@/components/filter-radio"
 import { Toaster } from "@/components/ui/toast"
 import { Alert, AlertDescription } from "@/components/ui/alert"
 import { Button } from "@/components/ui/button"
@@ -178,11 +179,10 @@ export function CredentialsPage({ locale, t }: { locale: Locale; t: TFunction })
         onCloseAutoFocus={event => { event.preventDefault(); (editorReturnFocus.current?.isConnected ? editorReturnFocus.current : createTrigger.current)?.focus() }}
         footer={<><Button variant="outline" onClick={() => void closeEditor()} disabled={busy}>{t("cancel")}</Button><Button type="submit" form="credential-editor" disabled={busy}><KeyRound />{t("save")}</Button></>}>
         <form id="credential-editor" onSubmit={event => { event.preventDefault(); void save() }} className="flex flex-col gap-4">
-          <div className="flex flex-col gap-2"><Label htmlFor="credential-name">{t("name")}</Label><Input id="credential-name" value={form.name} disabled={busy} aria-required="true" aria-invalid={showValidation && nameInvalid || undefined} aria-describedby={showValidation && nameInvalid ? "credential-name-error" : undefined} onChange={event => setForm(current => ({ ...current, name: event.target.value }))} placeholder="SERVICE_PASSWORD" />{showValidation && nameInvalid && <span id="credential-name-error" className="text-xs text-destructive">{t("required")}</span>}</div>
-          {selectedId && <div className="flex flex-col gap-2"><Label htmlFor="credential-secret-mode">{c.secretMode}</Label><select id="credential-secret-mode" className="h-9 rounded-md border border-input bg-background px-3 text-sm" value={secretMode} disabled={busy} onChange={event => { const mode = event.target.value as "keep" | "replace"; setSecretMode(mode); setForm(current => ({ ...current, value: mode === "keep" ? "***" : "" })) }}><option value="keep">{c.keep}</option><option value="replace">{c.replace}</option></select></div>}
-          {selectedId && secretMode === "keep" ? <p className="text-sm text-muted-foreground">{c.keepHint}</p> : <div className="flex flex-col gap-2"><Label htmlFor="credential-value">{t("credentialValue")}</Label><Input id="credential-value" type="password" autoComplete="new-password" value={form.value || ""} disabled={busy} aria-required="true" aria-invalid={showValidation && valueInvalid || undefined} aria-describedby="credential-value-hint" onChange={event => setForm(current => ({ ...current, value: event.target.value }))} /><p id="credential-value-hint" className="text-xs text-muted-foreground">{c.replaceHint}</p>{showValidation && valueInvalid && <span className="text-xs text-destructive">{t("required")}</span>}</div>}
-          <div className="flex flex-col gap-2"><Label htmlFor="credential-description">{t("description")}</Label><Textarea id="credential-description" value={form.description || ""} disabled={busy} onChange={event => setForm(current => ({ ...current, description: event.target.value }))} /></div>
-          <p className="text-xs text-muted-foreground">{t("credentialRefHint")}</p>
+          <Field id="credential-name" label={t("name")}><Input id="credential-name" value={form.name} disabled={busy} aria-required="true" aria-invalid={showValidation && nameInvalid || undefined} aria-describedby={showValidation && nameInvalid ? "credential-name-error" : undefined} onChange={event => setForm(current => ({ ...current, name: event.target.value }))} placeholder="SERVICE_PASSWORD" />{showValidation && nameInvalid && <span id="credential-name-error" className="text-xs text-destructive">{t("required")}</span>}</Field>
+          {selectedId && <Field id="credential-secret-mode" label={c.secretMode} help={`${c.keepHint} ${t("credentialRefHint")}`} helpId="credential-secret-mode-hint" zh={locale === "zh-CN"}><FilterRadio id="credential-secret-mode" hideLabel label={c.secretMode} aria-describedby="credential-secret-mode-hint" value={secretMode} disabled={busy} onChange={value => { const mode = value as "keep" | "replace"; setSecretMode(mode); setForm(current => ({ ...current, value: mode === "keep" ? "***" : "" })) }} options={[{ value: "keep", label: c.keep }, { value: "replace", label: c.replace }]} /></Field>}
+          {(!selectedId || secretMode === "replace") && <Field id="credential-value" label={t("credentialValue")} help={selectedId ? c.replaceHint : `${c.replaceHint} ${t("credentialRefHint")}`} helpId="credential-value-hint" zh={locale === "zh-CN"}><Input id="credential-value" type="password" autoComplete="new-password" value={form.value || ""} disabled={busy} aria-required="true" aria-invalid={showValidation && valueInvalid || undefined} aria-describedby={showValidation && valueInvalid ? "credential-value-error credential-value-hint" : "credential-value-hint"} onChange={event => setForm(current => ({ ...current, value: event.target.value }))} />{showValidation && valueInvalid && <span id="credential-value-error" className="text-xs text-destructive">{t("required")}</span>}</Field>}
+          <Field id="credential-description" label={t("description")}><Textarea id="credential-description" value={form.description || ""} disabled={busy} onChange={event => setForm(current => ({ ...current, description: event.target.value }))} /></Field>
         </form>
       </FormDialog>
 
@@ -220,4 +220,8 @@ export function CredentialsPage({ locale, t }: { locale: Locale; t: TFunction })
 
 function credentialRef(id: string) {
   return `\${credential:${id}}`
+}
+
+function Field({ label, id, help, helpId, zh, children }: { label: string; id: string; help?: React.ReactNode; helpId?: string; zh?: boolean; children: React.ReactNode }) {
+  return <div className="authorization-field"><Label htmlFor={id} help={help} helpLabel={label} helpId={helpId} zh={zh}>{label}</Label><div className="authorization-field-control">{children}</div></div>
 }

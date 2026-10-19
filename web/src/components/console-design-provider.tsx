@@ -14,11 +14,41 @@ type ConsoleDesign = {
 
 const ConsoleDesignContext = createContext<ConsoleDesign | null>(null)
 
+/** CSS owns dimensions; fallbacks support rendering without styles. */
+function readConsoleDimensions() {
+  const styles = typeof document === "undefined" ? null : getComputedStyle(document.documentElement)
+  const value = (name: string, fallback: number) => {
+    const parsed = Number.parseFloat(styles?.getPropertyValue(name) ?? "")
+    return Number.isFinite(parsed) && parsed > 0 ? parsed : fallback
+  }
+  return {
+    controlHeight: value("--control-height", 36),
+    controlHeightSM: value("--control-height-sm", 32),
+    controlHeightLG: value("--control-height-lg", 40),
+    borderRadius: value("--radius-control", 8),
+    panelRadius: value("--radius-panel", 12),
+    dialogRadius: value("--radius-dialog", 16),
+    fieldGap: value("--field-gap", 16),
+    panelPadding: value("--panel-padding", 24),
+    cellInline: value("--table-cell-padding-inline", 16),
+    cellBlock: value("--table-cell-padding-block", 12),
+    cellCompact: value("--table-cell-padding-compact", 8),
+  }
+}
+
 export function ConsoleDesignProvider({ children, initialLocale }: { children: ReactNode; initialLocale?: Locale }) {
   const [mode, setMode] = useState<ThemeMode>(getInitialTheme)
   const [locale, setLocaleState] = useState<Locale>(() => initialLocale ?? getInitialLocale())
   useEffect(() => { applyTheme(mode) }, [mode])
   useEffect(() => { document.documentElement.lang = locale }, [locale])
+  const [dimensions, setDimensions] = useState(readConsoleDimensions)
+  useEffect(() => {
+    if (typeof window.matchMedia !== "function") return
+    const compact = window.matchMedia("(max-width: 720px)")
+    const syncDimensions = () => setDimensions(readConsoleDimensions())
+    compact.addEventListener("change", syncDimensions)
+    return () => compact.removeEventListener("change", syncDimensions)
+  }, [])
   const theme = useMemo<ThemeConfig>(() => ({
     algorithm: mode === "dark" ? antTheme.darkAlgorithm : antTheme.defaultAlgorithm,
     token: {
@@ -38,21 +68,26 @@ export function ConsoleDesignProvider({ children, initialLocale }: { children: R
       colorTextSecondary: mode === "dark" ? "#9daec4" : "#64748b",
       fontFamily: '"Microsoft YaHei UI", "Microsoft YaHei", "PingFang SC", "Noto Sans CJK SC", "Noto Sans SC", system-ui, sans-serif',
       fontSize: 14,
-      borderRadius: 8,
+      fontSizeSM: 13,
+      borderRadius: dimensions.borderRadius,
       motionDurationFast: "0.12s",
       motionDurationMid: "0.18s",
       motionDurationSlow: "0.24s",
-      controlHeight: 36,
-      controlHeightSM: 30,
+      controlHeight: dimensions.controlHeight,
+      controlHeightSM: dimensions.controlHeightSM,
+      controlHeightLG: dimensions.controlHeightLG,
       boxShadow: "0 10px 32px rgb(0 0 0 / 16%)",
     },
     components: {
-      Button: { primaryShadow: "none", defaultShadow: "none", colorPrimary: "#246ddd", colorPrimaryHover: "#236fe0", colorPrimaryActive: "#165fc7" },
-      Tabs: { horizontalItemGutter: 28, titleFontSize: 14 },
-      Table: { cellPaddingBlock: 12, cellPaddingInline: 14, headerBorderRadius: 0 },
-      Menu: { itemBorderRadius: 5, itemHeight: 38 },
+      Button: { primaryShadow: "none", defaultShadow: "none", colorPrimary: "#1d62d0", colorPrimaryHover: "#1755b7", colorPrimaryActive: "#124699", paddingInline: 16, paddingInlineSM: 12 },
+      Tabs: { horizontalItemGutter: 24, titleFontSize: 14 },
+      Table: { cellPaddingBlock: dimensions.cellBlock, cellPaddingInline: dimensions.cellInline, cellPaddingBlockMD: dimensions.cellCompact, cellPaddingInlineMD: dimensions.cellInline, cellPaddingBlockSM: dimensions.cellCompact, cellPaddingInlineSM: dimensions.cellInline, headerBorderRadius: 0 },
+      Card: { bodyPadding: dimensions.panelPadding, headerPadding: dimensions.panelPadding, borderRadiusLG: dimensions.panelRadius, headerFontSize: 16 },
+      Form: { itemMarginBottom: dimensions.fieldGap },
+      Modal: { borderRadiusLG: dimensions.dialogRadius },
+      Menu: { itemBorderRadius: dimensions.borderRadius, itemHeight: 40 },
     },
-  }), [mode])
+  }), [mode, dimensions])
 
   function setLocale(value: Locale) { setLocaleState(value); saveLocale(value) }
   return <ConsoleDesignContext.Provider value={{ theme: mode, setTheme: setMode, locale, setLocale }}>

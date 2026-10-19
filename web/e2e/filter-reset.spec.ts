@@ -15,6 +15,25 @@ test.beforeEach(async ({ page }) => {
 for (const view of ['accessUsers','accessRoles','accessGrants','credentials','personalTokens','downstreamCredentials','runtimeCache','toolClassifications']) {
   test(`E2E-590-${view} @large-data clearing search never resurrects the old page`, async ({page}) => {
     await page.goto(`/console/#/${view}`)
+    if (view === 'personalTokens') {
+      const workspace = page.locator('.my-authorizations-page')
+      const pager = workspace.locator('.ant-table-pagination')
+      const rows = workspace.locator('.ant-table-tbody > tr.ant-table-row')
+      const search = workspace.getByLabel('Search authorizations', { exact: true })
+      await pager.locator('.ant-pagination-next button').click()
+      await expect(pager.locator('.ant-pagination-item-active')).toHaveText('2')
+      await expect(rows.first().getByRole('button', { name: 'Synthetic token 15', exact: true })).toBeVisible()
+      await search.fill('zz-no-match-20261001')
+      await expect(rows).toHaveCount(0)
+      await expect(pager).toHaveCount(0)
+      await workspace.locator('.authorization-toolbar .ant-input-clear-icon').click()
+      await expect(search).toHaveValue('')
+      await expect(rows).toHaveCount(15)
+      await expect(rows.first().getByRole('button', { name: 'Synthetic token 0', exact: true })).toBeVisible()
+      await expect(pager.locator('.ant-pagination-item-active')).toHaveText('1')
+      await expect(pager.locator('.ant-pagination-prev button')).toBeDisabled()
+      return
+    }
     const pager=page.locator('.list-pagination')
     await pager.getByRole('button',{name:'Next page',exact:true}).click()
     await expect(pager).toContainText('51–')

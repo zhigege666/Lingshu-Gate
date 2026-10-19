@@ -1,6 +1,6 @@
 // Static source-contract checks only. Matching source text does not validate
 // browser interactions, visual quality, or accessibility.
-import { readFile } from "node:fs/promises"
+import { readFile, readdir } from "node:fs/promises"
 import { fileURLToPath } from "node:url"
 import { dirname, join } from "node:path"
 import { validateI18nMessages } from "./i18n-contract.mjs"
@@ -98,4 +98,18 @@ assertContract(classificationSource.includes("c.step4"), "工具分类页缺少�
 assertContract(classificationSource.includes("labels.confirmedPending"), "工具分类页缺少已确认待发布状态")
 assertContract(classificationSource.includes("labels.needsConfirmation"), "工具分类页缺少待确认状态")
 
-console.log(`静态 UI 契约通过：${pageNames.length} 个页面，${searchablePages.size} 个可搜索页面，${workflowPages.size} 个阶段式工作流。仅验证源码约定；未执行浏览器交互、视觉或可访问性验收。`)
+
+// Enforce shared spacing without conflating source checks with browser QA.
+const sourceRoot = join(webRoot, "src")
+const cssFiles = (await readdir(sourceRoot, { recursive: true })).filter(file => file.endsWith(".css") && file !== "index.css")
+for (const file of cssFiles) {
+  const source = (await readFile(join(sourceRoot, file), "utf8")).replace(/\/\*[\s\S]*?\*\//g, "")
+  const declarations = source.matchAll(/\b(?:gap|row-gap|column-gap|padding(?:-[\w-]+)?|margin(?:-[\w-]+)?)\s*:\s*([^;{}]+)/g)
+  for (const declaration of declarations) {
+    const rawLengths = [...declaration[1].matchAll(/(?<![\w.-])(-?(?:\d*\.)?\d+)(px|rem)\b/g)]
+    const unscaled = rawLengths.some(([, number, unit]) => !(unit === "px" && Math.abs(Number(number)) <= 1))
+    assertContract(!unscaled, file + " 的 " + declaration[0] + " 必须使用 index.css 中的间距变量")
+  }
+}
+
+console.log(`静态 UI 契约通过：${pageNames.length} 个页面，${searchablePages.size} 个可搜索页面，${workflowPages.size} 个阶段式工作流，${cssFiles.length} 个样式文件使用统一间距。仅验证源码约定；未执行浏览器交互、视觉或可访问性验收。`)

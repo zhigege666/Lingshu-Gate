@@ -15,7 +15,6 @@ import { Button } from "@/components/ui/button"
 import { Card, CardContent } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Switch } from "@/components/ui/switch"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { Toaster } from "@/components/ui/toast"
@@ -286,12 +285,12 @@ export function AccessUsersPage({ locale, t }: { locale: Locale; t: TFunction })
         footer={<><Button variant="outline" disabled={busy} onClick={() => void closeCreate()}>{t("cancel")}</Button><Button type="submit" form="create-user-editor" disabled={busy || !username.trim() || password.length < 8 || createRoleCodes.length === 0}><UserPlus />{c.createUser}</Button></>}>
         <form id="create-user-editor" className="flex flex-col gap-4" onSubmit={event => { event.preventDefault(); void createUser() }}>
             <div className="grid gap-4 sm:grid-cols-2">
-              <div className="flex flex-col gap-2"><Label htmlFor="new-user-username">{c.username}</Label><Input disabled={busy} id="new-user-username" autoComplete="off" value={username} onChange={(event) => setUsername(event.target.value)} placeholder={c.usernamePlaceholder} /></div>
-              <div className="flex flex-col gap-2"><Label htmlFor="new-user-display-name">{c.displayName}</Label><Input disabled={busy} id="new-user-display-name" value={createDisplayName} onChange={(event) => setCreateDisplayName(event.target.value)} /></div>
+              <Field id="new-user-username" label={c.username}><Input disabled={busy} id="new-user-username" autoComplete="off" value={username} onChange={(event) => setUsername(event.target.value)} placeholder={c.usernamePlaceholder} /></Field>
+              <Field id="new-user-display-name" label={c.displayName}><Input disabled={busy} id="new-user-display-name" value={createDisplayName} onChange={(event) => setCreateDisplayName(event.target.value)} /></Field>
             </div>
             <div className="grid gap-4 sm:grid-cols-2">
-              <div className="flex flex-col gap-2"><Label htmlFor="new-user-password">{c.password}</Label><Input disabled={busy} id="new-user-password" aria-describedby="new-user-password-hint" type="password" autoComplete="new-password" value={password} onChange={(event) => setPassword(event.target.value)} /><div id="new-user-password-hint" className="text-xs text-muted-foreground">{c.passwordHint}</div></div>
-              <div className="flex flex-col gap-2"><Label htmlFor="create-user-status">{t("status")}</Label><Select disabled={busy} value={createStatus} onValueChange={(value) => setCreateStatus(value as AccessUser["status"])}><SelectTrigger id="create-user-status"><SelectValue /></SelectTrigger><SelectContent><SelectItem value="active">{c.active}</SelectItem><SelectItem value="pending">{c.pending}</SelectItem><SelectItem value="disabled">{c.disabled}</SelectItem></SelectContent></Select></div>
+              <Field id="new-user-password" label={c.password} help={c.passwordHint} helpId="new-user-password-hint" zh={locale === "zh-CN"}><Input disabled={busy} id="new-user-password" aria-describedby="new-user-password-hint" type="password" autoComplete="new-password" value={password} onChange={(event) => setPassword(event.target.value)} /></Field>
+              <Field id="create-user-status" label={t("status")}><FilterRadio id="create-user-status" hideLabel label={t("status")} disabled={busy} value={createStatus} onChange={value => setCreateStatus(value as AccessUser["status"])} options={[{ value: "active", label: c.active }, { value: "pending", label: c.pending }, { value: "disabled", label: c.disabled }]} /></Field>
             </div>
             <div className="flex flex-col gap-2">
               <Label>{c.roles}</Label>
@@ -302,15 +301,15 @@ export function AccessUsersPage({ locale, t }: { locale: Locale; t: TFunction })
                 </label>)}
               </div>
             </div>
-            <label className="flex items-center justify-between rounded-lg border bg-muted/20 p-3"><span><span className="block text-sm font-medium">{c.mustChangePassword}</span><span className="block text-xs text-muted-foreground">{c.passwordHint}</span></span><Switch aria-label={c.mustChangePassword} disabled={busy} checked={mustChangePassword} onCheckedChange={setMustChangePassword} /></label>
+            <div className="flex items-center justify-between rounded-lg border bg-muted/20 p-3"><Label htmlFor="new-user-must-change-password" help={c.passwordHint} helpLabel={c.mustChangePassword} helpId="new-user-must-change-password-hint" zh={locale === "zh-CN"}>{c.mustChangePassword}</Label><Switch id="new-user-must-change-password" aria-label={c.mustChangePassword} aria-describedby="new-user-must-change-password-hint" disabled={busy} checked={mustChangePassword} onCheckedChange={setMustChangePassword} /></div>
         </form>
       </FormDialog>
       <FormDialog dirty={editDraft !== editBaseline.current} open={selected !== null} onClose={() => void closeEdit()} title={c.edit} description={selected ? `@${selected.username}` : ""} closeLabel={t("close")} pending={busy} error={formError} className="max-w-xl"
         footer={<><Button variant="outline" disabled={busy} onClick={() => void closeEdit()}>{t("cancel")}</Button><Button type="submit" form="edit-user-editor" disabled={busy || roleCodes.length === 0}><ShieldCheck />{c.save}</Button></>}>
         <form id="edit-user-editor" className="flex flex-col gap-4" onSubmit={event => { event.preventDefault(); if (selected) void update(selected) }}>
             <div className="grid gap-4 sm:grid-cols-2">
-              <div className="flex flex-col gap-2"><Label htmlFor="edit-user-display-name">{c.displayName}</Label><Input id="edit-user-display-name" disabled={busy} value={displayName} onChange={(event) => setDisplayName(event.target.value)} /></div>
-              <div className="flex flex-col gap-2"><Label htmlFor="edit-user-status">{t("status")}</Label><Select disabled={busy} value={status} onValueChange={(value) => setStatus(value as AccessUser["status"])}><SelectTrigger id="edit-user-status"><SelectValue /></SelectTrigger><SelectContent><SelectItem value="pending">{c.pending}</SelectItem><SelectItem value="active">{c.active}</SelectItem><SelectItem value="disabled">{c.disabled}</SelectItem></SelectContent></Select></div>
+              <Field id="edit-user-display-name" label={c.displayName}><Input id="edit-user-display-name" disabled={busy} value={displayName} onChange={(event) => setDisplayName(event.target.value)} /></Field>
+              <Field id="edit-user-status" label={t("status")}><FilterRadio id="edit-user-status" hideLabel label={t("status")} disabled={busy} value={status} onChange={value => setStatus(value as AccessUser["status"])} options={[{ value: "pending", label: c.pending }, { value: "active", label: c.active }, { value: "disabled", label: c.disabled }]} /></Field>
             </div>
             <div className="flex flex-col gap-2">
               <Label>{c.roles}</Label>
@@ -334,4 +333,8 @@ function UserStatusBadge({ status, labels }: { status: AccessUser["status"]; lab
   if (status === "pending") return <Badge variant="warning"><ShieldCheck />{labels.pending}</Badge>
   if (status === "active") return <Badge variant="success"><UserCheck />{labels.active}</Badge>
   return <Badge variant="secondary"><UserX />{labels.disabled}</Badge>
+}
+
+function Field({ label, id, help, helpId, zh, children }: { label: string; id: string; help?: React.ReactNode; helpId?: string; zh?: boolean; children: React.ReactNode }) {
+  return <div className="authorization-field"><Label htmlFor={id} help={help} helpLabel={label} helpId={helpId} zh={zh}>{label}</Label><div className="authorization-field-control">{children}</div></div>
 }

@@ -12,6 +12,14 @@ const source = {
 }
 
 describe("配置草稿契约", () => {
+  it("精度或重复键不参与已规范化指纹，原文差异仍视为未保存", () => {
+    const duplicate = '{"id":"first","id":"second"}'
+    const unsafe = '{"analysis":{"id":9007199254740993}}'
+    expect(manifestFingerprint(duplicate)).toBe(duplicate)
+    expect(manifestFingerprint(duplicate)).not.toBe(manifestFingerprint('{"id":"second"}'))
+    expect(manifestFingerprint(unsafe)).toBe(unsafe)
+    expect(manifestFingerprint(unsafe)).not.toBe(manifestFingerprint('{"analysis":{"id":9007199254740992}}'))
+  })
   it("修改字段保留凭据引用、嵌套元数据和其他配置，且不修改来源", () => {
     const changed = updateManifestPath(source, ["transport", "endpoint"], "https://new.example.com/mcp")
     expect(changed.transport).toEqual({ ...source.transport, endpoint: "https://new.example.com/mcp" })

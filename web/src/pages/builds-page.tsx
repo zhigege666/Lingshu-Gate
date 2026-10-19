@@ -6,7 +6,7 @@ import { EditorNavigationContext } from "@/components/editor-navigation-guard"
 import { deliveryDraftRequest, manifestPatch, mergeManifestPatch } from "@/features/servers/delivery-draft"
 import { DeliveryConfigEditor } from "@/features/servers/delivery-config-editor"
 import { Select as SearchSelect } from "antd"
-import { useContext, useEffect, useRef, useState, type ReactNode } from "react"
+import { useContext, useEffect, useId, useRef, useState, type ReactNode } from "react"
 import { BuildApiError, buildApi, type BuildBlockedDetail, type BuildLog, type BuildPlan, type BuildPreflightResult, type BuildPreflightTool, type BuildRecord, type DeploymentRecord, type DeliveryDraft, type ProjectUpload } from "@/api/builds"
 import { networkApi } from "@/api/network"
 import { BuildDetailCard } from "@/components/builds/build-detail-card"
@@ -21,6 +21,8 @@ import { BuildTimelineCard } from "@/components/builds/build-timeline-card"
 import { DeploymentRecordsTable } from "@/components/builds/deployment-records-table"
 import { useConfirm } from "@/components/confirm-dialog"
 import { JsonPanel } from "@/components/json-panel"
+import { FilterRadio } from "@/components/filter-radio"
+import { FieldLabel } from "@/components/field-help"
 import { usePageRefresh } from "@/components/page-refresh"
 import { uploadCopy } from "@/components/uploads/upload-copy"
 import { PageHeader, WorkflowSteps } from "@/components/page-shell"
@@ -31,7 +33,6 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Dialog, DialogBody, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import { Toaster, type ToastState, type ToastTone } from "@/components/ui/toast"
 import { Input } from "@/components/ui/input"
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { localizeStatus, type TFunction } from "@/i18n"
 import { formatDeploymentSummary, formatRollbackSummary } from "@/features/deployment-options"
 import { buildPageText } from "@/pages/builds-page-text"
@@ -42,6 +43,7 @@ const MANUAL_RUNTIME_REQUIRED = new Set(["unknown", "ambiguous", "docker"])
 type WorkspaceSection = "workspace" | "builds" | "deployments" | "logs"
 
 export function BuildsPage({ t, initialBuildId = "" }: { t: TFunction; initialBuildId?: string }) {
+  const fieldId = useId()
   const [deliveryDraft, setDeliveryDraft] = useState<DeliveryDraft | null>(null)
   const latestDeliveryDraft = useRef<DeliveryDraft | null>(null)
   const buildAttempts = useRef(new Map<string, BuildAttempt>())
@@ -630,8 +632,8 @@ export function BuildsPage({ t, initialBuildId = "" }: { t: TFunction; initialBu
         <Button variant="outline" className="text-destructive hover:text-destructive" onClick={() => void deleteUpload(selectedUpload)} disabled={busy}>{tx("deleteUpload")}</Button>
       </CardHeader>}
       <CardContent className={`flex flex-col gap-4 ${selectedUpload ? "" : "pt-6"}`}>
-        {uploads.length > 0 && <Field label={t("selectUpload")}>
-          <SearchSelect showSearch virtual style={{ width: "100%" }} disabled={busy} value={selectedUploadId || undefined} onChange={changeSelectedUpload}
+        {uploads.length > 0 && <Field label={t("selectUpload")} htmlFor={`${fieldId}-upload`}>
+          <SearchSelect id={`${fieldId}-upload`} showSearch virtual style={{ width: "100%" }} disabled={busy} value={selectedUploadId || undefined} onChange={changeSelectedUpload}
             aria-label={t("selectUpload")} placeholder={t("selectUpload")} optionFilterProp="label"
             options={uploads.map(upload => ({ value: upload.id, label: `${upload.filename} · ${upload.id} · ${upload.status}` }))} />
         </Field>}
@@ -643,18 +645,18 @@ export function BuildsPage({ t, initialBuildId = "" }: { t: TFunction; initialBu
             <div><dt className="text-xs text-muted-foreground">{tx("latestBuild")}</dt><dd>{selectedBuild ? `${localizeStatus(t, selectedBuild.status)} · ${selectedBuild.runtime}` : tx("noBuild")}</dd></div>
             <div><dt className="text-xs text-muted-foreground">{tx("latestDeployment")}</dt><dd>{latestDeployment ? `${localizeStatus(t, latestDeployment.status)} · ${latestDeployment.server_id}` : tx("notDeployed")}</dd></div>
           </dl>
-          <details><summary className="cursor-pointer text-sm font-medium">{tx("advancedSettings")}</summary><fieldset disabled={busy || !deliveryDraft} className="mt-3 grid gap-3 md:grid-cols-3">
-            <Field label={t("runtimeType")}><Select disabled={busy} value={runtimeOverride} onValueChange={value => { setRuntimeOverride(value); setPreflight(null); setPlan(null) }}><SelectTrigger aria-label={t("runtimeType")}><SelectValue placeholder={t("runtimeType")} /></SelectTrigger><SelectContent><SelectItem value="auto">{tx("runtimeAuto")}</SelectItem><SelectItem value="node">{tx("runtimeNode")}</SelectItem><SelectItem value="python">{tx("runtimePython")}</SelectItem></SelectContent></Select></Field>
-            <Field label={tx("projectRoot")}><Input aria-label={tx("projectRoot")} placeholder={tx("projectRootPlaceholder")} value={projectRoot} onChange={event => { setProjectRoot(event.target.value); setPreflight(null); setPlan(null) }} /></Field>
-            <Field label={t("overrideServerId")}><Input aria-label={t("overrideServerId")} placeholder={t("overrideServerId")} value={serverId} onChange={event => setServerId(event.target.value)} /></Field>
-            <div className="md:col-span-3"><PackageManagerFields value={packageManagerOverride} onChange={value => { setPackageManagerOverride(value); setPreflight(null); setPlan(null) }} choices={plan?.recommended_choices || preflight?.metadata.node_package_manager?.recommended_choices || []} disabled={busy} zh={t("uploads") === "项目上传"} /></div>
+          <details><summary className="cursor-pointer text-sm font-medium">{tx("advancedSettings")}</summary><fieldset disabled={busy || !deliveryDraft} className="gate-form-fields mt-4">
+            <Field label={t("runtimeType")} htmlFor={`${fieldId}-runtime`}><FilterRadio id={`${fieldId}-runtime`} label={t("runtimeType")} hideLabel disabled={busy || !deliveryDraft} value={runtimeOverride} onChange={value => { setRuntimeOverride(value); setPreflight(null); setPlan(null) }} options={[{ value: "auto", label: tx("runtimeAuto") }, { value: "node", label: tx("runtimeNode") }, { value: "python", label: tx("runtimePython") }]} /></Field>
+            <Field label={tx("projectRoot")} htmlFor={`${fieldId}-root`}><Input id={`${fieldId}-root`} aria-label={tx("projectRoot")} placeholder={tx("projectRootPlaceholder")} value={projectRoot} onChange={event => { setProjectRoot(event.target.value); setPreflight(null); setPlan(null) }} /></Field>
+            <Field label={tx("deploymentTarget")} htmlFor={`${fieldId}-target`} help={t("overrideServerId")} helpId={`${fieldId}-target-help`} zh={t("uploads") === "项目上传"}><Input id={`${fieldId}-target`} aria-label={t("overrideServerId")} aria-describedby={`${fieldId}-target-help`} placeholder={t("overrideServerId")} value={serverId} onChange={event => setServerId(event.target.value)} /></Field>
+            <PackageManagerFields value={packageManagerOverride} onChange={value => { setPackageManagerOverride(value); setPreflight(null); setPlan(null) }} choices={plan?.recommended_choices || preflight?.metadata.node_package_manager?.recommended_choices || []} disabled={busy || !deliveryDraft} zh={t("uploads") === "项目上传"} />
           </fieldset></details>
           {selectedBuild?.status === "success" && <fieldset disabled={busy || !deliveryDraft} className="border-t pt-3">
             <legend className="mb-3 text-sm font-medium">{tx("deploymentOptions")}</legend>
             <div className="grid gap-3 md:grid-cols-3">
               <div className="text-sm"><div className="text-xs text-muted-foreground">{tx("deploymentTarget")}</div><div className="break-all font-mono">{serverId.trim() || (typeof selectedBuild.manifest?.id === "string" ? selectedBuild.manifest.id : tx("unavailableTarget"))}</div></div>
               <label className="flex items-start gap-2 text-sm"><input type="checkbox" className="mt-1" checked={deployOverwrite} onChange={event => setDeployOverwrite(event.target.checked)} /><span><span className="font-medium">{tx("overwriteExisting")}</span><span className="block text-xs text-muted-foreground">{tx("overwriteExistingDesc")}</span></span></label>
-              <label className="flex items-start gap-2 text-sm"><input type="checkbox" className="mt-1" checked={deployStart} onChange={event => setDeployStart(event.target.checked)} /><span><span className="font-medium">{tx("startAfterDeploy")}</span><span className="block text-xs text-muted-foreground">{tx("startAfterDeployDesc")}</span></span></label>
+              <label className="flex items-start gap-2 text-sm" htmlFor={`${fieldId}-start`}><input id={`${fieldId}-start`} type="checkbox" className="mt-1" aria-label={tx("startAfterDeploy")} aria-describedby={`${fieldId}-start-help`} checked={deployStart} onChange={event => setDeployStart(event.target.checked)} /><FieldLabel className="font-medium" label={tx("startAfterDeploy")} help={tx("startAfterDeployDesc")} helpId={`${fieldId}-start-help`} zh={t("uploads") === "项目上传"} /></label>
             </div>
           </fieldset>}
           {settingsDirty && <Button variant="outline" disabled={busy || !deliveryDraft} onClick={() => {
@@ -689,11 +691,11 @@ export function BuildsPage({ t, initialBuildId = "" }: { t: TFunction; initialBu
     {activeSection === "builds" ? <BuildRecordsTable builds={builds} busy={busy} selectedBuildId={selectedBuildId} canRequestStop={canRequestStop} onShowBuild={(build) => showBuild(build, "workspace")} onLoadLogs={(build) => showBuild(build, "logs")} onRequestStop={(id) => void requestStopBuild(id)} onDeploy={(id) => void deployBuild(id)} onRetry={retryBuild} onDelete={(build) => void deleteBuild(build)} t={t} /> : null}
     {activeSection === "deployments" ? <>
       {selectedDeployment && <Card>
-        <CardHeader><CardTitle>{tx("rollbackSummary")}</CardTitle><CardDescription>{tx("startAfterRollbackDesc")}</CardDescription></CardHeader>
+        <CardHeader><CardTitle>{tx("rollbackSummary")}</CardTitle></CardHeader>
         <CardContent className="grid gap-3 md:grid-cols-3">
           <div className="rounded-md bg-muted/30 px-3 py-2 text-sm"><div className="text-xs text-muted-foreground">{tx("deploymentTarget")}</div><div className="break-all font-mono">{selectedDeployment.server_id}</div></div>
           <div className="rounded-md bg-muted/30 px-3 py-2 text-sm"><div className="text-xs text-muted-foreground">{tx("restoresSnapshot")}</div><div>{tx("enabledChoice")}</div></div>
-          <label className="flex items-start gap-2 rounded-md border px-3 py-2 text-sm"><input type="checkbox" className="mt-1" checked={rollbackStart} disabled={busy || !selectedDeployment.rollback_available} onChange={(event) => setRollbackOption({ deploymentId: selectedDeployment.id, start: event.target.checked })} /><span><span className="font-medium">{tx("startAfterRollback")}</span><span className="block text-xs text-muted-foreground">{tx("startAfterRollbackDesc")}</span></span></label>
+          <label className="flex items-start gap-2 rounded-md border px-3 py-2 text-sm" htmlFor={`${fieldId}-rollback-start`}><input id={`${fieldId}-rollback-start`} type="checkbox" className="mt-1" aria-label={tx("startAfterRollback")} aria-describedby={`${fieldId}-rollback-start-help`} checked={rollbackStart} disabled={busy || !selectedDeployment.rollback_available} onChange={(event) => setRollbackOption({ deploymentId: selectedDeployment.id, start: event.target.checked })} /><FieldLabel className="font-medium" label={tx("startAfterRollback")} help={tx("startAfterRollbackDesc")} helpId={`${fieldId}-rollback-start-help`} zh={t("uploads") === "项目上传"} /></label>
         </CardContent>
       </Card>}
       <DeploymentRecordsTable deployments={deployments} busy={busy} selectedDeploymentId={selectedDeploymentId} onSelect={(deployment) => showDeployment(deployment)} onDetail={(deployment) => showDeployment(deployment, true)} onRollback={(id) => void rollback(id)} onDelete={(deployment) => void deleteDeployment(deployment)} t={t} />
@@ -713,14 +715,17 @@ export function BuildsPage({ t, initialBuildId = "" }: { t: TFunction; initialBu
   </div>
 }
 
-function Field({ label, children }: { label: string; children: ReactNode }) {
-  return <div className="flex flex-col gap-1"><label className="text-xs font-medium text-muted-foreground">{label}</label>{children}</div>
+function Field({ label, htmlFor, children, help, helpId, zh }: { label: string; htmlFor: string; children: ReactNode; help?: ReactNode; helpId?: string; zh?: boolean }) {
+  return <div className="gate-form-row"><label className="gate-form-label" htmlFor={htmlFor}><FieldLabel label={label} help={help} helpId={helpId} zh={zh} /></label><div className="gate-form-control">{children}</div></div>
 }
 
 const RUNTIME_BLOCKED = new Set(["unknown", "ambiguous", "docker"])
 
-function PreflightCard({ preflight, t }: { preflight: BuildPreflightResult; t: TFunction }) {
-  const visibleChecks = preflight.checks.slice(0, 16)
+export function PreflightCard({ preflight, t }: { preflight: BuildPreflightResult; t: TFunction }) {
+  const attentionChecks = preflight.checks.filter(check => check.status !== "ok")
+    .sort((a, b) => Number(b.status === "error") - Number(a.status === "error"))
+  const passedChecks = preflight.checks.filter(check => check.status === "ok")
+  const zh = t("uploads") === "项目上传"
   const tx = (key: string) => buildPageText(t, key)
   const tools = Object.entries(preflight.tools || {}) as Array<[string, BuildPreflightTool]>
   const scripts = Array.isArray(preflight.metadata?.package_scripts) ? preflight.metadata.package_scripts : []
@@ -732,6 +737,12 @@ function PreflightCard({ preflight, t }: { preflight: BuildPreflightResult; t: T
   const diff = preflight.diff
   const affected = new Set(diff?.affected_checks || [])
   const showDiff = Boolean(diff?.has_previous && !diff?.unchanged && ((diff?.changed_files.added.length || diff?.changed_files.removed.length || diff?.changed_files.modified.length || diff?.tool_changes.length || diff?.affected_checks.length)))
+  const renderChecks = (checks: BuildPreflightResult["checks"]) => <div className="overflow-x-auto rounded-md border">
+    <table className="w-full text-sm">
+      <thead><tr className="border-b"><th className="px-3 py-2 text-left">{t("check")}</th><th className="px-3 py-2 text-left">{t("status")}</th><th className="px-3 py-2 text-left">{t("description")}</th></tr></thead>
+      <tbody>{checks.map(check => <tr key={check.id} className={`border-b last:border-0 ${affected.has(check.id) ? "bg-muted" : ""}`}><td className="px-3 py-2 font-mono">{check.id}{affected.has(check.id) ? <span className="ml-1 text-primary">●</span> : null}</td><td className="px-3 py-2">{localizeStatus(t, check.status)}</td><td className="px-3 py-2 break-words">{check.message}<div className="text-xs text-muted-foreground">{check.detail}</div></td></tr>)}</tbody>
+    </table>
+  </div>
 
   return <Card>
     <CardHeader>
@@ -777,12 +788,15 @@ function PreflightCard({ preflight, t }: { preflight: BuildPreflightResult; t: T
         {scripts.length ? <div className="flex flex-wrap gap-2">{scripts.map((name) => <Badge key={name} variant="outline" className="font-mono">{name}</Badge>)}</div> : <div className="text-sm text-muted-foreground">{tx("noScripts")}</div>}
       </div>
 
-      <div className="overflow-x-auto rounded-md border">
-        <table className="w-full text-sm">
-          <thead><tr className="border-b"><th className="px-3 py-2 text-left">{t("check")}</th><th className="px-3 py-2 text-left">{t("status")}</th><th className="px-3 py-2 text-left">{t("description")}</th></tr></thead>
-          <tbody>{visibleChecks.map((check) => <tr key={check.id} className={`border-b last:border-0 ${affected.has(check.id) ? "bg-muted" : ""}`}><td className="px-3 py-2 font-mono">{check.id}{affected.has(check.id) ? <span className="ml-1 text-primary">●</span> : null}</td><td className="px-3 py-2">{localizeStatus(t, check.status)}</td><td className="px-3 py-2">{check.message}<div className="text-xs text-muted-foreground">{check.detail}</div></td></tr>)}</tbody>
-        </table>
-      </div>
+      {attentionChecks.length > 0 && <section aria-label={zh ? "需处理的检查" : "Checks requiring attention"} className="flex flex-col gap-2">
+        <h3 className="text-sm font-medium">{zh ? "需处理的检查" : "Checks requiring attention"} ({attentionChecks.length})</h3>
+        {renderChecks(attentionChecks)}
+      </section>}
+      {passedChecks.length > 0 && <details>
+        <summary className="cursor-pointer text-sm font-medium">{zh ? "已通过的检查" : "Passed checks"} ({passedChecks.length})</summary>
+        <div className="mt-2">{renderChecks(passedChecks)}</div>
+      </details>}
+      {preflight.checks.length === 0 && <p className="text-sm text-muted-foreground">{zh ? "此次预检未返回检查明细。" : "This preflight returned no check details."}</p>}
       <div>
         <div className="mb-1 text-sm font-medium">{tx("preflightRecommendations")}</div>
         <ul className="list-disc pl-5 text-sm text-muted-foreground [&>li+li]:mt-1">
