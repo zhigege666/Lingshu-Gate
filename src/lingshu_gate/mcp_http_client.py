@@ -94,6 +94,10 @@ class _LegacyHttpInitializationRequired(McpProtocolError):
 class StreamableHttpMcpClient:
     """Talk to one external MCP server over Streamable HTTP JSON-RPC."""
 
+    def suppress_payload_logging(self) -> None:
+        """Permanently suppress raw payload diagnostics for this secret-bearing client."""
+        self._sensitive_payloads = True
+
     def audit_redaction_values(self) -> tuple[str, ...]:
         """Reuse already resolved credentials for bounded audit redaction."""
         return (*self._redaction_values, *audit_header_values(self._resolved_headers))
@@ -108,6 +112,7 @@ class StreamableHttpMcpClient:
         self.manifest = manifest
         self.settings = settings
         self.log_sink = log_sink
+        self._sensitive_payloads = False
         self.endpoint = manifest.transport.endpoint or ""
         self.protocol_version = resolve_downstream_protocol_version(manifest.transport.protocol_version)
         self.session_id: str | None = None
@@ -311,7 +316,12 @@ class StreamableHttpMcpClient:
         ):
             raise McpProtocolError(f"Invalid JSON-RPC {method} response")
         if "error" in response:
-            safe_error = self._redact(response["error"])
+            safe_code = response["error"].get("code") if isinstance(response["error"], dict) else None
+            raw_message = response["error"].get("message") if isinstance(response["error"], dict) else None
+            legacy_discovery = (method == "server/discover" and self.manifest.transport.protocol_version in (None, "auto")
+                and discovery_requires_initialize(safe_code, raw_message))
+            safe_error = ({"code": safe_code if type(safe_code) is int else None,
+                           "message": "unknown method: server/discover" if legacy_discovery else "Sensitive MCP response suppressed"} if self._sensitive_payloads else self._redact(response["error"]))
             error_code = safe_error.get("code") if isinstance(safe_error, dict) else None
             error_message = safe_error.get("message") if isinstance(safe_error, dict) else None
             negotiating = method == "server/discover" and self.manifest.transport.protocol_version in (None, "auto") and discovery_requires_initialize(error_code, error_message)
@@ -429,7 +439,7 @@ class StreamableHttpMcpClient:
             deadline = min(deadline, self._operation_deadline)
         body = json.dumps(message, ensure_ascii=False, separators=(",", ":")).encode("utf-8")
         headers = self._http_headers(protocol_headers)
-        if self.settings.mcp_log_payloads:
+        if self.settings.mcp_log_payloads and not self._sensitive_payloads:
             log_event(logger, logging.DEBUG, "gate.mcp.http_message_sent", "MCP HTTP message sent", server_id=self.manifest.id, payload=self._redact(message))
         request = urllib.request.Request(self.endpoint, data=body, headers=headers, method="POST")
         try:
@@ -504,7 +514,7 @@ class StreamableHttpMcpClient:
                 raise McpProtocolError(
                     f"Invalid JSON from MCP endpoint: {self._redact_text(raw[:500])}"
                 ) from exc
-            if self.settings.mcp_log_payloads:
+            if self.settings.mcp_log_payloads and not self._sensitive_payloads:
                 log_event(logger, logging.DEBUG, "gate.mcp.http_message_received", "MCP HTTP message received", server_id=self.manifest.id, payload=self._redact(parsed))
             return parsed if isinstance(parsed, dict) else {"result": parsed}
 
@@ -598,7 +608,7 @@ class StreamableHttpMcpClient:
             return None
         if not isinstance(message, dict):
             return None
-        if self.settings.mcp_log_payloads:
+        if self.settings.mcp_log_payloads and not self._sensitive_payloads:
             log_event(logger, logging.DEBUG, "gate.mcp.http_message_received", "MCP HTTP SSE message received", server_id=self.manifest.id, payload=self._redact(message))
         if request_id is None or message.get("id") == request_id:
             return message
@@ -610,10 +620,10 @@ class StreamableHttpMcpClient:
         try:
             self.log_sink(level, message, event_type, self._redact(payload))
         except Exception:  # noqa: BLE001 - logging must not break MCP IO
-            logger.debug("Failed to write MCP HTTP log", exc_info=True)
+            logger.debug("Failed to write MCP HTTP log", exc_info=not self._sensitive_payloads)
 
     def _redact_text(self, value: str) -> str:
-        return redact_text(value, known_secrets=self._redaction_values)
+        return "[Sensitive MCP response suppressed]" if self._sensitive_payloads else redact_text(value, known_secrets=self._redaction_values)
 
     def _redact(self, value: Any) -> Any:
         return redact_value(value, known_secrets=self._redaction_values)

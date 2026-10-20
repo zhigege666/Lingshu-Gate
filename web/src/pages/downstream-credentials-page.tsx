@@ -22,6 +22,7 @@ import { Toaster } from "@/components/ui/toast"
 import type { Locale, TFunction } from "@/i18n"
 import { formatDateTime } from "@/lib/utils"
 import { TableEmptyRow } from "@/pages/page-utils"
+import { CredentialModeTabs } from "@/pages/credential-mode-tabs"
 
 const copy = {
   "zh-CN": {
@@ -99,6 +100,10 @@ const copy = {
 } satisfies Record<Locale, Record<string, string>>
 
 export function DownstreamCredentialsPage({ locale, t }: { locale: Locale; t: TFunction }) {
+  return <CredentialModeTabs locale={locale} t={t} scope="personal" serviceCredentials={<PersonalServiceCredentialsPage locale={locale} t={t} />} />
+}
+
+function PersonalServiceCredentialsPage({ locale, t }: { locale: Locale; t: TFunction }) {
   const c = copy[locale]
   const [credentials, setCredentials] = useState<UserDownstreamCredential[]>([])
   const [selected, setSelected] = useState<UserDownstreamCredential | null>(null)

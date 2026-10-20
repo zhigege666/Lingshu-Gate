@@ -17,6 +17,7 @@ This documentation describes the current Gate product boundary. English is autho
 | [Invocation content recording](invocation-recording.md) | Opt-in bounded redacted content, owner isolation, audit capability and retention |
 | [Architecture](architecture.md) | Components, request paths, persistence, and trust boundaries |
 | [Configuration](configuration.md) | Environment variables, directories, manifests, credentials, and reverse proxy settings |
+| [Business credentials](business-credentials.md) | Development addition: personal/shared website accounts, explicit MCP bindings, agent-browser synchronization and separate cleanup |
 | [MCP gateway](mcp-gateway.md) | Gateway endpoint, protocol negotiation, downstream HTTP/stdio, discovery, classification, and invocation |
 | [On-demand tools](on-demand-tools.md) | Six bounded discovery/session entries, per-authorization modes defaulting to on-demand, unchanged authority and synthetic benchmarks |
 | [On-demand integration provenance](on-demand-integration.md) | Exact group commit mapping, conflict resolution and targeted security evidence |

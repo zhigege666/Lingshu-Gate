@@ -18,6 +18,7 @@ from lingshu_gate.access_control import (
 )
 from lingshu_gate.models import ToolDefinition
 from lingshu_gate.argument_preparation import model_preparer
+from lingshu_gate.application.tool_classification_catalog import current_classifications, require_current_tools
 from lingshu_gate.registry import ToolExecutionError, ToolInvocationContext, ToolRegistry, receipt_arguments
 
 CLASSIFICATION_SERVER_ID = "gate-control"
@@ -193,8 +194,9 @@ class ToolClassificationMcpService:
     ) -> dict[str, Any]:
         request = _parse_input(ToolClassificationListInput, arguments)
         self._require_permission(context)
-        self._synchronize()
-        classifications = self.access_store.list_classifications(server_id=request.server_id)
+        definitions = self._synchronize()
+        classifications = current_classifications(
+            self.access_store.list_classifications(server_id=request.server_id), definitions)
         classifications = self._filter_status(classifications, request.status)
         return self._with_summary(
             classifications,
@@ -213,7 +215,7 @@ class ToolClassificationMcpService:
         def action() -> dict[str, Any]:
             self._synchronize()
             definitions = self._definitions(request.server_id)
-            classifications = self.access_store.analyze_tools(definitions)
+            classifications = current_classifications(self.access_store.analyze_tools(definitions), definitions)
             if request.server_id:
                 classifications = [
                     item
@@ -240,8 +242,9 @@ class ToolClassificationMcpService:
         self._require_permission(context)
 
         def action() -> dict[str, Any]:
-            self._synchronize()
+            definitions = self._synchronize()
             try:
+                require_current_tools(definitions, ((item.server_id, item.tool_id) for item in request.items))
                 result = self.access_store.confirm_classifications(
                     reviewer_id=context.actor_id,
                     items=[item.model_dump() for item in request.items],
@@ -285,11 +288,18 @@ class ToolClassificationMcpService:
         def action() -> dict[str, Any]:
             self._synchronize()
             before = self._select_target(request.server_id, tool_ids)
-            self.access_store.publish_classifications(
-                reviewer_id=context.actor_id,
-                server_id=request.server_id,
-                tool_ids=tool_ids,
-            )
+            current_ids = sorted({item["tool_id"] for item in before})
+            if set(tool_ids) - set(current_ids):
+                raise ToolExecutionError("classification_tool_unavailable", "A selected tool is no longer registered.",
+                    next_action="Refresh gate_tool_classification_list before publishing the current catalog.")
+            # An empty list means all stored history to the persistence method.
+            # Scope server-wide publication to actual registered tools instead.
+            if current_ids:
+                self.access_store.publish_classifications(
+                    reviewer_id=context.actor_id,
+                    server_id=request.server_id,
+                    tool_ids=current_ids,
+                )
             after = self._select_target(request.server_id, tool_ids)
             before_by_key = {
                 (item["server_id"], item["tool_id"]): item
@@ -343,8 +353,10 @@ class ToolClassificationMcpService:
             next_action="请由 Gate 管理员授予 classifications.manage 后重试。",
         )
 
-    def _synchronize(self) -> None:
-        self.access_store.synchronize_tools(self.registry.list_definitions())
+    def _synchronize(self) -> list[ToolDefinition]:
+        definitions = self.registry.list_definitions()
+        self.access_store.synchronize_tools(definitions)
+        return definitions
 
     def _run_idempotent(
         self,
@@ -489,7 +501,8 @@ class ToolClassificationMcpService:
         server_id: str | None,
         tool_ids: list[str],
     ) -> list[dict[str, Any]]:
-        classifications = self.access_store.list_classifications(server_id=server_id)
+        classifications = current_classifications(
+            self.access_store.list_classifications(server_id=server_id), self.registry.list_definitions())
         if not tool_ids:
             return classifications
         selected = set(tool_ids)

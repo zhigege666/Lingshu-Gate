@@ -451,13 +451,84 @@ class ToolClassificationRouteTest(unittest.TestCase):
         self.client.app.state.registry.unregister_by_metadata("server_id", "gate-control", source="mcp")
         missing = self.client.get("/v1/access/tool-classifications", params={"server_id": "gate-control"})
         self.assertEqual(missing.status_code, 200, missing.text)
-        missing_row = next(row for row in missing.json()["classifications"] if row["tool_id"] == spoof.id)
-        self.assertIsNone(missing_row["registry_source"])
-        self.assertEqual(missing_row["source"], "manual")
+        self.assertNotIn(spoof.id, {row["tool_id"] for row in missing.json()["classifications"]})
+        history = next(row for row in self.client.app.state.access_store.list_classifications(server_id="gate-control")
+                       if row["tool_id"] == spoof.id)
+        self.assertEqual(history["source"], "manual")
+        self.assertEqual(history["reviewed_by"], published_row["reviewed_by"])
+
+        analyzed = self.client.post("/v1/access/tool-classifications/analyze", json={"server_id": "gate-control"})
+        self.assertEqual(analyzed.status_code, 200, analyzed.text)
+        self.assertNotIn(spoof.id, {row["tool_id"] for row in analyzed.json()["classifications"]})
+        stale_update = self.client.put(f"/v1/access/tool-classifications/gate-control/{spoof.id}",
+            json={"access": "read"})
+        self.assertEqual(stale_update.status_code, 404, stale_update.text)
+        stale_confirm = self.client.post("/v1/access/tool-classifications/confirm",
+            json={"publish": True, "items": [{"server_id": "gate-control", "tool_id": spoof.id,
+                                              "expected_fingerprint": row["fingerprint"]}]})
+        self.assertEqual(stale_confirm.status_code, 409, stale_confirm.text)
+        stale_publish = self.client.post("/v1/access/tool-classifications/publish",
+            json={"server_id": "gate-control", "tool_ids": [spoof.id]})
+        self.assertEqual(stale_publish.status_code, 409, stale_publish.text)
 
         self._login("classification-viewer", "Viewer123!")
         denied = self.client.get("/v1/access/tool-classifications")
         self.assertEqual(denied.status_code, 403, denied.text)
+
+    def test_deleted_instance_removes_25_current_reviews_and_preserves_history(self) -> None:
+        app = self.client.app
+        server_id = "nx3-playwright-mcp"
+        app.state.mcp_config_store.save_config({"id": server_id, "auto_start": False,
+            "launch": {"type": "external"},
+            "transport": {"type": "streamable_http", "endpoint": "https://browser.example.test/mcp"}})
+        app.state.mcp_runtime.apply_manifest(app.state.mcp_config_store.load_manifest(server_id),
+            start=False, source="test_setup")
+        definitions = [_definition(server_id, f"mcp.{server_id}.browser_{index}") for index in range(25)]
+        for definition in definitions:
+            app.state.registry.register(definition, lambda _: {"ok": True})
+        access = app.state.access_store
+        access.synchronize_tools(definitions)
+        for definition in definitions:
+            access.set_classification(server_id=server_id, tool_id=definition.id, access="write",
+                destructive=True, idempotent=False, reviewer_id="historical-reviewer", note="Reviewed browser actions")
+        access.publish_classifications(server_id=server_id, reviewer_id="historical-reviewer")
+        before = self.client.get("/v1/access/tool-classifications", params={"server_id": server_id})
+        self.assertEqual(len(before.json()["classifications"]), 25)
+
+        deleted = self.client.delete(f"/v1/mcp/configs/{server_id}")
+        self.assertEqual(deleted.status_code, 200, deleted.text)
+        listed = self.client.get("/v1/access/tool-classifications", params={"server_id": server_id})
+        self.assertEqual(listed.json()["classifications"], [])
+        history = access.list_classifications(server_id=server_id)
+        self.assertEqual(len(history), 25)
+        for item in history:
+            self.assertEqual((item["status"], item["effective_access"]), ("stale", "unknown"))
+            self.assertEqual(item["reviewed_by"], "historical-reviewer")
+            self.assertEqual(item["evidence"]["manual"]["note"], "Reviewed browser actions")
+            self.assertEqual(item["evidence"]["lifecycle"]["status"], "retired")
+        # A whole-server publish with no live tools must not reinterpret an
+        # empty ID list as permission to republish archived rows.
+        republish = self.client.post("/v1/access/tool-classifications/publish", json={"server_id": server_id})
+        self.assertEqual(republish.status_code, 200, republish.text)
+        self.assertEqual(republish.json()["classifications"], [])
+        self.assertTrue(all(item["status"] == "stale" for item in access.list_classifications(server_id=server_id)))
+        self.assertEqual(self._classification()["tool_id"], self.definition.id)
+
+    def test_temporary_unavailability_hides_review_without_invalidating_history(self) -> None:
+        row = self._classification()
+        confirmed = self.client.post("/v1/access/tool-classifications/confirm", json={"publish": True,
+            "items": [{"server_id": "route-server", "tool_id": self.definition.id,
+                       "expected_fingerprint": row["fingerprint"]}]})
+        self.assertEqual(confirmed.status_code, 200, confirmed.text)
+        before = self.client.app.state.access_store.list_classifications(server_id="route-server")[0]
+        self.client.app.state.registry.unregister_by_metadata("server_id", "route-server", source="mcp", retire=False)
+        listed = self.client.get("/v1/access/tool-classifications", params={"server_id": "route-server"})
+        self.assertEqual(listed.json()["classifications"], [])
+        self.assertEqual(self.client.app.state.access_store.list_classifications(server_id="route-server")[0], before)
+        self.client.app.state.registry.register(self.definition, lambda _: {"ok": True})
+        restored = self._classification()
+        self.assertEqual(restored["status"], "published")
+        self.assertEqual(restored["reviewed_at"], before["reviewed_at"])
 
     def test_confirm_route_maps_conflict_keeps_pending_and_requires_permission(self) -> None:
         classification = self._classification()

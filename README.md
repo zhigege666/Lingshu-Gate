@@ -2,7 +2,7 @@
 
 A self-hosted MCP gateway that connects tools, limits who can call them, and records what happened.
 
-[简体中文](README.zh-CN.md) · [Download 0.5.1](https://github.com/zhigege666/Lingshu-Gate/releases/tag/v0.5.1) · [Get started](docs/getting-started.md) · [Documentation](docs/README.md) · [Security](SECURITY.md)
+[简体中文](README.zh-CN.md) · [Download 0.5.2](https://github.com/zhigege666/Lingshu-Gate/releases/tag/v0.5.2) · [Get started](docs/getting-started.md) · [Documentation](docs/README.md) · [Security](SECURITY.md)
 
 <img src="docs/images/console/en-US/v0.5.0-discovery.png" alt="Lingshu Gate 0.5.0: per-authorization pinned tools, logical groups and bounded text previews" width="1200">
 
@@ -30,7 +30,7 @@ Open [http://127.0.0.1:8000/](http://127.0.0.1:8000/). Read `data/initial-admin-
 
 ### Released Docker trial
 
-Verify and extract `lingshu-gate-v0.5.1-docker-compose.tar.gz`, enter that directory and run:
+Verify and extract `lingshu-gate-v0.5.2-docker-compose.tar.gz`, enter that directory and run:
 
 ```bash
 cp .env.quickstart.example .env.quickstart
@@ -65,11 +65,13 @@ The [included demo walkthrough](docs/first-call.md) needs no external service ac
 
 Check the successful audit, deny a write with an unchanged counter, reject an invalid revision, stop/restart the demo and revoke the caller. Gate startup, tool discovery, classification confirmation and publication are separate steps; access still requires both resource grants and token scope.
 
-## 0.5.1 release
+## 0.5.2 release
 
-This patch refines all 23 signed-in Console routes with shared spacing, compact actions, centered dialogs and click-to-open field help. MCP and invocation editors preserve drafts and advanced JSON fields, while the built-in OAuth page separates connection settings, management access and client operations with independent error recovery. See [changes](CHANGELOG.md) and the [bilingual release notes](packaging/release-notes.md).
+This release adds personal and shared business accounts to the existing credentials pages, with environment and business-role labels, explicit user/role grants, MCP instance bindings and synchronization status for each target. The first adapter connects a dedicated agent-browser vault: agents use a `gate:<credential-id>` reference and an explicit session. It also fixes long MCP names and status badges in tool review, and removes deleted MCP tools from the current governance catalog while retaining audit history. See [changes](CHANGELOG.md) and the [bilingual release notes](packaging/release-notes.md).
 
-Desktop layouts use 2560×1440 as the baseline and support 1920×1080, 1600×900 and 2560×1080 in English and Simplified Chinese. This patch adds no database migrations and does not widen existing authorizations. Upgrades from versions before 0.5.0 still require the 0.5.0 migrations and a consistent backup of the database, configuration and credential keys.
+Business-account bindings require existing MCP permissions. The first binding applies managed-browser restrictions to all calls through that instance; removing the final binding does not restore raw vault access. Use a dedicated trusted instance and review its actual tool contract. A login-action receipt does not prove successful website authentication; installed downstream compatibility and real account logins still require separate acceptance. See [business credentials](docs/business-credentials.md).
+
+Upgrade applies migration `0024_business_credentials`. Back up the database, configuration and all credential keys together, including `<data-dir>/business-credentials/credential.key` once business credentials are used. The remote browser vault has its own key and lifecycle. Desktop validation covers 2560×1440, 1920×1080, 1600×900 and 2560×1080; this release adds no mobile support.
 
 ## Architecture overview
 
@@ -124,6 +126,7 @@ flowchart TB
 | Service configuration and lifecycle | Manifest Form/JSON editing, static validation, apply/reload, start/stop/connect, sectioned details, health, logs and restart history. Native managed containers require an explicitly approved digest-pinned image. | [Guide](docs/configuration.md) |
 | Tool catalog and debugging | Service-scoped catalog and effective access badges; schema-driven Form/JSON arguments, defaults/examples, persistent result review and local result-content search. Invocation still rechecks permissions. | [Guide](docs/operations.md) |
 | Encrypted credentials | Shared credential references and private per-user HTTP downstream bindings, masked metadata and one-time token/secret display. Shared stdio processes do not receive per-user credentials. | [Guide](docs/configuration.md) |
+| Business accounts and browser bindings | Encrypted personal/shared website accounts, explicit users/roles and MCP targets, versioned vault synchronization and isolated logical sessions. The first adapter requires a dedicated, trusted agent-browser instance; bindings do not grant MCP access. | [Guide](docs/business-credentials.md) |
 | Trusted project delivery | ZIP analysis and resumable MCP uploads, preflight, digest-bound BuildPlan, bounded build logs/cancellation, deployment preview and overwrite protection, startup and tool reconciliation. Native execution trusts project code; it is not an untrusted-code sandbox. | [Guide](docs/project-delivery.md) |
 | Private drafts and recovery | Encrypted revisioned delivery drafts, independent upload/build/deploy/start confirmations, idempotent MCP writes and protected manual rollback. Replacement can interrupt a service; sessions do not migrate seamlessly. | [Guide](docs/console-delivery.md) |
 | Git, proxies and dependency sources — partial | HTTPS commit-pinned plans, source bounds, named encrypted proxy revisions, separate Git/install defaults, inherit/direct/profile overrides and independent npm/Python sources. npm/pnpm/Yarn Classic plan checks are implemented. Optional Native/Linux acquisition/probes/fixed tool preparation and registry-only npm, pnpm 8/9 and Yarn Classic offline installs/builds are implemented but real host acceptance is untested. Other manager cache installs are explicitly blocked. | [Guide](docs/git-import-network.md) |
@@ -203,6 +206,7 @@ Native archives bundle Gate, not every project runtime. Downstream launch and bu
 - [MCP groups and routing contracts](docs/mcp-groups.md)
 - [On-demand tools discovery](docs/on-demand-tools.md)
 - [Accounts, configuration, credentials and runtime policy](docs/configuration.md)
+- [Business accounts and agent-browser bindings](docs/business-credentials.md)
 - [Built-in OAuth administration and consent](docs/builtin-oauth.md)
 - [External identity and remote network access](docs/external-connections.md)
 - [Project delivery API/tools and Delivery Skill](docs/project-delivery.md)

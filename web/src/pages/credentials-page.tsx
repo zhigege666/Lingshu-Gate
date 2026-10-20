@@ -24,6 +24,7 @@ import { Textarea } from "@/components/ui/textarea"
 import type { Locale, TFunction } from "@/i18n"
 import { formatDateTime } from "@/lib/utils"
 import { TableEmptyRow } from "@/pages/page-utils"
+import { CredentialModeTabs } from "@/pages/credential-mode-tabs"
 
 const emptyForm: CredentialSaveRequest = {
   name: "",
@@ -32,6 +33,10 @@ const emptyForm: CredentialSaveRequest = {
 }
 
 export function CredentialsPage({ locale, t }: { locale: Locale; t: TFunction }) {
+  return <CredentialModeTabs locale={locale} t={t} scope="shared" serviceCredentials={<SharedServiceCredentialsPage locale={locale} t={t} />} />
+}
+
+function SharedServiceCredentialsPage({ locale, t }: { locale: Locale; t: TFunction }) {
   const c = locale === "zh-CN" ? { secretMode: "凭据值处理", keep: "保持现有凭据值", replace: "替换凭据值", keepHint: "保存名称或说明时将保留现有秘密。旧秘密不会显示。", replaceHint: "输入新的凭据值；保存失败时保留本次输入以便重试。" } : { secretMode: "Credential value", keep: "Keep current secret", replace: "Replace secret", keepHint: "Saving the name or description keeps the existing secret. Its value is never shown.", replaceHint: "Enter a new secret. A failed save keeps this attempt's input for retry." }
   const remainingViewport = useRemainingViewport()
   const [credentials, setCredentials] = useState<Credential[]>([])

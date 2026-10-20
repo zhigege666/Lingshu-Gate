@@ -20,6 +20,7 @@ from lingshu_gate.auth import AuthPrincipal
 from lingshu_gate.authorization_discovery import discovery_setting, principal_authorization
 from lingshu_gate.domain.mcp_group_routing import CatalogTarget, GroupToolCall
 from lingshu_gate.domain.mcp_groups import McpGroupError
+from lingshu_gate.models import ToolDefinition
 from lingshu_gate.protocol.sdk_adapter import SERVER_INFO_META_KEY
 from lingshu_gate.registry import ToolExecutionError, ToolNotFoundError, ToolRegistry, tool_definition_revision
 from lingshu_gate.tool_catalog import ToolCatalog, _same_invocation_principal
@@ -133,6 +134,8 @@ class ResultCache:
                 group = self.catalog.group_router.resolve(principal, tool_ref=tool_ref, instance_id=instance_id)
                 tool_id = group.tool_id
             definition = self.registry.get_definition(tool_id)
+            if self._credential_managed(definition):
+                return None
             actual = tool_definition_revision(definition)
             if revision is not None and revision != (group.schema_revision if group else actual):
                 return None
@@ -140,9 +143,18 @@ class ResultCache:
         except (ToolNotFoundError, ToolExecutionError, McpGroupError, AccessDeniedError):
             return None
 
+    def _credential_managed(self, definition: ToolDefinition) -> bool:
+        # This cache has no business credential/version provenance. Do not
+        # retain account-page data whose separate permission can be revoked.
+        service = self.access.business_credentials
+        return (definition.source == "mcp" and service is not None
+            and service.store.is_managed_server(str(definition.metadata.get("server_id") or "")))
+
     def validate_target(self, principal: AuthPrincipal, target: ResultTarget) -> bool:
         try:
             definition = self.registry.get_definition(target.tool_id)
+            if self._credential_managed(definition):
+                return False
             if tool_definition_revision(definition) != target.revision:
                 return False
             with self.access.database.session() as connection:

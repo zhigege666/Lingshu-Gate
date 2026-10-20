@@ -2,6 +2,18 @@
 
 ## Unreleased
 
+## 0.5.2
+
+- Add personal and shared business accounts to the existing credentials pages, with encrypted usernames/passwords, masked responses, environment/business-role labels and explicit user/role grants.
+- Add reviewed MCP adapter bindings, with `agent_browser` as the first adapter. Synchronize selected vault copies, track each binding's version and outcome, and invoke native login using a credential reference and an explicit logical session. Existing MCP permissions remain required.
+- Apply managed-browser restrictions to the entire bound instance, separate sessions by caller and Gate connection, and recheck the current credential, binding, authorization and tool contract before dispatch. Block raw vault access, state export and unreviewed execution paths; protect secrets in transport diagnostics, returned content and result-cache handling.
+- Keep credential disablement, remote vault deletion and browser-session closure separate. Preserve unresolved cleanup records and report unknown outcomes without claiming website-wide logout or replaying uncertain writes automatically.
+- Add bilingual account, grant, binding, synchronization and browser-session controls; retain HTTPS/loopback secret entry, clear secret drafts, and fix dropdown interaction inside dialogs.
+- Fix long MCP names and status badges in the tool-review filter, preserve usable search width and let the toolbar wrap at narrower desktop widths.
+- Project current governance lists from the live tool registry and retire classifications only after MCP deletion is durably saved. Reject stale edits, confirmations and publication for removed tools; retain audit history and review state across temporary stops/restarts.
+- Add migration `0024_business_credentials`. Back up the database, configuration and credential keys together, including the business-credential key; the remote browser vault remains a separate trusted store.
+- Update paired guides, release overviews and release notes with dedicated-instance restrictions and the distinction between synthetic regression coverage and unverified installed browser contracts or real business logins.
+
 ## 0.5.1
 
 - Refine all 23 signed-in Console routes with shared spacing and control sizes, compact headers, centered dialogs and bounded table scrolling for four desktop sizes in English and Simplified Chinese.

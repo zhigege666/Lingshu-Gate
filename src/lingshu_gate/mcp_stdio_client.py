@@ -60,6 +60,10 @@ class McpProtocolError(RuntimeError):
 class StdioMcpClient:
     """Manage one stdio MCP server process and JSON-RPC session."""
 
+    def suppress_payload_logging(self) -> None:
+        """Permanently suppress raw payload diagnostics for this secret-bearing client."""
+        self._sensitive_payloads = True
+
     def audit_redaction_values(self) -> tuple[str, ...]:
         """Reuse already resolved credentials for bounded audit redaction."""
         return self._redaction_values
@@ -71,6 +75,7 @@ class StdioMcpClient:
             manifest.transport.protocol_version, allow_legacy_stdio=True,
         )
         self.log_sink = log_sink
+        self._sensitive_payloads = False
         self.process: subprocess.Popen[str] | None = None
         self._responses: dict[int, queue.Queue[dict[str, Any]]] = {}
         self._ids = count(1)
@@ -218,7 +223,7 @@ class StdioMcpClient:
             "gate.mcp.discovery_succeeded",
             {"capability_names": capability_names, "protocol_version": self.protocol_version},
         )
-        if self.settings.mcp_log_payloads:
+        if self.settings.mcp_log_payloads and not self._sensitive_payloads:
             log_event(
                 logger,
                 logging.DEBUG,
@@ -272,7 +277,7 @@ class StdioMcpClient:
                 break
         log_event(logger, logging.INFO, "gate.mcp.tools_discovered", "MCP tools discovered", server_id=self.manifest.id, tool_count=len(tools))
         self._store_log("info", "MCP tools discovered", "gate.mcp.tools_discovered", {"tool_count": len(tools)})
-        if self.settings.mcp_log_payloads:
+        if self.settings.mcp_log_payloads and not self._sensitive_payloads:
             log_event(
                 logger,
                 logging.DEBUG,
@@ -340,7 +345,13 @@ class StdioMcpClient:
             except queue.Empty:
                 continue
         if "error" in response:
-            safe_error = redact_value(response["error"], known_secrets=self._redaction_values)
+            safe_code = response["error"].get("code") if isinstance(response["error"], dict) else None
+            raw_message = response["error"].get("message") if isinstance(response["error"], dict) else None
+            legacy_discovery = (method == "server/discover" and self.manifest.transport.protocol_version in (None, "auto")
+                and discovery_requires_initialize(safe_code, raw_message))
+            safe_error = ({"code": safe_code if type(safe_code) is int else None,
+                           "message": "unknown method: server/discover" if legacy_discovery else "Sensitive MCP response suppressed"} if self._sensitive_payloads else
+                          redact_value(response["error"], known_secrets=self._redaction_values))
             error_code = safe_error.get("code") if isinstance(safe_error, dict) else None
             error_message = safe_error.get("message") if isinstance(safe_error, dict) else None
             negotiating = method == "server/discover" and self.manifest.transport.protocol_version in (None, "auto") and discovery_requires_initialize(error_code, error_message)
@@ -396,7 +407,7 @@ class StdioMcpClient:
         with self._lock:
             self.process.stdin.write(encoded + "\n")
             self.process.stdin.flush()
-        if self.settings.mcp_log_payloads:
+        if self.settings.mcp_log_payloads and not self._sensitive_payloads:
             log_event(logger, logging.DEBUG, "gate.mcp.stdio_message_sent", "MCP stdio message sent", server_id=self.manifest.id, payload=redact_value(message, known_secrets=self._redaction_values))
 
     def _process_exit_error(self, method: str) -> str:
@@ -424,7 +435,7 @@ class StdioMcpClient:
             except json.JSONDecodeError:
                 safe_raw = (
                     redact_text(raw, known_secrets=self._redaction_values, limit=4000)
-                    if self.settings.mcp_log_payloads
+                    if self.settings.mcp_log_payloads and not self._sensitive_payloads
                     else "[MCP stdout payload suppressed]"
                 )
                 self.last_stdout.append(safe_raw)
@@ -434,11 +445,11 @@ class StdioMcpClient:
                 continue
             self.last_stdout.append(
                 "[MCP JSON-RPC payload suppressed]"
-                if not self.settings.mcp_log_payloads
+                if not self.settings.mcp_log_payloads or self._sensitive_payloads
                 else redact_text(raw, known_secrets=self._redaction_values, limit=4000)
             )
             self.last_stdout = self.last_stdout[-100:]
-            if self.settings.mcp_log_payloads:
+            if self.settings.mcp_log_payloads and not self._sensitive_payloads:
                 safe_message = redact_value(message, known_secrets=self._redaction_values)
                 log_event(logger, logging.DEBUG, "gate.mcp.stdio_message_received", "MCP stdio message received", server_id=self.manifest.id, payload=safe_message)
                 self._store_log("debug", "MCP stdout JSON-RPC message", "gate.mcp.stdio_stdout", {"stream": "stdout", "payload": safe_message})
@@ -452,8 +463,9 @@ class StdioMcpClient:
                 if q:
                     q.put(message)
                 else:
-                    log_event(logger, logging.WARNING, "gate.mcp.stdio_unmatched_response", "Received response without pending request", server_id=self.manifest.id, response_id=response_id)
-                    self._store_log("warning", "Received response without pending request", "gate.mcp.stdio_unmatched_response", {"response_id": response_id})
+                    safe_id = "[suppressed]" if self._sensitive_payloads else response_id
+                    log_event(logger, logging.WARNING, "gate.mcp.stdio_unmatched_response", "Received response without pending request", server_id=self.manifest.id, response_id=safe_id)
+                    self._store_log("warning", "Received response without pending request", "gate.mcp.stdio_unmatched_response", {"response_id": safe_id})
             else:
                 log_event(logger, logging.INFO, "gate.mcp.stdio_notification_received", "Received MCP notification/request", server_id=self.manifest.id)
         log_event(logger, logging.WARNING, "gate.mcp.stdio_stdout_closed", "MCP stdout closed", server_id=self.manifest.id, returncode=self.process.poll() if self.process else None)
@@ -488,7 +500,7 @@ class StdioMcpClient:
                 continue
             safe_raw = (
                 redact_text(raw, known_secrets=self._redaction_values, limit=4000)
-                if self.settings.mcp_log_payloads
+                if self.settings.mcp_log_payloads and not self._sensitive_payloads
                 else "[MCP stderr payload suppressed]"
             )
             self.last_stderr.append(safe_raw)
@@ -509,7 +521,7 @@ class StdioMcpClient:
                 redact_value(payload, known_secrets=self._redaction_values),
             )
         except Exception:  # noqa: BLE001 - logging must not break MCP IO threads
-            logger.debug("Failed to write MCP stdio log", exc_info=True)
+            logger.debug("Failed to write MCP stdio log", exc_info=not self._sensitive_payloads)
 
     def _set_fatal_protocol_error(self, message: str) -> None:
         self._fatal_protocol_error = message

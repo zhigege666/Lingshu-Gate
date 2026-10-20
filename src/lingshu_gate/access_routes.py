@@ -14,6 +14,11 @@ from lingshu_gate.access_control import (
     ClassificationConfirmationConflictError,
 )
 from lingshu_gate.auth import AuthPrincipal, AuthStore
+from lingshu_gate.application.tool_classification_catalog import (
+    current_classifications,
+    current_tool_keys,
+    require_current_tools,
+)
 from lingshu_gate.invocation_payloads import invocation_detail
 from lingshu_gate.mcp_runtime import McpRuntimeManager
 from lingshu_gate.models import ToolDefinition
@@ -500,7 +505,7 @@ def register_access_routes(
         access_store.synchronize_tools(definitions)
         return {
             "classifications": _with_registry_origins(
-                access_store.list_classifications(server_id=server_id, status=status),
+                current_classifications(access_store.list_classifications(server_id=server_id, status=status), definitions),
                 definitions,
             )
         }
@@ -517,7 +522,8 @@ def register_access_routes(
             for item in definitions
             if not request.server_id or item.metadata.get("server_id") == request.server_id
         ]
-        return {"classifications": _with_registry_origins(access_store.analyze_tools(analyzed_definitions), definitions)}
+        return {"classifications": _with_registry_origins(
+            current_classifications(access_store.analyze_tools(analyzed_definitions), definitions), definitions)}
 
     @app.put("/v1/access/tool-classifications/{server_id}/{tool_id}", tags=["access"])
     def update_tool_classification(
@@ -527,6 +533,9 @@ def register_access_routes(
         principal: AuthPrincipal = Depends(require_viewer),
     ) -> dict[str, Any]:
         _require(access_store, principal, "classifications.manage")
+        definitions = registry.list_definitions()
+        if (server_id, tool_id) not in current_tool_keys(definitions):
+            raise HTTPException(status_code=404, detail="The tool is no longer registered; refresh the current catalog.")
         try:
             classification = access_store.set_classification(
                 server_id=server_id,
@@ -537,7 +546,7 @@ def register_access_routes(
                 reviewer_id=principal.id,
                 note=request.note,
             )
-            return _with_registry_origins([classification], registry.list_definitions())[0]
+            return _with_registry_origins([classification], definitions)[0]
         except KeyError as exc:
             raise HTTPException(status_code=404, detail=str(exc)) from exc
         except ValueError as exc:
@@ -553,6 +562,7 @@ def register_access_routes(
         definitions = registry.list_definitions()
         access_store.synchronize_tools(definitions)
         try:
+            require_current_tools(definitions, ((item.server_id.strip(), item.tool_id.strip()) for item in request.items))
             result = access_store.confirm_classifications(
                 reviewer_id=principal.id,
                 items=[item.model_dump() for item in request.items],
@@ -571,14 +581,23 @@ def register_access_routes(
         principal: AuthPrincipal = Depends(require_viewer),
     ) -> dict[str, Any]:
         _require(access_store, principal, "classifications.manage")
+        definitions = registry.list_definitions()
+        access_store.synchronize_tools(definitions)
+        keys = current_tool_keys(definitions)
+        selected = {item.strip() for item in request.tool_ids if item.strip()}
+        scoped = {key for key in keys if not request.server_id or key[0] == request.server_id}
+        if selected - {tool_id for _, tool_id in scoped}:
+            raise HTTPException(status_code=409, detail="A selected tool is no longer registered; refresh the current catalog.")
+        current_ids = sorted(tool_id for _, tool_id in scoped if not selected or tool_id in selected)
+        # The store treats an empty ID list as all historical rows. Never pass
+        # that broad scope when the selected live catalog is empty.
+        if current_ids:
+            access_store.publish_classifications(
+                reviewer_id=principal.id, server_id=request.server_id, tool_ids=current_ids)
         return {
             "classifications": _with_registry_origins(
-                access_store.publish_classifications(
-                    reviewer_id=principal.id,
-                    server_id=request.server_id,
-                    tool_ids=request.tool_ids,
-                ),
-                registry.list_definitions(),
+                current_classifications(access_store.list_classifications(server_id=request.server_id), definitions),
+                definitions,
             )
         }
 

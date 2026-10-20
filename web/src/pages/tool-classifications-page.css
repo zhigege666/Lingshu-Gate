@@ -1,4 +1,18 @@
 /* Stable short columns; long identities stay in their own wrapping/truncated cell. */
+.tool-review-workspace .page-header-toolbar .page-toolbar-search { flex-basis: 420px; min-width: min(420px, 100%); }
+.tool-review-workspace .page-toolbar-search > .ant-input-affix-wrapper { min-width: 240px; }
+.tool-review-source-filter { width: 320px; max-width: 100%; flex: 0 0 auto; text-align: left; }
+.tool-review-source-filter > span { display: block; min-width: 0; flex: 1 1 auto; overflow: hidden; }
+.tool-review-source-filter > svg { flex-shrink: 0; }
+.tool-review-source-label { display: flex; min-width: 0; width: 100%; align-items: center; gap: var(--space-2); white-space: nowrap; }
+.tool-review-source-name { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.tool-review-source-label > :last-child { flex-shrink: 0; }
+.tool-review-source-options { max-width: min(640px, calc(100vw - 32px)); }
+.tool-review-source-options [role="option"] > [id] { min-width: 0; width: 100%; }
+@media (max-width: 720px) {
+  .tool-review-workspace .page-header-toolbar .page-toolbar-search { min-width: 0; flex-basis: 100%; }
+  .tool-review-workspace .page-toolbar-search > .ant-input-affix-wrapper { min-width: 0; }
+}
 .tool-review-table { min-width: 1172px; table-layout: fixed; }
 .tool-review-table th { white-space: nowrap; }
 .tool-review-table td:nth-child(2) { overflow-wrap: anywhere; }

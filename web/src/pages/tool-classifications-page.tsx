@@ -526,9 +526,10 @@ export function ToolClassificationsPage({ locale, t }: { locale: Locale; t: TFun
           <p className="text-muted-foreground">{c.selectHint}</p>
         </>}
         toolbar={<PageToolbar query={query} onQueryChange={setQuery} placeholder={c.search} resultCount={visibleItems.length} resultLabel={c.tool} clearLabel={t("clearSearch")} resetFilters={{ label: t("resetFilters"), disabled: !query && serverFilter === "__all" && statusFilter === "__all", onReset: () => { setQuery(""); setServerFilter("__all"); setStatusFilter("__all") } }}>
-            <Select value={serverFilter} onValueChange={setServerFilter}><SelectTrigger aria-label={c.filterSource} className="w-full sm:w-44"><SelectValue /></SelectTrigger><SelectContent><SelectItem value="__all">{c.allServers}</SelectItem>{servers.map((server) => {
+            <Select value={serverFilter} onValueChange={setServerFilter}><SelectTrigger aria-label={c.filterSource} className="tool-review-source-filter"><SelectValue /></SelectTrigger><SelectContent className="tool-review-source-options"><SelectItem value="__all">{c.allServers}</SelectItem>{servers.map((server) => {
               const name = classificationServerOriginName(items, server, locale)
-              return <SelectItem key={server} value={server}><span className="inline-flex items-center gap-2"><span>{name ? `${name} (${server})` : server}</span><SourceBadge registrySource={classificationServerRegistrySource(items, server)} locale={locale} labels={c} /></span></SelectItem>
+              const label = name ? `${name} (${server})` : server
+              return <SelectItem key={server} value={server} textValue={label}><span className="tool-review-source-label"><span className="tool-review-source-name" title={label}>{label}</span><SourceBadge registrySource={classificationServerRegistrySource(items, server)} locale={locale} labels={c} /></span></SelectItem>
             })}</SelectContent></Select>
             <FilterRadio label={t("status")} value={statusFilter} onChange={value => setStatusFilter(value as ClassificationViewStatus)} options={[{value:"__all",label:t("all")},{value:"needs_confirmation",label:c.needsConfirmation},{value:"confirmed_pending",label:c.confirmedPending},{value:"published",label:c.published},{value:"stale",label:c.stale}]} />
         </PageToolbar>}

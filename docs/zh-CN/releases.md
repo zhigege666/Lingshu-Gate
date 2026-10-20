@@ -4,9 +4,11 @@
 
 Lingshu Gate 发行自动化会生成可直接运行的原生包、Docker Compose 部署包，以及只在 Tag 发行提供的 Core 离线镜像。每个已发布资产都由 `SHA256SUMS` 和仓库 Build Provenance Attestation 覆盖。
 
-当前源码版本为 `0.5.0`，增加固定发现、可选结果预算、参数策略、独立私网连接器/OpenAPI 辅助进程、默认关闭的标准观测，以及配对首次调用指南。迁移 `0022_tool_preferences`、`0023_tool_argument_policy` 要求升级前一致备份数据库、配置与密钥，旧二进制不会执行新策略。运行时、Python 元数据、CLI 和归档名称统一使用 `src/lingshu_gate/_version.py`。见中英文[发行摘要](../../packaging/release-notes.md)；已有标签保持不可变。
+当前源码版本为 `0.5.2`，增加个人/共享业务账号、明确的 MCP 适配绑定和版本化 agent-browser 密码库同步，同时修复工具审核布局，并将已删除 MCP 的工具从当前治理目录排除，保留审计历史。运行时、Python 元数据、CLI 和归档名称统一使用 `src/lingshu_gate/_version.py`。见中英文[发行摘要](../../packaging/release-notes.md)；已有标签保持不可变。
 
-当前源码控制台还包含卡片式工具目录，支持按具体 MCP 部署筛选、展示实际读写要求，并将选中工具带入调用编辑器。工具发现新增当前请求的 `metadata.gate_access` 展示快照，详见[运维指南](operations.md#工具目录)。新参数策略和发现偏好持久化见升级说明。
+升级会执行 `0024_business_credentials` 及此前尚未应用的迁移；从 0.5.0 之前升级时，还包括 `0022_tool_preferences` 和 `0023_tool_argument_policy`。应一致备份数据库、配置和全部凭据密钥。业务账号密文保存在 Gate 数据库中，对应密钥为 `<data-dir>/business-credentials/credential.key`，开始使用业务凭据后必须纳入备份。远端浏览器密码库有独立的密钥与生命周期。0.5.0 之前的二进制不执行参数策略，0.5.2 之前的二进制不执行受管浏览器限制。专用实例要求、目标兼容性检查和独立清理操作见[业务凭据指南](business-credentials.md)。
+
+当前源码控制台还包含卡片式工具目录，支持按具体 MCP 部署筛选、展示实际读写要求，并将选中工具带入调用编辑器。工具发现新增当前请求的 `metadata.gate_access` 展示快照，详见[运维指南](operations.md#工具目录)。策略、发现偏好与业务账号存储均适用上述一致备份要求。
 
 ## 源码发布重入校验
 

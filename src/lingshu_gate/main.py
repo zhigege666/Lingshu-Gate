@@ -44,6 +44,9 @@ from lingshu_gate.telemetry import TelemetryService
 from lingshu_gate.telemetry_http import TelemetryMiddleware
 from lingshu_gate.interfaces.control_api.telemetry_routes import register_telemetry_routes
 from lingshu_gate.credential_store import CredentialStore
+from lingshu_gate.business_credential_store import BusinessCredentialStore
+from lingshu_gate.application.business_credentials import BusinessCredentialService
+from lingshu_gate.interfaces.control_api.business_credential_routes import register_business_credential_routes
 from lingshu_gate.network_settings import NetworkSettingsStore
 from lingshu_gate.git_import_mcp import GitImportService, register_git_import_tools
 from lingshu_gate.interfaces.control_api.network_routes import register_network_routes
@@ -136,6 +139,11 @@ def create_app() -> FastAPI:
         tool_file_store=tool_file_store,
     )
     access_store.attach_mcp_runtime(mcp_runtime)
+    business_credential_store = BusinessCredentialStore(database, settings.data_dir)
+    business_credential_service = BusinessCredentialService(business_credential_store, auth_store,
+        access_store, registry, mcp_runtime, mcp_config_store, observability_store)
+    access_store.business_credentials = business_credential_service
+    mcp_runtime.credential_sensitive_target = business_credential_store.is_managed_server
 
     tool_classification_service = ToolClassificationMcpService(
         access_store,
@@ -189,11 +197,17 @@ def create_app() -> FastAPI:
     register_mcp_group_tools(registry, mcp_group_service)
     mcp_group_router = McpGroupRoutingService(mcp_group_service, registry, access_store, auth_store)
     tool_catalog.group_router = mcp_group_router
+
+    def retire_deleted_tools(server_id: str) -> None:
+        registry.unregister_by_metadata("server_id", server_id, source="mcp", retire=True)
+        access_store.reconcile_server_tools(server_id, [], reviewer_id="configuration_delete")
+
     mcp_configuration_service = McpConfigurationService(
         mcp_config_store,
         mcp_runtime,
         user_credential_store,
         group_store=mcp_group_store,
+        on_deleted=retire_deleted_tools,
     )
     external_mcp_configuration_service = ExternalMcpConfigurationService(
         settings=settings, database=database, auth=auth_store, access=access_store,
@@ -362,6 +376,8 @@ def create_app() -> FastAPI:
     state.external_mcp_configuration_service = external_mcp_configuration_service
     state.credential_store = credential_store
     state.user_credential_store = user_credential_store
+    state.business_credential_store = business_credential_store
+    state.business_credential_service = business_credential_service
     state.tool_classification_service = tool_classification_service
     state.build_deploy_store = build_deploy_store
     state.project_delivery_service = project_delivery_service
@@ -450,6 +466,7 @@ def create_app() -> FastAPI:
         require_authenticated=require_authenticated,
         access_store=access_store,
     )
+    register_business_credential_routes(app, auth=auth_store, service=business_credential_service)
     register_tool_routes(
         app,
         registry=registry,

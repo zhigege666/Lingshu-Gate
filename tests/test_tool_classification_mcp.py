@@ -163,6 +163,33 @@ class ToolClassificationMcpTest(unittest.TestCase):
         self.assertFalse(response.ok)
         self.assertIn("发布分类必须提供", response.error or "")
 
+    def test_missing_tools_are_hidden_and_cannot_be_reviewed_or_published(self) -> None:
+        listed = self.service.list_classifications({"server_id": "sample-service"}, self.context)
+        original = listed["classifications"][0]
+        self.access_store.set_classification(server_id="sample-service", tool_id=self.definition.id,
+            access="read", destructive=False, idempotent=True, reviewer_id=self.context.actor_id, note="Keep this history")
+        self.registry.unregister_by_metadata("server_id", "sample-service", source="mcp", retire=False)
+        hidden = self.service.list_classifications({"server_id": "sample-service"}, self.context)
+        self.assertEqual(hidden["classifications"], [])
+        analyzed = self.service.analyze_classifications({"server_id": "sample-service", "confirmed": True,
+            "idempotency_key": "missing-analyze-1"}, self.context)
+        self.assertEqual(analyzed["classifications"], [])
+        review = self.registry.invoke("gate_tool_classification_review", {"confirmed": True,
+            "idempotency_key": "missing-review-1", "items": [{"server_id": "sample-service",
+            "tool_id": self.definition.id, "expected_fingerprint": original["fingerprint"]}]}, context=self.context)
+        self.assertFalse(review.ok)
+        explicit = self.registry.invoke("gate_tool_classification_publish", {"confirmed": True,
+            "server_id": "sample-service", "tool_ids": [self.definition.id],
+            "idempotency_key": "missing-publish-1"}, context=self.context)
+        self.assertFalse(explicit.ok)
+        scoped = self.service.publish_classifications({"server_id": "sample-service", "confirmed": True,
+            "idempotency_key": "missing-server-publish-1"}, self.context)
+        self.assertEqual(scoped["classifications"], [])
+        self.assertEqual(scoped["published_count"], 0)
+        history = self.access_store.list_classifications(server_id="sample-service")[0]
+        self.assertEqual(history["status"], "pending")
+        self.assertEqual(history["evidence"]["manual"]["note"], "Keep this history")
+
     def test_missing_classification_permission_is_rejected(self) -> None:
         response = self.registry.invoke(
             "gate_tool_classification_list",

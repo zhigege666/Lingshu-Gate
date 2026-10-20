@@ -17,6 +17,7 @@
 | [调用内容记录](invocation-recording.md) | 按需启用限长脱敏内容、本人隔离、审计能力及保留边界 |
 | [架构](architecture.md) | 组件、请求路径、持久化与信任边界 |
 | [配置](configuration.md) | 环境变量、目录、Manifest、凭据和反向代理设置 |
+| [业务凭据](business-credentials.md) | 开发中新增：个人/共享业务账号、显式 MCP 绑定、agent-browser 同步与分别清理 |
 | [MCP 网关](mcp-gateway.md) | 网关入口、协议协商、下游 HTTP/stdio、发现、分类和调用 |
 | [按需工具发现](on-demand-tools.md) | 六个有界发现/会话入口、每条授权默认按需、保留原权限与合成规模基准 |
 | [按需目录集成溯源](on-demand-integration.md) | 精确分组提交映射、冲突处理与定向安全证据 |

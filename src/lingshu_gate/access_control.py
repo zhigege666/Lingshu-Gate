@@ -191,6 +191,7 @@ class AccessControlStore:
         self._external_windows: dict[str, deque[float]] = {}
         self._external_active: dict[str, int] = {}
         self.mcp_runtime: McpRuntimeManager | None = None
+        self.business_credentials: Any = None
         self.refresh_principal: Callable[[AuthPrincipal], AuthPrincipal] | None = None
         self.argument_policies = ArgumentPolicyStore(database)
         self._seed_system_data()
@@ -1848,6 +1849,9 @@ class AccessControlStore:
                 if not _same_invocation_principal(current, principal):
                     raise ToolDispatchRejectedError("tool_authorization_changed", "The calling authority changed before dispatch.")
                 latest = registry.get_definition(tool_id)
+                if (latest.source == "mcp" and not managed_credential_target and self.business_credentials is not None
+                        and self.business_credentials.store.is_managed_server(str(latest.metadata.get("server_id") or ""))):
+                    raise ToolDispatchRejectedError("credential_target_changed", "This instance now requires managed credential dispatch; describe the tool again.")
                 if tool_definition_revision(latest) != prepared.definition_revision:
                     raise ToolDispatchRejectedError("catalog_schema_revision_conflict", "The selected tool definition changed before dispatch.")
                 if not self.evaluate(current, latest)["allowed"]:
@@ -1888,25 +1892,32 @@ class AccessControlStore:
 
                         validate_arguments(definition.input_schema, prepared.arguments)
                         schema_checked = True
-            with dispatch_context or nullcontext():
+            managed_credential_target = (definition.source == "mcp" and self.business_credentials is not None
+                and self.business_credentials.store.is_managed_server(str(definition.metadata.get("server_id") or "")))
+            with (nullcontext() if managed_credential_target else dispatch_context or nullcontext()):
                 if definition.source == "mcp" and self.mcp_runtime:
                     server_id = str(definition.metadata.get("server_id") or "")
                     tool_name = str(definition.metadata.get("original_tool_name") or "")
                     if not server_id or not tool_name:
                         raise RuntimeError(f"MCP tool metadata is incomplete: {tool_id}")
-                    output = self.mcp_runtime.invoke_mcp_tool_for_user(
-                        server_id,
-                        tool_name,
-                        prepared.arguments,
-                        user_id=principal.id,
-                        arguments_guard=check_effective_arguments,
-                        dispatch_started=mark_dispatch_started,
-                        audit_snapshot=recorded_outputs.append if record_payload else None,
-                        retry_read_only=(
-                            allow_read_retry and decision["classification_status"] == "published"
-                            and decision["required_access"] == "read"
-                        ),
-                    )
+                    if managed_credential_target:
+                        output = self.business_credentials.invoke(principal, definition, prepared.arguments,
+                            arguments_guard=check_effective_arguments, dispatch_started=mark_dispatch_started,
+                            dispatch_context=dispatch_context)
+                    else:
+                        output = self.mcp_runtime.invoke_mcp_tool_for_user(
+                            server_id,
+                            tool_name,
+                            prepared.arguments,
+                            user_id=principal.id,
+                            arguments_guard=check_effective_arguments,
+                            dispatch_started=mark_dispatch_started,
+                            audit_snapshot=recorded_outputs.append if record_payload else None,
+                            retry_read_only=(
+                                allow_read_retry and decision["classification_status"] == "published"
+                                and decision["required_access"] == "read"
+                            ),
+                        )
                     response = ToolInvokeResponse(ok=True, tool_id=tool_id, output=output)
                 else:
                     response = registry.invoke(

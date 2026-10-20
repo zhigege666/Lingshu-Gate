@@ -53,6 +53,9 @@ from lingshu_gate.persistence.tool_preferences_migration import (
     TOOL_PREFERENCES_MIGRATION_ID, apply_tool_preferences_migration,
 )
 from lingshu_gate.persistence.argument_policy_migration import ARGUMENT_POLICY_MIGRATION_ID, apply_argument_policy_migration
+from lingshu_gate.persistence.business_credentials_migration import (
+    BUSINESS_CREDENTIALS_MIGRATION_ID, apply_business_credentials_migration,
+)
 
 BASELINE_MIGRATION_ID = "0001_gate_baseline"
 SQLITE_BUSY_TIMEOUT_MS = 30_000
@@ -107,7 +110,8 @@ class SQLiteDatabase:
              Migration(MCP_AUTHORIZATION_IDENTITY_MIGRATION_ID, apply_mcp_authorization_identity_migration),
              Migration(AUTHORIZATION_DISCOVERY_MIGRATION_ID, apply_authorization_discovery_migration),
              Migration(TOOL_PREFERENCES_MIGRATION_ID, apply_tool_preferences_migration),
-             Migration(ARGUMENT_POLICY_MIGRATION_ID, apply_argument_policy_migration)),
+             Migration(ARGUMENT_POLICY_MIGRATION_ID, apply_argument_policy_migration),
+             Migration(BUSINESS_CREDENTIALS_MIGRATION_ID, apply_business_credentials_migration)),
         ).run()
 
     def _apply_baseline_migration(self, connection: sqlite3.Connection) -> None:

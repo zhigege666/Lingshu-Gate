@@ -39,6 +39,7 @@ class ManagedHttpMcpClient:
         self.manifest = manifest
         self.settings = settings
         self.log_sink = log_sink
+        self._sensitive_payloads = False
         self.process: subprocess.Popen[str] | None = None
         self.last_stdout: list[str] = []
         self.last_stderr: list[str] = []
@@ -50,6 +51,12 @@ class ManagedHttpMcpClient:
         self._redaction_values: tuple[str, ...] = tuple(
             value for value in (manifest.transport.endpoint,) if value
         )
+
+    def suppress_payload_logging(self) -> None:
+        """Permanently suppress raw payload diagnostics for this secret-bearing client."""
+        self._sensitive_payloads = True
+        if self._http_client is not None:
+            self._http_client.suppress_payload_logging()
 
     def audit_redaction_values(self) -> tuple[str, ...]:
         """Reuse process and HTTP credentials without another secret-store read."""
@@ -131,6 +138,8 @@ class ManagedHttpMcpClient:
                 redaction_values=self._redaction_values,
             )
             self._http_client = client
+            if self._sensitive_payloads:
+                client.suppress_payload_logging()
             try:
                 client.start()
                 # 初始化重试使用短超时；成功后恢复 Manifest 的正常请求超时。
@@ -161,13 +170,13 @@ class ManagedHttpMcpClient:
                 try:
                     client.stop()
                 except Exception:  # noqa: BLE001 - best-effort cleanup between attempts
-                    logger.debug("Failed to close managed HTTP startup attempt", exc_info=True)
+                    logger.debug("Failed to close managed HTTP startup attempt", exc_info=not self._sensitive_payloads)
                 self._http_client = None
                 if self.process and self.process.poll() is not None:
                     break
                 time.sleep(min(0.25, max(0.0, deadline - time.monotonic())))
 
-        error_text = (
+        error_text = "Sensitive MCP startup error suppressed" if self._sensitive_payloads else (
             redact_text(str(last_error), known_secrets=self._redaction_values)
             if last_error
             else "endpoint did not become ready"
@@ -201,7 +210,7 @@ class ManagedHttpMcpClient:
             try:
                 self._http_client.stop()
             except Exception:  # noqa: BLE001 - process cleanup must still continue
-                logger.debug("Failed to close managed HTTP MCP session", exc_info=True)
+                logger.debug("Failed to close managed HTTP MCP session", exc_info=not self._sensitive_payloads)
             finally:
                 self._http_client = None
 
@@ -337,7 +346,7 @@ class ManagedHttpMcpClient:
                 continue
             safe_raw = (
                 redact_text(raw, known_secrets=self._redaction_values, limit=4000)
-                if self.settings.mcp_log_payloads
+                if self.settings.mcp_log_payloads and not self._sensitive_payloads
                 else f"[MCP managed HTTP {stream_name} payload suppressed]"
             )
             target.append(safe_raw)
@@ -371,4 +380,4 @@ class ManagedHttpMcpClient:
                 redact_value(payload, known_secrets=self._redaction_values),
             )
         except Exception:  # noqa: BLE001 - logging must not break runtime threads
-            logger.debug("Failed to write managed HTTP MCP log", exc_info=True)
+            logger.debug("Failed to write managed HTTP MCP log", exc_info=not self._sensitive_payloads)

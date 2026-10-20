@@ -194,6 +194,8 @@ def test_real_compose_archive_contains_rendered_onboarding_and_resolving_links(
     inventory = {entry["path"]: entry for entry in json.loads((bundle / "BUILD-INFO.json").read_bytes())["files"]}
     entries = ["README.md", "README.zh-CN.md", "DEPLOYMENT.md", "DEPLOYMENT.zh-CN.md",
                "compose.quickstart.yaml", ".env.quickstart.example", "examples/compose.demo.yaml",
+               "docs/README.md", "docs/zh-CN/README.md",
+               "docs/business-credentials.md", "docs/zh-CN/business-credentials.md",
                "docs/getting-started.md", "docs/zh-CN/getting-started.md",
                "docs/first-call.md", "docs/zh-CN/first-call.md"]
     for name in entries:

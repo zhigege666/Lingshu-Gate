@@ -2,7 +2,7 @@
 
 自托管 MCP 网关：连接工具，限定谁可以调用，并记录调用结果。
 
-[English](README.md) · [下载 0.5.1](https://github.com/zhigege666/Lingshu-Gate/releases/tag/v0.5.1) · [开始使用](docs/zh-CN/getting-started.md) · [文档](docs/zh-CN/README.md) · [安全](SECURITY.zh-CN.md)
+[English](README.md) · [下载 0.5.2](https://github.com/zhigege666/Lingshu-Gate/releases/tag/v0.5.2) · [开始使用](docs/zh-CN/getting-started.md) · [文档](docs/zh-CN/README.md) · [安全](SECURITY.zh-CN.md)
 
 <img src="docs/images/console/zh-CN/v0.5.0-discovery.png" alt="Lingshu Gate 0.5.0：每条授权的固定工具、逻辑组和有界文本预览" width="1200">
 
@@ -30,7 +30,7 @@
 
 ### 已发布 Docker 本机试用
 
-校验并解压 `lingshu-gate-v0.5.1-docker-compose.tar.gz`，进入该目录后执行：
+校验并解压 `lingshu-gate-v0.5.2-docker-compose.tar.gz`，进入该目录后执行：
 
 ```bash
 cp .env.quickstart.example .env.quickstart
@@ -65,11 +65,13 @@ uv run lingshu-gate
 
 核对成功审计、写入拒绝且计数不变、错误修订拒绝、demo 停止/恢复和调用者撤销。Gate 启动、工具发现、分类确认、发布分别进行；访问仍须同时满足资源权限和 token scope。
 
-## 0.5.1 版本
+## 0.5.2 版本
 
-本补丁优化全部 23 个登录后 Console 路由，统一间距、紧凑操作区、居中弹窗及点击展开的字段帮助。MCP 配置和调用编辑器保留草稿及高级 JSON 字段；内置 OAuth 页面明确划分连接配置、管理连接和客户端操作，并支持各区域独立恢复读取错误。参见[变更记录](CHANGELOG.zh-CN.md)和[双语发行说明](packaging/release-notes.md)。
+本版在现有凭据页面增加个人和共享业务账号，支持环境与业务角色标签、明确的用户/角色授权、MCP 实例绑定及每个目标的同步状态。首个适配器接通专用 agent-browser 密码库，Agent 使用 `gate:<credential-id>` 引用和明确的会话。本版同时修复工具审核中长 MCP 名称与状态标识的布局，以及已删除 MCP 的工具仍出现在当前治理目录的问题，审计历史继续保留。参见[变更记录](CHANGELOG.zh-CN.md)和[双语发行说明](packaging/release-notes.md)。
 
-桌面布局以 2560×1440 为基准，支持 1920×1080、1600×900、2560×1080 及中英文。本补丁不新增数据库迁移，也不扩大已有授权。从 0.5.0 之前的版本升级，仍需执行 0.5.0 的迁移，并一致备份数据库、配置和凭据密钥。
+业务账号绑定仍要求调用者已有 MCP 权限。首次绑定会对经由该实例的所有调用启用受管浏览器限制；移除最后一条绑定也不会恢复原始密码库工具。应使用专用可信实例，并复核其实际工具契约。登录操作回执不等于网站认证成功，已安装下游的兼容性及真实账号登录仍需单独验收。参见[业务凭据指南](docs/zh-CN/business-credentials.md)。
+
+升级会执行 `0024_business_credentials` 迁移。应一致备份数据库、配置和全部凭据密钥；开始使用业务凭据后，需包含 `<data-dir>/business-credentials/credential.key`。远端浏览器密码库有独立的密钥与生命周期。桌面验证覆盖 2560×1440、1920×1080、1600×900 和 2560×1080，本版不新增移动端支持。
 
 ## 架构总览
 
@@ -124,6 +126,7 @@ flowchart TB
 | 服务配置与生命周期 | Manifest 表单/JSON 编辑、静态校验、应用/重载、启动/停止/连接、分区详情、健康、日志与重启历史。原生托管容器要求明确复核的 digest 固定镜像。 | [指南](docs/zh-CN/configuration.md) |
 | 工具目录与调试 | 按服务筛选的工具目录与有效权限标识；Schema 驱动的表单/JSON 参数、默认值/示例、结果复核与本地结果内容搜索。执行时仍重新校验权限。 | [指南](docs/zh-CN/operations.md) |
 | 加密凭据 | 共享凭据引用、私有的每用户 HTTP 下游绑定、脱敏元数据和仅一次展示的令牌/密钥。共享 stdio 进程不接收每用户凭据。 | [指南](docs/zh-CN/configuration.md) |
+| 业务账号与浏览器绑定 | 加密的个人/共享网站账号、明确的用户/角色及 MCP 目标、版本化密码库同步和隔离的逻辑会话。首个适配器要求专用可信的 agent-browser 实例；绑定不授予 MCP 访问权限。 | [指南](docs/zh-CN/business-credentials.md) |
 | 可信项目交付 | ZIP 分析与可续传 MCP 上传、预检、摘要绑定 BuildPlan、有界构建日志/取消、部署预览与覆盖保护、启动及工具对账。原生执行要求信任项目源码，并非不可信代码沙箱。 | [指南](docs/zh-CN/project-delivery.md) |
 | 私有草稿与恢复 | 加密且带版本的交付草稿、独立的上传/构建/部署/启动确认、幂等 MCP 写操作及受保护的手动回滚。替换可中断服务，不做无缝会话迁移。 | [指南](docs/zh-CN/console-delivery.md) |
 | Git、代理与依赖源 — 部分支持 | HTTPS 固定 commit、来源限额、加密代理不可变修订、独立 Git/install 与 inherit/direct/profile。本开发分支实现可选 Native/Linux 获取/代理测试/固定工具准备和 registry-only npm、pnpm 8/9、Yarn Classic 离线安装/构建；其他 manager cache 安装明确阻断，真实宿主验收未测。 | [指南](docs/zh-CN/git-import-network.md) |
@@ -205,6 +208,7 @@ Core 管理的凭据加密保存；辅助进程使用独立受保护本地凭据
 - [MCP 分组与路由适配](docs/zh-CN/mcp-groups.md)
 - [按需工具发现模式](docs/zh-CN/on-demand-tools.md)
 - [用户、配置、凭据与运行策略](docs/zh-CN/configuration.md)
+- [业务账号与 agent-browser 绑定](docs/zh-CN/business-credentials.md)
 - [内置 OAuth 管理与同意](docs/zh-CN/builtin-oauth.md)
 - [外部身份与远程网络接入](docs/zh-CN/external-connections.md)
 - [项目交付 API/工具与 Delivery Skill](docs/zh-CN/project-delivery.md)

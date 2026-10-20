@@ -303,6 +303,8 @@ class McpRuntimeManager:
         self.load_errors: list[str] = []
         self._manager_lock = DispatchLock()
         self._route_process_generation = uuid4().hex
+        self.credential_sensitive_target: Callable[[str], bool] | None = None
+        self._credential_sensitive_servers: set[str] = set()
 
     @contextmanager
     def route_instance_guard(self, server_id: str) -> Iterator[str]:
@@ -702,6 +704,7 @@ class McpRuntimeManager:
                 runtime.restart_attempts = 0
             log_event(logger, logging.INFO, "gate.mcp.server_starting", "Starting MCP server", server_id=server_id, manifest=manifest.safe_dict())
             self._log_runtime(server_id, "info", "Starting MCP server", "gate.mcp.server_starting", {"manifest": manifest.safe_dict()})
+            credential_sensitive = self._credential_target_sensitive(server_id)
             try:
                 client: McpClient
                 if manifest.launch.type == "managed_process" and manifest.transport.type == "streamable_http":
@@ -718,6 +721,7 @@ class McpRuntimeManager:
                     )
                 runtime.client = client
                 runtime.advance_connection_generation()
+                self._protect_credential_client(server_id, client)
                 client.start()
                 runtime.tools = client.list_tools()
                 self._register_mcp_tools(runtime)
@@ -731,7 +735,7 @@ class McpRuntimeManager:
                 self._start_health_monitor(server_id, runtime, client)
             except Exception as exc:  # noqa: BLE001 - runtime boundary records and continues
                 runtime.state = McpServerState.FAILED
-                safe_error = redact_text(
+                safe_error = "Sensitive MCP startup error suppressed" if credential_sensitive else redact_text(
                     str(exc),
                     known_secrets=(manifest.transport.endpoint or "",),
                 )
@@ -743,7 +747,7 @@ class McpRuntimeManager:
                 self.registry.unregister_by_metadata("server_id", server_id, source="mcp", retire=False)
                 self._log_runtime(server_id, "error", "Failed to start MCP server", "gate.mcp.server_start_failed", {"error": safe_error})
                 self._record_recovery_event(server_id, "gate.mcp.server_start_failed", "Failed to start MCP server", {"error": safe_error}, level="error")
-                log_event(logger, logging.ERROR, "gate.mcp.server_start_failed", "Failed to start MCP server", server_id=server_id, error=safe_error, exc_info=True)
+                log_event(logger, logging.ERROR, "gate.mcp.server_start_failed", "Failed to start MCP server", server_id=server_id, error=safe_error, exc_info=not credential_sensitive)
                 self._schedule_restart_locked(server_id, runtime, reason="start_failure", returncode=None)
             return runtime.to_response()
 
@@ -838,9 +842,11 @@ class McpRuntimeManager:
         safe_endpoint = redact_endpoint(manifest.transport.endpoint)
         log_event(logger, logging.INFO, "gate.mcp.external_connecting", "Connecting external MCP server", server_id=server_id, endpoint=safe_endpoint, manifest=manifest.safe_dict())
         self._log_runtime(server_id, "info", "Connecting external MCP server", "gate.mcp.external_connecting", {"endpoint": safe_endpoint})
+        credential_sensitive = self._credential_target_sensitive(server_id)
         try:
             client = StreamableHttpMcpClient(manifest, self.settings, log_sink=lambda level, message, event_type, payload: self._log_runtime(server_id, level, message, event_type, payload))
             runtime.client = client
+            self._protect_credential_client(server_id, client)
             with client.operation_bounds(cancel, deadline, credential_revisions=credential_revisions) if cancel is not None and deadline is not None else nullcontext():
                 runtime.advance_connection_generation()
                 client.start()
@@ -854,7 +860,7 @@ class McpRuntimeManager:
             self._log_runtime(server_id, "info", "External MCP server is connected", "gate.mcp.server_running", {"endpoint": safe_endpoint, "tool_count": len(runtime.tools)})
         except Exception as exc:  # noqa: BLE001 - runtime boundary records and continues
             runtime.state = McpServerState.FAILED
-            safe_error = redact_text(
+            safe_error = "Sensitive MCP connection error suppressed" if credential_sensitive else redact_text(
                 str(exc),
                 known_secrets=(manifest.transport.endpoint or "", *(runtime.client.audit_redaction_values() if isinstance(runtime.client, StreamableHttpMcpClient) else ())),
             )
@@ -864,7 +870,7 @@ class McpRuntimeManager:
                 runtime.client = None
             runtime.tools = []
             self.registry.unregister_by_metadata("server_id", server_id, source="mcp", retire=False)
-            log_event(logger, logging.ERROR, "gate.mcp.server_start_failed", "Failed to connect external MCP server", server_id=server_id, endpoint=safe_endpoint, error=safe_error, exc_info=cancel is None)
+            log_event(logger, logging.ERROR, "gate.mcp.server_start_failed", "Failed to connect external MCP server", server_id=server_id, endpoint=safe_endpoint, error=safe_error, exc_info=cancel is None and not credential_sensitive)
             self._log_runtime(server_id, "error", "Failed to connect external MCP server", "gate.mcp.server_start_failed", {"endpoint": safe_endpoint, "error": safe_error})
             if cancel is not None:
                 raise
@@ -910,10 +916,30 @@ class McpRuntimeManager:
     def get_manifest_digest(self, server_id: str) -> str:
         """返回 Runtime 当前实际使用的 Manifest 摘要。"""
 
-        with self._manager_lock:
+        with self._manager_lock.read_lock():
             runtime = self._get_runtime(server_id)
             with runtime.lock:
                 return self._manifest_digest(runtime.manifest)
+
+    def suppress_credential_payloads(self, server_id: str) -> None:
+        """Disable raw transport payloads before any managed credential is sent."""
+        runtime = self._get_runtime(server_id)
+        with runtime.lock:
+            self._credential_sensitive_servers.add(server_id)
+            if runtime.client is None:
+                raise RuntimeError("MCP credential target is unavailable")
+            runtime.client.suppress_payload_logging()
+
+    def _protect_credential_client(self, server_id: str, client: McpClient) -> None:
+        if self._credential_target_sensitive(server_id):
+            client.suppress_payload_logging()
+
+    def _credential_target_sensitive(self, server_id: str) -> bool:
+        if (server_id in self._credential_sensitive_servers
+                or self.credential_sensitive_target is not None and self.credential_sensitive_target(server_id)):
+            self._credential_sensitive_servers.add(server_id)
+            return True
+        return False
 
     def list_server_tools(self, server_id: str) -> list[dict[str, Any]]:
         with self._manager_lock:
@@ -1016,7 +1042,7 @@ class McpRuntimeManager:
                     client.request("tools/list", {}, timeout=int(health.timeout_seconds))
                 ok = True
             except Exception as exc:  # noqa: BLE001 - health check boundary
-                error = redact_text(
+                error = "Sensitive MCP health error suppressed" if self._credential_target_sensitive(server_id) else redact_text(
                     str(exc),
                     known_secrets=(runtime.manifest.transport.endpoint or "",),
                 )
@@ -1599,6 +1625,7 @@ class McpRuntimeManager:
             ),
             redaction_values=values.values(),
         )
+        self._protect_credential_client(server_id, client)
         session_started = False
         try:
             with phase("prepare"):

@@ -12,6 +12,7 @@ from lingshu_gate.mcp_runtime import McpRuntimeManager
 from lingshu_gate.models import (
     McpConfigResponse,
     McpConfigSaveRequest,
+    McpServerListResponse,
     McpServerStatusResponse,
 )
 from lingshu_gate.user_credential_store import UserCredentialStore
@@ -120,6 +121,27 @@ def test_delete_reports_runtime_compensation_failure() -> None:
         service.delete(server_id)
 
     assert str(raised.value.__cause__) == "disk delete failed"
+
+
+def test_delete_retires_tools_only_after_durable_removal() -> None:
+    _, configs, runtime, credentials = _service()
+    on_deleted = Mock()
+    service = McpConfigurationService(configs, runtime, credentials, on_deleted=on_deleted)
+    prepared = service.prepare_user_credentials(_request())
+    configs.load_manifest.return_value = prepared.manifest
+    runtime.has_server.return_value = False
+    configs.delete_config.side_effect = OSError("disk delete failed")
+    with pytest.raises(OSError, match="disk delete failed"):
+        service.delete(prepared.manifest.id)
+    on_deleted.assert_not_called()
+    credentials.delete_server_bindings.assert_not_called()
+
+    configs.delete_config.side_effect = None
+    configs.delete_config.return_value = _config()
+    runtime.list_servers.return_value = McpServerListResponse(servers=[])
+    credentials.delete_server_bindings.return_value = 0
+    service.delete(prepared.manifest.id)
+    on_deleted.assert_called_once_with(prepared.manifest.id)
 
 
 def test_apply_registers_manifest_without_starting_it() -> None:

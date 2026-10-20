@@ -8,6 +8,7 @@ control API adapter.
 
 from __future__ import annotations
 
+from collections.abc import Callable
 from contextlib import nullcontext
 from dataclasses import dataclass
 from typing import Any
@@ -58,11 +59,14 @@ class McpConfigurationService:
         runtime: McpRuntimeControl,
         user_credential_store: UserCredentialRepository,
         group_store: McpGroupStore | None = None,
+        *,
+        on_deleted: Callable[[str], None] | None = None,
     ) -> None:
         self._config_store = config_store
         self._runtime = runtime
         self._user_credential_store = user_credential_store
         self._group_store = group_store
+        self._on_deleted = on_deleted
 
     def prepare_user_credentials(
         self,
@@ -210,6 +214,10 @@ class McpConfigurationService:
                         ) from delete_error
                 raise
 
+            # A stop or compensated disk failure is temporary unavailability.
+            # Retire review state only after the configuration is really gone.
+            if self._on_deleted is not None:
+                self._on_deleted(server_id)
             removed_user_credentials = (
                 self._user_credential_store.delete_server_bindings(server_id)
             )
