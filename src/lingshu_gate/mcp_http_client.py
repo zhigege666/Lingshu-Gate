@@ -46,11 +46,7 @@ logger = logging.getLogger(__name__)
 
 LogSink = Callable[[str, str, str, dict[str, Any]], None]
 
-# These are protocol-boundary safety limits, not operator-tunable performance
-# knobs. A peer cannot make the control plane retain an unbounded response or
-# keep a request alive indefinitely by slowly emitting SSE keepalives.
-MAX_HTTP_RESPONSE_BYTES = 8 * 1024 * 1024
-MAX_SSE_EVENT_BYTES = 1024 * 1024
+# 消息大小由管理员配置；事件数、发现分页和绝对超时仍独立限制，避免无界保留响应。
 MAX_SSE_EVENTS = 10_000
 MAX_TOOL_LIST_PAGES = 100
 MAX_DISCOVERED_TOOLS = 10_000
@@ -455,7 +451,7 @@ class StreamableHttpMcpClient:
                 ) from exc
             raw_error = b""
             try:
-                raw_error = _read_bounded_response(exc, deadline)
+                raw_error = _read_bounded_response(exc, deadline, self.settings.mcp_max_message_bytes)
             except Exception:  # noqa: BLE001 - error body is best-effort
                 raw_error = b""
             finally:
@@ -502,7 +498,7 @@ class StreamableHttpMcpClient:
                 return None
             if "text/event-stream" in content_type:
                 return self._read_sse_response(response, request_id, deadline)
-            raw = _read_bounded_response(response, deadline).decode(
+            raw = _read_bounded_response(response, deadline, self.settings.mcp_max_message_bytes).decode(
                 "utf-8", "ignore"
             ).strip()
             self._check_operation()
@@ -554,9 +550,9 @@ class StreamableHttpMcpClient:
             if line.startswith("data:"):
                 data = line[len("data:"):].lstrip(" ")
                 event_bytes += len(line_bytes) + 1
-                if event_bytes > MAX_SSE_EVENT_BYTES:
+                if event_bytes > self.settings.mcp_max_message_bytes:
                     raise McpProtocolError(
-                        f"MCP SSE event exceeded the {MAX_SSE_EVENT_BYTES}-byte limit"
+                        f"MCP SSE event exceeded the {self.settings.mcp_max_message_bytes}-byte limit"
                     )
                 data_lines.append(data)
             return None
@@ -567,17 +563,17 @@ class StreamableHttpMcpClient:
             if not chunk:
                 break
             response_bytes += len(chunk)
-            if response_bytes > MAX_HTTP_RESPONSE_BYTES:
+            if response_bytes > self.settings.mcp_max_message_bytes:
                 raise McpProtocolError(
-                    f"MCP HTTP response exceeded the {MAX_HTTP_RESPONSE_BYTES}-byte limit"
+                    f"MCP HTTP response exceeded the {self.settings.mcp_max_message_bytes}-byte limit"
                 )
             pending.extend(chunk)
             while True:
                 newline = pending.find(b"\n")
                 if newline < 0:
-                    if len(pending) > MAX_SSE_EVENT_BYTES:
+                    if len(pending) > self.settings.mcp_max_message_bytes:
                         raise McpProtocolError(
-                            f"MCP SSE line exceeded the {MAX_SSE_EVENT_BYTES}-byte limit"
+                            f"MCP SSE line exceeded the {self.settings.mcp_max_message_bytes}-byte limit"
                         )
                     break
                 raw_line = bytes(pending[:newline])
@@ -706,16 +702,16 @@ def _read_response_chunk(response: Any, deadline: float) -> bytes:
     return bytes(chunk)
 
 
-def _read_bounded_response(response: Any, deadline: float) -> bytes:
+def _read_bounded_response(response: Any, deadline: float, limit_bytes: int) -> bytes:
     raw_length = response.headers.get("Content-Length") if response.headers else None
     if raw_length:
         try:
             declared_length = int(raw_length)
         except (TypeError, ValueError):
             declared_length = -1
-        if declared_length > MAX_HTTP_RESPONSE_BYTES:
+        if declared_length > limit_bytes:
             raise McpProtocolError(
-                f"MCP HTTP response exceeded the {MAX_HTTP_RESPONSE_BYTES}-byte limit"
+                f"MCP HTTP response exceeded the {limit_bytes}-byte limit"
             )
 
     chunks: list[bytes] = []
@@ -725,9 +721,9 @@ def _read_bounded_response(response: Any, deadline: float) -> bytes:
         if not chunk:
             break
         total += len(chunk)
-        if total > MAX_HTTP_RESPONSE_BYTES:
+        if total > limit_bytes:
             raise McpProtocolError(
-                f"MCP HTTP response exceeded the {MAX_HTTP_RESPONSE_BYTES}-byte limit"
+                f"MCP HTTP response exceeded the {limit_bytes}-byte limit"
             )
         chunks.append(chunk)
     return b"".join(chunks)

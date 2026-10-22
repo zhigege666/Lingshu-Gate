@@ -3,7 +3,9 @@
 from __future__ import annotations
 
 import io
+import json
 import os
+import queue
 import sys
 import tempfile
 import time
@@ -84,19 +86,18 @@ def _manifest(transport_type: str) -> McpServerManifest:
     )
 
 
-def _http_client(root: Path) -> StreamableHttpMcpClient:
-    return StreamableHttpMcpClient(_manifest("streamable_http"), Settings(data_dir=root))
+def _http_client(root: Path, limit: int = Settings.mcp_max_message_bytes) -> StreamableHttpMcpClient:
+    return StreamableHttpMcpClient(_manifest("streamable_http"), Settings(data_dir=root, mcp_max_message_bytes=limit))
 
 
-def _stdio_client(root: Path) -> StdioMcpClient:
-    return StdioMcpClient(_manifest("stdio"), Settings(data_dir=root))
+def _stdio_client(root: Path, limit: int = Settings.mcp_max_message_bytes) -> StdioMcpClient:
+    return StdioMcpClient(_manifest("stdio"), Settings(data_dir=root, mcp_max_message_bytes=limit))
 
 
 def test_http_rejects_declared_and_streamed_oversized_responses() -> None:
     with tempfile.TemporaryDirectory() as directory:
-        client = _http_client(Path(directory))
+        client = _http_client(Path(directory), limit=32)
         with (
-            patch("lingshu_gate.mcp_http_client.MAX_HTTP_RESPONSE_BYTES", 32),
             patch.object(
                 client._opener,
                 "open",
@@ -107,7 +108,6 @@ def test_http_rejects_declared_and_streamed_oversized_responses() -> None:
             client.request("tools/list")
 
         with (
-            patch("lingshu_gate.mcp_http_client.MAX_HTTP_RESPONSE_BYTES", 32),
             patch.object(
                 client._opener,
                 "open",
@@ -136,9 +136,9 @@ def test_http_sse_enforces_event_count_event_size_and_absolute_deadline() -> Non
             )
 
         oversized_event = b"data: " + b"x" * 33 + b"\n\n"
+        client = _http_client(Path(directory), limit=40)
         with (
-            patch("lingshu_gate.mcp_http_client.MAX_SSE_EVENT_BYTES", 32),
-            pytest.raises(McpProtocolError, match="event exceeded"),
+            pytest.raises(McpProtocolError, match="40-byte limit"),
         ):
             client._read_sse_response(
                 _MemoryResponse(oversized_event, content_type="text/event-stream"),
@@ -203,11 +203,10 @@ def test_tool_pagination_has_a_hard_page_limit() -> None:
 
 def test_stdio_rejects_oversized_outbound_and_inbound_messages() -> None:
     with tempfile.TemporaryDirectory() as directory:
-        client = _stdio_client(Path(directory))
+        client = _stdio_client(Path(directory), limit=32)
         process = _FakeStdioProcess()
         client.process = process  # type: ignore[assignment]
         with (
-            patch("lingshu_gate.mcp_stdio_client.MAX_STDIO_MESSAGE_BYTES", 32),
             pytest.raises(McpProtocolError, match="byte limit"),
         ):
             client._write_message({"value": "x" * 64})
@@ -215,11 +214,72 @@ def test_stdio_rejects_oversized_outbound_and_inbound_messages() -> None:
 
         process = _FakeStdioProcess("x" * 33 + "\n")
         client.process = process  # type: ignore[assignment]
-        with patch("lingshu_gate.mcp_stdio_client.MAX_STDIO_MESSAGE_BYTES", 32):
-            client._read_stdout()
+        client._read_stdout()
         assert client._fatal_protocol_error is not None
         assert process.terminated
         assert "x" * 8 not in repr(client.last_stdout)
+
+
+@pytest.mark.parametrize("invalid", [0, -1, 256 * 1024 * 1024 + 1, True, 3.5, "32"])
+def test_message_limit_rejects_invalid_settings(invalid) -> None:
+    with pytest.raises(ValueError, match="mcp_max_message_bytes"):
+        Settings(mcp_max_message_bytes=invalid)
+
+
+def test_message_limit_is_loaded_from_environment(monkeypatch) -> None:
+    monkeypatch.setenv("LINGSHU_GATE_MCP_MAX_MESSAGE_BYTES", str(64 * 1024 * 1024))
+    assert Settings.from_env().mcp_max_message_bytes == 64 * 1024 * 1024
+    monkeypatch.setenv("LINGSHU_GATE_MCP_MAX_MESSAGE_BYTES", "0")
+    with pytest.raises(ValueError, match="mcp_max_message_bytes"):
+        Settings.from_env()
+
+
+@pytest.mark.parametrize("transport", ["stdio", "json", "sse"])
+def test_default_limit_accepts_large_image_response_and_next_response(tmp_path, transport) -> None:
+    # 10 MiB 图片经 Base64 编码约 14 MiB；旧 8 MiB 上限会断开这类合法响应。
+    image = "A" * (14 * 1024 * 1024)
+    result = {"content": [{"type": "image", "mimeType": "image/png", "data": image}]}
+    messages = [
+        {"jsonrpc": "2.0", "id": 1, "result": result},
+        {"jsonrpc": "2.0", "id": 2, "result": {"alive": True}},
+    ]
+    wire = [json.dumps(message, separators=(",", ":")) for message in messages]
+    assert 8 * 1024 * 1024 < len(wire[0]) < Settings.mcp_max_message_bytes
+    if transport == "stdio":
+        client = _stdio_client(tmp_path)
+        process = _FakeStdioProcess("\n".join(wire) + "\n")
+        client.process = process  # type: ignore[assignment]
+        responses = [queue.Queue(), queue.Queue()]
+        client._responses.update({1: responses[0], 2: responses[1]})
+        client._read_stdout()
+        assert responses[0].get_nowait()["result"] == result
+        assert responses[1].get_nowait()["result"] == {"alive": True}
+        assert client._fatal_protocol_error is None
+        assert not process.terminated
+    else:
+        client = _http_client(tmp_path)
+        is_sse = transport == "sse"
+        responses = [
+            _MemoryResponse(
+                (f"data: {body}\n\n" if is_sse else body).encode(),
+                content_type="text/event-stream" if is_sse else "application/json",
+            )
+            for body in wire
+        ]
+        with patch.object(client._opener, "open", side_effect=responses):
+            assert client.call_tool("synthetic_image", {}) == result
+            assert client.call_tool("synthetic_health", {}) == {"alive": True}
+
+
+def test_stdio_limit_counts_utf8_bytes_and_newline(tmp_path) -> None:
+    client = _stdio_client(tmp_path, limit=19)
+    process = _FakeStdioProcess()
+    client.process = process  # type: ignore[assignment]
+    client._write_message({"value": "中中"})
+    assert len(process.stdin.getvalue().encode("utf-8")) == 19
+    with pytest.raises(McpProtocolError, match="19-byte limit"):
+        client._write_message({"value": "中中中"})
+    assert len(process.stdin.getvalue().encode("utf-8")) == 19
 
 
 def test_build_output_is_streamed_into_bounded_tail_buffers() -> None:

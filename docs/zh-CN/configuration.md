@@ -22,6 +22,7 @@ Lingshu Gate 从 `LINGSHU_GATE_*` 环境变量读取运行配置。原生包启�
 | `LINGSHU_GATE_LOG_PAYLOADS` | `false` | `false` | Payload 可能含敏感数据，应保持关闭 |
 | `LINGSHU_GATE_REQUEST_TIMEOUT_SECONDS` | `30` | `30` | 下游请求时间上限 |
 | `LINGSHU_GATE_STARTUP_TIMEOUT_SECONDS` | `30` | `30` | 下游启动和发现时间上限 |
+| `LINGSHU_GATE_MCP_MAX_MESSAGE_BYTES` | `33554432`（32 MiB） | 同左 | stdio 单条收发消息、HTTP JSON 响应与 SSE 整段响应/单事件的字节上限；允许 1–268435456 字节，重启 Gate 生效，不能用 0 关闭保护 |
 | `LINGSHU_GATE_MCP_GATEWAY_ENABLED` | `true` | `true` | 控制 `/mcp` 路由 |
 | `LINGSHU_GATE_RUNTIME_TOOLCHAIN_PATHS` | `{}` | 未设置 | 服务端管理员维护的 JSON 注册表，登记复核过的绝对 Node 与 npm/pnpm/Yarn JS CLI 路径，仅用于固定版本本地启动，不由项目提供 |
 

@@ -22,6 +22,7 @@ Lingshu Gate reads runtime configuration from `LINGSHU_GATE_*` environment varia
 | `LINGSHU_GATE_LOG_PAYLOADS` | `false` | `false` | Payloads can contain sensitive data; leave disabled |
 | `LINGSHU_GATE_REQUEST_TIMEOUT_SECONDS` | `30` | `30` | Bound for downstream requests |
 | `LINGSHU_GATE_STARTUP_TIMEOUT_SECONDS` | `30` | `30` | Bound for downstream startup and discovery |
+| `LINGSHU_GATE_MCP_MAX_MESSAGE_BYTES` | `33554432` (32 MiB) | Same | Byte limit for each stdio message, HTTP JSON response, and SSE response/event; accepts 1–268435456 bytes, requires a Gate restart, and cannot be disabled with 0 |
 | `LINGSHU_GATE_MCP_GATEWAY_ENABLED` | `true` | `true` | Controls the `/mcp` route |
 | `LINGSHU_GATE_RUNTIME_TOOLCHAIN_PATHS` | `{}` | Unset | Service-owned JSON registry of reviewed absolute Node and npm/pnpm/Yarn JS CLI paths for pinned local startup; never supplied by a project |
 

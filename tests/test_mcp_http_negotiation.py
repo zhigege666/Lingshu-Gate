@@ -177,8 +177,10 @@ def test_transport_failures_do_not_negotiate(tmp_path, failure):
 def test_oversized_http_error_is_closed_without_initializing(tmp_path):
     client = http_client(tmp_path, "https://mcp.example.test/mcp", None)
     error = http_error(declared_length=1024)
-    with patch("lingshu_gate.mcp_http_client.MAX_HTTP_RESPONSE_BYTES", 128), \
-         patch.object(client._opener, "open", side_effect=error) as opened:
+    from dataclasses import replace
+
+    client.settings = replace(client.settings, mcp_max_message_bytes=128)
+    with patch.object(client._opener, "open", side_effect=error) as opened:
         with pytest.raises(McpProtocolError, match="HTTP 400"):
             client.start()
     assert error.fp.closed and opened.call_count == 1

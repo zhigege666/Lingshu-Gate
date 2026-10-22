@@ -64,6 +64,8 @@ class Settings:
     log_level: str = "INFO"
     mcp_request_timeout_seconds: int = 30
     mcp_startup_timeout_seconds: int = 30
+    # 按 UTF-8 协议消息计量，为图片 Base64 留出空间，同时保留有限内存边界。
+    mcp_max_message_bytes: int = 32 * 1024 * 1024
     mcp_log_payloads: bool = False
     # Browser-originated MCP requests are accepted only from this explicit list.
     # Non-browser clients normally omit Origin and are unaffected.
@@ -82,6 +84,8 @@ class Settings:
     telemetry: TelemetryConfig = field(default_factory=TelemetryConfig)
 
     def __post_init__(self) -> None:
+        if type(self.mcp_max_message_bytes) is not int or not 1 <= self.mcp_max_message_bytes <= 256 * 1024 * 1024:
+            raise ValueError("mcp_max_message_bytes must be an integer between 1 and 268435456 bytes")
         if not isinstance(self.runtime_toolchain_paths, Mapping) or any(
             name not in {"node", "npm", "pnpm", "yarn"}
             or not isinstance(path, str) or not Path(path).is_absolute()
@@ -146,6 +150,9 @@ class Settings:
             ),
             mcp_startup_timeout_seconds=int(
                 os.getenv("LINGSHU_GATE_STARTUP_TIMEOUT_SECONDS", str(cls.mcp_startup_timeout_seconds))
+            ),
+            mcp_max_message_bytes=int(
+                os.getenv("LINGSHU_GATE_MCP_MAX_MESSAGE_BYTES", str(cls.mcp_max_message_bytes))
             ),
             mcp_log_payloads=os.getenv(
                 "LINGSHU_GATE_LOG_PAYLOADS",

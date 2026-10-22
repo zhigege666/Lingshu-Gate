@@ -43,7 +43,6 @@ logger = logging.getLogger(__name__)
 
 LogSink = Callable[[str, str, str, dict[str, Any]], None]
 
-MAX_STDIO_MESSAGE_BYTES = 8 * 1024 * 1024
 MAX_TOOL_LIST_PAGES = 100
 MAX_DISCOVERED_TOOLS = 10_000
 
@@ -400,9 +399,9 @@ class StdioMcpClient:
             raise RuntimeError("MCP stdio process is not running")
         encoded = json.dumps(message, ensure_ascii=False, separators=(",", ":"))
         encoded_size = len(encoded.encode("utf-8")) + 1
-        if encoded_size > MAX_STDIO_MESSAGE_BYTES:
+        if encoded_size > self.settings.mcp_max_message_bytes:
             raise McpProtocolError(
-                f"MCP stdio message exceeded the {MAX_STDIO_MESSAGE_BYTES}-byte limit"
+                f"MCP stdio message exceeded the {self.settings.mcp_max_message_bytes}-byte limit"
             )
         with self._lock:
             self.process.stdin.write(encoded + "\n")
@@ -420,11 +419,11 @@ class StdioMcpClient:
         assert self.process and self.process.stdout
         for line, oversized in _iter_bounded_text_lines(
             self.process.stdout,
-            MAX_STDIO_MESSAGE_BYTES,
+            self.settings.mcp_max_message_bytes,
         ):
             if oversized:
                 self._set_fatal_protocol_error(
-                    f"MCP stdio message exceeded the {MAX_STDIO_MESSAGE_BYTES}-byte limit"
+                    f"MCP stdio message exceeded the {self.settings.mcp_max_message_bytes}-byte limit"
                 )
                 break
             raw = line.rstrip("\n")
@@ -475,7 +474,7 @@ class StdioMcpClient:
         assert self.process and self.process.stderr
         for line, oversized in _iter_bounded_text_lines(
             self.process.stderr,
-            MAX_STDIO_MESSAGE_BYTES,
+            self.settings.mcp_max_message_bytes,
         ):
             if oversized:
                 safe_raw = "[MCP stderr line exceeded the size limit]"
@@ -492,7 +491,7 @@ class StdioMcpClient:
                     "warning",
                     "MCP stderr line exceeded the size limit",
                     "gate.mcp.stdio_stderr_limit_exceeded",
-                    {"stream": "stderr", "limit_bytes": MAX_STDIO_MESSAGE_BYTES},
+                    {"stream": "stderr", "limit_bytes": self.settings.mcp_max_message_bytes},
                 )
                 continue
             raw = line.rstrip("\n")
@@ -531,13 +530,13 @@ class StdioMcpClient:
             "gate.mcp.stdio_message_limit_exceeded",
             "MCP stdio message exceeded the size limit",
             server_id=self.manifest.id,
-            limit_bytes=MAX_STDIO_MESSAGE_BYTES,
+            limit_bytes=self.settings.mcp_max_message_bytes,
         )
         self._store_log(
             "error",
             "MCP stdio message exceeded the size limit",
             "gate.mcp.stdio_message_limit_exceeded",
-            {"stream": "stdout", "limit_bytes": MAX_STDIO_MESSAGE_BYTES},
+            {"stream": "stdout", "limit_bytes": self.settings.mcp_max_message_bytes},
         )
         process = self.process
         if process is not None and process.poll() is None:

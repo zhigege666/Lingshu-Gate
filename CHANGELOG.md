@@ -2,6 +2,13 @@
 
 ## Unreleased
 
+## 0.5.3
+
+- Make downstream MCP message budgets configurable with `LINGSHU_GATE_MCP_MAX_MESSAGE_BYTES`, defaulting to 33,554,432 bytes (32 MiB). Apply the same budget to stdio messages, HTTP JSON responses and SSE responses/events.
+- Reject invalid budgets outside 1–268,435,456 bytes, including zero; preserve response deadlines, discovery paging, event-count bounds and fail-closed oversized-message handling.
+- Cover large image-shaped responses above the previous 8 MiB limit, subsequent responses, custom small budgets and invalid configuration with transport regressions. Expose the setting in native and Compose examples and paired configuration guides.
+- Retain the 0.5.2 business-credential features and upgrade requirements. This patch adds no database migration or runtime dependency over 0.5.2. Existing tags remain immutable.
+
 ## 0.5.2
 
 - Add personal and shared business accounts to the existing credentials pages, with encrypted usernames/passwords, masked responses, environment/business-role labels and explicit user/role grants.
