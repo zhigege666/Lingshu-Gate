@@ -28,6 +28,8 @@ Invocation identity comparison treats authority collections as sets, while proof
 
 Security fixes target the latest published release and the `main` branch. Older releases may require upgrading to receive a fix. Release archives and container images should be obtained from the repository's official Releases and package pages and verified by digest.
 
+certifi must be 2026.10.19 or later to address [GHSA-6q48-6c7w-9gw2](https://github.com/advisories/GHSA-6q48-6c7w-9gw2). Source installs enforce this floor and locked releases include the updated CA bundle; rebuild old images and packages rather than disabling TLS verification. MCP message budgets default to 32 MiB and remain bounded by administrator configuration; see [configuration](docs/configuration.md).
+
 ## Deployment boundary
 
 - Bind directly to loopback. Put remote access behind an HTTPS reverse proxy and expose only required routes.

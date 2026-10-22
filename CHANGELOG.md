@@ -2,6 +2,11 @@
 
 ## Unreleased
 
+## 0.5.4
+
+- Require certifi 2026.10.19 or later and refresh only its locked version and hashes to address GHSA-6q48-6c7w-9gw2. Keep TLS certificate verification enabled.
+- Retain the configurable 32 MiB MCP message budget from 0.5.3 and the business-credential features from 0.5.2. No database migration is added over 0.5.3; existing tags remain immutable.
+
 ## 0.5.3
 
 - Make downstream MCP message budgets configurable with `LINGSHU_GATE_MCP_MAX_MESSAGE_BYTES`, defaulting to 33,554,432 bytes (32 MiB). Apply the same budget to stdio messages, HTTP JSON responses and SSE responses/events.
