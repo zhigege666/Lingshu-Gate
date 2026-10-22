@@ -17,6 +17,7 @@ from lingshu_gate.interfaces.control_api.dependencies import AuthDependency
 from lingshu_gate.mcp_config_store import McpConfigConflict, McpConfigStore
 from lingshu_gate.mcp_http_trust import McpHttpTrustConflict, McpHttpTrustDenied, McpHttpTrustUpdate
 from lingshu_gate.mcp_manifest_validation import validate_mcp_manifest
+from lingshu_gate.mcp_manifest import with_new_manifest_defaults
 from lingshu_gate.models import (
     McpConfigApplyResponse,
     McpConfigListResponse,
@@ -150,7 +151,7 @@ def register_mcp_config_routes(
         result = validate_mcp_manifest(
             settings,
             mcp_config_store,
-            request.manifest,
+            with_new_manifest_defaults(request.manifest),
         )
         record_validation(result)
         return result

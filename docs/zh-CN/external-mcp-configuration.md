@@ -20,7 +20,7 @@
 
 仅接受 `launch.type=external` 与 `transport.type=streamable_http`。拒绝未知字段、命令、工作目录、挂载、构建元数据、roots、analysis 与权限修改。Header 只使用已有托管凭据引用，例如 `Bearer ${credential:example-binding}`；禁止传入秘密值。新增个人凭据槽应另行配置；更新可以保留已有声明。
 
-新 manifest 默认 `enabled=true`、`auto_start=false`、`startup_policy=gate_start_v1`，下游超时 120 秒。启用表示允许连接，不表示已连接。未来 Gate 启动策略与本次 `connect` 独立。保留 HTTPS 验证、禁止重定向及现有地址限制。内网 HTTP 必须已有独立批准且绑定精确服务/IP/端口的信任记录；计划不能创建或扩大信任。
+新 manifest 默认 `enabled=true`、`auto_start=true`、`startup_policy=gate_start_v1`，下游超时 120 秒。明确指定的 `auto_start=false` 或 `startup_policy=legacy_restore` 会保留。启用表示允许连接，不表示已连接。未来 Gate 启动策略与本次 `connect` 独立。保留 HTTPS 验证、禁止重定向及现有地址限制。内网 HTTP 必须已有独立批准且绑定精确服务/IP/端口的信任记录；计划不能创建或扩大信任。
 
 ## 计划与应用
 

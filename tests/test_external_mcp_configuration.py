@@ -237,7 +237,7 @@ def test_console_cookie_can_still_use_ordinary_tools_through_generic_entries(gat
 def test_offline_plan_and_save_do_not_connect_or_start_remote(gate):
     plan = planned(gate)
     assert plan["validation"]["ok"] and plan["probe"]["network_contacted"] is False
-    assert plan["manifest"]["enabled"] is True and plan["manifest"]["auto_start"] is False
+    assert plan["manifest"]["enabled"] is True and plan["manifest"]["auto_start"] is True
     assert not gate["calls"] and not gate["app"].state.mcp_config_store.list_configs().configs
     result = wait(gate, gate["service"].apply(apply_arguments(plan), gate["context"])["operation_id"])
     assert result["status"] == "success" and result["config_applied"] is True

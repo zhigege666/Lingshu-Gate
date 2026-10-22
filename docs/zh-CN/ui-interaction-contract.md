@@ -154,7 +154,8 @@ Schema 变化、迟到响应和刷新不得覆盖 dirty 草稿。参数撤销不
 - Gate 启动策略与启用独立。两种模式统一显示“Gate 启动时自动启动”；managed
   说明为“自动启动 MCP 进程并连接”，external 说明为“自动建立连接，不启动
   远端进程”。不负责远程进程或操作系统开机自启。
-  缺省 `startup_policy` 保留 `legacy_restore`；明确修改开关才采用
+  新建模板默认 `gate_start_v1` 和 `auto_start=true`。已有文件
+  缺省 `startup_policy` 保留 `legacy_restore`；明确修改开关采用
   `gate_start_v1`。下次 Gate 进程启动时按 enabled 与 auto_start 一次设置本轮
   意图；手动动作随后控制当前运行，不改变下次启动策略。迁移前说明旧行为。
   不支持的 restart/health

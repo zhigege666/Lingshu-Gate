@@ -169,8 +169,9 @@ and authorization/draft safeguards remain in force.
 - Startup policy is separate from enabled state. Both modes use **Start
   automatically when Gate starts**. The managed-mode helper says **Start the MCP
   process automatically and connect**; the external-mode helper says **Connect
-  automatically without starting a remote process**. Missing `startup_policy`
-  retains `legacy_restore`; only an explicit startup switch edit selects
+  automatically without starting a remote process**. New templates default to
+  `gate_start_v1` and `auto_start=true`. In existing files, missing `startup_policy`
+  retains `legacy_restore`; an explicit startup switch edit selects
   `gate_start_v1`. At the next Gate process start the new policy follows enabled
   and auto_start once; manual actions then control the current process without
   changing its next startup policy. Explain legacy behavior until migration.

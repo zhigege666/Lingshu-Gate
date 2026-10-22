@@ -27,7 +27,7 @@ from lingshu_gate.database import SQLiteDatabase
 from lingshu_gate.domain.operation_deadline import TimedLock, check_operation, operation_lock
 from lingshu_gate.mcp_config_store import McpConfigConflict, McpConfigStore
 from lingshu_gate.mcp_http_client import StreamableHttpMcpClient
-from lingshu_gate.mcp_manifest import PROTECTED_HTTP_HEADERS, McpServerManifest, validate_manifest_for_write
+from lingshu_gate.mcp_manifest import PROTECTED_HTTP_HEADERS, McpServerManifest, validate_manifest_for_write, with_new_manifest_defaults
 from lingshu_gate.mcp_manifest_validation import validate_mcp_manifest
 from lingshu_gate.mcp_runtime import McpRuntimeManager
 from lingshu_gate.models import McpConfigSaveRequest
@@ -281,7 +281,10 @@ class ExternalMcpConfigurationService:
         if len(_json(data).encode()) > 65536:
             raise _error("external_config_invalid", "External manifest exceeds the size limit.")
         data.setdefault("enabled", True)
-        data.setdefault("auto_start", False)
+        if body.mode == "create":
+            data = with_new_manifest_defaults(data)
+        else:
+            data.setdefault("auto_start", False)
         data.setdefault("startup_policy", "gate_start_v1")
         data.setdefault("timeout_seconds", 120)
         try:

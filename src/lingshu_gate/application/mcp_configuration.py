@@ -15,7 +15,7 @@ from typing import Any
 
 from lingshu_gate.application.manifest_edit import restore_masked_mounts
 from lingshu_gate.endpoint_security import REDACTED_ENDPOINT
-from lingshu_gate.mcp_manifest import McpServerManifest, validate_manifest_for_write
+from lingshu_gate.mcp_manifest import McpServerManifest, validate_manifest_for_write, with_new_manifest_defaults
 from lingshu_gate.models import McpConfigApplyResponse, McpConfigSaveRequest
 from lingshu_gate.persistence.mcp_groups import McpGroupStore
 from lingshu_gate.ports.control_plane import (
@@ -82,6 +82,8 @@ class McpConfigurationService:
             if existing_server_id
             else None,
         )
+        if existing_server_id is None:
+            manifest_data = with_new_manifest_defaults(manifest_data)
         manifest = validate_manifest_for_write(manifest_data, http_trust_store=getattr(self._config_store, "http_trust_store", None))
         values = dict(request.user_credential_values)
         declared_slots = {slot.id for slot in manifest.user_credentials}

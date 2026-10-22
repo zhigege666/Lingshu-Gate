@@ -68,17 +68,18 @@ Manifests are YAML or JSON objects stored in `mcp.d`. The file name is not the i
 
 ### Gate startup policy
 
-The Console's normal new-MCP template defaults to `enabled=true`,
-`startup_policy=gate_start_v1` and `auto_start=false`. Enabled permits a later
-start; it does not apply a draft or immediately connect. Users can explicitly
+New configurations created through the Console, REST API or external-MCP tools
+default to `enabled=true`, `startup_policy=gate_start_v1` and `auto_start=true`.
+Explicit `auto_start=false` or `startup_policy=legacy_restore` remains unchanged.
+Saving does not apply a draft or immediately connect. Users can explicitly
 disable a draft. Existing configurations and imported JSON with `enabled=false`
 retain that value, including when changing runtime mode. The disabled-service
 hint opens the existing editor without enabling, saving or changing HTTP trust.
 Applying without starting can return `loaded`, `external` or `stopped`; success
 requires the intended configuration and a confirmed non-running runtime.
 
-`enabled=false` prevents every start or connection. `startup_policy` defaults
-to `legacy_restore`, preserving historical restoration of the last saved runtime
+`enabled=false` prevents every start or connection. When reading existing files,
+a missing `startup_policy` defaults to `legacy_restore`, preserving historical restoration of the last saved runtime
 intent. Editing a name, address or other ordinary field does not migrate it.
 Explicitly changing **Start automatically when Gate starts** writes
 `startup_policy=gate_start_v1`. On the next Gate process start, `auto_start=true`

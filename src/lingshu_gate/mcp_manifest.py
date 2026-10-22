@@ -377,6 +377,14 @@ class McpServerManifest(BaseModel):
         return data
 
 
+def with_new_manifest_defaults(data: dict[str, Any]) -> dict[str, Any]:
+    """新建入口默认自启；显式关闭和旧策略保留，历史文件加载不调用此函数。"""
+    result = dict(data)
+    result.setdefault("startup_policy", "gate_start_v1")
+    result.setdefault("auto_start", result["startup_policy"] == "gate_start_v1")
+    return result
+
+
 _BOOLEAN_FLAG = TypeAdapter(bool)
 
 

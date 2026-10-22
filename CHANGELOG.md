@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+## 0.5.5
+
+- Default new Console, REST and external-MCP configurations to automatic startup with `gate_start_v1`; preserve explicit opt-outs, explicitly selected legacy policy and historical file-loading behavior. Saving a configuration does not start the instance.
+
 ## 0.5.4
 
 - Require certifi 2026.10.19 or later and refresh only its locked version and hashes to address GHSA-6q48-6c7w-9gw2. Keep TLS certificate verification enabled.

@@ -68,15 +68,16 @@ Manifest 是存放在 `mcp.d` 中的 YAML 或 JSON 对象。文件名不是身�
 
 ### Gate 启动策略
 
-Console 正常新建 MCP 模板默认 `enabled=true`、
-`startup_policy=gate_start_v1`、`auto_start=false`。启用允许之后启动，
-不代表应用草稿或立即连接。用户仍可明确停用草稿；已有配置和导入 JSON
+Console、REST API 和外部 MCP 工具的新建配置默认 `enabled=true`、
+`startup_policy=gate_start_v1`、`auto_start=true`。明确指定的 `auto_start=false`
+或 `startup_policy=legacy_restore` 会保留。保存不代表应用草稿或立即连接。
+用户仍可明确停用草稿；已有配置和导入 JSON
 中明确的 `enabled=false` 会保留，切换运行方式也不会覆盖。停用提示会打开
 现有编辑器，不自动启用、保存或更改 HTTP 信任。应用但不启动可以返回
 `loaded`、`external` 或 `stopped`；成功要求配置身份匹配，并确认运行实例
 没有启动。
 
-`enabled=false` 阻止所有启动和连接。`startup_policy` 缺省为
+`enabled=false` 阻止所有启动和连接。读取已有文件时，`startup_policy` 缺省为
 `legacy_restore`，保留历史的“恢复上次保存运行意图”行为；修改名称、地址或其他
 普通字段不迁移策略。明确修改“Gate 启动时自动启动”开关才写入
 `startup_policy=gate_start_v1`。下次 Gate 进程启动时，`auto_start=true` 启动受管

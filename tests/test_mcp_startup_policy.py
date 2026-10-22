@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import json
 from pathlib import Path
 from typing import Any
 from unittest.mock import Mock, patch
@@ -123,7 +124,9 @@ def test_name_or_endpoint_edits_do_not_migrate_legacy_policy(tmp_path: Path) -> 
     settings, store, states = _setup(tmp_path)
     payload = _manifest(external=True, auto_start=False, policy="legacy_restore")
     payload.pop("startup_policy")
-    store.save_config(payload)
+    # 直接构造旧文件；新建入口现在会补齐新策略，不能用它模拟历史文件。
+    settings.config_dir.mkdir(parents=True, exist_ok=True)
+    (settings.config_dir / "synthetic-startup.json").write_text(json.dumps(payload), encoding="utf-8")
     states.set("synthetic-startup", "running", source="user")
     updated = store.load_manifest("synthetic-startup").model_dump(mode="json", exclude={"manifest_path"})
     updated["name"] = "Renamed synthetic service"

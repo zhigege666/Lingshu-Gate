@@ -20,7 +20,7 @@ Use an active Gate administrator's Console session, an explicitly scoped Gate AP
 
 Only `launch.type=external` with `transport.type=streamable_http` is accepted. Unknown fields, commands, working directories, mounts, build metadata, roots, analysis and permission changes are rejected. Use only existing managed credential references in headers, for example `Bearer ${credential:example-binding}`; never provide secret values. New personal credential slots must be configured separately. Existing personal slot declarations can be preserved during update.
 
-New manifests default to `enabled=true`, `auto_start=false`, `startup_policy=gate_start_v1` and a 120-second downstream timeout. Enabled means available for connection; it does not mean connected. Future Gate startup policy is separate from this apply's `connect` choice. HTTPS verification, denied redirects and current endpoint restrictions remain. Private HTTP requires the separately approved exact service/IP/port trust record; planning cannot create or expand trust.
+New manifests default to `enabled=true`, `auto_start=true`, `startup_policy=gate_start_v1` and a 120-second downstream timeout. Explicit `auto_start=false` or `startup_policy=legacy_restore` remains unchanged. Enabled means available for connection; it does not mean connected. Future Gate startup policy is separate from this apply's `connect` choice. HTTPS verification, denied redirects and current endpoint restrictions remain. Private HTTP requires the separately approved exact service/IP/port trust record; planning cannot create or expand trust.
 
 ## Plan and apply
 

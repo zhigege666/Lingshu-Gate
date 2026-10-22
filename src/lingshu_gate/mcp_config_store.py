@@ -20,7 +20,7 @@ from lingshu_gate.application.manifest_edit import restore_masked_mounts
 from lingshu_gate.domain.dispatch_lock import DispatchLock
 from lingshu_gate.logging import log_event
 from lingshu_gate.endpoint_security import REDACTED_ENDPOINT
-from lingshu_gate.mcp_manifest import McpServerManifest, validate_manifest_for_write
+from lingshu_gate.mcp_manifest import McpServerManifest, validate_manifest_for_write, with_new_manifest_defaults
 from lingshu_gate.mcp_http_trust import McpHttpTrustStore, require_mcp_http_endpoint
 from lingshu_gate.mcp_authorization_policy import record_config_identity, server_binding
 from lingshu_gate.models import McpConfigListResponse, McpConfigResponse
@@ -193,6 +193,8 @@ class McpConfigStore:
         if existing_path:
             existing_raw = self._load_raw(existing_path)
             manifest_data = self._preserve_masked_env(manifest_data, existing_raw)
+        else:
+            manifest_data = with_new_manifest_defaults(manifest_data)
 
         manifest = _validate_manifest(manifest_data, for_write=True, http_trust_store=self.http_trust_store)
         replace_identity = existing_path is None

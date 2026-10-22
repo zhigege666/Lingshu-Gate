@@ -30,7 +30,7 @@
 
 ### 已发布 Docker 本机试用
 
-校验并解压 `lingshu-gate-v0.5.4-docker-compose.tar.gz`，进入该目录后执行：
+校验并解压 `lingshu-gate-v0.5.5-docker-compose.tar.gz`，进入该目录后执行：
 
 ```bash
 cp .env.quickstart.example .env.quickstart
@@ -65,9 +65,9 @@ uv run lingshu-gate
 
 核对成功审计、写入拒绝且计数不变、错误修订拒绝、demo 停止/恢复和调用者撤销。Gate 启动、工具发现、分类确认、发布分别进行；访问仍须同时满足资源权限和 token scope。
 
-## 0.5.4 版本
+## 0.5.5 版本
 
-本版要求 certifi 2026.10.19 或更高版本，修复 GHSA-6q48-6c7w-9gw2，并保留可配置 MCP 消息上限，默认 32 MiB，支持 stdio、HTTP JSON 和 SSE；保留超限保护、截止时间与分页限制。设置 `LINGSHU_GATE_MCP_MAX_MESSAGE_BYTES` 后需重启 Gate。相对 0.5.3 不新增迁移，仅升级已有 certifi 依赖，升级旧版本时仍需一致备份数据库、配置和全部凭据密钥。下方功能及边界从 0.5.2 延续，详见[变更记录](CHANGELOG.zh-CN.md)和[双语发行说明](packaging/release-notes.md)。
+Console、REST 和外部 MCP 新建配置默认 `enabled=true`、`auto_start=true` 和 `startup_policy=gate_start_v1`。保留明确关闭及历史文件加载行为，单独保存不会启动实例。相对 0.5.4 不增加依赖或数据库迁移，继续保留 certifi 安全基线、可配置 32 MiB MCP 消息上限及业务凭据功能。升级前应一致备份数据库、配置和全部凭据密钥。详见[变更记录](CHANGELOG.zh-CN.md)和[双语发行说明](packaging/release-notes.md)。
 
 本版在现有凭据页面增加个人和共享业务账号，支持环境与业务角色标签、明确的用户/角色授权、MCP 实例绑定及每个目标的同步状态。首个适配器接通专用 agent-browser 密码库，Agent 使用 `gate:<credential-id>` 引用和明确的会话。本版同时修复工具审核中长 MCP 名称与状态标识的布局，以及已删除 MCP 的工具仍出现在当前治理目录的问题，审计历史继续保留。参见[变更记录](CHANGELOG.zh-CN.md)和[双语发行说明](packaging/release-notes.md)。
 

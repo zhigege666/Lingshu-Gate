@@ -30,7 +30,7 @@ Open [http://127.0.0.1:8000/](http://127.0.0.1:8000/). Read `data/initial-admin-
 
 ### Released Docker trial
 
-Verify and extract `lingshu-gate-v0.5.4-docker-compose.tar.gz`, enter that directory and run:
+Verify and extract `lingshu-gate-v0.5.5-docker-compose.tar.gz`, enter that directory and run:
 
 ```bash
 cp .env.quickstart.example .env.quickstart
@@ -65,9 +65,9 @@ The [included demo walkthrough](docs/first-call.md) needs no external service ac
 
 Check the successful audit, deny a write with an unchanged counter, reject an invalid revision, stop/restart the demo and revoke the caller. Gate startup, tool discovery, classification confirmation and publication are separate steps; access still requires both resource grants and token scope.
 
-## 0.5.4 release
+## 0.5.5 release
 
-This release requires certifi 2026.10.19 or later to address GHSA-6q48-6c7w-9gw2 and retains configurable downstream MCP message budgets, defaulting to 32 MiB for stdio, HTTP JSON and SSE while retaining oversized-message protection, deadlines and paging limits. Restart Gate after changing `LINGSHU_GATE_MCP_MAX_MESSAGE_BYTES`. There are no new migrations over 0.5.3; the existing certifi dependency is upgraded; older upgrades still require a consistent database, configuration and credential-key backup. The following features and boundaries continue from 0.5.2. See [changes](CHANGELOG.md) and the [bilingual release notes](packaging/release-notes.md).
+New Console, REST and external-MCP configurations default to `enabled=true`, `auto_start=true` and `startup_policy=gate_start_v1`. Explicit opt-outs and historical file-loading behavior are preserved; saving alone does not start an instance. There are no new dependencies or migrations over 0.5.4. The certifi security baseline, configurable 32 MiB MCP message budget and business-credential features remain. Back up the database, configuration and credential keys consistently before upgrading. See [changes](CHANGELOG.md) and the [bilingual release notes](packaging/release-notes.md).
 
 This release adds personal and shared business accounts to the existing credentials pages, with environment and business-role labels, explicit user/role grants, MCP instance bindings and synchronization status for each target. The first adapter connects a dedicated agent-browser vault: agents use a `gate:<credential-id>` reference and an explicit session. It also fixes long MCP names and status badges in tool review, and removes deleted MCP tools from the current governance catalog while retaining audit history. See [changes](CHANGELOG.md) and the [bilingual release notes](packaging/release-notes.md).
 

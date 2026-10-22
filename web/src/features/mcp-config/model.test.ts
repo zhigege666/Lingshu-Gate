@@ -20,18 +20,18 @@ import {
 const copy = (key: ManifestPrecheckMessageKey) => key
 
 describe("MCP config model", () => {
-  it("enables new drafts independently of startup and preserves explicit disable across every form mode", () => {
+  it("新建默认启用自启，并在切换表单模式时保留明确关闭", () => {
     const draft = createMcpConfigTemplate()
-    expect(draft).toMatchObject({ enabled: true, auto_start: false, startup_policy: "gate_start_v1" })
+    expect(draft).toMatchObject({ enabled: true, auto_start: true, startup_policy: "gate_start_v1" })
     for (const mode of ["external_http", "managed_stdio", "managed_http", "managed_container_stdio"] as const) {
-      expect(changeRuntimeMode(draft, mode)).toMatchObject({ enabled: true, auto_start: false, startup_policy: "gate_start_v1" })
-      const disabled = parseManifest(JSON.stringify({ ...draft, enabled: false }))
-      expect(changeRuntimeMode(disabled, mode).enabled).toBe(false)
+      expect(changeRuntimeMode(draft, mode)).toMatchObject({ enabled: true, auto_start: true, startup_policy: "gate_start_v1" })
+      const disabled = parseManifest(JSON.stringify({ ...draft, enabled: false, auto_start: false }))
+      expect(changeRuntimeMode(disabled, mode)).toMatchObject({ enabled: false, auto_start: false })
     }
     const next = createMcpConfigTemplate()
     draft.enabled = false
     draft.launch!.type = "managed_process"
-    expect(next).toMatchObject({ enabled: true, launch: { type: "external" }, auto_start: false })
+    expect(next).toMatchObject({ enabled: true, launch: { type: "external" }, auto_start: true })
   })
   it("accepts only a JSON object as the manifest root", () => {
     expect(parseManifest('{"id":"demo"}')).toMatchObject({ id: "demo" })
