@@ -2,6 +2,7 @@
 
 ## 0.5.6
 
+- Preserve the offline stdio-validation boundary when HTTP permission planning is enabled; invalid managed launch programs still produce structured checks without executing them.
 - Patch the frontend lock to Vite 8.3.3 and fast-uri 3.1.9 for the published editor-command, development-server and URI-normalization advisories; no new direct dependency is added.
 - Split the complete formal backend/release test collection across four deterministic, required quality shards. This addresses the prior 40-minute sequential timeout without skipping tests or reducing scale fixtures; empty shards and collection/test failures remain failures.
 - Add guided HTTP authentication presets (None, Bearer, API Key, Basic and Custom), a draft-only Home shortcut, generated credential IDs and automatic header references. Preserve unfinished secret inputs, report credential-list failures explicitly, retain custom headers, and move connection summaries into the editor with a 1200 px dialog and three primary footer actions. No new dependency, database migration or automatic authorization expansion.

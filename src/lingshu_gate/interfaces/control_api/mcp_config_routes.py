@@ -206,6 +206,12 @@ def register_mcp_config_routes(
 
     def prepare_http_plan(request: McpConfigSaveWithHttpTrustRequest, http_request: Request, *,
                           existing_server_id: str | None = None, validation_only: bool = False) -> dict[str, Any] | None:
+        transport = request.manifest.get("transport")
+        if validation_only and isinstance(transport, dict) and transport.get("type") == "stdio":
+            # A stdio precheck has no HTTP permission to plan. Preserve its
+            # offline, non-application-service boundary, including invalid
+            # launch programs which the structured validator reports below.
+            return None
         try:
             plan = configuration_service.plan_http_save(request.manifest, existing_server_id=existing_server_id,
                 action=request.http_trust_action, expected_revision=request.expected_http_trust_revision)

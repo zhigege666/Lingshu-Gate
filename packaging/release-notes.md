@@ -6,6 +6,8 @@
 
 ### Changes
 
+- Keep stdio-only configuration validation offline and outside HTTP permission planning. Invalid launch programs remain structured precheck errors and are not executed.
+
 - Patch Vite to 8.3.3 and fast-uri to 3.1.9 for published security advisories. This includes the Windows editor-command issue in GHSA-587h-7wmj-h5pm and the URI normalization issues fixed by fast-uri 3.1.9. The updated lock has no remaining entries in the official npm advisory response at release preparation; this is not a permanent or whole-system security guarantee.
 
 - Add guided **None / Bearer Token / API Key / Basic / Custom** authentication. Select an existing target-scoped credential or create one inline; a successful selection generates the reference-based header directly, without an extra Add step. New credential IDs are generated and remain editable. Bearer accepts one pasted prefix; Basic takes username/password and handles encoding. Unknown or multiple authentication headers remain Custom, and unrelated headers survive edits.
@@ -41,6 +43,8 @@ See [HTTP setup and testing](../docs/http-mcp-connection-testing.md), [external 
 0.5.6 改善外部 HTTP MCP 接入体验，不再要求用户手写常见鉴权头，同时补齐外部配置与加密共享凭据的管理员 MCP 管理能力。连接测试、配置保存、运行时连接、工具发现和工具发布仍是独立操作。
 
 ### 变更
+
+- 保持 stdio 配置校验离线，不进入 HTTP 许可规划；无效启动程序仍返回结构化预检查错误，不执行程序。
 
 - 将 Vite 更新到 8.3.3、fast-uri 更新到 3.1.9，修复已公布的安全告警，包含 GHSA-587h-7wmj-h5pm 的 Windows 编辑器命令问题及 fast-uri 3.1.9 修复的 URI 规范化问题。发布准备时，官方 npm 告警接口对更新后的锁文件返回零条记录；这不代表永久或整个系统的安全保证。
 
