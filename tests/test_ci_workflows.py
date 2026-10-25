@@ -152,5 +152,5 @@ def test_browser_smoke_runs_before_the_long_backend_suite_without_removing_check
     for name in ("Test Console against isolated real backend", "Verify backend on Python 3.12"):
         step = steps[positions[name]]
         assert "if" not in step and "continue-on-error" not in step
-    assert "timeout --kill-after=5 180" in steps["Test Console against isolated real backend"]["run"]
-    assert "pytest -q" in steps["Verify backend on Python 3.12"]["run"]
+    assert "timeout --kill-after=5 180" in steps[positions["Test Console against isolated real backend"]]["run"]
+    assert "pytest -q" in steps[positions["Verify backend on Python 3.12"]]["run"]
