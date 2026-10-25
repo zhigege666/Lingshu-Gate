@@ -128,7 +128,16 @@ def test_formal_release_retains_its_own_complete_source_validation() -> None:
     ):
         assert steps[name]["if"] == "github.event_name != 'pull_request'"
     commands = steps["Verify backend and release engineering"]["run"]
-    assert "ruff check ." in commands and "mypy" in commands and "pytest -q" in commands
+    assert "ruff check ." in commands and "mypy" in commands
+    assert "python -m scripts.quality.pytest_shard" in commands
+    assert '--index "${{ matrix.shard }}" --count 4' in commands
+    assert "-- -q" in commands and "--ignore" not in commands and " -k " not in commands
+    quality = workflow["jobs"]["quality"]
+    assert quality["strategy"]["matrix"]["shard"] == ["0", "1", "2", "3"]
+    assert quality["strategy"]["fail-fast"] == "false"
+    assert "continue-on-error" not in quality
+    for target in ("native", "docker-compose", "docker-publish"):
+        assert "quality" in workflow["jobs"][target]["needs"]
     assert steps["Verify release engineering on pull requests"]["if"] == "github.event_name == 'pull_request'"
     assert "tests/test_release_packaging.py" in steps["Verify release engineering on pull requests"]["run"]
 
@@ -137,11 +146,11 @@ def test_browser_smoke_runs_before_the_long_backend_suite_without_removing_check
     steps = _workflow("backend.yml")["jobs"]["source"]["steps"]
     positions = {step["name"]: index for index, step in enumerate(steps)}
     assert positions["Verify and build Console once"] < positions["Install browser for isolated smoke"]
-    assert positions["Install frozen dependencies"] < positions["Install browser for isolated smoke"]
+    assert positions["Install frozen dependencies"] < positions["Test Console against isolated real backend"]
     assert positions["Install browser for isolated smoke"] < positions["Test Console against isolated real backend"]
     assert positions["Test Console against isolated real backend"] < positions["Verify backend on Python 3.12"]
     for name in ("Test Console against isolated real backend", "Verify backend on Python 3.12"):
         step = steps[positions[name]]
         assert "if" not in step and "continue-on-error" not in step
-    assert "timeout --kill-after=5 180" in steps[positions["Test Console against isolated real backend"]]["run"]
-    assert "pytest -q" in steps[positions["Verify backend on Python 3.12"]]["run"]
+    assert "timeout --kill-after=5 180" in steps["Test Console against isolated real backend"]["run"]
+    assert "pytest -q" in steps["Verify backend on Python 3.12"]["run"]
