@@ -128,7 +128,16 @@ def test_formal_release_retains_its_own_complete_source_validation() -> None:
     ):
         assert steps[name]["if"] == "github.event_name != 'pull_request'"
     commands = steps["Verify backend and release engineering"]["run"]
-    assert "ruff check ." in commands and "mypy" in commands and "pytest -q" in commands
+    assert "ruff check ." in commands and "mypy" in commands
+    assert "python -m scripts.quality.pytest_shard" in commands
+    assert '--index "${{ matrix.shard }}" --count 4' in commands
+    assert "-- -q" in commands and "--ignore" not in commands and " -k " not in commands
+    quality = workflow["jobs"]["quality"]
+    assert quality["strategy"]["matrix"]["shard"] == ["0", "1", "2", "3"]
+    assert quality["strategy"]["fail-fast"] == "false"
+    assert "continue-on-error" not in quality
+    for target in ("native", "docker-compose", "docker-publish"):
+        assert "quality" in workflow["jobs"][target]["needs"]
     assert steps["Verify release engineering on pull requests"]["if"] == "github.event_name == 'pull_request'"
     assert "tests/test_release_packaging.py" in steps["Verify release engineering on pull requests"]["run"]
 

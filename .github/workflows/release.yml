@@ -164,7 +164,10 @@ jobs:
         run: |
           uv run --no-sync ruff check .
           uv run --no-sync mypy
-          uv run --no-sync python -m scripts.quality.pytest_shard             --index "${{ matrix.shard }}" --count 4             --manifest "$RUNNER_TEMP/release-test-shard-${{ matrix.shard }}.json"             -- -q --durations=20 -o faulthandler_timeout=300
+          uv run --no-sync python -m scripts.quality.pytest_shard \
+            --index "${{ matrix.shard }}" --count 4 \
+            --manifest "$RUNNER_TEMP/release-test-shard-${{ matrix.shard }}.json" \
+            -- -q --durations=20 -o faulthandler_timeout=300
 
       - name: Install Console dependencies for release tests
         if: github.event_name == 'pull_request'
