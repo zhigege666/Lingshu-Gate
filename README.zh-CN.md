@@ -71,7 +71,7 @@ uv run lingshu-gate
 
 五个 `gate_http_mcp_*` 工具提供测试、配置计划、应用、状态和取消；计划支持创建、更新、删除，以及精确内网 HTTP 许可的撤销和明确恢复。五个 `gate_credential_*` 工具管理加密共享凭据，支持脱敏查询、版本校验、幂等写入和依赖保护删除。有权保存配置时一并建立精确地址许可，已撤销许可仍须明确恢复。
 
-旧 OAuth 授权不会自动获得新工具或权限范围，已有明确通配 scope 的管理员 API Token 保持原权限上限。凭据轮换作用于后续派发；测试不保存配置、不发布工具，也不证明全部业务权限。升级前应一致备份数据库、配置、加密存储和全部密钥。参见[HTTP 接入与测试](docs/zh-CN/http-mcp-connection-testing.md)、[MCP 管理](docs/zh-CN/external-mcp-configuration.md)、[共享凭据](docs/zh-CN/shared-system-credentials.md)、[变更记录](CHANGELOG.zh-CN.md)和[双语发行说明](packaging/release-notes.md)。
+前端依赖同时纳入 Vite 8.3.3、fast-uri 3.1.9 安全补丁。旧 OAuth 授权不会自动获得新工具或权限范围，已有明确通配 scope 的管理员 API Token 保持原权限上限。凭据轮换作用于后续派发；测试不保存配置、不发布工具，也不证明全部业务权限。升级前应一致备份数据库、配置、加密存储和全部密钥。参见[HTTP 接入与测试](docs/zh-CN/http-mcp-connection-testing.md)、[MCP 管理](docs/zh-CN/external-mcp-configuration.md)、[共享凭据](docs/zh-CN/shared-system-credentials.md)、[变更记录](CHANGELOG.zh-CN.md)和[双语发行说明](packaging/release-notes.md)。
 
 ## 架构总览
 

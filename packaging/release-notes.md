@@ -6,6 +6,8 @@
 
 ### Changes
 
+- Patch Vite to 8.3.3 and fast-uri to 3.1.9 for published security advisories. This includes the Windows editor-command issue in GHSA-587h-7wmj-h5pm and the URI normalization issues fixed by fast-uri 3.1.9. The updated lock has no remaining entries in the official npm advisory response at release preparation; this is not a permanent or whole-system security guarantee.
+
 - Add guided **None / Bearer Token / API Key / Basic / Custom** authentication. Select an existing target-scoped credential or create one inline; a successful selection generates the reference-based header directly, without an extra Add step. New credential IDs are generated and remain editable. Bearer accepts one pasted prefix; Basic takes username/password and handles encoding. Unknown or multiple authentication headers remain Custom, and unrelated headers survive edits.
 - Add a draft-only **Home** shortcut with PAT guidance. It appends `/mcp` only to an explicit root URL, preserves existing paths and never guesses a port, signs in, grants permission or sends a token automatically.
 - Add **Test connection** and `gate_http_mcp_test`. An isolated, bounded client checks configuration, HTTP, request authentication, MCP handshake and tool discovery. Results distinguish failures and unverified stages; changed drafts invalidate earlier results. Testing does not save configuration, change persistent trust, replace a running connection, publish tools or invoke business tools.
@@ -18,7 +20,7 @@
 
 ### Upgrade and compatibility
 
-No new dependency or numbered SQL migration is introduced over 0.5.5. Existing operation journals are reused. Matching legacy shared-credential consumers and private-HTTP records receive bounded compatibility conversion; orphaned records gain no wildcard permission. This changes persisted credential/trust metadata, so back up the database, configuration, encrypted credential stores and all associated keys together. Restore the matching complete backup when rolling back; an older executable does not enforce newly added boundaries. SQLite remains single-writer and single-Core.
+No new direct dependency or numbered SQL migration is introduced over 0.5.5; frontend dependency versions are patched as described above, and Python dependencies remain unchanged. Existing operation journals are reused. Matching legacy shared-credential consumers and private-HTTP records receive bounded compatibility conversion; orphaned records gain no wildcard permission. This changes persisted credential/trust metadata, so back up the database, configuration, encrypted credential stores and all associated keys together. Restore the matching complete backup when rolling back; an older executable does not enforce newly added boundaries. SQLite remains single-writer and single-Core.
 
 Existing four `gate_mcp_config_*` tool schemas and authorization fingerprints remain unchanged. The new management tools require current administrator permissions and applicable token/delegation scopes. Management OAuth must explicitly consent to new tools, exact target actions and `credentials.manage.system` for credential administration. Upgrading, reconnecting or refreshing an old token does not expand its grant. Existing explicitly wildcard-scoped administrator API tokens retain their current scope ceiling.
 
@@ -40,6 +42,8 @@ See [HTTP setup and testing](../docs/http-mcp-connection-testing.md), [external 
 
 ### 变更
 
+- 将 Vite 更新到 8.3.3、fast-uri 更新到 3.1.9，修复已公布的安全告警，包含 GHSA-587h-7wmj-h5pm 的 Windows 编辑器命令问题及 fast-uri 3.1.9 修复的 URI 规范化问题。发布准备时，官方 npm 告警接口对更新后的锁文件返回零条记录；这不代表永久或整个系统的安全保证。
+
 - 增加 **无鉴权 / Bearer Token / API Key / Basic / 自定义** 引导式鉴权。选择目标范围匹配的已有凭据或内联新增凭据后，直接生成引用形式的请求头，不再额外点击添加。凭据 ID 自动生成并允许修改；Bearer 可处理粘贴时带入的一次前缀，Basic 直接填写用户名和密码，由表单编码。未知或多项鉴权头保持自定义，无关请求头不丢失。
 - 增加只修改草稿的 **Home** 快捷模板和 PAT 获取说明。仅对明确填写的根 URL 补充 `/mcp`，保留已有路径，不猜测端口，不自动登录、授权或发送令牌。
 - 增加 **测试连接** 和 `gate_http_mcp_test`。独立、有界的客户端分别检查配置、HTTP、请求鉴权、MCP 握手和工具发现，明确区分失败与未验证阶段；草稿变化后旧结果过期。测试不保存配置、不修改持久信任、不替换运行连接、不发布工具、不调用业务工具。
@@ -52,7 +56,7 @@ See [HTTP setup and testing](../docs/http-mcp-connection-testing.md), [external 
 
 ### 升级与兼容
 
-相对 0.5.5 不新增依赖或编号 SQL 迁移，复用已有操作日志。对匹配的旧共享凭据使用者和内网 HTTP 记录执行有界兼容转换，孤立记录不会获得通配许可。凭据和信任元数据会发生持久化变化，因此升级前须一致备份数据库、配置、加密凭据存储及全部相关密钥。回退时恢复相互匹配的完整备份，旧可执行文件不会执行新增的保护边界。SQLite 保持单写入者、单 Core。
+相对 0.5.5 不新增直接依赖或编号 SQL 迁移；前端依赖版本按上述安全补丁更新，Python 依赖不变，并复用已有操作日志。对匹配的旧共享凭据使用者和内网 HTTP 记录执行有界兼容转换，孤立记录不会获得通配许可。凭据和信任元数据会发生持久化变化，因此升级前须一致备份数据库、配置、加密凭据存储及全部相关密钥。回退时恢复相互匹配的完整备份，旧可执行文件不会执行新增的保护边界。SQLite 保持单写入者、单 Core。
 
 四个既有 `gate_mcp_config_*` 工具的 schema 与授权指纹不变。新管理工具要求当前管理员权限及相应 token/委托范围；管理 OAuth 须明确同意新工具、精确目标动作，以及凭据管理所需的 `credentials.manage.system`。升级、重新连接或刷新旧令牌不会扩大旧授权。已有明确通配 scope 的管理员 API Token 保持当前权限上限。
 
