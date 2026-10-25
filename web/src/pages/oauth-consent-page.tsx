@@ -117,7 +117,7 @@ export function OAuthConsentPage() {
     {loading && <div role="status" className="oauth-loading"><Spin /> {zh ? "正在读取授权请求…" : "Loading authorization request…"}</div>}
     {!loading && terminal && <Alert type="info" title={context?.completed ? (zh ? "此授权请求已处理。返回客户端查看连接结果；失败时重新发起授权。" : "This authorization request was processed. Return to the client to check the connection; start a new authorization if it failed.") : (zh ? "请返回客户端重新发起连接。" : "Return to the client to start a new connection.")} />}
     {!loading && context && !terminal && <>
-      <section className="oauth-client" aria-label={zh ? "请求连接的客户端" : "Client requesting access"}><h2>{context.client.name}</h2><div className="oauth-muted oauth-wrap">{context.client.id}</div><p className="oauth-wrap">{zh ? "请求访问：" : "Requests access to: "}{context.resource}</p><div>{context.scopes.map(scope => <Tag key={scope}>{scope === "operations.manage" ? zh ? "外部配置管理" : "External configuration management" : scope === "tools.invoke" ? zh ? "写入工具" : "Write tools" : zh ? "只读工具" : "Read tools"}</Tag>)}</div></section>
+      <section className="oauth-client" aria-label={zh ? "请求连接的客户端" : "Client requesting access"}><h2>{context.client.name}</h2><div className="oauth-muted oauth-wrap">{context.client.id}</div><p className="oauth-wrap">{zh ? "请求访问：" : "Requests access to: "}{context.resource}</p><div>{context.scopes.map(scope => <Tag key={scope}>{scope === "operations.manage" ? zh ? "外部配置管理" : "External configuration management" : scope === "credentials.manage.system" ? zh ? "共享凭据管理" : "Shared credential management" : scope === "tools.invoke" ? zh ? "写入工具" : "Write tools" : zh ? "只读工具" : "Read tools"}</Tag>)}</div></section>
       {!context.user ? <section className="oauth-login"><h2>{zh ? "登录已有 Gate 账号" : "Sign in to your Gate account"}</h2><p>{context.resource_kind === "management" ? zh ? "使用当前有效的管理员账号登录，再选择管理工具和精确目标。" : "Sign in with a current administrator account, then choose management tools and exact targets." : zh ? "登录后选择允许此客户端使用的 MCP 和工具。" : "After signing in, choose the MCPs and tools this client may use."}</p>
         <Form layout="horizontal" className="oauth-inline-form" onFinish={() => void act("login")}>
           <Form.Item label={zh ? "用户名" : "Username"} htmlFor="oauth-username"><Input id="oauth-username" autoComplete="username" maxLength={100} value={username} disabled={busy} onChange={event => setUsername(event.target.value)} /></Form.Item>
@@ -128,7 +128,7 @@ export function OAuthConsentPage() {
         <section className="oauth-scope-workspace">
           <div className="oauth-user"><span>{zh ? "当前用户：" : "Current user: "}<strong>{context.user.display_name || context.user.username}</strong> (@{context.user.username})</span><Button disabled={busy} onClick={() => void act("logout")}>{zh ? "切换账号" : "Switch account"}</Button></div>
           {context.resource_kind === "management" ? <>
-            <p>{zh ? "选择管理工具，并填写允许创建或更新的精确服务 ID。" : "Select management tools and the exact server IDs permitted for create or update."}</p>
+            <p>{zh ? "选择管理工具，并填写允许操作的精确服务或凭据 ID。" : "Select management tools and the exact service or credential IDs they may manage."}</p>
             <ManagementTargetsEditor rows={targets} onChange={rows => { setTargets(rows); setTargetError("") }} zh={zh} disabled={busy} />
             {targetError && <Alert type="error" title={targetError} />}
             <OAuthToolPicker tools={context.tools} selected={selected} onChange={setSelected} zh={zh} disabled={busy} />

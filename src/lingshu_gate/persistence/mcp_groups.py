@@ -148,3 +148,18 @@ class McpGroupStore:
     def reconcile_instances(self, present: set[str]) -> None:
         related = {str(row[0]) for row in self.database.query_all("SELECT DISTINCT server_id FROM mcp_group_members WHERE status='active'")}
         self.invalidate_instances(related - present, reason="instance_missing_on_reload")
+
+    def remove_instance_memberships(self, server_id: str) -> None:
+        """Finish an explicit configuration deletion without reviving old routes."""
+        with self.database.session() as connection:
+            connection.execute("BEGIN IMMEDIATE")
+            groups = [str(row[0]) for row in connection.execute(
+                "SELECT id FROM mcp_groups WHERE default_instance_id=? OR id IN "
+                "(SELECT group_id FROM mcp_group_members WHERE server_id=?)", (server_id, server_id))]
+            connection.execute("DELETE FROM mcp_group_members WHERE server_id=?", (server_id,))
+            for group_id in groups:
+                connection.execute("UPDATE mcp_groups SET default_instance_id=CASE WHEN default_instance_id=? THEN NULL ELSE default_instance_id END,"
+                                   "revision=revision+1,updated_at=? WHERE id=?", (server_id, iso_now(), group_id))
+            if groups:
+                self.observability.emit_event("gate.mcp.group_instance_removed", subject_type="server", subject_id=server_id,
+                    payload={"group_ids": sorted(groups), "reason": "configuration_deleted", "metadata_only": True}, connection=connection)

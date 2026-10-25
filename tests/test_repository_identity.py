@@ -737,3 +737,14 @@ def test_history_message_exception_requires_commit_digest_and_exact_finding(monk
         (commit, identity._sha256(body)): frozenset({("TXT-001", 2)}),
     })
     assert identity._scan_history_message(body, commit)
+
+
+def test_exact_reviewed_integration_links_are_not_alternate_product_names() -> None:
+    for url in identity._EXTERNAL_REFERENCE_URLS:
+        assert "GATE-004" not in identity._matching_gate_identity_rules(url)
+        assert "GATE-004" not in identity._matching_gate_identity_rules(f"[upstream source]({url})")
+        assert "GATE-004" in identity._matching_gate_identity_rules(url.split("/")[4])
+        for altered in [url + "/other", url + "?copy=1", "https://example.test/" + url,
+                        url.replace("github.com", "github.com.example.test")]:
+            assert "GATE-004" in identity._matching_gate_identity_rules(altered)
+        assert "GATE-004" in identity._matching_gate_identity_rules(url + " " + _non_gate_kebab_name())

@@ -39,7 +39,7 @@ async function geometry(dialog: Locator) {
     }
     const fields = Array.from(element.querySelectorAll('.manifest-field')).filter(e => e.getBoundingClientRect().height > 0 && !e.closest('details:not([open])'))
     const rows = fields.map(field => {
-      const label = field.querySelector(':scope > label') as HTMLElement
+      const label = field.querySelector(':scope > :is(label, .field-label)') as HTMLElement
       const control = field.querySelector(':scope > .manifest-field-control') as HTMLElement
       const pair = field.parentElement?.classList.contains('manifest-form-pair')
       const index = pair ? Array.from(field.parentElement!.children).indexOf(field) : 0
@@ -129,6 +129,8 @@ test('service edit modes, long help/errors and keyboard at 1600x900 @full @visua
   await editor.getByRole('radio', { name: '外部 HTTP', exact: true }).check()
   const cancel = editor.getByRole('button', { name: '取消', exact: true })
   await cancel.focus()
+  await page.keyboard.press('Tab')
+  await expect(editor.getByRole('button', { name: '测试连接', exact: true })).toBeFocused()
   await page.keyboard.press('Tab')
   await expect(editor.getByRole('button', { name: '保存配置', exact: true })).toBeFocused()
   await expectInViewportAndUnobscured(cancel)

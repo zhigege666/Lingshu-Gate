@@ -423,12 +423,13 @@ def manifest_runtime_conflicts(data: dict[str, Any]) -> dict[str, str]:
     return conflicts
 
 
-def validate_manifest_for_write(data: dict[str, Any], *, http_trust_store: McpHttpTrustStore | None = None) -> McpServerManifest:
+def validate_manifest_for_write(data: dict[str, Any], *, http_trust_store: McpHttpTrustStore | None = None,
+                                check_http_trust: bool = True) -> McpServerManifest:
     """Validate new writes without silently normalizing requested runtime flags."""
 
     manifest = McpServerManifest.model_validate(data)
-    if manifest.transport.endpoint:
-        require_mcp_http_endpoint(manifest.id, manifest.transport.endpoint, http_trust_store)
+    if manifest.transport.endpoint and check_http_trust:
+        require_mcp_http_endpoint(manifest.id, manifest.transport.endpoint, http_trust_store, allow_pending=True)
     conflicts = manifest_runtime_conflicts(data)
     if conflicts:
         raise ValueError("Unsupported runtime settings: " + "; ".join(f"{path}: {message}" for path, message in conflicts.items()))

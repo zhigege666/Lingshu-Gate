@@ -51,13 +51,14 @@ for (const locale of ['en-US', 'zh-CN'] as const) {
       const dialog = page.getByRole('dialog', { name: zh ? '新建 MCP 配置' : 'New MCP config', exact: true })
       await expect(dialog).toHaveCSS('opacity', '1')
       await expect(dialog.getByRole('switch', { name: zh ? '启用服务' : 'Enable service', exact: true })).toBeChecked()
-      await expect(dialog.getByRole('switch', { name: zh ? 'Gate 启动时自动启动' : 'Start automatically when Gate starts', exact: true })).not.toBeChecked()
+      await expect(dialog.getByRole('switch', { name: zh ? 'Gate 启动时自动启动' : 'Start automatically when Gate starts', exact: true })).toBeChecked()
       if (entry === 'servers') await page.screenshot({ path: testInfo.outputPath('new-mcp-enabled-form.png'), animations: 'disabled' })
       await dialog.getByRole('button', { name: 'JSON', exact: true }).click()
       const json = dialog.locator('[data-manifest-json]')
       const draft = JSON.parse(await json.inputValue())
-      expect(draft).toMatchObject({ enabled: true, auto_start: false, startup_policy: 'gate_start_v1' })
-      await json.fill(JSON.stringify({ ...draft, enabled: false }))
+      expect(draft).toMatchObject({ enabled: true, auto_start: true, startup_policy: 'gate_start_v1' })
+      // Explicit opt-out must survive every runtime mode change.
+      await json.fill(JSON.stringify({ ...draft, enabled: false, auto_start: false }))
       await dialog.getByRole('button', { name: zh ? '表单' : 'Form', exact: true }).click()
       for (const mode of zh ? ['受管 Stdio', '受管 HTTP', '外部 HTTP'] : ['Managed Stdio', 'Managed HTTP', 'External HTTP']) {
         await dialog.getByRole('radio', { name: mode, exact: true }).check()
@@ -96,7 +97,7 @@ test('new enabled MCP save is disk-only and never sends apply/start or trust wri
   await page.route('**/v1/mcp/configs', route => {
     if (route.request().method() !== 'POST') return route.fallback()
     const body = route.request().postDataJSON()
-    expect(body).toMatchObject({ apply: false, start: false, manifest: { enabled: true, auto_start: false, startup_policy: 'gate_start_v1' } })
+    expect(body).toMatchObject({ apply: false, start: false, manifest: { enabled: true, auto_start: true, startup_policy: 'gate_start_v1' } })
     saved = body.manifest
     return route.fulfill({ json: { config: { ...config, id: body.manifest.id, manifest: saved }, server: null, message: 'Saved only' } })
   })

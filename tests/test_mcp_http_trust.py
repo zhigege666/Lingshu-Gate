@@ -146,7 +146,10 @@ def test_http_admin_entry_defaults_empty_rejects_operator_and_cross_site_then_li
         assert client.post("/v1/auth/login", json={"username": "synthetic-trust-operator", "password": "Synthetic-Operator-123!"}).status_code == 200
         assert client.put("/v1/mcp/http-trust/synthetic-private", json=_request().model_dump()).status_code == 403
         assert client.post("/v1/auth/login", json={"username": "synthetic-trust-api-admin", "password": "Synthetic-Admin-123!"}).status_code == 200
-        assert client.get("/v1/mcp/http-trust/synthetic-private").json() == {"server_id": "synthetic-private", "revision": 0, "origins": []}
+        assert client.get("/v1/mcp/http-trust/synthetic-private").json() == {
+            "server_id": "synthetic-private", "revision": 0, "origins": [], "state": "unconfigured",
+            "server_binding": None, "revoked": False, "needs_review": False, "configured_origin": None,
+            "configured_endpoint_origin": None}
         assert client.put("/v1/mcp/http-trust/synthetic-private", json=_request().model_dump(), headers={"Origin": "https://untrusted.example.test"}).status_code == 403
         assert client.put("/v1/mcp/http-trust/synthetic-private", json=_request().model_dump()).status_code == 200
         assert client.put("/v1/mcp/http-trust/synthetic-private", json=_request().model_dump()).status_code == 409
@@ -180,6 +183,7 @@ def test_approved_private_http_request_reaches_the_exact_endpoint(tmp_path: Path
     settings, trust, actor, _, _ = _setup(tmp_path)
     trust.update("synthetic-private", _request(origins=[TrustedHttpOrigin(ip=ip, port=8080)]), actor_id=actor)
     endpoint = f"http://{ip}:8080/mcp"
+    McpConfigStore(settings.config_dir, http_trust_store=trust).save_config(_manifest(endpoint))
     client = StreamableHttpMcpClient(McpServerManifest.model_validate(_manifest(endpoint)), settings)
     response = MagicMock()
     response.status = 200
@@ -194,8 +198,9 @@ def test_approved_private_http_request_reaches_the_exact_endpoint(tmp_path: Path
 
 
 def test_omitted_port_is_exact_port_80(tmp_path: Path) -> None:
-    _, trust, actor, _, _ = _setup(tmp_path)
+    settings, trust, actor, _, _ = _setup(tmp_path)
     trust.update("synthetic-private", _request(origins=[TrustedHttpOrigin(ip="10.23.45.67", port=80)]), actor_id=actor)
+    McpConfigStore(settings.config_dir, http_trust_store=trust).save_config(_manifest("http://10.23.45.67/mcp"))
     trust.require_endpoint("synthetic-private", "http://10.23.45.67/mcp")
     with pytest.raises(ValueError, match="administrator-approved trust"):
         trust.require_endpoint("synthetic-private", "http://10.23.45.67:8080/mcp")
@@ -260,3 +265,71 @@ def test_https_proxy_to_http_backend_preserves_origin_without_trusting_spoofed_h
         assert response.status_code == expected
         policy = app.state.mcp_config_store.http_trust_store.get("synthetic-private")
         assert policy["revision"] == (1 if expected == 200 else 0)
+
+
+def test_pending_permission_is_consumed_by_one_saved_identity_and_exact_origin(tmp_path: Path) -> None:
+    settings, trust, actor, _, _ = _setup(tmp_path)
+    trust.update("synthetic-private", _request(origins=[
+        TrustedHttpOrigin(ip="10.23.45.67", port=8080), TrustedHttpOrigin(ip="10.23.45.68", port=8080)]), actor_id=actor)
+    assert trust.get("synthetic-private")["state"] == "pending"
+    with pytest.raises(ValueError, match="administrator-approved trust"):
+        trust.require_endpoint("synthetic-private", _manifest()["transport"]["endpoint"])
+    store = McpConfigStore(settings.config_dir, http_trust_store=trust)
+    store.save_config(_manifest())
+    active = trust.get("synthetic-private")
+    assert active["state"] == "active" and active["server_binding"]
+    assert active["origins"] == [{"ip": "10.23.45.67", "port": 8080}]
+    store.delete_config("synthetic-private")
+    assert trust.get("synthetic-private")["revoked"]
+    with pytest.raises(ValueError, match="administrator-approved trust"):
+        store.save_config(_manifest())
+
+
+def test_legacy_migration_only_adopts_preexisting_matching_saved_config_once(tmp_path: Path) -> None:
+    import yaml
+
+    settings, trust, actor, _, _ = _setup(tmp_path)
+    trust.update("synthetic-private", _request(origins=[
+        TrustedHttpOrigin(ip="10.23.45.67", port=8080), TrustedHttpOrigin(ip="10.23.45.68", port=8080)]), actor_id=actor)
+    trust.update("synthetic-orphan", _request(), actor_id=actor)
+    trust.update("synthetic-revoked", _request(origins=[]), actor_id=actor)
+    trust.database.execute("UPDATE gate_mcp_http_trust SET state='legacy',server_binding=NULL")
+    settings.config_dir.mkdir(parents=True)
+    (settings.config_dir / "synthetic-private.yaml").write_text(yaml.safe_dump(_manifest()), encoding="utf-8")
+    store = McpConfigStore(settings.config_dir, http_trust_store=trust)
+    assert trust.get("synthetic-private")["state"] == "active"
+    assert trust.get("synthetic-private")["origins"] == [{"ip": "10.23.45.67", "port": 8080}]
+    assert trust.get("synthetic-orphan")["state"] == "needs_review"
+    assert trust.get("synthetic-revoked")["state"] == "revoked"
+    data = _manifest(server_id="synthetic-orphan")
+    preview = trust.plan_configuration("synthetic-orphan", data["transport"]["endpoint"], creating=True)
+    assert preview["change"] == "preserve_denied" and preview["connection_allowed"] is False
+    store.save_config_with_http_trust(data, trust_plan=preview, actor_id=actor)
+    McpConfigStore(settings.config_dir, http_trust_store=trust)
+    assert trust.get("synthetic-orphan")["state"] == "needs_review"
+    assert not trust.database.query_all("SELECT 1 FROM gate_mcp_http_trust WHERE state='legacy'")
+    # A later exact manifest cannot turn an orphaned old IP into a new grant.
+    with pytest.raises(ValueError, match="administrator-approved trust"):
+        trust.require_endpoint("synthetic-orphan", data["transport"]["endpoint"])
+
+
+@pytest.mark.parametrize("replace_target", [False, True])
+def test_legacy_migration_never_adopts_a_replaced_saved_identity(tmp_path: Path, replace_target: bool) -> None:
+    import yaml
+
+    settings, trust, actor, _, _ = _setup(tmp_path)
+    store = McpConfigStore(settings.config_dir, http_trust_store=trust)
+    trust.update("synthetic-private", _request(), actor_id=actor)
+    store.save_config(_manifest())
+    previous = trust.get("synthetic-private")["server_binding"]
+    trust.database.execute("UPDATE gate_mcp_http_trust SET state='legacy',server_binding=NULL")
+    path = settings.config_dir / "synthetic-private.yaml"
+    content = yaml.safe_dump(_manifest(endpoint="http://10.23.45.67:8080/changed")) if replace_target else path.read_text()
+    path.unlink()
+    path.write_text(content, encoding="utf-8")
+    reloaded = McpConfigStore(settings.config_dir, http_trust_store=trust)
+    assert "synthetic-private" in reloaded.invalidated_startup_identities
+    policy = trust.get("synthetic-private")
+    assert policy["state"] == "needs_review" and policy["server_binding"] != previous
+    with pytest.raises(ValueError, match="administrator-approved trust"):
+        trust.require_endpoint("synthetic-private", reloaded.load_manifest("synthetic-private").transport.endpoint)

@@ -61,6 +61,7 @@ class OAuthProtectedResourceMetadata:
 class McpOAuthDiscoveryBoundary:
     metadata: OAuthProtectedResourceMetadata
     metadata_path: str = "/.well-known/oauth-protected-resource/mcp"
+    challenge_scopes: tuple[str, ...] | None = None
 
     def __post_init__(self) -> None:
         if (
@@ -69,6 +70,10 @@ class McpOAuthDiscoveryBoundary:
             or "#" in self.metadata_path
         ):
             raise ValueError("OAuth metadata path must be an absolute path")
+        if self.challenge_scopes is not None and (
+            not self.challenge_scopes or not set(self.challenge_scopes) <= set(self.metadata.scopes_supported)
+        ):
+            raise ValueError("OAuth challenge scopes must be a nonempty subset of supported scopes")
 
     def challenge(self, request: Request) -> str:
         del request  # Metadata origin is trusted configuration, never the Host header.
@@ -79,7 +84,7 @@ class McpOAuthDiscoveryBoundary:
         return (
             'Bearer realm="lingshu-gate", '
             f'resource_metadata="{metadata_url}", '
-            f'scope="{" ".join(self.metadata.scopes_supported)}"'
+            f'scope="{" ".join(self.challenge_scopes if self.challenge_scopes is not None else self.metadata.scopes_supported)}"'
         )
 
 

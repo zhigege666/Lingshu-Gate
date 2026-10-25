@@ -43,7 +43,7 @@ def register_external_mcp_config_routes(app: FastAPI, *, auth: AuthStore, servic
             raise HTTPException(status_code=status, detail=exc.to_payload()["error"]) from None
 
     @app.post("/v1/mcp/external-configs/csrf", tags=["mcp-configs"])
-    def request_ticket(request: Request, action: Literal["plan", "apply", "cancel"],
+    def request_ticket(request: Request, action: Literal["plan", "apply", "cancel", "test"],
                        request_digest: str = Query(pattern=r"^[a-f0-9]{64}$"),
                        operation_id: str | None = Query(default=None, pattern=r"^[a-f0-9]{32}$")) -> JSONResponse:
         principal = auth.authenticate_request(request)
@@ -63,6 +63,32 @@ def register_external_mcp_config_routes(app: FastAPI, *, auth: AuthStore, servic
             result = csrf.issue(principal, request.cookies.get(auth.cookie_name, ""), target, request_digest)
         except ConsoleCsrfError as exc:
             raise HTTPException(status_code=exc.status, detail={"code": exc.code}) from None
+        return JSONResponse(result, headers={"Cache-Control": "no-store", "Pragma": "no-cache"})
+
+    @app.post("/v1/mcp/external-configs/test/csrf", tags=["mcp-configs"])
+    def test_ticket(body: dict[str, Any], request: Request) -> JSONResponse:
+        # LAN HTTP browsers do not expose WebCrypto. Bind the existing one-use
+        # CSRF ticket to the same canonical body on the server, never drop CSRF.
+        principal = auth.authenticate_request(request)
+        if principal.auth_type != "session" or not console_origin_allowed(request):
+            raise HTTPException(status_code=403, detail={"code": "cross_origin_denied"})
+        encoded = json.dumps(body, ensure_ascii=False, sort_keys=True, separators=(",", ":")).encode()
+        if len(encoded) > 65536:
+            raise HTTPException(status_code=413, detail={"code": "test_request_too_large"})
+        def authorize_test() -> dict[str, Any]:
+            service._authorize(context(request), write=True, tool_id="gate_http_mcp_test")
+            return {}
+        invoke(authorize_test)
+        try:
+            ticket = csrf.issue(principal, request.cookies.get(auth.cookie_name, ""),
+                "/v1/mcp/external-configs/test", hashlib.sha256(encoded).hexdigest())
+        except ConsoleCsrfError as exc:
+            raise HTTPException(status_code=exc.status, detail={"code": exc.code}) from None
+        return JSONResponse(ticket, headers={"Cache-Control": "no-store", "Pragma": "no-cache"})
+
+    @app.post("/v1/mcp/external-configs/test", tags=["mcp-configs"])
+    def test_connection(body: dict[str, Any], request: Request) -> JSONResponse:
+        result = invoke(lambda: service.http_test(body, context(request, body=body)))
         return JSONResponse(result, headers={"Cache-Control": "no-store", "Pragma": "no-cache"})
 
     @app.post("/v1/mcp/external-configs/plan", tags=["mcp-configs"])

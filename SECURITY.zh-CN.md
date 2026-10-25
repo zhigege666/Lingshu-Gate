@@ -48,7 +48,7 @@ certifi 必须为 2026.10.19 或更高版本，以修复 [GHSA-6q48-6c7w-9gw2](h
 
 ## 执行边界
 
-外部配置流程仅限管理员，重查当前 Console 会话/API token、角色权限及委托上限。Console REST 写入必须有严格 Origin 及绑定有效会话/动作/请求体的一次性 CSRF 票据；四个管理工具在所有通用注册表入口拒绝会话身份，API bearer 认证保持独立。普通 OAuth 不能配置地址，独立且默认关闭的[管理 OAuth 资源](docs/zh-CN/oauth-external-management-design.md)需要管理员另行同意。计划绑定目标/配置/凭据摘要、actor、管理连接、动作与期限；应用及取消要求明确确认与幂等键。锁等待后重验凭据版本，连接/探测解密前与同一加密记录中的版本核对；轮换后必须重新计划。拒绝未知执行字段与 Header 秘密值，不能通过本流程创建内网 HTTP 信任。连接/刷新复用一次严格发现和分类门禁后替换注册表，保留首次新增/变化计数，不自动发布或授权。没有 client 也先查清理操作归属，取消在写锁内重查终态，运行时应用中断保留未知状态。中断或未知完成要求人工对账，不自动重放写入，也不声称远端进程停止。[外部配置契约](docs/zh-CN/external-mcp-configuration.md)说明协作期限及单目标限制。
+外部 HTTP 管理仅限管理员，实时重查身份、角色权限、token/令牌族 scope 与委托上限。旧外部配置 REST 适配器保留严格 Origin 与绑定有效会话/动作/请求体的 CSRF。旧、新管理 MCP 工具在通用注册表入口均拒绝 Console 会话。普通业务 OAuth 不能配置地址；默认关闭的[独立管理资源](docs/zh-CN/oauth-external-management-design.md)要求明确的工具、scope 和目标同意。新 `gate_http_mcp_*` 工具复用原操作引擎及日志，不改变旧工具指纹。离线计划绑定配置、生命周期、trust 和凭据版本，应用/取消要求确认与幂等键；有权创建/更新可随配置保存精确内网许可，删除/撤销/恢复为明确模式。未知执行字段和 Header 秘密原文仍拒绝。连接/发现不发布工具或授予访问；文件/trust/runtime 部分变更或中断明确要求对账，不安装、重启或卸载远程进程。见[合同](docs/zh-CN/external-mcp-configuration.md)。
 
 项目构建和受管本机进程会以 Gate 进程的权限执行代码，不能作为不可信源码的沙箱。
 
@@ -68,7 +68,7 @@ Docker Core 镜像不会启动本机 stdio 进程或执行项目构建。这些�
 
 ## 访问控制边界
 
-MCP 组引用已有实例配置，创建或归组不授予访问权限。逻辑目录和路由读取交集当前身份／token／OAuth 上限、逻辑服务／工具授权与原实际实例／工具策略。完整合同和声明版本将不兼容工具保持独立分区。路由会话绑定认证连接，必须显式选择实例；配置／runtime 漂移使其失效，不选择其他实例、不重放写调用。内部 guard 将实际派发和工具审计留在原调用路径。管理员组写入保留当前 `operations.manage`／`tools.invoke`、确认、Console CSRF、修订 CAS 与事务审计；独立管理 OAuth 资源仍仅允许原四个外部配置工具。生命周期和代际限制见[内部适配合同](docs/zh-CN/mcp-group-routing-contract.md)。
+MCP 组引用已有实例配置，创建或归组不授予访问权限。逻辑目录和路由读取交集当前身份／token／OAuth 上限、逻辑服务／工具授权与原实际实例／工具策略。完整合同和声明版本将不兼容工具保持独立分区。路由会话绑定认证连接，必须显式选择实例；配置／runtime 漂移使其失效，不选择其他实例、不重放写调用。内部 guard 将实际派发和工具审计留在原调用路径。管理员组写入保留当前 `operations.manage`／`tools.invoke`、确认、Console CSRF、修订 CAS 与事务审计；独立管理 OAuth 资源仅提供明确同意的配置与凭据管理工具，不包含分组管理。生命周期和代际限制见[内部适配合同](docs/zh-CN/mcp-group-routing-contract.md)。
 
 `execution`/`data_source` 用途与既有实例名称是管理员提供的元数据。公开来源标识仅从当前有权成员投影，不授予访问权，不验证仓库/数据覆盖范围，也不改变工具分类。历史组保持 `unspecified`。用途修改使用同样的确认、请求体绑定、CAS 与审计写入，使绑定原 revision 的路由会话和目录游标失效，不会静默将查询移到另一来源。
 
@@ -132,7 +132,7 @@ HTTPS 来源计划固定完整 commit、摘要、精确主机策略与有界快�
 
 私有业务 OAuth 候选分页与选择解析共用增量目录索引。每次查询先按当前本人权限、发布和 grant/client 上限筛选，再分页/计数；已保存 grant IDs 不限制候选浏览。页面不含 schema，JSON/摘要有界且明确不完整；只有明确、有界工具选择或持续服务策略可进入确认/保存。全局选择超过 5,000 工具或 100 MCP 即失败，不返回部分选择。刷新保留草稿，不自动加入未来服务。游标/票据绑定会话和当前 registry/policy generation；同步后 registry 变化和当前权限变化均安全拒绝。本人可见排除原因不暴露隐藏服务；管理员 API Token 调用不绕过 OAuth 发布门禁。见[候选合同与证据](docs/zh-CN/oauth-catalog-scaling.md)。
 
-管理资源默认关闭，只接受内置 issuer、当前管理员及控制权限、四个已同意配置工具指纹和精确创建/更新目标。路由从可信配置选择 audience，拒绝跨资源令牌、授权码和刷新，不回退其他验证器。派发/worker/缓存结果检查绑定 issuer/resource/client/grant/family/到期及当前目标。目标编辑要求真实本人 Console 会话、严格 Origin/CSRF、复核后的单次确认、版本 CAS 和原子脱敏审计，使旧计划失效但不扩大 JWT/令牌族 scope 或业务授权。关闭管理只撤销其令牌族；凭据、HTTP 信任、分类发布和执行保持独立。参见[管理契约](docs/zh-CN/oauth-external-management-design.md)。
+管理资源默认关闭，只接受内置 issuer、实时有效的管理员与权限、已同意工具指纹和精确目标/动作策略。凭据工具另需明确的 `credentials.manage.system`，凭据动作与同 ID 服务动作隔离。新增工具或扩大客户端 scopes 不扩大旧 grant、JWT 和令牌族。路由以可信 audience 拒绝跨资源令牌、授权码及刷新，不回退验证器。派发/worker/缓存结果绑定 issuer/resource/client/grant/family/到期和当前目标。目标编辑保留本人 Console 会话、严格 Origin/CSRF、单次确认、CAS 和原子脱敏审计。关闭管理只撤销其令牌族，不授予分类发布或远程执行。见[管理合同](docs/zh-CN/oauth-external-management-design.md)。
 
 只存秘密摘要和加密私钥，保护并与数据库一起备份 `data_dir/oauth-signing.key`。专用浏览器 Cookie 使用 Secure/HttpOnly/SameSite=Lax，路径为 `/oauth`；浏览器 POST 检查精确 Origin 和请求 CSRF。公网界面独立打包，不要求公开 Console 或 `/v1`。[内置 OAuth](docs/zh-CN/builtin-oauth.md)说明请求边界、准入限制、TTL 和安全错误。Gate 过滤 OAuth 访问日志查询，边缘代理/追踪系统须另行排除请求秘密。已执行的合成安全/浏览器证据见[发行验证](docs/zh-CN/release-validation.md)，不认证真实 TLS、provider 或 ChatGPT 接入。CIMD、匿名 DCR、多租户和隧道管理不在范围内。
 
@@ -144,7 +144,11 @@ Token/revoke 有独立的低成本来源入站和凭据失败限制；只有只�
 
 ## 内网 HTTP MCP 信任
 
-HTTP 传输不加密。非回环 HTTP 仅允许三个 RFC1918 范围内的规范 IPv4 字面地址，且须实时有效的管理员具备 `operations.manage` 并明确确认精确服务/IP/端口。服务自有 SQLite 策略默认空；Manifest 不能自行授权，OAuth/普通操作员不能批准。策略更新使用版本 CAS 并记录审计；预检查、保存、应用、连接、重连及请求读取当前策略，撤销或读取失败即拒绝。公网、链路本地、metadata、DNS 与非规范 HTTP 目标仍拒绝；禁止重定向，HTTPS 保持正常 TLS 验证。数据库须防止未授权直接写入。见[配置说明](docs/zh-CN/configuration.md#内网-http-信任)。
+HTTP 传输不加密。非回环 HTTP 仍仅允许规范 RFC1918 IPv4 与精确服务/IP/端口许可，并绑定服务生命周期身份。有权管理员保存或明确同意的 HTTP 管理应用可创建已审核许可；manifest 和离线预检查不能自行授权。直接 trust 管理保留版本 CAS 和审计。普通保存/重连不能恢复撤销，恢复必须明确。旧许可只对匹配的已有配置迁移一次，删除后重建不能继承旧许可。连接及派发前校验实时策略，撤销或不可读即拒绝。公网、链路本地、metadata、DNS、非规范 HTTP 目标仍拒绝；禁止重定向，HTTPS 保留正常 TLS 验证。见[配置](docs/zh-CN/configuration.md#内网-http-信任)。
+
+共享凭据管理使用脱敏元数据、版本写入校验、带密钥的幂等指纹，并对日志和调用内容按明确敏感字段脱敏。HTTP 使用另绑定服务/origin/生命周期，轮换后实时派发解析当前有权 Header。保存成功不证明下游认证通过。被引用的凭据不能删除，MCP/REST 不提供明文恢复。见[共享凭据](docs/zh-CN/shared-system-credentials.md)。
+
+独立的 `gate_http_mcp_test` 是管理员明确发起的临时网络测试。OAuth 需要单独同意新工具及精确目标 `test` 动作。未保存的内网 HTTP 草稿仅获得本次测试目标许可，不产生可复用许可；已撤销或需要复核的记录仍拒绝。每次发送前重检当前权限、配置/许可快照及目标范围内的凭据版本。不借用个人凭据槽、不跟随重定向、不调用业务工具、不发布发现目录。结果只包含有限诊断，不返回下游响应体或解析后的秘密。Console 测试要求同源、一次性、绑定完整请求体的 CSRF；发出票据不代表后续过期或撤销的请求仍有权执行。参见[联通测试](docs/zh-CN/http-mcp-connection-testing.md)。
 
 ## 参数策略、辅助服务与观测
 

@@ -185,6 +185,23 @@ export type ApplyResponse = {
   message: string
 }
 
+export type HttpTrustSaveOptions = {
+  http_trust_action?: "auto" | "preserve" | "restore"
+  expected_http_trust_revision?: number
+}
+
+export type McpHttpTrustPolicy = {
+  server_id: string
+  revision: number
+  origins: Array<{ ip: string; port: number }>
+  state: "unconfigured" | "pending" | "active" | "revoked" | "needs_review"
+  server_binding: string | null
+  revoked: boolean
+  needs_review: boolean
+  configured_origin?: { ip: string; port: number } | null
+  configured_endpoint_origin?: string | null
+}
+
 export const serversRuntimeApi = {
   runtimeCache: () => request<RuntimeCacheStatus>("/v1/runtime/cache"),
   runtimeEnvironment: () => request<RuntimeEnvironment>("/v1/runtime/environment"),
@@ -199,11 +216,11 @@ export const serversRuntimeApi = {
   tools: () => request<ToolDefinition[]>("/v1/tools"),
   invoke: (toolId: string, args: Record<string, unknown>) => request("/v1/invoke", { method: "POST", body: JSON.stringify({ tool_id: toolId, arguments: args }) }),
   configs: () => request<McpConfigListResponse>("/v1/mcp/configs"),
-  validateConfig: (manifest: Record<string, unknown>, serverId?: string | null) => request<ManifestValidationResponse>(serverId ? `/v1/mcp/configs/${encodeURIComponent(serverId)}/validate` : "/v1/mcp/configs/validate", { method: "POST", body: JSON.stringify({ manifest, apply: false, start: false }) }),
-  createConfig: (manifest: Record<string, unknown>, apply = false, start = false, userCredentialValues: Record<string, string> = {}) => request<ApplyResponse>("/v1/mcp/configs", { method: "POST", body: JSON.stringify({ manifest, apply, start, user_credential_values: userCredentialValues }) }),
-  updateConfig: (serverId: string, manifest: Record<string, unknown>, apply = false, start = false, userCredentialValues: Record<string, string> = {}, expectedConfigDigest?: string) => request<ApplyResponse>(`/v1/mcp/configs/${encodeURIComponent(serverId)}`, { method: "PUT", body: JSON.stringify({ manifest, apply, start, user_credential_values: userCredentialValues, ...(expectedConfigDigest ? { expected_config_digest: expectedConfigDigest } : {}) }) }),
-  mcpHttpTrust: (serverId: string, signal?: AbortSignal) => request<{ server_id: string; revision: number; origins: Array<{ ip: string; port: number }> }>(`/v1/mcp/http-trust/${encodeURIComponent(serverId)}`, { signal }),
-  updateMcpHttpTrust: (serverId: string, ip: string, port: number, revision: number, currentOrigins: Array<{ ip: string; port: number }>, signal?: AbortSignal) => request(`/v1/mcp/http-trust/${encodeURIComponent(serverId)}`, { method: "PUT", signal, body: JSON.stringify({ origins: [...currentOrigins, { ip, port }], expected_revision: revision, confirmed: true }) }),
+  validateConfig: (manifest: Record<string, unknown>, serverId?: string | null, httpTrust: HttpTrustSaveOptions = {}) => request<ManifestValidationResponse>(serverId ? `/v1/mcp/configs/${encodeURIComponent(serverId)}/validate` : "/v1/mcp/configs/validate", { method: "POST", body: JSON.stringify({ manifest, apply: false, start: false, ...httpTrust }) }),
+  createConfig: (manifest: Record<string, unknown>, apply = false, start = false, userCredentialValues: Record<string, string> = {}, httpTrust: HttpTrustSaveOptions = {}) => request<ApplyResponse>("/v1/mcp/configs", { method: "POST", body: JSON.stringify({ manifest, apply, start, user_credential_values: userCredentialValues, ...httpTrust }) }),
+  updateConfig: (serverId: string, manifest: Record<string, unknown>, apply = false, start = false, userCredentialValues: Record<string, string> = {}, expectedConfigDigest?: string, httpTrust: HttpTrustSaveOptions = {}) => request<ApplyResponse>(`/v1/mcp/configs/${encodeURIComponent(serverId)}`, { method: "PUT", body: JSON.stringify({ manifest, apply, start, user_credential_values: userCredentialValues, ...(expectedConfigDigest ? { expected_config_digest: expectedConfigDigest } : {}), ...httpTrust }) }),
+  mcpHttpTrust: (serverId: string, signal?: AbortSignal) => request<McpHttpTrustPolicy>(`/v1/mcp/http-trust/${encodeURIComponent(serverId)}`, { signal }),
+  replaceMcpHttpTrust: (serverId: string, origins: McpHttpTrustPolicy["origins"], revision: number, signal?: AbortSignal) => request<McpHttpTrustPolicy>(`/v1/mcp/http-trust/${encodeURIComponent(serverId)}`, { method: "PUT", signal, body: JSON.stringify({ origins, expected_revision: revision, confirmed: true }) }),
   deleteConfig: (serverId: string) => request<ApplyResponse>(`/v1/mcp/configs/${encodeURIComponent(serverId)}`, { method: "DELETE" }),
   applyConfig: (serverId: string) => request<ApplyResponse>(`/v1/mcp/configs/${encodeURIComponent(serverId)}/apply`, { method: "POST" }),
   reloadConfigs: () => request<ApplyResponse>("/v1/mcp/configs/reload", { method: "POST" }),

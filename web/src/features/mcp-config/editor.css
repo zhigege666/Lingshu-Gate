@@ -1,4 +1,4 @@
-.manifest-dialog { width: min(860px, calc(100vw - 2rem)); max-width: min(860px, calc(100vw - 2rem)); }
+.manifest-dialog { width: min(1200px, calc(100vw - 96px)); max-width: min(1200px, calc(100vw - 96px)); height: min(1000px, calc(100dvh - 64px)); max-height: calc(100dvh - 64px); }
 .manifest-editor { --manifest-label-width: 17rem; display: flex; flex-direction: column; min-height: 0; max-height: calc(100dvh - 15rem); gap: var(--space-4); }
 .manifest-editor:lang(zh) { --manifest-label-width: 10rem; }
 .manifest-editor-toolbar, .manifest-editor-actions { display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: var(--space-2); }
@@ -7,7 +7,7 @@
 .manifest-editor-body > * + * { margin-top: var(--space-4); }
 .manifest-form { display: flex; flex-direction: column; gap: var(--space-4); }
 .manifest-form-pair { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, calc(var(--manifest-label-width) + 14rem)), 1fr)); gap: var(--space-4); }
-.manifest-startup-pair { grid-template-columns: minmax(0, 1fr); }
+.manifest-startup-pair { grid-template-columns: repeat(auto-fit, minmax(min(100%, calc(var(--manifest-label-width) + 14rem)), 1fr)); }
 .manifest-field { display: grid; grid-template-columns: var(--manifest-label-width) minmax(0, 1fr); align-items: start; gap: var(--space-3); min-width: 0; }
 .manifest-field > :is(label, .field-label) { white-space: nowrap; min-height: var(--control-height); display: flex; align-items: center; }
 .manifest-field-control { min-width: 0; display: flex; flex-direction: column; align-items: stretch; gap: var(--space-2); }
@@ -16,6 +16,9 @@
 .manifest-toggle { display: flex; align-items: center; justify-content: space-between; gap: var(--space-4); }
 .manifest-map, .manifest-array { min-width: 0; display: flex; flex-direction: column; gap: var(--space-2); }
 .manifest-map-row { display: grid; grid-template-columns: minmax(100px, .65fr) minmax(0, 1fr) auto; align-items: center; gap: var(--space-2); }
+.manifest-inline-credential-field { display: grid; grid-template-columns: 8rem minmax(0, 1fr); align-items: center; gap: var(--space-2); }
+.manifest-inline-credential-field > label { white-space: nowrap; }
+.manifest-inline-credential-field > div { min-width: 0; }
 .manifest-array-row { display: flex; align-items: center; gap: var(--space-2); }
 .manifest-array-row > input { min-width: 0; }
 .manifest-array > button { align-self: flex-start; }
@@ -50,3 +53,31 @@
   .manifest-map-row > :first-child { grid-column: 1 / -1; }
   .manifest-editor { max-height: calc(100dvh - 16rem); }
 }
+
+/* The same bounded editing frame is used by new and saved configurations. */
+.manifest-dialog .gate-dialog-body { display: flex; flex-direction: column; min-height: 0; overflow: hidden; }
+.manifest-dialog .manifest-editor { flex: 1; max-height: none; min-height: 0; }
+.manifest-dialog .manifest-editor-body { flex: 1; }
+.manifest-auth, .manifest-inline-credential { display: flex; flex-direction: column; gap: var(--space-3); min-width: 0; }
+.manifest-auth-template, .manifest-test-heading { display: flex; align-items: center; flex-wrap: wrap; gap: var(--space-2); }
+.manifest-auth-template > button { min-height: var(--control-height-sm); }
+.manifest-auth-help { padding: var(--space-3); background: hsl(var(--muted)); border-radius: var(--radius); font-size: .8125rem; line-height: 1.6; }
+.manifest-auth-help p + p { margin-top: var(--space-2); }
+.manifest-auth-aligned, .manifest-auth-error { margin-left: calc(var(--manifest-label-width) + var(--space-3)); min-width: 0; display: flex; flex-direction: column; gap: var(--space-2); }
+.manifest-auth .ant-radio-group { display: flex; flex-wrap: wrap; align-items: center; min-height: var(--control-height); gap: var(--space-2); }
+.manifest-auth .ant-select { min-width: 0; }
+.manifest-section { border: 0; border-block-start: 1px solid hsl(var(--border)); border-radius: 0; padding: var(--space-3) 0 0; }
+.manifest-connection-feedback:empty { display: none; }
+.manifest-test-result { border: 1px solid hsl(var(--border)); border-radius: var(--radius); padding: var(--space-4); display: flex; flex-direction: column; gap: var(--space-3); background: hsl(var(--muted) / .3); }
+.manifest-test-result.is-failed { border-color: hsl(var(--destructive) / .5); }
+.manifest-test-heading > svg { flex-shrink: 0; }
+.manifest-test-stages { display: flex; flex-wrap: wrap; gap: var(--space-2) var(--space-4); }
+.manifest-test-stage { display: inline-flex; align-items: center; gap: var(--space-2); font-size: .8125rem; }
+.manifest-test-details > summary { cursor: pointer; }
+.manifest-test-details[open] > p { margin-top: var(--space-2); overflow-wrap: anywhere; }
+.manifest-editor-json .manifest-connection-feedback { flex-shrink: 0; }
+.manifest-dialog .manifest-editor-json .manifest-editor-body { display: flex; flex-direction: column; overflow: hidden; }
+.manifest-dialog .manifest-editor-json .manifest-editor-body > :not(.manifest-field) { flex-shrink: 0; }
+.manifest-dialog .manifest-editor-json .manifest-field { flex: 1; min-height: 0; }
+.manifest-dialog .manifest-editor-json .manifest-field-control { min-height: 0; align-self: stretch; }
+.manifest-dialog .manifest-editor-json .manifest-json { flex: 1; min-height: 0; resize: none; overflow-y: auto; }

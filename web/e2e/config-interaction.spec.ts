@@ -178,6 +178,7 @@ test('E2E-205 @full form and JSON share enabled state, preserve draft fields and
 
 test('E2E-206 @full one precheck status, visible error location and edited drafts clear prior results', async ({ page }) => {
   const editor = await openEditor(page)
+  await editor.getByText('Advanced configuration', { exact: true }).click()
   await page.route('**/v1/mcp/configs/*/validate', route => route.fulfill({ json: { ok: false, can_apply: false, manifest_id: server.id, summary: { errors: 1, warnings: 0, info: 0, ok: 2 }, checks: [
     { name: 'transport.endpoint', severity: 'error', message: 'Synthetic endpoint policy rejection', metadata: {} },
     { name: 'manifest.schema', severity: 'ok', message: 'Schema valid', metadata: {} },
@@ -306,7 +307,9 @@ for (const viewport of [{ width: 1600, height: 900 }, { width: 1920, height: 108
       if (dark) await expect(page.locator('html')).toHaveClass(/dark/)
       else await expect(page.locator('html')).not.toHaveClass(/dark/)
       await expect(editor.getByRole('radio', { name: zh ? '外部 HTTP' : 'External HTTP', exact: true })).toBeChecked()
-      await expect(editor.locator('.manifest-form').getByRole('radio')).toHaveCount(4)
+      await expect(editor.locator('[data-manifest-path="/launch/type"]').getByRole('radio')).toHaveCount(4)
+      await expect(editor.locator('.manifest-auth').getByRole('radio')).toHaveCount(5)
+      await editor.locator('summary').filter({ hasText: zh ? '高级请求头' : 'Advanced headers' }).click()
       const save = editor.getByRole('button', { name: zh ? '保存配置' : 'Save configuration', exact: true })
       await expectInViewportAndUnobscured(save)
       const geometry = await editor.evaluate(element => {
@@ -323,7 +326,7 @@ for (const viewport of [{ width: 1600, height: 900 }, { width: 1920, height: 108
       expect(geometry.bodyScroll).toBe(false)
       expect(geometry.fieldsScroll).toBe(true)
       const rowsAligned = await editor.locator('.manifest-form .manifest-field').evaluateAll(fields => fields.every(field => {
-        const label = field.querySelector('label')!, control = field.querySelector('.manifest-field-control')!
+        const label = field.querySelector(':scope > :is(label, .field-label)')!, control = field.querySelector('.manifest-field-control')!
         const a = label.getBoundingClientRect(), b = control.getBoundingClientRect()
         if (!a.width || !a.height) return true
         return b.left >= a.right && b.top < a.bottom && b.bottom > a.top && getComputedStyle(label).whiteSpace === 'nowrap'
@@ -347,8 +350,9 @@ for (const viewport of [{ width: 1600, height: 900 }, { width: 1920, height: 108
   }
 }
 
-test('E2E-210 @full private HTTP trust confirms the exact draft target, invalidates edits and never saves configuration', async ({ page }, testInfo) => {
-  let policy = { server_id: server.id, revision: 0, origins: [] as Array<{ ip: string; port: number }> }
+test('E2E-218 @full private HTTP revocation invalidates draft changes and protects a pending write without saving configuration', async ({ page }, testInfo) => {
+  let policy = { server_id: server.id, revision: 3, state: 'active', server_binding: 'synthetic-binding', revoked: false, needs_review: false,
+    origins: [{ ip: '10.23.45.67', port: 8080 }] as Array<{ ip: string; port: number }> }
   let trustWrites = 0, configWrites = 0, validations = 0
   let release: (() => void) | undefined
   const gate = new Promise<void>(resolve => { release = resolve })
@@ -356,11 +360,11 @@ test('E2E-210 @full private HTTP trust confirms the exact draft target, invalida
     if (route.request().method() === 'GET') return route.fulfill({ json: policy })
     trustWrites++
     const body = route.request().postDataJSON()
-    expect(body.expected_revision).toBe(0)
+    expect(body.expected_revision).toBe(3)
     expect(body.confirmed).toBe(true)
-    expect(body.origins).toEqual([{ ip: '10.23.45.68', port: 8080 }])
+    expect(body.origins).toEqual([])
     await gate
-    policy = { ...policy, revision: 1, origins: body.origins }
+    policy = { ...policy, revision: 4, state: 'revoked', revoked: true, origins: body.origins }
     await route.fulfill({ json: policy })
   })
   const editor = await openEditor(page, false, { viewport: { width: 1600, height: 900 }, manifest: { ...manifest, transport: { ...manifest.transport, endpoint: 'http://10.23.45.67:8080/mcp' } } })
@@ -370,34 +374,32 @@ test('E2E-210 @full private HTTP trust confirms the exact draft target, invalida
   })
   await page.route('**/v1/mcp/configs/*/validate', route => {
     validations++
-    expect(route.request().postDataJSON().manifest.name).toBe('Synthetic unsaved name')
-    return route.fulfill({ json: { ok: true, can_apply: true, manifest_id: server.id, summary: { errors: 0, warnings: 0, info: 0, ok: 1 }, checks: [{ name: 'transport.http_trust', severity: 'ok', message: 'Synthetic exact origin approved', metadata: { authorized: true } }] } })
+    return route.fulfill({ json: { ok: true, can_apply: true, manifest_id: server.id, summary: { errors: 0, warnings: 0, info: 0, ok: 1 }, checks: [] } })
   })
   const endpoint = editor.getByLabel('MCP Endpoint', { exact: true })
   await editor.getByLabel('Name', { exact: true }).fill('Synthetic unsaved name')
-  await editor.getByRole('button', { name: 'Authorize this address', exact: true }).click()
-  await expect(editor.getByRole('group', { name: 'Confirm internal address authorization' })).toContainText('10.23.45.67')
+  await editor.getByText('Connection permission details', { exact: true }).click()
+  await editor.getByRole('button', { name: 'Revoke connection permission', exact: true }).click()
+  await expect(editor.getByRole('group', { name: 'Confirm connection revocation' })).toContainText(server.id)
   await endpoint.fill('http://10.23.45.68:8080/mcp')
-  await expect(editor.getByRole('group', { name: 'Confirm internal address authorization' })).toHaveCount(0)
+  await expect(editor.getByRole('group', { name: 'Confirm connection revocation' })).toHaveCount(0)
   expect(trustWrites).toBe(0)
-  await editor.getByRole('button', { name: 'Authorize this address', exact: true }).click()
-  const confirmation = editor.getByRole('group', { name: 'Confirm internal address authorization' })
+  await endpoint.fill('http://10.23.45.67:8080/mcp')
+  await editor.getByRole('button', { name: 'Revoke connection permission', exact: true }).click()
+  const confirmation = editor.getByRole('group', { name: 'Confirm connection revocation' })
   await expect(confirmation).toContainText(server.id)
-  await expect(confirmation).toContainText('10.23.45.68')
-  await expect(confirmation).toContainText('8080')
   await expect(page.getByRole('dialog')).toHaveCount(1)
-  await page.screenshot({ path: testInfo.outputPath('private-http-trust-confirmation.png') })
-  await confirmation.getByRole('button', { name: 'Confirm address authorization', exact: true }).click()
+  await page.screenshot({ path: testInfo.outputPath('private-http-revocation-confirmation.png') })
+  await confirmation.getByRole('button', { name: 'Confirm revocation', exact: true }).click()
   await expect.poll(() => trustWrites).toBe(1)
   await expect(endpoint).toBeDisabled()
   await expect(editor.getByRole('button', { name: 'Save configuration', exact: true })).toBeDisabled()
   await page.keyboard.press('Enter')
   expect(trustWrites).toBe(1)
   release!()
-  await expect(editor.getByText('This internal address is authorized.', { exact: true })).toBeVisible()
-  await expect(editor.getByText('Check passed', { exact: true })).toBeVisible()
+  await expect(editor.getByText('Connection permission was revoked. A normal save will not restore it.', { exact: true })).toBeVisible()
   await expect(editor.getByLabel('Name', { exact: true })).toHaveValue('Synthetic unsaved name')
-  expect(validations).toBe(1)
+  expect(validations).toBe(0)
   expect(configWrites).toBe(0)
 })
 

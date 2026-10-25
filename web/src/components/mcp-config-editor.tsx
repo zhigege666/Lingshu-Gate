@@ -1,11 +1,16 @@
 import { useEffect, useId, useMemo, useRef, useState, type ReactNode } from "react"
 import { Braces, Plus, Save, ShieldCheck, Trash2 } from "lucide-react"
 import { createPortal } from "react-dom"
-import { Radio } from "antd"
-import { api, type Credential, type ManifestValidationResponse } from "@/api/client"
+import { Radio, Select } from "antd"
+import { api, type Credential, type HttpTrustSaveOptions, type ManifestValidationResponse } from "@/api/client"
+import { testHttpConnection, type HttpConnectionResult } from "@/api/http-connection-test"
+import { McpConnectionTestResult } from "@/components/mcp-connection-test-result"
 import { ValidationErrors } from "@/components/validation-errors"
 import { FieldLabel } from "@/components/field-help"
-import { McpHttpTrustControl } from "@/components/mcp-http-trust-control"
+import { McpHttpTrustControl, httpTrustTargetKey, type HttpTrustEditorState } from "@/components/mcp-http-trust-control"
+import { privateHttpOrigin } from "@/features/mcp-config/http-trust"
+import { McpHttpAuthEditor, type HttpAuthDraftReason } from "@/components/mcp-http-auth-editor"
+import { homeMcpEndpoint } from "@/features/mcp-config/http-auth"
 import { Alert, AlertDescription } from "@/components/ui/alert"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
@@ -29,9 +34,10 @@ import "@/features/mcp-config/editor.css"
 type McpConfigEditorProps = {
   locale: Locale
   selectedConfigId: string
+  savedConfigDigest?: string
   value: string
   onChange: (value: string) => void
-  onSave: (nextValue?: string) => void | Promise<void>
+  onSave: (nextValue?: string, httpTrust?: HttpTrustSaveOptions) => void | Promise<void>
   saveLabel?: string
   onClose?: () => void
   onPendingChange?: (pending: boolean) => void
@@ -41,6 +47,7 @@ type McpConfigEditorProps = {
   footerContainer?: HTMLElement | null
   busy: boolean
   canManageHttpTrust?: boolean
+  canManageCredentials?: boolean
 }
 
 const FORM_COPY = {
@@ -258,6 +265,8 @@ function StringMapEditor({ value, label, disabled, onChange, zh, id, credentials
   const [key, setKey] = useState("")
   const [entryValue, setEntryValue] = useState("")
   const [error, setError] = useState("")
+  const [referenceId, setReferenceId] = useState<string | undefined>()
+  const [referencePrefix, setReferencePrefix] = useState("Bearer ")
   const reportDirty = useRef(onDraftDirtyChange)
   reportDirty.current = onDraftDirtyChange
   useEffect(() => { reportDirty.current(Boolean(key || entryValue)) }, [key, entryValue])
@@ -266,7 +275,14 @@ function StringMapEditor({ value, label, disabled, onChange, zh, id, credentials
     if (!nextKey.trim()) { setError(zh ? "请填写键名。" : "Enter a key."); return }
     if (Object.prototype.hasOwnProperty.call(value, nextKey)) { setError(zh ? "键名已存在，请直接修改已有值。" : "This key already exists. Edit its value below."); return }
     onChange({ ...value, [nextKey]: nextValue })
-    setKey(""); setEntryValue(""); setError("")
+    setKey(""); setEntryValue(""); setError(""); setReferenceId(undefined)
+  }
+  function chooseCredential(credentialId: string, prefix = referencePrefix) {
+    setReferenceId(credentialId)
+    setEntryValue((credentialKeyMode === "header" ? prefix : "") + credentialRef(credentialId))
+    if (!key) setKey(credentialKeyMode === "environment" ? envKeyFromCredential(credentialId) : "Authorization")
+    setError("")
+    document.getElementById(id)?.focus()
   }
   return <fieldset className="manifest-map" disabled={disabled}>
     <legend className="sr-only">{label}</legend>
@@ -282,22 +298,20 @@ function StringMapEditor({ value, label, disabled, onChange, zh, id, credentials
       <Input aria-label={`${label} ${zh ? "新值" : "new value"}`} placeholder={zh ? "值（可为空）" : "Value (may be empty)"} value={entryValue} onChange={(event) => setEntryValue(event.target.value)} />
       <Button type="button" variant="outline" size="sm" className="size-9 shrink-0 px-0" aria-label={`${zh ? "添加" : "Add"} ${label}`} onClick={() => add()}><Plus className="size-4" /></Button>
     </div>
-    {(key || entryValue) && <div className="flex items-center justify-between gap-2"><p className="text-xs text-muted-foreground">{zh ? "点击添加后写入配置；键名的空格和空值会原样保留。" : "Select Add to include this entry; spaces in keys and empty values are preserved."}</p><Button type="button" size="sm" variant="ghost" onClick={() => { setKey(""); setEntryValue(""); setError("") }}>{zh ? "清除待添加项" : "Clear pending entry"}</Button></div>}
+    {(key || entryValue) && <div className="flex items-center justify-between gap-2"><p className="text-xs text-muted-foreground">{zh ? "点击添加后写入配置；键名的空格和空值会原样保留。" : "Select Add to include this entry; spaces in keys and empty values are preserved."}</p><Button type="button" size="sm" variant="ghost" onClick={() => { setKey(""); setEntryValue(""); setError(""); setReferenceId(undefined) }}>{zh ? "清除待添加项" : "Clear pending entry"}</Button></div>}
     {error && <p role="alert" className="text-xs text-destructive">{error}</p>}
-    {credentials.length > 0 && <section>
-      <h4 className="text-xs font-medium">{zh ? "插入凭据引用" : "Insert credential reference"}</h4>
-      <div className="mt-2 flex flex-wrap gap-2">{credentials.map((item) => <Button key={item.id} type="button" variant="outline" size="sm" onClick={() => {
-        // Header names are user-selected (for example Authorization), never derived from credential IDs.
-        setEntryValue(credentialRef(item.id))
-        if (credentialKeyMode === "environment" && !key) setKey(envKeyFromCredential(item.id))
-        setError("")
-        document.getElementById(id)?.focus()
-      }}>{item.id}</Button>)}</div>
+    {credentials.length > 0 && <section className="space-y-2">
+      <Label htmlFor={`${id}-credential`} className="text-xs">{zh ? "插入凭据引用" : "Insert credential reference"}</Label>
+      <Select id={`${id}-credential`} className="w-full" showSearch optionFilterProp="label" aria-label={zh ? "插入凭据引用" : "Insert credential reference"} disabled={disabled} value={referenceId} placeholder={zh ? "搜索凭据 ID 或名称" : "Search credential ID or name"} options={credentials.map(item => ({ value: item.id, label: `${item.name} · ${item.id}` }))} onChange={id => chooseCredential(id)} />
+      {credentialKeyMode === "header" && <Radio.Group size="small" aria-label={zh ? "引用格式" : "Reference format"} disabled={disabled} value={referencePrefix} options={[{ value: "Bearer ", label: "Bearer token" }, { value: "", label: zh ? "原始值" : "Raw value" }]} onChange={event => {
+        const prefix = event.target.value as string; setReferencePrefix(prefix)
+        if (referenceId) chooseCredential(referenceId, prefix)
+      }} />}
     </section>}
   </fieldset>
 }
 
-export function McpConfigEditor({ locale, selectedConfigId, value, onChange, onSave, onClose, onPendingChange, onDraftDirtyChange, backendPrecheck = true, loadCredentials = true, footerContainer, busy, saveLabel, canManageHttpTrust = false }: McpConfigEditorProps) {
+export function McpConfigEditor({ locale, selectedConfigId, savedConfigDigest, value, onChange, onSave, onClose, onPendingChange, onDraftDirtyChange, backendPrecheck = true, loadCredentials = true, footerContainer, busy, saveLabel, canManageHttpTrust = false, canManageCredentials = false }: McpConfigEditorProps) {
   const c: CopyFn = (key) => FORM_COPY[locale][key]
   const zh = locale === "zh-CN"
   const editorId = useId()
@@ -307,14 +321,29 @@ export function McpConfigEditor({ locale, selectedConfigId, value, onChange, onS
   const [touched, setTouched] = useState<Set<string>>(new Set())
   const [checked, setChecked] = useState<{ response: ManifestValidationResponse; revision: number } | null>(null)
   const [requestError, setRequestError] = useState<string | null>(null)
+  const savedDigest = useRef(savedConfigDigest)
+  const [testing, setTesting] = useState(false)
+  const [tested, setTested] = useState<{ response: HttpConnectionResult; revision: number } | null>(null)
+  const testController = useRef<AbortController | null>(null)
+  const mounted = useRef(true)
+  useEffect(() => { mounted.current = true; return () => { mounted.current = false; testController.current?.abort() } }, [])
   const [validating, setValidating] = useState(false)
   const [submitting, setSubmitting] = useState(false)
   const [trustBusy, setTrustBusy] = useState(false)
+  const [credentialBusy, setCredentialBusy] = useState(false)
+  const [trustState, setTrustState] = useState<HttpTrustEditorState | null>(null)
   const [credentials, setCredentials] = useState<Credential[]>([])
+  const [credentialsLoading, setCredentialsLoading] = useState(loadCredentials)
+  const [credentialsError, setCredentialsError] = useState(false)
+  const [credentialsReload, setCredentialsReload] = useState(0)
+  const localCredentialWrites = useRef<Array<{ sequence: number; credential: Credential }>>([])
+  const [authDraftReason, setAuthDraftReason] = useState<HttpAuthDraftReason>(null)
+  const advancedHeaders = useRef<HTMLDetailsElement>(null)
+  const connectionResult = useRef<HTMLDivElement>(null)
   const [pendingEntries, setPendingEntries] = useState<Set<string>>(new Set())
   const [pendingNumbers, setPendingNumbers] = useState<Record<string, string>>({})
   const hasPendingNumbers = Object.keys(pendingNumbers).length > 0
-  const hasPendingEdits = pendingEntries.size > 0 || hasPendingNumbers
+  const hasPendingEdits = pendingEntries.size > 0 || hasPendingNumbers || authDraftReason !== null
   const requestPending = useRef(false)
   const precheckSequence = useRef(0)
   const latest = useRef({ value, revision: 0 })
@@ -334,7 +363,7 @@ export function McpConfigEditor({ locale, selectedConfigId, value, onChange, onS
     catch (err) { return { manifest: null, syntax: err instanceof SyntaxError, sourceError: err instanceof JsonSourceError ? err : null, error: err instanceof JsonSourceError ? JSON_SOURCE_MESSAGE[zh ? "zh-CN" : "en"][err.code] : err instanceof SyntaxError ? JSON_SYNTAX_MESSAGE[zh ? "zh-CN" : "en"] : (zh ? "配置必须是 JSON 对象。当前输入已保留。" : "The configuration must be a JSON object. Your input has been retained.") } }
   }, [value, zh])
   const manifest = parsed.manifest
-  const locked = busy || validating || submitting || trustBusy
+  const locked = busy || validating || submitting || trustBusy || credentialBusy || testing
   const rawChecks = manifest ? precheckManifest(manifest, (key) => key, initialContext.current) : { errors: [], warnings: [] }
   const issues: ValidationIssue[] = [
     ...rawChecks.errors.map((key) => ({ code: key, messageKey: key, message: c(key as CopyKey), severity: "error" as const, source: "domain" as const, path: PRECHECK_PATHS[key as ManifestPrecheckMessageKey], revision })),
@@ -353,19 +382,71 @@ export function McpConfigEditor({ locale, selectedConfigId, value, onChange, onS
   const managed = managedProcess || managedContainer
   const http = mode === "external_http" || mode === "managed_http"
   const endpointKept = manifest ? canKeepMaskedEndpoint(manifest, initialContext.current) : false
+  const privateOrigin = http && privateHttpOrigin(transport.endpoint)
+  const needsTrustSnapshot = privateOrigin || http && endpointKept
+  const trustTarget = httpTrustTargetKey(typeof manifest?.id === "string" ? manifest.id : "", transport.endpoint)
+  const trustReady = !needsTrustSnapshot || !canManageHttpTrust || Boolean(trustState?.targetKey === trustTarget && trustState.ready)
+  const httpTrust: HttpTrustSaveOptions = needsTrustSnapshot && trustState?.targetKey === trustTarget ? trustState.options : {}
+  const credentialEndpoint = endpointKept && trustState?.targetKey === trustTarget ? trustState.credentialOrigin : transport.endpoint
   const reservedHeaders = Object.keys(getRecord(transport.headers)).filter(key => ["content-type", "accept", "mcp-session-id", "mcp-protocol-version", "mcp-method", "mcp-name", "traceparent", "tracestate", "baggage", "x-correlation-id"].includes(key.toLowerCase()))
 
   useEffect(() => {
     let active = true
-    if (loadCredentials) void api.credentials().then((items) => { if (active) setCredentials(items) }).catch(() => { /* References can always be entered manually. */ })
+    const writeSequence = localCredentialWrites.current.length
+    if (loadCredentials) {
+      setCredentialsLoading(true); setCredentialsError(false)
+      void api.credentials().then(items => {
+        if (!active) return
+        const newer = localCredentialWrites.current.filter(write => write.sequence > writeSequence).map(write => write.credential)
+        setCredentials([...items.filter(item => !newer.some(created => created.id === item.id)), ...newer])
+      })
+        .catch(() => { if (active) setCredentialsError(true) })
+        .finally(() => { if (active) setCredentialsLoading(false) })
+    }
     return () => { active = false }
-  }, [loadCredentials])
+  }, [loadCredentials, credentialsReload])
   useEffect(() => { setChecked(null); setRequestError(null) }, [value])
   useEffect(() => { onPendingChange?.(locked); return () => onPendingChange?.(false) }, [locked, onPendingChange])
   useEffect(() => { onDraftDirtyChange?.(hasPendingEdits) }, [hasPendingEdits, onDraftDirtyChange])
 
+  useEffect(() => {
+    if (!testing && !tested) return
+    const frame = requestAnimationFrame(() => connectionResult.current?.scrollIntoView({ block: "nearest" }))
+    return () => cancelAnimationFrame(frame)
+  }, [testing, tested])
+  const authDraftHint = authDraftReason === "credential"
+    ? (zh ? "请先保存或取消正在编辑的凭据，再测试连接或保存配置。" : "Save or cancel the credential being edited before testing or saving the configuration.")
+    : (zh ? "请完成鉴权方式的凭据和头名称选择，或选择无鉴权。" : "Complete the credential and header selection, or choose no authentication.")
+  function showAdvancedHeaders() {
+    if (advancedHeaders.current) {
+      advancedHeaders.current.open = true
+      requestAnimationFrame(() => { advancedHeaders.current?.scrollIntoView({ block: "nearest" }); advancedHeaders.current?.querySelector<HTMLElement>("input,button")?.focus() })
+    }
+  }
+  function updateAuthHeaders(headers: Record<string, string>) {
+    // Completion of the explicit credential write is allowed to attach its
+    // reference while credentialBusy locks the surrounding form.
+    if (!manifest || busy || validating || submitting || trustBusy || testing) return false
+    let current: ManifestLike
+    try { current = parseManifest(latest.current.value) } catch { return false }
+    const currentTransport = getRecord(current.transport)
+    if (current.id !== manifest.id || currentTransport.endpoint !== transport.endpoint
+      || JSON.stringify(currentTransport.headers) !== JSON.stringify(transport.headers)) return false
+    onChange(prettyJson(patchManifestField(current, ["transport", "headers"], { kind: "set", value: headers })))
+    return true
+  }
+  function credentialCreated(credential: Credential) {
+    localCredentialWrites.current.push({ sequence: localCredentialWrites.current.length + 1, credential })
+    setCredentials(items => [...items.filter(item => item.id !== credential.id), credential])
+  }
+  function applyHomeTemplate() {
+    if (!manifest || locked) return
+    const endpoint = homeMcpEndpoint(transport.endpoint)
+    if (endpoint) write(patchManifestField(manifest, ["transport", "endpoint"], { kind: "set", value: endpoint }))
+  }
   function fieldId(path: string) { return `${editorId}-${path.replace(/\//g, "-")}` }
   function switchToJson() {
+    if (authDraftReason) { setRequestError(authDraftHint); return false }
     if (hasPendingNumbers) { setRequestError(zh ? "请先修正未完成的数值；列表空行可明确移除，再切换 JSON。" : "Complete unfinished numbers or explicitly remove empty list rows before switching to JSON."); return false }
     if (pendingEntries.size) { setRequestError(zh ? "请先添加或清除键值列表中尚未添加的项，再切换 JSON。" : "Add or clear the pending key/value entry before switching to JSON."); return false }
     setActiveTab("json")
@@ -439,7 +520,8 @@ export function McpConfigEditor({ locale, selectedConfigId, value, onChange, onS
     const id = fieldId(`/${path.join("/")}`)
     const headers = path[0] === "transport" && path[1] === "headers"
     return <Field id={id} label={label} desc={withCredentials ? <><p>{zh ? "敏感值使用 ${credential:ID} 引用。插入后请确认键名和值，再点击添加；已有键名需删除后重新添加。" : "Use ${credential:ID} for secrets. Review the key and value, then select Add; remove and add an entry to change its key."}</p><p>{zh ? "*** 仅保留原配置同一键的旧值，不是可复制的秘密；改键名时请重新填写值或凭据引用。" : "*** keeps the saved value only for the same key in the original configuration. It is not a copyable secret; supply a value or credential reference when changing keys."}</p>{headers && <p>{zh ? "请明确填写 HTTP 头名，例如 Authorization。协议与追踪保留头由客户端生成，手工配置不会覆盖它们。" : "Enter the HTTP header name explicitly, for example Authorization. The client generates reserved protocol and tracing headers; configured values do not override them."}</p>}</> : undefined}>
-      {current !== undefined && !isStringMap(current) ? unsupported(label) : <StringMapEditor id={id} label={label} value={(current || {}) as Record<string, string>} disabled={locked} onChange={(next) => set(path, next)} zh={zh} credentials={withCredentials ? credentials : []} credentialKeyMode={headers ? "header" : "environment"} onDraftDirtyChange={(dirty) => setPendingEntries((current) => {
+      {current !== undefined && !isStringMap(current) ? unsupported(label) : <StringMapEditor id={id} label={label} value={(current || {}) as Record<string, string>} disabled={locked || headers && authDraftReason !== null} onChange={(next) => set(path, next)} zh={zh} credentials={withCredentials ? credentials : []} credentialKeyMode={headers ? "header" : "environment"}
+        onDraftDirtyChange={(dirty) => setPendingEntries((current) => {
         if (current.has(id) === dirty) return current
         const next = new Set(current); if (dirty) next.add(id); else next.delete(id); return next
       })} />}
@@ -480,14 +562,15 @@ export function McpConfigEditor({ locale, selectedConfigId, value, onChange, onS
     </Field>
   }
   async function check(snapshot: ManifestLike, snapshotRevision: number) {
-    const result = await api.validateConfig(withoutUserCredentialValues(snapshot), selectedConfigId || null)
+    const result = await api.validateConfig(withoutUserCredentialValues(snapshot), selectedConfigId || null, httpTrust)
     if (latest.current.revision !== snapshotRevision) return null
     precheckSequence.current += 1
     setChecked({ response: result, revision: snapshotRevision })
     return result
   }
   async function validate(save: boolean) {
-    if (requestPending.current || locked || !manifest) return
+    if (requestPending.current || locked || !manifest || !trustReady) return
+    if (authDraftReason) { setRequestError(authDraftHint); return }
     if (hasPendingNumbers) { setRequestError(zh ? "请先修正未完成的数值；列表空行可明确移除，再保存或检查。" : "Complete unfinished numbers or explicitly remove empty list rows before saving or checking."); return }
     if (pendingEntries.size > 0) { setRequestError(zh ? "请先添加或清除键值列表中尚未添加的项，再保存或检查。" : "Add or clear the pending key/value entry before saving or checking."); return }
     setAttempted(true)
@@ -500,29 +583,65 @@ export function McpConfigEditor({ locale, selectedConfigId, value, onChange, onS
     const snapshotRevision = revision
     const snapshot = manifest
     try {
-      if (!backendPrecheck) { await onSave(value); return }
+      if (!backendPrecheck) { await onSave(value, httpTrust); return }
       const result = await check(snapshot, snapshotRevision)
       if (!result || manifestValidationStatus(result) === "error" || !save) return
-      await onSave(prettyJson(snapshot))
+      await onSave(prettyJson(snapshot), httpTrust)
     } catch (err) { if (latest.current.revision === snapshotRevision) setRequestError(err instanceof Error ? err.message : String(err)) }
     finally { requestPending.current = false; setValidating(false); setSubmitting(false) }
   }
 
-  const saveBlocked = !manifest || hasPendingEdits || visibleIssues.some(issue => issue.severity === "error")
+  async function testConnection() {
+    if (requestPending.current || locked || !manifest || hasPendingEdits || mode !== "external_http") return
+    setAttempted(true)
+    const first = issues.find(issue => issue.severity === "error")
+    if (first) { focusIssue(first); return }
+    if (selectedConfigId && !savedDigest.current) {
+      setRequestError(zh ? "缺少已保存配置版本，请重新打开编辑器后测试。" : "The saved configuration version is missing. Reopen the editor before testing."); return
+    }
+    requestPending.current = true
+    setTesting(true); setTested(null); setRequestError(null)
+    const snapshotRevision = revision
+    const controller = new AbortController()
+    testController.current = controller
+    try {
+      const response = await testHttpConnection(withoutUserCredentialValues(manifest), selectedConfigId || undefined, savedDigest.current, controller.signal)
+      if (mounted.current && latest.current.revision === snapshotRevision) setTested({ response, revision: snapshotRevision })
+    } catch (err) {
+      if (mounted.current && latest.current.revision === snapshotRevision) setRequestError(controller.signal.aborted
+        ? (zh ? "等待联通测试超时。服务端测试仍受自身时限约束；请检查当前状态再重试。" : "Waiting for the test timed out. The server test remains bounded by its deadline; check the state before retrying.")
+        : err instanceof Error ? err.message : (zh ? "无法执行联通测试。" : "The connection test could not run."))
+    } finally {
+      requestPending.current = false
+      if (mounted.current) setTesting(false)
+      if (testController.current === controller) testController.current = null
+    }
+  }
+
+  const saveBlocked = !manifest || !trustReady || hasPendingEdits || visibleIssues.some(issue => issue.severity === "error")
     || Boolean(validation && manifestValidationStatus(validation) === "error")
-  const saveBlockedHint = pendingEntries.size > 0
+  const saveBlockedHint = authDraftReason ? authDraftHint : !trustReady
+    ? (zh ? "请先读取当前连接许可，再保存配置。" : "Read the current connection permission before saving.")
+    : pendingEntries.size > 0
     ? (zh ? "请先填写键名并点击添加，或清除待添加项，再保存。" : "Enter a key and add the pending entry, or clear it before saving.")
     : c("saveBlocked")
+  const connectionFeedback = <div ref={connectionResult} className="manifest-connection-feedback">
+    {testing && <p role="status" className="text-xs text-muted-foreground">{zh ? "正在使用独立连接检查 HTTP、请求鉴权、MCP 握手与工具发现；不保存配置。" : "Testing HTTP, request authentication, MCP handshake and tool discovery in an isolated connection; no configuration is saved."}</p>}
+    {tested && <McpConnectionTestResult result={tested.response} stale={tested.revision !== revision || hasPendingEdits} zh={zh} />}
+  </div>
+  const validationButton = backendPrecheck && <Button type="button" variant="outline" disabled={locked || !manifest || !trustReady || hasPendingEdits} onClick={() => void validate(false)}><ShieldCheck aria-hidden="true" className="size-4" />{validating ? (zh ? "检查中…" : "Checking…") : c("backendPrecheck")}</Button>
   const footer = <div className="manifest-editor-footer">
     {requestError && <Alert variant="destructive"><AlertDescription>{requestError}</AlertDescription></Alert>}
     <div className="manifest-editor-actions">
-      {backendPrecheck && <Button type="button" variant="outline" disabled={locked || !manifest} onClick={() => void validate(false)}><ShieldCheck aria-hidden="true" className="size-4" />{validating ? (zh ? "检查中…" : "Checking…") : c("backendPrecheck")}</Button>}
+      <span className="text-xs text-muted-foreground">{mode === "external_http" && backendPrecheck && canManageHttpTrust ? (zh ? "保存前自动校验，连接测试可选。" : "Validated before saving. Connection testing is optional.") : backendPrecheck ? (zh ? "保存前自动校验配置。" : "Configuration is validated before saving.") : (zh ? "保存草稿不会启动服务。" : "Saving a draft does not start the service.")}</span>
+      {!http && validationButton}
       <div className="ml-auto flex gap-2">
         {onClose && <Button type="button" variant="ghost" disabled={locked} onClick={onClose}>{zh ? "取消" : "Cancel"}</Button>}
+        {backendPrecheck && mode === "external_http" && canManageHttpTrust && <Button type="button" variant="outline" disabled={locked || !manifest || hasPendingEdits} onClick={() => void testConnection()}>{testing ? (zh ? "测试中…" : "Testing…") : (zh ? "测试连接" : "Test connection")}</Button>}
         <Button type="button" disabled={locked || saveBlocked} aria-describedby={saveBlocked ? fieldId("save-block-reason") : undefined} onClick={() => void validate(true)}><Save aria-hidden="true" className="size-4" />{submitting || busy ? (zh ? "保存中…" : "Saving…") : saveLabel || c("saveAndApply")}</Button>
       </div>
     </div>
-    {saveBlocked && <p id={fieldId("save-block-reason")} className="text-xs text-destructive">{saveBlockedHint}</p>}
+    {saveBlocked && <p id={fieldId("save-block-reason")} className={authDraftReason ? "text-xs text-muted-foreground" : "text-xs text-destructive"}>{saveBlockedHint}</p>}
   </div>
 
   return <div ref={root} lang={locale} className={`manifest-editor manifest-editor-${activeTab}`}>
@@ -531,11 +650,17 @@ export function McpConfigEditor({ locale, selectedConfigId, value, onChange, onS
         <Button type="button" size="sm" variant={activeTab === "form" ? "secondary" : "ghost"} aria-pressed={activeTab === "form"} disabled={locked || !manifest} onClick={() => setActiveTab("form")}>{zh ? "表单" : "Form"}</Button>
         <Button type="button" size="sm" variant={activeTab === "json" ? "secondary" : "ghost"} aria-pressed={activeTab === "json"} disabled={locked} onClick={switchToJson}>JSON</Button>
       </div>
+      {activeTab === "json" && http && validationButton}
       {activeTab === "json" && <Button type="button" size="sm" variant="ghost" disabled={locked || !manifest} onClick={() => onChange(formatManifestJson(value))}><Braces aria-hidden="true" className="size-4" />{c("formatJson")}</Button>}
     </div>
     <div className="manifest-editor-body">
       {parsed.error && <ValidationErrors title={parsed.sourceError ? (zh ? "JSON 需要修正" : "JSON needs correction") : parsed.syntax ? (zh ? "JSON 语法错误" : "JSON syntax error") : (zh ? "配置格式错误" : "Invalid configuration structure")} issues={[{ code: parsed.sourceError?.code ?? (parsed.syntax ? "invalid_json" : "object_required"), messageKey: parsed.sourceError?.code ?? (parsed.syntax ? "invalid_json" : "object_required"), message: parsed.error, severity: "error", source: parsed.syntax || parsed.sourceError ? "syntax" : "schema", path: parsed.sourceError?.path ?? "", range: parsed.sourceError?.range, revision }]} onSelect={focusIssue} />}
       {(visibleIssues.length > 0 || validation) && <ValidationPanel validation={validation} issues={[...backendIssues, ...visibleIssues].filter((issue, index, all) => all.findIndex(other => other.path === issue.path && other.message === issue.message) === index)} onSelect={focusIssue} c={c} />}
+      {activeTab === "json" && http && manifest && <McpHttpTrustControl serverId={typeof manifest.id === "string" ? manifest.id : ""} endpoint={transport.endpoint}
+        draftRevision={revision} precheckSequence={precheckSequence.current} canManage={canManageHttpTrust} saved={selectedConfigId === manifest.id} locked={locked} zh={zh}
+        denied={Boolean(validation?.checks.some(item => item.metadata?.code === "private_http_untrusted"))}
+        onBusyChange={setTrustBusy} onStateChange={setTrustState} onPolicyUpdated={async () => { setChecked(null) }} />}
+      {activeTab === "json" && connectionFeedback}
       {activeTab === "form" && manifest ? <div className="manifest-form">
         <div className="manifest-form-pair">
           {textField(["id"], c("serverId"), manifest.id, c("serverIdDesc"), Boolean(selectedConfigId))}
@@ -569,14 +694,25 @@ export function McpConfigEditor({ locale, selectedConfigId, value, onChange, onS
               {initialContext.current.originalEndpointMasked && <Button type="button" size="sm" variant="ghost" disabled={locked} onClick={() => set(["transport", "endpoint"], REDACTED_ENDPOINT)}>{zh ? "保留原地址" : "Keep original endpoint"}</Button>}
             </>}
             <McpHttpTrustControl serverId={typeof manifest.id === "string" ? manifest.id : ""} endpoint={transport.endpoint}
-              draftRevision={revision} precheckSequence={precheckSequence.current} canManage={canManageHttpTrust} locked={locked} zh={zh}
-              approved={Boolean(validation?.checks.some(item => item.name === "transport.http_trust" && item.metadata?.authorized === true))}
+              draftRevision={revision} precheckSequence={precheckSequence.current} canManage={canManageHttpTrust} saved={selectedConfigId === manifest.id} locked={locked} zh={zh}
               denied={Boolean(validation?.checks.some(item => item.metadata?.code === "private_http_untrusted"))}
-              onBusyChange={setTrustBusy} onApproved={async () => { await check(manifest, revision) }} />
+              onBusyChange={setTrustBusy} onStateChange={setTrustState} onPolicyUpdated={async () => { setChecked(null) }} />
           </Field>
         </>}
         {numberField(["timeout_seconds"], c("timeoutSeconds"), manifest.timeout_seconds, 1, 30)}
-        {http && mapField(["transport", "headers"], zh ? "HTTP 请求头" : "HTTP headers", transport.headers, true)}
+        {http && <>
+          <McpHttpAuthEditor value={transport.headers} serverId={typeof manifest.id === "string" ? manifest.id : ""}
+            endpoint={credentialEndpoint} zh={zh} disabled={locked} credentials={credentials} loading={credentialsLoading}
+            loadError={credentialsError} canCreate={canManageCredentials} onReload={() => setCredentialsReload(sequence => sequence + 1)}
+            onChange={updateAuthHeaders} onPendingChange={setCredentialBusy} onDraftChange={setAuthDraftReason}
+            onCreated={credentialCreated}
+            onAdvanced={showAdvancedHeaders} onHomeTemplate={applyHomeTemplate} />
+          {connectionFeedback}
+          <details ref={advancedHeaders} className="manifest-section">
+            <summary>{zh ? "高级请求头" : "Advanced headers"}<span className="ml-2 text-xs text-muted-foreground">{Object.keys(getRecord(transport.headers)).length || (zh ? "可选" : "Optional")}</span></summary>
+            <div className="manifest-section-content">{mapField(["transport", "headers"], zh ? "HTTP 请求头" : "HTTP headers", transport.headers, true)}<p className="text-xs text-muted-foreground">{zh ? "Content-Type、Accept 与 MCP 协议头由 Gate 生成，无需手动填写。" : "Gate generates Content-Type, Accept and MCP protocol headers; do not enter them manually."}</p></div>
+          </details>
+        </>}
         {mode === "external_http" && [
           { path: ["restart_policy", "enabled"], value: policy.enabled, label: c("restartPolicy"), reason: c("restartUnsupported") },
           { path: ["restart_policy", "health_check", "enabled"], value: health.enabled, label: c("healthCheck"), reason: c("healthRestartUnsupported") },
@@ -609,6 +745,7 @@ export function McpConfigEditor({ locale, selectedConfigId, value, onChange, onS
         <details className="manifest-section">
           <summary>{zh ? "高级配置" : "Advanced configuration"}{[launch.mounts, launch.resources, launch.toolchain, launch.package, transport.protocol_version, manifest.roots, manifest.user_credentials, manifest.analysis].some(item => item != null && (Array.isArray(item) ? item.length > 0 : typeof item === "object" ? Object.keys(item).length > 0 : true)) && <span className="ml-2 text-xs text-muted-foreground">{zh ? "含 JSON 配置" : "Contains JSON settings"}</span>}</summary>
           <div className="manifest-section-content">
+            {http && validationButton}
             <AdvancedManifestSummary manifest={manifest} container={managedContainer} zh={zh} onEdit={switchToJson} disabled={locked} />
             <Field id={fieldId("/permissions")} label={c("permissions")} desc={c("permissionsDesc")} error={fieldError("/permissions")} readOnly>
               <pre tabIndex={0} data-manifest-path="/permissions" className="overflow-x-auto whitespace-pre-wrap text-xs">{manifest.permissions === undefined ? (zh ? "未声明" : "Not declared") : prettyJson(manifest.permissions)}</pre>

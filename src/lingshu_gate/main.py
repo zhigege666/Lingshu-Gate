@@ -33,6 +33,9 @@ from lingshu_gate.persistence.mcp_groups import McpGroupStore
 from lingshu_gate.interfaces.control_api.mcp_group_routes import register_mcp_group_routes
 from lingshu_gate.application.external_mcp_configuration import ExternalMcpConfigurationService
 from lingshu_gate.external_mcp_config_mcp import register_external_mcp_config_tools
+from lingshu_gate.http_mcp_management_mcp import register_http_mcp_management_tools
+from lingshu_gate.application.shared_credentials import SharedCredentialService
+from lingshu_gate.shared_credentials_mcp import register_credential_tools
 from lingshu_gate.interfaces.control_api.external_mcp_config_routes import register_external_mcp_config_routes
 from lingshu_gate.mcp_http_trust import McpHttpTrustStore
 from lingshu_gate.auth import AuthStore
@@ -208,13 +211,20 @@ def create_app() -> FastAPI:
         user_credential_store,
         group_store=mcp_group_store,
         on_deleted=retire_deleted_tools,
+        credentials=credential_store,
     )
+    shared_credential_service = SharedCredentialService(
+        database=database, auth=auth_store, access=access_store, credentials=credential_store,
+        configs=mcp_config_store, observability=observability_store,
+    )
+    register_credential_tools(registry, shared_credential_service)
     external_mcp_configuration_service = ExternalMcpConfigurationService(
         settings=settings, database=database, auth=auth_store, access=access_store,
         configs=mcp_config_store, runtime=mcp_runtime, credentials=credential_store,
         configuration=mcp_configuration_service, delivery=project_delivery_service,
     )
     register_external_mcp_config_tools(registry, external_mcp_configuration_service)
+    register_http_mcp_management_tools(registry, external_mcp_configuration_service)
     startup_state = StartupState()
     health_service = HealthService(
         service_name=settings.service_name,
@@ -375,6 +385,7 @@ def create_app() -> FastAPI:
     state.mcp_group_router = mcp_group_router
     state.external_mcp_configuration_service = external_mcp_configuration_service
     state.credential_store = credential_store
+    state.shared_credential_service = shared_credential_service
     state.user_credential_store = user_credential_store
     state.business_credential_store = business_credential_store
     state.business_credential_service = business_credential_service
@@ -465,6 +476,7 @@ def create_app() -> FastAPI:
         observability_store=observability_store,
         require_authenticated=require_authenticated,
         access_store=access_store,
+        service=shared_credential_service,
     )
     register_business_credential_routes(app, auth=auth_store, service=business_credential_service)
     register_tool_routes(
@@ -526,7 +538,7 @@ def create_app() -> FastAPI:
         return McpOAuthDiscoveryBoundary(OAuthProtectedResourceMetadata(
             resource=management["resource"], authorization_servers=(oauth_server.ready_config()["issuer"],),
             scopes_supported=tuple(sorted(MANAGEMENT_SCOPES)),
-        ), metadata_path=MANAGEMENT_METADATA_PATH)
+        ), metadata_path=MANAGEMENT_METADATA_PATH, challenge_scopes=("operations.manage", "tools.invoke"))
 
     register_mcp_gateway_route(
         app,

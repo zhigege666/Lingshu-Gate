@@ -50,9 +50,10 @@ def audit_secret_values(values: Iterable[str]) -> tuple[str, ...]:
     return tuple(sorted(result, key=len, reverse=True))
 
 
-def snapshot(value: Any, *, known_secrets: Iterable[str] = ()) -> dict[str, Any]:
+def snapshot(value: Any, *, known_secrets: Iterable[str] = (), sensitive_fields: Iterable[str] = ()) -> dict[str, Any]:
     """Produce a bounded JSON envelope, retaining JSON null, false and zero."""
     secrets = audit_secret_values(known_secrets)
+    fields = frozenset(field.strip().lower() for field in sensitive_fields if isinstance(field, str) and field.strip())
     reasons: set[str] = set()
     active: set[int] = set()
     nodes = 0
@@ -111,7 +112,7 @@ def snapshot(value: Any, *, known_secrets: Iterable[str] = ()) -> dict[str, Any]
                         reasons.add("unsupported_key")
                         continue
                     safe_key = text(key)
-                    result[safe_key] = REDACTED if SENSITIVE_KEY_PATTERN.search(key) else visit(child, depth + 1)
+                    result[safe_key] = REDACTED if key.lower() in fields or SENSITIVE_KEY_PATTERN.search(key) else visit(child, depth + 1)
                 return result
             values = []
             for child in item:

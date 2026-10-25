@@ -13,8 +13,11 @@ from lingshu_gate.application.mcp_configuration import (
 )
 from lingshu_gate.auth import AuthPrincipal, AuthStore
 from lingshu_gate.config import Settings
+from lingshu_gate.credential_store import canonical_http_origin
+from lingshu_gate.domain.http_mcp_management import McpConfigSaveWithHttpTrustRequest
+from lingshu_gate.endpoint_security import private_http_origin
 from lingshu_gate.interfaces.control_api.dependencies import AuthDependency
-from lingshu_gate.mcp_config_store import McpConfigConflict, McpConfigStore
+from lingshu_gate.mcp_config_store import McpConfigConflict, McpConfigPartialError, McpConfigStore
 from lingshu_gate.mcp_http_trust import McpHttpTrustConflict, McpHttpTrustDenied, McpHttpTrustUpdate
 from lingshu_gate.mcp_manifest_validation import validate_mcp_manifest
 from lingshu_gate.mcp_manifest import with_new_manifest_defaults
@@ -70,7 +73,7 @@ def register_mcp_config_routes(
         roles = user.get("roles")
         if user["status"] != "active" or not isinstance(roles, (list, tuple)) or "admin" not in roles:
             raise HTTPException(status_code=403, detail="An active Gate administrator is required")
-        if request.method == "PUT" and principal.auth_type == "session":
+        if request.method in {"POST", "PUT", "DELETE"} and principal.auth_type == "session":
             if request.headers.get("sec-fetch-site") == "cross-site":
                 raise HTTPException(status_code=403, detail="Cross-site HTTP trust mutations are denied")
             if "origin" in request.headers:
@@ -84,13 +87,25 @@ def register_mcp_config_routes(
                     raise HTTPException(status_code=403, detail="Cross-site HTTP trust mutations are denied")
         return principal
 
+    def with_configured_origin(policy: dict[str, Any]) -> dict[str, Any]:
+        try:
+            manifest = mcp_config_store.load_manifest(policy["server_id"])
+        except KeyError:
+            origin, endpoint_origin = None, None
+        else:
+            origin = private_http_origin(manifest.transport.endpoint) if manifest.transport.endpoint else None
+            endpoint_origin = canonical_http_origin(manifest.transport.endpoint) if manifest.transport.endpoint else None
+        return {**policy, "configured_origin": {"ip": origin[0], "port": origin[1]} if origin else None,
+                "configured_endpoint_origin": endpoint_origin}
+
     @app.get("/v1/mcp/http-trust/{server_id}", tags=["mcp-configs"])
     def get_http_trust(server_id: str, principal: AuthPrincipal = Depends(require_trust_admin)) -> dict[str, Any]:
         del principal
         if mcp_config_store.http_trust_store is None:
             raise HTTPException(status_code=503, detail="HTTP trust policy is unavailable")
         try:
-            return mcp_config_store.http_trust_store.get(server_id)
+            with mcp_config_store.mutation_lock.read_lock():
+                return with_configured_origin(mcp_config_store.http_trust_store.get(server_id))
         except ValueError as exc:
             raise HTTPException(status_code=400, detail=_safe_error_detail(exc)) from exc
 
@@ -99,7 +114,17 @@ def register_mcp_config_routes(
         if mcp_config_store.http_trust_store is None:
             raise HTTPException(status_code=503, detail="HTTP trust policy is unavailable")
         try:
-            result = mcp_config_store.http_trust_store.update(server_id, payload, actor_id=principal.id)
+            with mcp_config_store.mutation_lock:
+                if payload.origins:
+                    try:
+                        saved = mcp_config_store.load_manifest(server_id)
+                    except KeyError:
+                        saved = None
+                    if saved is not None:
+                        origin = private_http_origin(saved.transport.endpoint or "") if saved.transport.endpoint else None
+                        if origin is None or {(item.ip, item.port) for item in payload.origins} != {origin}:
+                            raise ValueError("Only the currently saved exact HTTP origin can be restored; save changed targets together with their permission")
+                result = with_configured_origin(mcp_config_store.http_trust_store.update(server_id, payload, actor_id=principal.id))
         except McpHttpTrustDenied as exc:
             raise HTTPException(status_code=403, detail=_safe_error_detail(exc)) from exc
         except McpHttpTrustConflict as exc:
@@ -147,11 +172,13 @@ def register_mcp_config_routes(
         tags=["mcp-configs"],
         dependencies=[Depends(require_operations_manager)],
     )
-    def validate_mcp_config(request: McpConfigSaveRequest) -> dict[str, Any]:
+    def validate_mcp_config(request: McpConfigSaveWithHttpTrustRequest, http_request: Request) -> dict[str, Any]:
+        trust_plan = prepare_http_plan(request, http_request, validation_only=True)
         result = validate_mcp_manifest(
             settings,
             mcp_config_store,
             with_new_manifest_defaults(request.manifest),
+            http_trust_plan=trust_plan,
         )
         record_validation(result)
         return result
@@ -163,26 +190,52 @@ def register_mcp_config_routes(
     )
     def validate_existing_mcp_config(
         server_id: str,
-        request: McpConfigSaveRequest,
+        request: McpConfigSaveWithHttpTrustRequest,
+        http_request: Request,
     ) -> dict[str, Any]:
+        trust_plan = prepare_http_plan(request, http_request, existing_server_id=server_id, validation_only=True)
         result = validate_mcp_manifest(
             settings,
             mcp_config_store,
             request.manifest,
             expected_id=server_id,
+            http_trust_plan=trust_plan,
         )
         record_validation(result, server_id)
         return result
+
+    def prepare_http_plan(request: McpConfigSaveWithHttpTrustRequest, http_request: Request, *,
+                          existing_server_id: str | None = None, validation_only: bool = False) -> dict[str, Any] | None:
+        try:
+            plan = configuration_service.plan_http_save(request.manifest, existing_server_id=existing_server_id,
+                action=request.http_trust_action, expected_revision=request.expected_http_trust_revision)
+            if plan is not None and plan["change"] in {"authorize", "retire"}:
+                # Keep the existing live administrator boundary, but consume it
+                # in the same save instead of requiring a second UI operation.
+                require_trust_admin(http_request)
+            return plan
+        except McpHttpTrustConflict as exc:
+            raise HTTPException(status_code=409, detail=_safe_error_detail(exc)) from exc
+        except KeyError as exc:
+            raise HTTPException(status_code=404, detail=_safe_error_detail(exc)) from exc
+        except ValueError as exc:
+            if validation_only:
+                # Preserve the precheck contract: malformed drafts produce
+                # structured checks, while authorization/CAS errors still fail.
+                return None
+            raise HTTPException(status_code=400, detail=_safe_error_detail(exc)) from exc
 
     def prepare_user_credentials(
         request: McpConfigSaveRequest,
         http_request: Request,
         *,
         existing_server_id: str | None = None,
+        http_trust_plan: dict[str, Any] | None = None,
     ) -> PreparedUserCredentials:
         prepared = configuration_service.prepare_user_credentials(
             request,
             existing_server_id=existing_server_id,
+            http_trust_plan=http_trust_plan,
         )
         if prepared.values:
             if not auth_store.enabled:
@@ -199,17 +252,25 @@ def register_mcp_config_routes(
         tags=["mcp-configs"],
     )
     def create_mcp_config(
-        request: McpConfigSaveRequest,
+        request: McpConfigSaveWithHttpTrustRequest,
         http_request: Request,
         principal: AuthPrincipal = Depends(require_operations_manager),
     ) -> McpConfigApplyResponse:
         try:
-            prepared = prepare_user_credentials(request, http_request)
+            trust_plan = prepare_http_plan(request, http_request)
+            prepared = prepare_user_credentials(request, http_request, http_trust_plan=trust_plan)
             response = configuration_service.create(
                 request,
                 user_id=principal.id,
                 prepared=prepared,
+                http_trust_plan=trust_plan,
             )
+        except McpConfigPartialError as exc:
+            raise HTTPException(status_code=409, detail=exc.to_payload()) from exc
+        except McpHttpTrustDenied as exc:
+            raise HTTPException(status_code=403, detail=_safe_error_detail(exc)) from exc
+        except McpHttpTrustConflict as exc:
+            raise HTTPException(status_code=409, detail=_safe_error_detail(exc)) from exc
         except FileExistsError as exc:
             raise HTTPException(status_code=409, detail=_safe_error_detail(exc)) from exc
         except ValueError as exc:
@@ -230,22 +291,31 @@ def register_mcp_config_routes(
     )
     def update_mcp_config(
         server_id: str,
-        request: McpConfigSaveRequest,
+        request: McpConfigSaveWithHttpTrustRequest,
         http_request: Request,
         principal: AuthPrincipal = Depends(require_operations_manager),
     ) -> McpConfigApplyResponse:
         try:
+            trust_plan = prepare_http_plan(request, http_request, existing_server_id=server_id)
             prepared = prepare_user_credentials(
                 request,
                 http_request,
                 existing_server_id=server_id,
+                http_trust_plan=trust_plan,
             )
             response = configuration_service.update(
                 server_id,
                 request,
                 user_id=principal.id,
                 prepared=prepared,
+                http_trust_plan=trust_plan,
             )
+        except McpConfigPartialError as exc:
+            raise HTTPException(status_code=409, detail=exc.to_payload()) from exc
+        except McpHttpTrustDenied as exc:
+            raise HTTPException(status_code=403, detail=_safe_error_detail(exc)) from exc
+        except McpHttpTrustConflict as exc:
+            raise HTTPException(status_code=409, detail=_safe_error_detail(exc)) from exc
         except McpConfigConflict as exc:
             raise HTTPException(status_code=409, detail=_safe_error_detail(exc)) from exc
         except KeyError as exc:
@@ -272,6 +342,8 @@ def register_mcp_config_routes(
             response, removed_user_credentials = configuration_service.delete(
                 server_id
             )
+        except McpConfigPartialError as exc:
+            raise HTTPException(status_code=409, detail=exc.to_payload()) from exc
         except KeyError as exc:
             raise HTTPException(status_code=404, detail=_safe_error_detail(exc)) from exc
         except ValueError as exc:

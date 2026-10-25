@@ -47,7 +47,7 @@ export function ManagementTargetsDialog({ grant, locale, t, onClose, onSaved, on
       const path = `/v1/auth/oauth/grants/${grant.id}/management-targets`
       const preview = await oauthRequest<ManagementTargetPreview>(path + "/preview", { ...body, csrf: options.csrf })
       if (current !== generation.current) return
-      if (!(await confirm({ title: zh ? "确认管理目标变更？" : "Confirm management target changes?", description: zh ? "仅改变此管理授权的精确创建/更新目标。旧计划失效，JWT 和令牌族的 scope、四个工具及业务授权均不扩展。" : "Change only this management grant's exact create/update targets. Existing plans become stale. JWT/family scopes, tool rights and business grants remain unchanged.",
+      if (!(await confirm({ title: zh ? "确认管理目标变更？" : "Confirm management target changes?", description: zh ? "仅改变此管理授权的精确目标与动作。旧计划失效，已同意的工具、令牌族 scope 和业务授权均不扩展。" : "Change only this management grant's exact targets and actions. Existing plans become stale. JWT/family scopes, tool rights and business grants remain unchanged.",
         details: <><h3>{zh ? "当前目标" : "Current targets"}</h3><ManagementTargetsEditor rows={managementTargetRows(preview.previous_targets)} onChange={() => undefined} zh={zh} readOnly /><h3>{zh ? "确认后目标" : "Targets after confirmation"}</h3><ManagementTargetsEditor rows={managementTargetRows(preview.targets)} onChange={() => undefined} zh={zh} readOnly /></>, confirmText: zh ? "确认并更新" : "Confirm update", cancelText: t("cancel") }))) return
       if (current !== generation.current) return
       const next = await oauthRequest<OAuthGrant>(path, { ...body, confirmation: preview.confirmation })

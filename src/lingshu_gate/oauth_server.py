@@ -36,6 +36,8 @@ from lingshu_gate.application.console_session_security import live_console_sessi
 from lingshu_gate.domain.oauth_management import (
     BUSINESS_SCOPES, MANAGEMENT_SCOPES, MANAGEMENT_TOOL_IDS, MANAGEMENT_READ_TOOLS,
     management_resource, management_tool_snapshot, normalize_management_targets,
+    CREDENTIAL_MANAGEMENT_TOOL_IDS, management_tool_server, management_tool_permissions,
+    management_tool_actions,
 )
 from lingshu_gate.external_connection import _https_resource
 from lingshu_gate.mcp_authorization_policy import bind_server_policies, server_binding, tool_snapshot
@@ -294,7 +296,8 @@ class OAuthServer:
                 or not all(valid_callback(uri) for uri in redirects)
                 or not scopes or not set(scopes) <= SCOPES or not resources or len(resources) != len(set(resources))
                 or not set(resources) <= {"business", "management"}
-                or ("operations.manage" in scopes) != ("management" in resources)):
+                or ("operations.manage" in scopes) != ("management" in resources)
+                or ("credentials.manage.system" in scopes and "management" not in resources)):
             raise OAuthError("invalid_client_configuration")
 
     def update_client(self, client_id: str, revision: int, *, enabled: bool,
@@ -453,12 +456,14 @@ class OAuthServer:
             current = self.management_owner(principal, connection=connection)
             if "operations.manage" not in scopes:
                 return {}
-            return {tool.id: {"id": tool.id, "name": tool.name, "server_id": "gate_mcp_configuration",
-                              "server_name": "Gate configuration", "access": "read" if tool.id in MANAGEMENT_READ_TOOLS else "write",
+            return {tool.id: {"id": tool.id, "name": tool.name, "server_id": management_tool_server(tool.id),
+                              "server_name": "Gate credentials" if tool.id in CREDENTIAL_MANAGEMENT_TOOL_IDS else "Gate configuration",
+                              "access": "read" if tool.id in MANAGEMENT_READ_TOOLS else "write",
                               "snapshot": management_tool_snapshot(tool)}
                     for tool in self.registry.get_definitions(MANAGEMENT_TOOL_IDS if tool_ids is None else tool_ids)
                     if tool.source == "builtin" and tool.id in MANAGEMENT_TOOL_IDS
-                    and tool.metadata.get("server_id") == "gate_mcp_configuration"
+                    and tool.metadata.get("server_id") == management_tool_server(tool.id)
+                    and management_tool_permissions(tool.id) <= set(scopes) & set(current.permissions)
                     and (tool.id in MANAGEMENT_READ_TOOLS or ("tools.invoke" in scopes and "tools.invoke" in current.permissions))}
         definitions = self.registry.list_definitions() if tool_ids is None else self.registry.get_definitions(tool_ids)
         with (nullcontext(connection) if connection is not None else self.store.database.session()) as read_connection:
@@ -1186,7 +1191,9 @@ class OAuthServer:
                                      for value in tools.values()} | ({"tools.read"} if policies else set())
                                     | ({"tools.invoke"} if any(item["access"] == "write" for item in policies) else set()))
             if management:
-                granted_scopes = sorted({"operations.manage"} | ({"tools.invoke"} if "tools.invoke" in granted_scopes else set()))
+                granted_scopes = sorted({"operations.manage"}
+                    | ({"tools.invoke"} if "tools.invoke" in granted_scopes else set())
+                    | ({"credentials.manage.system"} if set(tools) & CREDENTIAL_MANAGEMENT_TOOL_IDS else set()))
             if len({item["server_id"] for item in tools.values()} | {item["server_id"] for item in policies}) > 100:
                 raise OAuthError("server_scope_limit")
             if connection.execute("SELECT COUNT(*) FROM gate_oauth_grants WHERE user_id=?", (principal.id,)).fetchone()[0] >= 1000:
@@ -1449,7 +1456,7 @@ class OAuthServer:
                       & set(json.loads(family["scopes_json"])) & set(context.permissions) & set(owner.permissions))
             if context.delegated_scopes is not None:
                 scopes &= set(context.delegated_scopes)
-            if "operations.manage" not in scopes or (write and "tools.invoke" not in scopes):
+            if not management_tool_permissions(tool_id) <= scopes or (write and "tools.invoke" not in scopes):
                 raise OAuthError("management_scope_insufficient", 403)
             catalog = self._grant_tools(owner, grant, sorted(scopes), connection=current)
             saved, offered = grant["tools"].get(tool_id), catalog.get(tool_id)
@@ -1458,7 +1465,7 @@ class OAuthServer:
                     or (offered["access"] == "write" and "tools.invoke" not in scopes)):
                 raise OAuthError("management_tool_not_authorized", 403)
             if target_id is not None:
-                actions = grant["management_targets"].get(target_id, [])
+                actions = set(grant["management_targets"].get(target_id, [])) & management_tool_actions(tool_id)
                 if not actions or (action is not None and action not in actions):
                     raise OAuthError("management_target_not_authorized", 403)
             return grant
@@ -1629,7 +1636,9 @@ class OAuthServer:
                 scopes = sorted({"tools.read" if value["access"] == "read" else "tools.invoke"
                                  for value in retained.values()} & set(grant["scopes"]))
                 if row["resource"] == self.store.management_config(connection)["resource"]:
-                    scopes = sorted({"operations.manage"} | ({"tools.invoke"} if "tools.invoke" in scopes else set()))
+                    scopes = sorted(({"operations.manage"} | ({"tools.invoke"} if "tools.invoke" in scopes else set())
+                        | ({"credentials.manage.system"} if set(retained) & CREDENTIAL_MANAGEMENT_TOOL_IDS else set()))
+                        & set(grant["scopes"]))
                 connection.execute("UPDATE gate_oauth_grants SET tools_json=?,scopes_json=?,expires_at=?,rate_per_minute=?,concurrency=?,"
                                    "revision=revision+1 WHERE id=?", (json.dumps(retained), json.dumps(scopes),
                                                                   expires_at, rate, concurrency, grant_id))

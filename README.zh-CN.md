@@ -2,7 +2,7 @@
 
 自托管 MCP 网关：连接工具，限定谁可以调用，并记录调用结果。
 
-[English](README.md) · [下载 0.5.2](https://github.com/zhigege666/Lingshu-Gate/releases/tag/v0.5.2) · [开始使用](docs/zh-CN/getting-started.md) · [文档](docs/zh-CN/README.md) · [安全](SECURITY.zh-CN.md)
+[English](README.md) · [下载 0.5.6](https://github.com/zhigege666/Lingshu-Gate/releases/tag/v0.5.6) · [开始使用](docs/zh-CN/getting-started.md) · [文档](docs/zh-CN/README.md) · [安全](SECURITY.zh-CN.md)
 
 <img src="docs/images/console/zh-CN/v0.5.0-discovery.png" alt="Lingshu Gate 0.5.0：每条授权的固定工具、逻辑组和有界文本预览" width="1200">
 
@@ -30,7 +30,7 @@
 
 ### 已发布 Docker 本机试用
 
-校验并解压 `lingshu-gate-v0.5.5-docker-compose.tar.gz`，进入该目录后执行：
+校验并解压 `lingshu-gate-v0.5.6-docker-compose.tar.gz`，进入该目录后执行：
 
 ```bash
 cp .env.quickstart.example .env.quickstart
@@ -65,15 +65,13 @@ uv run lingshu-gate
 
 核对成功审计、写入拒绝且计数不变、错误修订拒绝、demo 停止/恢复和调用者撤销。Gate 启动、工具发现、分类确认、发布分别进行；访问仍须同时满足资源权限和 token scope。
 
-## 0.5.5 版本
+## 0.5.6 — HTTP MCP 接入与凭据管理
 
-Console、REST 和外部 MCP 新建配置默认 `enabled=true`、`auto_start=true` 和 `startup_policy=gate_start_v1`。保留明确关闭及历史文件加载行为，单独保存不会启动实例。相对 0.5.4 不增加依赖或数据库迁移，继续保留 certifi 安全基线、可配置 32 MiB MCP 消息上限及业务凭据功能。升级前应一致备份数据库、配置和全部凭据密钥。详见[变更记录](CHANGELOG.zh-CN.md)和[双语发行说明](packaging/release-notes.md)。
+接入外部 HTTP MCP 不再需要手写常见鉴权头。直接选择 **无鉴权、Bearer Token、API Key、Basic 或自定义**，选用已有范围凭据或新建凭据，按需 **测试连接** 后保存。Home 模板只填写草稿并说明 PAT 要求，不自动登录或发送凭据。1200px 编辑弹窗保留取消、测试连接、保存配置，分阶段诊断放在操作区上方。
 
-本版在现有凭据页面增加个人和共享业务账号，支持环境与业务角色标签、明确的用户/角色授权、MCP 实例绑定及每个目标的同步状态。首个适配器接通专用 agent-browser 密码库，Agent 使用 `gate:<credential-id>` 引用和明确的会话。本版同时修复工具审核中长 MCP 名称与状态标识的布局，以及已删除 MCP 的工具仍出现在当前治理目录的问题，审计历史继续保留。参见[变更记录](CHANGELOG.zh-CN.md)和[双语发行说明](packaging/release-notes.md)。
+五个 `gate_http_mcp_*` 工具提供测试、配置计划、应用、状态和取消；计划支持创建、更新、删除，以及精确内网 HTTP 许可的撤销和明确恢复。五个 `gate_credential_*` 工具管理加密共享凭据，支持脱敏查询、版本校验、幂等写入和依赖保护删除。有权保存配置时一并建立精确地址许可，已撤销许可仍须明确恢复。
 
-业务账号绑定仍要求调用者已有 MCP 权限。首次绑定会对经由该实例的所有调用启用受管浏览器限制；移除最后一条绑定也不会恢复原始密码库工具。应使用专用可信实例，并复核其实际工具契约。登录操作回执不等于网站认证成功，已安装下游的兼容性及真实账号登录仍需单独验收。参见[业务凭据指南](docs/zh-CN/business-credentials.md)。
-
-升级会执行 `0024_business_credentials` 迁移。应一致备份数据库、配置和全部凭据密钥；开始使用业务凭据后，需包含 `<data-dir>/business-credentials/credential.key`。远端浏览器密码库有独立的密钥与生命周期。桌面验证覆盖 2560×1440、1920×1080、1600×900 和 2560×1080，本版不新增移动端支持。
+旧 OAuth 授权不会自动获得新工具或权限范围，已有明确通配 scope 的管理员 API Token 保持原权限上限。凭据轮换作用于后续派发；测试不保存配置、不发布工具，也不证明全部业务权限。升级前应一致备份数据库、配置、加密存储和全部密钥。参见[HTTP 接入与测试](docs/zh-CN/http-mcp-connection-testing.md)、[MCP 管理](docs/zh-CN/external-mcp-configuration.md)、[共享凭据](docs/zh-CN/shared-system-credentials.md)、[变更记录](CHANGELOG.zh-CN.md)和[双语发行说明](packaging/release-notes.md)。
 
 ## 架构总览
 
@@ -127,7 +125,8 @@ flowchart TB
 | 外部身份提供方 | 可选外部 RS256 JWT 校验，精确 issuer/JWKS/audience/resource/client 绑定、身份映射和仅本人可管理的委托。支持直连 HTTPS 或管理员维护的隧道配置；Gate 不创建隧道。 | [指南](docs/zh-CN/external-connections.md) |
 | 服务配置与生命周期 | Manifest 表单/JSON 编辑、静态校验、应用/重载、启动/停止/连接、分区详情、健康、日志与重启历史。原生托管容器要求明确复核的 digest 固定镜像。 | [指南](docs/zh-CN/configuration.md) |
 | 工具目录与调试 | 按服务筛选的工具目录与有效权限标识；Schema 驱动的表单/JSON 参数、默认值/示例、结果复核与本地结果内容搜索。执行时仍重新校验权限。 | [指南](docs/zh-CN/operations.md) |
-| 加密凭据 | 共享凭据引用、私有的每用户 HTTP 下游绑定、脱敏元数据和仅一次展示的令牌/密钥。共享 stdio 进程不接收每用户凭据。 | [指南](docs/zh-CN/configuration.md) |
+| HTTP MCP 管理 — 开发中 | 离线计划/应用/状态/取消，合并精确内网许可，明确撤销/恢复及物理删除外部配置；旧授权不扩张。 | [指南](docs/zh-CN/external-mcp-configuration.md) |
+| 加密凭据 | 共享凭据 MCP/REST 增删改查，版本校验、幂等、只写入原文及精确 HTTP 使用范围；个人下游绑定保持独立。 | [指南](docs/zh-CN/shared-system-credentials.md) |
 | 业务账号与浏览器绑定 | 加密的个人/共享网站账号、明确的用户/角色及 MCP 目标、版本化密码库同步和隔离的逻辑会话。首个适配器要求专用可信的 agent-browser 实例；绑定不授予 MCP 访问权限。 | [指南](docs/zh-CN/business-credentials.md) |
 | 可信项目交付 | ZIP 分析与可续传 MCP 上传、预检、摘要绑定 BuildPlan、有界构建日志/取消、部署预览与覆盖保护、启动及工具对账。原生执行要求信任项目源码，并非不可信代码沙箱。 | [指南](docs/zh-CN/project-delivery.md) |
 | 私有草稿与恢复 | 加密且带版本的交付草稿、独立的上传/构建/部署/启动确认、幂等 MCP 写操作及受保护的手动回滚。替换可中断服务，不做无缝会话迁移。 | [指南](docs/zh-CN/console-delivery.md) |

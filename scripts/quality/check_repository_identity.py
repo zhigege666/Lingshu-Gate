@@ -468,12 +468,31 @@ def _matching_rules(value: str, budget: MatchBudget | None = None) -> set[str]:
     return matches
 
 
+# Reviewed integration references are external repositories, not alternate
+# Gate product/process names. Only these exact upstream operator-source URLs
+# are accepted; bare names, lookalikes, other paths and code identities remain
+# subject to the normal rule.
+_EXTERNAL_REFERENCE_URLS = (
+    "https://github.com/zhigege666/Lingshu-Home/blob/main/docs/USER_GUIDE.md",
+    "https://github.com/zhigege666/Lingshu-Home/blob/main/docs/USER_GUIDE.zh-CN.md",
+    "https://github.com/zhigege666/Lingshu-Home/blob/main/docs/API.md",
+    "https://github.com/zhigege666/Lingshu-Home/blob/main/server/internal/home/integrations_mcp.go",
+)
+_EXTERNAL_REFERENCE_PATTERN = re.compile(
+    r"(?<![A-Za-z0-9_./:-])(?:" + "|".join(re.escape(url) for url in _EXTERNAL_REFERENCE_URLS)
+    + r""")(?=$|[\s)>"'])"""
+)
+
+
 def _matching_gate_identity_rules(value: str) -> set[str]:
     matches: set[str] = set()
     for token in _GATE_ENVIRONMENT_NAME.findall(value):
         if not token.startswith("LINGSHU_GATE_"):
             matches.add("GATE-003")
+    references = [match.span() for match in _EXTERNAL_REFERENCE_PATTERN.finditer(value)]
     for token_match in _LINGSHU_KEBAB_NAME.finditer(value):
+        if any(start <= token_match.start() and token_match.end() <= end for start, end in references):
+            continue
         token = token_match.group().casefold()
         if token != "lingshu-gate" and not token.startswith(("lingshu-gate-", "lingshu-gate.")):
             matches.add("GATE-004")

@@ -15,7 +15,7 @@ describe("explicit management target drafts", () => {
   })
   it("requires exact unique IDs and explicit supported actions instead of inferring rights", () => {
     for (const rows of [[], [{ id: "", actions: ["create"] }], [{ id: "synthetic-*", actions: ["create"] }],
-      [{ id: "synthetic", actions: [] }], [{ id: "synthetic", actions: ["delete"] }],
+      [{ id: "synthetic", actions: [] }], [{ id: "synthetic", actions: ["restart"] }],
       [{ id: "synthetic", actions: ["create", "create"] }],
       [{ id: "synthetic", actions: ["create"] }, { id: "synthetic", actions: ["update"] }]]) {
       expect(() => managementTargets(rows)).toThrow("invalid_management_targets")
@@ -26,5 +26,11 @@ describe("explicit management target drafts", () => {
     expect(managementTargets([{ id: "constructor", actions: ["update"] }]).constructor).toEqual(["update"])
     expect(() => managementTargets(Array.from({ length: 1001 }, (_, index) => ({ id: `synthetic-${index}`, actions: ["create"] })))).toThrow("invalid_management_targets")
     expect(Object.prototype).not.toHaveProperty("synthetic-999")
+  })
+  it("keeps service operations distinct from credential operations for the same ID", () => {
+    expect(managementTargets([{ id: "synthetic", actions: ["credential.read", "delete", "restore_trust"] }]))
+      .toEqual({ synthetic: ["credential.read", "delete", "restore_trust"] })
+    expect(managementTargets([{ id: "synthetic", actions: ["create", "update"] }]))
+      .toEqual({ synthetic: ["create", "update"] })
   })
 })

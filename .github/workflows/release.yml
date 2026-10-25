@@ -102,10 +102,14 @@ jobs:
         run: echo "epoch=$(git log -1 --format=%ct)" >> "$GITHUB_OUTPUT"
 
   quality:
-    name: Release quality gate
+    name: Release quality gate / shard ${{ matrix.shard }}
     needs: version
     runs-on: ubuntu-22.04
     timeout-minutes: 40
+    strategy:
+      fail-fast: false
+      matrix:
+        shard: [0, 1, 2, 3]
     steps:
       - name: Checkout
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -160,7 +164,7 @@ jobs:
         run: |
           uv run --no-sync ruff check .
           uv run --no-sync mypy
-          uv run --no-sync pytest -q
+          uv run --no-sync python -m scripts.quality.pytest_shard             --index "${{ matrix.shard }}" --count 4             --manifest "$RUNNER_TEMP/release-test-shard-${{ matrix.shard }}.json"             -- -q --durations=20 -o faulthandler_timeout=300
 
       - name: Install Console dependencies for release tests
         if: github.event_name == 'pull_request'

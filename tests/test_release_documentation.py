@@ -230,3 +230,11 @@ def test_real_compose_archive_contains_rendered_onboarding_and_resolving_links(
     assert demo["healthcheck"]["test"][0] == "CMD"
     for name in ("docs/images/console/en-US/v0.5.0-discovery.png", "docs/images/console/zh-CN/v0.5.0-discovery.png"):
         assert (bundle / name).read_bytes() == (repository / name).read_bytes()
+
+
+def test_http_management_operator_guides_ship_in_both_languages() -> None:
+    manifest = json.loads((common.REPOSITORY_ROOT / "packaging/public-documentation.json").read_text())
+    for guide in ["http-mcp-connection-testing.md", "shared-system-credentials.md", "external-mcp-configuration.md"]:
+        for prefix in ["docs/", "docs/zh-CN/"]:
+            assert prefix + guide in manifest["files"]
+            assert (common.REPOSITORY_ROOT / (prefix + guide)).is_file()

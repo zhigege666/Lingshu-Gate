@@ -38,6 +38,7 @@ type Props = {
   canReadTools: boolean
   canManageClassifications: boolean
   canManageHttpTrust?: boolean
+  canManageCredentials?: boolean
   canWriteGroups?: boolean
   canManageGroups?: boolean
   onServerAction: (id: string, action: Action) => Promise<void> | void
@@ -284,7 +285,7 @@ export function ServersPage(props: Props) {
     </section>
     </>}
 
-    {configSession && <ServiceConfigDrawer server={configSession.server} manifest={configSession.manifest} configDigest={configSession.configDigest} canManageHttpTrust={props.canManageHttpTrust} locale={locale} t={t} onClose={() => setConfigSession(null)} onSaved={async () => { await props.onRefresh(); await load("configuration", true); await load("overview", true) }} returnFocusFallback={() => {
+    {configSession && <ServiceConfigDrawer server={configSession.server} manifest={configSession.manifest} configDigest={configSession.configDigest} canManageHttpTrust={props.canManageHttpTrust} canManageCredentials={props.canManageCredentials} locale={locale} t={t} onClose={() => setConfigSession(null)} onSaved={async () => { await props.onRefresh(); await load("configuration", true); await load("overview", true) }} returnFocusFallback={() => {
       const trigger = workspace.current?.querySelector<HTMLElement>("[data-service-config-trigger]")
       const target = trigger && !trigger.matches(":disabled") && trigger.getClientRects().length > 0 ? trigger : workspace.current?.querySelector<HTMLElement>('.service-entry[data-active="true"]')
       target?.focus()

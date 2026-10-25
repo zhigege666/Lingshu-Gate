@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from "react"
 import { Radio } from "antd"
-import { api, type McpServer } from "@/api/client"
+import { api, type HttpTrustSaveOptions, type McpServer } from "@/api/client"
 import { McpConfigEditor } from "@/components/mcp-config-editor"
 import { FormDialog } from "@/components/form-dialog"
 import { useConfirm } from "@/components/confirm-dialog"
@@ -9,9 +9,9 @@ import { configurationResultError } from "./configuration-result"
 import type { Locale, TFunction } from "@/i18n"
 
 /** Service-owned edit session. Snapshot is never replaced by background refresh. */
-export function ServiceConfigDrawer({ server, manifest, configDigest, canManageHttpTrust = false, locale, t, onClose, onSaved, returnFocusFallback }: {
+export function ServiceConfigDrawer({ server, manifest, configDigest, canManageHttpTrust = false, canManageCredentials = false, locale, t, onClose, onSaved, returnFocusFallback }: {
   server: McpServer; manifest: Record<string, unknown>; locale: Locale; t: TFunction
-  configDigest?: string; canManageHttpTrust?: boolean
+  configDigest?: string; canManageHttpTrust?: boolean; canManageCredentials?: boolean
   onClose: () => void; onSaved: () => Promise<void>
   returnFocusFallback?: () => void
 }) {
@@ -38,7 +38,7 @@ export function ServiceConfigDrawer({ server, manifest, configDigest, canManageH
     ? (zh ? "保存并重新连接" : "Save and reconnect")
     : server.status === "running" ? (zh ? "保存并重启" : "Save and restart") : (zh ? "保存并启动" : "Save and start")
     : (zh ? "仅保存（未生效）" : "Save only (not applied)")
-  async function save(text = value) {
+  async function save(text = value, httpTrust: HttpTrustSaveOptions = {}) {
     if (saving.current) return
     saving.current = true
     try {
@@ -60,7 +60,7 @@ export function ServiceConfigDrawer({ server, manifest, configDigest, canManageH
       }
       delete parsed.user_credential_values
       setValue(JSON.stringify(parsed, null, 2))
-      const response = await api.updateConfig(server.id, parsed, apply, apply, credentials, configDigest)
+      const response = await api.updateConfig(server.id, parsed, apply, apply, credentials, configDigest, httpTrust)
       const error = configurationResultError(response, server.id, apply, zh)
       if (error) throw new Error(error)
       await onSaved()
@@ -84,8 +84,9 @@ export function ServiceConfigDrawer({ server, manifest, configDigest, canManageH
         ]} />
         <p className="text-xs text-muted-foreground">{zh ? "仅保存不会改变当前实例；应用启动会连接/重启服务，仍须确认。静态校验不测试网络连通性。" : "Saving alone keeps the current instance. Applying and starting connects/restarts the service and requires confirmation. Static validation does not test connectivity."}</p>
       </div>
-      <McpConfigEditor locale={locale} selectedConfigId={server.id} value={value} onChange={setValue} onSave={save}
+      <McpConfigEditor locale={locale} selectedConfigId={server.id} savedConfigDigest={configDigest} value={value} onChange={setValue} onSave={save}
         canManageHttpTrust={canManageHttpTrust}
+        canManageCredentials={canManageCredentials}
         onClose={() => void close()} onPendingChange={setPending} onDraftDirtyChange={setEntryDirty}
         footerContainer={footer} busy={false} saveLabel={zh ? "保存配置" : "Save configuration"} />
     </FormDialog>

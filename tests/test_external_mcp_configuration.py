@@ -88,6 +88,13 @@ def planned(gate, **options):
     return gate["service"].plan({"mode": "create", "manifest": manifest(), **options}, gate["context"])
 
 
+def save_bound_manifest(gate, data):
+    service = gate["service"]
+    saved = service.configs.save_config(data)
+    service.configuration._bind_saved_http_credentials(service.configs.load_manifest(data["id"]))
+    return saved
+
+
 def apply_arguments(plan, key="synthetic-apply-1"):
     return {"plan_id": plan["plan_id"], "plan_digest": plan["plan_digest"], "connect": plan["connect"],
             "refresh_tools": plan["refresh_tools"], "idempotency_key": key, "confirmed": True}
@@ -306,7 +313,8 @@ def test_private_http_needs_separate_trust_and_no_probe_is_silently_run(gate):
 
 def test_managed_reference_only_and_revision_drift_blocks_before_saving(gate, caplog):
     store = gate["app"].state.credential_store
-    store.save_credential(name="Synthetic binding", credential_id="synthetic-binding", value="Synthetic-Secret-Value")
+    store.save_credential(name="Synthetic binding", credential_id="synthetic-binding", value="Synthetic-Secret-Value",
+        http_scopes=[{"server_id": "synthetic-external", "origin": "https://mcp.example.test:443", "server_binding": None}])
     data = manifest()
     data["transport"]["headers"] = {"Authorization": "Bearer ${credential:synthetic-binding}"}
     plan = planned(gate, manifest=data, connect=True)
@@ -489,7 +497,8 @@ def test_waiting_runtime_lock_rechecks_logout_before_loading_or_connecting(gate,
 def test_waiting_runtime_lock_rechecks_credential_revision_before_loading_or_connecting(gate, monkeypatch, caplog):
     from lingshu_gate.credential_store import CredentialStore
     service, runtime = gate["service"], gate["app"].state.mcp_runtime
-    service.credentials.save_credential(name="Synthetic binding", credential_id="synthetic-binding", value="Synthetic-Original-Secret")
+    service.credentials.save_credential(name="Synthetic binding", credential_id="synthetic-binding", value="Synthetic-Original-Secret",
+        http_scopes=[{"server_id": "synthetic-external", "origin": "https://mcp.example.test:443", "server_binding": None}])
     data = manifest()
     data["transport"]["headers"] = {"Authorization": "Bearer ${credential:synthetic-binding}"}
     saved = threading.Event()
@@ -526,7 +535,8 @@ def test_waiting_runtime_lock_rechecks_credential_revision_before_loading_or_con
 def test_rotation_at_header_resolution_cannot_consume_new_value_for_old_plan(gate, monkeypatch, caplog, probe):
     from lingshu_gate.application import external_mcp_configuration
     service = gate["service"]
-    service.credentials.save_credential(name="Synthetic binding", credential_id="synthetic-binding", value="Synthetic-Original-Secret")
+    service.credentials.save_credential(name="Synthetic binding", credential_id="synthetic-binding", value="Synthetic-Original-Secret",
+        http_scopes=[{"server_id": "synthetic-external", "origin": "https://mcp.example.test:443", "server_binding": None}])
     data = manifest()
     data["transport"]["headers"] = {"Authorization": "Bearer ${credential:synthetic-binding}"}
     client_type = external_mcp_configuration.StreamableHttpMcpClient
@@ -536,10 +546,12 @@ def test_rotation_at_header_resolution_cannot_consume_new_value_for_old_plan(gat
         return original_start(client)
     monkeypatch.setattr(client_type, "start", rotate_then_start)
     if probe:
-        result = planned(gate, manifest=data, probe=True, probe_confirmed=True)
+        saved = save_bound_manifest(gate, data)
+        result = planned(gate, mode="update", expected_config_digest=saved.digest,
+                         manifest=data, probe=True, probe_confirmed=True)
         assert result["status"] == "blocked" and result["probe"]["network_contacted"] is False
         assert not service.database.query_all("SELECT id FROM external_mcp_config_plans")
-        assert not service.configs.list_configs().configs
+        assert service.configs.get_config(data["id"]).digest == saved.digest
     else:
         plan = planned(gate, manifest=data, connect=True)
         result = wait(gate, service.apply(apply_arguments(plan), gate["context"])["operation_id"])
@@ -554,7 +566,8 @@ def test_rotation_at_header_resolution_cannot_consume_new_value_for_old_plan(gat
 def test_revision_check_and_decryption_use_the_same_stored_record(gate, monkeypatch):
     from lingshu_gate.credential_store import CredentialRevisionConflict
     store = gate["service"].credentials
-    approved = store.save_credential(name="Synthetic binding", credential_id="synthetic-binding", value="Synthetic-Original-Secret")
+    approved = store.save_credential(name="Synthetic binding", credential_id="synthetic-binding", value="Synthetic-Original-Secret",
+        http_scopes=[{"server_id": "synthetic-external", "origin": "https://mcp.example.test:443", "server_binding": None}])
     assert store.resolve_value(approved.id, expected_revision=approved.updated_at) == "Synthetic-Original-Secret"
     store.save_credential(name="Synthetic binding", credential_id=approved.id, value="Synthetic-Rotated-Secret")
     def reject_decryption():
@@ -567,7 +580,8 @@ def test_revision_check_and_decryption_use_the_same_stored_record(gate, monkeypa
 def test_probe_rotation_during_discovery_cannot_rebind_its_plan(gate, monkeypatch):
     from lingshu_gate.application import external_mcp_configuration
     service = gate["service"]
-    service.credentials.save_credential(name="Synthetic binding", credential_id="synthetic-binding", value="Synthetic-Original-Secret")
+    service.credentials.save_credential(name="Synthetic binding", credential_id="synthetic-binding", value="Synthetic-Original-Secret",
+        http_scopes=[{"server_id": "synthetic-external", "origin": "https://mcp.example.test:443", "server_binding": None}])
     data = manifest()
     data["transport"]["headers"] = {"Authorization": "Bearer ${credential:synthetic-binding}"}
     client_type = external_mcp_configuration.StreamableHttpMcpClient
@@ -576,11 +590,28 @@ def test_probe_rotation_during_discovery_cannot_rebind_its_plan(gate, monkeypatc
         service.credentials.save_credential(name="Synthetic binding", credential_id="synthetic-binding", value="Synthetic-Rotated-Secret")
         return original_list(client)
     monkeypatch.setattr(client_type, "list_tools", rotate_then_list)
+    saved = save_bound_manifest(gate, data)
     with pytest.raises(ToolExecutionError) as error:
-        planned(gate, manifest=data, probe=True, probe_confirmed=True)
+        planned(gate, mode="update", expected_config_digest=saved.digest,
+                manifest=data, probe=True, probe_confirmed=True)
     assert error.value.code == "external_config_credential_changed"
     assert not service.database.query_all("SELECT id FROM external_mcp_config_plans")
     assert not gate["app"].state.mcp_runtime.has_server(data["id"])
+
+
+def test_new_http_credential_probe_requires_saved_scope_binding(gate):
+    service = gate["service"]
+    service.credentials.save_credential(name="Synthetic binding", credential_id="synthetic-binding",
+        value="Synthetic-Original-Secret", http_scopes=[{"server_id": "synthetic-external",
+        "origin": "https://mcp.example.test:443", "server_binding": None}])
+    data = manifest()
+    data["transport"]["headers"] = {"Authorization": "Bearer ${credential:synthetic-binding}"}
+    result = planned(gate, manifest=data, probe=True, probe_confirmed=True)
+    assert result["status"] == "blocked" and result["probe"]["network_contacted"] is False
+    assert result["error_code"] == "external_config_credential_scope_required"
+    assert not service.database.query_all("SELECT id FROM external_mcp_config_plans")
+    assert not service.configs.list_configs().configs
+    assert all(action == "disconnect" for action, _ in gate["calls"])
 
 
 @pytest.mark.parametrize("cancel", [False, True])
@@ -611,7 +642,8 @@ def test_same_user_new_session_cannot_consume_old_session_plan(gate):
 
 def test_masked_saved_target_is_editable_without_reading_endpoint_or_credentials(gate):
     service = gate["service"]
-    service.credentials.save_credential(name="Synthetic binding", credential_id="synthetic-binding", value="Synthetic-Secret-Value")
+    service.credentials.save_credential(name="Synthetic binding", credential_id="synthetic-binding", value="Synthetic-Secret-Value",
+        http_scopes=[{"server_id": "synthetic-external", "origin": "https://mcp.example.test:443", "server_binding": None}])
     data = manifest()
     data["transport"]["headers"] = {"Authorization": "Bearer ${credential:synthetic-binding}"}
     plan = planned(gate, manifest=data)
@@ -663,7 +695,8 @@ def test_post_discovery_failure_closes_only_own_connection_and_reports_unknown_c
 
 def test_connection_failure_redacts_resolved_credentials_and_endpoint(gate, caplog):
     service = gate["service"]
-    service.credentials.save_credential(name="Synthetic binding", credential_id="synthetic-binding", value="Synthetic-Secret-Value")
+    service.credentials.save_credential(name="Synthetic binding", credential_id="synthetic-binding", value="Synthetic-Secret-Value",
+        http_scopes=[{"server_id": "synthetic-external", "origin": "https://mcp.example.test:443", "server_binding": None}])
     data = manifest()
     data["transport"]["headers"] = {"Authorization": "Bearer ${credential:synthetic-binding}"}
     gate["mode"]["failure"] = RuntimeError("Synthetic-Secret-Value " + data["transport"]["endpoint"])

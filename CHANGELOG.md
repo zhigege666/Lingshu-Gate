@@ -1,6 +1,16 @@
 # Changelog
 
-## Unreleased
+## 0.5.6
+
+- Split the complete formal backend/release test collection across four deterministic, required quality shards. This addresses the prior 40-minute sequential timeout without skipping tests or reducing scale fixtures; empty shards and collection/test failures remain failures.
+- Add guided HTTP authentication presets (None, Bearer, API Key, Basic and Custom), a draft-only Home shortcut, generated credential IDs and automatic header references. Preserve unfinished secret inputs, report credential-list failures explicitly, retain custom headers, and move connection summaries into the editor with a 1200 px dialog and three primary footer actions. No new dependency, database migration or automatic authorization expansion.
+- Add `gate_http_mcp_test`, a Console test button and a same-origin one-use CSRF flow for LAN HTTP: report configuration, HTTP, authentication, handshake and discovery separately without saving configuration, changing trust, publishing tools or invoking business tools. Require the separate OAuth target action `test`, expire stale draft results, and include safe diagnostics and a paired operator guide.
+
+- Add four separately consented `gate_http_mcp_*` tools for offline create/update/delete and exact private-origin revoke/restore plans, reusing the existing operation engine and journal without changing legacy tool definitions.
+- Combine reviewed private-HTTP permission with administrator configuration save; retain explicit revocation, lifecycle binding, revision checks and bounded legacy migration.
+- Add five shared-credential MCP tools and a shared REST service with masked metadata, write-only values, CAS, keyed idempotency, dependency checks and exact HTTP usage scopes; refresh existing client headers at dispatch after rotation.
+- Keep credential OAuth scope and namespaced target actions independent; existing grants and token families do not gain new capabilities on upgrade. Apply sensitive-field metadata to optional invocation payload recording.
+- Add inline credential creation and revision-aware credential editing, preserve drafts on conflicts, and update paired operator/security documentation.
 
 ## 0.5.5
 

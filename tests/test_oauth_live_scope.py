@@ -15,6 +15,7 @@ from lingshu_gate.database import SQLiteDatabase
 from lingshu_gate.external_connection_store import ExternalConnectionStore
 from lingshu_gate.mcp_gateway import register_mcp_gateway_route
 from lingshu_gate.mcp_http_trust import McpHttpTrustStore, McpHttpTrustUpdate, TrustedHttpOrigin
+from lingshu_gate.mcp_http_trust import _schema as _http_trust_schema
 from lingshu_gate.observability_store import ObservabilityStore
 from lingshu_gate.oauth_server import OAuthError, SCOPE_CONFIRMATION_TTL
 from lingshu_gate.oauth_store import OAuthStore, _interaction_capacity_schema, _schema
@@ -408,8 +409,8 @@ def test_published_v042_nonempty_database_upgrade_and_second_start_preserve_exis
     legacy_url = f"sqlite:///{tmp_path / 'published-v042.db'}"
     legacy = SQLiteDatabase(legacy_url, gate["settings"].data_dir)
     MigrationRunner(legacy.connect, (Migration("0006_builtin_oauth", _schema),
-        Migration("0008_oauth_interaction_capacity", _interaction_capacity_schema))).run()
-    McpHttpTrustStore(legacy)
+        Migration("0008_oauth_interaction_capacity", _interaction_capacity_schema),
+        Migration("0009_mcp_http_trust", _http_trust_schema))).run()
     ExternalConnectionStore(legacy)
     tables = [row[0] for row in legacy.query_all("SELECT name FROM sqlite_master WHERE type='table' AND name NOT LIKE 'sqlite_%' ORDER BY name")]
     with legacy.session() as connection:
@@ -421,7 +422,8 @@ def test_published_v042_nonempty_database_upgrade_and_second_start_preserve_exis
             rows = gate["db"].query_all(f'SELECT {fields} FROM "{table}"')
             if table == "schema_migrations":
                     rows = [row for row in rows if row["id"] not in {"0009_oauth_scope_confirmations", "0012_oauth_management_resource",
-                                                                      "0019_oauth_server_policies", TOKEN_AUTHORIZATIONS_MIGRATION_ID}]
+                                                                      "0019_oauth_server_policies", "0025_mcp_http_trust_identity",
+                                                                      TOKEN_AUTHORIZATIONS_MIGRATION_ID}]
             connection.executemany(f'INSERT INTO "{table}" ({fields}) VALUES ({",".join("?" for _ in columns)})',
                                    [tuple(row) for row in rows])
         assert connection.execute("PRAGMA foreign_key_check").fetchall() == []
@@ -429,6 +431,9 @@ def test_published_v042_nonempty_database_upgrade_and_second_start_preserve_exis
     before_migrations = {row["id"]: row["applied_at"] for row in legacy.query_all("SELECT * FROM schema_migrations")}
     assert {"0006_builtin_oauth", "0008_oauth_interaction_capacity", "0009_mcp_http_trust"} <= set(before_migrations)
     assert "0009_oauth_scope_confirmations" not in before_migrations
+    assert "0025_mcp_http_trust_identity" not in before_migrations
+    assert [row[1] for row in legacy.query_all("PRAGMA table_info(gate_mcp_http_trust)")] == [
+        "server_id", "revision", "origins_json", "updated_by", "updated_at"]
     preserved = ("users", "roles", "user_roles", "role_permissions", "control_permissions", "permission_types",
                  "mcp_resource_grants", "auth_sessions", "api_tokens", "gate_oauth_config", "gate_oauth_keys",
                  "gate_oauth_clients", "gate_oauth_grants", "gate_oauth_codes", "gate_oauth_families",
@@ -458,11 +463,21 @@ def test_published_v042_nonempty_database_upgrade_and_second_start_preserve_exis
     for key, value in {"DB_URL": legacy_url, "DATA_DIR": str(gate["settings"].data_dir),
                        "CONFIG_DIR": str(tmp_path / "mcp.d"), "ALLOWED_ROOT": str(tmp_path)}.items():
         monkeypatch.setenv("LINGSHU_GATE_" + key, value)
+    # The bounded trust migration may adopt only a preexisting exact target.
+    # This is a genuine old file, without a new identity/binding inserted by
+    # the fixture; startup must create and bind that identity itself.
+    config_dir = tmp_path / "mcp.d"
+    config_dir.mkdir(parents=True, exist_ok=True)
+    (config_dir / "synthetic-upgrade-private.json").write_text(json.dumps({
+        "id": "synthetic-upgrade-private", "enabled": False, "auto_start": False,
+        "launch": {"type": "external"},
+        "transport": {"type": "streamable_http", "endpoint": "http://10.23.45.67:8080/mcp"},
+    }), encoding="utf-8")
     first_app = main_module.create_app()
     assert snapshot() == before
     after_migrations = {row["id"]: row["applied_at"] for row in legacy.query_all("SELECT * FROM schema_migrations")}
     new_migrations = {"0009_oauth_scope_confirmations", "0012_oauth_management_resource", "0019_oauth_server_policies",
-                      TOKEN_AUTHORIZATIONS_MIGRATION_ID}
+                      "0025_mcp_http_trust_identity", TOKEN_AUTHORIZATIONS_MIGRATION_ID}
     assert {key: value for key, value in after_migrations.items() if key not in new_migrations} == before_migrations
     assert set(after_migrations) - set(before_migrations) == new_migrations
     assert all(row[0] == '["business"]' for row in legacy.query_all("SELECT resources_json FROM gate_oauth_clients"))
@@ -470,6 +485,8 @@ def test_published_v042_nonempty_database_upgrade_and_second_start_preserve_exis
     assert legacy.query_all("SELECT * FROM gate_oauth_management_config") == []
     assert legacy.query_all("SELECT * FROM gate_oauth_scope_confirmations") == []
     assert all(row[0] == "[]" for row in legacy.query_all("SELECT server_policies_json FROM gate_oauth_grants"))
+    adopted_trust = first_app.state.mcp_config_store.http_trust_store.get("synthetic-upgrade-private")
+    assert adopted_trust["state"] == "active" and adopted_trust["server_binding"]
     upgraded = {**gate, "server": first_app.state.oauth_server, "db": legacy, "auth": first_app.state.auth_store}
     confirmation = preview(upgraded, grant, ids=["mcp.A.read"])
     confirmation_row = dict(legacy.query_one("SELECT * FROM gate_oauth_scope_confirmations WHERE grant_id=?", (grant["id"],)))
@@ -479,6 +496,7 @@ def test_published_v042_nonempty_database_upgrade_and_second_start_preserve_exis
     assert snapshot() == before
     assert {row["id"]: row["applied_at"] for row in legacy.query_all("SELECT * FROM schema_migrations")} == after_migrations
     assert dict(legacy.query_one("SELECT * FROM gate_oauth_scope_confirmations WHERE grant_id=?", (grant["id"],))) == confirmation_row
+    assert second_app.state.mcp_config_store.http_trust_store.get("synthetic-upgrade-private") == adopted_trust
     server, auth = second_app.state.oauth_server, second_app.state.auth_store
     assert auth._principal_from_session(gate["sessions"]["alice"]).id == grant["user_id"]
     assert server.session_principal(gate["oauth_sessions"]["alice"]).id == grant["user_id"]

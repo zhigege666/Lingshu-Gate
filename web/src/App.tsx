@@ -5,6 +5,7 @@ import {
   api,
   type DiagnosticsResponse,
   type HealthResponse,
+  type HttpTrustSaveOptions,
   type McpConfig,
   type McpServer,
   type ToolDefinition,
@@ -306,7 +307,7 @@ export default function App() {
     setSelectedConfigId(""); setSelectedConfigDigest(undefined); setConfigText(prettyJson(createMcpConfigTemplate())); setConfigEditorOpen(true)
   }
 
-  async function saveConfig(nextValue?: string) {
+  async function saveConfig(nextValue?: string, httpTrust: HttpTrustSaveOptions = {}) {
     const manifestText = nextValue || configText
     setBusy(true); setError(null)
     try {
@@ -328,8 +329,8 @@ export default function App() {
       // 一次性秘密不得继续留在编辑器状态或后续 Manifest 查询中。
       setConfigText(prettyJson(manifest))
       const response = selectedConfigId
-        ? await api.updateConfig(selectedConfigId, manifest, false, false, userCredentialValues, selectedConfigDigest)
-        : await api.createConfig(manifest, false, false, userCredentialValues)
+        ? await api.updateConfig(selectedConfigId, manifest, false, false, userCredentialValues, selectedConfigDigest, httpTrust)
+        : await api.createConfig(manifest, false, false, userCredentialValues, httpTrust)
       if (response.config?.id !== String(manifest.id || selectedConfigId)) throw new Error(locale === "zh-CN" ? "保存结果未知，请刷新配置后核对。" : "Save result unknown. Refresh the configuration to reconcile.")
       setMessage(`${locale === "zh-CN" ? "已保存，尚未应用到服务" : "Saved; not applied to the service"}: ${response.config.id}`)
       setSelectedConfigId(String(response.config?.id || manifest.id || ""))
@@ -406,8 +407,8 @@ export default function App() {
             {(["myServers", "myConnections", "myInvocations"] as string[]).includes(view) && <PersonalWorkspacePage key={`${user.id}:${view}`} view={view as "myServers" | "myConnections" | "myInvocations"} viewState={personalViews[`${user.id}:${view}`] || initialPersonalWorkspaceView} onViewStateChange={state => setPersonalViews(previous => ({ ...previous, [`${user.id}:${view}`]: state }))} locale={locale} t={t} onNavigate={navigate} onInvoke={async toolId => { if (await navigate("invoke")) setSelectedToolId(toolId) }} />}
             {view === "connectionInfrastructure" && <ConnectionInfrastructurePage locale={locale} t={t} />}
             {view === "dashboard" && <DashboardPage health={health} healthError={healthError} servers={servers} serversLoaded={serversLoaded} serversError={serversError} tools={tools} principalId={user.id} globalRefreshId={dashboardRefreshId} onBusyChange={setDashboardBusy} operationsAllowed={can("operations.manage")} canReadAudit={can("audit.read")} canReadTools={can("tools.read")} toolsLoaded={toolsLoaded} toolsError={toolsError} t={t} />}
-            {view === "configs" && <ConfigsPage canManageHttpTrust={canManageHttpTrust} locale={locale} t={t} configs={configs} configErrors={configErrors} selectedConfigId={selectedConfigId} configText={configText} busy={busy || routeLoading} editorOpen={configEditorOpen} onCloseEditor={() => { if (!busy) { setConfigEditorOpen(false); setConfigText(prettyJson(createMcpConfigTemplate())) } }} onNewConfig={newConfig} onReloadConfigs={reloadConfigs} onEditConfig={editConfig} onApplyConfig={applyConfig} onDeleteConfig={deleteConfig} onConfigTextChange={setConfigText} onSaveConfig={saveConfig} />}
-            {view === "servers" && <ServersPage canManageGroups={canManageHttpTrust} canWriteGroups={canManageHttpTrust && can("tools.invoke")} canManageHttpTrust={canManageHttpTrust} initialServerId={routeServerId} locale={locale} t={t} servers={servers} loadErrors={loadErrors} busy={busy || routeLoading} visibleTools={toolsLoaded ? tools : null} toolsError={toolsError} canReadTools={can("tools.read")} canManageClassifications={can("classifications.manage")} onServerAction={serverAction} onRefresh={refreshCurrentPage} onNewConfig={newConfig} onNavigate={navigate} onInvoke={async toolId => { if (await navigate("invoke")) setSelectedToolId(toolId) }} />}
+            {view === "configs" && <ConfigsPage canManageCredentials={can("credentials.manage.system")} canManageHttpTrust={canManageHttpTrust} locale={locale} t={t} configs={configs} configErrors={configErrors} selectedConfigId={selectedConfigId} configText={configText} busy={busy || routeLoading} editorOpen={configEditorOpen} onCloseEditor={() => { if (!busy) { setConfigEditorOpen(false); setConfigText(prettyJson(createMcpConfigTemplate())) } }} onNewConfig={newConfig} onReloadConfigs={reloadConfigs} onEditConfig={editConfig} onApplyConfig={applyConfig} onDeleteConfig={deleteConfig} onConfigTextChange={setConfigText} onSaveConfig={saveConfig} />}
+            {view === "servers" && <ServersPage canManageCredentials={can("credentials.manage.system")} canManageGroups={canManageHttpTrust} canWriteGroups={canManageHttpTrust && can("tools.invoke")} canManageHttpTrust={canManageHttpTrust} initialServerId={routeServerId} locale={locale} t={t} servers={servers} loadErrors={loadErrors} busy={busy || routeLoading} visibleTools={toolsLoaded ? tools : null} toolsError={toolsError} canReadTools={can("tools.read")} canManageClassifications={can("classifications.manage")} onServerAction={serverAction} onRefresh={refreshCurrentPage} onNewConfig={newConfig} onNavigate={navigate} onInvoke={async toolId => { if (await navigate("invoke")) setSelectedToolId(toolId) }} />}
             {view === "builds" && <BuildsPage t={t} initialBuildId={routeBuildId} />}
             {view === "credentials" && <CredentialsPage locale={locale} t={t} />}
             {view === "accessUsers" && <AccessUsersPage locale={locale} t={t} />}

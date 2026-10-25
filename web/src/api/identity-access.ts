@@ -7,9 +7,14 @@ export type Credential = {
   value_masked: string
   created_at: string
   updated_at: string
+  http_scopes?: CredentialHttpScope[]
+  connections?: Array<{ server_id: string; status?: string; state?: string; error_code?: string }>
+  value_saved?: boolean | null
+  connection_verified?: boolean
 }
 
-export type CredentialSaveRequest = { name: string; value?: string | null; description?: string }
+export type CredentialHttpScope = { server_id: string; origin: string; server_binding?: string | null }
+export type CredentialSaveRequest = { credential_id?: string; name: string; value?: string | null; description?: string; expected_revision?: string; idempotency_key?: string; http_scopes?: CredentialHttpScope[] }
 
 export type AccessUser = {
   id: string
@@ -207,9 +212,10 @@ export type UserDownstreamCredential = {
 
 export const identityAccessApi = {
   credentials: () => request<Credential[]>("/v1/credentials"),
+  credential: (credentialId: string) => request<Credential>(`/v1/credentials/${encodeURIComponent(credentialId)}`),
   createCredential: (credential: CredentialSaveRequest) => request<Credential>("/v1/credentials", { method: "POST", body: JSON.stringify(credential) }),
   updateCredential: (credentialId: string, credential: CredentialSaveRequest) => request<Credential>(`/v1/credentials/${encodeURIComponent(credentialId)}`, { method: "PUT", body: JSON.stringify(credential) }),
-  deleteCredential: (credentialId: string) => request<Credential>(`/v1/credentials/${encodeURIComponent(credentialId)}`, { method: "DELETE" }),
+  deleteCredential: (credentialId: string, expectedRevision: string, idempotencyKey: string) => request<Credential>(`/v1/credentials/${encodeURIComponent(credentialId)}${queryString({ expected_revision: expectedRevision, idempotency_key: idempotencyKey })}`, { method: "DELETE" }),
   accessUsers: () => request<{ users: AccessUser[] }>("/v1/access/users"),
   createAccessUser: (payload: AccessUserCreateRequest) => request<AccessUser>("/v1/access/users", { method: "POST", body: JSON.stringify(payload) }),
   updateAccessUser: (userId: string, payload: { display_name?: string; status?: AccessUser["status"]; roles?: string[] }) => request<AccessUser>(`/v1/access/users/${encodeURIComponent(userId)}`, { method: "PATCH", body: JSON.stringify(payload) }),

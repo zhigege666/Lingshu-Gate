@@ -97,22 +97,25 @@ MCP 进程或连接已有外部服务，`false` 保持停止。此后的手动�
 ### 内网 HTTP 信任
 
 HTTPS 和规范回环 HTTP 保留原行为。其他 HTTP 地址必须是 `10.0.0.0/8`、
-`172.16.0.0/12` 或 `192.168.0.0/16` 中的字面 IPv4，并由管理员独立批准精确
-MCP 服务 ID、IP 和实际端口。Manifest 只是声明，不能自行批准信任。默认没有
+`172.16.0.0/12` 或 `192.168.0.0/16` 中的字面 IPv4，并由管理员维护的记录绑定
+精确 MCP 服务 ID、生命周期身份、IP 和实际端口。默认没有
 受信内网地址。DNS 名称、非规范 IP、公网、链路本地、metadata 和其他保留地址
 不能进入白名单。用户信息、查询串、fragment 和不安全 URL 语法仍被拒绝。
 重定向仍禁止，HTTPS 保留正常 TLS 证书验证。
 
-管理员可在配置 Dialog 的地址控件下选择“授权此地址”，明确确认服务 ID、IP
-和端口。HTTP 不加密，仅用于受信任内网。授权使用独立
-`/v1/mcp/http-trust/{server_id}` API，不随普通 Manifest 保存写入；PUT 要求
-`origins`、`expected_revision` 和 `confirmed=true`。实时 admin 角色与
-`operations.manage`、会话写入的同源保护、revision CAS 和审计共同生效。
-只有 `operations.manage` 的 operator 或 OAuth 连接不能修改此策略。草稿变化
-使内联确认失效；授权成功后保留草稿并重新预检查，不建立连接。预检查、保存、
-应用、连接、重连和请求均读取当前策略，移除信任或读取失败后拒绝后续使用。
-普通用户仅得到拟用地址的判断和联系管理员说明，不返回其他受信目标记录。
-本次不增加全局信任设置页面。
+配置 Dialog 展示精确目标，首次许可随管理员保存一起处理，移除独立的
+“授权此地址”步骤。预检查仍离线且不写许可。HTTP 仍不加密；实时 admin
+角色、`operations.manage`、会话同源保护、配置/trust 版本校验及审计继续
+生效，直接修改磁盘 manifest 不能自行授权。新 `gate_http_mcp_*` 工具向
+有明确 scope 的管理员 API token，以及明确同意的管理 OAuth 连接提供相同
+审核流程。
+
+管理员可撤销当前许可，再明确恢复；普通保存/重连不能恢复已撤销记录。
+独立 `/v1/mcp/http-trust/{server_id}` 管理 PUT 保留，要求 `origins`、
+`expected_revision`、`confirmed=true`。保存前批准为 pending，只在保存匹配
+服务后生效。策略绑定 `server_binding`，删除和同 ID 重建不能继承上一实例
+许可。旧记录仅对已有且匹配的已保存配置迁移一次。连接及请求重查当前策略，
+撤销或读取失败后拒绝后续使用。见 [HTTP 管理](external-mcp-configuration.md)。
 
 ### 外部 Streamable HTTP
 
@@ -139,6 +142,8 @@ HTTP 自动协商保留已有精确“不支持发现”JSON-RPC 错误识别，
 服务详情仅在握手成功后展示实际协商版本，未知时不显示版本值。配置变更仍需正常保存、应用和连接；展示元数据不授予访问权。
 
 静态 Header 可以包含 `${credential:<id>}` 引用。Gate 只在下游请求中解析它，并在 API 响应和日志中掩码显示。
+
+共享 HTTP 凭据另要求精确服务/origin/生命周期范围。编辑器支持内联创建并保留配置草稿；轮换使用版本检查和幂等键，已有客户端在下一次派发刷新 Header。保存值不等于下游认证已验证，见[共享服务凭据](shared-system-credentials.md)。
 
 外部 HTTP 连接在工具调用中发现 MCP 会话过期时，会自动重新握手并发现工具一次，无需新增 Manifest 开关。共享会话的恢复由服务锁串行处理。只有访问分类已发布为 `read`，且重新发现后的工具定义未变化，Gate 才自动重试中断的调用一次；下游只读提示不能单独授权重放。写调用或未发布分类的调用会在重连后返回结构化错误 `mcp_session_reconnected_not_replayed`，再次调用前应检查原操作结果。工具定义变化返回 `mcp_tool_changed_after_reconnect`，需要按实际变化重新审核分类。
 

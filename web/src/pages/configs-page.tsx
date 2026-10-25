@@ -6,7 +6,7 @@ import { useMemo, useRef, useState } from "react"
 import { Edit3, Play, Plus, RefreshCcw, Trash2 } from "lucide-react"
 import { FormDialog } from "@/components/form-dialog"
 import { useConfirm } from "@/components/confirm-dialog"
-import type { McpConfig } from "@/api/client"
+import type { HttpTrustSaveOptions, McpConfig } from "@/api/client"
 import { McpConfigEditor } from "@/components/mcp-config-editor"
 import { PageHeader, PageToolbar } from "@/components/page-shell"
 import { Alert, AlertDescription } from "@/components/ui/alert"
@@ -27,6 +27,7 @@ export function ConfigsPage(props: {
   configText: string
   busy: boolean
   canManageHttpTrust?: boolean
+  canManageCredentials?: boolean
   editorOpen: boolean
   onCloseEditor: () => void
   onNewConfig: () => void
@@ -35,7 +36,7 @@ export function ConfigsPage(props: {
   onApplyConfig: (id: string) => void
   onDeleteConfig: (id: string) => void
   onConfigTextChange: (value: string) => void
-  onSaveConfig: (value?: string) => Promise<void>
+  onSaveConfig: (value?: string, httpTrust?: HttpTrustSaveOptions) => Promise<void>
 }) {
   const { locale, t, configs, configErrors, selectedConfigId, configText, busy, editorOpen, onCloseEditor, onNewConfig, onReloadConfigs, onEditConfig, onApplyConfig, onDeleteConfig, onConfigTextChange, onSaveConfig } = props
   const remainingViewport = useRemainingViewport()
@@ -226,6 +227,7 @@ export function ConfigsPage(props: {
           key={selectedConfigId || "new"}
           locale={locale}
           selectedConfigId={selectedConfigId}
+          savedConfigDigest={configs.find(config => config.id === selectedConfigId)?.digest ?? undefined}
           value={configText}
           onChange={onConfigTextChange}
           onSave={onSaveConfig}
@@ -235,6 +237,7 @@ export function ConfigsPage(props: {
           footerContainer={footerContainer}
           busy={busy}
           canManageHttpTrust={props.canManageHttpTrust}
+          canManageCredentials={props.canManageCredentials}
         />
       </FormDialog>
       {confirmDialog}

@@ -24,6 +24,23 @@ def synthetic_http_peer(root: Path):
 
         def do_POST(self):
             request = json.loads(self.rfile.read(int(self.headers["Content-Length"])))
+            # Synthetic credentials only. Record verdicts, never header values.
+            expected = {
+                "/auth-bearer": ("Authorization", "Bearer Synthetic-auth-preset-value"),
+                "/auth-basic": ("Authorization", "Basic c3ludGhldGljLXVzZXI6c3ludGhldGljLXBhc3M="),
+                "/auth-api-key": ("X-Service-Key", "Synthetic-auth-preset-value"),
+            }.get(self.path)
+            if expected is not None and self.headers.get(expected[0]) != expected[1]:
+                payload = b'{"error":"synthetic_authentication_required"}'
+                self.send_response(401)
+                self.send_header("Content-Type", "application/json")
+                self.send_header("WWW-Authenticate", "Basic" if self.path == "/auth-basic" else "Bearer")
+                self.send_header("Content-Length", str(len(payload)))
+                self.end_headers()
+                self.wfile.write(payload)
+                return
+            if expected is not None:
+                state["last_authenticated_path"] = self.path
             method = request["method"]
             if method == "server/discover":
                 state["discoveries"] += 1

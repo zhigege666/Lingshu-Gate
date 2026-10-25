@@ -16,7 +16,7 @@ from cryptography.hazmat.primitives import serialization
 from fastapi.testclient import TestClient
 
 from lingshu_gate.auth import hash_secret
-from lingshu_gate.domain.oauth_management import MANAGEMENT_METADATA_PATH, MANAGEMENT_TOOL_IDS
+from lingshu_gate.domain.oauth_management import MANAGEMENT_METADATA_PATH, CONFIGURATION_MANAGEMENT_TOOL_IDS as MANAGEMENT_TOOL_IDS
 from lingshu_gate.models import ToolDefinition
 from lingshu_gate.observability_store import ObservabilityStore
 from lingshu_gate.protocol.version import MCP_PROTOCOL_VERSION

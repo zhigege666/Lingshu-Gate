@@ -2,7 +2,7 @@
 
 A self-hosted MCP gateway that connects tools, limits who can call them, and records what happened.
 
-[简体中文](README.zh-CN.md) · [Download 0.5.2](https://github.com/zhigege666/Lingshu-Gate/releases/tag/v0.5.2) · [Get started](docs/getting-started.md) · [Documentation](docs/README.md) · [Security](SECURITY.md)
+[简体中文](README.zh-CN.md) · [Download 0.5.6](https://github.com/zhigege666/Lingshu-Gate/releases/tag/v0.5.6) · [Get started](docs/getting-started.md) · [Documentation](docs/README.md) · [Security](SECURITY.md)
 
 <img src="docs/images/console/en-US/v0.5.0-discovery.png" alt="Lingshu Gate 0.5.0: per-authorization pinned tools, logical groups and bounded text previews" width="1200">
 
@@ -30,7 +30,7 @@ Open [http://127.0.0.1:8000/](http://127.0.0.1:8000/). Read `data/initial-admin-
 
 ### Released Docker trial
 
-Verify and extract `lingshu-gate-v0.5.5-docker-compose.tar.gz`, enter that directory and run:
+Verify and extract `lingshu-gate-v0.5.6-docker-compose.tar.gz`, enter that directory and run:
 
 ```bash
 cp .env.quickstart.example .env.quickstart
@@ -65,15 +65,13 @@ The [included demo walkthrough](docs/first-call.md) needs no external service ac
 
 Check the successful audit, deny a write with an unchanged counter, reject an invalid revision, stop/restart the demo and revoke the caller. Gate startup, tool discovery, classification confirmation and publication are separate steps; access still requires both resource grants and token scope.
 
-## 0.5.5 release
+## 0.5.6 — HTTP MCP setup and credential management
 
-New Console, REST and external-MCP configurations default to `enabled=true`, `auto_start=true` and `startup_policy=gate_start_v1`. Explicit opt-outs and historical file-loading behavior are preserved; saving alone does not start an instance. There are no new dependencies or migrations over 0.5.4. The certifi security baseline, configurable 32 MiB MCP message budget and business-credential features remain. Back up the database, configuration and credential keys consistently before upgrading. See [changes](CHANGELOG.md) and the [bilingual release notes](packaging/release-notes.md).
+Connect an external HTTP MCP without hand-writing common authentication headers. Choose **None, Bearer Token, API Key, Basic or Custom**, select an existing scoped credential or save a new one, then optionally **Test connection** before saving. The Home shortcut fills the draft and explains its PAT requirements; it never logs in or sends credentials automatically. The 1200 px editor keeps Cancel, Test connection and Save together, with stage-by-stage diagnostics above the actions.
 
-This release adds personal and shared business accounts to the existing credentials pages, with environment and business-role labels, explicit user/role grants, MCP instance bindings and synchronization status for each target. The first adapter connects a dedicated agent-browser vault: agents use a `gate:<credential-id>` reference and an explicit session. It also fixes long MCP names and status badges in tool review, and removes deleted MCP tools from the current governance catalog while retaining audit history. See [changes](CHANGELOG.md) and the [bilingual release notes](packaging/release-notes.md).
+Five `gate_http_mcp_*` tools cover testing, reviewed configuration plans, application, status and cancellation. Plans support create/update/delete and explicit private-HTTP permission revoke/restore. Five `gate_credential_*` tools manage encrypted shared credentials with masked reads, revision checks, idempotent writes and dependency-protected deletion. An authorized configuration save includes its exact private-HTTP permission; revoked permission still requires explicit restoration.
 
-Business-account bindings require existing MCP permissions. The first binding applies managed-browser restrictions to all calls through that instance; removing the final binding does not restore raw vault access. Use a dedicated trusted instance and review its actual tool contract. A login-action receipt does not prove successful website authentication; installed downstream compatibility and real account logins still require separate acceptance. See [business credentials](docs/business-credentials.md).
-
-Upgrade applies migration `0024_business_credentials`. Back up the database, configuration and all credential keys together, including `<data-dir>/business-credentials/credential.key` once business credentials are used. The remote browser vault has its own key and lifecycle. Desktop validation covers 2560×1440, 1920×1080, 1600×900 and 2560×1080; this release adds no mobile support.
+Old OAuth grants do not gain new tools or scopes. Existing explicitly wildcard-scoped administrator API tokens retain their ceilings. Credential rotation affects subsequent dispatches; testing neither saves a configuration, publishes tools nor verifies every business permission. Back up the database, configuration, encrypted stores and all keys together before upgrading. See [HTTP setup and testing](docs/http-mcp-connection-testing.md), [MCP administration](docs/external-mcp-configuration.md), [shared credentials](docs/shared-system-credentials.md), [changes](CHANGELOG.md) and the [bilingual release notes](packaging/release-notes.md).
 
 ## Architecture overview
 
@@ -127,7 +125,8 @@ flowchart TB
 | External identity providers | Optional external RS256 JWT verification, exact issuer/JWKS/audience/resource/client bindings, subject links and owner-bound delegations. Direct HTTPS or operator-managed tunnel configuration; Gate does not create tunnels. | [Guide](docs/external-connections.md) |
 | Service configuration and lifecycle | Manifest Form/JSON editing, static validation, apply/reload, start/stop/connect, sectioned details, health, logs and restart history. Native managed containers require an explicitly approved digest-pinned image. | [Guide](docs/configuration.md) |
 | Tool catalog and debugging | Service-scoped catalog and effective access badges; schema-driven Form/JSON arguments, defaults/examples, persistent result review and local result-content search. Invocation still rechecks permissions. | [Guide](docs/operations.md) |
-| Encrypted credentials | Shared credential references and private per-user HTTP downstream bindings, masked metadata and one-time token/secret display. Shared stdio processes do not receive per-user credentials. | [Guide](docs/configuration.md) |
+| HTTP MCP administration — development | Offline plan/apply/status/cancel, combined exact private-origin permission, explicit revoke/restore and physical external-config deletion. Existing grants do not expand. | [Guide](docs/external-mcp-configuration.md) |
+| Encrypted credentials | Shared credential MCP/REST CRUD with revision checks, idempotency, write-only values and exact HTTP usage scopes; private per-user downstream bindings remain separate. | [Guide](docs/shared-system-credentials.md) |
 | Business accounts and browser bindings | Encrypted personal/shared website accounts, explicit users/roles and MCP targets, versioned vault synchronization and isolated logical sessions. The first adapter requires a dedicated, trusted agent-browser instance; bindings do not grant MCP access. | [Guide](docs/business-credentials.md) |
 | Trusted project delivery | ZIP analysis and resumable MCP uploads, preflight, digest-bound BuildPlan, bounded build logs/cancellation, deployment preview and overwrite protection, startup and tool reconciliation. Native execution trusts project code; it is not an untrusted-code sandbox. | [Guide](docs/project-delivery.md) |
 | Private drafts and recovery | Encrypted revisioned delivery drafts, independent upload/build/deploy/start confirmations, idempotent MCP writes and protected manual rollback. Replacement can interrupt a service; sessions do not migrate seamlessly. | [Guide](docs/console-delivery.md) |

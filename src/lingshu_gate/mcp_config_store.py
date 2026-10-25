@@ -18,6 +18,7 @@ from pydantic import ValidationError
 
 from lingshu_gate.application.manifest_edit import restore_masked_mounts
 from lingshu_gate.domain.dispatch_lock import DispatchLock
+from lingshu_gate.domain.mcp_configuration_errors import McpConfigPartialError
 from lingshu_gate.logging import log_event
 from lingshu_gate.endpoint_security import REDACTED_ENDPOINT
 from lingshu_gate.mcp_manifest import McpServerManifest, validate_manifest_for_write, with_new_manifest_defaults
@@ -54,29 +55,38 @@ class McpConfigStore:
         self._metadata_index: dict[str, McpInstanceMetadata] = {}
         self._metadata_revision = 0
         self._metadata_built_at = 0.0
+        self.invalidated_startup_identities: set[str] = set()
         if self.http_trust_store is not None:
+            saved_endpoints: dict[str, str] = {}
             # 启动时对账已保存配置；外部替换文件不能恢复旧持续授权身份。
             for path in self._iter_files():
                 try:
                     manifest = self._load_manifest(path)
                     self._record_authorization_identity(manifest, path, check_previous=True)
+                    if manifest.transport.endpoint and manifest.id not in self.invalidated_startup_identities:
+                        saved_endpoints[manifest.id] = manifest.transport.endpoint
                 except (ValueError, OSError, ValidationError):
                     continue
+            self.http_trust_store.migrate_saved_configs(saved_endpoints)
 
     def _record_authorization_identity(self, manifest: McpServerManifest, path: Path, *,
                                        replace: bool = False, check_previous: bool = False) -> None:
         if self.http_trust_store is None:
             return
         with self.http_trust_store.database.session() as connection:
+            previous = connection.execute("SELECT binding FROM gate_mcp_authorization_identities WHERE server_id=?", (manifest.id,)).fetchone()
             if check_previous:
                 try:
                     server_binding(connection, manifest.id)
                 except ValueError:
                     replace = True
-            record_config_identity(connection, manifest.id, path,
+            binding = record_config_identity(connection, manifest.id, path,
                 {"launch_type": manifest.launch.type, "transport": manifest.transport.type,
                  "endpoint": manifest.transport.endpoint if manifest.transport.type == "streamable_http" else None},
                 replace=replace)
+            if check_previous and previous is not None and previous["binding"] != binding:
+                self.invalidated_startup_identities.add(manifest.id)
+        self.http_trust_store.bind_pending(manifest.id, manifest.transport.endpoint)
 
     def invalidate_instance_metadata(self) -> None:
         with self.mutation_lock, self._metadata_lock:
@@ -177,7 +187,20 @@ class McpConfigStore:
             finally:
                 self.invalidate_instance_metadata()
 
-    def _save_config(self, manifest_data: dict[str, Any], *, expected_id: str | None = None, overwrite: bool = False, expected_digest: str | None = None) -> McpConfigResponse:
+    def save_config_with_http_trust(self, manifest_data: dict[str, Any], *, trust_plan: dict[str, Any], actor_id: str,
+                                    expected_id: str | None = None, overwrite: bool = False,
+                                    expected_digest: str | None = None) -> McpConfigResponse:
+        """One explicit management save; unfinished file/DB work fails closed."""
+        with self.mutation_lock:
+            try:
+                return self._save_config(manifest_data, expected_id=expected_id, overwrite=overwrite,
+                                         expected_digest=expected_digest, trust_plan=trust_plan, actor_id=actor_id)
+            finally:
+                self.invalidate_instance_metadata()
+
+    def _save_config(self, manifest_data: dict[str, Any], *, expected_id: str | None = None, overwrite: bool = False,
+                     expected_digest: str | None = None, trust_plan: dict[str, Any] | None = None,
+                     actor_id: str | None = None) -> McpConfigResponse:
         manifest_id = str(manifest_data.get("id", ""))
         self._validate_server_id(manifest_id)
         if expected_id and manifest_id != expected_id:
@@ -196,7 +219,17 @@ class McpConfigStore:
         else:
             manifest_data = with_new_manifest_defaults(manifest_data)
 
-        manifest = _validate_manifest(manifest_data, for_write=True, http_trust_store=self.http_trust_store)
+        manifest = (validate_manifest_for_write(manifest_data, check_http_trust=False) if trust_plan is not None
+                    else _validate_manifest(manifest_data, for_write=True, http_trust_store=self.http_trust_store))
+        if trust_plan is not None:
+            if self.http_trust_store is None or actor_id is None:
+                raise ValueError("HTTP configuration management is unavailable")
+            if (trust_plan["server_id"] != manifest.id or trust_plan["endpoint"] != manifest.transport.endpoint
+                    or bool(trust_plan["creating"]) != (existing_path is None)):
+                raise McpConfigConflict("HTTP permission plan does not match the saved configuration")
+            self.http_trust_store.check_plan(trust_plan)
+            if trust_plan["change"] in {"authorize", "retire"}:
+                self.http_trust_store.require_admin(actor_id)
         replace_identity = existing_path is None
         if existing_path and self.http_trust_store is not None:
             with self.http_trust_store.database.session() as connection:
@@ -207,14 +240,22 @@ class McpConfigStore:
         self.config_dir.mkdir(parents=True, exist_ok=True)
         path = self._checked_path(existing_path or self.config_dir / f"{manifest.id}.yaml")
         self._write_manifest(path, manifest.model_dump(mode="json", exclude={"manifest_path"}))
-        self._record_authorization_identity(manifest, path, replace=replace_identity)
+        try:
+            self._record_authorization_identity(manifest, path, replace=replace_identity)
+            if trust_plan is not None:
+                assert self.http_trust_store is not None and actor_id is not None
+                self.http_trust_store.apply_saved_configuration(trust_plan, actor_id=actor_id)
+        except Exception as exc:
+            if trust_plan is not None:
+                raise McpConfigPartialError(manifest.id, hashlib.sha256(path.read_bytes()).hexdigest()) from exc
+            raise
         saved = self._load_manifest(path)
         log_event(logger, logging.INFO, "gate.mcp.config_saved", "MCP config saved", server_id=saved.id, path=str(path), overwrite=bool(existing_path))
         return self._to_response(path)
 
     def check_http_trust(self, manifest: McpServerManifest) -> None:
         if manifest.transport.endpoint:
-            require_mcp_http_endpoint(manifest.id, manifest.transport.endpoint, self.http_trust_store)
+            require_mcp_http_endpoint(manifest.id, manifest.transport.endpoint, self.http_trust_store, allow_pending=True)
 
     def delete_config(self, server_id: str) -> McpConfigResponse:
         with self.mutation_lock:
@@ -231,8 +272,12 @@ class McpConfigStore:
         path = self._checked_path(path)
         response = self._to_response(path)
         path.unlink()
-        if self.http_trust_store is not None:
-            self.http_trust_store.database.execute("DELETE FROM gate_mcp_authorization_identities WHERE server_id=?", (server_id,))
+        try:
+            if self.http_trust_store is not None:
+                self.http_trust_store.retire_deleted(server_id)
+                self.http_trust_store.database.execute("DELETE FROM gate_mcp_authorization_identities WHERE server_id=?", (server_id,))
+        except Exception as exc:
+            raise McpConfigPartialError(server_id, None, deleted=True) from exc
         log_event(logger, logging.INFO, "gate.mcp.config_deleted", "MCP config deleted", server_id=server_id, path=str(path))
         return response
 

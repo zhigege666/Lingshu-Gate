@@ -15,6 +15,7 @@ from __future__ import annotations
 from lingshu_gate.telemetry import trace_headers
 
 import json
+import hashlib
 import logging
 import threading
 import time
@@ -26,12 +27,14 @@ from itertools import count
 from typing import Any, Iterator
 
 from lingshu_gate.config import Settings
-from lingshu_gate.credential_refs import resolve_env_credential_refs
-from lingshu_gate.credential_store import CredentialStore
+from lingshu_gate.credential_refs import extract_credential_refs, resolve_env_credential_refs
+from lingshu_gate.credential_store import CredentialStore, CredentialUsageDenied
+from lingshu_gate.database import SQLiteDatabase
 from lingshu_gate.invocation_payloads import audit_header_values
 from lingshu_gate.endpoint_security import REDACTED_ENDPOINT
 from lingshu_gate.logging import log_event
 from lingshu_gate.mcp_manifest import McpServerManifest
+from lingshu_gate.mcp_authorization_policy import server_binding
 from lingshu_gate.mcp_http_trust import require_mcp_http_endpoint
 from lingshu_gate.mcp_stdio_client import McpProtocolError
 from lingshu_gate.protocol.lifecycle import discovery_requires_initialize, initialize_params, parse_initialize_result
@@ -130,6 +133,9 @@ class StreamableHttpMcpClient:
             )
         )
         self.credential_store = CredentialStore(settings.data_dir)
+        self._credential_database: SQLiteDatabase | None = None
+        self._credential_server_binding: str | None = None
+        self._http_server_binding: str | None = None
         self._opener = urllib.request.build_opener(_NoRedirectHandler())
         self._operation_cancel: threading.Event | None = None
         self._operation_deadline: float | None = None
@@ -155,6 +161,14 @@ class StreamableHttpMcpClient:
         if self._operation_deadline is not None:
             _remaining_seconds(self._operation_deadline)
 
+    def _require_endpoint(self) -> None:
+        # A cached clear-text HTTP connection belongs to one saved service
+        # incarnation. A new grant for a recreated ID cannot revive this client.
+        binding = require_mcp_http_endpoint(self.manifest.id, self.endpoint, settings=self.settings,
+                                           expected_binding=self._http_server_binding)
+        if binding is not None:
+            self._http_server_binding = binding
+
     @property
     def pid(self) -> int | None:
         """External servers have no local process."""
@@ -165,7 +179,7 @@ class StreamableHttpMcpClient:
         return None
 
     def start(self) -> None:
-        require_mcp_http_endpoint(self.manifest.id, self.endpoint, settings=self.settings)
+        self._require_endpoint()
         if self.initialized:
             return
         if not self.endpoint:
@@ -361,23 +375,23 @@ class StreamableHttpMcpClient:
     def stop(self) -> None:
         if self.session_id:
             # DELETE 仅用于释放本连接的旧版会话；清理失败不能掩盖原调用错误。
-            request = urllib.request.Request(
-                self.endpoint,
-                headers=self._http_headers({"MCP-Protocol-Version": self.protocol_version}),
-                method="DELETE",
-            )
             try:
-                require_mcp_http_endpoint(self.manifest.id, self.endpoint, settings=self.settings)
                 cleanup_timeout = float(min(self.manifest.timeout_seconds or self.settings.mcp_request_timeout_seconds, 5))
                 if self._operation_deadline is not None:
                     cleanup_timeout = min(cleanup_timeout, _remaining_seconds(self._operation_deadline))
-                with self._opener.open(request, timeout=cleanup_timeout):
+                with self.credential_store.dispatch_guard():
+                    self._require_endpoint()
+                    self._resolve_headers()
+                    request = urllib.request.Request(self.endpoint,
+                        headers=self._http_headers({"MCP-Protocol-Version": self.protocol_version}), method="DELETE")
+                    response = self._opener.open(request, timeout=cleanup_timeout)
+                with response:
                     pass
             except urllib.error.HTTPError as exc:
                 exc.close()
                 if exc.code not in {404, 405}:
                     self._store_log("warning", "MCP session cleanup failed", "gate.mcp.http_session_cleanup_failed", {"status_code": exc.code})
-            except (OSError, ValueError):
+            except (OSError, ValueError, KeyError, RuntimeError):
                 self._store_log("warning", "MCP session cleanup failed", "gate.mcp.http_session_cleanup_failed", {})
         log_event(logger, logging.INFO, "gate.mcp.http_disconnected", "External MCP endpoint disconnected", server_id=self.manifest.id)
         self._store_log("info", "External MCP endpoint disconnected", "gate.mcp.http_disconnected", {})
@@ -398,24 +412,50 @@ class StreamableHttpMcpClient:
         return headers
 
     def _resolve_headers(self) -> None:
+        # Only a dispatch guard may retain these values until network dispatch.
+        # Clear first so a failed scope/revision check leaves no reusable cache.
+        previous = self._resolved_headers
+        self._resolved_headers = {}
         raw_headers = dict(self.manifest.transport.headers or {})
         if not raw_headers:
-            self._resolved_headers = {}
             return
-        resolved, metadata = resolve_env_credential_refs(raw_headers, self.credential_store,
-            expected_revisions=self._operation_credential_revisions)
+        refs = {ref for value in raw_headers.values() for ref in extract_credential_refs(value)}
+        with self.credential_store.dispatch_guard():
+            if refs:
+                if self._credential_database is None:
+                    self._credential_database = SQLiteDatabase(self.settings.db_url, self.settings.data_dir)
+                try:
+                    with self._credential_database.session() as connection:
+                        binding = server_binding(connection, self.manifest.id)
+                        identity = connection.execute("SELECT target_digest FROM gate_mcp_authorization_identities WHERE server_id=?",
+                                                      (self.manifest.id,)).fetchone()
+                        target = {"launch_type": self.manifest.launch.type, "transport": self.manifest.transport.type,
+                                  "endpoint": self.endpoint}
+                        target_digest = hashlib.sha256(json.dumps(target, sort_keys=True, separators=(",", ":")).encode()).hexdigest()
+                        if (identity is None or identity["target_digest"] != target_digest
+                                or self._credential_server_binding is not None and self._credential_server_binding != binding):
+                            raise ValueError("service_identity_changed")
+                except ValueError:
+                    raise CredentialUsageDenied("Saved HTTP service identity is unavailable for credential use.") from None
+                for ref in refs:
+                    self.credential_store.assert_http_binding(ref, server_id=self.manifest.id, endpoint=self.endpoint,
+                        server_binding=binding, expected_revision=(self._operation_credential_revisions.get(ref, "")
+                            if self._operation_credential_revisions is not None else None))
+                self._credential_server_binding = binding
+            resolved, metadata = resolve_env_credential_refs(raw_headers, self.credential_store,
+                expected_revisions=self._operation_credential_revisions)
         self._resolved_headers = resolved
         self._redaction_values = tuple(
             sorted(
                 {
                     *self._redaction_values,
-                    *(value for value in resolved.values() if value),
+                    *audit_header_values(resolved),
                 },
                 key=len,
                 reverse=True,
             )
         )
-        if metadata.get("credential_ref_count"):
+        if metadata.get("credential_ref_count") and previous != resolved:
             log_event(logger, logging.INFO, "gate.mcp.credentials_resolved", "Credential refs resolved for MCP HTTP headers", server_id=self.manifest.id, **metadata)
             self._store_log("info", "Credential refs resolved for MCP HTTP headers", "gate.mcp.credentials_resolved", metadata)
 
@@ -429,20 +469,25 @@ class StreamableHttpMcpClient:
         protocol_headers: dict[str, str],
     ) -> dict[str, Any] | None:
         self._check_operation()
-        require_mcp_http_endpoint(self.manifest.id, self.endpoint, settings=self.settings)
+        self._require_endpoint()
         deadline = time.monotonic() + max(float(timeout), 0.001)
         if self._operation_deadline is not None:
             deadline = min(deadline, self._operation_deadline)
         body = json.dumps(message, ensure_ascii=False, separators=(",", ":")).encode("utf-8")
-        headers = self._http_headers(protocol_headers)
-        if self.settings.mcp_log_payloads and not self._sensitive_payloads:
-            log_event(logger, logging.DEBUG, "gate.mcp.http_message_sent", "MCP HTTP message sent", server_id=self.manifest.id, payload=self._redact(message))
-        request = urllib.request.Request(self.endpoint, data=body, headers=headers, method="POST")
         try:
-            response = self._opener.open(  # noqa: S310 - endpoint is operator-configured
-                request,
-                timeout=_remaining_seconds(deadline),
-            )
+            # Re-resolve each send under the store's shared barrier. Rotation
+            # waits for an already-dispatching request, then every later POST
+            # and DELETE reads the new value; no business request is replayed.
+            with self.credential_store.dispatch_guard():
+                self._resolve_headers()
+                headers = self._http_headers(protocol_headers)
+                if self.settings.mcp_log_payloads and not self._sensitive_payloads:
+                    log_event(logger, logging.DEBUG, "gate.mcp.http_message_sent", "MCP HTTP message sent", server_id=self.manifest.id, payload=self._redact(message))
+                request = urllib.request.Request(self.endpoint, data=body, headers=headers, method="POST")
+                response = self._opener.open(  # noqa: S310 - endpoint is operator-configured
+                    request,
+                    timeout=_remaining_seconds(deadline),
+                )
         except urllib.error.HTTPError as exc:
             if 300 <= exc.code < 400:
                 exc.close()

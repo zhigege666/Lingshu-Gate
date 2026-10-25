@@ -22,7 +22,10 @@ from lingshu_gate.auth import AuthPrincipal
 from lingshu_gate.argument_policy import ArgumentPolicyDenied, ArgumentPolicyStore, check_policy
 from lingshu_gate.database import SQLiteDatabase
 from lingshu_gate.domain.tool_structure import FrozenToolDefinition
-from lingshu_gate.domain.oauth_management import MANAGEMENT_READ_TOOLS, MANAGEMENT_TOOL_IDS, management_resource, management_tool_snapshot
+from lingshu_gate.domain.oauth_management import (
+    MANAGEMENT_READ_TOOLS, MANAGEMENT_TOOL_IDS, management_resource, management_tool_snapshot,
+    management_tool_server, management_tool_permissions, HTTP_MANAGEMENT_TOOL_IDS, CREDENTIAL_MANAGEMENT_TOOL_IDS,
+)
 from lingshu_gate.invocation_payloads import snapshot
 from lingshu_gate.retention_store import RetentionStore
 from lingshu_gate.mcp_runtime import McpRuntimeManager
@@ -1443,12 +1446,14 @@ class AccessControlStore:
                     and "admin" in principal.roles and "operations.manage" in principal.permissions
                     and principal.external_grant_id and principal.oauth_family_id and principal.oauth_client_id
                     and principal.external_expires_at and not _is_expired(principal.external_expires_at)
-                    and definition.source == "builtin" and server_id == "gate_mcp_configuration"
+                    and definition.source == "builtin" and server_id == management_tool_server(definition.id)
                     and definition.id in MANAGEMENT_TOOL_IDS and definition.id in principal.external_tool_ids
                     and dict(principal.oauth_tool_snapshots).get(definition.id) == management_tool_snapshot(
                         definition.copy_definition() if isinstance(definition, FrozenToolDefinition) else definition)
                     and "operations.manage" in principal.scopes
                     and principal.delegated_scopes is not None and "operations.manage" in principal.delegated_scopes
+                    and management_tool_permissions(definition.id) <= (
+                        set(principal.scopes) & set(principal.delegated_scopes) & set(principal.permissions))
                     and (required == "read" or ("tools.invoke" in principal.scopes
                          and "tools.invoke" in principal.delegated_scopes and "tools.invoke" in principal.permissions)))
                 return {"allowed": allowed, "reason": "management grant matched" if allowed else "management grant does not allow this tool",
@@ -1469,6 +1474,24 @@ class AccessControlStore:
         else:
             required_control_permission = required_control_permission.strip()
         roles = set(getattr(principal, "roles", ()) or (principal.role,))
+        if (definition.source == "builtin"
+                and definition.id in HTTP_MANAGEMENT_TOOL_IDS | CREDENTIAL_MANAGEMENT_TOOL_IDS
+                and server_id == management_tool_server(definition.id)):
+            # These new administrator contracts have their own scope ceilings.
+            # Generic business-tool classification must not turn masked reads
+            # into writes or require an unrelated tools.read grant. Legacy
+            # definitions and their access behavior remain unchanged.
+            required = "read" if definition.id in MANAGEMENT_READ_TOOLS else "write"
+            permissions = {"credentials.manage.system" if definition.id in CREDENTIAL_MANAGEMENT_TOOL_IDS
+                           else "operations.manage"}
+            if required == "write":
+                permissions.add("tools.invoke")
+            allowed = (principal.auth_type == "token" and "admin" in roles
+                and all((permission in principal.permissions or "*" in principal.permissions)
+                        and self.has_control_permission(principal, permission) for permission in permissions))
+            return {"allowed": allowed, "reason": "management control permission matched" if allowed else "management control permission denied",
+                    "server_id": server_id, "required_access": required, "granted_access": required if allowed else "none",
+                    "classification_status": "control_plane"}
         if (
             definition.source == "builtin" and server_id == "gate_mcp_groups"
             and definition.metadata.get("group_management_control_plane") is True
@@ -1802,6 +1825,9 @@ class AccessControlStore:
             )
         record_payload = RetentionStore(self.database).policy()["payload_mode"] == "redacted"
         recorded_input: dict[str, Any] | None = None
+        sensitive_inputs = _sensitive_payload_fields(definition, "sensitive_input_fields")
+        sensitive_outputs = _sensitive_payload_fields(definition, "sensitive_output_fields")
+        input_secrets: tuple[str, ...] = ()
         try:
             with phase("quota"):
                 external_lease = self._acquire_external_invocation(principal)
@@ -1822,7 +1848,7 @@ class AccessControlStore:
             dispatch_attempts += 1
 
         def check_effective_arguments(effective: dict[str, Any]) -> None:
-            nonlocal guard_passed, schema_checked, summary, recorded_input
+            nonlocal guard_passed, schema_checked, summary, recorded_input, input_secrets
             from lingshu_gate.application.schema_validation import validate_arguments
             from lingshu_gate.domain.tool_structure import checked_json_size
             from lingshu_gate.tool_catalog import _same_invocation_principal
@@ -1831,6 +1857,7 @@ class AccessControlStore:
             # earlier attempt's inputs or pretend that attempt never happened.
             guard_passed = False
             recorded_input = None
+            input_secrets = ()
             recorded_outputs.clear()
             summary = {"values_recorded": False}
             # fileRef conversion happens in Runtime before this callback. The
@@ -1873,7 +1900,11 @@ class AccessControlStore:
             if policy.enabled:
                 summary["policy_revision"] = policy.revision
             if record_payload:
-                recorded_input = snapshot(effective)
+                # Metadata can mark neutral names such as credential.value as
+                # sensitive. Never rely only on the generic key-name pattern.
+                input_secrets = tuple(value for key, value in effective.items()
+                                      if key.lower() in sensitive_inputs and isinstance(value, str) and value)
+                recorded_input = snapshot(effective, sensitive_fields=sensitive_inputs, known_secrets=input_secrets)
 
         started = perf_counter()
         try:
@@ -2011,7 +2042,10 @@ class AccessControlStore:
             duration_ms=duration_ms,
             payload=summary,
             recorded_input=recorded_input,
-            recorded_output=(recorded_outputs[0] if recorded_outputs else snapshot({"ok": response.ok, "output": response.output, "error": response.error})) if recorded_input is not None else None,
+            recorded_output=(recorded_outputs[0] if recorded_outputs else snapshot(
+                {"ok": response.ok, "output": response.output, "error": response.error},
+                sensitive_fields=sensitive_outputs, known_secrets=input_secrets,
+            )) if recorded_input is not None else None,
         )
         return response
 
@@ -2342,6 +2376,13 @@ def _safe_annotations(definition: ToolDefinition) -> dict[str, Any]:
         return {}
     allowed = {"readOnlyHint", "destructiveHint", "idempotentHint", "openWorldHint"}
     return {key: value[key] for key in allowed if isinstance(value.get(key), bool)}
+
+
+def _sensitive_payload_fields(definition: ToolDefinition, key: str) -> frozenset[str]:
+    raw = definition.metadata.get(key)
+    if not isinstance(raw, list):
+        return frozenset()
+    return frozenset(value.strip().lower() for value in raw if isinstance(value, str) and value.strip())
 
 
 def _payload_summary(arguments: dict[str, Any]) -> dict[str, Any]:

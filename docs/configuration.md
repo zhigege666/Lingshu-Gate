@@ -104,27 +104,31 @@ can omit this optional concurrency field. SQLite still requires a single Core.
 
 HTTPS and canonical loopback HTTP retain their existing behavior. Other HTTP
 endpoints require a literal IPv4 address in `10.0.0.0/8`, `172.16.0.0/12` or
-`192.168.0.0/16` and a separate administrator-approved record binding the exact
-MCP service ID, IP and actual port. A manifest is a declaration, never its own
-trust approval. There are no default trusted private origins. DNS names,
+`192.168.0.0/16` and an administrator-owned record binding the exact MCP service
+ID, lifecycle identity, IP and actual port. There are no default trusted private origins. DNS names,
 noncanonical IPs, public, link-local, metadata and other reserved ranges cannot
 enter this allowlist. User information, query strings, fragments and unsafe URL
 syntax remain forbidden. Redirects remain blocked and HTTPS uses normal TLS
 certificate verification.
 
-In the configuration Dialog, an administrator can select **Authorize this
-address** below the endpoint and explicitly confirm the service ID, IP and port.
-HTTP is unencrypted; use this only for a trusted internal network. Authorization
-uses the separate `/v1/mcp/http-trust/{server_id}` API, not normal manifest save.
-Its PUT requires `origins`, `expected_revision` and `confirmed=true`. Live admin
-role and `operations.manage`, same-origin session mutation protection, revision
-CAS and audit checks apply. An operator with only `operations.manage` or an OAuth
-connection cannot change this policy. Changing the draft invalidates the inline
-confirmation. Approval preserves the draft and revalidates it without connecting.
-Precheck, save, apply, connect, reconnect and requests read the current policy;
-removal or read failure denies subsequent use. Ordinary users receive the result
-for their proposed address and contact-administrator guidance, not other trusted
-origin records. No global trust-settings page is added by this change.
+The configuration Dialog shows the exact target and folds initial permission
+into the administrator's save. The separate **Authorize this address** step is
+removed. Precheck remains offline and does not write permission. HTTP remains
+unencrypted. A live admin role and `operations.manage`, same-origin session
+protection, configuration/trust revision checks and audit still apply; editing a
+manifest on disk does not self-authorize. The new `gate_http_mcp_*` tools provide
+the same reviewed management workflow to scoped administrator API tokens and
+explicitly consented management OAuth connections.
+
+An administrator can revoke the current permission and explicitly restore it.
+Ordinary save/reconnect cannot restore a revoked record. Direct administrator
+`/v1/mcp/http-trust/{server_id}` PUT remains available with `origins`,
+`expected_revision` and `confirmed=true`. Pending approval becomes usable only
+after the matching service is saved. The policy binds `server_binding`; deletion
+and same-ID recreation cannot inherit an earlier service's permission. Legacy
+records are adopted once only for an existing matching saved configuration.
+Connections and requests recheck current policy; revocation or read failure
+denies subsequent use. See [HTTP management](external-mcp-configuration.md).
 
 ### External Streamable HTTP
 
@@ -151,6 +155,12 @@ Automatic HTTP negotiation recognizes the existing precise unsupported-discovery
 Service details report the actual negotiated protocol only after a successful handshake, and show no version when it is unknown. Changing configuration still requires its normal save/apply/connect actions; metadata display grants no access.
 
 Static headers may contain `${credential:<id>}` references. Gate resolves them only for the downstream request and masks values in API responses and logs.
+
+Shared HTTP credentials additionally require exact service/origin/lifecycle usage
+scopes. The editor supports inline creation without discarding the configuration
+draft. Rotation uses a revision check and idempotency key; existing HTTP clients
+refresh headers on the next dispatch. Saving a value does not verify downstream
+authentication. See [shared system credentials](shared-system-credentials.md).
 
 For an external HTTP connection, an expired MCP session detected during a tool call triggers one new handshake and tool discovery automatically; no additional manifest switch is required. The per-server lock serializes shared-session recovery. Gate retries the interrupted call once only when its access classification is published as `read` and the tool definition is unchanged after discovery. Downstream read-only hints alone do not authorize replay. Write or unclassified calls return a structured `mcp_session_reconnected_not_replayed` error after reconnecting; check the original operation result before invoking again. Changed tool metadata returns `mcp_tool_changed_after_reconnect` and requires classification review as applicable.
 

@@ -25,6 +25,12 @@ def test_ip01_scalar_fidelity_and_credentials():
         assert secret not in json.dumps(value)
 
 
+@pytest.mark.parametrize("sensitive", ["synthetic-neutral-secret", None, False, {"nested": "private"}])
+def test_metadata_sensitive_fields_are_masked_before_serialization(sensitive):
+    result = snapshot({"value": sensitive, "nested": {"VALUE": sensitive}, "zero": 0}, sensitive_fields=["value"])
+    assert result["value"] == {"value": "[REDACTED]", "nested": {"VALUE": "[REDACTED]"}, "zero": 0}
+
+
 @pytest.mark.parametrize("value,reason", [(["x" * 100_000], "bytes"), (list(range(10_000)), "nodes")])
 def test_ip02_bounded_capture(value, reason):
     result = snapshot(value)

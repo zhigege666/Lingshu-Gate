@@ -304,6 +304,7 @@ class McpRuntimeManager:
         self._manager_lock = DispatchLock()
         self._route_process_generation = uuid4().hex
         self.credential_sensitive_target: Callable[[str], bool] | None = None
+        self.external_connection_guard: Callable[[str, str | None], None] | None = None
         self._credential_sensitive_servers: set[str] = set()
 
     @contextmanager
@@ -765,6 +766,23 @@ class McpRuntimeManager:
                 before_apply()
                 return self.apply_manifest(manifest, start=False, source="external_config_apply")
 
+    def remove_external_configuration(
+        self, server_id: str, *, cancel: threading.Event, deadline: float,
+        before_remove: Callable[[], None],
+    ) -> McpServerStatusResponse | None:
+        """Bound one external disconnect/removal without touching a remote process."""
+        with operation_lock(self._manager_lock, cancel=cancel, deadline=deadline):
+            runtime = self._servers.get(server_id)
+            guard = operation_lock(runtime.lock, cancel=cancel, deadline=deadline) if runtime else nullcontext()
+            with guard:
+                if runtime is not None and runtime.manifest.launch.type != "external":
+                    raise ValueError("HTTP management cannot remove a managed workload")
+                before_remove()
+                if runtime is not None and isinstance(runtime.client, StreamableHttpMcpClient):
+                    with runtime.client.operation_bounds(cancel, deadline):
+                        return self.remove_manifest(server_id)
+                return self.remove_manifest(server_id)
+
     def external_configuration_status(self, server_id: str, *, deadline: float) -> tuple[McpServerStatusResponse | None, str | None]:
         with operation_lock(self._manager_lock, cancel=None, deadline=deadline):
             runtime = self._servers.get(server_id)
@@ -844,6 +862,8 @@ class McpRuntimeManager:
         self._log_runtime(server_id, "info", "Connecting external MCP server", "gate.mcp.external_connecting", {"endpoint": safe_endpoint})
         credential_sensitive = self._credential_target_sensitive(server_id)
         try:
+            if self.external_connection_guard is not None:
+                self.external_connection_guard(server_id, operation_id)
             client = StreamableHttpMcpClient(manifest, self.settings, log_sink=lambda level, message, event_type, payload: self._log_runtime(server_id, level, message, event_type, payload))
             runtime.client = client
             self._protect_credential_client(server_id, client)

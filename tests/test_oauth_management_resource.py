@@ -9,7 +9,7 @@ from fastapi import HTTPException
 from fastapi.testclient import TestClient
 
 from lingshu_gate.auth import hash_secret
-from lingshu_gate.domain.oauth_management import MANAGEMENT_METADATA_PATH, MANAGEMENT_TOOL_IDS
+from lingshu_gate.domain.oauth_management import MANAGEMENT_METADATA_PATH, LEGACY_MANAGEMENT_TOOL_IDS as MANAGEMENT_TOOL_IDS
 from lingshu_gate.mcp_gateway import register_mcp_gateway_route
 from lingshu_gate.models import ToolDefinition
 from lingshu_gate.oauth_server import OAuthError
@@ -162,7 +162,7 @@ def test_management_requires_admin_and_exact_targets_and_tool_snapshot(gate):
     with pytest.raises(OAuthError, match="management_admin_required"):
         server.consent_context(ticket, browser, gate["oauth_sessions"]["alice"])
     context = server.consent_context(ticket, browser, gate["management_session"])
-    for targets in ({}, {"*": ["create"]}, {"synthetic": ["delete"]}, {"synthetic": ["create", "create"]}):
+    for targets in ({}, {"*": ["create"]}, {"synthetic": ["restart"]}, {"synthetic": ["create", "create"]}):
         with pytest.raises(OAuthError, match="invalid_management_targets"):
             server.consent(ticket, browser, context["csrf"], gate["management_principal"], sorted(MANAGEMENT_TOOL_IDS), 7, 30, 1,
                            management_targets=targets)

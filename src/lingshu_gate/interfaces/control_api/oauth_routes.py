@@ -21,7 +21,7 @@ from starlette.concurrency import run_in_threadpool
 from lingshu_gate.access_control import AccessDeniedError
 from lingshu_gate.auth import AuthPrincipal, hash_secret
 from lingshu_gate.application.console_session_security import ConsoleCsrfError, ConsoleSessionCsrf, live_console_session
-from lingshu_gate.domain.oauth_management import MAX_MANAGEMENT_TARGETS
+from lingshu_gate.domain.oauth_management import MAX_MANAGEMENT_TARGETS, management_tool_permissions
 from lingshu_gate.interfaces.control_api.console_security import console_origin_allowed
 from lingshu_gate.oauth_server import (
     BROWSER_COOKIE, INTERACTION_TTL, MAX_INTERACTION_TICKET, MAX_TOOLS, SESSION_COOKIE, OAuthError, OAuthServer, callback, tool_scope_matches,
@@ -50,7 +50,7 @@ class ConfigRequest(StrictRequest):
 class ClientRequest(StrictRequest):
     name: str = Field(min_length=1, max_length=100)
     redirect_uris: list[str] = Field(min_length=1, max_length=10)
-    scopes: list[str] = Field(min_length=1, max_length=3)
+    scopes: list[str] = Field(min_length=1, max_length=4)
     resources: list[str] | None = Field(default=None, min_length=1, max_length=2)
 
 
@@ -456,6 +456,7 @@ def register_oauth_routes(app: FastAPI, *, server: OAuthServer, observability: O
         scopes = set(json.loads(client["scopes_json"])) if client else set()
         tools = [{**value, "server_name": current[key]["server_name"] if key in current else value.get("server_name"),
                   "currently_authorized": key in current and tool_scope_matches(value, current[key])
+                  and (not management or management_tool_permissions(key) <= scopes & set(grant["scopes"]))
                   and (("operations.manage" if management else "tools.read") if value["access"] == "read" else "tools.invoke") in scopes}
                  for key, value in grant["tools"].items()]
         continuous_servers = {item["server_id"] for item in grant["server_policies"]}
@@ -470,7 +471,7 @@ def register_oauth_routes(app: FastAPI, *, server: OAuthServer, observability: O
     def grant_catalog(principal: AuthPrincipal, grant: dict[str, Any]) -> dict[str, dict[str, Any]]:
         if grant["target_revision"] > 0:
             try:
-                return server.catalog(principal, ["operations.manage", "tools.invoke"], resource=grant["resource"], tool_ids=grant["tools"])
+                return server.catalog(principal, grant["scopes"], resource=grant["resource"], tool_ids=grant["tools"])
             except OAuthError:
                 return {}
         if grant["server_policies"] or any("server_binding" in item for item in grant["tools"].values()):

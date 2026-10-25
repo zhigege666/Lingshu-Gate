@@ -52,7 +52,7 @@ const errors: Record<string, [string, string]> = {
   scope_catalog_output_limit: ["本页摘要超过响应预算，请缩小页大小；草稿已保留。", "This summary exceeds the response budget. Use a smaller page; your draft is retained."],
   oauth_management_disabled: ["管理员尚未启用独立的管理 OAuth 资源。", "The separate management OAuth resource has not been enabled."],
   management_admin_required: ["管理连接需要当前有效的管理员身份和 operations.manage 权限。", "A management connection requires a currently active administrator with operations.manage permission."],
-  invalid_management_targets: ["逐项填写精确服务 ID 和创建/更新操作；不支持重复 ID、通配符或其他操作。", "Enter exact server IDs and create/update actions. Duplicate IDs, wildcards and other actions are unsupported."],
+  invalid_management_targets: ["逐项填写精确目标 ID 和支持的服务或凭据操作；不支持重复 ID 或通配符。", "Enter exact target IDs and supported service or credential actions. Duplicate IDs and wildcards are unsupported."],
   invalid_management_confirmation: ["目标确认不属于此会话或已过期。重新读取并核对目标。", "Target confirmation belongs to another session or expired. Reload and review the targets."],
   management_confirmation_changed: ["授权或目标版本已改变，或确认被替换。重新读取目标并确认。", "The grant or target revision changed, or confirmation was replaced. Reload targets and confirm again."],
   management_scope_insufficient: ["当前管理员缺少此次管理操作需要的权限。", "The current administrator lacks permission for this management action."],

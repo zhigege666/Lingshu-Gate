@@ -28,7 +28,8 @@ CheckSeverity = Literal["error", "warning", "info", "ok"]
 SENSITIVE_ENV_PATTERN = ("KEY", "TOKEN", "SECRET", "PASSWORD", "PASS", "CREDENTIAL", "AUTH", "COOKIE")
 
 
-def validate_mcp_manifest(settings: Settings, config_store: McpConfigStore, manifest_data: dict[str, Any], *, expected_id: str | None = None) -> dict[str, Any]:
+def validate_mcp_manifest(settings: Settings, config_store: McpConfigStore, manifest_data: dict[str, Any], *,
+                          expected_id: str | None = None, http_trust_plan: dict[str, Any] | None = None) -> dict[str, Any]:
     """Validate a manifest and run read-only runtime preflight checks."""
 
     checks: list[dict[str, Any]] = []
@@ -65,8 +66,19 @@ def validate_mcp_manifest(settings: Settings, config_store: McpConfigStore, mani
 
     credential_store = CredentialStore(settings.data_dir)
     try:
-        config_store.check_http_trust(manifest)
-        if manifest.transport.endpoint and private_http_origin(manifest.transport.endpoint):
+        if http_trust_plan is not None:
+            if http_trust_plan["server_id"] != manifest.id or http_trust_plan["endpoint"] != manifest.transport.endpoint:
+                raise ValueError("HTTP permission preview does not match the configuration")
+            if http_trust_plan["change"] == "authorize":
+                checks.append(_check("transport.http_trust", "warning", "Saving this configuration will allow its exact private HTTP origin; no network request has been made.", {"authorized": False, "pending_save": True}))
+            elif not http_trust_plan["connection_allowed"]:
+                checks.append(_check("transport.http_trust", "warning", "Connection permission is revoked. Saving metadata preserves that decision; explicitly restore permission before connecting.", {"authorized": False, "revoked": True}))
+            elif manifest.transport.endpoint and private_http_origin(manifest.transport.endpoint):
+                config_store.check_http_trust(manifest)
+                checks.append(_check("transport.http_trust", "ok", "This exact private HTTP origin is administrator-authorized for this MCP service", {"authorized": True}))
+        else:
+            config_store.check_http_trust(manifest)
+        if http_trust_plan is None and manifest.transport.endpoint and private_http_origin(manifest.transport.endpoint):
             checks.append(_check("transport.http_trust", "ok", "This exact private HTTP origin is administrator-authorized for this MCP service", {"authorized": True}))
     except ValueError as exc:
         checks.append(_check("transport.endpoint", "error", str(exc), {"code": "private_http_untrusted"}))
