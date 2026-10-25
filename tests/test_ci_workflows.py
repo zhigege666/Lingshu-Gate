@@ -146,7 +146,7 @@ def test_browser_smoke_runs_before_the_long_backend_suite_without_removing_check
     steps = _workflow("backend.yml")["jobs"]["source"]["steps"]
     positions = {step["name"]: index for index, step in enumerate(steps)}
     assert positions["Verify and build Console once"] < positions["Install browser for isolated smoke"]
-    assert positions["Install frozen dependencies"] < positions["Test Console against isolated real backend"]
+    assert positions["Install frozen dependencies"] < positions["Install browser for isolated smoke"]
     assert positions["Install browser for isolated smoke"] < positions["Test Console against isolated real backend"]
     assert positions["Test Console against isolated real backend"] < positions["Verify backend on Python 3.12"]
     for name in ("Test Console against isolated real backend", "Verify backend on Python 3.12"):
