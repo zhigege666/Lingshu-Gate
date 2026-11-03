@@ -16,6 +16,7 @@ from typing import Any
 from lingshu_gate.logging import log_event
 from lingshu_gate.models import ToolDefinition, ToolInvokeResponse
 from lingshu_gate.domain.tool_structure import FrozenToolDefinition, freeze_tool_definition
+from lingshu_gate.domain.mcp_request_outcome import McpRequestTimeout, find_request_timeout
 from lingshu_gate.argument_preparation import ArgumentPreparer, owned_arguments
 
 ToolHandler = Callable[..., dict[str, Any]]
@@ -109,6 +110,25 @@ class ToolExecutionError(RuntimeError):
                 "details": self.details,
             }
         }
+
+
+def mcp_timeout_error(timeout: McpRequestTimeout, *, recovery_handle: str | None = None,
+                      unavailable_reason: str | None = None) -> ToolExecutionError:
+    """Expose safe transport facts; only the authorization layer grants recovery."""
+    details = dict(timeout.details)
+    details.update(recovery_supported=recovery_handle is not None,
+                   recovery_scope="current_process" if recovery_handle else "none")
+    if recovery_handle is not None:
+        details.update(request_handle=recovery_handle,
+                       query_path="/v1/catalog/requests/status", poll_after_ms=1000)
+    else:
+        details["recovery_expires_after_seconds"] = None
+        if unavailable_reason:
+            details["recovery_unavailable_reason"] = unavailable_reason
+    return ToolExecutionError(timeout.code, str(timeout), retryable=False, details=details,
+        next_action=("Query POST /v1/catalog/requests/status with this request_handle and the original credential; do not replay the operation."
+                     if recovery_handle else
+                     "Inspect the execution service before retrying; this timeout does not confirm termination."))
 
 
 @dataclass(frozen=True)
@@ -526,6 +546,12 @@ class ToolRegistry:
             return ToolInvokeResponse(ok=False, tool_id=tool_id, output=payload, error=exc.message)
         except Exception as exc:  # noqa: BLE001 - tool boundary must normalize errors
             remember_failure(exc)
+            timeout = find_request_timeout(exc)
+            if timeout is not None:
+                error = mcp_timeout_error(timeout, unavailable_reason="authenticated_recovery_unavailable")
+                log_event(logger, logging.WARNING, "gate.tool.invoke_timed_out", "MCP response wait timed out",
+                          tool_id=tool_id, source=record.definition.source, error=error.to_payload())
+                return ToolInvokeResponse(ok=False, tool_id=tool_id, output=error.to_payload(), error=error.message)
             log_event(
                 logger,
                 logging.ERROR,

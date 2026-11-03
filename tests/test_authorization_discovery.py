@@ -67,10 +67,10 @@ def test_new_and_legacy_tokens_default_on_demand_and_are_independent(browser, to
         assert [item["name"] for item in rpc(browser, token["token"], suffix="?tool_mode=direct").json()["result"]["tools"]] == list(CATALOG_TOOL_NAMES)
     set_mode(browser, "api", old["id"], "direct")
     assert {item["name"] for item in rpc(browser, old["token"]).json()["result"]["tools"]} == {"mcp__A__read"}
-    assert len(rpc(browser, new["token"]).json()["result"]["tools"]) == 6
+    assert len(rpc(browser, new["token"]).json()["result"]["tools"]) == 7
     assert {item["name"] for item in rpc(browser, old["token"], suffix="?tool_mode=on_demand").json()["result"]["tools"]} == {"mcp__A__read"}
     set_mode(browser, "api", old["id"], "on_demand")
-    assert len(rpc(browser, old["token"]).json()["result"]["tools"]) == 6
+    assert len(rpc(browser, old["token"]).json()["result"]["tools"]) == 7
     assert all(item["tool_discovery_mode"] == "on_demand" for item in gate["auth"].list_api_tokens())
 
 
@@ -146,8 +146,8 @@ def test_oauth_and_external_grants_have_separate_modes(browser, gate):
     _, _, grant, token = initial(gate)
     register_mcp_gateway_route(gate["app"], gate["settings"], gate["registry"], gate["access"],
         gate["auth"].authenticate_mcp_request, catalog=ToolCatalog(gate["registry"], gate["access"]))
-    assert len(rpc(browser, token["access_token"]).json()["result"]["tools"]) == 6
-    assert len(rpc(browser, token["access_token"], suffix="?tool_mode=direct", mode_headers=(("X-Gate-Tool-Mode", "unknown"),)).json()["result"]["tools"]) == 6
+    assert len(rpc(browser, token["access_token"]).json()["result"]["tools"]) == 7
+    assert len(rpc(browser, token["access_token"], suffix="?tool_mode=direct", mode_headers=(("X-Gate-Tool-Mode", "unknown"),)).json()["result"]["tools"]) == 7
     external = ExternalConnectionStore(gate["db"])
     payload = {"client_id": "synthetic-external", "enabled": True, "server_allowlist": ["A"], "tool_allowlist": ["mcp.A.read"],
         "access": ["read"], "expires_at": (datetime.now(timezone.utc) + timedelta(days=1)).isoformat(), "rate_per_minute": 6000, "concurrency": 100}

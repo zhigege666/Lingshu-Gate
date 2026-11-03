@@ -4,7 +4,7 @@
 
 Lingshu Gate 发行自动化会生成可直接运行的原生包、Docker Compose 部署包，以及只在 Tag 发行提供的 Core 离线镜像。每个已发布资产都由 `SHA256SUMS` 和仓库 Build Provenance Attestation 覆盖。
 
-当前源码版本为 `0.5.6`。本版增加引导式 HTTP 鉴权、独立连接测试、五个 HTTP MCP 管理工具及五个加密共享凭据工具。保存配置时合并已审核的内网 HTTP 许可；撤销、精确凭据使用范围、生命周期绑定及旧 OAuth 权限上限仍有效。相对 0.5.5 不新增直接依赖或编号 SQL 迁移；Vite 8.3.3、fast-uri 3.1.9 为安全补丁更新，Python 依赖不变；复用已有操作日志，并对匹配的旧凭据和许可记录执行有界兼容转换。升级前应一致备份数据库、配置、加密存储和全部密钥。运行时、Python 元数据、CLI 和归档名称统一使用 `src/lingshu_gate/_version.py`。见中英文[发行摘要](../../packaging/release-notes.md)；已有标签保持不可变。
+当前源码版本为 `0.5.7`。本版增加结构化 MCP 超时信息，并通过 `gate_request_status` 与 `POST /v1/catalog/requests/status` 为符合条件的共享 stdio 调用提供有界、进程内的迟到响应回读。恢复沿用原身份、当前授权、工具修订及运行时连接边界；收到响应不证明远端命令已终止。HTTP 调用不增加迟到回读，任意远端任务也不因此获得重启恢复或最终退出码。相对 0.5.6 不新增运行依赖或数据库迁移，保留既有 HTTP 鉴权与凭据管理行为。运行时、Python 元数据、CLI 和归档名称统一使用 `src/lingshu_gate/_version.py`。见中英文[发行摘要](../../packaging/release-notes.md)；已有标签保持不可变。
 
 升级会执行 `0024_business_credentials` 及此前尚未应用的迁移；从 0.5.0 之前升级时，还包括 `0022_tool_preferences` 和 `0023_tool_argument_policy`。应一致备份数据库、配置和全部凭据密钥。业务账号密文保存在 Gate 数据库中，对应密钥为 `<data-dir>/business-credentials/credential.key`，开始使用业务凭据后必须纳入备份。远端浏览器密码库有独立的密钥与生命周期。0.5.0 之前的二进制不执行参数策略，0.5.2 之前的二进制不执行受管浏览器限制。专用实例要求、目标兼容性检查和独立清理操作见[业务凭据指南](business-credentials.md)。
 

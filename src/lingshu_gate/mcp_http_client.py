@@ -23,13 +23,16 @@ import urllib.error
 import urllib.request
 from collections.abc import Callable, Iterable
 from contextlib import contextmanager
+from dataclasses import dataclass
 from itertools import count
-from typing import Any, Iterator
+from typing import Any, Iterator, NoReturn
+from uuid import uuid4
 
 from lingshu_gate.config import Settings
 from lingshu_gate.credential_refs import extract_credential_refs, resolve_env_credential_refs
 from lingshu_gate.credential_store import CredentialStore, CredentialUsageDenied
 from lingshu_gate.database import SQLiteDatabase
+from lingshu_gate.domain.mcp_request_outcome import McpRequestTimeout
 from lingshu_gate.invocation_payloads import audit_header_values
 from lingshu_gate.endpoint_security import REDACTED_ENDPOINT
 from lingshu_gate.logging import log_event
@@ -90,6 +93,18 @@ class _LegacyHttpInitializationRequired(McpProtocolError):
     """A strictly recognized initial HTTP discovery rejection, never a tool error."""
 
 
+@dataclass
+class _HttpRequestContext:
+    """Track only safe facts about one send; an attempted POST may not arrive."""
+
+    request_handle: str
+    connection_generation: str
+    method: str
+    timeout_seconds: float
+    phase: str = "prepare"
+    dispatch_state: str = "not_dispatched"
+
+
 class StreamableHttpMcpClient:
     """Talk to one external MCP server over Streamable HTTP JSON-RPC."""
 
@@ -124,6 +139,7 @@ class StreamableHttpMcpClient:
         self.last_stdout: list[str] = []
         self.last_stderr: list[str] = []
         self._ids = count(1)
+        self._connection_generation = uuid4().hex
         self._resolved_headers: dict[str, str] = {}
         self._redaction_values = tuple(
             sorted(
@@ -184,6 +200,7 @@ class StreamableHttpMcpClient:
             return
         if not self.endpoint:
             raise ValueError("transport.endpoint is required for streamable_http")
+        self._connection_generation = uuid4().hex
         self.protocol_version = resolve_downstream_protocol_version(self.manifest.transport.protocol_version)
         self._session_expired = False
         self.server_info = {}
@@ -191,6 +208,7 @@ class StreamableHttpMcpClient:
         self._resolve_headers()
         startup_timeout = self.manifest.timeout_seconds or self.settings.mcp_startup_timeout_seconds
         handshake_deadline = time.monotonic() + startup_timeout
+        handshake_method = "server/discover" if self.protocol_version == MCP_PROTOCOL_VERSION else "initialize"
         can_negotiate = self.manifest.transport.protocol_version in (None, "auto") and not self.session_id
         log_event(logger, logging.INFO, "gate.mcp.http_connect_started", "Connecting to external MCP endpoint", server_id=self.manifest.id, timeout_seconds=startup_timeout)
         self._store_log("info", "Connecting to external MCP endpoint", "gate.mcp.http_connect_started", {"timeout_seconds": startup_timeout})
@@ -209,6 +227,7 @@ class StreamableHttpMcpClient:
                 finally:
                     self._auto_discovery_probe = False
             if self.protocol_version != MCP_PROTOCOL_VERSION:
+                handshake_method = "initialize"
                 result = self.request(
                     "initialize",
                     initialize_params(self.protocol_version, self.settings.version),
@@ -218,6 +237,7 @@ class StreamableHttpMcpClient:
                     self.protocol_version, self.server_capabilities, self.server_info = parse_initialize_result(result)
                 except ValueError as exc:
                     raise McpProtocolError(str(exc)) from None
+                handshake_method = "notifications/initialized"
                 self.notify("notifications/initialized", timeout=_remaining_seconds(handshake_deadline))
         except Exception as exc:
             try:
@@ -226,7 +246,12 @@ class StreamableHttpMcpClient:
                 self.initialized = False
                 self.session_id = None
             if isinstance(exc, TimeoutError):
-                raise McpProtocolError("MCP HTTP handshake exceeded its absolute deadline") from exc
+                self._raise_timeout(
+                    _HttpRequestContext(request_handle=uuid4().hex,
+                        connection_generation=self._connection_generation, method=handshake_method,
+                        timeout_seconds=float(startup_timeout), phase="handshake"),
+                    "MCP HTTP handshake exceeded its absolute deadline",
+                )
             raise
         self.initialized = True
         connection_summary = {
@@ -468,6 +493,44 @@ class StreamableHttpMcpClient:
         request_id: int | None,
         protocol_headers: dict[str, str],
     ) -> dict[str, Any] | None:
+        context = _HttpRequestContext(
+            request_handle=uuid4().hex,
+            connection_generation=self._connection_generation,
+            method=str(message.get("method") or "unknown"),
+            timeout_seconds=float(timeout),
+        )
+        try:
+            return self._post_with_context(message, timeout, expect_response=expect_response,
+                request_id=request_id, protocol_headers=protocol_headers, context=context)
+        except Exception as exc:
+            if not _caused_by_timeout(exc):
+                raise
+            subject = "response" if context.phase == "downstream_response" else "request"
+            self._raise_timeout(context, f"MCP HTTP {subject} exceeded its absolute deadline")
+
+    def _raise_timeout(self, context: _HttpRequestContext, message: str) -> NoReturn:
+        # Never preserve urllib's raw reason/body in the exposed exception
+        # chain: these can contain endpoints, credentials or peer output.
+        # A handle correlates this failure; HTTP has no late-result cache.
+        outcome = McpRequestTimeout(method=context.method, timeout_seconds=context.timeout_seconds,
+            request_handle=context.request_handle, connection_generation=context.connection_generation,
+            transport="streamable_http", dispatch_state=context.dispatch_state,
+            recovery_supported=False, phase=context.phase)
+        log_event(logger, logging.ERROR, "gate.mcp.request_timed_out", "MCP HTTP request timed out",
+            server_id=self.manifest.id, **outcome.details)
+        self._store_log("error", "MCP HTTP request timed out", "gate.mcp.request_timed_out", outcome.details)
+        raise McpProtocolError(message) from outcome
+
+    def _post_with_context(
+        self,
+        message: dict[str, Any],
+        timeout: float,
+        *,
+        expect_response: bool,
+        request_id: int | None,
+        protocol_headers: dict[str, str],
+        context: _HttpRequestContext,
+    ) -> dict[str, Any] | None:
         self._check_operation()
         self._require_endpoint()
         deadline = time.monotonic() + max(float(timeout), 0.001)
@@ -484,10 +547,17 @@ class StreamableHttpMcpClient:
                 if self.settings.mcp_log_payloads and not self._sensitive_payloads:
                     log_event(logger, logging.DEBUG, "gate.mcp.http_message_sent", "MCP HTTP message sent", server_id=self.manifest.id, payload=self._redact(message))
                 request = urllib.request.Request(self.endpoint, data=body, headers=headers, method="POST")
+                remaining = _remaining_seconds(deadline)
+                # urllib does not expose how much of a failed POST was sent.
+                # Until headers arrive, dispatch is unknown rather than denied.
+                context.phase = "connect_or_send"
+                context.dispatch_state = "unknown"
                 response = self._opener.open(  # noqa: S310 - endpoint is operator-configured
                     request,
-                    timeout=_remaining_seconds(deadline),
+                    timeout=remaining,
                 )
+                context.dispatch_state = "sent"
+                context.phase = "downstream_response"
         except urllib.error.HTTPError as exc:
             if 300 <= exc.code < 400:
                 exc.close()
@@ -697,6 +767,25 @@ def _legacy_initialization_error(raw: bytes, request_id: int | None) -> bool:
             and type(error.get("code")) is int and error["code"] == -32000
             and isinstance(error.get("message"), str)
             and error["message"].strip().lower() == "bad request: server not initialized")
+
+
+def _caused_by_timeout(error: BaseException) -> bool:
+    """Recognize wrapped timeouts without interpreting peer-controlled strings."""
+
+    pending = [error]
+    seen: set[int] = set()
+    while pending:
+        current = pending.pop()
+        if id(current) in seen:
+            continue
+        seen.add(id(current))
+        if isinstance(current, TimeoutError):
+            return True
+        if current.__cause__ is not None:
+            pending.append(current.__cause__)
+        if isinstance(current, urllib.error.URLError) and isinstance(current.reason, BaseException):
+            pending.append(current.reason)
+    return False
 
 
 def _remaining_seconds(deadline: float) -> float:

@@ -2,7 +2,7 @@
 
 A self-hosted MCP gateway that connects tools, limits who can call them, and records what happened.
 
-[简体中文](README.zh-CN.md) · [Download 0.5.6](https://github.com/zhigege666/Lingshu-Gate/releases/tag/v0.5.6) · [Get started](docs/getting-started.md) · [Documentation](docs/README.md) · [Security](SECURITY.md)
+[简体中文](README.zh-CN.md) · [Download 0.5.7](https://github.com/zhigege666/Lingshu-Gate/releases/tag/v0.5.7) · [Get started](docs/getting-started.md) · [Documentation](docs/README.md) · [Security](SECURITY.md)
 
 <img src="docs/images/console/en-US/v0.5.0-discovery.png" alt="Lingshu Gate 0.5.0: per-authorization pinned tools, logical groups and bounded text previews" width="1200">
 
@@ -30,7 +30,7 @@ Open [http://127.0.0.1:8000/](http://127.0.0.1:8000/). Read `data/initial-admin-
 
 ### Released Docker trial
 
-Verify and extract `lingshu-gate-v0.5.6-docker-compose.tar.gz`, enter that directory and run:
+Verify and extract `lingshu-gate-v0.5.7-docker-compose.tar.gz`, enter that directory and run:
 
 ```bash
 cp .env.quickstart.example .env.quickstart
@@ -65,13 +65,13 @@ The [included demo walkthrough](docs/first-call.md) needs no external service ac
 
 Check the successful audit, deny a write with an unchanged counter, reject an invalid revision, stop/restart the demo and revoke the caller. Gate startup, tool discovery, classification confirmation and publication are separate steps; access still requires both resource grants and token scope.
 
-## 0.5.6 — HTTP MCP setup and credential management
+## 0.5.7 — MCP timeout visibility and late-response recovery
 
-Connect an external HTTP MCP without hand-writing common authentication headers. Choose **None, Bearer Token, API Key, Basic or Custom**, select an existing scoped credential or save a new one, then optionally **Test connection** before saving. The Home shortcut fills the draft and explains its PAT requirements; it never logs in or sends credentials automatically. The 1200 px editor keeps Cancel, Test connection and Save together, with stage-by-stage diagnostics above the actions.
+MCP waiting deadlines now return structured `mcp_request_timeout` details. Callers can distinguish a request that was not dispatched from an operation whose execution outcome is unknown; a timeout does not report remote termination or authorize an automatic retry.
 
-Five `gate_http_mcp_*` tools cover testing, reviewed configuration plans, application, status and cancellation. Plans support create/update/delete and explicit private-HTTP permission revoke/restore. Five `gate_credential_*` tools manage encrypted shared credentials with masked reads, revision checks, idempotent writes and dependency-protected deletion. An authorized configuration save includes its exact private-HTTP permission; revoked permission still requires explicit restoration.
+For eligible shared stdio calls, use the returned recovery handle with `gate_request_status` or `POST /v1/catalog/requests/status` to read a late response. The handle stays bound to the original identity, tool revision and runtime connection, with current access checked on every read. The default on-demand entry list grows from six to seven; full tool-list mode is unchanged.
 
-Frontend dependencies also include the Vite 8.3.3 and fast-uri 3.1.9 security patches. Old OAuth grants do not gain new tools or scopes. Existing explicitly wildcard-scoped administrator API tokens retain their ceilings. Credential rotation affects subsequent dispatches; testing neither saves a configuration, publishes tools nor verifies every business permission. Back up the database, configuration, encrypted stores and all keys together before upgrading. See [HTTP setup and testing](docs/http-mcp-connection-testing.md), [MCP administration](docs/external-mcp-configuration.md), [shared credentials](docs/shared-system-credentials.md), [changes](CHANGELOG.md) and the [bilingual release notes](packaging/release-notes.md).
+Recovery is bounded and process-local. It does not survive a Gate restart or replace a remote job API; HTTP calls receive structured timeout information without late-response recovery in this release. A completed response still does not establish a remote command's exit code. No new runtime dependency or database migration is added over 0.5.6. See [request recovery](docs/on-demand-tools.md), [MCP connection behavior](docs/mcp-gateway.md), [changes](CHANGELOG.md) and the [bilingual release notes](packaging/release-notes.md).
 
 ## Architecture overview
 
@@ -114,7 +114,8 @@ flowchart TB
 |---|---|---|
 | MCP gateway and transports | One authenticated Model Context Protocol endpoint; stateless JSON `/mcp`, remote MCP over Streamable HTTP, native stdio, explicit versions and bounded legacy negotiation. Tool aggregation, not generic resource/prompt hosting. | [Guide](docs/mcp-gateway.md) |
 | MCP groups and instance sessions | Logical groups reference existing instances without copying credentials or granting access; contract partitions and connection-bound sessions. | [Guide](docs/mcp-groups.md) |
-| On-demand tool discovery | Six default entries, up to 20 authorized fixed tools/groups, and optional bounded text-result paging; each authorization retains its own scope. | [Guide](docs/on-demand-tools.md) |
+| On-demand tool discovery | Seven default entries, including read-only timeout outcome lookup, up to 20 authorized fixed tools/groups, and optional bounded text-result paging; each authorization retains its own scope. | [Guide](docs/on-demand-tools.md) |
+| Timeout outcome lookup — development | Structured MCP timeout facts and short-lived, identity-bound lookup of late replies from eligible shared stdio calls. Does not replay or cancel calls, establish remote exit status, or survive a Gate restart. | [Guide](docs/on-demand-tools.md#timed-out-request-outcomes) |
 | Argument policies | Exact equality, allowed values, numeric ranges and string prefixes on effective arguments; pure preview and revisioned audited saves. | [Guide](docs/argument-policies.md) |
 | Private HTTP MCP connector | Fixed-target relay/agent with distinct credentials, bounded sessions and no automatic business replay. | [Guide](docs/private-connector.md) |
 | OpenAPI adapter | Explicit operations from local OpenAPI 3.0/3.1 snapshots, fixed origins and contract-bound tool names. | [Guide](docs/openapi-adapter.md) |

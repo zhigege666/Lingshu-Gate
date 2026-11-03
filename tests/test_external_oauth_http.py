@@ -251,7 +251,7 @@ def test_external_jwt_legacy_grant_defaults_on_demand_independently(oauth_http):
     env = oauth_http
     env.state.auth_store.database.execute("DELETE FROM authorization_discovery WHERE kind='external' AND authorization_id=?", (env.grants["alice"]["id"],))
     env.client.headers["X-Gate-Tool-Mode"] = "direct"
-    assert env.names(env.token("alice")) == {"gate_catalog_search", "gate_tool_describe", "gate_tool_invoke", "gate_instance_list", "gate_instance_session_open", "gate_instance_session_close"}
+    assert env.names(env.token("alice")) == {"gate_catalog_search", "gate_tool_describe", "gate_tool_invoke", "gate_instance_list", "gate_instance_session_open", "gate_instance_session_close", "gate_request_status"}
     assert env.names(env.token("bob")) == {"mcp__B__read"}
 
 

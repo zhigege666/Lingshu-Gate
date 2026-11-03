@@ -45,6 +45,7 @@ from lingshu_gate.registry import ToolExecutionError, ToolRecord, ToolRegistry
 from lingshu_gate.redaction import redact_text
 from lingshu_gate.tool_files import ToolFileError, ToolFileStore
 from lingshu_gate.user_credential_store import UserCredentialBindingError, UserCredentialStore
+from lingshu_gate.domain.mcp_request_outcome import find_request_timeout
 
 logger = logging.getLogger(__name__)
 RuntimeLogSink = Callable[[str, str, str | None, str, dict[str, Any]], None]
@@ -1403,6 +1404,8 @@ class McpRuntimeManager:
         with queue_lock(runtime.lock):
             if runtime.state != McpServerState.RUNNING or not runtime.client:
                 raise RuntimeError(f"MCP server is not running: {server_id} ({runtime.state.value})")
+            client = runtime.client
+            generation = runtime.connection_generation
             try:
                 return _guarded_tool_call(runtime.client, tool_name, arguments, transport=runtime.manifest.transport.type,
                     dispatch_guard=dispatch_guard, arguments_guard=arguments_guard, dispatch_started=dispatch_started)
@@ -1415,6 +1418,25 @@ class McpRuntimeManager:
                     arguments_guard=arguments_guard,
                     dispatch_started=dispatch_started,
                 )
+            except Exception as exc:
+                timeout = find_request_timeout(exc)
+                if timeout is not None and timeout.outcome_reader is not None:
+                    reader = timeout.outcome_reader
+
+                    def bound_outcome() -> dict[str, Any] | None:
+                        # Receipt reads never take the service execution lock.
+                        # A replacement connection cannot inherit an old receipt.
+                        def current() -> bool:
+                            return (self._servers.get(server_id) is runtime and runtime.client is client
+                                    and runtime.connection_generation == generation)
+
+                        if not current():
+                            return None
+                        outcome = reader()
+                        return outcome if current() else None
+
+                    timeout.outcome_reader = bound_outcome
+                raise
 
     def _recover_expired_session_locked(
         self, server_id: str, runtime: McpServerRuntime, tool_name: str,

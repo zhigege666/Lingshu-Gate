@@ -17,10 +17,12 @@ from collections.abc import Callable, Iterable
 from itertools import count
 from pathlib import Path
 from typing import Any
+from uuid import uuid4
 
 from lingshu_gate.config import Settings
 from lingshu_gate.credential_refs import resolve_env_credential_refs
 from lingshu_gate.credential_store import CredentialStore
+from lingshu_gate.domain.mcp_request_outcome import McpRequestTimeout, RequestOutcomeStore
 from lingshu_gate.logging import log_event
 from lingshu_gate.mcp_container import build_docker_command, resolve_docker_binary
 from lingshu_gate.mcp_manifest import McpServerManifest
@@ -77,6 +79,10 @@ class StdioMcpClient:
         self._sensitive_payloads = False
         self.process: subprocess.Popen[str] | None = None
         self._responses: dict[int, queue.Queue[dict[str, Any]]] = {}
+        self._response_lock = threading.Lock()
+        self._connection_generation = uuid4().hex
+        self._stdout_closed_generation: str | None = None
+        self._request_outcomes = RequestOutcomeStore()
         self._ids = count(1)
         self._stdout_thread: threading.Thread | None = None
         self._stderr_thread: threading.Thread | None = None
@@ -99,7 +105,6 @@ class StdioMcpClient:
         if self.process and self.process.poll() is None:
             log_event(logger, logging.INFO, "gate.mcp.stdio_already_running", "MCP stdio process already running", server_id=self.manifest.id, pid=self.pid)
             return
-        self._fatal_protocol_error = None
         self.protocol_version = resolve_downstream_protocol_version(
             self.manifest.transport.protocol_version, allow_legacy_stdio=True,
         )
@@ -146,7 +151,7 @@ class StdioMcpClient:
         safe_command = redact_command(command)
         log_event(logger, logging.INFO, "gate.mcp.stdio_process_started", "Starting MCP stdio process", server_id=self.manifest.id, command=safe_command, cwd=str(cwd) if cwd else None, runtime_cache=runtime_cache_payload)
         self._store_log("info", "Starting MCP stdio process", "gate.mcp.stdio_process_started", {"command": safe_command, "cwd": str(cwd) if cwd else None, "runtime_cache": runtime_cache_payload})
-        self.process = subprocess.Popen(
+        process = subprocess.Popen(
             command,
             cwd=str(cwd) if cwd else None,
             env=env,
@@ -157,8 +162,16 @@ class StdioMcpClient:
             encoding="utf-8",
             bufsize=1,
         )
-        self._stdout_thread = threading.Thread(target=self._read_stdout, name=f"mcp-stdout-{self.manifest.id}", daemon=True)
-        self._stderr_thread = threading.Thread(target=self._read_stderr, name=f"mcp-stderr-{self.manifest.id}", daemon=True)
+        with self._response_lock:
+            self._request_outcomes.interrupt_generation(self._connection_generation)
+            self._connection_generation = uuid4().hex
+            self._fatal_protocol_error = None
+            self._stdout_closed_generation = None
+            generation = self._connection_generation
+            self._responses.clear()
+            self.process = process
+        self._stdout_thread = threading.Thread(target=self._read_stdout, args=(process, generation), name=f"mcp-stdout-{self.manifest.id}", daemon=True)
+        self._stderr_thread = threading.Thread(target=self._read_stderr, args=(process, generation), name=f"mcp-stderr-{self.manifest.id}", daemon=True)
         self._stdout_thread.start()
         self._stderr_thread.start()
         log_event(logger, logging.INFO, "gate.mcp.stdio_process_ready", "MCP stdio process started", server_id=self.manifest.id, pid=self.pid)
@@ -294,7 +307,16 @@ class StdioMcpClient:
         self._store_log("info", f"MCP tool call completed: {name}", "gate.mcp.tool_call_succeeded", {"tool_name": name})
         return result
 
-    def request(self, method: str, params: dict[str, Any] | None = None, *, timeout: int | None = None) -> dict[str, Any]:
+    def get_request_outcome(self, request_handle: str) -> dict[str, Any] | None:
+        """Read a process-local timeout receipt without waiting on a service lock.
+
+        This internal method does not authorize access to the original result.
+        Any application/API adapter must enforce the original caller's access.
+        ``None`` means the receipt is unknown, expired, or capacity-evicted.
+        """
+        return self._request_outcomes.get(request_handle)
+
+    def request(self, method: str, params: dict[str, Any] | None = None, *, timeout: float | None = None) -> dict[str, Any]:
         if not self.process or not self.process.stdin:
             raise RuntimeError("MCP stdio process is not running")
         if self.process.poll() is not None:
@@ -302,6 +324,9 @@ class StdioMcpClient:
         if self._fatal_protocol_error:
             raise McpProtocolError(self._fatal_protocol_error)
 
+        process = self.process
+        generation = self._connection_generation
+        request_handle = uuid4().hex
         request_id = next(self._ids)
         message: dict[str, Any] = {"jsonrpc": "2.0", "id": request_id, "method": method}
         request_params = build_request_params(
@@ -312,31 +337,62 @@ class StdioMcpClient:
         )
         message["params"] = request_params
         response_queue: queue.Queue[dict[str, Any]] = queue.Queue(maxsize=1)
-        self._responses[request_id] = response_queue
+        with self._response_lock:
+            self._responses[request_id] = response_queue
         request_timeout = timeout or self.manifest.timeout_seconds or self.settings.mcp_request_timeout_seconds
         deadline = time.monotonic() + request_timeout
         try:
-            self._write_message(message)
+            self._write_message(message, expected_generation=generation)
         except Exception:
-            self._responses.pop(request_id, None)
+            with self._response_lock:
+                if self._responses.get(request_id) is response_queue:
+                    self._responses.pop(request_id, None)
             raise
         while True:
             if self._fatal_protocol_error:
-                self._responses.pop(request_id, None)
+                with self._response_lock:
+                    if self._responses.get(request_id) is response_queue:
+                        self._responses.pop(request_id, None)
                 raise McpProtocolError(self._fatal_protocol_error)
-            if self.process and self.process.poll() is not None:
-                self._responses.pop(request_id, None)
+            if process.poll() is not None or generation != self._connection_generation:
+                # A final response already received takes precedence over EOF
+                # or process exit. Do not discard a peer's last valid result.
+                with self._response_lock:
+                    try:
+                        response = response_queue.get_nowait()
+                    except queue.Empty:
+                        if self._responses.get(request_id) is response_queue:
+                            self._responses.pop(request_id, None)
+                    else:
+                        break
                 error = self._process_exit_error(method)
-                log_event(logger, logging.ERROR, "gate.mcp.process_exited_during_request", "MCP stdio process exited while waiting for response", server_id=self.manifest.id, method=method, request_id=request_id, returncode=self.process.returncode, recent_stdout=self.last_stdout[-20:], recent_stderr=self.last_stderr[-20:])
-                self._store_log("error", "MCP stdio process exited while waiting for response", "gate.mcp.process_exited_during_request", {"method": method, "request_id": request_id, "returncode": self.process.returncode, "recent_stdout": self.last_stdout[-20:], "recent_stderr": self.last_stderr[-20:]})
+                log_event(logger, logging.ERROR, "gate.mcp.process_exited_during_request", "MCP stdio process exited while waiting for response", server_id=self.manifest.id, method=method, request_id=request_id, returncode=process.returncode, recent_stdout=self.last_stdout[-20:], recent_stderr=self.last_stderr[-20:])
+                self._store_log("error", "MCP stdio process exited while waiting for response", "gate.mcp.process_exited_during_request", {"method": method, "request_id": request_id, "returncode": process.returncode, "recent_stdout": self.last_stdout[-20:], "recent_stderr": self.last_stderr[-20:]})
                 raise RuntimeError(error)
 
             remaining = deadline - time.monotonic()
             if remaining <= 0:
-                self._responses.pop(request_id, None)
-                log_event(logger, logging.ERROR, "gate.mcp.request_timed_out", "MCP request timed out", server_id=self.manifest.id, method=method, request_id=request_id, timeout_seconds=request_timeout, recent_stdout=self.last_stdout[-20:], recent_stderr=self.last_stderr[-20:])
-                self._store_log("error", "MCP request timed out", "gate.mcp.request_timed_out", {"method": method, "request_id": request_id, "timeout_seconds": request_timeout, "recent_stdout": self.last_stdout[-20:], "recent_stderr": self.last_stderr[-20:]})
-                raise TimeoutError(f"MCP request timed out: {method}; recent_stderr={self.last_stderr[-5:]}; recent_stdout={self.last_stdout[-5:]}")
+                with self._response_lock:
+                    try:
+                        response = response_queue.get_nowait()
+                    except queue.Empty:
+                        if self._responses.get(request_id) is response_queue:
+                            self._responses.pop(request_id, None)
+                        # The reader shares this lock: it either delivers to
+                        # the waiter, or completes this retained receipt.
+                        self._request_outcomes.retain(request_handle, generation, request_id, method)
+                        if (generation != self._connection_generation
+                                or self._stdout_closed_generation == generation):
+                            self._request_outcomes.interrupt_generation(generation)
+                    else:
+                        break
+                failure = McpRequestTimeout(method=method, timeout_seconds=request_timeout,
+                    request_handle=request_handle, connection_generation=generation,
+                    recovery_expires_after_seconds=self._request_outcomes.ttl_seconds,
+                    outcome_reader=lambda: self.get_request_outcome(request_handle))
+                log_event(logger, logging.ERROR, "gate.mcp.request_timed_out", "MCP request timed out", server_id=self.manifest.id, request_id=request_id, **failure.details)
+                self._store_log("error", "MCP request timed out", "gate.mcp.request_timed_out", {"request_id": request_id, **failure.details})
+                raise failure
 
             try:
                 response = response_queue.get(timeout=min(0.5, remaining))
@@ -393,8 +449,10 @@ class StdioMcpClient:
         self._store_log("info", "MCP stdio process stopped", "gate.mcp.stdio_process_stopped", {"returncode": process.returncode})
         self.process = None
         self.initialized = False
+        with self._response_lock:
+            self._request_outcomes.interrupt_generation(self._connection_generation)
 
-    def _write_message(self, message: dict[str, Any]) -> None:
+    def _write_message(self, message: dict[str, Any], *, expected_generation: str | None = None) -> None:
         if not self.process or not self.process.stdin:
             raise RuntimeError("MCP stdio process is not running")
         encoded = json.dumps(message, ensure_ascii=False, separators=(",", ":"))
@@ -404,8 +462,13 @@ class StdioMcpClient:
                 f"MCP stdio message exceeded the {self.settings.mcp_max_message_bytes}-byte limit"
             )
         with self._lock:
-            self.process.stdin.write(encoded + "\n")
-            self.process.stdin.flush()
+            if expected_generation is not None and expected_generation != self._connection_generation:
+                raise RuntimeError("MCP connection changed before the request was dispatched")
+            process = self.process
+            if not process or not process.stdin:
+                raise RuntimeError("MCP stdio process is not running")
+            process.stdin.write(encoded + "\n")
+            process.stdin.flush()
         if self.settings.mcp_log_payloads and not self._sensitive_payloads:
             log_event(logger, logging.DEBUG, "gate.mcp.stdio_message_sent", "MCP stdio message sent", server_id=self.manifest.id, payload=redact_value(message, known_secrets=self._redaction_values))
 
@@ -415,15 +478,21 @@ class StdioMcpClient:
         recent_stdout = self.last_stdout[-5:]
         return f"MCP stdio process exited while waiting for {method}: returncode={returncode}; recent_stderr={recent_stderr}; recent_stdout={recent_stdout}"
 
-    def _read_stdout(self) -> None:
-        assert self.process and self.process.stdout
+    def _read_stdout(self, process: subprocess.Popen[str] | None = None, generation: str | None = None) -> None:
+        process = process or self.process
+        generation = generation or self._connection_generation
+        assert process and process.stdout
         for line, oversized in _iter_bounded_text_lines(
-            self.process.stdout,
+            process.stdout,
             self.settings.mcp_max_message_bytes,
         ):
+            if generation != self._connection_generation:
+                break
             if oversized:
                 self._set_fatal_protocol_error(
-                    f"MCP stdio message exceeded the {self.settings.mcp_max_message_bytes}-byte limit"
+                    f"MCP stdio message exceeded the {self.settings.mcp_max_message_bytes}-byte limit",
+                    process=process,
+                    generation=generation,
                 )
                 break
             raw = line.rstrip("\n")
@@ -454,28 +523,43 @@ class StdioMcpClient:
                 self._store_log("debug", "MCP stdout JSON-RPC message", "gate.mcp.stdio_stdout", {"stream": "stdout", "payload": safe_message})
             if isinstance(message, dict) and "id" in message:
                 response_id = message.get("id")
-                q = (
-                    self._responses.pop(response_id, None)
-                    if isinstance(response_id, int) and not isinstance(response_id, bool)
-                    else None
-                )
-                if q:
-                    q.put(message)
-                else:
+                delivered = False
+                recovered = False
+                with self._response_lock:
+                    if generation == self._connection_generation and type(response_id) is int:
+                        q = self._responses.pop(response_id, None)
+                        if q is not None:
+                            q.put_nowait(message)
+                            delivered = True
+                        else:
+                            recovered = self._request_outcomes.complete(generation, response_id, message)
+                if recovered:
+                    # Do not log the recovered result; it can contain secrets.
+                    self._store_log("info", "Late MCP response retained", "gate.mcp.stdio_late_response_retained",
+                                    {"response_id": response_id, "connection_generation": generation})
+                elif not delivered:
                     safe_id = "[suppressed]" if self._sensitive_payloads else response_id
                     log_event(logger, logging.WARNING, "gate.mcp.stdio_unmatched_response", "Received response without pending request", server_id=self.manifest.id, response_id=safe_id)
                     self._store_log("warning", "Received response without pending request", "gate.mcp.stdio_unmatched_response", {"response_id": safe_id})
             else:
                 log_event(logger, logging.INFO, "gate.mcp.stdio_notification_received", "Received MCP notification/request", server_id=self.manifest.id)
-        log_event(logger, logging.WARNING, "gate.mcp.stdio_stdout_closed", "MCP stdout closed", server_id=self.manifest.id, returncode=self.process.poll() if self.process else None)
-        self._store_log("warning", "MCP stdout closed", "gate.mcp.stdio_stdout_closed", {"returncode": self.process.poll() if self.process else None})
+        with self._response_lock:
+            if generation == self._connection_generation:
+                self._stdout_closed_generation = generation
+            self._request_outcomes.interrupt_generation(generation)
+        log_event(logger, logging.WARNING, "gate.mcp.stdio_stdout_closed", "MCP stdout closed", server_id=self.manifest.id, returncode=process.poll())
+        self._store_log("warning", "MCP stdout closed", "gate.mcp.stdio_stdout_closed", {"returncode": process.poll()})
 
-    def _read_stderr(self) -> None:
-        assert self.process and self.process.stderr
+    def _read_stderr(self, process: subprocess.Popen[str] | None = None, generation: str | None = None) -> None:
+        process = process or self.process
+        generation = generation or self._connection_generation
+        assert process and process.stderr
         for line, oversized in _iter_bounded_text_lines(
-            self.process.stderr,
+            process.stderr,
             self.settings.mcp_max_message_bytes,
         ):
+            if generation != self._connection_generation:
+                break
             if oversized:
                 safe_raw = "[MCP stderr line exceeded the size limit]"
                 self.last_stderr.append(safe_raw)
@@ -506,8 +590,8 @@ class StdioMcpClient:
             self.last_stderr = self.last_stderr[-100:]
             log_event(logger, logging.INFO, "gate.mcp.stdio_stderr_received", "MCP stderr", server_id=self.manifest.id, stderr=safe_raw)
             self._store_log("warning", "MCP stderr output", "gate.mcp.stdio_stderr_received", {"stream": "stderr", "stderr": safe_raw})
-        log_event(logger, logging.WARNING, "gate.mcp.stdio_stderr_closed", "MCP stderr closed", server_id=self.manifest.id, returncode=self.process.poll() if self.process else None)
-        self._store_log("warning", "MCP stderr closed", "gate.mcp.stdio_stderr_closed", {"returncode": self.process.poll() if self.process else None})
+        log_event(logger, logging.WARNING, "gate.mcp.stdio_stderr_closed", "MCP stderr closed", server_id=self.manifest.id, returncode=process.poll())
+        self._store_log("warning", "MCP stderr closed", "gate.mcp.stdio_stderr_closed", {"returncode": process.poll()})
 
     def _store_log(self, level: str, message: str, event_type: str, payload: dict[str, Any]) -> None:
         if not self.log_sink:
@@ -522,8 +606,15 @@ class StdioMcpClient:
         except Exception:  # noqa: BLE001 - logging must not break MCP IO threads
             logger.debug("Failed to write MCP stdio log", exc_info=not self._sensitive_payloads)
 
-    def _set_fatal_protocol_error(self, message: str) -> None:
-        self._fatal_protocol_error = message
+    def _set_fatal_protocol_error(
+        self, message: str, *, process: subprocess.Popen[str] | None = None,
+        generation: str | None = None,
+    ) -> None:
+        with self._response_lock:
+            if generation is not None and generation != self._connection_generation:
+                return
+            self._fatal_protocol_error = message
+            process = process or self.process
         log_event(
             logger,
             logging.ERROR,
@@ -538,7 +629,6 @@ class StdioMcpClient:
             "gate.mcp.stdio_message_limit_exceeded",
             {"stream": "stdout", "limit_bytes": self.settings.mcp_max_message_bytes},
         )
-        process = self.process
         if process is not None and process.poll() is None:
             terminate = getattr(process, "terminate", None)
             if callable(terminate):

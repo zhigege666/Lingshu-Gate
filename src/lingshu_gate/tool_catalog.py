@@ -32,7 +32,7 @@ from lingshu_gate.ports.catalog_target import CatalogTarget, CatalogTargetResolv
 from lingshu_gate.registry import ToolExecutionError, ToolNotFoundError, ToolRegistry
 
 CATALOG_TOOL_NAMES = ("gate_catalog_search", "gate_tool_describe", "gate_tool_invoke", "gate_instance_list",
-                      "gate_instance_session_open", "gate_instance_session_close")
+                      "gate_instance_session_open", "gate_instance_session_close", "gate_request_status")
 MAX_PAGE_OFFSET = 10_000
 CURSOR_TTL_SECONDS = 300
 MAX_INVOKE_ARGUMENT_BYTES = 1_048_576
@@ -90,6 +90,13 @@ class CatalogSessionOpen(GroupToolSelection):
 class CatalogSessionClose(BaseModel):
     model_config = ConfigDict(extra="forbid", strict=True)
     session_id: str = Field(pattern=r"^[a-f0-9]{32}$")
+
+
+class CatalogRequestStatus(BaseModel):
+    model_config = ConfigDict(extra="forbid", strict=True)
+    request_handle: str = Field(pattern=r"^[A-Za-z0-9_-]{43}$")
+    offset: int = Field(default=0, ge=0)
+    limit: int = Field(default=8192, ge=1, le=65_536)
 
 
 def schema_revision(definition: ToolDefinition) -> str:
@@ -570,6 +577,10 @@ class ToolCatalog:
         elif name == "gate_instance_session_close":
             closing = CatalogSessionClose.model_validate(arguments)
             output = self._groups().close_session(principal, closing.session_id)
+        elif name == "gate_request_status":
+            status = CatalogRequestStatus.model_validate(arguments)
+            output = self.access.request_status(self.registry, principal, status.request_handle,
+                                                offset=status.offset, limit=status.limit)
         else:
             raise _reject("catalog_entry_unavailable", "Select one of the catalog entries.")
         if refresh_principal is not None and refresh_principal() != principal:
@@ -585,11 +596,14 @@ def catalog_tools() -> list[dict[str, Any]]:
         "List authorized instances; optional group_id and logical tool_ref select a service contract. Never selects a default.",
         "Explicitly open an instance routing session for a described logical tool. This does not create authorization or retry calls.",
         "Close this connection's instance routing session; future invocations require an explicitly opened session.",
+        "Query this credential's original timed-out request and page its JSON response by character offset. "
+        "Only use handles marked recovery_supported. Receipts expire within five minutes in this Gate process; "
+        "never replays, cancels, or proves a remote command exit.",
     )
     models: tuple[type[BaseModel], ...] = (CatalogSearch, CatalogDescribe, CatalogInvoke, CatalogSearch,
-                                         CatalogSessionOpen, CatalogSessionClose)
+                                         CatalogSessionOpen, CatalogSessionClose, CatalogRequestStatus)
     return [{"name": name, "description": description, "inputSchema": model.model_json_schema(),
-             "annotations": {"readOnlyHint": name in CATALOG_TOOL_NAMES[:2] or name == "gate_instance_list",
+             "annotations": {"readOnlyHint": name in CATALOG_TOOL_NAMES[:2] or name in {"gate_instance_list", "gate_request_status"},
                              "openWorldHint": name == "gate_tool_invoke"}}
             for name, description, model in zip(CATALOG_TOOL_NAMES, descriptions, models)]
 

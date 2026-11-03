@@ -162,6 +162,14 @@ For tools that explicitly declare file-reference support, upload at most the bou
 - Runtime status distinguishes desired state from observed process or connection state.
 - A process marked running is not sufficient evidence that tool discovery succeeded.
 
+### Timeout outcomes in development source
+
+An MCP waiting deadline returns structured `mcp_request_timeout` facts: transport, method, phase, connection generation, dispatch state and whether a business request was sent or remains uncertain. `retryable=false` directs callers to reconcile the original operation. A dispatched business request has `execution_state=unknown`; a timeout before business dispatch has `execution_state=not_started`. `execution_terminated=false` never claims remote cancellation. Timeout diagnostics omit raw stdout, stderr and argument values.
+
+For eligible shared stdio business calls, `error.details.recovery_supported=true` supplies an authorized `request_handle`. Use `gate_request_status` in on-demand mode or `POST /v1/catalog/requests/status` with the original credential. Full tool list mode is unchanged and can use that REST route. `offset` defaults to 0 and `limit` to 8,192 Unicode characters, with a maximum of 65,536. Follow `next_offset` and `has_more` to assemble `response_json`. Read the original JSON-RPC `result` or `error` only after all slices are assembled. `request_state=completed` means the protocol response arrived; the envelope still has `exit_code=null` and does not infer a remote command exit.
+
+This lookup is limited to the current Gate process and at most five minutes, subject to count and byte limits. It rechecks the complete identity, tool revision and current permissions before and after reading, without waiting on the service execution lock. HTTP, group-routed, managed business-credential and external-provider OAuth calls are outside the initial recovery scope. Queries never replay or cancel the original call, stream invented progress, create durable jobs, or guarantee recovery after a Gate restart. See [timed-out request outcomes](on-demand-tools.md#timed-out-request-outcomes) for the state contract, limits and guarded example.
+
 Use [Operations](operations.md) to correlate server status, logs, events, diagnostics, and invocation audits without enabling payload logging.
 
 ## Optional discovery and integration

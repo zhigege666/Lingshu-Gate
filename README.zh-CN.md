@@ -2,7 +2,7 @@
 
 自托管 MCP 网关：连接工具，限定谁可以调用，并记录调用结果。
 
-[English](README.md) · [下载 0.5.6](https://github.com/zhigege666/Lingshu-Gate/releases/tag/v0.5.6) · [开始使用](docs/zh-CN/getting-started.md) · [文档](docs/zh-CN/README.md) · [安全](SECURITY.zh-CN.md)
+[English](README.md) · [下载 0.5.7](https://github.com/zhigege666/Lingshu-Gate/releases/tag/v0.5.7) · [开始使用](docs/zh-CN/getting-started.md) · [文档](docs/zh-CN/README.md) · [安全](SECURITY.zh-CN.md)
 
 <img src="docs/images/console/zh-CN/v0.5.0-discovery.png" alt="Lingshu Gate 0.5.0：每条授权的固定工具、逻辑组和有界文本预览" width="1200">
 
@@ -30,7 +30,7 @@
 
 ### 已发布 Docker 本机试用
 
-校验并解压 `lingshu-gate-v0.5.6-docker-compose.tar.gz`，进入该目录后执行：
+校验并解压 `lingshu-gate-v0.5.7-docker-compose.tar.gz`，进入该目录后执行：
 
 ```bash
 cp .env.quickstart.example .env.quickstart
@@ -65,13 +65,13 @@ uv run lingshu-gate
 
 核对成功审计、写入拒绝且计数不变、错误修订拒绝、demo 停止/恢复和调用者撤销。Gate 启动、工具发现、分类确认、发布分别进行；访问仍须同时满足资源权限和 token scope。
 
-## 0.5.6 — HTTP MCP 接入与凭据管理
+## 0.5.7 — MCP 超时信息与迟到响应回读
 
-接入外部 HTTP MCP 不再需要手写常见鉴权头。直接选择 **无鉴权、Bearer Token、API Key、Basic 或自定义**，选用已有范围凭据或新建凭据，按需 **测试连接** 后保存。Home 模板只填写草稿并说明 PAT 要求，不自动登录或发送凭据。1200px 编辑弹窗保留取消、测试连接、保存配置，分阶段诊断放在操作区上方。
+MCP 等待期限到期时返回结构化的 `mcp_request_timeout`。调用方可以区分尚未派发的请求与执行结果未知的操作；超时不会被报告成远端进程已停止，也不会触发自动重试。
 
-五个 `gate_http_mcp_*` 工具提供测试、配置计划、应用、状态和取消；计划支持创建、更新、删除，以及精确内网 HTTP 许可的撤销和明确恢复。五个 `gate_credential_*` 工具管理加密共享凭据，支持脱敏查询、版本校验、幂等写入和依赖保护删除。有权保存配置时一并建立精确地址许可，已撤销许可仍须明确恢复。
+符合条件的共享 stdio 调用可使用返回的恢复句柄，通过 `gate_request_status` 或 `POST /v1/catalog/requests/status` 读取迟到响应。句柄绑定原身份、工具修订与运行时连接，每次读取都复核当前权限。按需模式默认入口由六个增加为七个，完整工具列表模式保持不变。
 
-前端依赖同时纳入 Vite 8.3.3、fast-uri 3.1.9 安全补丁。旧 OAuth 授权不会自动获得新工具或权限范围，已有明确通配 scope 的管理员 API Token 保持原权限上限。凭据轮换作用于后续派发；测试不保存配置、不发布工具，也不证明全部业务权限。升级前应一致备份数据库、配置、加密存储和全部密钥。参见[HTTP 接入与测试](docs/zh-CN/http-mcp-connection-testing.md)、[MCP 管理](docs/zh-CN/external-mcp-configuration.md)、[共享凭据](docs/zh-CN/shared-system-credentials.md)、[变更记录](CHANGELOG.zh-CN.md)和[双语发行说明](packaging/release-notes.md)。
+回读有容量与时间上限，仅在当前 Gate 进程内有效，不能跨 Gate 重启恢复，也不能替代远端作业接口。本版 HTTP 调用仅增加结构化超时信息，不支持迟到回读；收到完整响应仍不代表已经确认远端命令退出码。相对 0.5.6 不新增运行依赖或数据库迁移。参见[请求回读](docs/zh-CN/on-demand-tools.md)、[MCP 连接行为](docs/zh-CN/mcp-gateway.md)、[变更记录](CHANGELOG.zh-CN.md)和[双语发行说明](packaging/release-notes.md)。
 
 ## 架构总览
 
@@ -114,7 +114,8 @@ flowchart TB
 |---|---|---|
 | MCP 聚合网关与传输 | 统一认证的 Model Context Protocol 入口；无状态 JSON `/mcp`、Streamable HTTP 远程 MCP、原生 stdio、明确版本与有界旧协议协商。聚合工具，不提供通用 resource/prompt 托管。 | [指南](docs/zh-CN/mcp-gateway.md) |
 | MCP 分组与实例会话 | 逻辑分组引用已有实例，不复制凭据且不自动授权；合同分区与连接绑定的实例会话。 | [指南](docs/zh-CN/mcp-groups.md) |
-| 按需工具发现 | 默认六个入口、最多 20 个有权固定工具/分组及可选文本结果分页；每条授权保持独立范围。 | [指南](docs/zh-CN/on-demand-tools.md) |
+| 按需工具发现 | 默认七个入口，包含只读的超时结果查询；最多 20 个有权固定工具/分组及可选文本结果分页；每条授权保持独立范围。 | [指南](docs/zh-CN/on-demand-tools.md) |
+| 超时结果查询 — 开发中 | 结构化 MCP 超时信息；符合条件的共享 stdio 调用可凭身份绑定的短期句柄查询晚到响应。不重放或取消调用，不确认远端退出状态，不跨 Gate 重启恢复。 | [指南](docs/zh-CN/on-demand-tools.md#超时请求结果查询) |
 | 参数限制 | 对实际参数执行等值、候选集合、数值范围和字符串前缀限制，纯预览、版本化保存与原子审计。 | [指南](docs/zh-CN/argument-policies.md) |
 | 私网 HTTP MCP 连接器 | 固定目标 relay/agent、独立凭据、有界会话，不自动重放业务。 | [指南](docs/zh-CN/private-connector.md) |
 | OpenAPI 适配器 | 本地 OpenAPI 3.0/3.1 快照的选定操作、固定来源与绑定执行合同的工具名称。 | [指南](docs/zh-CN/openapi-adapter.md) |

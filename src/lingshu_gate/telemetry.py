@@ -80,7 +80,7 @@ def exception_outcome(error: BaseException) -> str:
         if current is None or id(current) in seen:
             break
         seen.add(id(current))
-        if isinstance(current, TimeoutError) or getattr(current, "code", None) == "catalog_validation_timeout":
+        if isinstance(current, TimeoutError) or getattr(current, "code", None) in {"catalog_validation_timeout", "mcp_request_timeout"}:
             return "timeout"
         if type(current).__name__ in {"AccessDeniedError", "ArgumentPolicyDenied", "UserCredentialBindingError"}:
             return "denied"

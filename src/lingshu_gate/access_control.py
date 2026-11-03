@@ -20,7 +20,9 @@ from uuid import uuid4
 
 from lingshu_gate.auth import AuthPrincipal
 from lingshu_gate.argument_policy import ArgumentPolicyDenied, ArgumentPolicyStore, check_policy
+from lingshu_gate.application.request_recovery import RecoveryReceipt, RequestRecoveryCapacityError, RequestRecoveryStore
 from lingshu_gate.database import SQLiteDatabase
+from lingshu_gate.domain.mcp_request_outcome import McpRequestTimeout, find_request_timeout
 from lingshu_gate.domain.tool_structure import FrozenToolDefinition
 from lingshu_gate.domain.oauth_management import (
     MANAGEMENT_READ_TOOLS, MANAGEMENT_TOOL_IDS, management_resource, management_tool_snapshot,
@@ -31,7 +33,8 @@ from lingshu_gate.retention_store import RetentionStore
 from lingshu_gate.mcp_runtime import McpRuntimeManager
 from lingshu_gate.mcp_authorization_policy import ensure_server_identity, server_binding, tool_snapshot
 from lingshu_gate.models import ToolDefinition, ToolInvokeResponse
-from lingshu_gate.registry import ToolDispatchRejectedError, ToolExecutionError, ToolInvocationContext, ToolRegistry
+from lingshu_gate.registry import (ToolDispatchRejectedError, ToolExecutionError, ToolInvocationContext,
+                                  ToolNotFoundError, ToolRegistry, mcp_timeout_error, tool_definition_revision)
 from lingshu_gate.user_credential_store import UserCredentialBindingError
 
 ACCESS_RANK = {"none": 0, "read": 1, "write": 2, "unknown": -1}
@@ -197,6 +200,7 @@ class AccessControlStore:
         self.business_credentials: Any = None
         self.refresh_principal: Callable[[AuthPrincipal], AuthPrincipal] | None = None
         self.argument_policies = ArgumentPolicyStore(database)
+        self.request_recovery = RequestRecoveryStore()
         self._seed_system_data()
 
     def attach_mcp_runtime(self, mcp_runtime: McpRuntimeManager) -> None:
@@ -1776,6 +1780,75 @@ class AccessControlStore:
             with self._external_limit_lock:
                 self._external_active[grant_id] -= 1
 
+    def _recoverable_timeout(self, timeout: McpRequestTimeout, principal: AuthPrincipal,
+                             definition: ToolDefinition, *, grouped: bool) -> ToolExecutionError:
+        # Group sessions, external bearer proofs and business credential versions
+        # need their own provenance before they can expose retained responses.
+        managed = (self.business_credentials is not None and self.business_credentials.store.is_managed_server(
+            str(definition.metadata.get("server_id") or "")))
+        if (grouped or managed or definition.source != "mcp" or self.mcp_runtime is None
+                or principal.auth_type == "oauth" and not principal.oauth_builtin
+                or timeout.details.get("transport") != "stdio" or not timeout.business_request
+                or timeout.outcome_reader is None or not timeout.details.get("recovery_supported")):
+            return mcp_timeout_error(timeout, unavailable_reason="recovery_not_supported_for_this_call")
+        try:
+            handle = self.request_recovery.retain(principal, definition.id, tool_definition_revision(definition),
+                timeout.outcome_reader, ttl_seconds=timeout.details.get("recovery_expires_after_seconds") or 300.0)
+        except RequestRecoveryCapacityError:
+            return mcp_timeout_error(timeout, unavailable_reason="recovery_capacity_reached")
+        return mcp_timeout_error(timeout, recovery_handle=handle)
+
+    def request_status(self, registry: ToolRegistry, principal: AuthPrincipal, request_handle: str, *,
+                       offset: int = 0, limit: int = 8192) -> dict[str, Any]:
+        """Read a bounded original response without executing or retrying a tool."""
+        def unavailable() -> ToolExecutionError:
+            return ToolExecutionError("request_outcome_unavailable", "The original request outcome is unavailable.",
+                next_action="Reconcile the original operation with its execution service; no tool was replayed.")
+
+        def authorize() -> RecoveryReceipt:
+            try:
+                current = self.refresh_principal(principal) if self.refresh_principal is not None else principal
+                receipt = self.request_recovery.get(request_handle, current)
+                if current != principal or receipt is None:
+                    raise unavailable()
+                definition = registry.get_definition(receipt.tool_id)
+                managed = (self.business_credentials is not None and self.business_credentials.store.is_managed_server(
+                    str(definition.metadata.get("server_id") or "")))
+                if (managed or tool_definition_revision(definition) != receipt.definition_revision
+                        or not self.evaluate(current, definition)["allowed"]):
+                    raise unavailable()
+                return receipt
+            except (ToolNotFoundError, AccessDeniedError, ToolExecutionError):
+                raise unavailable() from None
+            except Exception:
+                # Revoked/expired credentials may be rejected by the configured
+                # identity provider before the access evaluation can run.
+                raise unavailable() from None
+
+        receipt = authorize()
+        outcome = receipt.reader()
+        if outcome is None:
+            self.request_recovery.discard(request_handle)
+            raise unavailable()
+        state = outcome["state"]
+        serialized = (json.dumps(outcome["response"], ensure_ascii=False, separators=(",", ":"))
+                      if outcome.get("response") is not None else "")
+        # Offsets count Unicode characters; slices never split UTF-8 characters.
+        offset = min(max(0, offset), len(serialized))
+        end = min(len(serialized), offset + min(max(1, limit), 65_536))
+        output = {"schema_version": 1, "request_handle": request_handle, "tool_ref": receipt.tool_id,
+            "request_state": state, "response_received": state == "completed", "recovery_scope": "current_process",
+            "execution_state": "unknown", "execution_terminated": False, "exit_code": None,
+            "requires_reconciliation": state in {"interrupted", "unavailable"},
+            "unavailable_reason": outcome.get("unavailable_reason"), "poll_after_ms": 1000 if state == "waiting" else None,
+            "expires_after_seconds": outcome.get("expires_after_seconds"),
+            "response_json": serialized[offset:end], "offset": offset, "next_offset": end,
+            "has_more": end < len(serialized), "total_characters": len(serialized)}
+        # Parsing/copying a bounded reply may take time; recheck live authority
+        # before returning any original data, without acquiring runtime.lock.
+        authorize()
+        return output
+
     @observed_invocation
     def invoke_tool(
         self,
@@ -2024,7 +2097,14 @@ class AccessControlStore:
             response = ToolInvokeResponse(ok=False, tool_id=tool_id, error=str(exc), output=exc.to_payload())
         except Exception as exc:  # noqa: BLE001 - 工具边界统一返回失败响应
             remember_failure(exc)
-            response = ToolInvokeResponse(ok=False, tool_id=tool_id, error=str(exc))
+            timeout = find_request_timeout(exc)
+            if timeout is not None:
+                timeout_error = self._recoverable_timeout(timeout, principal, definition,
+                    grouped=dispatch_context is not None or expected_definition_revision is not None)
+                response = ToolInvokeResponse(ok=False, tool_id=tool_id, error=timeout_error.message,
+                                              output=timeout_error.to_payload())
+            else:
+                response = ToolInvokeResponse(ok=False, tool_id=tool_id, error=str(exc))
         finally:
             self._release_external_invocation(external_lease)
         duration_ms = max(0, round((perf_counter() - started) * 1000))

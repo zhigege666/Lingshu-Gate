@@ -237,6 +237,13 @@ def register_mcp_gateway_route(
                 return _tool_error(request_id, "The selected tool is unavailable", settings,
                     structured_content={"error": {"code": "catalog_tool_unavailable"}}, protocol_context=protocol_context)
             if not invocation.ok:
+                error = invocation.output.get("error") if isinstance(invocation.output, dict) else None
+                if (isinstance(error, dict) and error.get("code") == "mcp_request_timeout"
+                        and isinstance(error.get("details"), dict) and error["details"].get("recovery_supported")):
+                    # Only this on-demand view advertises the recovery MCP
+                    # tool. Direct/REST calls retain the authenticated API path.
+                    error["details"]["query_tool"] = "gate_request_status"
+                    error["next_action"] = "Query gate_request_status with this request_handle; do not replay the operation."
                 return _tool_error(request_id, invocation.error or "Tool invocation failed", settings,
                     structured_content=invocation.output or None, protocol_context=protocol_context)
             result = (_normalize_tool_result(invocation.output) if business else

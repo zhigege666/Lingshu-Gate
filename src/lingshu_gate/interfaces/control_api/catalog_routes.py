@@ -50,7 +50,7 @@ def register_catalog_routes(app: FastAPI, *, catalog: ToolCatalog, require_authe
         except AccessDeniedError:
             raise HTTPException(404, detail={"code": "catalog_tool_unavailable"}) from None
         except ToolExecutionError as exc:
-            status = 404 if exc.code == "catalog_tool_unavailable" else 409 if exc.code in {
+            status = 404 if exc.code in {"catalog_tool_unavailable", "request_outcome_unavailable"} else 409 if exc.code in {
                 "catalog_cursor_invalid", "catalog_changed", "catalog_schema_revision_conflict", "catalog_namespace_conflict"
             } else 400
             raise HTTPException(status, detail=exc.to_payload()["error"]) from None
@@ -84,3 +84,8 @@ def register_catalog_routes(app: FastAPI, *, catalog: ToolCatalog, require_authe
     def session_close(body: dict[str, Any], request: Request,
                       principal: AuthPrincipal = Depends(require_authenticated)) -> dict[str, Any]:
         return call("gate_instance_session_close", body, request)
+
+    @app.post("/v1/catalog/requests/status", tags=["tools"])
+    def request_status(body: dict[str, Any], request: Request,
+                       principal: AuthPrincipal = Depends(require_authenticated)) -> dict[str, Any]:
+        return call("gate_request_status", body, request)

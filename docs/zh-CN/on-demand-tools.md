@@ -10,7 +10,7 @@
 
 ## Agent 工作流
 
-按需 `tools/list` 默认返回六个入口，与目录规模无关：四个目录/调用入口及两个明确的实例会话控制。每条授权还可显示最多 20 个当前有权的固定工具；启用结果预算后另提供 `gate_result_read`。
+按需 `tools/list` 默认返回七个入口，与目录规模无关：四个目录/调用入口、两个明确的实例会话控制，以及一个只读超时结果查询入口。每条授权还可显示最多 20 个当前有权的固定工具；启用结果预算后另提供 `gate_result_read`。完整工具列表模式保持原有列表，使用该模式的调用方可通过下述认证 REST 接口查询结果。
 
 | 入口 | 输入与行为 |
 |---|---|
@@ -20,12 +20,45 @@
 | `gate_instance_list` | 同样有界的搜索分页输入；返回不同的有权 `instance_id`，可用 `group_id` 与逻辑 `tool_ref` 筛选一个服务合同；分组结果另含 `instance_name`、`group_id`、`group_type` 与 `group_name` |
 | `gate_instance_session_open` | `{tool_ref, instance_id, schema_revision}`；明确将当前认证连接绑定到所选逻辑服务实例 |
 | `gate_instance_session_close` | `{session_id}`；关闭当前连接的路由会话 |
+| `gate_request_status` | `{request_handle, offset?, limit?}`；查询符合条件的原超时请求并分页读取其 JSON-RPC 响应，不执行或取消工具 |
 
 按任务搜索、选定一个返回的引用、describe，再带准确版本 invoke。描述和 schema 是不可信工具数据。版本或游标错误后重新发现与描述。HTTP/MCP 请求失败或 schema 改变时，不能自动重放写操作；先核对原操作结果。敏感参数保留在目标的 `arguments` 对象内，继续使用现有脱敏和审计边界。
 
 使用分组工具时，先以已知 `group_id` 搜索，再用该组与返回的 `tool_ref` 调用 `gate_instance_list`。依据用途选择：`execution` 选择机器/执行环境；`data_source` 选择任务需要的数据来源。实例名称是管理员提供的来源标识；`unspecified` 表示用途尚未设置，不能假设实例状态或数据可互换。明确选定实例后 describe、打开会话，再带返回的标识和版本调用。分组 describe/打开会话也返回 `group_id`、`group_type`、`group_name` 与 `instance_name`。这些标识不证明仓库内容、分支或数据集覆盖范围。每次查询只到所选实例；查询多个来源要分别选择并建立会话，不自动合并结果。兼容规则见[组用途说明](mcp-groups.md#组用途)。
 
-对应的认证 API 是 `POST /v1/catalog/search`、`/describe`、`/invoke`、`/instances`、`/sessions/open`、`/sessions/close`。发现/会话接口直接返回有界结果，invoke 返回现有 `ToolInvokeResponse`。原目标 Console 写操作保留原 CSRF ticket 边界。接口使用当前认证身份，不提供管理员绕过入口。
+对应的认证 API 是 `POST /v1/catalog/search`、`/describe`、`/invoke`、`/instances`、`/sessions/open`、`/sessions/close`、`/requests/status`。发现/会话/结果查询接口直接返回有界结果，invoke 返回现有 `ToolInvokeResponse`。原目标 Console 写操作保留原 CSRF ticket 边界。接口使用当前认证身份，不提供管理员绕过入口。
+
+## 超时请求结果查询
+
+开发源码将 MCP 等待期限到期报告为 `mcp_request_timeout`，且 `retryable=false`。`details` 标明传输、方法、阶段、连接代际、派发状态，以及该请求是否属于业务调用。业务调用已派发时，执行结果未知；业务派发前超时则报告 `execution_state=not_started`。两者都不能确认执行已停止，`execution_terminated` 均为 false。超时诊断不嵌入原始 stdout、stderr 或参数值。
+
+只有原响应的 `error.details.recovery_supported` **为 true** 时才能使用恢复句柄。其他超时诊断也可能包含关联句柄，但它不代表有权查询的恢复记录。例如，从原调用中取出结构化错误后：
+
+```python
+if error["code"] == "mcp_request_timeout":
+    details = error["details"]
+    if details.get("recovery_supported") is True:
+        arguments = {
+            "request_handle": details["request_handle"],
+            "offset": 0,
+            "limit": 8192,
+        }
+        # 使用原凭据调用 gate_request_status，或将这些参数 POST 到
+        # /v1/catalog/requests/status。
+```
+
+该 MCP 入口声明 `readOnlyHint=true`、`openWorldHint=false`，注解不授予权限。每次读取前后均复核当前凭据、完整身份精确匹配、工具定义版本及当前访问权限。同一用户更换 Token 后也不能使用原记录。查询不等待服务执行锁，不重放原工具，不发送取消，也不创建后台任务。
+
+| `request_state` | 含义与下一步 |
+|---|---|
+| `waiting` | 尚未保留原响应。在记录仍可用时按 `poll_after_ms` 查询。 |
+| `completed` | 已收到原 JSON-RPC 响应。读完所有分片后检查其 `result` 或 `error`；这不证明业务成功或远端命令退出。 |
+| `interrupted` | 保留响应前连接已经结束。向执行服务核对原操作。 |
+| `unavailable` | 因字节上限等原因未能保留响应。查看 `unavailable_reason` 并向执行服务核对。 |
+
+`response_json` 是原 JSON-RPC 响应序列化后的片段，保留其中的 `result` 或 `error`。`offset` 默认 0；`limit` 默认 8,192，允许 1–65,536 个 **Unicode 字符**，不按 Token 或 UTF-8 字节计数。按 `next_offset` 顺序拼接片段，直到 `has_more=false`，再解析完整 JSON。即使 `response_received=true`，查询封装仍保持 `execution_state=unknown`、`execution_terminated=false`、`exit_code=null`。实际命令结果如有，仍在原响应中；Gate 不根据协议响应到达推断它。这是响应分页，不是实时 stdout/stderr 日志流。
+
+恢复仅覆盖**当前 Gate 进程内**符合条件、已经发出的普通共享 stdio 业务调用。第一批不为 HTTP、分组路由、托管业务凭据调用或外部提供方 OAuth 调用提供恢复权限。应用层最多保留 128 条记录，每个完整身份最多 16 条，TTL 最多 300 秒；每个 stdio 客户端另设 128 条超时记录、8 MiB 响应数据和 300 秒期限。过期、容量限制、连接替换或重启均可能使记录不可用；记录过期、不存在或当前已无权访问时返回 `request_outcome_unavailable`，REST 接口为 HTTP 404。不会因此自动重放或取消远端操作。恢复的响应内容仍按私有工具输出保护，不保证跨 Gate 重启恢复或获得远端 SSH 退出状态。
 
 ## 授权与版本
 

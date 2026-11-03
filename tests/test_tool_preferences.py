@@ -78,7 +78,7 @@ def test_pin_is_permission_filtered_and_old_name_cannot_execute(browser, gate):
     calls, _ = gateway(gate, {"content": [{"type": "text", "text": "read"}]})
     update(browser, token, pinned_tools=[{"kind": "tool", "tool_ref": "mcp.A.read"}, {"kind": "tool", "tool_ref": "mcp.B.read"}])
     tools = rpc(browser, token["token"]).json()["result"]["tools"]
-    assert len(tools) == 7
+    assert len(tools) == 8
     pin = tools[-1]
     assert pin["name"].startswith("gate_pinned_")
     assert "B.read" not in json.dumps(tools)

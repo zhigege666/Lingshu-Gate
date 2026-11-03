@@ -162,6 +162,14 @@ REST 调用方可以通过 `/v1/tools` 检查定义，并通过文档中的 Invo
 - 运行状态会区分期望状态与观测到的进程或连接状态。
 - 进程标记为 Running 不能证明工具发现已经成功。
 
+### 开发源码中的超时结果查询
+
+MCP 等待期限到期时返回结构化 `mcp_request_timeout`，标明传输、方法、阶段、连接代际、派发状态，以及业务请求是否已发出或仍不能确认。`retryable=false` 提示先核对原操作。业务请求已派发时为 `execution_state=unknown`，业务派发前超时为 `execution_state=not_started`；`execution_terminated=false` 不表示远端已取消。超时诊断不包含原始 stdout、stderr 或参数值。
+
+符合条件的共享 stdio 业务调用会通过 `error.details.recovery_supported=true` 提供有权查询的 `request_handle`。使用原凭据在按需模式调用 `gate_request_status`，或调用 `POST /v1/catalog/requests/status`。完整工具列表模式保持不变，可使用该 REST 接口。`offset` 默认 0，`limit` 默认 8,192 个 Unicode 字符，上限为 65,536；按 `next_offset` 和 `has_more` 拼接 `response_json`，拼接完整后再检查原 JSON-RPC `result` 或 `error`。`request_state=completed` 仅表示协议响应已到达，查询封装仍为 `exit_code=null`，不会推断远端命令退出。
+
+查询仅限当前 Gate 进程，期限最多五分钟，并受条数及字节上限约束。读取前后复核完整身份、工具版本及当前权限，不等待服务执行锁。第一批恢复范围不包含 HTTP、分组路由、托管业务凭据或外部提供方 OAuth 调用。查询不会重放或取消原调用、生成虚构进度、创建持久任务，也不保证 Gate 重启后恢复。状态合同、容量限制和带条件的调用示例见[超时请求结果查询](on-demand-tools.md#超时请求结果查询)。
+
 使用 [运维](operations.md) 关联服务状态、日志、事件、诊断和调用审计，不需要开启 Payload 日志。
 
 ## 可选发现与集成

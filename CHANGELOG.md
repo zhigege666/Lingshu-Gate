@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.5.7
+
+- Report MCP waiting deadlines as structured `mcp_request_timeout` errors with dispatch and connection context. Keep execution outcomes unknown when they cannot be observed; do not automatically replay or cancel the original operation.
+- Add read-only `gate_request_status` and `POST /v1/catalog/requests/status` for eligible shared stdio late replies. Bind recovery to the exact original identity, tool revision and runtime connection; recheck current authorization before returning data.
+- Bound retained responses by age, count, bytes and structural complexity, and page the original JSON-RPC response by Unicode-character offset. The default on-demand entry list grows from six to seven; full tool-list mode is unchanged.
+- Preserve redaction and unavailable/interrupted states. HTTP, grouped, managed business-credential and external-provider OAuth calls are outside the initial late-response recovery scope.
+- Update paired MCP, operator and security documentation. No new runtime dependency or database migration is added over 0.5.6. This release does not add durable remote jobs, cancellation, final command exit codes or recovery across Gate restarts.
+
 ## 0.5.6
 
 - Preserve the offline stdio-validation boundary when HTTP permission planning is enabled; invalid managed launch programs still produce structured checks without executing them.
