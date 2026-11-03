@@ -132,29 +132,12 @@ jobs:
               && grep --quiet "^gate:x:10001:" /etc/group \
               && ! command -v node && ! command -v npm && ! command -v npx && ! command -v docker'
 
-      - name: Run Core readiness smoke test
+      - name: Run Core bind-mount startup smoke test
         shell: bash
         run: |
           set -euo pipefail
-          docker run --detach --name lingshu-gate-core-smoke \
-            --publish 127.0.0.1:8000:8000 \
-            lingshu-gate-core:ci
-          trap 'docker logs lingshu-gate-core-smoke || true; docker rm --force lingshu-gate-core-smoke || true' EXIT
-          ready=false
-          for attempt in $(seq 1 30); do
-            if curl --fail --silent --show-error http://127.0.0.1:8000/readyz >/dev/null; then
-              ready=true
-              break
-            fi
-            sleep 2
-          done
-          if [[ "$ready" != "true" ]]; then
-            echo "Lingshu Gate Core did not become ready" >&2
-            exit 1
-          fi
-          credentials_path=/data/initial-admin-credentials.json
-          docker exec lingshu-gate-core-smoke test -s "$credentials_path"
-          test "$(docker exec lingshu-gate-core-smoke stat -c '%a' "$credentials_path")" = "600"
+          sudo "$(command -v python)" scripts/quality/smoke_core_bind_mounts.py \
+            --image lingshu-gate-core:ci
 
       - name: Scan Core image for critical vulnerabilities
         uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25 # v0.36.0

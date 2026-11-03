@@ -75,6 +75,41 @@ class HealthProbeTest(unittest.TestCase):
             {"startup", "database", "configuration", "runtime"},
         )
 
+    def test_missing_configuration_is_ready_without_initialization_or_public_paths(self) -> None:
+        config_dir = self.root / "mcp.d"
+        self.assertFalse(config_dir.exists())
+        with TestClient(self.app) as client:
+            ready = client.get("/readyz")
+        self.assertEqual(ready.status_code, 200)
+        self.assertFalse(config_dir.exists())
+        checks = ready.json()["checks"]
+        self.assertEqual(checks["configuration"]["metadata"]["reason_code"], "directory_creatable")
+        self.assertEqual(checks["runtime"]["metadata"]["scan_status"], "missing")
+        self.assertEqual(checks["runtime"]["metadata"]["server_count"], 0)
+        self.assertIn("skipped", checks["runtime"]["detail"])
+        for sensitive in (str(self.root), "effective_uid", "effective_gid", "owner_uid", "owner_gid"):
+            self.assertNotIn(sensitive, ready.text)
+
+    def test_existing_empty_directory_is_reported_as_a_completed_scan(self) -> None:
+        (self.root / "mcp.d").mkdir()
+        with TestClient(self.app) as client:
+            ready = client.get("/readyz")
+        self.assertEqual(ready.status_code, 200)
+        checks = ready.json()["checks"]
+        self.assertEqual(checks["configuration"]["metadata"]["reason_code"], "directory_ready")
+        self.assertEqual(checks["runtime"]["metadata"]["scan_status"], "loaded")
+        self.assertEqual(checks["runtime"]["metadata"]["server_count"], 0)
+
+    def test_readiness_does_not_rescan_after_directory_is_created(self) -> None:
+        with TestClient(self.app) as client:
+            before = client.get("/readyz")
+            (self.root / "mcp.d").mkdir()
+            after = client.get("/readyz")
+        self.assertEqual(before.status_code, 200)
+        self.assertEqual(after.status_code, 200)
+        self.assertEqual(after.json()["checks"]["configuration"]["metadata"]["reason_code"], "directory_ready")
+        self.assertEqual(after.json()["checks"]["runtime"]["metadata"]["scan_status"], "missing")
+
     def test_readiness_reports_database_failure_as_503(self) -> None:
         with TestClient(self.app) as client, patch.object(
             self.app.state.database,

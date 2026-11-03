@@ -2,7 +2,7 @@
 
 自托管 MCP 网关：连接工具，限定谁可以调用，并记录调用结果。
 
-[English](README.md) · [下载 0.5.8](https://github.com/zhigege666/Lingshu-Gate/releases/tag/v0.5.8) · [开始使用](docs/zh-CN/getting-started.md) · [文档](docs/zh-CN/README.md) · [安全](SECURITY.zh-CN.md)
+[English](README.md) · [下载 0.5.9](https://github.com/zhigege666/Lingshu-Gate/releases/tag/v0.5.9) · [开始使用](docs/zh-CN/getting-started.md) · [文档](docs/zh-CN/README.md) · [安全](SECURITY.zh-CN.md)
 
 <img src="docs/images/console/zh-CN/v0.5.0-discovery.png" alt="Lingshu Gate 0.5.0：每条授权的固定工具、逻辑组和有界文本预览" width="1200">
 
@@ -30,7 +30,7 @@
 
 ### 已发布 Docker 本机试用
 
-校验并解压 `lingshu-gate-v0.5.8-docker-compose.tar.gz`，进入该目录后执行：
+校验并解压 `lingshu-gate-v0.5.9-docker-compose.tar.gz`，进入该目录后执行：
 
 ```bash
 cp .env.quickstart.example .env.quickstart
@@ -65,15 +65,13 @@ uv run lingshu-gate
 
 核对成功审计、写入拒绝且计数不变、错误修订拒绝、demo 停止/恢复和调用者撤销。Gate 启动、工具发现、分类确认、发布分别进行；访问仍须同时满足资源权限和 token scope。
 
-## 0.5.8 — MCP 超时回读与发行修正
+## 0.5.9 — 启动存储诊断与配置就绪状态
 
-本补丁修复发行文档链接，并将固定工具目录的回归检查同步为七个按需入口。继续包含 0.5.7 新增的 MCP 超时信息与迟到响应回读，请求处理行为与该源码版本保持一致。
+存储启动失败时提供受限的文件路径和运行身份诊断事实，不记录凭据或数据库内容，帮助区分父目录缺失、路径类型错误、访问被拒绝与只读文件系统，不自动修改属主或权限。
 
-MCP 等待期限到期时返回结构化的 `mcp_request_timeout`。调用方可以区分尚未派发的请求与执行结果未知的操作；超时不会被报告成远端进程已停止，也不会触发自动重试。
+配置就绪检查与管理员诊断采用同一目录检查规则。新实例的配置目录缺失但具备创建条件时仍可就绪；最近一次目录扫描状态单独报告，区分“跳过扫描”和“已扫描的空目录”。手动补建目录不会触发自动重扫。
 
-符合条件的共享 stdio 调用可使用返回的恢复句柄，通过 `gate_request_status` 或 `POST /v1/catalog/requests/status` 读取迟到响应。句柄绑定原身份、工具修订与运行时连接，每次读取都复核当前权限。按需模式默认入口由六个增加为七个，完整工具列表模式保持不变。
-
-回读有容量与时间上限，仅在当前 Gate 进程内有效，不能跨 Gate 重启恢复，也不能替代远端作业接口。本版 HTTP 调用仅增加结构化超时信息，不支持迟到回读；收到完整响应仍不代表已经确认远端命令退出码。相对 0.5.6 不新增运行依赖或数据库迁移。参见[请求回读](docs/zh-CN/on-demand-tools.md)、[MCP 连接行为](docs/zh-CN/mcp-gateway.md)、[变更记录](CHANGELOG.zh-CN.md)和[双语发行说明](packaging/release-notes.md)。
+部署指南补充宿主 bind mount 的准备责任及实际容器用户检查。定向回归与容器冒烟覆盖 UID/GID `10001`、只读根文件系统以及可写或拒绝访问的数据挂载。相对 0.5.8 不新增运行依赖或数据库迁移，保留既有 MCP 回读、七入口按需目录与授权行为。参见[部署](docs/zh-CN/deployment.md#自定义宿主目录)、[探针与扫描语义](docs/zh-CN/operations.md#配置目录与扫描状态)、[变更记录](CHANGELOG.zh-CN.md)和[双语发行说明](packaging/release-notes.md)。
 
 ## 架构总览
 

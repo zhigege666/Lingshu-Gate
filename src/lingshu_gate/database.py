@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import logging
 import sqlite3
 import time
 from collections.abc import Iterator
@@ -9,6 +10,7 @@ from contextlib import closing, contextmanager
 from pathlib import Path
 from typing import Any
 
+from lingshu_gate.path_diagnostics import log_path_failure
 from lingshu_gate.persistence.migrations import (
     Migration,
     MigrationRunner,
@@ -57,6 +59,8 @@ from lingshu_gate.persistence.business_credentials_migration import (
     BUSINESS_CREDENTIALS_MIGRATION_ID, apply_business_credentials_migration,
 )
 
+logger = logging.getLogger(__name__)
+
 BASELINE_MIGRATION_ID = "0001_gate_baseline"
 SQLITE_BUSY_TIMEOUT_MS = 30_000
 SQLITE_LOCK_RETRY_MAX_SECONDS = SQLITE_BUSY_TIMEOUT_MS / 1_000
@@ -71,8 +75,20 @@ class SQLiteDatabase:
 
     def __init__(self, db_url: str, data_dir: Path) -> None:
         self.path = _resolve_sqlite_path(db_url, data_dir)
-        self.path.parent.mkdir(parents=True, exist_ok=True)
-        self.initialize()
+        try:
+            self.path.parent.mkdir(parents=True, exist_ok=True)
+        except OSError as error:
+            log_path_failure(
+                logger, component="database", phase="database_directory", path=self.path, error=error,
+            )
+            raise
+        try:
+            self.initialize()
+        except (OSError, sqlite3.Error) as error:
+            log_path_failure(
+                logger, component="database", phase="database_initialize", path=self.path, error=error,
+            )
+            raise
 
     def connect(self) -> sqlite3.Connection:
         connection = sqlite3.connect(

@@ -1,71 +1,61 @@
-# Lingshu Gate 0.5.8
+# Lingshu Gate 0.5.9
 
 ## English
 
-0.5.8 corrects a fixed catalog regression assertion and pins release-documentation links to this tag. It includes the structured MCP timeout information and eligible late stdio response recovery added in 0.5.7; request handling is unchanged from that source version.
+0.5.9 improves evidence for storage startup failures and makes configuration-directory readiness consistent with administrator diagnostics. It preserves empty-instance startup and separates the last configuration scan from the directory's current state.
 
-### Changes in 0.5.8
+### Changes
 
-- Align the fixed catalog schema regression with the seven on-demand entries, including `gate_request_status`, while preserving its invocation and schema checks.
-- Use absolute documentation links pinned to `v0.5.8` so links rendered on GitHub resolve to this release. Synchronize current entry lists in the paired on-demand guides and repository delivery Skill.
-
-### MCP request recovery included in this release
-
-- Return structured `mcp_request_timeout` errors with request, dispatch and connection context. A waiting deadline is not remote cancellation or a command exit result. Timed-out operations are not automatically replayed.
-- Add read-only `gate_request_status` and `POST /v1/catalog/requests/status`. An opaque recovery handle refers to the original request and can read its late JSON-RPC response when the shared stdio connection supports recovery.
-- Check the exact original principal, live authority, tool revision and runtime connection before returning a retained response. Handles do not grant permissions, and another token or session cannot use a copied handle to read the result.
-- Keep retained requests bounded by a 300-second lifetime, count, bytes and structural complexity. Read response pages by Unicode-character offset; reading does not extend their lifetime or dispatch another invocation.
-- Distinguish waiting, completed, interrupted and unavailable request states. `completed` means that the original response arrived; it does not prove remote execution terminated, and the outer recovery result does not invent an exit code.
-- Add the recovery entry to default on-demand discovery, increasing its entry count from six to seven. Full tool-list mode and existing business tool behavior are retained.
-- Update paired MCP, operator, security and release documentation.
+- Emit bounded `gate.startup.path_failed` diagnostics at the failed storage/configuration boundary, with `component`, `phase`, `reason_code`, path and effective runtime identity facts. Preserve the original failure; do not retry with broader permissions or repair host ownership automatically.
+- Keep credential values, database URLs, SQL, database contents, unrelated environment values and raw exception text out of the added diagnostic metadata. Report SQLite `CANTOPEN` as `database_open_failed` without inferring its cause.
+- Reuse directory checks for configuration readiness and administrator diagnostics. A missing but creatable directory remains acceptable for a new empty instance; public probe metadata does not expose filesystem paths or identity details.
+- Report the last full configuration scan as `not_scanned`, `missing`, `loaded` or `failed`, with service and load-error counts. A skipped missing-directory scan is distinct from a successfully loaded empty directory. Readiness reads, manual directory creation and a single configuration apply do not silently become a full rescan.
+- Document preparation of the actual host bind-mount paths, checks under the service user, the limited meaning of `--version`, and full startup acceptance. Add focused regressions and real-user container smoke cases for allowed and denied data mounts with UID/GID `10001` and a read-only root.
 
 ### Upgrade and compatibility
 
-No new runtime dependency or database migration is introduced over 0.5.6. Existing configuration, data and credential directories remain in use. Preserve the normal consistent backup of data, configuration, encrypted credential stores and their keys when upgrading.
+No runtime dependency or database migration is introduced over 0.5.8. Existing data, configuration and credential paths remain in use. Preserve the normal consistent backup of data, configuration, encrypted credential stores and their keys before upgrading.
 
-Recovery records exist only in the current Gate process and original runtime connection. A Gate restart, expired record, replaced connection or changed authorization can make the handle unavailable or interrupted; the caller must reconcile the original operation instead of treating an absent response as proof that it never ran. Existing authorization is not expanded by upgrading.
+Core remains non-root, with a read-only root filesystem and no container-engine socket. Host bind mounts can hide directories and ownership prepared in the image; deployment operators remain responsible for the final host paths. Review existing ownership, modes and ACLs before targeted repairs. Do not recursively relax permissions or run Core as root to bypass a diagnosed access problem.
+
+The MCP timeout and bounded late-response recovery introduced in 0.5.7 are retained, including the original identity, authorization and runtime-connection boundaries. The seven-entry on-demand catalog and release-contract fixes from 0.5.8 are preserved. No automatic manifest watcher is added. Existing explicit reload can stop and replace downstream runtime connections; it remains a separate operator action.
 
 ### Support and validation boundaries
 
-This initial late-response recovery applies only to eligible shared stdio calls. HTTP calls receive structured timeout information but do not retain a late-response reader. Grouped calls, managed business-credential calls and external-provider OAuth calls are outside this initial recovery scope.
+Directory access inspection is read-only and does not guarantee that a later database write succeeds. A ready empty instance does not prove that an existing deployment selected the correct configuration path or loaded its expected downstream services. Storage startup failures can occur before HTTP probes are available; use the safe startup diagnostics in that case.
 
-This release does not add durable SSH jobs, MCP `tasks`, remote process cancellation, cross-restart execution recovery or final command exit-code reporting. It does not claim to diagnose or speed up an underlying Git clone.
+Focused coverage targets path types and access failures, safe diagnostics, missing/empty/failed configuration scans, readiness/administrator-check consistency, and complete container startup with correct or denied host data permissions. HTTP resource checks do not establish browser rendering, and a rendered sign-in page does not establish login or downstream-call success. These scopes remain separate from acceptance on a particular operator's host.
 
-Source regression coverage includes response retention and paging, identity and authorization changes, connection replacement, HTTP timeout context, protocol behavior, runtime bounds and secret-safe error handling. Formal release publication separately requires all four quality shards, five native packages, Compose, two offline Core images, application SBOM, exact container reference, aggregate checksums and provenance verification. A tag or a partially completed workflow is not a finished release.
+Formal release publication separately requires all four quality shards, five native packages, Compose, two offline Core images, application SBOM, exact container reference, aggregate checksums and provenance verification. A source check, tag or partially completed workflow is not a finished release.
 
-See [on-demand request recovery](https://github.com/zhigege666/Lingshu-Gate/blob/v0.5.8/docs/on-demand-tools.md), [MCP gateway](https://github.com/zhigege666/Lingshu-Gate/blob/v0.5.8/docs/mcp-gateway.md), [security](https://github.com/zhigege666/Lingshu-Gate/blob/v0.5.8/SECURITY.md) and [release verification](https://github.com/zhigege666/Lingshu-Gate/blob/v0.5.8/docs/releases.md).
+See [deployment](https://github.com/zhigege666/Lingshu-Gate/blob/v0.5.9/docs/deployment.md), [operator diagnostics](https://github.com/zhigege666/Lingshu-Gate/blob/v0.5.9/docs/operations.md), [changes](https://github.com/zhigege666/Lingshu-Gate/blob/v0.5.9/CHANGELOG.md) and [release verification](https://github.com/zhigege666/Lingshu-Gate/blob/v0.5.9/docs/releases.md).
 
 ## 简体中文
 
-0.5.8 修正固定工具目录的回归断言，并将发行文档链接固定到当前标签。继续包含 0.5.7 新增的结构化 MCP 超时信息与符合条件的 stdio 迟到响应回读，请求处理行为与该源码版本保持一致。
+0.5.9 补充存储启动失败的证据，让配置目录就绪检查与管理员诊断保持一致。继续允许空实例启动，并将最近一次配置扫描与目录当前状态分开报告。
 
-### 0.5.8 变更
+### 变更
 
-- 将固定工具目录回归检查同步为包含 `gate_request_status` 的七个按需入口，保留原有调用及 schema 检查。
-- 使用固定到 `v0.5.8` 的绝对文档链接，确保 GitHub 渲染后的链接指向本次发行；同步配对按需指南与仓库交付 Skill 的当前入口清单。
-
-### 本版包含的 MCP 请求回读能力
-
-- 返回结构化 `mcp_request_timeout`，提供请求、派发及连接上下文。等待到期不代表远端取消或命令退出，超时操作不会自动重放。
-- 增加只读 `gate_request_status` 与 `POST /v1/catalog/requests/status`。不透明恢复句柄指向原请求；共享 stdio 连接支持恢复时，可读取原 JSON-RPC 迟到响应。
-- 返回响应前核对原身份、当前权限、工具修订及运行时连接。句柄不授予权限，另一个 Token 或会话不能通过复制句柄读取结果。
-- 按 300 秒存留期限、数量、字节和结构复杂度限制保留内容。按 Unicode 字符偏移分页读取，读取不延长期限，也不重新派发调用。
-- 区分 waiting、completed、interrupted 与 unavailable 请求状态。`completed` 只代表原响应到达，不证明远端执行已终止；外层回读结果不伪造退出码。
-- 按需发现模式增加恢复入口，默认入口由六个增至七个。完整工具列表模式及既有业务工具行为保持不变。
-- 同步中英文 MCP、操作、安全及发行文档。
+- 在存储或配置失败边界记录受限的 `gate.startup.path_failed` 诊断，包含 `component`、`phase`、`reason_code`、路径及有效运行身份事实。保留原失败，不扩大权限重试或自动修正宿主属主。
+- 新增诊断元数据不包含凭据值、数据库 URL、SQL、数据库内容、无关环境值或原始异常全文。SQLite `CANTOPEN` 仅报告为 `database_open_failed`，不据此推断根因。
+- 配置就绪检查与管理员诊断复用目录检查。新空实例目录缺失但可创建时仍然有效；公开探针元数据不暴露文件系统路径或身份详情。
+- 用 `not_scanned`、`missing`、`loaded`、`failed` 报告最近一次完整配置扫描，并提供服务数和加载错误数。区分因缺失目录跳过扫描与成功加载空目录；读取就绪、手动创建目录或应用单项配置均不会被误报成完整重扫。
+- 补充实际宿主 bind mount 准备、运行用户检查、`--version` 的验证边界及完整启动验收文档；增加定向回归与实际用户容器冒烟，覆盖 UID/GID `10001`、只读根和允许或拒绝访问的数据挂载。
 
 ### 升级与兼容
 
-相对 0.5.6 不新增运行依赖或数据库迁移，继续使用既有配置、数据及凭据目录。升级时沿用数据、配置、加密凭据存储和全部密钥的一致备份要求。
+相对 0.5.8 不新增运行依赖或数据库迁移，继续使用既有数据、配置与凭据路径。升级前沿用数据、配置、加密凭据存储和全部密钥的一致备份要求。
 
-恢复记录仅存在于当前 Gate 进程及原运行时连接中。Gate 重启、记录过期、连接替换或授权变化后，句柄可能 unavailable 或 interrupted；调用方应核对原操作，不能根据缺少回包推断它从未执行。升级不扩大既有授权。
+Core 保持非 root、根文件系统只读、不接触容器引擎 socket。宿主 bind mount 可以遮盖镜像中准备的目录和属主，最终宿主路径仍由部署者准备。既有数据应先检查属主、模式和 ACL，再进行针对性修复，不递归放宽权限或改用 root 绕过访问错误。
+
+保留 0.5.7 引入的 MCP 超时与有界迟到响应回读，以及原身份、授权和运行时连接边界；同时保留 0.5.8 的七入口按需目录与发行契约修正。不新增 Manifest 自动监听；既有显式重载可能停止并替换下游连接，仍是单独的运维操作。
 
 ### 支持与验证边界
 
-第一批迟到响应回读仅适用于符合条件的共享 stdio 调用。HTTP 调用增加结构化超时信息，但不保留迟到响应读取器；分组、托管业务凭据及外部提供方 OAuth 调用暂不在回读范围内。
+目录访问检查只读执行，不能保证后续数据库写入一定成功。空实例就绪不能证明既有部署选中了正确配置路径或加载了预期下游服务。存储失败可能发生在 HTTP 探针可用之前，此时应依据安全的启动诊断。
 
-本版不增加持久 SSH 任务、MCP `tasks`、远端进程取消、跨重启执行恢复或最终命令退出码，也不宣称已经定位或加速底层 Git 克隆。
+定向覆盖包括路径类型与访问失败、诊断脱敏、缺失／空／失败配置扫描、就绪与管理检查一致性，以及实际宿主数据权限正确或被拒绝时的完整容器启动。HTTP 资源检查不证明浏览器渲染，登录页渲染不证明登录或下游调用成功；这些范围与特定运维宿主的验收保持区分。
 
-源码回归覆盖响应保留与分页、身份和授权变化、连接替换、HTTP 超时上下文、协议行为、运行时上限与错误脱敏。正式发布另需四个质量分片、五个平台原生包、Compose、两个离线 Core 镜像、应用 SBOM、精确容器引用、总校验和及来源证明全部通过。标签或部分流水线成功不代表完整发布。
+正式发布另需四个质量分片、五个平台原生包、Compose、两个离线 Core 镜像、应用 SBOM、精确容器引用、总校验和及来源证明全部通过。源码检查、标签或部分流水线成功均不代表完整发布。
 
-参见[按需请求回读](https://github.com/zhigege666/Lingshu-Gate/blob/v0.5.8/docs/zh-CN/on-demand-tools.md)、[MCP 网关](https://github.com/zhigege666/Lingshu-Gate/blob/v0.5.8/docs/zh-CN/mcp-gateway.md)、[安全说明](https://github.com/zhigege666/Lingshu-Gate/blob/v0.5.8/SECURITY.zh-CN.md)及[发行验证](https://github.com/zhigege666/Lingshu-Gate/blob/v0.5.8/docs/zh-CN/releases.md)。
+参见[部署](https://github.com/zhigege666/Lingshu-Gate/blob/v0.5.9/docs/zh-CN/deployment.md)、[运维诊断](https://github.com/zhigege666/Lingshu-Gate/blob/v0.5.9/docs/zh-CN/operations.md)、[变更记录](https://github.com/zhigege666/Lingshu-Gate/blob/v0.5.9/CHANGELOG.zh-CN.md)及[发行验证](https://github.com/zhigege666/Lingshu-Gate/blob/v0.5.9/docs/zh-CN/releases.md)。

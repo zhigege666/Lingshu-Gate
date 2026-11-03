@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import os
 from pathlib import Path
 from typing import Any, Mapping
 
@@ -11,6 +10,7 @@ from lingshu_gate.database import BASELINE_MIGRATION_ID, SQLiteDatabase
 from lingshu_gate.domain.health import ComponentStatus
 from lingshu_gate.mcp_runtime import McpRuntimeManager
 from lingshu_gate.observability_store import ObservabilityStore
+from lingshu_gate.path_diagnostics import inspect_directory
 
 
 class SQLiteStateStoreAdapter:
@@ -39,31 +39,12 @@ class FileConfigurationSourceAdapter:
         self.config_dir = config_dir
 
     def readiness(self) -> ComponentStatus:
-        if self.config_dir.exists():
-            ok = self.config_dir.is_dir() and os.access(
-                self.config_dir,
-                os.R_OK | os.W_OK | os.X_OK,
-            )
-            detail = (
-                "configuration directory is readable and writable"
-                if ok
-                else "configuration path is not a readable and writable directory"
-            )
-        else:
-            parent = self.config_dir.parent
-            while not parent.exists() and parent != parent.parent:
-                parent = parent.parent
-            ok = parent.is_dir() and os.access(parent, os.W_OK | os.X_OK)
-            detail = (
-                "configuration directory can be created"
-                if ok
-                else "configuration directory is missing and its parent is not writable"
-            )
+        status = inspect_directory(self.config_dir, allow_missing=True, require_writable=True)
         return ComponentStatus(
             "configuration",
-            ok,
-            detail,
-            {"source": "filesystem"},
+            status.ok,
+            status.detail,
+            {"source": "filesystem", "reason_code": status.code},
         )
 
 
@@ -72,15 +53,21 @@ class McpRuntimeDriverAdapter:
         self.runtime = runtime
 
     def readiness(self) -> ComponentStatus:
-        response = self.runtime.list_servers()
-        errors = tuple(response.load_errors)
+        scan_status, server_count, error_count = self.runtime.configuration_scan_snapshot()
+        ok = scan_status in {"missing", "loaded"} and error_count == 0
+        if error_count or scan_status == "failed":
+            detail = "MCP configuration scan or manifest loading failed"
+        elif scan_status == "not_scanned":
+            detail = "MCP configuration directory has not been scanned"
+        elif scan_status == "missing":
+            detail = "last MCP configuration scan was skipped because the directory was missing"
+        else:
+            detail = "runtime catalog loaded"
         return ComponentStatus(
             "runtime",
-            not errors,
-            "runtime catalog loaded"
-            if not errors
-            else "one or more MCP manifests failed to load",
-            {"server_count": len(response.servers), "load_error_count": len(errors)},
+            ok,
+            detail,
+            {"server_count": server_count, "load_error_count": error_count, "scan_status": scan_status},
         )
 
 

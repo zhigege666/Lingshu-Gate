@@ -6,22 +6,26 @@ import json
 import logging
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Any
+from typing import Any, Literal
 
 import yaml
 from pydantic import ValidationError
 
 from lingshu_gate.logging import log_event
 from lingshu_gate.mcp_manifest import McpServerManifest
+from lingshu_gate.path_diagnostics import inspect_directory
 from lingshu_gate.redaction import redact_text, redact_validation_errors
 
 logger = logging.getLogger(__name__)
+
+McpConfigScanStatus = Literal["not_scanned", "missing", "loaded", "failed"]
 
 
 @dataclass
 class McpConfigLoadResult:
     manifests: list[McpServerManifest] = field(default_factory=list)
     errors: list[str] = field(default_factory=list)
+    scan_status: McpConfigScanStatus = "not_scanned"
 
 
 class McpConfigLoader:
@@ -36,7 +40,18 @@ class McpConfigLoader:
         result = McpConfigLoadResult()
         log_event(logger, logging.INFO, "gate.mcp.config_scan_started", "Scanning MCP config directory", config_dir=str(self.config_dir))
 
-        if not self.config_dir.exists():
+        directory = inspect_directory(self.config_dir, allow_missing=True, require_writable=False)
+        if not directory.ok:
+            result.scan_status = "failed"
+            error = f"MCP configuration scan failed ({directory.code}): {directory.detail}"
+            result.errors.append(error)
+            log_event(
+                logger, logging.ERROR, "gate.mcp.config_dir_invalid", "Cannot scan MCP config directory",
+                reason_code=directory.code, diagnostic=directory.metadata(),
+            )
+            return result
+        if directory.code == "directory_creatable":
+            result.scan_status = "missing"
             log_event(
                 logger,
                 logging.WARNING,
@@ -45,13 +60,17 @@ class McpConfigLoader:
                 config_dir=str(self.config_dir),
             )
             return result
-        if not self.config_dir.is_dir():
-            error = f"MCP config path is not a directory: {self.config_dir}"
-            result.errors.append(error)
-            log_event(logger, logging.ERROR, "gate.mcp.config_dir_invalid", error, config_dir=str(self.config_dir))
-            return result
 
-        paths = sorted(path for path in self.config_dir.iterdir() if path.suffix.lower() in self.supported_suffixes)
+        try:
+            paths = sorted(path for path in self.config_dir.iterdir() if path.suffix.lower() in self.supported_suffixes)
+        except OSError as exc:
+            result.scan_status = "failed"
+            result.errors.append(f"MCP configuration directory cannot be scanned ({type(exc).__name__})")
+            log_event(
+                logger, logging.ERROR, "gate.mcp.config_scan_failed", "Cannot enumerate MCP config directory",
+                config_dir=str(self.config_dir), error_type=type(exc).__name__, errno=exc.errno,
+            )
+            return result
         log_event(
             logger,
             logging.INFO,
@@ -91,6 +110,7 @@ class McpConfigLoader:
                     path=str(path),
                     error=safe_error,
                 )
+        result.scan_status = "failed" if result.errors else "loaded"
         return result
 
     def _load_one(self, path: Path) -> McpServerManifest:

@@ -127,6 +127,61 @@ For a system service:
 
 Do not run Gate as an administrator or root merely to make a downstream command work. Fix ownership or use a narrower dedicated execution account.
 
+## Custom host directories
+
+The supplied Compose files use named volumes for `/data` and `/config`. If you use host bind mounts, including an Unraid template, the final host paths are your deployment's responsibility. A bind mount hides the image's prepared directory tree: the image's build-time ownership and `/config/mcp.d`, `/data/home` and `/data/cache` directories do not initialize a replacement host path.
+
+Review the actual mount sources and targets after editing a template or changing an instance directory. A container name or a template's default path does not prove that the selected host path was prepared.
+
+| Container path | Host preparation for the default Core user |
+|---|---|
+| `/data` | UID/GID `10001:10001` must be able to enter and write the data directory and access the existing database and its parent directory. |
+| `/data/home`, `/data/cache` | Prepare writable home and cache directories when binding `/data`. |
+| `/config/mcp.d` | Prepare this directory under the actual `/config` host source; the service needs read, write and traversal access. |
+| `/workspace` | Keep the mount read-only; provide read and traversal access only for the intended workspace. |
+
+For a **new, empty installation** on Linux rootful Docker, choose the final host root first. This example stops if the root already exists:
+
+```bash
+gate_root=/srv/lingshu-gate-instance
+(
+  set -eu
+  if sudo test -e "$gate_root" || sudo test -L "$gate_root"; then
+    printf '%s\n' 'Inspect the existing installation before changing ownership or modes.' >&2
+    exit 1
+  fi
+  sudo install -d -o 10001 -g 10001 -m 0750 \
+    "$gate_root" "$gate_root/data" "$gate_root/data/home" "$gate_root/data/cache" \
+    "$gate_root/config" "$gate_root/config/mcp.d" "$gate_root/workspace"
+)
+```
+
+For existing data, inspect the selected paths, existing owners, modes and any ACLs before making a targeted change. Preserve existing file modes and protected credential files; do not apply unconditional recursive `chmod` or `chown`. Rootless Docker and Docker Desktop require their actual UID mapping. An optional SSH-directory bind is a separate path to review; its presence does not enable local process execution in Core.
+
+Check the same image, identity and mounts that the final service will use. This command inspects directory metadata and access without starting Gate, reading secrets or creating probe files:
+
+```bash
+gate_image='ghcr.io/zhigege666/lingshu-gate@sha256:<digest>'
+docker run --rm --network none --read-only --user 10001:10001 \
+  --cap-drop ALL --security-opt no-new-privileges:true \
+  --mount "type=bind,src=$gate_root/data,dst=/data" \
+  --mount "type=bind,src=$gate_root/config,dst=/config" \
+  --entrypoint sh "$gate_image" -ec '
+    id
+    for path in /data /data/home /data/cache /config/mcp.d; do
+      stat -c "%n uid=%u gid=%g mode=%a" "$path"
+      test -d "$path"
+      test -r "$path"
+      test -w "$path"
+      test -x "$path"
+    done
+  '
+```
+
+Replace the example image digest and host paths with the selected deployment values, and include any additional mounts or database-parent path you actually use. These access checks do not prove a database transaction can succeed. A successful `--version` only tests the executable's version path; it does not initialize storage, load configurations or start HTTP.
+
+Complete acceptance by starting Gate with the reviewed configuration, checking stable running/health state and `/readyz`, and reviewing startup storage diagnostics and the last configuration scan. Confirm expected downstream configurations separately; an empty new instance is allowed. HTTP asset checks and a rendered sign-in page provide additional evidence for the Console, while login and downstream calls need their own authorized checks. See [configuration-directory and scan state](operations.md#configuration-directory-and-scan-state).
+
 ## Health probes
 
 | Endpoint | Meaning | Orchestrator action |

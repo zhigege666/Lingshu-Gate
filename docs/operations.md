@@ -22,6 +22,33 @@ curl --fail --silent --show-error http://127.0.0.1:8000/startupz
 curl --fail --silent --show-error http://127.0.0.1:8000/readyz
 ```
 
+## Configuration directory and scan state
+
+Readiness and the administrator diagnostic named `path.config_dir` use the same directory rules. A missing directory may be acceptable when its nearest existing parent permits creation. This permits a new instance with no MCP configurations; it does not prove that an existing installation's expected configuration path was selected.
+
+The `configuration` check exposes a bounded `metadata.reason_code`; this public check does not include filesystem paths or identity details. `directory_creatable` means the nearest existing parent passed the write/traversal observations, without creating the directory. `directory_not_writable` alone does not identify a read-only mount. Authorized `GET /v1/diagnostics` includes the detailed directory facts for operators; this diagnostic request retains its existing audit behavior and does not reload runtime configurations.
+
+The `runtime` readiness check includes `metadata.scan_status`, `server_count` and `load_error_count`. The scan status describes the last full manifest-directory scan, independently of the directory's current permissions:
+
+| `scan_status` | Meaning |
+|---|---|
+| `not_scanned` | No full directory scan has run yet. |
+| `missing` | The directory was missing but creatable, so that scan was skipped. |
+| `loaded` | The full scan finished without load errors; zero configured services is valid. |
+| `failed` | Directory inspection/enumeration failed, or one or more manifests had load errors. Other valid manifests may still be loaded; inspect `load_error_count` and authorized diagnostics. |
+
+A `missing` last scan can coexist with successful readiness, including after an operator manually creates the directory. A single configuration save/apply does not replace the full-scan record. Reading `/readyz` does not reload runtime configurations, and there is no filesystem watcher. After adding manifests directly on disk, use the existing explicit apply/reload operation or a reviewed restart. Full reload can stop and replace runtime connections; inspect its affected services before invoking it.
+
+For an existing installation, compare the resolved configured path, actual mount source and expected service count. A ready empty instance does not establish that previously configured services were loaded. Monitor downstream health and authorized tool calls separately.
+
+## Storage startup diagnostics
+
+An early storage failure emits the structured event `gate.startup.path_failed` before propagating the original exception. Its `component`, `phase` and `reason_code` identify the failed boundary; bounded metadata includes the affected path, effective UID/GID, readable target/parent ownership and modes, access observations, and available OS or SQLite error codes. The added diagnostic does not record a database URL, SQL, database contents, credential values, unrelated environment values or raw exception text.
+
+Interpret facts before choosing a remedy. A SQLite `CANTOPEN` result is reported as `database_open_failed`; it is not sufficient evidence of a permission fault, damaged database or defective image. Use the surrounding directory facts and the actual host mount mapping. Read-only inspection does not create a probe file, change ownership or modes, or automatically create a configuration directory. It cannot guarantee that a later write will succeed.
+
+If storage initialization fails before HTTP startup, `/readyz` is unavailable; use the service startup log. Keep this log restricted to operators, and remove unnecessary host paths before sharing it. Prepare or repair only the confirmed affected deployment paths, then perform a full service startup and readiness check. See [host directory preparation](deployment.md#custom-host-directories).
+
 ## Downstream status
 
 Use `/v1/mcp/servers` for the list and `/v1/mcp/servers/{server_id}/detail` for one target. Distinguish:

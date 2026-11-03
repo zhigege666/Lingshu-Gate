@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.5.9
+
+- Diagnose storage startup failures with bounded path, effective UID/GID and permission facts. Keep credentials, database contents and unrelated environment values out of errors; do not repair ownership or broaden permissions automatically.
+- Share configuration-directory checks between readiness and administrator diagnostics. Preserve readiness for a missing but creatable directory on an empty instance, and report the last full configuration scan separately from the current directory state.
+- Distinguish a skipped missing-directory scan from a loaded empty directory. Readiness reads and manual directory creation do not reload services; existing explicit reload and single-configuration apply behavior are retained.
+- Document actual host bind-mount preparation, service-user permission checks, the limits of `--version`, and full-startup acceptance. Add focused directory/diagnostic regressions and container smoke cases using UID/GID `10001`, a read-only root and allowed or denied data mounts.
+- Retain non-root Core operation, existing data and credential paths, MCP request recovery and authorization boundaries. No runtime dependency or database migration is added over 0.5.8.
+
 ## 0.5.8
 
 - Align the fixed catalog schema regression with the seventh on-demand entry, `gate_request_status`, while retaining the existing invocation and schema assertions.

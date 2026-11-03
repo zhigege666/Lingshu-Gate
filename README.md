@@ -2,7 +2,7 @@
 
 A self-hosted MCP gateway that connects tools, limits who can call them, and records what happened.
 
-[简体中文](README.zh-CN.md) · [Download 0.5.8](https://github.com/zhigege666/Lingshu-Gate/releases/tag/v0.5.8) · [Get started](docs/getting-started.md) · [Documentation](docs/README.md) · [Security](SECURITY.md)
+[简体中文](README.zh-CN.md) · [Download 0.5.9](https://github.com/zhigege666/Lingshu-Gate/releases/tag/v0.5.9) · [Get started](docs/getting-started.md) · [Documentation](docs/README.md) · [Security](SECURITY.md)
 
 <img src="docs/images/console/en-US/v0.5.0-discovery.png" alt="Lingshu Gate 0.5.0: per-authorization pinned tools, logical groups and bounded text previews" width="1200">
 
@@ -30,7 +30,7 @@ Open [http://127.0.0.1:8000/](http://127.0.0.1:8000/). Read `data/initial-admin-
 
 ### Released Docker trial
 
-Verify and extract `lingshu-gate-v0.5.8-docker-compose.tar.gz`, enter that directory and run:
+Verify and extract `lingshu-gate-v0.5.9-docker-compose.tar.gz`, enter that directory and run:
 
 ```bash
 cp .env.quickstart.example .env.quickstart
@@ -65,15 +65,13 @@ The [included demo walkthrough](docs/first-call.md) needs no external service ac
 
 Check the successful audit, deny a write with an unchanged counter, reject an invalid revision, stop/restart the demo and revoke the caller. Gate startup, tool discovery, classification confirmation and publication are separate steps; access still requires both resource grants and token scope.
 
-## 0.5.8 — MCP timeout recovery and release fixes
+## 0.5.9 — Startup storage diagnostics and configuration readiness
 
-This patch fixes release-documentation links and aligns the fixed catalog regression check with the seven-entry on-demand contract. It retains the MCP timeout and late-response recovery added in 0.5.7; request handling is unchanged from that source version.
+Storage startup failures now include bounded diagnostic facts about the affected filesystem path and the service identity, without logging credentials or database contents. This helps distinguish missing parents, wrong path types, access denial and read-only filesystems; it does not automatically change ownership or permissions.
 
-MCP waiting deadlines now return structured `mcp_request_timeout` details. Callers can distinguish a request that was not dispatched from an operation whose execution outcome is unknown; a timeout does not report remote termination or authorize an automatic retry.
+Configuration readiness and administrator diagnostics use the same directory checks. A new instance may still be ready when its configuration directory is missing but can be created. The last directory scan is reported separately, so a skipped scan is distinguishable from a successfully loaded empty directory. Creating the directory manually does not trigger a rescan.
 
-For eligible shared stdio calls, use the returned recovery handle with `gate_request_status` or `POST /v1/catalog/requests/status` to read a late response. The handle stays bound to the original identity, tool revision and runtime connection, with current access checked on every read. The default on-demand entry list grows from six to seven; full tool-list mode is unchanged.
-
-Recovery is bounded and process-local. It does not survive a Gate restart or replace a remote job API; HTTP calls receive structured timeout information without late-response recovery in this release. A completed response still does not establish a remote command's exit code. No new runtime dependency or database migration is added over 0.5.6. See [request recovery](docs/on-demand-tools.md), [MCP connection behavior](docs/mcp-gateway.md), [changes](CHANGELOG.md) and the [bilingual release notes](packaging/release-notes.md).
+Deployment guidance now explains host bind-mount preparation and checks under the actual container user. Focused regression and container-smoke coverage targets UID/GID `10001`, a read-only root and writable or denied host data mounts. No runtime dependency or database migration is added over 0.5.8; existing MCP recovery, the seven-entry on-demand catalog and authorization behavior are retained. See [deployment](docs/deployment.md#custom-host-directories), [probe and scan semantics](docs/operations.md#configuration-directory-and-scan-state), [changes](CHANGELOG.md) and the [bilingual release notes](packaging/release-notes.md).
 
 ## Architecture overview
 
