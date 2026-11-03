@@ -2,7 +2,7 @@
 
 A self-hosted MCP gateway that connects tools, limits who can call them, and records what happened.
 
-[简体中文](README.zh-CN.md) · [Download 0.5.7](https://github.com/zhigege666/Lingshu-Gate/releases/tag/v0.5.7) · [Get started](docs/getting-started.md) · [Documentation](docs/README.md) · [Security](SECURITY.md)
+[简体中文](README.zh-CN.md) · [Download 0.5.8](https://github.com/zhigege666/Lingshu-Gate/releases/tag/v0.5.8) · [Get started](docs/getting-started.md) · [Documentation](docs/README.md) · [Security](SECURITY.md)
 
 <img src="docs/images/console/en-US/v0.5.0-discovery.png" alt="Lingshu Gate 0.5.0: per-authorization pinned tools, logical groups and bounded text previews" width="1200">
 
@@ -30,7 +30,7 @@ Open [http://127.0.0.1:8000/](http://127.0.0.1:8000/). Read `data/initial-admin-
 
 ### Released Docker trial
 
-Verify and extract `lingshu-gate-v0.5.7-docker-compose.tar.gz`, enter that directory and run:
+Verify and extract `lingshu-gate-v0.5.8-docker-compose.tar.gz`, enter that directory and run:
 
 ```bash
 cp .env.quickstart.example .env.quickstart
@@ -65,7 +65,9 @@ The [included demo walkthrough](docs/first-call.md) needs no external service ac
 
 Check the successful audit, deny a write with an unchanged counter, reject an invalid revision, stop/restart the demo and revoke the caller. Gate startup, tool discovery, classification confirmation and publication are separate steps; access still requires both resource grants and token scope.
 
-## 0.5.7 — MCP timeout visibility and late-response recovery
+## 0.5.8 — MCP timeout recovery and release fixes
+
+This patch fixes release-documentation links and aligns the fixed catalog regression check with the seven-entry on-demand contract. It retains the MCP timeout and late-response recovery added in 0.5.7; request handling is unchanged from that source version.
 
 MCP waiting deadlines now return structured `mcp_request_timeout` details. Callers can distinguish a request that was not dispatched from an operation whose execution outcome is unknown; a timeout does not report remote termination or authorize an automatic retry.
 

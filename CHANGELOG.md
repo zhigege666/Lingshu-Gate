@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.5.8
+
+- Align the fixed catalog schema regression with the seventh on-demand entry, `gate_request_status`, while retaining the existing invocation and schema assertions.
+- Use absolute documentation links pinned to `v0.5.8` in the bilingual GitHub release notes so they resolve to this release. Synchronize current on-demand entry lists in the paired guides and repository delivery Skill.
+- Retain the MCP timeout and late-response recovery added in 0.5.7 without changing request handling. No additional runtime dependency or database migration is introduced.
+
 ## 0.5.7
 
 - Report MCP waiting deadlines as structured `mcp_request_timeout` errors with dispatch and connection context. Keep execution outcomes unknown when they cannot be observed; do not automatically replay or cancel the original operation.

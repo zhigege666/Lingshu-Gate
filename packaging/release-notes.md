@@ -1,10 +1,15 @@
-# Lingshu Gate 0.5.7
+# Lingshu Gate 0.5.8
 
 ## English
 
-0.5.7 makes MCP request timeouts easier to interpret and lets authorized callers recover eligible late stdio responses without repeating the original tool invocation.
+0.5.8 corrects a fixed catalog regression assertion and pins release-documentation links to this tag. It includes the structured MCP timeout information and eligible late stdio response recovery added in 0.5.7; request handling is unchanged from that source version.
 
-### Changes
+### Changes in 0.5.8
+
+- Align the fixed catalog schema regression with the seven on-demand entries, including `gate_request_status`, while preserving its invocation and schema checks.
+- Use absolute documentation links pinned to `v0.5.8` so links rendered on GitHub resolve to this release. Synchronize current entry lists in the paired on-demand guides and repository delivery Skill.
+
+### MCP request recovery included in this release
 
 - Return structured `mcp_request_timeout` errors with request, dispatch and connection context. A waiting deadline is not remote cancellation or a command exit result. Timed-out operations are not automatically replayed.
 - Add read-only `gate_request_status` and `POST /v1/catalog/requests/status`. An opaque recovery handle refers to the original request and can read its late JSON-RPC response when the shared stdio connection supports recovery.
@@ -28,13 +33,18 @@ This release does not add durable SSH jobs, MCP `tasks`, remote process cancella
 
 Source regression coverage includes response retention and paging, identity and authorization changes, connection replacement, HTTP timeout context, protocol behavior, runtime bounds and secret-safe error handling. Formal release publication separately requires all four quality shards, five native packages, Compose, two offline Core images, application SBOM, exact container reference, aggregate checksums and provenance verification. A tag or a partially completed workflow is not a finished release.
 
-See [on-demand request recovery](../docs/on-demand-tools.md), [MCP gateway](../docs/mcp-gateway.md), [security](../SECURITY.md) and [release verification](../docs/releases.md).
+See [on-demand request recovery](https://github.com/zhigege666/Lingshu-Gate/blob/v0.5.8/docs/on-demand-tools.md), [MCP gateway](https://github.com/zhigege666/Lingshu-Gate/blob/v0.5.8/docs/mcp-gateway.md), [security](https://github.com/zhigege666/Lingshu-Gate/blob/v0.5.8/SECURITY.md) and [release verification](https://github.com/zhigege666/Lingshu-Gate/blob/v0.5.8/docs/releases.md).
 
 ## 简体中文
 
-0.5.7 明确 MCP 请求超时的含义，并允许有权调用者读取符合条件的 stdio 迟到响应，减少因回包缺失而重复执行原工具的风险。
+0.5.8 修正固定工具目录的回归断言，并将发行文档链接固定到当前标签。继续包含 0.5.7 新增的结构化 MCP 超时信息与符合条件的 stdio 迟到响应回读，请求处理行为与该源码版本保持一致。
 
-### 变更
+### 0.5.8 变更
+
+- 将固定工具目录回归检查同步为包含 `gate_request_status` 的七个按需入口，保留原有调用及 schema 检查。
+- 使用固定到 `v0.5.8` 的绝对文档链接，确保 GitHub 渲染后的链接指向本次发行；同步配对按需指南与仓库交付 Skill 的当前入口清单。
+
+### 本版包含的 MCP 请求回读能力
 
 - 返回结构化 `mcp_request_timeout`，提供请求、派发及连接上下文。等待到期不代表远端取消或命令退出，超时操作不会自动重放。
 - 增加只读 `gate_request_status` 与 `POST /v1/catalog/requests/status`。不透明恢复句柄指向原请求；共享 stdio 连接支持恢复时，可读取原 JSON-RPC 迟到响应。
@@ -58,4 +68,4 @@ See [on-demand request recovery](../docs/on-demand-tools.md), [MCP gateway](../d
 
 源码回归覆盖响应保留与分页、身份和授权变化、连接替换、HTTP 超时上下文、协议行为、运行时上限与错误脱敏。正式发布另需四个质量分片、五个平台原生包、Compose、两个离线 Core 镜像、应用 SBOM、精确容器引用、总校验和及来源证明全部通过。标签或部分流水线成功不代表完整发布。
 
-参见[按需请求回读](../docs/zh-CN/on-demand-tools.md)、[MCP 网关](../docs/zh-CN/mcp-gateway.md)、[安全说明](../SECURITY.zh-CN.md)及[发行验证](../docs/zh-CN/releases.md)。
+参见[按需请求回读](https://github.com/zhigege666/Lingshu-Gate/blob/v0.5.8/docs/zh-CN/on-demand-tools.md)、[MCP 网关](https://github.com/zhigege666/Lingshu-Gate/blob/v0.5.8/docs/zh-CN/mcp-gateway.md)、[安全说明](https://github.com/zhigege666/Lingshu-Gate/blob/v0.5.8/SECURITY.zh-CN.md)及[发行验证](https://github.com/zhigege666/Lingshu-Gate/blob/v0.5.8/docs/zh-CN/releases.md)。

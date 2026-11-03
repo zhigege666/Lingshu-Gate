@@ -2,7 +2,7 @@
 
 自托管 MCP 网关：连接工具，限定谁可以调用，并记录调用结果。
 
-[English](README.md) · [下载 0.5.7](https://github.com/zhigege666/Lingshu-Gate/releases/tag/v0.5.7) · [开始使用](docs/zh-CN/getting-started.md) · [文档](docs/zh-CN/README.md) · [安全](SECURITY.zh-CN.md)
+[English](README.md) · [下载 0.5.8](https://github.com/zhigege666/Lingshu-Gate/releases/tag/v0.5.8) · [开始使用](docs/zh-CN/getting-started.md) · [文档](docs/zh-CN/README.md) · [安全](SECURITY.zh-CN.md)
 
 <img src="docs/images/console/zh-CN/v0.5.0-discovery.png" alt="Lingshu Gate 0.5.0：每条授权的固定工具、逻辑组和有界文本预览" width="1200">
 
@@ -30,7 +30,7 @@
 
 ### 已发布 Docker 本机试用
 
-校验并解压 `lingshu-gate-v0.5.7-docker-compose.tar.gz`，进入该目录后执行：
+校验并解压 `lingshu-gate-v0.5.8-docker-compose.tar.gz`，进入该目录后执行：
 
 ```bash
 cp .env.quickstart.example .env.quickstart
@@ -65,7 +65,9 @@ uv run lingshu-gate
 
 核对成功审计、写入拒绝且计数不变、错误修订拒绝、demo 停止/恢复和调用者撤销。Gate 启动、工具发现、分类确认、发布分别进行；访问仍须同时满足资源权限和 token scope。
 
-## 0.5.7 — MCP 超时信息与迟到响应回读
+## 0.5.8 — MCP 超时回读与发行修正
+
+本补丁修复发行文档链接，并将固定工具目录的回归检查同步为七个按需入口。继续包含 0.5.7 新增的 MCP 超时信息与迟到响应回读，请求处理行为与该源码版本保持一致。
 
 MCP 等待期限到期时返回结构化的 `mcp_request_timeout`。调用方可以区分尚未派发的请求与执行结果未知的操作；超时不会被报告成远端进程已停止，也不会触发自动重试。
 

@@ -19,7 +19,7 @@
 | [配置](configuration.md) | 环境变量、目录、Manifest、凭据和反向代理设置 |
 | [业务凭据](business-credentials.md) | 开发中新增：个人/共享业务账号、显式 MCP 绑定、agent-browser 同步与分别清理 |
 | [MCP 网关](mcp-gateway.md) | 网关入口、协议协商、下游 HTTP/stdio、发现、分类和调用 |
-| [按需工具发现](on-demand-tools.md) | 六个有界发现/会话入口、每条授权默认按需、保留原权限与合成规模基准 |
+| [按需工具发现](on-demand-tools.md) | 七个有界发现/会话/回读入口（含 `gate_request_status`）、每条授权默认按需、保留原权限与合成规模基准 |
 | [按需目录集成溯源](on-demand-integration.md) | 精确分组提交映射、冲突处理与定向安全证据 |
 | [按需目录集成验收记录](on-demand-integration-validation.md) | 精确测试检查点、物理/分组实测及原生 worker 证据 |
 | [Gate 功能集成候选](gate-feature-integration.md) | OAuth/catalog/group/Native 溯源、a3b57f7 前端验证、最新 ed34c5a wheel／Linux 包验收及继承的后端证据 |

@@ -120,7 +120,7 @@ gate_request tools/call gate_tool_describe request.json
 {"jsonrpc":"2.0","id":1,"method":"tools/list","params":{"_meta":{"io.modelcontextprotocol/protocolVersion":"2026-07-28","io.modelcontextprotocol/clientCapabilities":{}}}}
 ~~~
 
-没有固定工具时，按需发现列出六个入口，包括 `gate_catalog_search`、`gate_tool_describe`、`gate_tool_invoke`。发现入口不授予下游权限。
+没有固定工具时，按需发现列出七个默认入口，包括 `gate_catalog_search`、`gate_tool_describe`、`gate_tool_invoke` 以及只读的 `gate_request_status`。发现入口不授予下游权限。
 
 **搜索有权目录**，使用 `gate_request tools/call gate_catalog_search request.json`：
 

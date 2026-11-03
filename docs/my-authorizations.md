@@ -24,7 +24,7 @@ External-provider grants retain their existing provider/local allowlist contract
 
 ## Tool discovery
 
-The Tool discovery column opens a centered editor for that record with On demand and Full tool list radio choices. **New and existing business authorizations default to on-demand**. Each API token, built-in business OAuth grant and external OAuth local grant saves its own mode; management retains fixed tools. On-demand exposes six default discovery/invocation/instance-session entries, optional authorized pins and the result reader when enabled; direct mode lists currently permitted tools. Both keep the same authority checks.
+The Tool discovery column opens a centered editor for that record with On demand and Full tool list radio choices. **New and existing business authorizations default to on-demand**. Each API token, built-in business OAuth grant and external OAuth local grant saves its own mode; management retains fixed tools. On-demand exposes seven default discovery/invocation/instance-session/recovery entries (including `gate_request_status`), plus optional authorized pins and the result reader when enabled; direct mode lists currently permitted tools. Both keep the same authority checks.
 
 Client settings now save only the name and endpoint; generated configuration omits `tool_mode`, including when reading old browser preferences. Legacy URL/header mode hints are ignored; only the authorization setting applies. Refresh the client tool cache or reconnect after switching. Owner confirmation, CSRF, revision checks and atomic audit protect changes; unknown outcomes require readback before retrying. This does not edit global rules, MCP client plugin configuration or the host's local-MCP/plugin routing preference.
 
