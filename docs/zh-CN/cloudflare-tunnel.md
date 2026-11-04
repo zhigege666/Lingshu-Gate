@@ -23,7 +23,7 @@ Lingshu Gate 支持通过独立的 `cloudflared` Sidecar 使用 Cloudflare Tunne
 
 5. 使用 `docker compose logs --tail=100 cloudflared` 查看连接日志，并在 Cloudflare 控制台确认 Connector 状态为 Healthy。
 
-只有显式启用 `cloudflare-tunnel` profile 才会启动隧道。Token-file 参数要求 cloudflared 2025.4.0 或更高版本，当前固定版本满足该要求。Token 通过只读文件挂载，不放入 Compose 环境变量或命令行参数。默认镜像为 `cloudflare/cloudflared:2026.10.7`；如需不可变镜像身份，可通过 `LINGSHU_GATE_CLOUDFLARED_IMAGE` 指定经过审核的 digest。
+只有显式启用 `cloudflare-tunnel` profile 才会启动隧道。Token 通过只读文件挂载，不放入 Compose 环境变量或命令行参数。默认镜像为 `cloudflare/cloudflared:latest`；生产环境应通过 `LINGSHU_GATE_CLOUDFLARED_IMAGE` 指定经过审核的版本或 digest。
 
 ## 安全与运维
 
@@ -33,9 +33,3 @@ Lingshu Gate 支持通过独立的 `cloudflared` Sidecar 使用 Cloudflare Tunne
 - Sidecar 不挂载 Docker Socket、不使用 host 网络、不申请 Linux capabilities，根文件系统只读。
 - 隧道健康由 cloudflared 进程和 Cloudflare Connector 状态负责。Gate Core 不宣称可以控制或读取 Sidecar 状态。
 - 此配置适用于 Docker Compose。Unraid 用户可在同一个自定义 Docker 网络中单独创建 `cloudflare/cloudflared` 容器，只读挂载 Token 文件，并使用相同命令和内部源站地址。
-
-## 官方参考
-
-- [cloudflared 2026.10.7 发行版本](https://github.com/cloudflare/cloudflared/releases/tag/2026.10.7)
-- [Tunnel 运行参数与 token-file 要求](https://developers.cloudflare.com/tunnel/reference/run-parameters/)
-- [cloudflared 官方容器与非 root 用户](https://github.com/cloudflare/cloudflared/blob/master/Dockerfile)
