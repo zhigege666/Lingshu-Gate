@@ -58,7 +58,7 @@ The demo only changes its own in-memory note. Ctrl+C stops it and clears that no
 
 ## Automatic updates on startup
 
-With GitHub CLI configured on the host, run `./lingshu-gate native-update update-start` (Windows: `.\lingshu-gate.exe native-update update-start`). Use this launcher for subsequent starts. See [updates, scheduling and rollback](../../docs/release-updates.md).
+With GitHub CLI installed on the host, run `./lingshu-gate native-update update-start` (Windows: `.\lingshu-gate.exe native-update update-start`). Use this launcher for subsequent starts. See [updates, scheduling and rollback](../../docs/release-updates.md).
 
 ## Keep a working installation
 

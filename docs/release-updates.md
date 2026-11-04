@@ -10,7 +10,7 @@ Agents with the `system_settings.manage` permission can read the current revisio
 
 ## Enable native updates on startup
 
-Back up the database, configuration and credential keys together. Install GitHub CLI (`gh`) with `gh attestation verify` support and configure its GitHub access for the operating-system account that runs the launcher. The host's GitHub CLI uses its own proxy environment. The Console proxy only handles the version check made by Gate.
+Back up the database, configuration and credential keys together. Install GitHub CLI (tested with `gh 2.103.3`) on the launcher account's PATH. The launcher downloads public GitHub assets anonymously, then uses `gh attestation verify` to verify the signed workflow, source commit and timestamp. Host requests use the host proxy environment. The Console proxy only handles the version check made by Gate.
 
 Stop the old Gate process and change the service's startup command to the following. Run it from the original installation directory or use the absolute executable path.
 

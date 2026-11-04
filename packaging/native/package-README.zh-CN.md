@@ -58,7 +58,7 @@ demo 只修改自身的内存便签。其终端 Ctrl+C 会停止 demo 并清空�
 
 ## 启动时自动更新
 
-在宿主配置好 GitHub CLI 后，以 `./lingshu-gate native-update update-start` 启动。Windows 使用 `.\lingshu-gate.exe native-update update-start`。后续继续使用此启动器。参见[更新、定时执行与回退](../../docs/zh-CN/release-updates.md)。
+在宿主安装 GitHub CLI 后，以 `./lingshu-gate native-update update-start` 启动。Windows 使用 `.\lingshu-gate.exe native-update update-start`。后续继续使用此启动器。参见[更新、定时执行与回退](../../docs/zh-CN/release-updates.md)。
 
 ## 保留可用安装
 
