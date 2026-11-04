@@ -5,7 +5,8 @@
 - 在两份 Compose 配置中增加可选的 Cloudflare Tunnel cloudflared Sidecar profile。隧道 Token 从宿主机文件只读挂载，Gate Core 不接触 Docker Socket 或隧道密钥。新增 Compose 与 Unraid 配置及安全说明。
 - 在“系统设置 → 版本更新”增加经过认证的 GitHub 最新 Release 检查，展示当前/最新版本比较及发行说明。
 - 更新检查器可固定使用已有的、启用中的 HTTP/HTTPS 代理配置版本。此设置只影响 GitHub Release API 请求；直连模式明确忽略进程代理环境变量。代理凭据继续加密保存并脱敏，配置变更和检查行为均写入审计。
-- 增加独立 SQLite 迁移和带版本比较的更新设置保存。不会自动替换容器，实际安装仍由部署环境执行，以保持 Core 权限边界。
+- 增加独立 SQLite 迁移和带版本比较的更新设置保存。Docker 与 Unraid 镜像由宿主升级。
+- 为 Linux、macOS 和 Windows 原生包增加更新启动器，核验制品大小、摘要和构建来源后切换，下次启动生效，保留上一版程序供回退。
 - 增加代理选择、不支持/禁用代理、设置版本冲突和 Release 版本比较的定向回归测试。
 
 ## 0.5.10

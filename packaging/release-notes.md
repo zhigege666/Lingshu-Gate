@@ -2,58 +2,22 @@
 
 ## English
 
-0.5.11 adds an optional Cloudflare Tunnel sidecar deployment and authenticated GitHub release discovery in the Console.
+0.5.11 adds Cloudflare Tunnel deployment, per-route GitHub release checks and verified updates for native installations.
 
-### Changes
+- Open **System settings → Cloudflare Tunnel** for the tunnel setup and host commands. The optional Compose profile runs cloudflared as a separate container. Only that container receives the tunnel token file. Configure the private origin and access rules in Cloudflare.
+- **System settings → Updates** shows the running version and the latest stable GitHub Release. Choose an enabled HTTP/HTTPS proxy profile to save its revision and check immediately. This setting applies only to the Console's release check. Configuration changes and successful checks are audited.
+- Native Linux, macOS and Windows installations can opt into updates on startup with `lingshu-gate native-update update-start`. The launcher uses the host GitHub CLI to check the release asset's SHA-256 and workflow provenance before activating it. The `update`, `start` and `rollback` actions also work individually. Container image upgrades stay with the deployment platform.
+- Startup applies the additive migration `0025_gate_release_updates`. Back up the database, configuration and credential keys together before upgrading. Rolling back the program after a database migration also requires restoring a matching backup.
 
-- Add an opt-in cloudflare-tunnel Compose profile. cloudflared uses a remotely managed tunnel token from a read-only host file and connects to the private core:8000 service. The sidecar is isolated from Gate Core and has no Docker socket, host networking or Linux capabilities.
-- Add System settings → Updates. The Console checks the latest stable GitHub Release when the tab opens and supports a manual check. It displays the running backend version, latest tag, release date, notes and release link.
-- Add an independent GitHub check proxy selector. It reuses a version-pinned, enabled HTTP/HTTPS proxy profile; credentials stay encrypted and masked. Direct mode ignores process proxy environment variables. The selection does not affect other Gate network traffic.
-- Add an additive SQLite migration and audit events for update proxy changes and checks.
-
-### Upgrade and compatibility
-
-The update checker is available after normal startup applies migration 0025_gate_release_updates. Existing network profiles and credentials are reused without migration or rewriting. Cloudflare Tunnel is opt-in and does not change existing port publishing or proxy defaults.
-
-### Security and installation boundary
-
-Gate Core remains unprivileged and disconnected from Docker Engine sockets. The Cloudflare token is mounted only into the separate cloudflared sidecar. Configure Cloudflare Access in addition to Gate authentication. Anyone holding a tunnel token can run that tunnel; protect and rotate it as a secret.
-
-This release discovers updates but does not automatically replace the running container or native package. Apply the release using the deployment environment, then verify /readyz and the running version. This is intentional: a self-updater must not weaken the Core privilege boundary.
-
-### Validation and known limits
-
-The focused release-update regression tests cover proxy profile pinning, disabled and unsupported profiles, settings compare-and-swap, and newer release comparison. Full backend tests, frontend checks/build, Compose runtime validation and formal release asset verification must pass in the release pipeline before publication is considered complete.
-
-The release checker currently supports HTTP and HTTPS proxy profiles, not SOCKS. Cloudflare Tunnel sidecar status is observed in the cloudflared logs and Cloudflare dashboard; Gate Core does not introspect the sidecar. Production deployments should pin the cloudflared image to a reviewed version or digest.
-
-See [Cloudflare Tunnel](https://github.com/zhigege666/Lingshu-Gate/blob/v0.5.11/docs/cloudflare-tunnel.md), [release update checks](https://github.com/zhigege666/Lingshu-Gate/blob/v0.5.11/docs/release-updates.md), [changes](https://github.com/zhigege666/Lingshu-Gate/blob/v0.5.11/CHANGELOG.md) and [release verification](https://github.com/zhigege666/Lingshu-Gate/blob/v0.5.11/docs/releases.md).
+[Cloudflare Tunnel](https://github.com/zhigege666/Lingshu-Gate/blob/v0.5.11/docs/cloudflare-tunnel.md) · [Check and install updates](https://github.com/zhigege666/Lingshu-Gate/blob/v0.5.11/docs/release-updates.md) · [Release verification](https://github.com/zhigege666/Lingshu-Gate/blob/v0.5.11/docs/releases.md)
 
 ## 简体中文
 
-0.5.11 增加可选的 Cloudflare Tunnel Sidecar 部署方式，以及控制台内经过认证的 GitHub 版本发现功能。
+0.5.11 新增 Cloudflare Tunnel 部署入口、可单独指定代理的 GitHub 版本检查和原生包自动更新。
 
-### 变更
+- 打开 **系统设置 → Cloudflare Tunnel** 可查看安装与宿主机操作命令。可选 Compose profile 使用独立容器运行 cloudflared，仅该容器挂载隧道 Token 文件。在 Cloudflare 配置内网源站和访问规则。
+- **系统设置 → 版本更新** 展示运行版本和最新的正式 GitHub Release。选择已启用的 HTTP/HTTPS 代理后可以一次保存并检查，固定所选代理修订。该配置只作用于控制台的版本检查。设置变更和成功检查会记录审计事件。
+- Linux、macOS 和 Windows 原生包可用 `lingshu-gate native-update update-start` 开启启动时自动更新。启动器使用宿主 GitHub CLI 核验制品的 SHA-256 和构建来源，再切换版本。也可单独执行 `update`、`start` 和 `rollback`。容器镜像由部署平台升级。
+- 启动时应用增量迁移 `0025_gate_release_updates`。升级前请一起备份数据库、配置和凭据密钥。数据库迁移后如需退回旧程序，还需恢复对应备份。
 
-- 增加可选的 cloudflare-tunnel Compose profile。cloudflared 从宿主机只读文件读取远程管理隧道 Token，并连接私有网络中的 core:8000。Sidecar 与 Gate Core 隔离，不挂载 Docker Socket、不使用 host 网络、不申请 Linux capabilities。
-- 增加“系统设置 → 版本更新”。进入页面时自动检查最新正式 GitHub Release，也支持手动检查。展示运行中的后端版本、最新标签、发布日期、更新说明和发行链接。
-- 增加独立的 GitHub 检查代理选择器。复用固定版本且已启用的 HTTP/HTTPS 代理配置；凭据继续加密保存并脱敏。直连模式忽略进程代理环境变量。此选择不影响 Gate 其他网络流量。
-- 增加独立 SQLite 迁移，并审计更新代理配置变更和检查行为。
-
-### 升级与兼容
-
-正常启动应用迁移 0025_gate_release_updates 后即可使用更新检查。复用已有网络配置和凭据，不迁移或重写原有记录。Cloudflare Tunnel 默认关闭，不改变现有端口发布和代理默认值。
-
-### 安全与安装边界
-
-Gate Core 继续以非特权方式运行，不连接 Docker Engine Socket。Cloudflare Token 只挂载到独立的 cloudflared Sidecar。除 Gate 自身认证外，还应配置 Cloudflare Access。持有隧道 Token 的人可以运行该隧道，必须按密钥保护并在泄露时轮换。
-
-本版本可以发现新版本，但不会自动替换运行中的容器或原生程序。请由部署环境应用发行版本，然后检查 /readyz 和实际运行版本。这是有意保留的安全边界，不能通过削弱 Core 权限实现自更新。
-
-### 验证与已知限制
-
-定向版本更新回归测试覆盖代理版本固定、禁用及不支持的代理、设置 CAS 和新版本比较。正式发布仍需由发行流水线完成后端全集测试、前端检查与构建、Compose 运行时校验以及全部正式发行资产验证，完成前不能认定发布成功。
-
-当前版本检查器支持 HTTP/HTTPS 代理配置，不支持 SOCKS。Cloudflare Tunnel Sidecar 状态通过 cloudflared 日志和 Cloudflare 控制台查看；Gate Core 不读取 Sidecar 内部状态。生产部署应将 cloudflared 镜像固定到经过审核的版本或 digest。
-
-参见 [Cloudflare Tunnel](https://github.com/zhigege666/Lingshu-Gate/blob/v0.5.11/docs/zh-CN/cloudflare-tunnel.md)、[版本更新检查](https://github.com/zhigege666/Lingshu-Gate/blob/v0.5.11/docs/zh-CN/release-updates.md)、[更新记录](https://github.com/zhigege666/Lingshu-Gate/blob/v0.5.11/CHANGELOG.zh-CN.md)和[发行验证](https://github.com/zhigege666/Lingshu-Gate/blob/v0.5.11/docs/zh-CN/releases.md)。
+[Cloudflare Tunnel](https://github.com/zhigege666/Lingshu-Gate/blob/v0.5.11/docs/zh-CN/cloudflare-tunnel.md) · [检查与安装更新](https://github.com/zhigege666/Lingshu-Gate/blob/v0.5.11/docs/zh-CN/release-updates.md) · [发行校验](https://github.com/zhigege666/Lingshu-Gate/blob/v0.5.11/docs/zh-CN/releases.md)

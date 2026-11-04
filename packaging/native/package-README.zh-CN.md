@@ -56,6 +56,10 @@ Windows：
 
 demo 只修改自身的内存便签。其终端 Ctrl+C 会停止 demo 并清空便签，Gate 是另一个独立进程。在 Gate 的终端 Ctrl+C 停止 Gate，数据与配置会保留。
 
+## 启动时自动更新
+
+在宿主配置好 GitHub CLI 后，以 `./lingshu-gate native-update update-start` 启动。Windows 使用 `.\lingshu-gate.exe native-update update-start`。后续继续使用此启动器。参见[更新、定时执行与回退](../../docs/zh-CN/release-updates.md)。
+
 ## 保留可用安装
 
 每个数据库只运行一个 Gate。升级前一致备份数据、配置和凭据密钥，并保留可用于回退的旧版本匹配备份。不要把新版本直接覆盖到正在使用的数据目录。原生安装能够执行可信本地项目和 stdio 工具，应使用权限适当受限的用户运行。

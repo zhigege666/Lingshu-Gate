@@ -65,13 +65,15 @@ uv run lingshu-gate
 
 核对成功审计、写入拒绝且计数不变、错误修订拒绝、demo 停止/恢复和调用者撤销。Gate 启动、工具发现、分类确认、发布分别进行；访问仍须同时满足资源权限和 token scope。
 
-## 0.5.11 — Cloudflare Tunnel 与 GitHub 版本检查
+## 0.5.11 — Cloudflare Tunnel 与原生包自动更新
 
 - 为 Compose 和 Unraid 部署增加可选的 Cloudflare Tunnel Sidecar。Token 从受保护的宿主机文件挂载，Gate Core 不接触 Docker Socket。
 - 在系统设置中增加经过认证的 GitHub 最新 Release 检查，展示更新说明并比较当前/最新版本。
 - 更新检查可使用已有的固定版本 HTTP/HTTPS 代理配置，不改变 Gate 其他网络流量。
 
-Gate Core 继续保持原有权限边界。本版本负责发现更新，实际安装仍由部署环境执行。参见 [Cloudflare Tunnel](docs/zh-CN/cloudflare-tunnel.md)、[版本更新检查](docs/zh-CN/release-updates.md)、[更新记录](CHANGELOG.zh-CN.md)和[双语发行说明](packaging/release-notes.md)。
+- 原生安装可用 `lingshu-gate native-update update-start` 启动。宿主 GitHub CLI 校验正式制品的构建来源后，启动器切换到新版。
+
+参见 [Cloudflare Tunnel](docs/zh-CN/cloudflare-tunnel.md)、[版本更新检查](docs/zh-CN/release-updates.md)、[更新记录](CHANGELOG.zh-CN.md)和[双语发行说明](packaging/release-notes.md)。
 
 ## 0.5.10 — SQLite 主库文件缺失时的就绪检查
 

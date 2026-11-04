@@ -5,7 +5,8 @@
 - Add an optional Cloudflare Tunnel cloudflared sidecar profile to both Compose manifests. The tunnel token is mounted from a host file; Gate Core receives no Docker socket or tunnel secret. Add paired setup and security guidance for Compose and Unraid.
 - Add authenticated GitHub latest-release checks in System settings → Updates, with current/latest version comparison and release notes.
 - Allow the update checker to pin an existing enabled HTTP/HTTPS proxy profile revision. The setting affects only the GitHub Release API request; direct mode explicitly ignores process proxy environment variables. Proxy credentials remain encrypted and masked; changes and checks are audited.
-- Add a dedicated SQLite migration and compare-and-swap update settings. No automatic container replacement is performed: installation remains with the deployment environment to preserve the Core privilege boundary.
+- Add a dedicated SQLite migration and compare-and-swap update settings. Docker and Unraid image upgrades remain host-managed.
+- Add a native update launcher for Linux, macOS and Windows. It verifies the release asset size, digest and provenance before selecting it for the next start. The previous binary remains available for rollback.
 - Add focused regression coverage for proxy selection, unsupported/disabled profiles, settings revision conflicts and release version comparison.
 
 ## 0.5.10

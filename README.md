@@ -65,13 +65,15 @@ The [included demo walkthrough](docs/first-call.md) needs no external service ac
 
 Check the successful audit, deny a write with an unchanged counter, reject an invalid revision, stop/restart the demo and revoke the caller. Gate startup, tool discovery, classification confirmation and publication are separate steps; access still requires both resource grants and token scope.
 
-## 0.5.11 — Cloudflare Tunnel and GitHub release checks
+## 0.5.11 — Cloudflare Tunnel and verified native updates
 
 - Add an opt-in Cloudflare Tunnel sidecar for Compose and Unraid deployments. The token is mounted from a protected host file; Gate Core does not receive Docker Socket access.
 - Add authenticated GitHub latest-release checks in System settings, including release notes and current/latest version comparison.
 - Allow the update checker to use an existing, version-pinned HTTP/HTTPS proxy profile without changing other Gate network traffic.
 
-Gate Core retains its existing privilege boundary. This release discovers updates; installation remains with the deployment environment. See [Cloudflare Tunnel](docs/cloudflare-tunnel.md), [release update checks](docs/release-updates.md), the [changelog](CHANGELOG.md) and the [bilingual release notes](packaging/release-notes.md).
+- Start a native installation with `lingshu-gate native-update update-start` to verify and activate stable updates through the host GitHub CLI.
+
+See [Cloudflare Tunnel](docs/cloudflare-tunnel.md), [release update checks](docs/release-updates.md), the [changelog](CHANGELOG.md) and the [bilingual release notes](packaging/release-notes.md).
 
 ## 0.5.10 — SQLite readiness when the database file is missing
 
