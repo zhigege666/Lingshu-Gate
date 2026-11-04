@@ -57,3 +57,6 @@ scripts/*
 scripts/release/*
 !scripts/release/stage_installed_python_licenses.py
 !scripts/release/stage_npm_licenses.mjs
+
+# Local deployment secrets
+secrets/

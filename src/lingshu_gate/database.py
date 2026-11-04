@@ -60,6 +60,9 @@ from lingshu_gate.persistence.argument_policy_migration import ARGUMENT_POLICY_M
 from lingshu_gate.persistence.business_credentials_migration import (
     BUSINESS_CREDENTIALS_MIGRATION_ID, apply_business_credentials_migration,
 )
+from lingshu_gate.persistence.release_updates_migration import (
+    RELEASE_UPDATES_MIGRATION_ID, apply_release_updates_migration,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -140,7 +143,8 @@ class SQLiteDatabase:
              Migration(AUTHORIZATION_DISCOVERY_MIGRATION_ID, apply_authorization_discovery_migration),
              Migration(TOOL_PREFERENCES_MIGRATION_ID, apply_tool_preferences_migration),
              Migration(ARGUMENT_POLICY_MIGRATION_ID, apply_argument_policy_migration),
-             Migration(BUSINESS_CREDENTIALS_MIGRATION_ID, apply_business_credentials_migration)),
+             Migration(BUSINESS_CREDENTIALS_MIGRATION_ID, apply_business_credentials_migration),
+             Migration(RELEASE_UPDATES_MIGRATION_ID, apply_release_updates_migration)),
         ).run()
 
     def _apply_baseline_migration(self, connection: sqlite3.Connection) -> None:
