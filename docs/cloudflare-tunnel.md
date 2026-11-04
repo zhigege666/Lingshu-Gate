@@ -23,7 +23,7 @@ Lingshu Gate supports Cloudflare Tunnel as an optional, separately managed `clou
 
 5. Check `docker compose logs --tail=100 cloudflared` and the Cloudflare dashboard for a Healthy connector.
 
-The Compose profile does not start the tunnel unless explicitly selected. The token is mounted as a read-only file and is not placed in Compose environment variables or command arguments. `cloudflare/cloudflared:latest` is the default image reference; production operators should set `LINGSHU_GATE_CLOUDFLARED_IMAGE` to a reviewed version or digest.
+The Compose profile does not start the tunnel unless explicitly selected. The token-file option requires cloudflared 2025.4.0 or later; the pinned image version meets this requirement. The token is mounted as a read-only file and is not placed in Compose environment variables or command arguments. `cloudflare/cloudflared:2026.10.7` is the default image reference; operators can set `LINGSHU_GATE_CLOUDFLARED_IMAGE` to a reviewed digest when they require immutable image identity.
 
 ## Security and operation
 
@@ -33,3 +33,9 @@ The Compose profile does not start the tunnel unless explicitly selected. The to
 - The sidecar has no Docker socket, host networking, Linux capabilities, or writeable root filesystem.
 - Tunnel health is managed by the cloudflared process and Cloudflare connector status. Gate Core does not claim to control or introspect the sidecar.
 - This setup supports Docker Compose deployments. Unraid users can create a separate `cloudflare/cloudflared` container on the same user-defined Docker network, mount the token file read-only, and use the same command and internal origin URL.
+
+## Official references
+
+- [cloudflared 2026.10.7 release](https://github.com/cloudflare/cloudflared/releases/tag/2026.10.7)
+- [Tunnel run parameters and token-file requirement](https://developers.cloudflare.com/tunnel/reference/run-parameters/)
+- [Official cloudflared container and non-root user](https://github.com/cloudflare/cloudflared/blob/master/Dockerfile)

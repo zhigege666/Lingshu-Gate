@@ -71,7 +71,7 @@ services:
       - edge
 
   cloudflared:
-    image: ${LINGSHU_GATE_CLOUDFLARED_IMAGE:-cloudflare/cloudflared:latest}
+    image: ${LINGSHU_GATE_CLOUDFLARED_IMAGE:-cloudflare/cloudflared:2026.10.7}
     profiles: ["cloudflare-tunnel"]
     command: ["tunnel", "--no-autoupdate", "run", "--token-file", "/run/secrets/cloudflare-tunnel-token"]
     restart: unless-stopped

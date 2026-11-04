@@ -25,7 +25,7 @@ This release discovers updates but does not automatically replace the running co
 
 The focused release-update regression tests cover proxy profile pinning, disabled and unsupported profiles, settings compare-and-swap, and newer release comparison. Full backend tests, frontend checks/build, Compose runtime validation and formal release asset verification must pass in the release pipeline before publication is considered complete.
 
-The release checker currently supports HTTP and HTTPS proxy profiles, not SOCKS. Cloudflare Tunnel sidecar status is observed in the cloudflared logs and Cloudflare dashboard; Gate Core does not introspect the sidecar. Production deployments should pin the cloudflared image to a reviewed version or digest.
+The release checker currently supports HTTP and HTTPS proxy profiles, not SOCKS. Cloudflare Tunnel sidecar status is observed in the cloudflared logs and Cloudflare dashboard; Gate Core does not introspect the sidecar. Production deployments should the Compose default pins cloudflared 2026.10.7; operators may override it with a reviewed digest.
 
 See [Cloudflare Tunnel](https://github.com/zhigege666/Lingshu-Gate/blob/v0.5.11/docs/cloudflare-tunnel.md), [release update checks](https://github.com/zhigege666/Lingshu-Gate/blob/v0.5.11/docs/release-updates.md), [changes](https://github.com/zhigege666/Lingshu-Gate/blob/v0.5.11/CHANGELOG.md) and [release verification](https://github.com/zhigege666/Lingshu-Gate/blob/v0.5.11/docs/releases.md).
 
@@ -54,6 +54,6 @@ Gate Core 继续以非特权方式运行，不连接 Docker Engine Socket。Clou
 
 定向版本更新回归测试覆盖代理版本固定、禁用及不支持的代理、设置 CAS 和新版本比较。正式发布仍需由发行流水线完成后端全集测试、前端检查与构建、Compose 运行时校验以及全部正式发行资产验证，完成前不能认定发布成功。
 
-当前版本检查器支持 HTTP/HTTPS 代理配置，不支持 SOCKS。Cloudflare Tunnel Sidecar 状态通过 cloudflared 日志和 Cloudflare 控制台查看；Gate Core 不读取 Sidecar 内部状态。生产部署应将 cloudflared 镜像固定到经过审核的版本或 digest。
+当前版本检查器支持 HTTP/HTTPS 代理配置，不支持 SOCKS。Cloudflare Tunnel Sidecar 状态通过 cloudflared 日志和 Cloudflare 控制台查看；Gate Core 不读取 Sidecar 内部状态。Compose 默认固定 cloudflared 2026.10.7；运维者也可覆盖为经过审核的 digest。
 
 参见 [Cloudflare Tunnel](https://github.com/zhigege666/Lingshu-Gate/blob/v0.5.11/docs/zh-CN/cloudflare-tunnel.md)、[版本更新检查](https://github.com/zhigege666/Lingshu-Gate/blob/v0.5.11/docs/zh-CN/release-updates.md)、[更新记录](https://github.com/zhigege666/Lingshu-Gate/blob/v0.5.11/CHANGELOG.zh-CN.md)和[发行验证](https://github.com/zhigege666/Lingshu-Gate/blob/v0.5.11/docs/zh-CN/releases.md)。
