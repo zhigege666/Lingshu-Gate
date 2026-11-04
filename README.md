@@ -67,11 +67,17 @@ Check the successful audit, deny a write with an unchanged counter, reject an in
 
 ## 0.5.11 — Cloudflare Tunnel and GitHub release checks
 
+- Add an opt-in Cloudflare Tunnel sidecar for Compose and Unraid deployments. The token is mounted from a protected host file; Gate Core does not receive Docker Socket access.
+- Add authenticated GitHub latest-release checks in System settings, including release notes and current/latest version comparison.
+- Allow the update checker to use an existing, version-pinned HTTP/HTTPS proxy profile without changing other Gate network traffic.
+
+Gate Core retains its existing privilege boundary. This release discovers updates; installation remains with the deployment environment. See [Cloudflare Tunnel](docs/cloudflare-tunnel.md), [release update checks](docs/release-updates.md), the [changelog](CHANGELOG.md) and the [bilingual release notes](packaging/release-notes.md).
+
+## 0.5.10 — SQLite readiness when the database file is missing
+
 If the main database file disappears after Gate starts, `GET /readyz` returns HTTP 503 without creating a replacement. The database check opens only an existing file and reads the baseline migration on one read-only connection. Normal startup, migrations and business writes keep their existing behavior.
 
-The check does not restore lost data or test whether the next write will succeed. See [operator guidance](docs/operations.md#sqlite-database-readiness), the [changelog](CHANGELOG.md) and the [bilingual release notes](packaging/release-notes.md).
-
-Optional Cloudflare Tunnel deployment through an isolated sidecar; authenticated GitHub release checks with an independently selected existing HTTP/HTTPS proxy profile. Gate Core keeps its Docker Engine socket boundary. Release installation remains controlled by the deployment environment.
+The check does not restore lost data or test whether the next write will succeed. See [operator guidance](docs/operations.md#sqlite-database-readiness).
 
 ## Architecture overview
 

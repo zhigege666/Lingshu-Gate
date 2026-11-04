@@ -67,11 +67,17 @@ uv run lingshu-gate
 
 ## 0.5.11 — Cloudflare Tunnel 与 GitHub 版本检查
 
+- 为 Compose 和 Unraid 部署增加可选的 Cloudflare Tunnel Sidecar。Token 从受保护的宿主机文件挂载，Gate Core 不接触 Docker Socket。
+- 在系统设置中增加经过认证的 GitHub 最新 Release 检查，展示更新说明并比较当前/最新版本。
+- 更新检查可使用已有的固定版本 HTTP/HTTPS 代理配置，不改变 Gate 其他网络流量。
+
+Gate Core 继续保持原有权限边界。本版本负责发现更新，实际安装仍由部署环境执行。参见 [Cloudflare Tunnel](docs/zh-CN/cloudflare-tunnel.md)、[版本更新检查](docs/zh-CN/release-updates.md)、[更新记录](CHANGELOG.zh-CN.md)和[双语发行说明](packaging/release-notes.md)。
+
+## 0.5.10 — SQLite 主库文件缺失时的就绪检查
+
 如果 Gate 启动后主库文件消失，`GET /readyz` 返回 HTTP 503，不会创建替代文件。数据库检查只打开已有文件，用一个只读连接读取基线迁移记录。正常启动、迁移和业务写入沿用原有行为。
 
-就绪检查不会恢复丢失的数据，也不能证明下一次写入一定成功。参见[运维说明](docs/zh-CN/operations.md#sqlite-数据库就绪检查)、[变更记录](CHANGELOG.zh-CN.md)和[双语发行说明](packaging/release-notes.md)。
-
-支持通过独立 Sidecar 部署 Cloudflare Tunnel；支持经过认证的 GitHub Release 检查，并可单独选择已有 HTTP/HTTPS 代理配置。Gate Core 继续保持不接触 Docker Engine Socket 的安全边界。发行版本的实际安装仍由部署环境负责。
+就绪检查不会恢复丢失的数据，也不能证明下一次写入一定成功。参见[运维说明](docs/zh-CN/operations.md#sqlite-数据库就绪检查)。
 
 ## 架构总览
 
