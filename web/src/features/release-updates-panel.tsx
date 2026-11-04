@@ -47,7 +47,7 @@ export function ReleaseUpdatesPanel({ t }: { t: TFunction }) {
   }
 
   return <div className="flex flex-col gap-3" aria-busy={loading || checking || saving}>
-    {error && <Alert type="error" showIcon title={error} />}
+    {error && <Alert type="error" showIcon message={error} />}
     <Card title={copy("GitHub 版本检查", "GitHub release checks")} extra={settings && <Tag>{`v${settings.current_version}`}</Tag>}>
       <div className="flex flex-col gap-3">
         <p className="text-sm text-muted-foreground">{copy("检查 zhigege666/Lingshu-Gate 的最新正式 Release。检查请求可单独指定代理，不会改变 Git、npm 或其他服务的网络策略。", "Check the latest stable release of zhigege666/Lingshu-Gate. This proxy applies only to release checks and does not change Git, npm or other network policies.")}</p>
@@ -76,7 +76,7 @@ export function ReleaseUpdatesPanel({ t }: { t: TFunction }) {
           <Typography.Text type="secondary">{copy("当前版本", "Current")}: v{result.current_version} · {copy("检查路径", "Route")}: {result.proxy === "configured" ? copy("代理", "Proxy") : copy("直连", "Direct")}</Typography.Text>
           {result.release_url && <a href={result.release_url} target="_blank" rel="noreferrer">{copy("查看 GitHub Release", "View GitHub release")}</a>}
           {result.release_notes && <pre className="max-h-80 overflow-auto whitespace-pre-wrap break-words rounded bg-muted p-3 text-xs">{result.release_notes}</pre>}
-          {result.update_available && <Alert type="info" showIcon title={copy("更新安装由部署环境执行", "Installation is handled by the deployment environment")} description={copy("当前版本提供检查与更新说明；不会让 Gate Core 获取 Docker Socket 权限。请按对应部署方式更新镜像或程序。", "This release provides update discovery and release notes. Gate Core does not receive Docker Socket access; update the image or binary using your deployment environment.")} />}
+          {result.update_available && <Alert type="info" showIcon message={copy("更新安装由部署环境执行", "Installation is handled by the deployment environment")} description={copy("当前版本提供检查与更新说明；不会让 Gate Core 获取 Docker Socket 权限。请按对应部署方式更新镜像或程序。", "This release provides update discovery and release notes. Gate Core does not receive Docker Socket access; update the image or binary using your deployment environment.")} />}
         </div>}
       </div>
     </Card>
