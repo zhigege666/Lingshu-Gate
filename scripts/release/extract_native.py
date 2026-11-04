@@ -12,7 +12,6 @@ import zipfile
 from pathlib import Path, PurePosixPath
 from typing import IO
 
-from scripts.release.common import REPOSITORY_ROOT, read_version, reset_directory
 
 
 def _safe_member_path(raw_name: str, expected_root: str) -> PurePosixPath:
@@ -311,8 +310,7 @@ def _extract_zip(archive: Path, output_dir: Path, expected_root: str) -> None:
                 _copy_member(stream, destination, member.file_size)
 
 
-def extract_archive(target: str, archive: Path, output_dir: Path, *, allowed_parent: Path) -> Path:
-    version = read_version()
+def _expected_root(target: str, version: str, archive: Path) -> str:
     expected_root = f"lingshu-gate-v{version}-{target}"
     expected_archive = f"{expected_root}.zip" if target.startswith("windows-") else f"{expected_root}.tar.gz"
     if archive.name != expected_archive:
@@ -320,8 +318,10 @@ def extract_archive(target: str, archive: Path, output_dir: Path, *, allowed_par
     if not archive.is_file() or archive.is_symlink():
         raise RuntimeError(f"Native archive is missing or unsafe: {archive}")
 
-    allowed_parent.mkdir(parents=True, exist_ok=True)
-    reset_directory(output_dir, allowed_parent=allowed_parent)
+    return expected_root
+
+
+def _extract_bundle(target: str, expected_root: str, archive: Path, output_dir: Path) -> Path:
     if target.startswith("windows-"):
         _extract_zip(archive, output_dir, expected_root)
     else:
@@ -347,7 +347,25 @@ def extract_archive(target: str, archive: Path, output_dir: Path, *, allowed_par
     return bundle_dir
 
 
+def extract_bundle(target: str, version: str, archive: Path, output_dir: Path) -> Path:
+    """Extract an authenticated release into a new private staging directory."""
+    root = _expected_root(target, version, archive)
+    output_dir.mkdir(mode=0o700, exist_ok=False)
+    return _extract_bundle(target, root, archive, output_dir)
+
+
+def extract_archive(target: str, archive: Path, output_dir: Path, *, allowed_parent: Path) -> Path:
+    from scripts.release.common import read_version, reset_directory
+
+    root = _expected_root(target, read_version(), archive)
+    allowed_parent.mkdir(parents=True, exist_ok=True)
+    reset_directory(output_dir, allowed_parent=allowed_parent)
+    return _extract_bundle(target, root, archive, output_dir)
+
+
 def main() -> None:
+    from scripts.release.common import REPOSITORY_ROOT
+
     parser = argparse.ArgumentParser()
     parser.add_argument("--target", required=True)
     parser.add_argument("--archive", type=Path, required=True)

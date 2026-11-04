@@ -21,7 +21,7 @@ hiddenimports.append("opentelemetry.context.contextvars_context")
 
 analysis = Analysis(
     [str(repository_root / "packaging" / "pyinstaller_entry.py")],
-    pathex=[str(source_root)],
+    pathex=[str(source_root), str(repository_root / "packaging" / "native"), str(repository_root / "scripts" / "release")],
     binaries=[],
     datas=datas,
     hiddenimports=hiddenimports,
