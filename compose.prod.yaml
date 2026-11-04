@@ -71,9 +71,9 @@ services:
       - edge
 
   cloudflared:
-    image: ${LINGSHU_GATE_CLOUDFLARED_IMAGE:-cloudflare/cloudflared:latest}
+    image: ${LINGSHU_GATE_CLOUDFLARED_IMAGE:-cloudflare/cloudflared:2026.10.7}
     profiles: ["cloudflare-tunnel"]
-    command: ["tunnel", "--no-autoupdate", "run", "--token-file", "/run/secrets/cloudflare-tunnel-token"]
+    command: ["tunnel", "run", "--token-file", "/run/secrets/cloudflare-tunnel-token"]
     restart: unless-stopped
     read_only: true
     user: "65532:65532"
@@ -82,6 +82,8 @@ services:
         source: ${LINGSHU_GATE_CLOUDFLARE_TOKEN_FILE:-./secrets/cloudflare-tunnel-token}
         target: /run/secrets/cloudflare-tunnel-token
         read_only: true
+        bind:
+          create_host_path: false
     depends_on:
       core:
         condition: service_healthy
