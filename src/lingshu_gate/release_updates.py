@@ -2,10 +2,14 @@
 from __future__ import annotations
 
 import json
-import urllib.error
-import urllib.request
-from typing import Any
 import re
+import ssl
+import time
+from typing import Any
+
+import httpx2
+
+from lingshu_gate.credential_store import CredentialRevisionConflict
 
 from lingshu_gate.database import SQLiteDatabase
 from lingshu_gate.network_settings import NetworkSettingsStore
@@ -97,42 +101,55 @@ class ReleaseUpdateService:
         })
         return self.settings()
 
-    def check(self, actor_id: str | None = None) -> dict[str, Any]:
-        state = self.settings()
-        selected = state["proxy_profile"]
-        handlers: list[Any] = [urllib.request.ProxyHandler({})]
-        if selected:
-            row = self.network._version(selected["id"], selected["version"])
-            current = self.network._version(selected["id"], None)
-            if not row["enabled"] or not current["enabled"]:
-                raise ToolExecutionError("update_proxy_disabled", "Selected proxy profile is disabled", next_action="Enable the proxy profile or select direct access.")
-            if self.network._credential_revision(row["credential_ref"]) != row["credential_revision"]:
-                raise ToolExecutionError("update_proxy_credential_changed", "Proxy credential revision changed", next_action="Save a new proxy profile revision and select it again.")
-            endpoint = self.network.endpoints.resolve_value(str(row["endpoint_ref"]))
-            if not endpoint:
-                raise ToolExecutionError("update_proxy_unavailable", "Selected proxy endpoint is unavailable", next_action="Review the selected network profile.")
-            if row["scheme"] not in {"http", "https"}:
-                raise ToolExecutionError("update_proxy_unsupported", "Selected proxy protocol is unsupported for GitHub release checks", next_action="Use an HTTP or HTTPS proxy profile.")
-            credential = self.network.credentials.resolve_value(row["credential_ref"])
-            handlers[0] = urllib.request.ProxyHandler({"http": endpoint, "https": endpoint})
-            if credential:
-                username, separator, password = credential.partition(":")
-                if not separator or not username or not password:
-                    raise ToolExecutionError("update_proxy_credential_invalid", "Proxy credential format is invalid", next_action="Use username:password in the referenced credential.")
-                manager = urllib.request.HTTPPasswordMgrWithDefaultRealm()
-                manager.add_password(None, endpoint, username, password)
-                handlers.append(urllib.request.ProxyBasicAuthHandler(manager))
-        opener = urllib.request.build_opener(*handlers)
-        request = urllib.request.Request(RELEASE_API, headers={
-            "Accept": "application/vnd.github+json",
-            "X-GitHub-Api-Version": "2022-11-28",
-            "User-Agent": "Lingshu-Gate-Update-Checker",
-        })
+    def _proxy(self) -> httpx2.Proxy | None:
+        selected = self.settings()["proxy_profile"]
+        if not selected:
+            return None
+        row = self.network._version(selected["id"], selected["version"])
+        current = self.network._version(selected["id"], None)
+        if not row["enabled"] or not current["enabled"]:
+            raise ToolExecutionError("update_proxy_disabled", "Selected proxy profile is disabled", next_action="Enable the proxy profile or select direct access.")
+        if row["scheme"] not in {"http", "https"}:
+            raise ToolExecutionError("update_proxy_unsupported", "Selected proxy protocol is unsupported for GitHub release checks", next_action="Use an HTTP or HTTPS proxy profile.")
         try:
-            with opener.open(request, timeout=12) as response:
-                raw = response.read(MAX_RELEASE_BYTES + 1)
-            if len(raw) > MAX_RELEASE_BYTES:
-                raise ToolExecutionError("update_response_too_large", "GitHub release response exceeded the size limit", next_action="Retry later.")
+            endpoint = self.network.endpoints.resolve_value(str(row["endpoint_ref"]))
+            credential = self.network.credentials.resolve_value(row["credential_ref"], expected_revision=row["credential_revision"])
+        except CredentialRevisionConflict:
+            raise ToolExecutionError("update_proxy_credential_changed", "Proxy credential revision changed", next_action="Save a new proxy profile revision and select it again.") from None
+        except (KeyError, RuntimeError):
+            raise ToolExecutionError("update_proxy_unavailable", "Selected proxy endpoint or credential is unavailable", next_action="Review the selected network profile.") from None
+        if not endpoint:
+            raise ToolExecutionError("update_proxy_unavailable", "Selected proxy endpoint is unavailable", next_action="Review the selected network profile.")
+        auth = None
+        if credential is not None:
+            username, separator, password = credential.partition(":")
+            if not separator or not username or not password:
+                raise ToolExecutionError("update_proxy_credential_invalid", "Proxy credential format is invalid", next_action="Use username:password in the referenced credential.")
+            auth = (username, password)
+        return httpx2.Proxy(endpoint, auth=auth, ssl_context=ssl.create_default_context() if row["scheme"] == "https" else None)
+
+    def check(self, actor_id: str | None = None) -> dict[str, Any]:
+        try:
+            proxy = self._proxy()
+            route = "configured" if proxy else "direct"
+            headers = {
+                "Accept": "application/vnd.github+json",
+                "Accept-Encoding": "identity",
+                "X-GitHub-Api-Version": "2022-11-28",
+                "User-Agent": "Lingshu-Gate-Update-Checker",
+            }
+            deadline = time.monotonic() + 12
+            with httpx2.Client(proxy=proxy, trust_env=False, follow_redirects=False, timeout=12,
+                               verify=ssl.create_default_context()) as client:
+                with client.stream("GET", RELEASE_API, headers=headers) as response:
+                    response.raise_for_status()
+                    raw = bytearray()
+                    for chunk in response.iter_raw():
+                        if time.monotonic() > deadline:
+                            raise TimeoutError
+                        if len(raw) + len(chunk) > MAX_RELEASE_BYTES:
+                            raise ToolExecutionError("update_response_too_large", "GitHub release response exceeded the size limit", next_action="Retry later.")
+                        raw.extend(chunk)
             payload = json.loads(raw)
             if not isinstance(payload, dict):
                 raise ValueError("invalid release payload")
@@ -143,10 +160,10 @@ class ReleaseUpdateService:
             is_newer = _is_newer(latest, self.current_version)
             self.audit.emit_event("gate.release_update.checked", source="system_settings", payload={
                 "actor_id": actor_id, "result": "update_available" if is_newer else "up_to_date",
-                "latest_version": latest, "proxy": "configured" if selected else "direct",
+                "latest_version": latest, "proxy": route,
             })
             release_url = payload.get("html_url")
-            if not isinstance(release_url, str) or not release_url.startswith("https://github.com/zhigege666/Lingshu-Gate/releases/tag/"):
+            if release_url != f"https://github.com/zhigege666/Lingshu-Gate/releases/tag/{tag}":
                 release_url = ""
             return {"current_version": self.current_version, "latest_version": latest,
                 "update_available": is_newer,
@@ -154,8 +171,8 @@ class ReleaseUpdateService:
                 "release_url": release_url[:500],
                 "published_at": str(payload.get("published_at") or "")[:40],
                 "release_notes": str(payload.get("body") or "")[:30000],
-                "proxy": "configured" if selected else "direct"}
+                "proxy": route}
         except ToolExecutionError:
             raise
-        except (urllib.error.URLError, TimeoutError, OSError, ValueError, KeyError, TypeError, json.JSONDecodeError):
+        except (httpx2.HTTPError, httpx2.InvalidURL, OSError, ValueError, RecursionError):
             raise ToolExecutionError("github_release_check_failed", "GitHub release check failed", next_action="Check network access, the selected proxy profile, and GitHub API availability; secrets are not included in diagnostics.") from None
