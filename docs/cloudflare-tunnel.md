@@ -20,6 +20,10 @@ Lingshu Gate supports Cloudflare Tunnel as an optional, separately managed `clou
 
 The default image is `cloudflare/cloudflared:2026.10.7`. Set `LINGSHU_GATE_CLOUDFLARED_IMAGE` to a reviewed digest to pin its identity. The tunnel token is mounted read-only in the tunnel container. After rotating it by replacing the host file, run `docker compose up -d --force-recreate --no-deps cloudflared` to remount the new file.
 
+## HTTPS origin and browser access
+
+Preserve the public hostname when forwarding to Core. Set `LINGSHU_GATE_TRUSTED_PROXY_IPS` to the sidecar address or the smallest dedicated network CIDR so Gate can recognize the external HTTPS scheme. For browser clients sending an Origin to `/mcp`, add the exact external origin to `LINGSHU_GATE_MCP_ALLOWED_ORIGINS`, for example `https://gate.example.com`. Apply these settings to Core and test sign-in and a same-origin settings change through the public hostname. See [reverse proxy configuration](configuration.md).
+
 ## Security and operation
 
 - Anyone holding a remotely managed tunnel token can run that tunnel. Treat it as a password; rotate it in Cloudflare after suspected exposure.

@@ -20,6 +20,10 @@ Lingshu Gate 支持通过独立的 `cloudflared` Sidecar 使用 Cloudflare Tunne
 
 默认镜像为 `cloudflare/cloudflared:2026.10.7`，可通过 `LINGSHU_GATE_CLOUDFLARED_IMAGE` 指定已审核的镜像摘要。Token 仅以只读文件挂载到隧道容器。使用编辑器原子替换文件完成轮换后，执行 `docker compose up -d --force-recreate --no-deps cloudflared` 重新挂载新文件。
 
+## 通过公网 HTTPS 域名访问
+
+转发给 Core 时保留公网域名。将 `LINGSHU_GATE_TRUSTED_PROXY_IPS` 设为隧道容器的地址或最小专用网段，使 Gate 能识别外部 HTTPS 协议。如果浏览器客户端向 `/mcp` 发送 Origin，在 `LINGSHU_GATE_MCP_ALLOWED_ORIGINS` 中加入精确的外部来源，例如 `https://gate.example.com`。将配置应用到 Core 后，从公网域名验证登录和同源设置保存。参见[反向代理配置](configuration.md)。
+
 ## 安全与运维
 
 - 远程管理隧道 Token 的持有者可以运行该隧道，必须按密码保护；怀疑泄露时应在 Cloudflare 中轮换。

@@ -6,6 +6,8 @@ Open **System settings → Updates** to check the latest stable release of `zhig
 
 Create an HTTP or HTTPS proxy profile under **System settings → Network and dependencies**. In **Updates**, choose the enabled profile and select **Save and check**. The check uses that profile revision. Select **Direct to GitHub** and save to return to direct access. Proxy credentials stay in Gate's encrypted credential store. Git imports, package registries and MCP requests keep their own network settings.
 
+Agents with the `system_settings.manage` permission can read the current revision with `GET /v1/system-settings/updates`, save `expected_revision`, `proxy_profile_id` and `proxy_profile_version` with `PUT` on that path, and check with `POST /v1/system-settings/updates/check`. For direct access, send null for both proxy fields.
+
 ## Enable native updates on startup
 
 Back up the database, configuration and credential keys together. Install GitHub CLI (`gh`) with `gh attestation verify` support and configure its GitHub access for the operating-system account that runs the launcher. The host's GitHub CLI uses its own proxy environment. The Console proxy only handles the version check made by Gate.

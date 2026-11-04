@@ -6,6 +6,8 @@
 
 在 **系统设置 → 网络与依赖** 建立 HTTP 或 HTTPS 代理配置，再到 **版本更新** 选择已启用的配置，点击 **保存并检查**。本次检查即使用所选配置的固定修订。选回 **直连 GitHub** 并保存即可恢复直连。代理凭据使用 Gate 的加密凭据库。Git 拉取、包仓库和 MCP 各自沿用已有网络设置。
 
+具有 `system_settings.manage` 权限的 Agent 可用 `GET /v1/system-settings/updates` 读取当前修订，再向同一路径 `PUT` 提交 `expected_revision`、`proxy_profile_id` 和 `proxy_profile_version`。直连时将两个代理字段置为 null。用 `POST /v1/system-settings/updates/check` 发起检查。
+
 ## 开启原生包启动时自动更新
 
 先一起备份数据库、配置和凭据密钥。宿主机需安装支持 `gh attestation verify` 的 GitHub CLI，并为实际运行服务的系统账号配置 GitHub 访问。宿主 `gh` 使用自己的代理环境，控制台所选代理用于 Gate 发起的版本检查。
