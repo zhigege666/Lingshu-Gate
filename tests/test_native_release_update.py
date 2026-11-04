@@ -57,28 +57,50 @@ class NativeReleaseUpdateTests(unittest.TestCase):
                 member.mode = 0o755
                 tar.addfile(member, io.BytesIO(data))
         data = self.archive.getvalue()
-        self.asset = {"name": self.name + ".tar.gz", "size": len(data),
+        self.asset = {"id": 100, "name": self.name + ".tar.gz", "size": len(data),
                       "digest": "sha256:" + hashlib.sha256(data).hexdigest()}
         self.tag = "v0.5.11"
         self.attested = True
         self.checks = []
+        self.records = [{"repository_id": 1351128499, "bundle": {"sigstore": "fixture"}}]
+        self.timestamps = [{"verified": True}]
+        self.bad_binary = False
 
-    def gh(self, *args):
-        if args[0] == "api":
-            return json.dumps({"tag_name": self.tag, "draft": False, "prerelease": False, "assets": [self.asset]})
-        if args[:2] == ("release", "download"):
-            (Path(args[-1]) / self.asset["name"]).write_bytes(self.archive.getvalue())
-            return ""
-        self.checks.append(args)
-        self.assertIn("refs/tags/v0.5.11", args)
-        self.assertIn("https://github.com/zhigege666/Lingshu-Gate/.github/workflows/release.yml@refs/tags/v0.5.11", args)
-        self.assertIn("--deny-self-hosted-runners", args)
-        if not self.attested:
-            raise subprocess.CalledProcessError(1, ["gh", "attestation", "verify"])
-        return ""
+    def response(self, path, *, binary=False):
+        if path == "releases/latest":
+            content = {"tag_name": self.tag, "draft": False, "prerelease": False, "assets": [self.asset]}
+        elif path == "releases/assets/100" and binary:
+            return io.BytesIO(self.archive.getvalue())
+        elif path == "attestations/" + self.asset["digest"] + "?per_page=100":
+            content = {"attestations": self.records}
+        elif path == "commits/v0.5.11":
+            content = {"sha": "a" * 40}
+        else:
+            self.fail(path)
+        return io.BytesIO(json.dumps(content).encode())
 
     def install(self):
-        with patch.object(updater, "github", self.gh):
+        run = subprocess.run
+
+        def invoke(args, **kwargs):
+            if args[0] != "gh":
+                if self.bad_binary:
+                    return subprocess.CompletedProcess(args, 0, "bad")
+                return run(args, **kwargs)
+            self.checks.append(args)
+            self.assertIn("refs/tags/v0.5.11", args)
+            self.assertIn("https://github.com/zhigege666/Lingshu-Gate/.github/workflows/release.yml@refs/tags/v0.5.11", args)
+            self.assertIn("--deny-self-hosted-runners", args)
+            self.assertEqual(args[args.index("--source-digest") + 1], "a" * 40)
+            self.assertEqual(args[args.index("--signer-digest") + 1], "a" * 40)
+            self.assertEqual(json.loads(Path(args[args.index("--bundle") + 1]).read_text()), self.records[0]["bundle"])
+            if not self.attested:
+                raise subprocess.CalledProcessError(1, args)
+            return subprocess.CompletedProcess(args, 0, json.dumps([{"verificationResult": {"verifiedTimestamps": self.timestamps}}]))
+
+        with patch.object(updater, "public_response", self.response), patch.object(
+            updater.shutil, "which", return_value="gh"
+        ), patch.object(updater.subprocess, "run", invoke):
             return updater.install(self.base, self.cache, self.state, self.target, self.original)
 
     @unittest.skipIf(os.name == "nt", "fixture binary is a POSIX executable")
@@ -104,9 +126,9 @@ class NativeReleaseUpdateTests(unittest.TestCase):
         self.assertEqual(list(self.cache.iterdir()), [])
 
     def test_failed_candidate_version_probe_keeps_original_and_no_marker(self):
-        with patch.object(updater.subprocess, "run", return_value=subprocess.CompletedProcess([], 0, "bad")):
-            with self.assertRaisesRegex(ValueError, "expected Gate version"):
-                self.install()
+        self.bad_binary = True
+        with self.assertRaisesRegex(ValueError, "expected Gate version"):
+            self.install()
         self.assertFalse((self.cache / "active.json").exists())
 
     def test_starts_selected_package_with_flags_and_original_data(self):
@@ -122,6 +144,21 @@ class NativeReleaseUpdateTests(unittest.TestCase):
                 program = str(self.base / "lingshu-gate")
                 launch.assert_called_once_with(program, [program, "--port", "16900"])
             self.assertEqual(os.environ["LINGSHU_GATE_DATA_DIR"], str(self.base / "data"))
+
+    def test_missing_timestamp_or_wrong_repository_is_rejected(self):
+        self.timestamps = []
+        with self.assertRaisesRegex(ValueError, "timestamp"):
+            self.install()
+        self.records[0]["repository_id"] = 0
+        with self.assertRaisesRegex(ValueError, "provenance bundle"):
+            self.install()
+        self.assertEqual(list(self.cache.iterdir()), [])
+
+    def test_redirect_to_untrusted_host_is_rejected_before_download(self):
+        policy = updater.PublicRedirect()
+        for url in ["http://api.github.com/path", "https://api.github.com.example.org", "https://127.0.0.1/"]:
+            with self.assertRaisesRegex(ValueError, "redirect"):
+                policy.redirect_request(None, None, 302, "", {}, url)
 
     def test_old_or_current_release_skips_download_and_downgrade(self):
         self.tag = "v0.5.9"

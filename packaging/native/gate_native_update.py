@@ -11,9 +11,11 @@ import shutil
 import subprocess
 import sys
 import tempfile
+import urllib.request
 from contextlib import contextmanager
 from pathlib import Path
 from typing import Any, Iterator
+from urllib.parse import urlsplit
 
 from extract_native import extract_bundle
 
@@ -35,17 +37,77 @@ def metadata(bundle: Path) -> tuple[str, str]:
     return info["version"], info["target"]
 
 
-def github(*args: str) -> str:
-    # Select the official host even when gh is configured for another installation.
-    # Resolve from PATH only. Windows executable search would otherwise also
-    # consider the current directory.
-    cli = shutil.which("gh", path=os.environ.get("PATH", ""))
+class PublicRedirect(urllib.request.HTTPRedirectHandler):
+    def redirect_request(self, req, fp, code, msg, headers, newurl):
+        target = urlsplit(newurl)
+        if (target.scheme != "https" or target.hostname not in {
+            "api.github.com", "release-assets.githubusercontent.com", "objects.githubusercontent.com"
+        } or target.username or target.password or target.port not in {None, 443}):
+            raise ValueError("Unexpected redirect from GitHub release API")
+        return super().redirect_request(req, fp, code, msg, headers, newurl)
+
+
+def public_response(path: str, *, binary: bool = False):
+    request = urllib.request.Request(
+        f"https://api.github.com/repos/{REPOSITORY}/{path}",
+        headers={"Accept": "application/octet-stream" if binary else "application/vnd.github+json",
+                 "User-Agent": "Lingshu-Gate-native-update", "X-GitHub-Api-Version": "2022-11-28"},
+    )
+    return urllib.request.build_opener(PublicRedirect()).open(request, timeout=60)
+
+
+def public_json(path: str) -> dict[str, Any]:
+    with public_response(path) as response:
+        raw = response.read(8 * 1024**2 + 1)
+    if len(raw) > 8 * 1024**2:
+        raise ValueError("GitHub API response exceeds size limit")
+    return json.loads(raw)
+
+
+def download_asset(asset: dict[str, Any], archive: Path) -> None:
+    if type(asset.get("id")) is not int or asset["id"] <= 0:
+        raise ValueError("Missing GitHub release asset ID")
+    digest = hashlib.sha256()
+    size = 0
+    with public_response(f"releases/assets/{asset['id']}", binary=True) as response, archive.open("xb") as output:
+        for chunk in iter(lambda: response.read(1024 * 1024), b""):
+            size += len(chunk)
+            if size > asset["size"]:
+                raise ValueError("Native asset exceeds its declared size")
+            digest.update(chunk)
+            output.write(chunk)
+    if size != asset["size"] or "sha256:" + digest.hexdigest() != asset["digest"]:
+        raise ValueError("Native asset digest or size mismatch")
+
+
+def verify_release(archive: Path, digest: str, tag: str) -> None:
+    # The pinned REST version returns complete Sigstore bundles anonymously.
+    records = public_json(f"attestations/{digest}?per_page=100").get("attestations", [])
+    if not records or any(record.get("repository_id") != 1351128499 or
+                          not isinstance(record.get("bundle"), dict) for record in records):
+        raise ValueError("No valid public Lingshu Gate provenance bundle available")
+    bundle = archive.parent / "attestations.jsonl"
+    bundle.write_text("".join(json.dumps(item["bundle"]) + "\n" for item in records), encoding="utf-8")
+    commit = public_json(f"commits/{tag}")["sha"]
+    if not re.fullmatch(r"[0-9a-f]{40}", commit):
+        raise ValueError("Invalid GitHub tag commit")
+    ref = f"refs/tags/{tag}"
+    cli = shutil.which("gh")
     if cli is None:
         raise FileNotFoundError("GitHub CLI (gh) is required to verify native releases")
-    return subprocess.run(
-        [cli, *args], check=True, stdout=subprocess.PIPE, text=True, timeout=600,
-        env={**os.environ, "GH_HOST": "github.com", "GH_PROMPT_DISABLED": "1"},
-    ).stdout
+    result = subprocess.run(
+        [cli, "attestation", "verify", str(archive), "--repo", REPOSITORY, "--source-ref", ref,
+         "--cert-identity", f"https://github.com/{REPOSITORY}/.github/workflows/release.yml@{ref}",
+         "--signer-digest", commit, "--source-digest", commit, "--deny-self-hosted-runners",
+         "--bundle", str(bundle), "--format", "json"],
+        check=True, stdout=subprocess.PIPE, text=True, timeout=240,
+        env={**os.environ, "GH_HOST": "github.com", "GH_PROMPT_DISABLED": "1", "GH_NO_UPDATE_NOTIFIER": "1"},
+    )
+    verified = json.loads(result.stdout)
+    if not isinstance(verified, list) or not verified or not all(
+        entry.get("verificationResult", {}).get("verifiedTimestamps") for entry in verified
+    ):
+        raise ValueError("Native asset provenance has no verified timestamp")
 
 
 @contextmanager
@@ -79,7 +141,7 @@ def selected(base: Path, cache: Path, current: str, target: str, original: str) 
 def install(base: Path, cache: Path, state: dict[str, str], target: str, original: str) -> str:
     current = state["active"]
     selected(base, cache, current, target, original)
-    release: dict[str, Any] = json.loads(github("api", f"repos/{REPOSITORY}/releases/latest"))
+    release = public_json("releases/latest")
     tag = release["tag_name"]
     if release["draft"] or release["prerelease"] or not tag.startswith("v"):
         raise ValueError("Expected a published stable Gate release")
@@ -97,18 +159,9 @@ def install(base: Path, cache: Path, state: dict[str, str], target: str, origina
         raise ValueError("Native asset size is outside supported limits")
     with tempfile.TemporaryDirectory(prefix="stage-", dir=cache) as temporary:
         work = Path(temporary)
-        github("release", "download", tag, "--repo", REPOSITORY, "--pattern", name, "--dir", str(work))
         archive = work / name
-        digest = hashlib.sha256()
-        with archive.open("rb") as stream:
-            for chunk in iter(lambda: stream.read(1024 * 1024), b""):
-                digest.update(chunk)
-        if archive.stat().st_size != assets[0]["size"] or "sha256:" + digest.hexdigest() != assets[0]["digest"]:
-            raise ValueError("Native asset digest or size mismatch")
-        ref = f"refs/tags/{tag}"
-        github("attestation", "verify", str(archive), "--repo", REPOSITORY, "--source-ref", ref,
-               "--cert-identity", f"https://github.com/{REPOSITORY}/.github/workflows/release.yml@{ref}",
-               "--deny-self-hosted-runners")
+        download_asset(assets[0], archive)
+        verify_release(archive, assets[0]["digest"], tag)
         candidate = extract_bundle(target, proposed, archive, work / "unpacked")
         if metadata(candidate) != (proposed, target):
             raise ValueError("Downloaded package metadata mismatch")
