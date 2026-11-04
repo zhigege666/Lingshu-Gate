@@ -6,7 +6,7 @@ from pathlib import Path
 from typing import Any, Mapping
 
 from lingshu_gate.credential_store import CredentialStore
-from lingshu_gate.database import BASELINE_MIGRATION_ID, SQLiteDatabase
+from lingshu_gate.database import SQLiteDatabase
 from lingshu_gate.domain.health import ComponentStatus
 from lingshu_gate.mcp_runtime import McpRuntimeManager
 from lingshu_gate.observability_store import ObservabilityStore
@@ -18,12 +18,7 @@ class SQLiteStateStoreAdapter:
         self.database = database
 
     def readiness(self) -> ComponentStatus:
-        row = self.database.query_one("SELECT 1 AS value")
-        migration = self.database.query_one(
-            "SELECT applied_at FROM schema_migrations WHERE id = ?",
-            (BASELINE_MIGRATION_ID,),
-        )
-        ok = row is not None and int(row["value"]) == 1 and migration is not None
+        ok = self.database.probe_baseline_migration()
         return ComponentStatus(
             "database",
             ok,

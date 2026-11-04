@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.5.10
+
+- Fix a side effect of `GET /readyz`: if the SQLite main database file disappears at runtime, the probe returns HTTP 503 without creating an empty file at the configured path.
+- Read the baseline migration using one read-only connection to the existing database. The probe honors SQLite locking and does not switch journal mode. Normal database creation at startup, migrations and business connections are unchanged.
+
 ## 0.5.9
 
 - Diagnose storage startup failures with bounded path, effective UID/GID and permission facts. Keep credentials, database contents and unrelated environment values out of errors; do not repair ownership or broaden permissions automatically.

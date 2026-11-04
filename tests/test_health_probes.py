@@ -2,24 +2,31 @@
 
 from __future__ import annotations
 
-import json
 import os
+import sqlite3
 import tempfile
 import unittest
+from contextlib import closing
 from pathlib import Path
 from unittest.mock import patch
 
 from fastapi.testclient import TestClient
+
+from lingshu_gate.database import BASELINE_MIGRATION_ID
 
 
 class HealthProbeTest(unittest.TestCase):
     def setUp(self) -> None:
         self.temp = tempfile.TemporaryDirectory(ignore_cleanup_errors=True)
         self.root = Path(self.temp.name)
+        # A literal percent escape must stay part of the directory name in SQLite's file URI.
+        self.db_path = self.root / "db %23" / "gate.db"
         self.environment = patch.dict(
             os.environ,
             {
                 "LINGSHU_GATE_DATA_DIR": str(self.root / "data"),
+                "LINGSHU_GATE_DB_URL": f"sqlite:///{self.db_path}",
+                "LINGSHU_GATE_RETENTION_WORKER_ENABLED": "false",
                 "LINGSHU_GATE_CONFIG_DIR": str(self.root / "mcp.d"),
                 "LINGSHU_GATE_ALLOWED_ROOT": str(self.root),
                 "LINGSHU_GATE_AUTH_ENABLED": "true",
@@ -110,25 +117,50 @@ class HealthProbeTest(unittest.TestCase):
         self.assertEqual(after.json()["checks"]["configuration"]["metadata"]["reason_code"], "directory_ready")
         self.assertEqual(after.json()["checks"]["runtime"]["metadata"]["scan_status"], "missing")
 
-    def test_readiness_reports_database_failure_as_503(self) -> None:
-        with TestClient(self.app) as client, patch.object(
-            self.app.state.database,
-            "query_one",
-            side_effect=RuntimeError("database unavailable"),
-        ):
-            response = client.get("/readyz")
+    def test_readiness_does_not_recreate_a_missing_database(self) -> None:
+        directory = self.db_path.parent
+        original = self.root / "original-store"
+        with TestClient(self.app) as client:
+            self.assertEqual(client.get("/readyz").status_code, 200)
+            # Move the isolated store and its WAL sidecars together; the mount remains writable.
+            directory.rename(original)
+            directory.mkdir()
+            try:
+                for _ in range(2):
+                    response = client.get("/readyz")
+                    self.assertEqual(response.status_code, 503)
+                    check = response.json()["checks"]["database"]
+                    self.assertFalse(check["ok"])
+                    self.assertEqual(check["detail"], "component probe failed")
+                    self.assertEqual(check["metadata"], {"error_type": "OperationalError"})
+                    self.assertNotIn(str(self.root), response.text)
+                    self.assertFalse(self.db_path.exists())
+            finally:
+                directory.rename(self.root / "probed-store")
+                original.rename(directory)
+            self.assertEqual(client.get("/readyz").status_code, 200)
 
-        self.assertEqual(response.status_code, 503)
-        payload = json.loads(response.text)
-        self.assertFalse(payload["checks"]["database"]["ok"])
-        self.assertEqual(
-            payload["checks"]["database"]["detail"],
-            "component probe failed",
-        )
-        self.assertEqual(
-            payload["checks"]["database"]["metadata"]["error_type"],
-            "RuntimeError",
-        )
+    def test_readiness_preserves_existing_journal_mode(self) -> None:
+        with TestClient(self.app) as client:
+            with closing(sqlite3.connect(self.db_path)) as setup:
+                self.assertEqual(setup.execute("PRAGMA journal_mode=DELETE").fetchone()[0], "delete")
+            self.assertEqual(client.get("/readyz").status_code, 200)
+            with closing(sqlite3.connect(self.db_path)) as observer:
+                self.assertEqual(observer.execute("PRAGMA journal_mode").fetchone()[0], "delete")
+
+    def test_readiness_sees_a_committed_change_in_the_active_wal(self) -> None:
+        with TestClient(self.app) as client, closing(sqlite3.connect(self.db_path)) as writer:
+            self.assertEqual(writer.execute("PRAGMA journal_mode").fetchone()[0], "wal")
+            writer.execute("PRAGMA wal_autocheckpoint=0")
+            deleted = writer.execute("DELETE FROM schema_migrations WHERE id = ?", (BASELINE_MIGRATION_ID,))
+            self.assertEqual(deleted.rowcount, 1)
+            writer.commit()
+            response = client.get("/readyz")
+            self.assertEqual(response.status_code, 503)
+            check = response.json()["checks"]["database"]
+            self.assertFalse(check["ok"])
+            self.assertEqual(check["detail"], "SQLite baseline migration is missing")
+            self.assertEqual(check["metadata"], {"backend": "sqlite"})
 
     def test_runtime_manifest_load_errors_make_readiness_fail(self) -> None:
         with TestClient(self.app) as client:

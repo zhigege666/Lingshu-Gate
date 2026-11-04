@@ -2,7 +2,7 @@
 
 A self-hosted MCP gateway that connects tools, limits who can call them, and records what happened.
 
-[简体中文](README.zh-CN.md) · [Download 0.5.9](https://github.com/zhigege666/Lingshu-Gate/releases/tag/v0.5.9) · [Get started](docs/getting-started.md) · [Documentation](docs/README.md) · [Security](SECURITY.md)
+[简体中文](README.zh-CN.md) · [Download 0.5.10](https://github.com/zhigege666/Lingshu-Gate/releases/tag/v0.5.10) · [Get started](docs/getting-started.md) · [Documentation](docs/README.md) · [Security](SECURITY.md)
 
 <img src="docs/images/console/en-US/v0.5.0-discovery.png" alt="Lingshu Gate 0.5.0: per-authorization pinned tools, logical groups and bounded text previews" width="1200">
 
@@ -30,7 +30,7 @@ Open [http://127.0.0.1:8000/](http://127.0.0.1:8000/). Read `data/initial-admin-
 
 ### Released Docker trial
 
-Verify and extract `lingshu-gate-v0.5.9-docker-compose.tar.gz`, enter that directory and run:
+Verify and extract `lingshu-gate-v0.5.10-docker-compose.tar.gz`, enter that directory and run:
 
 ```bash
 cp .env.quickstart.example .env.quickstart
@@ -65,13 +65,11 @@ The [included demo walkthrough](docs/first-call.md) needs no external service ac
 
 Check the successful audit, deny a write with an unchanged counter, reject an invalid revision, stop/restart the demo and revoke the caller. Gate startup, tool discovery, classification confirmation and publication are separate steps; access still requires both resource grants and token scope.
 
-## 0.5.9 — Startup storage diagnostics and configuration readiness
+## 0.5.10 — SQLite readiness when the database file is missing
 
-Storage startup failures now include bounded diagnostic facts about the affected filesystem path and the service identity, without logging credentials or database contents. This helps distinguish missing parents, wrong path types, access denial and read-only filesystems; it does not automatically change ownership or permissions.
+If the main database file disappears after Gate starts, `GET /readyz` returns HTTP 503 without creating a replacement. The database check opens only an existing file and reads the baseline migration on one read-only connection. Normal startup, migrations and business writes keep their existing behavior.
 
-Configuration readiness and administrator diagnostics use the same directory checks. A new instance may still be ready when its configuration directory is missing but can be created. The last directory scan is reported separately, so a skipped scan is distinguishable from a successfully loaded empty directory. Creating the directory manually does not trigger a rescan.
-
-Deployment guidance now explains host bind-mount preparation and checks under the actual container user. Focused regression and container-smoke coverage targets UID/GID `10001`, a read-only root and writable or denied host data mounts. No runtime dependency or database migration is added over 0.5.8; existing MCP recovery, the seven-entry on-demand catalog and authorization behavior are retained. See [deployment](docs/deployment.md#custom-host-directories), [probe and scan semantics](docs/operations.md#configuration-directory-and-scan-state), [changes](CHANGELOG.md) and the [bilingual release notes](packaging/release-notes.md).
+The check does not restore lost data or test whether the next write will succeed. See [operator guidance](docs/operations.md#sqlite-database-readiness), the [changelog](CHANGELOG.md) and the [bilingual release notes](packaging/release-notes.md).
 
 ## Architecture overview
 

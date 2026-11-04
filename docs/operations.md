@@ -22,6 +22,12 @@ curl --fail --silent --show-error http://127.0.0.1:8000/startupz
 curl --fail --silent --show-error http://127.0.0.1:8000/readyz
 ```
 
+## SQLite database readiness
+
+The `database` check in `/readyz` opens the existing main database read-only and looks up `0001_gate_baseline` in `schema_migrations`. If the file disappears while Gate is running, the probe returns HTTP 503 without creating a replacement. Normal Gate database connections and external processes can still create a file at that path. The probe does not switch journal mode or bypass SQLite's locks. In WAL mode SQLite may still access or create the `-wal` and `-shm` files. A successful probe confirms that the baseline record was readable; it does not test write access or database integrity.
+
+If an existing deployment loses its database path, check the actual mount and configured database location before restarting. A normal startup may initialize a new database. Recover existing data from a tested, consistent backup of the data, configuration and credential keys. See [backup requirements](deployment.md#backup).
+
 ## Configuration directory and scan state
 
 Readiness and the administrator diagnostic named `path.config_dir` use the same directory rules. A missing directory may be acceptable when its nearest existing parent permits creation. This permits a new instance with no MCP configurations; it does not prove that an existing installation's expected configuration path was selected.

@@ -4,7 +4,7 @@
 
 Lingshu Gate 发行自动化会生成可直接运行的原生包、Docker Compose 部署包，以及只在 Tag 发行提供的 Core 离线镜像。每个已发布资产都由 `SHA256SUMS` 和仓库 Build Provenance Attestation 覆盖。
 
-当前源码版本为 `0.5.9`。本版补充不泄露秘密的存储启动诊断，让就绪检查与管理员诊断复用配置目录检查，并单独报告最近一次扫描状态。配置目录缺失但可创建的新实例仍然有效；就绪不能证明预期下游配置已经加载。文档补充宿主 bind mount 的准备责任与实际用户容器冒烟覆盖。相对 0.5.8 不新增运行依赖或数据库迁移，保留该版有界 MCP 请求回读、七入口按需目录与授权行为。运行时、Python 元数据、CLI 和归档名称统一使用 `src/lingshu_gate/_version.py`。见中英文[发行摘要](../../packaging/release-notes.md)；已有标签保持不可变。
+当前源码版本为 `0.5.10`。SQLite 就绪检查使用一个只读连接打开已有数据库并读取基线迁移记录。启动后主库文件消失时，`/readyz` 返回 HTTP 503，不创建替代文件。相对 0.5.9 不新增依赖或数据库迁移。运行时、Python 元数据、CLI 和归档名称统一使用 `src/lingshu_gate/_version.py`。参见[双语发行说明](../../packaging/release-notes.md)和[数据库就绪检查](operations.md#sqlite-数据库就绪检查)。
 
 升级会执行 `0024_business_credentials` 及此前尚未应用的迁移；从 0.5.0 之前升级时，还包括 `0022_tool_preferences` 和 `0023_tool_argument_policy`。应一致备份数据库、配置和全部凭据密钥。业务账号密文保存在 Gate 数据库中，对应密钥为 `<data-dir>/business-credentials/credential.key`，开始使用业务凭据后必须纳入备份。远端浏览器密码库有独立的密钥与生命周期。0.5.0 之前的二进制不执行参数策略，0.5.2 之前的二进制不执行受管浏览器限制。专用实例要求、目标兼容性检查和独立清理操作见[业务凭据指南](business-credentials.md)。
 

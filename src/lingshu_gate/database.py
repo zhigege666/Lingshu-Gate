@@ -3,12 +3,14 @@
 from __future__ import annotations
 
 import logging
+import os
 import sqlite3
 import time
 from collections.abc import Iterator
 from contextlib import closing, contextmanager
 from pathlib import Path
 from typing import Any
+from urllib.parse import quote_from_bytes
 
 from lingshu_gate.path_diagnostics import log_path_failure
 from lingshu_gate.persistence.migrations import (
@@ -106,6 +108,17 @@ class SQLiteDatabase:
             # prolongs the same schema/journal lock for competing initializers.
             connection.close()
             raise
+
+    def probe_baseline_migration(self) -> bool:
+        """Read the existing database without initializing it or changing its journal mode."""
+        # Escape native separators too: a UNC filename must not become a URI authority.
+        filename = quote_from_bytes(os.fsencode(self.path.absolute()), safe="")
+        uri = f"file:{filename}?mode=ro"
+        with closing(sqlite3.connect(uri, uri=True, timeout=SQLITE_LOCK_RETRY_MAX_SECONDS)) as connection:
+            return connection.execute(
+                "SELECT applied_at FROM schema_migrations WHERE id = ?",
+                (BASELINE_MIGRATION_ID,),
+            ).fetchone() is not None
 
     def initialize(self) -> None:
         MigrationRunner(
