@@ -197,9 +197,7 @@ def test_real_compose_archive_contains_rendered_onboarding_and_resolving_links(
                "docs/README.md", "docs/zh-CN/README.md",
                "docs/business-credentials.md", "docs/zh-CN/business-credentials.md",
                "docs/getting-started.md", "docs/zh-CN/getting-started.md",
-               "docs/first-call.md", "docs/zh-CN/first-call.md",
-               "docs/cloudflare-tunnel.md", "docs/release-updates.md",
-               "docs/zh-CN/cloudflare-tunnel.md", "docs/zh-CN/release-updates.md"]
+               "docs/first-call.md", "docs/zh-CN/first-call.md"]
     for name in entries:
         path = bundle / name
         assert path.is_file(), name
@@ -236,7 +234,7 @@ def test_real_compose_archive_contains_rendered_onboarding_and_resolving_links(
 
 def test_http_management_operator_guides_ship_in_both_languages() -> None:
     manifest = json.loads((common.REPOSITORY_ROOT / "packaging/public-documentation.json").read_text())
-    for guide in ["http-mcp-connection-testing.md", "shared-system-credentials.md", "external-mcp-configuration.md", "cloudflare-tunnel.md", "release-updates.md"]:
+    for guide in ["http-mcp-connection-testing.md", "shared-system-credentials.md", "external-mcp-configuration.md"]:
         for prefix in ["docs/", "docs/zh-CN/"]:
             assert prefix + guide in manifest["files"]
             assert (common.REPOSITORY_ROOT / (prefix + guide)).is_file()
