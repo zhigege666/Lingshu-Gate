@@ -65,3 +65,8 @@
 | `/readyz` | 请求路径就绪 | Probe |
 
 编排器应使用上面三个用途明确的端点。
+
+## 网络与更新
+
+- [Cloudflare Tunnel](cloudflare-tunnel.md)
+- [版本更新检查](release-updates.md)

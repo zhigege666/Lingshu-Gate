@@ -252,3 +252,8 @@ Docker Hub 镜像包含 BuildKit SBOM/Provenance Manifest。GitHub 附件 Attest
 审核修复还包括嵌套源码根目录一致性、Git 计划成功审计、过期未使用计划的有界清理和配额、保留已使用计划来源，以及 JSON-RPC 保留范围负整数错误码与 OAuth 秘密脱敏的兼容。浏览器修复保持外部接入引导可达、历史构建先加载项目再部署，以及角色搜索框可编辑；不会跳过确认、扩大权限或盲重放写操作。
 
 [验证记录](release-validation.md)区分静态检查、已执行自动化、合成浏览器、真实网络未验证及发行工作流结果。PR 的原生矩阵/Compose 校验不代表已发布；Tag、离线镜像、SBOM、校验和与 GitHub Release 必须在既有工作流实际完成后分别确认。没有生产部署、用户 Git/代理/SSH、外部账号或真实凭据联调。
+
+## 网络与更新能力
+
+- [Cloudflare Tunnel](cloudflare-tunnel.md)
+- [版本更新检查](release-updates.md)

@@ -65,3 +65,8 @@ API schemas are served by a running Gate instance at `/docs`. Security policy an
 | `/readyz` | Request-path readiness | Probe |
 
 Use the three purpose-specific endpoints above for orchestration.
+
+## Network and updates
+
+- [Cloudflare Tunnel](cloudflare-tunnel.md)
+- [Release update checks](release-updates.md)

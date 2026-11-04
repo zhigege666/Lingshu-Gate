@@ -33,3 +33,6 @@ workspace/
 
 web/test-results/
 web/playwright-report/
+
+# Local deployment secrets
+/secrets/

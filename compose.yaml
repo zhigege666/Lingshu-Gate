@@ -61,6 +61,31 @@ services:
     networks:
       - edge
 
+  cloudflared:
+    image: ${LINGSHU_GATE_CLOUDFLARED_IMAGE:-cloudflare/cloudflared:latest}
+    profiles: ["cloudflare-tunnel"]
+    command: ["tunnel", "--no-autoupdate", "run", "--token-file", "/run/secrets/cloudflare-tunnel-token"]
+    restart: unless-stopped
+    read_only: true
+    user: "65532:65532"
+    volumes:
+      - type: bind
+        source: ${LINGSHU_GATE_CLOUDFLARE_TOKEN_FILE:-./secrets/cloudflare-tunnel-token}
+        target: /run/secrets/cloudflare-tunnel-token
+        read_only: true
+    depends_on:
+      core:
+        condition: service_healthy
+    networks:
+      - edge
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+    pids_limit: 64
+    mem_limit: 256m
+    cpus: 0.5
+
 networks:
   edge:
     driver: bridge

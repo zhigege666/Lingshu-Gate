@@ -1,5 +1,13 @@
 # 更新记录
 
+## 0.5.11
+
+- 在两份 Compose 配置中增加可选的 Cloudflare Tunnel cloudflared Sidecar profile。隧道 Token 从宿主机文件只读挂载，Gate Core 不接触 Docker Socket 或隧道密钥。新增 Compose 与 Unraid 配置及安全说明。
+- 在“系统设置 → 版本更新”增加经过认证的 GitHub 最新 Release 检查，展示当前/最新版本比较及发行说明。
+- 更新检查器可固定使用已有的、启用中的 HTTP/HTTPS 代理配置版本。此设置只影响 GitHub Release API 请求；直连模式明确忽略进程代理环境变量。代理凭据继续加密保存并脱敏，配置变更和检查行为均写入审计。
+- 增加独立 SQLite 迁移和带版本比较的更新设置保存。不会自动替换容器，实际安装仍由部署环境执行，以保持 Core 权限边界。
+- 增加代理选择、不支持/禁用代理、设置版本冲突和 Release 版本比较的定向回归测试。
+
 ## 0.5.10
 
 - 修复 `GET /readyz` 的副作用：SQLite 主库文件在运行期消失时，探针返回 HTTP 503，不会在配置路径创建空文件。

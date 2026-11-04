@@ -572,3 +572,105 @@ def test_executor_interruption_requires_evidence_before_reporting_termination(se
     assert services.database.query_one("SELECT count(*) FROM git_imports WHERE status IN ('queued','running','cancel_requested')")[0] == 0
     references = services.network.references(saved["id"])
     assert any(row["resource_type"] == "git_import" for row in references) is (not terminated)
+
+
+def test_release_update_settings_pin_existing_proxy_profile_and_check_release(services):
+    from lingshu_gate.release_updates import ReleaseUpdateService
+
+    profile = services.network.save_profile(
+        ProfileWrite(name="GitHub egress", endpoint="http://proxy.example.invalid:8080"),
+        "actor-one",
+    )
+    updates = ReleaseUpdateService(services.database, services.network, "0.5.10", services.audit)
+    saved = updates.save(
+        expected_revision=0,
+        proxy_profile_id=profile["id"],
+        proxy_profile_version=profile["version"],
+        actor_id="actor-one",
+    )
+    assert saved["proxy_profile"] == {
+        "id": profile["id"], "version": profile["version"], "name": "GitHub egress", "enabled": True,
+    }
+    with pytest.raises(ToolExecutionError, match="Referenced"):
+        services.network.delete_profile(profile["id"], profile["version"], "actor-one")
+
+    class Response:
+        def __enter__(self):
+            return self
+        def __exit__(self, *_args):
+            return None
+        def read(self, limit):
+            assert limit > 0
+            return json.dumps({
+                "tag_name": "v0.5.11",
+                "name": "Gate 0.5.11",
+                "html_url": "https://github.com/zhigege666/Lingshu-Gate/releases/tag/v0.5.11",
+                "published_at": "2026-11-04T10:00:00Z",
+                "body": "Release notes",
+            }).encode()
+
+    class Opener:
+        def open(self, request, timeout):
+            assert request.full_url.endswith("/releases/latest")
+            assert timeout == 12
+            return Response()
+
+    with patch("lingshu_gate.release_updates.urllib.request.build_opener", return_value=Opener()) as build:
+        result = updates.check()
+    assert result["update_available"] is True
+    assert result["latest_version"] == "0.5.11"
+    assert result["proxy"] == "configured"
+    assert build.call_count == 1
+    assert build.call_args.args
+
+
+def test_release_update_proxy_rejects_disabled_or_unsupported_profile(services):
+    from lingshu_gate.release_updates import ReleaseUpdateService
+
+    updates = ReleaseUpdateService(services.database, services.network, "0.5.10", services.audit)
+    profile = services.network.save_profile(
+        ProfileWrite(name="SOCKS proxy", endpoint="socks5://proxy.example.invalid:1080"),
+        "actor-one",
+    )
+    with pytest.raises(ValueError, match="HTTP and HTTPS"):
+        updates.save(
+            expected_revision=0,
+            proxy_profile_id=profile["id"],
+            proxy_profile_version=profile["version"],
+            actor_id="actor-one",
+        )
+    disabled = services.network.save_profile(
+        ProfileWrite(name="Disabled proxy", endpoint="http://proxy.example.invalid:8080", enabled=False),
+        "actor-one",
+    )
+    with pytest.raises(ToolExecutionError, match="disabled"):
+        updates.save(
+            expected_revision=0,
+            proxy_profile_id=disabled["id"],
+            proxy_profile_version=disabled["version"],
+            actor_id="actor-one",
+        )
+
+
+def test_release_update_settings_compare_and_swap_and_direct_mode(services):
+    from lingshu_gate.release_updates import ReleaseUpdateService
+
+    updates = ReleaseUpdateService(services.database, services.network, "0.5.10", services.audit)
+    assert updates.settings()["proxy_profile"] is None
+    saved = updates.save(expected_revision=0, proxy_profile_id=None, proxy_profile_version=None, actor_id="actor-one")
+    assert saved["revision"] == 1
+    with pytest.raises(ToolExecutionError, match="changed"):
+        updates.save(expected_revision=0, proxy_profile_id=None, proxy_profile_version=None, actor_id="actor-one")
+
+
+
+def test_release_update_semver_comparison_handles_prereleases():
+    from lingshu_gate.release_updates import _is_newer
+
+    assert _is_newer("0.5.11", "0.5.10")
+    assert _is_newer("0.5.11", "0.5.11-rc.1")
+    assert _is_newer("0.5.11-rc.2", "0.5.11-rc.1")
+    assert not _is_newer("0.5.11-rc.1", "0.5.11")
+    assert not _is_newer("0.5.10", "0.5.11")
+    with pytest.raises(ValueError):
+        _is_newer("0.5", "0.5.10")

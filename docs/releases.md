@@ -247,3 +247,8 @@ System settings adds Network and dependencies: named encrypted/redacted proxy re
 Review fixes also preserve nested project roots, audit successful Git plans, bound expired-unused-plan cleanup and quotas, retain used-plan provenance, and preserve JSON-RPC reserved negative integer error codes while redacting OAuth secrets. Browser repairs keep the external connection guide reachable, load the project before historical-build deployment and preserve an editable role search. They do not bypass confirmation, expand permissions or replay writes blindly.
 
 The [validation record](release-validation.md) distinguishes static checks, executed automation, synthetic browsers, unverified real networking and release-workflow results. PR native/Compose validation does not establish publication; tags, offline images, SBOM, checksums and GitHub Release must each be confirmed after the existing workflows complete. There is no production deployment, user Git/proxy/SSH, external account or real credential integration.
+
+## Optional network and update features
+
+- [Cloudflare Tunnel](cloudflare-tunnel.md)
+- [Release update checks](release-updates.md)

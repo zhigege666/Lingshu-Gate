@@ -2,7 +2,7 @@
 
 自托管 MCP 网关：连接工具，限定谁可以调用，并记录调用结果。
 
-[English](README.md) · [下载 0.5.10](https://github.com/zhigege666/Lingshu-Gate/releases/tag/v0.5.10) · [开始使用](docs/zh-CN/getting-started.md) · [文档](docs/zh-CN/README.md) · [安全](SECURITY.zh-CN.md)
+[English](README.md) · [下载 0.5.11](https://github.com/zhigege666/Lingshu-Gate/releases/tag/v0.5.11) · [开始使用](docs/zh-CN/getting-started.md) · [文档](docs/zh-CN/README.md) · [安全](SECURITY.zh-CN.md)
 
 <img src="docs/images/console/zh-CN/v0.5.0-discovery.png" alt="Lingshu Gate 0.5.0：每条授权的固定工具、逻辑组和有界文本预览" width="1200">
 
@@ -30,7 +30,7 @@
 
 ### 已发布 Docker 本机试用
 
-校验并解压 `lingshu-gate-v0.5.10-docker-compose.tar.gz`，进入该目录后执行：
+校验并解压 `lingshu-gate-v0.5.11-docker-compose.tar.gz`，进入该目录后执行：
 
 ```bash
 cp .env.quickstart.example .env.quickstart
@@ -65,11 +65,13 @@ uv run lingshu-gate
 
 核对成功审计、写入拒绝且计数不变、错误修订拒绝、demo 停止/恢复和调用者撤销。Gate 启动、工具发现、分类确认、发布分别进行；访问仍须同时满足资源权限和 token scope。
 
-## 0.5.10 — SQLite 主库文件缺失时的就绪检查
+## 0.5.11 — Cloudflare Tunnel 与 GitHub 版本检查
 
 如果 Gate 启动后主库文件消失，`GET /readyz` 返回 HTTP 503，不会创建替代文件。数据库检查只打开已有文件，用一个只读连接读取基线迁移记录。正常启动、迁移和业务写入沿用原有行为。
 
 就绪检查不会恢复丢失的数据，也不能证明下一次写入一定成功。参见[运维说明](docs/zh-CN/operations.md#sqlite-数据库就绪检查)、[变更记录](CHANGELOG.zh-CN.md)和[双语发行说明](packaging/release-notes.md)。
+
+支持通过独立 Sidecar 部署 Cloudflare Tunnel；支持经过认证的 GitHub Release 检查，并可单独选择已有 HTTP/HTTPS 代理配置。Gate Core 继续保持不接触 Docker Engine Socket 的安全边界。发行版本的实际安装仍由部署环境负责。
 
 ## 架构总览
 
@@ -194,6 +196,9 @@ Core 管理的凭据加密保存；辅助进程使用独立受保护本地凭据
 - SQLite 与配额为单 Core/单进程边界，不提供多租户或分布式配额保证。Core 不执行本地 build/deploy/start，不挂容器引擎 socket。原生可信项目执行不等于代码隔离。
 - Git SSH、自动 hooks/submodule/LFS 和重定向凭据转发不支持。交付代理不会自动传入运行时 MCP，也不修改宿主全局 Git/npm 设置；准确版本 manager 运行要求管理员受审查的 Node/CLI 注册表，不自动安装工具。
 - 已实现的自动化测试使用合成隔离环境；真实 ChatGPT/OAuth、用户 Git/代理与生产升级验收需要另行完成。不同平台的原生产物和镜像以该 Tag 的发布工作流实际结果为准。
+
+- [Cloudflare Tunnel](docs/zh-CN/cloudflare-tunnel.md) — 通过独立 cloudflared Sidecar 发布内网服务。
+- [版本更新检查](docs/zh-CN/release-updates.md) — 检查最新 GitHub Release，并单独配置检查代理。
 
 ## 文档
 
