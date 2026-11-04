@@ -52,7 +52,7 @@ def github(*args: str) -> str:
 def update_lock(path: Path) -> Iterator[None]:
     # OS locks are released even if the updater exits unexpectedly.
     with path.open("a+b") as lock:
-        if os.name == "nt":
+        if sys.platform == "win32":
             import msvcrt
 
             lock.seek(0)
@@ -170,7 +170,7 @@ def main(argv: list[str]) -> None:
         program = str(executable(bundle, target))
         # A Windows process cannot exec in place. Wait so supervisors and CLI
         # callers observe the selected process's lifetime and exit status.
-        if os.name == "nt":
+        if sys.platform == "win32":
             raise SystemExit(subprocess.call([program, *server_args]))
         os.execv(program, [program, *server_args])
 
@@ -179,7 +179,7 @@ def run(argv: list[str]) -> None:
     # Restore the loader search path before spawning gh or another bundle.
     # These settings affect only this dedicated updater process, never Core.
     if getattr(sys, "frozen", False):
-        if os.name == "nt":
+        if sys.platform == "win32":
             import ctypes
 
             if not ctypes.windll.kernel32.SetDllDirectoryW(None):
