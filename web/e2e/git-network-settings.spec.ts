@@ -26,7 +26,7 @@ for (const [width, height] of [[1600, 900], [1920, 1080], [2560, 1080], [2560, 1
       })
       const zh = locale === 'zh-CN'
       await page.goto('/console/#/systemSettings')
-      await expect(page.getByRole('tab', { name: zh ? '网络与依赖' : 'Network and dependencies' })).toHaveAttribute('aria-selected', 'true')
+      await expect(page.getByRole('heading', { name: zh ? '系统设置' : 'System settings', exact: true })).toBeVisible()
       await expectInViewportAndUnobscured(page.getByRole('button', { name: zh ? '新增配置' : 'New profile', exact: true }))
       await expect(page.getByText('Synthetic network', { exact: true })).toBeVisible()
       await expect(page.getByText(/safe_executor_unavailable/)).toHaveCount(0) // Friendly explanation precedes transport details.
@@ -36,13 +36,14 @@ for (const [width, height] of [[1600, 900], [1920, 1080], [2560, 1080], [2560, 1
       const repository = page.getByLabel(zh ? '仓库 URL（HTTPS）' : 'Repository URL (HTTPS)', { exact: true })
       await repository.fill('https://github.com/synthetic/example')
       await page.getByLabel(zh ? '项目子目录' : 'Project subdirectory', { exact: true }).fill('packages/server')
-      await page.getByRole('button', { name: zh ? '网络设置' : 'Network settings', exact: true }).click()
+      await page.getByText(zh ? '凭据与网络设置' : 'Credentials and networking', { exact: true }).click()
+      await page.getByRole('button', { name: zh ? '管理网络设置' : 'Manage network settings', exact: true }).click()
       const drawer = page.getByRole('dialog', { name: zh ? '系统设置 · 网络与依赖' : 'System settings · Network and dependencies', exact: true })
       await expect(drawer.getByText('Synthetic network', { exact: true })).toBeVisible()
       await drawer.getByRole('button', { name: zh ? '关闭' : 'Close', exact: true }).click()
       await expect(repository).toHaveValue('https://github.com/synthetic/example')
       await expect(page.getByLabel(zh ? '项目子目录' : 'Project subdirectory', { exact: true })).toHaveValue('packages/server')
-      await expectInViewportAndUnobscured(page.getByRole('button', { name: zh ? '检查并生成计划' : 'Inspect and plan', exact: true }))
+      await expectInViewportAndUnobscured(page.getByRole('button', { name: zh ? '导入项目' : 'Import project', exact: true }))
       expect(writes).toEqual([])
       expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(width)
     })
@@ -69,11 +70,74 @@ test('Git execution blocker keeps source inputs and dispatches no import/build/s
   await page.getByText('Git repository', { exact: true }).click()
   const repository = page.getByLabel('Repository URL (HTTPS)', { exact: true })
   await repository.fill('https://github.com/synthetic/example')
-  await page.getByRole('button', { name: 'Inspect and plan', exact: true }).click()
+  await page.getByRole('button', { name: 'Import project', exact: true }).click()
   await expect(page.getByText(/safe_executor_unavailable/)).toBeVisible()
   await expect(repository).toHaveValue('https://github.com/synthetic/example')
   expect(mutations).toEqual(['/v1/projects/git/plan'])
   await expect(page.getByRole('button', { name: 'Confirm and acquire snapshot', exact: true })).toHaveCount(0)
+})
+
+test('one import action pins the plan and a lost response retries the same request', async ({ page }) => {
+  await login(page)
+  const plans: unknown[] = [], imports: Record<string, unknown>[] = []
+  const pinned = { status: 'ready', plan_id: 'synthetic-plan', plan_digest: 'synthetic-digest', validation: { ok: true }, plan: { commit_sha: 'a'.repeat(40), source: {}, network: {}, limits: {} } }
+  await page.route('**/v1/**', async route => {
+    const path = new URL(route.request().url()).pathname
+    if (path === '/v1/projects/git/plan') { plans.push(route.request().postDataJSON()); return route.fulfill({ json: pinned }) }
+    if (path === '/v1/projects/git/import') {
+      imports.push(route.request().postDataJSON())
+      if (imports.length === 1) return route.fulfill({ status: 503, json: { detail: 'Synthetic lost acquire response' } })
+      return route.fulfill({ json: { status: 'failed', import_id: 'synthetic-import', upload_id: null, error_code: 'synthetic-failure', terminal: true, execution_terminated: true, progress: [] } })
+    }
+    if (path === '/v1/network/options') return route.fulfill({ json: { ...settings, executor: { available: true, code: 'ready' } } })
+    if (path === '/v1/projects/uploads') return route.fulfill({ json: { uploads: [] } })
+    if (path === '/v1/builds') return route.fulfill({ json: { builds: [] } })
+    if (path === '/v1/deployments') return route.fulfill({ json: { deployments: [] } })
+    return route.continue()
+  })
+  await page.goto('/console/#/uploads')
+  await page.getByText('Git repository', { exact: true }).click()
+  const repository = page.getByLabel('Repository URL (HTTPS)', { exact: true })
+  await repository.fill('https://github.com/synthetic/example')
+  await page.getByRole('button', { name: 'Import project', exact: true }).click()
+  await expect(page.getByRole('alert')).toContainText('Synthetic lost acquire response')
+  await expect(repository).toBeDisabled()
+  await expect(page.getByRole('alertdialog')).toHaveCount(0)
+  expect(plans).toHaveLength(1)
+  expect(imports).toHaveLength(1)
+  expect(imports[0]).toMatchObject({ plan_id: pinned.plan_id, plan_digest: pinned.plan_digest, confirmed: true })
+  await page.getByRole('button', { name: 'Import project', exact: true }).click()
+  await expect(page.getByText('synthetic-import', { exact: true })).toBeVisible()
+  expect(plans).toHaveLength(1)
+  expect(imports).toHaveLength(2)
+  expect(imports[1]).toEqual(imports[0])
+  await expect(repository).toBeEnabled()
+})
+
+test('an unknown Git execution keeps its source and blocks a new import until reconciled', async ({ page }) => {
+  await login(page)
+  let imports = 0
+  await page.route('**/v1/**', async route => {
+    const path = new URL(route.request().url()).pathname
+    if (path === '/v1/projects/git/plan') return route.fulfill({ json: { status: 'ready', plan_id: 'unknown-plan', plan_digest: 'unknown-digest', validation: { ok: true }, plan: { commit_sha: 'b'.repeat(40), source: {}, network: {}, limits: {} } } })
+    if (path === '/v1/projects/git/import') { imports += 1; return route.fulfill({ json: { status: 'unknown', import_id: 'unknown-import', upload_id: null, error_code: null, terminal: true, requires_reconciliation: true, execution_state: 'unknown', progress: [] } }) }
+    if (path === '/v1/network/options') return route.fulfill({ json: settings })
+    if (path === '/v1/projects/uploads') return route.fulfill({ json: { uploads: [] } })
+    if (path === '/v1/builds') return route.fulfill({ json: { builds: [] } })
+    if (path === '/v1/deployments') return route.fulfill({ json: { deployments: [] } })
+    return route.continue()
+  })
+  await page.goto('/console/#/uploads')
+  await page.getByText('Git repository', { exact: true }).click()
+  const repository = page.getByLabel('Repository URL (HTTPS)', { exact: true })
+  await repository.fill('https://github.com/synthetic/example')
+  await page.getByRole('button', { name: 'Import project', exact: true }).click()
+  await expect(page.getByText('unknown-import', { exact: true })).toBeVisible()
+  await expect(repository).toBeDisabled()
+  await expect(page.getByRole('button', { name: 'Import again', exact: true })).toBeDisabled()
+  await expect(page.getByRole('button', { name: 'Check source', exact: true })).toBeDisabled()
+  await expect(page.getByRole('button', { name: 'Refresh task status', exact: true })).toBeEnabled()
+  expect(imports).toBe(1)
 })
 
 test('nested network profile dialog preserves a rejected close and restores focus through the settings dialog', async ({ page }) => {
@@ -94,7 +158,8 @@ test('nested network profile dialog preserves a rejected close and restores focu
   })
   await page.goto('/console/#/uploads')
   await page.getByText('Git repository', { exact: true }).click()
-  const openSettings = page.getByRole('button', { name: 'Network settings', exact: true })
+  await page.getByText('Credentials and networking', { exact: true }).click()
+  const openSettings = page.getByRole('button', { name: 'Manage network settings', exact: true })
   await openSettings.click()
   const settingsDialog = page.getByRole('dialog', { name: 'System settings · Network and dependencies', exact: true })
   const newProfile = settingsDialog.getByRole('button', { name: 'New profile', exact: true })
@@ -152,7 +217,8 @@ test('network profile save stays pending through a slow refresh and returns focu
   try {
     await page.goto('/console/#/uploads')
     await page.getByText('Git repository', { exact: true }).click()
-    await page.getByRole('button', { name: 'Network settings', exact: true }).click()
+    await page.getByText('Credentials and networking', { exact: true }).click()
+    await page.getByRole('button', { name: 'Manage network settings', exact: true }).click()
     const settingsDialog = page.getByRole('dialog', { name: 'System settings · Network and dependencies', exact: true })
     const newProfile = settingsDialog.getByRole('button', { name: 'New profile', exact: true })
     await newProfile.click()

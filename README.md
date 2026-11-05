@@ -4,13 +4,13 @@ A self-hosted MCP gateway that connects tools, limits who can call them, and rec
 
 [简体中文](README.zh-CN.md) · [Download 0.5.7](https://github.com/zhigege666/Lingshu-Gate/releases/tag/v0.5.7) · [Get started](docs/getting-started.md) · [Documentation](docs/README.md) · [Security](SECURITY.md)
 
-<img src="docs/images/console/en-US/v0.5.0-discovery.png" alt="Lingshu Gate 0.5.0: per-authorization pinned tools, logical groups and bounded text previews" width="1200">
+<img src="docs/images/console-refactor/dashboard.png" alt="Lingshu Gate Console: compact navigation and operational overview" width="1200">
 
-*0.5.0 Console, captured at 2560×1440 with synthetic users and services. [Capture record](docs/images/console/v0.5.0-capture.json).*
+*Current source Console, captured at 2560×1440 with synthetic test data. The published 0.5.7 release remains a separate release baseline.*
 
 ## Where Gate fits
 
-- **One controlled tool entry:** connect multiple MCP services, review and publish tools, then give each user or authorization a limited view through one `/mcp` endpoint.
+- **One controlled tool entry:** connect multiple MCP services, synchronize tools, then give each user or authorization a limited view through one `/mcp` endpoint.
 - **Connect existing services:** reach private HTTP MCPs through an explicitly configured connector, or expose selected operations from a local OpenAPI snapshot. Use native Gate for trusted local stdio and project delivery.
 - **Operate with evidence:** inspect invocation decisions, constrain effective tool arguments and opt into Prometheus metrics or OTLP traces.
 
@@ -61,9 +61,9 @@ For a source Docker build, run `mkdir -p runtime/workspace` and `docker compose 
 
 ## First authorized call
 
-The [included demo walkthrough](docs/first-call.md) needs no external service account or desktop MCP client. Start the independent in-memory demo, connect it in Gate, review and publish three tools, then create a separate read-only caller. Follow `tools/list → gate_catalog_search → gate_tool_describe → gate_tool_invoke` using the returned tool reference and revision.
+The [included demo walkthrough](docs/first-call.md) needs no external service account or desktop MCP client. Start the independent in-memory demo, connect it in Gate, synchronize three tools, give the two read tools a local read policy, then create a separate read-only caller. Follow `tools/list → gate_catalog_search → gate_tool_describe → gate_tool_invoke` using the returned tool reference and revision.
 
-Check the successful audit, deny a write with an unchanged counter, reject an invalid revision, stop/restart the demo and revoke the caller. Gate startup, tool discovery, classification confirmation and publication are separate steps; access still requires both resource grants and token scope.
+Check the successful audit, deny a write with an unchanged counter, reject an invalid revision, stop/restart the demo and revoke the caller. Saving and connecting validates the configuration and synchronizes tools automatically; ordinary use needs no separate review/publication. Access still requires both resource grants and token scope.
 
 ## 0.5.7 — MCP timeout visibility and late-response recovery
 
@@ -85,7 +85,7 @@ flowchart TB
     subgraph Gate["Lingshu Gate (Control Plane & Gateway)"]
         Gateway["MCP Gateway (/mcp): Full Catalog / On-Demand Discovery"]
         Auth["Authentication & RBAC"]
-        Gov["Tool Governance & Classification Review"]
+        Gov["Tool Catalog synchronization & access policy"]
         Delivery["Project Delivery & Build Engine"]
         Audit["Audit, Retention & Content Recording"]
     end
@@ -107,6 +107,26 @@ flowchart TB
     Gateway --> Container
 ```
 
+## Console refactor in the current source
+
+The layout follows [shadcn-admin](https://github.com/satnaing/shadcn-admin), using the existing React, Tailwind and shadcn/Radix components. Navigation, page titles, search, forms and light/dark themes share one system. Complex Ant Design tables retain their behavior and read the same color and dimension tokens.
+
+| Batch | Coverage | Interaction changes |
+|---|---|---|
+| 1 | Sign-in, overview, MCP services/configuration, tool catalog/testing/access | Save and start by default; synchronize after connection; remove routine rule analysis, review and publication. |
+| 2 | Project delivery, builds/deployments, logs, audits, diagnostics, cache and network settings | Automatic import/build preflight; immediate log filtering; direct first deployment with specific confirmation for overwrite or interruption. |
+| 3 | Members, roles, resource grants, shared/personal credentials, Token and OAuth | Direct API-token creation; one save for creation, reduced scope or quotas; explicit differences for real scope expansion; save and synchronize enabled credential bindings. |
+
+New external tools require **write access** by default. Remote `readOnlyHint` never grants read access. Existing continuous service grants retain their level; exact tool selections never expand automatically. A changed schema requires another describe, without a publication step. Ordinary synchronization leaves the access-policy revision unchanged; retirement, replacement, disabling and access-policy changes invalidate affected old snapshots. Built-in management tools retain their dedicated control-plane permissions.
+
+These screenshots show the actual build in an isolated test environment with synthetic data. They are not production instances or business statistics.
+
+![Tool access: automatic discovery and optional policies](docs/images/console-refactor/toolClassifications.png)
+
+![Project delivery](docs/images/console-refactor/builds.png)
+
+![My authorizations](docs/images/console-refactor/myConnections.png)
+
 ## Features
 
 
@@ -121,7 +141,7 @@ flowchart TB
 | OpenAPI adapter | Explicit operations from local OpenAPI 3.0/3.1 snapshots, fixed origins and contract-bound tool names. | [Guide](docs/openapi-adapter.md) |
 | Standard telemetry | Default-off Prometheus aggregates and OTLP/HTTP tracing, protected control-plane endpoints and bounded export. | [Guide](docs/telemetry.md) |
 | Accounts and RBAC | Local sign-in, registration review, custom roles and permission types, service/tool grants, expiry, scoped personal API tokens and user status controls. | [Guide](docs/configuration.md) |
-| Tool governance | Discovery → rule analysis → human review → publication; read/write and destructive/idempotent classifications, fingerprint checks, batch review and stale-definition reconciliation. Discovery never grants access. | [Guide](docs/mcp-gateway.md) |
+| Tool governance | Automatic discovery on connection; new external tools require write access by default. Optional read/write/disabled/default policies apply on save. Account grants, Token/OAuth scopes, exact selections and service bindings remain independently checked. | [Guide](docs/mcp-gateway.md) |
 | Built-in OAuth and remote access | Opt-in authorization-code flow for OAuth 2.1 / PKCE clients: confidential static clients, S256, per-user tool consent, encrypted RS256 signing keys, refresh rotation and revocation. Independent public consent UI; no DCR/CIMD or full-conformance claim. | [Guide](docs/builtin-oauth.md) |
 | External identity providers | Optional external RS256 JWT verification, exact issuer/JWKS/audience/resource/client bindings, subject links and owner-bound delegations. Direct HTTPS or operator-managed tunnel configuration; Gate does not create tunnels. | [Guide](docs/external-connections.md) |
 | Service configuration and lifecycle | Manifest Form/JSON editing, static validation, apply/reload, start/stop/connect, sectioned details, health, logs and restart history. Native managed containers require an explicitly approved digest-pinned image. | [Guide](docs/configuration.md) |
@@ -130,7 +150,7 @@ flowchart TB
 | Encrypted credentials | Shared credential MCP/REST CRUD with revision checks, idempotency, write-only values and exact HTTP usage scopes; private per-user downstream bindings remain separate. | [Guide](docs/shared-system-credentials.md) |
 | Business accounts and browser bindings | Encrypted personal/shared website accounts, explicit users/roles and MCP targets, versioned vault synchronization and isolated logical sessions. The first adapter requires a dedicated, trusted agent-browser instance; bindings do not grant MCP access. | [Guide](docs/business-credentials.md) |
 | Trusted project delivery | ZIP analysis and resumable MCP uploads, preflight, digest-bound BuildPlan, bounded build logs/cancellation, deployment preview and overwrite protection, startup and tool reconciliation. Native execution trusts project code; it is not an untrusted-code sandbox. | [Guide](docs/project-delivery.md) |
-| Private drafts and recovery | Encrypted revisioned delivery drafts, independent upload/build/deploy/start confirmations, idempotent MCP writes and protected manual rollback. Replacement can interrupt a service; sessions do not migrate seamlessly. | [Guide](docs/console-delivery.md) |
+| Private drafts and recovery | Encrypted revisioned delivery drafts, automatic preflight and impact-based deployment confirmation, idempotent MCP writes and protected manual rollback. Replacement can interrupt a service; sessions do not migrate seamlessly. | [Guide](docs/console-delivery.md) |
 | Git, proxies and dependency sources — partial | HTTPS commit-pinned plans, source bounds, named encrypted proxy revisions, separate Git/install defaults, inherit/direct/profile overrides and independent npm/Python sources. npm/pnpm/Yarn Classic plan checks are implemented. Optional Native/Linux acquisition/probes/fixed tool preparation and registry-only npm, pnpm 8/9 and Yarn Classic offline installs/builds are implemented but real host acceptance is untested. Other manager cache installs are explicitly blocked. | [Guide](docs/git-import-network.md) |
 | Personal workspace and file references | My MCP, connections, grants, invocations, API tokens and downstream credentials; short-lived user/target-bound `fileRef` uploads only for tools that explicitly accept them. | [Guide](docs/mcp-gateway.md) |
 | Audit and observability | Tool audit decisions, invocation statistics, authorized service/tool log scopes, events, diagnostics, memory/environment summaries, runtime cache and liveness/startup/readiness probes. | [Guide](docs/operations.md) |
@@ -141,7 +161,7 @@ See the documentation index below for all workflows. [Invocation content recordi
 
 ## Project delivery and remote access
 
-Upload, preflight, build, deploy, overwrite, start, cancel and abandon keep their own permissions and confirmations; MCP writes also bind idempotency keys and digests. The Console saves encrypted private drafts, previews deployment differences and supports explicitly requested manual rollback when a protected snapshot is available. See [Project delivery](docs/project-delivery.md), [Console delivery](docs/console-delivery.md) and the bundled [Delivery Skill](.agents/skills/lingshu-gate-upload-build-start/SKILL.md).
+Upload, preflight, build, deploy, overwrite, start, cancel and abandon retain their backend permissions; MCP writes bind idempotency keys and digests. The Console runs validation and planning within the requested task. Overwriting a target or interrupting a running service requires one impact confirmation. Private drafts stay encrypted, deployment differences remain inspectable, and explicitly requested manual rollback is available when a protected snapshot exists. See [Project delivery](docs/project-delivery.md), [Console delivery](docs/console-delivery.md) and the bundled [Delivery Skill](.agents/skills/lingshu-gate-upload-build-start/SKILL.md).
 
 Remote access can use Gate API tokens, built-in OAuth or an external RS256 IdP; OAuth defaults to disabled. Built-in mode reuses Gate users with separate public sign-in and tool consent; external mode verifies provider-issued tokens. `direct` HTTPS and `secure_mcp_tunnel` are operator-managed network choices. A reverse proxy cannot cross NAT alone, and a machine tunnel key is not a user identity. See [Built-in OAuth](docs/builtin-oauth.md) and [external identity/network access](docs/external-connections.md). Keep Console and `/v1` private; expose only the selected mode's MCP, discovery and required `/oauth` paths.
 
@@ -152,7 +172,7 @@ Remote access can use Gate API tokens, built-in OAuth or an external RS256 IdP; 
 - Session cookies are `HttpOnly` and `SameSite=Lax`; enable `LINGSHU_GATE_AUTH_COOKIE_SECURE=true` behind HTTPS.
 - MCP payload logging is disabled by default.
 - Core-managed credentials are encrypted at rest and returned as masked metadata; connector and adapter credentials use separate protected local files. Manifests should use `${credential:<id>}` references.
-- Tool annotations are hints. Human-reviewed, published classifications and explicit grants determine effective access.
+- Tool annotations are hints. External tools require write access by default; only a local policy can change that level. Every call still checks account grants, Token/OAuth scope and current service identity.
 - The Docker Core service drops Linux capabilities, prevents privilege escalation, and mounts the workspace read-only.
 
 Read [SECURITY.md](SECURITY.md) before exposing Gate outside a single trusted host.

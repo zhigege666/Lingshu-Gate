@@ -15,6 +15,7 @@ from lingshu_gate.access_control import (
     AccessControlStore,
     ClassificationConfirmationConflictError,
     iso_now,
+    tool_policy_constraints,
 )
 from lingshu_gate.models import ToolDefinition
 from lingshu_gate.argument_preparation import model_preparer
@@ -46,6 +47,10 @@ class ToolClassificationReviewItem(_StrictInput):
     server_id: str = Field(min_length=1, max_length=128, pattern=SERVER_ID_PATTERN)
     tool_id: str = Field(min_length=1, max_length=255)
     expected_fingerprint: str = Field(min_length=1, max_length=128)
+    access: Literal["read", "write", "unknown", "automatic"] | None = Field(default=None,
+        description="Explicit local policy: read, write, unknown (disabled), or automatic (trusted default). Omission supports legacy clients.")
+    destructive: bool | None = None
+    idempotent: bool | None = None
 
 
 class ToolClassificationReviewInput(_StrictInput):
@@ -143,32 +148,32 @@ def _definition(
 CLASSIFICATION_TOOL_DEFINITIONS = [
     _definition(
         "gate_tool_classification_list",
-        "查询工具读写分类",
-        "同步当前 Registry 工具并返回读写分类、fingerprint 和 needs_review 状态；只读，不确认或发布。需要 classifications.manage。",
+        "查询工具访问策略",
+        "返回 required_access、policy_source 与编辑所需 fingerprint。新工具自动发现并使用现有账号/Token授权；日常无需审核或发布。status等旧字段仅为可选安全评审证据。需要 classifications.manage。",
         ToolClassificationListInput,
         permission="read:tool_classifications",
         read_only=True,
     ),
     _definition(
         "gate_tool_classification_analyze",
-        "自动校验工具读写分类",
-        "按当前工具元数据刷新规则建议；不会确认、发布或扩大权限。需要 confirmed=true 和 classifications.manage。",
+        "刷新工具策略建议（兼容）",
+        "兼容旧客户端：按元数据生成非权威建议，不改变有效访问策略。工具目录自动同步，日常无需执行此步骤。需要 confirmed=true 和 classifications.manage。",
         ToolClassificationAnalyzeInput,
         permission="write:tool_classifications",
         read_only=False,
     ),
     _definition(
         "gate_tool_classification_review",
-        "审核并确认工具读写分类",
-        "按 fingerprint 原子批量确认分类结论，确认后进入待发布状态；不会直接改变运行时授权。需要 confirmed=true 和 classifications.manage。",
+        "保存工具访问策略",
+        "一次保存并立即生效，无需再发布。items提供fingerprint和access：read只读、write读写、unknown禁用、automatic恢复可信默认（外部工具默认write）。只读覆写会允许现有只读授权调用。省略access仅兼容旧客户端确认建议；需要confirmed=true和classifications.manage。",
         ToolClassificationReviewInput,
         permission="write:tool_classifications",
         read_only=False,
     ),
     _definition(
         "gate_tool_classification_publish",
-        "发布工具读写分类",
-        "发布指定 MCP Server 或工具的已确认读写分类，使其进入工具发现和调用授权链路；必须明确发布范围。需要 confirmed=true 和 classifications.manage。",
+        "记录工具安全评审（兼容）",
+        "兼容旧客户端或显式维护组路由安全证据；日常发现与调用无需发布。本操作不授予账号或Token权限。必须明确服务或工具范围，需要confirmed=true和classifications.manage。",
         ToolClassificationPublishInput,
         permission="write:tool_classifications",
         read_only=False,
@@ -249,15 +254,20 @@ class ToolClassificationMcpService:
                     reviewer_id=context.actor_id,
                     items=[item.model_dump() for item in request.items],
                     note=request.note,
+                    definitions=definitions,
                 )
             except ClassificationConfirmationConflictError as exc:
                 raise ToolExecutionError(
                     "classification_fingerprint_conflict",
                     str(exc),
-                    next_action="重新调用 gate_tool_classification_list 获取最新 fingerprint 后再审核。",
+                    next_action="重新调用 gate_tool_classification_list 获取最新 fingerprint 后保存策略。",
                 ) from exc
+            except ValueError as exc:
+                raise ToolExecutionError("tool_policy_not_editable", str(exc)) from exc
             return {
-                "status": "pending" if result["confirmed_count"] else "needs_review",
+                "status": "saved" if result["confirmed_count"] else "unchanged",
+                "access_policy_effective": True,
+                "publication_required": False,
                 **result,
             }
 
@@ -519,8 +529,8 @@ class ToolClassificationMcpService:
             return [item for item in classifications if item["status"] == status]
         return classifications
 
-    @staticmethod
     def _with_summary(
+        self,
         classifications: list[dict[str, Any]],
         *,
         server_id: str | None,
@@ -533,11 +543,16 @@ class ToolClassificationMcpService:
             "stale": sum(item["status"] == "stale" for item in classifications),
             "published": sum(item["status"] == "published" for item in classifications),
         }
+        definitions = {item.id: item for item in self.registry.get_definitions(item["tool_id"] for item in classifications)}
+        classifications = [{**item, **tool_policy_constraints(definitions[item["tool_id"]])}
+                           if item["tool_id"] in definitions else item for item in classifications]
         return {
             "server_id": server_id,
             "status": status,
             "classifications": classifications,
             "counts": counts,
+            "publication_required": False,
+            "access_policy": "existing_authorizations",
         }
 
 

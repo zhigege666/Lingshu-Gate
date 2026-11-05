@@ -233,14 +233,24 @@ class McpConfigApplyResponse(BaseModel):
     message: str = "ok"
 
 
+class CredentialHttpTarget(BaseModel):
+    """One explicit target to authorize; callers cannot choose its generation."""
+
+    model_config = ConfigDict(extra="forbid", strict=True, hide_input_in_errors=True)
+
+    server_id: str = Field(min_length=1, max_length=512, pattern=r"^[A-Za-z0-9_.-]+$")
+    origin: str = Field(min_length=1, max_length=2048)
+
+
 class CredentialHttpScope(BaseModel):
-    """One explicit HTTP consumer; an unset binding awaits its first save."""
+    """One HTTP consumer, optionally approved for its next saved generation."""
 
     model_config = ConfigDict(extra="forbid", strict=True, hide_input_in_errors=True)
 
     server_id: str = Field(min_length=1, max_length=512, pattern=r"^[A-Za-z0-9_.-]+$")
     origin: str = Field(min_length=1, max_length=2048)
     server_binding: str | None = Field(default=None, max_length=128)
+    pending_rebind: bool = False
 
 
 class CredentialResponse(BaseModel):
@@ -253,6 +263,7 @@ class CredentialResponse(BaseModel):
     created_at: str
     updated_at: str
     http_scopes: list[CredentialHttpScope] = Field(default_factory=list)
+    http_scopes_revision: str = ""
     value_saved: bool | None = None
     connections: list[dict[str, Any]] = Field(default_factory=list)
     affected_connection_count: int = 0
@@ -273,5 +284,13 @@ class CredentialSaveRequest(BaseModel):
     value: str | None = Field(default=None, max_length=65536, repr=False)
     description: str | None = Field(default=None, max_length=4096)
     expected_revision: str | None = Field(default=None, max_length=128)
+    expected_http_scopes_revision: str | None = Field(default=None, min_length=64, max_length=64, pattern=r"^[0-9a-f]{64}$")
     idempotency_key: str | None = Field(default=None, min_length=1, max_length=128)
     http_scopes: list[CredentialHttpScope] | None = Field(default=None, max_length=100)
+    authorize_http_target: CredentialHttpTarget | None = None
+
+    @model_validator(mode="after")
+    def separate_scope_operations(self) -> CredentialSaveRequest:
+        if self.http_scopes is not None and self.authorize_http_target is not None:
+            raise ValueError("Use either http_scopes or authorize_http_target.")
+        return self

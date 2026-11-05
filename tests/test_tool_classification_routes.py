@@ -267,7 +267,7 @@ class ToolClassificationStoreTest(unittest.TestCase):
             self.assertEqual(after[key]["source"], "rule")
             self.assertIsNone(after[key]["reviewed_by"])
 
-    def test_pending_batch_confirmation_remains_hidden_until_publish(self) -> None:
+    def test_explicit_batch_policy_save_is_effective_before_optional_safety_publication(self) -> None:
         definition = _definition(
             "visibility-server",
             "mcp.visibility_server.search",
@@ -306,8 +306,8 @@ class ToolClassificationStoreTest(unittest.TestCase):
             created_by="test-admin",
         )
 
-        self.assertEqual(self.store.visible_tools(principal, [definition]), [])
-        self.assertFalse(self.store.evaluate(principal, definition)["allowed"])
+        self.assertEqual([item.id for item in self.store.visible_tools(principal, [definition])], [definition.id])
+        self.assertTrue(self.store.evaluate(principal, definition)["allowed"])
 
         self.store.publish_classifications(
             reviewer_id="batch-reviewer",
@@ -399,6 +399,41 @@ class ToolClassificationRouteTest(unittest.TestCase):
             for item in response.json()["classifications"]
             if item["tool_id"] == self.definition.id
         )
+
+    def test_policy_update_is_immediate_supports_disable_reset_and_rejects_stale_editor(self) -> None:
+        before = self._classification()
+        path = f"/v1/access/tool-classifications/route-server/{self.definition.id}"
+        saved = self.client.put(path, json={"access": "read", "expected_fingerprint": before["fingerprint"]})
+        self.assertEqual(saved.status_code, 200, saved.text)
+        self.assertEqual(saved.json()["required_access"], "read")
+        self.assertEqual(saved.json()["policy_source"], "local_override")
+        self.assertEqual(saved.json()["status"], "pending")
+        disabled = self.client.put(path, json={"access": "unknown", "expected_fingerprint": before["fingerprint"]})
+        self.assertEqual(disabled.json()["required_access"], "none")
+        resources = self.client.get("/v1/access/resources").json()["resources"]
+        resource = next(item for item in resources if item["tool_id"] == self.definition.id)
+        self.assertEqual(resource["classification_status"], "disabled")
+        restored = self.client.put(path, json={"access": "automatic", "expected_fingerprint": before["fingerprint"]})
+        self.assertEqual(restored.json()["required_access"], "write")
+        self.assertEqual(restored.json()["policy_source"], "default_write")
+        stale = self.client.put(path, json={"access": "read", "expected_fingerprint": "old-contract"})
+        self.assertEqual(stale.status_code, 409, stale.text)
+        self.assertEqual(self._classification()["required_access"], "write")
+
+    def test_control_tools_report_their_constraints_and_reject_generic_overrides(self) -> None:
+        rows = self.client.get("/v1/access/tool-classifications").json()["classifications"]
+        fixed = next(item for item in rows if item["tool_id"] == "gate_tool_classification_list")
+        self.assertFalse(fixed["policy_editable"])
+        self.assertEqual(fixed["policy_constraint"], "control_permission")
+        self.assertEqual(fixed["required_access"], "read")
+        resource = next(item for item in self.client.get("/v1/access/resources").json()["resources"]
+                        if item["tool_id"] == fixed["tool_id"])
+        self.assertFalse(resource["policy_editable"])
+        self.assertEqual(resource["classification"], "read")
+        for mode in ("read", "write", "unknown", "automatic"):
+            result = self.client.put(f"/v1/access/tool-classifications/{fixed['server_id']}/{fixed['tool_id']}",
+                json={"access": mode, "expected_fingerprint": fixed["fingerprint"]})
+            self.assertEqual(result.status_code, 400, result.text)
 
     def test_list_and_filtered_analysis_project_all_four_builtin_groups_without_publication(self) -> None:
         response = self.client.get("/v1/access/tool-classifications")

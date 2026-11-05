@@ -340,7 +340,8 @@ for (const locale of ["en-US", "zh-CN"] as const) {
     model.clientWriteFailure = false
     for (const [name, enabled, revision] of [[zh ? "停用" : "Disable", false, 1], [zh ? "启用" : "Enable", true, 2]] as const) {
       await clientAction(page, row, zh, model.clients[0].name, name)
-      await page.getByRole("alertdialog").getByRole("button", { name, exact: true }).click()
+      if (!enabled) await page.getByRole("alertdialog").getByRole("button", { name, exact: true }).click()
+      else await expect(page.getByRole("alertdialog")).toHaveCount(0)
       await expectClientActionEnabled(page, row, zh, model.clients[0].name, enabled ? zh ? "停用" : "Disable" : zh ? "启用" : "Enable")
       expect(model.writes.at(-1)!.body).toMatchObject({ enabled, expected_revision: revision, rotate_secret: false })
     }

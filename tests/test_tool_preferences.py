@@ -191,7 +191,7 @@ def test_cache_expiry_definition_revocation_and_external_proof_binding(browser, 
     response = cache.apply(original, actor, "", target)
     query = ResultRead(result_ref=response["_meta"][META_KEY]["result_ref"])
     assert cache.read(actor, "", query)["structuredContent"]["text"] == "x" * 4000
-    gate["db"].execute("UPDATE mcp_tool_classifications SET status='pending' WHERE tool_id='mcp.A.read'")
+    gate["db"].execute("UPDATE mcp_tool_classifications SET required_access='none' WHERE tool_id='mcp.A.read'")
     with pytest.raises(ToolExecutionError, match="unavailable"):
         cache.read(actor, "", query)
     external = replace(actor, auth_type="oauth", token_id=None, external_grant_id="grant", oauth_builtin=False)

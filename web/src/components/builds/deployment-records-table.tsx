@@ -7,6 +7,7 @@ import { ActionMenu, ActionMenuItem } from "@/components/action-menu"
 import { formatDateTime, shortId } from "@/components/builds/build-utils"
 import { StatusBadge } from "@/components/builds/status-badge"
 import { SortHead, usePagedSorted } from "@/components/table-tools"
+import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import { Card, CardContent } from "@/components/ui/card"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
@@ -76,12 +77,14 @@ export function DeploymentRecordsTable({ deployments, busy, selectedDeploymentId
             <TableCell>{deployment.started ? <Badge variant="success">{t("started")}</Badge> : <Badge variant="outline">{t("notStarted")}</Badge>}</TableCell>
             <TableCell className="whitespace-nowrap text-xs text-muted-foreground">{formatDateTime(deployment.created_at)}</TableCell>
             <TableCell className="text-right" onClick={(event) => event.stopPropagation()} onKeyDown={(event) => event.stopPropagation()}>
-              <ActionMenu inline label={t("actions")}>
-                <ActionMenuItem onClick={() => onDetail(deployment)}>{tx("view")}</ActionMenuItem>
-                <ActionMenuItem onClick={() => window.location.assign(`#/servers/${encodeURIComponent(deployment.server_id)}`)}>{t("viewServerDetail")}</ActionMenuItem>
-                {deployment.rollback_available ? <ActionMenuItem disabled={busy} onClick={() => onRollback(deployment.id)}>{t("rollback")}</ActionMenuItem> : null}
-                <ActionMenuItem destructive disabled={busy || ACTIVE_DEPLOYMENT_STATUSES.has(deployment.status)} onClick={() => onDelete(deployment)}>{tx("deleteRecord")}</ActionMenuItem>
-              </ActionMenu>
+              <div className="flex flex-wrap items-center justify-end gap-1">
+                <Button variant="ghost" size="sm" asChild><a href={`#/servers/${encodeURIComponent(deployment.server_id)}`}>{t("viewServerDetail")}</a></Button>
+                <ActionMenu label={t("actions")}>
+                  <ActionMenuItem onClick={() => onDetail(deployment)}>{tx("view")}</ActionMenuItem>
+                  {deployment.rollback_available ? <ActionMenuItem disabled={busy} onClick={() => onRollback(deployment.id)}>{t("rollback")}</ActionMenuItem> : null}
+                  <ActionMenuItem destructive disabled={busy || ACTIVE_DEPLOYMENT_STATUSES.has(deployment.status)} onClick={() => onDelete(deployment)}>{tx("deleteRecord")}</ActionMenuItem>
+                </ActionMenu>
+              </div>
             </TableCell>
           </TableRow>
         })}</TableBody>

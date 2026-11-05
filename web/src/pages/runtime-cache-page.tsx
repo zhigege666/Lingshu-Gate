@@ -128,10 +128,10 @@ export function RuntimeCachePage({ t, locale = "en-US" }: { t: TFunction; locale
         </CardContent>
       </Card>
 
-      <details className="rounded-lg border bg-card p-4 shadow-sm">
-        <summary className="cursor-pointer font-medium">{t("result")} · {t("runtimeCacheResultDesc")}</summary>
-        <div className="mt-3"><JsonPanel copyLabel={t("copy")} data={lastResult ?? status} maxHeight="max-h-[420px]" /></div>
-      </details>
+      {lastResult !== null && <details className="rounded-md border bg-card p-3">
+        <summary className="cursor-pointer text-sm font-medium">{t("result")}</summary>
+        <div className="mt-3"><JsonPanel copyLabel={t("copy")} data={lastResult} maxHeight="max-h-[420px]" /></div>
+      </details>}
 
       <Dialog open={detail !== null} onOpenChange={(open) => { if (!open) setDetail(null) }}>
         <DialogContent closeLabel={t("close")} className="max-w-2xl">

@@ -27,7 +27,9 @@ async function open(page: Page, locale: "en-US" | "zh-CN") {
   const response = page.waitForResponse(response => new URL(response.url()).pathname.endsWith("/scope-selection"))
   await row.getByRole("button", { name: locale === "zh-CN" ? "调整授权" : "Adjust", exact: true }).click()
   expect((await response).status()).toBe(200)
-  return page.getByRole("dialog", { name: locale === "zh-CN" ? "调整授权范围" : "Adjust authorization scope", exact: true })
+  const editor = page.getByRole("dialog", { name: locale === "zh-CN" ? "调整授权范围" : "Adjust authorization scope", exact: true })
+  await expect(editor.locator(".authorization-mcp-editor tr[data-row-key]")).toHaveCount(10)
+  return editor
 }
 
 async function captureRecovery(page: Page, locale: string, state: string) {
@@ -38,18 +40,30 @@ async function captureRecovery(page: Page, locale: string, state: string) {
   writeFileSync(join(directory, `${state}-${locale}-1600x900.json`), JSON.stringify({ source_sha: process.env.GATE_UI_SOURCE_SHA || null, fixture_services: 5000, fixture_tools: 50000, catalog_apis_mocked: false, locale, state, viewport: page.viewportSize() }, null, 2) + "\n")
 }
 
-test("OAuth entry avoids full definitions and the tool route still loads on navigation", async ({ page }) => {
+async function chooseMcp(editor: import("@playwright/test").Locator, server: string, zh: boolean) {
+  await editor.getByRole("textbox", { name: zh ? "搜索 MCP" : "Search MCP", exact: true }).fill(server)
+  const row = editor.locator(`.authorization-mcp-editor tr[data-row-key="${server}"]`)
+  await expect(row).toBeVisible()
+  const mode = row.getByRole("radio", { name: zh ? "指定工具" : "Selected tools", exact: true })
+  if (await mode.isChecked()) await row.getByRole("button", { name: `${server} ${zh ? "选择工具" : "choose tools"}`, exact: true }).click()
+  else await mode.check()
+  const picker = editor.locator(".oauth-paged-tools")
+  await expect(picker.locator("tr[data-row-key]")).toHaveCount(10)
+  return picker
+}
+
+test("OAuth entry reads one service page and avoids full definitions", async ({ page }) => {
   let fullReads = 0
-  // Only the unrelated legacy tool page is mocked with one small definition;
-  // OAuth catalog/session/selection requests use the actual large fixture.
+  const groupReads: URL[] = []
+  page.on("request", request => { const url = new URL(request.url()); if (url.pathname.endsWith("/scope-catalog") && url.searchParams.get("view") === "groups") groupReads.push(url) })
   await page.route("**/v1/tools", route => {
     fullReads++
-    return route.fulfill({ json: [{ id: "mcp.oauth-scale-0000.navigation", name: "Navigation read tool",
-      source: "mcp", permission: "read", description: "Synthetic navigation fixture", input_schema: { type: "object" },
-      metadata: { server_id: "oauth-scale-0000" } }] })
+    return route.fulfill({ json: [{ id: "mcp.oauth-scale-0000.navigation", name: "Navigation read tool", source: "mcp", permission: "read", description: "Synthetic navigation fixture", input_schema: { type: "object" }, metadata: { server_id: "oauth-scale-0000", gate_access: { required_access: "read", policy_source: "local_override", classification_status: "configured" } } }] })
   })
   const editor = await open(page, "en-US")
   expect(fullReads).toBe(0)
+  expect(groupReads).toHaveLength(1)
+  expect(groupReads[0].searchParams.get("limit")).toBe("10")
   await editor.getByRole("button", { name: "Cancel", exact: true }).click()
   await page.getByRole("link", { name: "Tool catalog", exact: true }).click()
   await expect(page.getByText("Navigation read tool", { exact: true }).first()).toBeVisible()
@@ -57,122 +71,86 @@ test("OAuth entry avoids full definitions and the tool route still loads on navi
 })
 
 for (const size of sizes) for (const locale of ["en-US", "zh-CN"] as const) {
-  test(`real paged OAuth catalog fits ${locale} ${size.width}x${size.height}`, async ({ page }, testInfo) => {
+  test(`real paged OAuth service editor fits ${locale} ${size.width}x${size.height}`, async ({ page }, testInfo) => {
     const zh = locale === "zh-CN"
     await page.setViewportSize(size)
-    let legacyReads = 0, fullToolReads = 0
-    page.on("request", request => {
-      const path = new URL(request.url()).pathname
-      if (path.endsWith("/scope-options")) legacyReads++
-      if (path === "/v1/tools") fullToolReads++
-    })
+    let fullReads = 0
+    page.on("request", request => { const path = new URL(request.url()).pathname; if (path === "/v1/tools" || path.endsWith("/scope-options")) fullReads++ })
     const editor = await open(page, locale)
-    await editor.getByRole("radio", { name: zh ? "MCP 整组" : "MCP groups", exact: true }).check()
-    await expect(editor.locator("tr[data-row-key]")).toHaveCount(15)
-    await editor.evaluate(async element => { await Promise.all(element.getAnimations().map(animation => animation.finished)) })
-    for (const control of [
-      editor.getByRole("radio", { name: zh ? "仅选全部当前只读" : "All current read-only tools", exact: true }),
-      editor.getByRole("button", { name: zh ? "刷新可授权范围" : "Refresh available scope", exact: true }),
-      editor.getByRole("button", { name: zh ? "下一页" : "Next page", exact: true }),
-      editor.getByRole("button", { name: zh ? "保存授权" : "Save authorization", exact: true }),
-    ]) await expectInViewportAndUnobscured(control)
-    const metrics = await editor.evaluate(element => {
-      const body = element.querySelector(".oauth-grant-scope-body")!
-      const table = element.querySelector(".ant-table-body")!.getBoundingClientRect()
-      const rows = Array.from(element.querySelectorAll("tr[data-row-key]")).filter(row => { const r = row.getBoundingClientRect(); return r.top >= table.top - 1 && r.bottom <= table.bottom + 1 }).length
-      const labels = Array.from(element.querySelectorAll(".oauth-grant-limits label")).map(label => {
-        const range = document.createRange(); range.selectNode(label.firstChild!)
-        const text = range.getBoundingClientRect(), input = label.querySelector("input")!.getBoundingClientRect()
-        return range.getClientRects().length === 1 && Math.abs((text.top + text.bottom - input.top - input.bottom) / 2) < 3
-      })
-      return { rows, labels, bodyOverflow: body.scrollHeight - body.clientHeight, pageOverflow: document.documentElement.scrollWidth - innerWidth }
-    })
-    expect(metrics.rows).toBeGreaterThanOrEqual(8)
-    expect(metrics.labels.every(Boolean)).toBe(true)
-    expect(metrics.bodyOverflow).toBeLessThanOrEqual(1)
-    expect(metrics.pageOverflow).toBeLessThanOrEqual(1)
-    expect(legacyReads).toBe(0)
-    expect(fullToolReads).toBe(0)
+    const body = editor.locator(".oauth-grant-edit-body")
+    const save = editor.getByRole("button", { name: zh ? "保存授权" : "Save authorization", exact: true })
+    const cancel = editor.getByRole("button", { name: zh ? "取消" : "Cancel", exact: true })
+    await editor.evaluate(async element => { await Promise.allSettled(element.getAnimations({ subtree: true }).filter(animation => animation.effect?.getComputedTiming().iterations !== Infinity).map(animation => animation.finished)) })
+    const footer = await cancel.boundingBox()
+    for (const control of [editor.getByRole("textbox", { name: zh ? "搜索 MCP" : "Search MCP", exact: true }), editor.getByRole("navigation", { name: zh ? "MCP 分页" : "MCP pages", exact: true }).getByRole("button", { name: zh ? "下一页" : "Next page", exact: true }), cancel]) {
+      await control.scrollIntoViewIfNeeded()
+      await expectInViewportAndUnobscured(control)
+      await expectInViewportAndUnobscured(save)
+    }
+    expect(await cancel.boundingBox()).toEqual(footer)
+    expect(await body.evaluate(element => element.scrollWidth - element.clientWidth)).toBeLessThanOrEqual(1)
+    expect(await page.evaluate(() => document.documentElement.scrollWidth - innerWidth)).toBeLessThanOrEqual(1)
+    await expect(editor.locator(".authorization-mcp-editor tr[data-row-key]")).toHaveCount(10)
+    expect(fullReads).toBe(0)
     const directory = process.env.GATE_OAUTH_SCREENSHOT_DIR
     if (directory) {
       mkdirSync(directory, { recursive: true })
-      const basename = `paged-${locale}-${size.width}x${size.height}`
-      await page.screenshot({ path: join(directory, `${basename}.png`), animations: "disabled" })
-      writeFileSync(join(directory, `${basename}.json`), JSON.stringify({ source_sha: process.env.GATE_UI_SOURCE_SHA || null, fixture_services: 5000, fixture_tools: 50000, catalog_apis_mocked: false, locale, ...size, ...metrics }, null, 2) + "\n")
+      await page.screenshot({ path: join(directory, `paged-services-${locale}-${size.width}x${size.height}.png`), animations: "disabled" })
     }
-    await testInfo.attach("layout", { body: JSON.stringify(metrics), contentType: "application/json" })
+    await testInfo.attach("layout", { body: JSON.stringify({ ...size, serviceRows: 10, fullReads, oneMainScroll: true }), contentType: "application/json" })
   })
 }
 
 for (const locale of ["en-US", "zh-CN"] as const) {
-  test(`real paging group selection limits refresh and save recovery ${locale}`, async ({ page, playwright }) => {
+  test(`real explicit MCP selection survives policy changes and unknown saves ${locale}`, async ({ page, playwright }) => {
     const zh = locale === "zh-CN"
     await page.setViewportSize({ width: 1600, height: 900 })
     const editor = await open(page, locale)
     const before = (await (await page.request.get("/v1/auth/oauth/grants")).json()).grants[0]
     const group = zh ? "oauth-scale-0002" : "oauth-scale-0001"
+    const picker = await chooseMcp(editor, group, zh)
     const expected = before.tools.length + 10
-    await editor.getByRole("radio", { name: zh ? "MCP 整组" : "MCP groups", exact: true }).check()
-    const readFilter = editor.getByRole("radio", { name: zh ? "只读" : "Read", exact: true })
-    await expect(readFilter).toBeEnabled()
-    await readFilter.locator("..").click()
-    await expect(readFilter).toBeChecked()
+    await picker.getByRole("radio", { name: zh ? "MCP 整组" : "MCP groups", exact: true }).check()
     const chosen = page.waitForResponse(response => new URL(response.url()).pathname.endsWith("/scope-selection"))
-    const groupCheckbox = editor.getByRole("checkbox", { name: zh ? `选择 MCP ${group} 的全部当前可授权工具` : `Select all current available tools in MCP ${group}`, exact: true })
-    await groupCheckbox.click()
-    const groupResponse = await chosen
-    expect(groupResponse.status()).toBe(200)
-    const groupResult = await groupResponse.json()
-    await expect(groupCheckbox).toBeChecked()
+    await picker.getByRole("checkbox", { name: zh ? `选择 MCP ${group} 的全部当前可授权工具` : `Select all current available tools in MCP ${group}`, exact: true }).check()
+    const groupResult = await (await chosen).json()
     expect(groupResult.tool_ids).toHaveLength(expected)
-    expect(groupResult.tools.some((tool: { access: string }) => tool.access === "write")).toBe(true)
-    await editor.getByRole("button", { name: zh ? "下一页" : "Next page", exact: true }).click()
-    await expect(editor.locator(".oauth-paged-navigation")).toContainText(zh ? "第 2 页" : "Page 2")
-    for (const name of [zh ? "选中全部当前工具" : "All current tools", zh ? "仅选全部当前只读" : "All current read-only tools"]) {
-      const rejected = page.waitForResponse(response => new URL(response.url()).pathname.endsWith("/scope-selection"))
-      await editor.getByRole("radio", { name, exact: true }).click()
-      expect((await rejected).status()).toBe(409)
-      await expect(editor.getByRole("alert")).toContainText(zh ? "草稿已保留" : "draft is retained")
-      await expect(editor.locator(".oauth-selection")).toContainText(`${expected} /`)
-      await expect(editor.getByRole("radio", { name: zh ? "自定义" : "Custom", exact: true })).toBeChecked()
-    }
     const admin = await playwright.request.newContext({ baseURL: "http://127.0.0.1:18763" })
+    const refresh = editor.getByRole("button", { name: zh ? "刷新可授权范围" : "Refresh available scope", exact: true })
     try {
       expect((await admin.post("/v1/auth/login", { data: { username: "admin", password: "Synthetic-admin-123!" } })).status()).toBe(200)
-      expect((await admin.post("/v1/access/tool-classifications/publish", { data: { server_id: "oauth-scale-4998" } })).status()).toBe(200)
+      // Re-enable one locally disabled tool directly. No review or publish step.
+      expect((await admin.put("/v1/access/tool-classifications/oauth-scale-4998/mcp.oauth-scale-4998.tool-0", { data: { access: "read", destructive: false, idempotent: true } })).status()).toBe(200)
       const refreshed = page.waitForResponse(response => new URL(response.url()).pathname.endsWith("/scope-selection"))
-      await editor.getByRole("button", { name: zh ? "刷新可授权范围" : "Refresh available scope", exact: true }).click()
+      await refresh.click()
       const next = await (await refreshed).json()
       expect(next.tool_ids).toEqual(groupResult.tool_ids)
       expect(next.tool_ids.some((id: string) => id.includes("oauth-scale-4998"))).toBe(false)
-      await expect(editor.getByRole("radio", { name: zh ? "自定义" : "Custom", exact: true })).toBeChecked()
       const toolId = `mcp.${group}.tool-0`
-      expect((await admin.put(`/v1/access/tool-classifications/${group}/${toolId}`, { data: { access: "read", destructive: false, idempotent: true } })).status()).toBe(200)
+      expect((await admin.put(`/v1/access/tool-classifications/${group}/${toolId}`, { data: { access: "unknown", destructive: false, idempotent: false } })).status()).toBe(200)
       const withdrawn = page.waitForResponse(response => new URL(response.url()).pathname.endsWith("/scope-selection"))
-      await editor.getByRole("button", { name: zh ? "刷新可授权范围" : "Refresh available scope", exact: true }).click()
+      await refresh.click()
       expect((await (await withdrawn).json()).unavailable_ids).toEqual([toolId])
       await expect(editor.getByRole("button", { name: zh ? "保存授权" : "Save authorization", exact: true })).toBeDisabled()
-      await editor.getByRole("button", { name: zh ? "查看不可授权原因" : "Why unavailable", exact: true }).click()
-      const reasons = page.getByRole("dialog", { name: zh ? "不可授权原因" : "Unavailable scope reasons", exact: true })
-      await expect(reasons).toContainText(zh ? "分类尚未发布" : "Classification is unpublished")
-      await reasons.getByRole("button", { name: zh ? "关闭" : "Close", exact: true }).filter({ hasNot: page.locator("svg") }).click()
+      // Disabled resources are filtered from candidate details; the retained
+      // selection is still visible as unavailable without exposing other tools.
+      await expect(editor.locator(".oauth-unavailable-selection")).toBeVisible()
       await editor.getByRole("button", { name: zh ? "移除不可授权选择" : "Remove unavailable selections", exact: true }).click()
       await expect(editor.locator(".oauth-selection")).toContainText(`${expected - 1} /`)
     } finally { await admin.dispose() }
     const writePattern = "**/v1/auth/oauth/grants/*/scope"
     await page.route(writePattern, route => route.abort("failed"))
-    const review = editor.getByRole("button", { name: zh ? "保存授权" : "Save authorization", exact: true })
-    await review.click()
+    const save = editor.getByRole("button", { name: zh ? "保存授权" : "Save authorization", exact: true })
+    await save.click()
     await page.getByRole("alertdialog").getByRole("button", { name: zh ? "确认并更新" : "Confirm update", exact: true }).click()
     await expect(editor.getByRole("alert")).toContainText(zh ? "结果未知" : "result is unknown")
-    await expect(editor.locator(".oauth-selection")).toContainText(String(expected - 1))
-    await expect(review).toBeDisabled()
+    await expect(save).toBeDisabled()
     await page.unroute(writePattern)
     const recovered = page.waitForResponse(response => new URL(response.url()).pathname.endsWith("/scope-selection"))
-    await editor.getByRole("button", { name: zh ? "刷新可授权范围" : "Refresh available scope", exact: true }).click()
+    await refresh.click()
     expect((await recovered).status()).toBe(200)
     await expect(editor.locator(".oauth-selection")).toContainText(`${expected - 1} /`)
-    await review.click()
+    await save.click()
     const saved = page.waitForResponse(response => new URL(response.url()).pathname.endsWith("/scope") && response.request().method() === "POST")
     await page.getByRole("alertdialog").getByRole("button", { name: zh ? "确认并更新" : "Confirm update", exact: true }).click()
     expect((await saved).status()).toBe(200)
@@ -182,122 +160,41 @@ for (const locale of ["en-US", "zh-CN"] as const) {
     expect(after.scopes).toEqual(before.scopes)
     expect(after.revision).toBe(before.revision + 1)
   })
-}
 
-for (const locale of ["en-US", "zh-CN"] as const) {
-  test(`remote MCP selector searches bounded groups and keeps draft across pages ${locale}`, async ({ page }) => {
+  test(`remote MCP pages search and retry without changing the saved scope ${locale}`, async ({ page }) => {
     const zh = locale === "zh-CN"
     await page.setViewportSize({ width: 1600, height: 900 })
-    const editor = await open(page, locale)
-    const before = editor.locator(".oauth-selection [role=status]")
-    const selection = (await before.innerText()).split(" /")[0]
-    const filter = editor.getByRole("combobox", { name: zh ? "按 MCP 筛选" : "Filter by MCP", exact: true })
-    const initialGroups = page.waitForResponse(response => { const url = new URL(response.url()); return url.pathname.endsWith("/scope-catalog") && url.searchParams.get("view") === "groups" && url.searchParams.get("query") === "" })
-    await filter.click()
-    const initial = await initialGroups
-    expect(initial.status()).toBe(200)
-    expect((await initial.json()).items.length).toBeLessThanOrEqual(15)
-    await editor.getByRole("button", { name: zh ? "加载更多 MCP" : "Load more MCPs", exact: true }).click()
-    const group = "oauth-scale-0010"
-    const searched = page.waitForResponse(response => { const url = new URL(response.url()); return url.pathname.endsWith("/scope-catalog") && url.searchParams.get("view") === "groups" && url.searchParams.get("query") === group })
-    await filter.fill(group)
-    expect((await searched).status()).toBe(200)
-    const pageRead = page.waitForResponse(response => { const url = new URL(response.url()); return url.pathname.endsWith("/scope-catalog") && url.searchParams.get("view") === "tools" && url.searchParams.get("server_id") === group })
-    await editor.locator(".ant-select-item-option-content").getByText(group, { exact: true }).click()
-    expect((await pageRead).status()).toBe(200)
-    await expect(editor.locator("tr[data-row-key]")).toHaveCount(10)
-    await expect(before).toContainText(selection)
-    await editor.getByRole("button", { name: zh ? "重置筛选" : "Reset filters", exact: true }).click()
-    await expect(editor.locator("tr[data-row-key]")).toHaveCount(50)
-    await expect(before).toContainText(selection)
-  })
-  test(`remote MCP selector keyboard loads retries and returns focus ${locale}`, async ({ page }) => {
-    const zh = locale === "zh-CN"
-    await page.setViewportSize({ width: 1600, height: 900 })
-    let scopeWrites = 0, fullReads = 0
-    page.on("request", request => {
-      const path = new URL(request.url()).pathname
-      if (path.endsWith("/scope-preview") || path.endsWith("/scope")) scopeWrites++
-      if (path === "/v1/tools" || path.endsWith("/scope-options")) fullReads++
-    })
+    let writes = 0, fullReads = 0
+    page.on("request", request => { const path = new URL(request.url()).pathname; if (path.endsWith("/scope-preview") || path.endsWith("/scope")) writes++; if (path === "/v1/tools" || path.endsWith("/scope-options")) fullReads++ })
     const editor = await open(page, locale)
     const selection = await editor.locator(".oauth-selection [role=status]").innerText()
-    const filter = editor.getByRole("combobox", { name: zh ? "按 MCP 筛选" : "Filter by MCP", exact: true })
-    const more = editor.getByRole("button", { name: zh ? "加载更多 MCP" : "Load more MCPs", exact: true })
-    const isGroups = (url: URL) => url.pathname.endsWith("/scope-catalog") && url.searchParams.get("view") === "groups"
-    const initial = page.waitForResponse(response => { const url = new URL(response.url()); return isGroups(url) && !url.searchParams.has("cursor") && url.searchParams.get("query") === "" })
-    await filter.focus()
-    await page.keyboard.press("ArrowDown")
-    const first = await initial
-    expect(first.status()).toBe(200)
-    const initialPage = await first.json()
-    expect(initialPage.items).toHaveLength(15)
-    await expect(more).toBeEnabled()
-    await page.keyboard.press("Tab")
-    await expect(more).toBeFocused()
-    await expect(filter).toHaveAttribute("aria-expanded", "true")
-    await captureRecovery(page, locale, "selector-keyboard")
-    await page.keyboard.press("Shift+Tab")
-    await expect(filter).toBeFocused()
-    await page.keyboard.press("Tab")
-    const nextPage = page.waitForResponse(response => { const url = new URL(response.url()); return isGroups(url) && url.searchParams.get("cursor") === initialPage.next_cursor })
-    await page.keyboard.press("Enter")
-    const second = await nextPage
-    expect(second.status()).toBe(200)
-    expect((await second.json()).items).toHaveLength(15)
-    await expect(filter).toBeFocused()
-    await expect(more).toBeEnabled()
-    await page.keyboard.press("Tab")
-    await expect(more).toBeFocused()
-    await page.keyboard.press("Escape")
-    await expect(filter).toBeFocused()
-    await expect(filter).toHaveAttribute("aria-expanded", "false")
-    const reopened = page.waitForResponse(response => { const url = new URL(response.url()); return isGroups(url) && !url.searchParams.has("cursor") })
-    await page.keyboard.press("ArrowDown")
-    expect((await reopened).status()).toBe(200)
-    await expect(more).toBeEnabled()
-    let failedCursor = "", injected = false
+    const search = editor.getByRole("textbox", { name: zh ? "搜索 MCP" : "Search MCP", exact: true })
+    const searched = page.waitForResponse(response => { const url = new URL(response.url()); return url.pathname.endsWith("/scope-catalog") && url.searchParams.get("view") === "groups" && url.searchParams.get("query") === "oauth-scale-4999" })
+    await search.fill("oauth-scale-4999")
+    expect((await (await searched).json()).items).toHaveLength(1)
+    await expect(editor.locator('.authorization-mcp-editor tr[data-row-key="oauth-scale-4999"]').getByRole("radio", { name: zh ? "不授权" : "None", exact: true })).toBeChecked()
+    await search.fill("")
+    await expect(editor.locator(".authorization-mcp-editor tr[data-row-key]")).toHaveCount(10)
+    let injected = false, failedCursor = ""
     const routePattern = "**/v1/auth/oauth/grants/*/scope-catalog?**"
-    // Inject only one read failure. Successful pages and retry use the real owner-visible catalog.
     await page.route(routePattern, route => {
       const url = new URL(route.request().url())
-      if (!injected && isGroups(url) && url.searchParams.has("cursor")) {
-        injected = true; failedCursor = url.searchParams.get("cursor")!
-        return route.fulfill({ status: 503, json: { error: "scope_catalog_unavailable" } })
-      }
+      if (!injected && url.searchParams.get("view") === "groups" && url.searchParams.has("cursor")) { injected = true; failedCursor = url.searchParams.get("cursor")!; return route.fulfill({ status: 503, json: { error: "scope_catalog_unavailable" } }) }
       return route.continue()
     })
-    await page.keyboard.press("Tab")
-    await expect(more).toBeFocused()
-    await page.keyboard.press("Enter")
-    const retry = editor.getByRole("button", { name: zh ? "重试" : "Retry", exact: true })
+    const next = editor.getByRole("navigation", { name: zh ? "MCP 分页" : "MCP pages", exact: true }).getByRole("button", { name: zh ? "下一页" : "Next page", exact: true })
+    await next.focus(); await page.keyboard.press("Enter")
+    const retry = editor.getByRole("button", { name: zh ? "重试读取 MCP" : "Retry MCP page", exact: true })
     await expect(retry).toBeEnabled()
-    await expect(filter).toBeFocused()
-    await page.keyboard.press("Tab")
-    await expect(retry).toBeFocused()
-    const retried = page.waitForResponse(response => { const url = new URL(response.url()); return isGroups(url) && url.searchParams.get("cursor") === failedCursor && response.status() === 200 })
-    await page.keyboard.press("Space")
-    expect((await retried).status()).toBe(200)
-    await expect(filter).toBeFocused()
+    const retried = page.waitForResponse(response => { const url = new URL(response.url()); return url.pathname.endsWith("/scope-catalog") && url.searchParams.get("cursor") === failedCursor && response.status() === 200 })
+    await retry.focus(); await page.keyboard.press("Space")
+    expect((await (await retried).json()).items).toHaveLength(10)
     await expect(retry).toHaveCount(0)
-    await expect(more).toBeEnabled()
-    await page.keyboard.press("Escape")
-    await expect(filter).toBeFocused()
-    await expect(filter).toHaveAttribute("aria-expanded", "false")
-    const lastOpen = page.waitForResponse(response => { const url = new URL(response.url()); return isGroups(url) && !url.searchParams.has("cursor") })
-    await page.keyboard.press("ArrowDown")
-    expect((await lastOpen).status()).toBe(200)
-    await expect(more).toBeEnabled()
-    await page.keyboard.press("Tab")
-    await expect(more).toBeFocused()
-    await page.keyboard.press("Tab")
-    await expect(filter).toHaveAttribute("aria-expanded", "false")
-    await expect(editor.getByRole("radiogroup", { name: zh ? "按读写权限筛选" : "Filter by access", exact: true })).toBeFocused()
-    expect(injected).toBe(true)
-    await page.unroute(routePattern)
+    await expect(editor.getByRole("navigation", { name: zh ? "MCP 分页" : "MCP pages", exact: true })).toContainText(zh ? "第 2 页" : "Page 2")
     await expect(editor.locator(".oauth-selection [role=status]")).toHaveText(selection)
-    expect(scopeWrites).toBe(0)
-    expect(fullReads).toBe(0)
+    expect(writes).toBe(0); expect(fullReads).toBe(0)
+    await captureRecovery(page, locale, "service-page-recovered")
+    await page.unroute(routePattern)
   })
   test(`committed scope save with a lost response refreshes actual state ${locale}`, async ({ page }) => {
     const zh = locale === "zh-CN"
@@ -305,9 +202,10 @@ for (const locale of ["en-US", "zh-CN"] as const) {
     const editor = await open(page, locale)
     const before: OAuthGrant = (await (await page.request.get("/v1/auth/oauth/grants")).json()).grants[0]
     const group = zh ? "oauth-scale-0011" : "oauth-scale-0010"
-    await editor.getByRole("radio", { name: zh ? "MCP 整组" : "MCP groups", exact: true }).check()
+    const picker = await chooseMcp(editor, group, zh)
+    await picker.getByRole("radio", { name: zh ? "MCP 整组" : "MCP groups", exact: true }).check()
     const selection = page.waitForResponse(response => new URL(response.url()).pathname.endsWith("/scope-selection"))
-    await editor.getByRole("checkbox", { name: zh ? `选择 MCP ${group} 的全部当前可授权工具` : `Select all current available tools in MCP ${group}`, exact: true }).click()
+    await picker.getByRole("checkbox", { name: zh ? `选择 MCP ${group} 的全部当前可授权工具` : `Select all current available tools in MCP ${group}`, exact: true }).click()
     const draft = (await (await selection).json()).tool_ids as string[]
     await expandCallLimits(editor)
     const limit = editor.getByRole("spinbutton", { name: zh ? "每分钟调用上限" : "Calls per minute", exact: true })
@@ -380,9 +278,9 @@ for (const locale of ["en-US", "zh-CN"] as const) {
     await captureRecovery(page, locale, "save-reconciled")
     // A later explicit edit requires a fresh preview/ticket at the actual revision.
     await limit.fill(String(saved.rate_per_minute - 1))
-    await review.click()
     const updated = page.waitForResponse(response => new URL(response.url()).pathname === scopePath && response.request().method() === "POST")
-    await page.getByRole("alertdialog").getByRole("button", { name: zh ? "确认并更新" : "Confirm update", exact: true }).click()
+    await review.click()
+    await expect(page.getByRole("alertdialog")).toHaveCount(0)
     expect((await updated).status()).toBe(200)
     await expect(editor).toHaveCount(0)
     expect(writes).toBe(2)

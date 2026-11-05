@@ -2,11 +2,12 @@ import { FORM_COPY } from "@/features/mcp-config/copy"
 import { useRemainingViewport } from "@/components/use-remaining-viewport"
 import "./maintenance-lists.css"
 import { ListPagination, ListViewport, useListPage } from "@/components/list-pagination"
-import { useMemo, useRef, useState } from "react"
+import { useEffect, useMemo, useRef, useState } from "react"
+import { Radio } from "antd"
 import { Edit3, Play, Plus, RefreshCcw, Trash2 } from "lucide-react"
 import { FormDialog } from "@/components/form-dialog"
 import { useConfirm } from "@/components/confirm-dialog"
-import type { HttpTrustSaveOptions, McpConfig } from "@/api/client"
+import type { ConfigSaveOptions, McpConfig } from "@/api/client"
 import { McpConfigEditor } from "@/components/mcp-config-editor"
 import { PageHeader, PageToolbar } from "@/components/page-shell"
 import { Alert, AlertDescription } from "@/components/ui/alert"
@@ -36,7 +37,7 @@ export function ConfigsPage(props: {
   onApplyConfig: (id: string) => void
   onDeleteConfig: (id: string) => void
   onConfigTextChange: (value: string) => void
-  onSaveConfig: (value?: string, httpTrust?: HttpTrustSaveOptions) => Promise<void>
+  onSaveConfig: (value?: string, httpTrust?: ConfigSaveOptions, apply?: boolean) => Promise<void>
 }) {
   const { locale, t, configs, configErrors, selectedConfigId, configText, busy, editorOpen, onCloseEditor, onNewConfig, onReloadConfigs, onEditConfig, onApplyConfig, onDeleteConfig, onConfigTextChange, onSaveConfig } = props
   const remainingViewport = useRemainingViewport()
@@ -44,6 +45,17 @@ export function ConfigsPage(props: {
   const zh = locale === "zh-CN"
   const { confirm, confirmDialog } = useConfirm(t, true)
   const [editorPending, setEditorPending] = useState(false)
+  const [applyOnSave, setApplyOnSave] = useState(true)
+  useEffect(() => { if (editorOpen) setApplyOnSave(true) }, [editorOpen, selectedConfigId])
+  const saveMode = useMemo(() => {
+    try {
+      const manifest = JSON.parse(configText)
+      return { external: manifest.launch?.type === "external", enabled: manifest.enabled !== false }
+    } catch { return { external: false, enabled: false } }
+  }, [configText])
+  useEffect(() => { if (!saveMode.enabled) setApplyOnSave(false) }, [saveMode.enabled])
+  const activateLabel = saveMode.external ? (zh ? "保存并连接" : "Save and connect")
+    : selectedConfigId ? (zh ? "保存并启动" : "Save and start") : (zh ? "保存并启动" : "Save and start")
   const [editorDraftDirty, setEditorDraftDirty] = useState(false)
   const [footerContainer, setFooterContainer] = useState<HTMLDivElement | null>(null)
   const editorReturnFocus = useRef<HTMLElement | null>(null)
@@ -182,7 +194,7 @@ export function ConfigsPage(props: {
                             disabled={busy}
                             onClick={() => onApplyConfig(config.id)}
                           >
-                            <Play className="size-3.5" />{t("apply")}
+                            <Play className="size-3.5" />{zh ? "应用并启动" : "Apply and start"}
                           </Button>
                           <Button
                             size="sm"
@@ -223,6 +235,14 @@ export function ConfigsPage(props: {
         className="manifest-dialog"
         footer={<div ref={setFooterContainer} className="w-full" />}
       >
+        <div className="service-config-save-intent">
+          <Radio.Group aria-label={zh ? "保存方式" : "Save behavior"} value={applyOnSave}
+            disabled={busy || editorPending} onChange={event => setApplyOnSave(event.target.value as boolean)} options={[
+              { value: false, label: zh ? "仅保存" : "Save only" },
+              { value: true, label: activateLabel, disabled: !saveMode.enabled },
+            ]} />
+          {applyOnSave && <p className="text-xs text-muted-foreground">{zh ? "将替换运行配置并连接或启动服务；已有实例会重启，现有连接会中断。" : "Replace the runtime configuration and connect or start the service. An existing instance will restart and its connections will be interrupted."}</p>}
+        </div>
         <McpConfigEditor
           key={selectedConfigId || "new"}
           locale={locale}
@@ -230,7 +250,8 @@ export function ConfigsPage(props: {
           savedConfigDigest={configs.find(config => config.id === selectedConfigId)?.digest ?? undefined}
           value={configText}
           onChange={onConfigTextChange}
-          onSave={onSaveConfig}
+          onSave={(value, options) => onSaveConfig(value, options, applyOnSave)}
+          saveLabel={applyOnSave ? activateLabel : undefined}
           onClose={() => void closeEditor()}
           onPendingChange={setEditorPending}
           onDraftDirtyChange={setEditorDraftDirty}

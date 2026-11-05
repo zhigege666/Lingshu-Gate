@@ -2,7 +2,7 @@
 
 [简体中文](zh-CN/first-call.md) · [Getting started](getting-started.md) · [Documentation index](README.md)
 
-Use the bundled in-memory MCP to check discovery, publication, a restricted token and an actual denied write. It has no external account, database, filesystem commands or network actions. Its note, revision and write counter reset when the demo process stops.
+Use the bundled in-memory MCP to check automatic discovery, optional read policies, a restricted token and an actual denied write. It has no external account, database, filesystem commands or network actions. Its note, revision and write counter reset when the demo process stops.
 
 First [install Gate, sign in and change its initial password](getting-started.md). This walkthrough uses existing HTTP tools and needs no separate desktop MCP client.
 
@@ -37,12 +37,12 @@ docker compose -f compose.yaml -f examples/compose.demo.yaml up -d --build --wai
 
 These commands wait for Core and the actual demo listener. An offline installation first loads its matching offline image and selects `LINGSHU_GATE_PULL_POLICY=never` in its chosen env file. The demo uses the same image as Core and shares Core's network namespace; it does not expose another host port. A normal separate container cannot reach this loopback-only server by its service name.
 
-## Connect and publish
+## Connect and set the demo read policies
 
 1. Sign in as administrator. On a fresh instance read the local one-time credentials, change the password, then sign in again. The old session is revoked and a generated initial-credentials file is removed. An externally provisioned production password file remains under operator control.
-2. In the MCP service workspace create an **external Streamable HTTP** service from [the demo manifest](../examples/mcp.d/demo.yaml). Validate, save, apply and start it as separate operations. The target is `http://127.0.0.1:18880/mcp`, with automatic protocol negotiation.
-3. Discover its three tools. Review `gate_demo_echo` and `gate_demo_note_read` as **read**, non-destructive and idempotent. Review `gate_demo_note_write` as **write**, non-destructive and non-idempotent: repeated writes increment its counter.
-4. Confirm the reviewed classification and then publish it. Discovery, saving a manifest and confirmation alone do not publish access.
+2. Create an **external Streamable HTTP** service from [the demo manifest](../examples/mcp.d/demo.yaml) and choose **Save and connect**. Saving validates automatically; connection synchronizes the tools. The endpoint is `http://127.0.0.1:18880/mcp`, with automatic protocol negotiation.
+3. In **Tool access**, save `gate_demo_echo` and `gate_demo_note_read` as **read**, non-destructive and idempotent, for the restricted caller below. Leave `gate_demo_note_write` at the default **write** level, non-destructive and non-idempotent: repeated writes increment its counter.
+4. Saved policies apply immediately, without a separate review/publication step. These read overrides demonstrate least privilege; they are not a prerequisite for every new tool.
 
 The service ID in the example is `demo`. If you change it, use the tool references returned by your own directory.
 
@@ -166,7 +166,7 @@ docker compose --env-file .env.quickstart -f compose.quickstart.yaml -f examples
 
 For production use `.env` and `compose.yaml`; for source Compose keep its original two files. For native use Ctrl+C in the demo terminal. Repeat the valid read and inspect the MCP error, service state and invocation outcome. Catalog or recovery failures can include a structured error code; a transport connection failure can instead return `isError: true` with a text `content` entry. Check the corresponding failed invocation audit, or the catalog rejection event if the tool has already left the registry. Gate itself should still respond at `/readyz`. A stopped/disconnected tool can leave the callable catalog; no branch should return a successful cached note.
 
-Restart the demo with the original command, then reconnect the saved service in Gate if required. Search/describe again and invoke the current read contract. An unchanged definition preserves its published review; the demo's in-memory note and counter reset. Changed definitions require review/publication before use.
+Restart the demo with the original command, then reconnect the saved service in Gate if required. Search/describe again and invoke the current read contract. Synchronization preserves the local access policy; the demo's in-memory note and counter reset. A changed schema requires a fresh description and revision, without a publication step. Removing/replacing a service or disabling/restoring a tool invalidates old exact authorizations; reselect those tools if needed.
 
 Finally revoke the viewer token in **My authorizations / 我的授权** and repeat a request with the same bearer token. It must fail authentication; supplying a Console cookie does not rescue an explicitly revoked bearer token. Clear the terminal variable with `unset GATE_TOKEN` and remove the helper with `unset -f gate_request`. In PowerShell use `$GateToken = $null; $SecureToken.Dispose(); Remove-Variable GateToken, SecureToken; Remove-Item Function:\Invoke-GateRequest`.
 
@@ -175,7 +175,7 @@ Finally revoke the viewer token in **My authorizations / 我的授权** and repe
 | Observation | Check |
 |---|---|
 | Cannot connect | Demo process, shared network namespace, exact endpoint and Gate service state |
-| Empty or missing tool directory | Classification publication, account grant, functional token scope and token's MCP selection |
+| Empty or missing tool directory | Service connection/synchronization, disabled tool policy, account grant, functional token scope and MCP selection |
 | Schema revision rejected | Describe the current permitted tool and review changed definitions |
 | A denied call appears successful | Inspect `isError` / the tool error; do not interpret HTTP 200 alone |
 | Client still shows old tools | Refresh its tool cache or reconnect after changing discovery settings |

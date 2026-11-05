@@ -1,6 +1,8 @@
 import type { ReactNode } from "react"
-import { CloseOutlined, QuestionCircleOutlined, ReloadOutlined, SearchOutlined } from "@ant-design/icons"
-import { Button, Empty, Input, Steps, type StepsProps } from "antd"
+import { HelpCircle, Inbox, RotateCcw, Search, X } from "lucide-react"
+import { Steps, type StepsProps } from "antd"
+import { Button } from "@/components/ui/button"
+import { Input } from "@/components/ui/input"
 import { Dialog, DialogBody, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog"
 import { cn } from "@/lib/utils"
 
@@ -19,26 +21,26 @@ export function PageHeader({ title, description, eyebrow, actions, titleExtra, s
   helpContent?: ReactNode
   closeLabel?: string
 }) {
-  // 列表页复用全局导航标题；详情页保留资源名称，避免丢失当前操作对象。
   if (variant === "compact") return <header className="page-header page-header-compact" data-has-actions={Boolean(actions)}>
-    <h1>{title}</h1>
-    <div className="page-header-controls">
-      {toolbar && <div className="page-header-toolbar">{toolbar}</div>}
-      {stats.length > 0 && <div className="page-stats">{stats.map(stat => <PageStat key={stat.label} {...stat} />)}</div>}
-      <div className="page-header-actions">
-        {actions}
-        {(description || helpContent) && <Dialog>
-          <DialogTrigger asChild><Button type="text" icon={<QuestionCircleOutlined />} aria-label={helpLabel || title} title={helpLabel || title} /></DialogTrigger>
+    <div className="page-header-main">
+      <div className="page-title-line"><h1>{title}</h1>{titleExtra}
+        {helpContent && <Dialog>
+          <DialogTrigger asChild><Button variant="ghost" className="console-icon-button" aria-label={helpLabel || title} title={helpLabel || title}><HelpCircle /></Button></DialogTrigger>
           <DialogContent closeLabel={closeLabel}>
             <DialogHeader><DialogTitle>{title}</DialogTitle></DialogHeader>
             <DialogBody className="space-y-3 text-sm leading-6">
-              <DialogDescription className="whitespace-pre-wrap break-words leading-6">{description}</DialogDescription>
+              {description && <DialogDescription className="whitespace-pre-wrap break-words leading-6">{description}</DialogDescription>}
               {helpContent}
             </DialogBody>
           </DialogContent>
         </Dialog>}
       </div>
+      {actions && <div className="page-header-actions">{actions}</div>}
     </div>
+    {(toolbar || stats.length > 0) && <div className="page-header-controls">
+      {toolbar && <div className="page-header-toolbar">{toolbar}</div>}
+      {stats.length > 0 && <div className="page-stats">{stats.map(stat => <PageStat key={stat.label} {...stat} />)}</div>}
+    </div>}
   </header>
   return <header className="page-header">
     <div className="page-header-main">
@@ -70,16 +72,14 @@ export function PageToolbar({ query, onQueryChange, placeholder, resultCount, re
 }) {
   return <div className={cn("page-toolbar", className)}>
     <div className="page-toolbar-search">
-      {onQueryChange && <Input
+      {onQueryChange && <div className="page-search-field"><Search aria-hidden="true" /><Input
         value={query || ""}
         onChange={event => onQueryChange(event.target.value)}
         placeholder={placeholder}
         aria-label={placeholder}
-        prefix={<SearchOutlined />}
-        suffix={query ? <Button type="text" size="small" icon={<CloseOutlined />} onClick={() => onQueryChange("")} aria-label={clearLabel} /> : null}
-      />}
+      />{query && <Button variant="ghost" size="sm" onClick={() => onQueryChange("")} aria-label={clearLabel}><X /></Button>}</div>}
       {resultCount !== undefined && <span className="page-result-count"><strong>{resultCount}</strong> {resultLabel || ""}</span>}
-      {resetFilters && <Button className="page-toolbar-reset" aria-label={resetFilters.label} type="text" size="small" icon={<ReloadOutlined />} disabled={resetFilters.disabled} onClick={resetFilters.onReset}>{resetFilters.label}</Button>}
+      {resetFilters && <Button className="page-toolbar-reset" aria-label={resetFilters.label} variant="ghost" size="sm" disabled={resetFilters.disabled} onClick={resetFilters.onReset}><RotateCcw />{resetFilters.label}</Button>}
     </div>
     {children && <div className="page-toolbar-filters">{children}</div>}
   </div>
@@ -99,5 +99,5 @@ export function WorkflowSteps({ steps, ariaLabel, responsive = true, stacked = f
 }
 
 export function InlineEmpty({ title, description, action }: { title: string; description?: string; action?: ReactNode }) {
-  return <div className="inline-empty"><Empty image={Empty.PRESENTED_IMAGE_SIMPLE} description={<><strong>{title}</strong>{description && <p>{description}</p>}</>}>{action}</Empty></div>
+  return <div className="inline-empty"><span className="inline-empty-icon" aria-hidden="true"><Inbox size={20} /></span><strong>{title}</strong>{description && <p>{description}</p>}{action && <div className="mt-4">{action}</div>}</div>
 }

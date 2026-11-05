@@ -1,4 +1,4 @@
-import { queryString, request } from "@/api/http"
+import { apiErrorMessage, queryString, request } from "@/api/http"
 import type { ObservabilityEvent, ObservabilityLog } from "@/api/observability"
 
 export type McpServer = {
@@ -190,6 +190,44 @@ export type HttpTrustSaveOptions = {
   expected_http_trust_revision?: number
 }
 
+export type ConfigurationCredentialWrite = {
+  credential_id: string
+  target: { server_id: string; origin: string }
+} & ({ kind: "create"; name: string; value: string } | {
+  kind: "authorize"; expected_revision: string; expected_http_scopes_revision: string
+})
+
+export type ConfigSaveOptions = HttpTrustSaveOptions & {
+  credential_write?: ConfigurationCredentialWrite
+  credential_operation_key?: string
+}
+
+export class ConfigurationCredentialSaveError extends Error {
+  constructor(public readonly detail: Record<string, unknown>, public readonly status: number) {
+    super(apiErrorMessage(detail, "The configuration save could not be confirmed."))
+  }
+  get requiresReconciliation() { return this.detail.requires_reconciliation === true }
+}
+
+async function saveConfiguration(path: string, method: string, manifest: Record<string, unknown>, apply: boolean, start: boolean,
+  values: Record<string, string>, options: ConfigSaveOptions, existingId?: string, digest?: string): Promise<ApplyResponse> {
+  const { credential_write, credential_operation_key, ...trust } = options
+  const body = { manifest, apply, start, user_credential_values: values, ...(digest ? { expected_config_digest: digest } : {}), ...trust }
+  if (!credential_write) return request<ApplyResponse>(path, { method, body: JSON.stringify(body) })
+  if (!credential_operation_key) throw new Error("A credential save operation key is required.")
+  const response = await fetch("/v1/mcp/configs/with-credential", { method: "POST", credentials: "include", headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ ...body, credential_write, existing_server_id: existingId || null, idempotency_key: `${credential_operation_key}:${Number(apply)}${Number(start)}` }) })
+  let payload: Record<string, unknown>
+  try { payload = await response.json() }
+  catch { throw new Error("Save result unknown. Retry the unchanged draft to read its existing operation result.") }
+  if (!response.ok) {
+    const detail = payload.detail && typeof payload.detail === "object" && !Array.isArray(payload.detail)
+      ? payload.detail as Record<string, unknown> : { message: apiErrorMessage(payload.detail, `${response.status} ${response.statusText}`) }
+    throw new ConfigurationCredentialSaveError(detail, response.status)
+  }
+  return payload as ApplyResponse
+}
+
 export type McpHttpTrustPolicy = {
   server_id: string
   revision: number
@@ -200,6 +238,7 @@ export type McpHttpTrustPolicy = {
   needs_review: boolean
   configured_origin?: { ip: string; port: number } | null
   configured_endpoint_origin?: string | null
+  configured_server_binding?: string | null
 }
 
 export const serversRuntimeApi = {
@@ -217,8 +256,8 @@ export const serversRuntimeApi = {
   invoke: (toolId: string, args: Record<string, unknown>) => request("/v1/invoke", { method: "POST", body: JSON.stringify({ tool_id: toolId, arguments: args }) }),
   configs: () => request<McpConfigListResponse>("/v1/mcp/configs"),
   validateConfig: (manifest: Record<string, unknown>, serverId?: string | null, httpTrust: HttpTrustSaveOptions = {}) => request<ManifestValidationResponse>(serverId ? `/v1/mcp/configs/${encodeURIComponent(serverId)}/validate` : "/v1/mcp/configs/validate", { method: "POST", body: JSON.stringify({ manifest, apply: false, start: false, ...httpTrust }) }),
-  createConfig: (manifest: Record<string, unknown>, apply = false, start = false, userCredentialValues: Record<string, string> = {}, httpTrust: HttpTrustSaveOptions = {}) => request<ApplyResponse>("/v1/mcp/configs", { method: "POST", body: JSON.stringify({ manifest, apply, start, user_credential_values: userCredentialValues, ...httpTrust }) }),
-  updateConfig: (serverId: string, manifest: Record<string, unknown>, apply = false, start = false, userCredentialValues: Record<string, string> = {}, expectedConfigDigest?: string, httpTrust: HttpTrustSaveOptions = {}) => request<ApplyResponse>(`/v1/mcp/configs/${encodeURIComponent(serverId)}`, { method: "PUT", body: JSON.stringify({ manifest, apply, start, user_credential_values: userCredentialValues, ...(expectedConfigDigest ? { expected_config_digest: expectedConfigDigest } : {}), ...httpTrust }) }),
+  createConfig: (manifest: Record<string, unknown>, apply = false, start = false, userCredentialValues: Record<string, string> = {}, options: ConfigSaveOptions = {}) => saveConfiguration("/v1/mcp/configs", "POST", manifest, apply, start, userCredentialValues, options),
+  updateConfig: (serverId: string, manifest: Record<string, unknown>, apply = false, start = false, userCredentialValues: Record<string, string> = {}, expectedConfigDigest?: string, options: ConfigSaveOptions = {}) => saveConfiguration(`/v1/mcp/configs/${encodeURIComponent(serverId)}`, "PUT", manifest, apply, start, userCredentialValues, options, serverId, expectedConfigDigest),
   mcpHttpTrust: (serverId: string, signal?: AbortSignal) => request<McpHttpTrustPolicy>(`/v1/mcp/http-trust/${encodeURIComponent(serverId)}`, { signal }),
   replaceMcpHttpTrust: (serverId: string, origins: McpHttpTrustPolicy["origins"], revision: number, signal?: AbortSignal) => request<McpHttpTrustPolicy>(`/v1/mcp/http-trust/${encodeURIComponent(serverId)}`, { method: "PUT", signal, body: JSON.stringify({ origins, expected_revision: revision, confirmed: true }) }),
   deleteConfig: (serverId: string) => request<ApplyResponse>(`/v1/mcp/configs/${encodeURIComponent(serverId)}`, { method: "DELETE" }),

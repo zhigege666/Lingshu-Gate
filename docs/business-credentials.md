@@ -2,7 +2,7 @@
 
 [简体中文](zh-CN/business-credentials.md) · [Configuration](configuration.md) · [Documentation index](README.md)
 
-Business credentials let you maintain a website account in Gate, authorize specific MCP instances to use it, and give an agent a reference instead of a password. This guide covers the `agent_browser` adapter. A binding is an additional restriction: it does not publish tools or expand the caller's existing MCP permissions.
+Business credentials let you maintain a website account in Gate, authorize specific MCP instances to use it, and give an agent a reference instead of a password. This guide covers the `agent_browser` adapter. A binding is an additional use restriction and does not expand the caller's existing MCP permissions.
 
 ## Choose the correct credential type
 
@@ -24,7 +24,7 @@ agent-browser mcp --tools core,state
 
 The adapter checks the discovered save, login, delete, and navigation contracts. In particular, login must support `session` and `noNavigate`. The default `core` profile alone does not expose the auth tools. If the compatibility check fails, inspect the actual installed version and discovered tools; a matching tool name alone is insufficient.
 
-Review classification and publication in Gate as usual. A user must already be permitted to invoke the relevant MCP tools. Binding an account never grants that permission.
+Tools synchronize automatically and use their current `required_access` policy; external tools default to write unless a trusted local policy or Gate-owned contract says otherwise. A user must already be permitted to invoke the relevant MCP tools. Binding an account never grants that permission.
 
 The administrator must also ensure that the instance starts its own browser, has protected local storage, and does not inherit a shared CDP connection, a reused browser profile, restored state, or an unreviewed provider or plugin. The binding checks explicit manifest overrides, but Gate cannot inspect every configuration file or inherited setting on a remote machine.
 
@@ -39,7 +39,7 @@ The first adapter does not support browser targets with per-user downstream HTTP
 3. For shared credentials, select the allowed Gate users or roles. An empty recipient list is not an instruction to grant everyone access.
 4. Keep optional username, password, and submit selectors empty when the site's normal login form works. Configure them only for the site's actual controls.
 5. Save the account. Responses show a username mask and configuration status; they do not reveal stored passwords. When editing, leave username and password empty to retain their existing values. A displayed mask is not a replacement credential.
-6. Add a binding to each eligible MCP instance. Check the instance ID, not only the machine's display name. Each binding has its own synchronization state.
+6. Open the account name or authorized-node count. With no bindings, the binding form opens directly; otherwise choose **Add node**. Add a binding to each eligible MCP instance and check its ID. A single compatible tool contract is filled automatically; confirm the managed-mode change when an instance first enters that mode. Each binding has its own synchronization state. Cancelling a modified form asks whether to discard it; saving a binding returns to the node list and does not send the password.
 7. Synchronize the selected binding and read back its state and synchronized version. Repeat for the other selected instances.
 
 Enter secrets only through a trusted HTTPS Gate entry or a local loopback connection. The website login URL also defaults to HTTPS. A legacy HTTP login requires an explicit HTTP acknowledgement; this does not relax protection of the Gate management connection. HTTP sends the account password over that website's network connection without TLS.
@@ -95,7 +95,7 @@ For this adapter, string arguments passed to the native CLI must not start with 
 | `unknown` | Gate cannot confirm the outcome, for example after a timeout or interrupted response. | Treat a remote copy as possible; retry synchronization or cleanup through Gate. |
 | `deleted` | Gate received confirmation that this binding's remote vault entry was deleted. | Synchronize again only if the account should remain usable. |
 
-Editing an account creates a new version and marks its bindings pending. It does not silently claim that all nodes have been updated. Synchronize the intended targets explicitly. A stale page or an operation based on an older revision is rejected; reload the record before retrying.
+Editing an account creates a new version. For an enabled account with enabled bindings, **Save and sync** saves once and then synchronizes those already authorized nodes using the returned version and each binding revision. **Save only** leaves node synchronization pending. The UI reports each unresolved node separately; a sync failure does not undo the credential save or cause it to be replayed. Read the affected node state before retrying synchronization. A stale page or an operation based on an older revision is rejected; reload the record before retrying.
 
 A successful synchronization receipt proves that the configured target accepted the save operation. It is not an independent inspection of the target's disk, nor proof that the website accepts the password. If a delete reply is lost, an empty vault listing does not prove cleanup; retain the unresolved record until cleanup can be verified.
 

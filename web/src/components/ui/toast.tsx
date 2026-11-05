@@ -21,7 +21,7 @@ export function Toaster({ toast, onClose, duration = 4000, closeLabel = "Close" 
 
   if (!toast) return null
   return createPortal(
-    <div role="status" aria-live="polite" aria-atomic="true" className="fixed bottom-4 right-4 z-[60] w-[calc(100%-2rem)] max-w-sm">
+    <div role="status" aria-live="polite" aria-atomic="true" className="fixed bottom-4 right-4 z-40 w-[calc(100%-2rem)] max-w-sm">
       <div className={cn("flex items-start gap-3 rounded-lg border bg-popover px-4 py-3 text-sm text-popover-foreground shadow-lg animate-in fade-in-0 slide-in-from-bottom-2", TONE_CLASS[toast.tone || "info"])}>
         <div className="min-h-0 max-h-40 min-w-0 flex-1 overflow-y-auto whitespace-pre-wrap break-words">{toast.message}</div>
         <button type="button" onClick={onClose} className="shrink-0 text-muted-foreground hover:text-foreground" aria-label={closeLabel}><X className="size-4" /></button>

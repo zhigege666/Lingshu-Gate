@@ -9,10 +9,11 @@ export const servers = Array.from({ length: 100 }, (_, i) => ({
 export const tools = Array.from({ length: 5000 }, (_, i) => ({
   id: `synthetic-tool-${String(i).padStart(4, '0')}`, name: `Synthetic tool ${String(i).padStart(4, '0')}`,
   description: `Synthetic description ${i}`, permission: 'read', input_schema: { type: 'object', properties: {} },
-  source: 'mcp', metadata: { server_id: servers[i % 100].id, effective_access: 'read', classification_status: 'published' },
+  source: 'mcp', metadata: { server_id: servers[i % 100].id, gate_access: { required_access: 'read', classification_status: 'configured', policy_source: 'local_override' } },
 }))
 export const classifications = tools.map((tool, i) => ({
   id: `classification-${i}`, server_id: tool.metadata.server_id, tool_id: tool.id, tool_name: tool.name,
+  required_access: 'read', policy_source: 'local_override',
   fingerprint: `synthetic-fingerprint-${i}`, suggested_access: 'read', effective_access: 'read', status: 'published',
   confidence: 1, source: 'manual', destructive: false, idempotent: true, open_world: false,
   evidence: {}, created_at: timestamp, updated_at: timestamp,

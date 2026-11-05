@@ -42,11 +42,11 @@ For bounded detail reads, use `/v1/mcp/servers/{server_id}/detail?section=overvi
 
 ## Tool catalog
 
-The Tools page displays cards with search, a searchable MCP service selector, effective read/write filters, and pagination. Service options show the deployment ID as well as its name, so deployments with the same name remain distinct. Operators can select registered services with no visible tools; accounts without runtime management access see only services represented in their visible tool catalog. Built-in tools have a separate filter.
+The Tool catalog page displays compact rows or cards with search, a searchable MCP service selector, effective read/write filters, and pagination. Service options show the deployment ID as well as its name, so deployments with the same name remain distinct. Operators can select registered services with no visible tools; accounts without runtime management access see only services represented in their visible tool catalog. Built-in tools have a separate filter.
 
-Each card opens full tool details or selects that exact registered tool in the invocation editor. Opening the editor does not execute it and resets arguments and results from the previous tool. Discovery and invocation retain the existing authorization checks.
+The tool name opens full details or selects that exact registered tool in the invocation editor. Opening the editor does not execute it and resets arguments and results from the previous tool. Discovery and invocation retain the existing authorization checks.
 
-`/v1/tools` and `/v1/tools/{tool_id}` include a request-local `metadata.gate_access` snapshot with `required_access` and `classification_status`. Read/write badges use this server-side decision rather than MCP annotations or manifest defaults. The snapshot does not mutate registry definitions, publish classifications, or grant access; invocation reevaluates policy at execution time.
+`/v1/tools` and `/v1/tools/{tool_id}` include a request-local `metadata.gate_access` snapshot with `required_access`, `policy_source` and `classification_status`. Read/write badges use this server-side decision rather than MCP annotations or manifest defaults. The snapshot does not mutate registry definitions, publish classifications, or grant access; invocation reevaluates policy at execution time.
 
 ## Logs and events
 
@@ -127,7 +127,7 @@ A cache miss may increase latency or repeat toolchain inspection; it must not by
 - verify readiness and disk space;
 - inspect new error-level logs and denied invocation audits;
 - check downstream targets whose observed state differs from desired state;
-- review pending tool-classification changes;
+- check failed catalog synchronization or intentional local tool-policy overrides when relevant;
 - confirm backups completed without copying live SQLite state.
 
 ### Before a change window

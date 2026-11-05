@@ -1,9 +1,9 @@
 import { InvocationPayloadPanel, payloadText, type InvocationDetail } from "@/components/invocation-payload-panel"
 import { MyAuthorizationsPage as ExternalGrantsPage } from "@/pages/my-authorizations-page"
 import { useCallback, useEffect, useRef, useState } from "react"
-import { Alert, Button, Input, Table } from "antd"
+import { Alert, Button, Table } from "antd"
 import { request, queryString } from "@/api/http"
-import { PageHeader } from "@/components/page-shell"
+import { PageHeader, PageToolbar } from "@/components/page-shell"
 import { FormDialog } from "@/components/form-dialog"
 import { useRemainingViewport } from "@/components/use-remaining-viewport"
 import { usePageRefresh } from "@/components/page-refresh"
@@ -20,7 +20,7 @@ type ServiceDetail = Service & { tools: Array<{ id: string; name: string; descri
 export function personalToolAccessLabel(access: string, locale: Locale) {
   if (access === "read") return locale === "zh-CN" ? "只读" : "Read only"
   if (access === "write") return locale === "zh-CN" ? "读写" : "Read and write"
-  return locale === "zh-CN" ? "待确认" : "Unconfirmed"
+  return locale === "zh-CN" ? "不可用" : "Unavailable"
 }
 export function personalCallLabel(value: string, locale: Locale) {
   const labels: Record<string, [string, string]> = { allow: ["允许", "Allowed"], deny: ["拒绝", "Denied"], success: ["成功", "Succeeded"], error: ["失败", "Failed"], not_invoked: ["未执行", "Not invoked"] }
@@ -132,10 +132,9 @@ function PersonalResourcesPage({ view, locale, t, onInvoke, viewState = initialP
   const title = view === "myServers" ? (zh ? "我的 MCP" : "My MCP") : view === "myConnections" ? (zh ? "我的授权" : "My authorizations") : (zh ? "我的调用" : "My invocations")
   const filtered = audits.filter(item => `${item.server_id} ${item.tool_id} ${item.correlation_id} ${item.outcome}`.toLowerCase().includes(query.toLowerCase()))
   return <div className="personal-workspace-page" ref={tableRegion}>
-    {view !== "myConnections" && <PageHeader closeLabel={t("close")} title={title} />}
+    {view !== "myConnections" && <PageHeader closeLabel={t("close")} title={title} toolbar={<PageToolbar clearLabel={t("clearSearch")} placeholder={view === "myServers" ? (zh ? "搜索获准的服务或工具" : "Search authorized services or tools") : (zh ? "搜索最近500条本人记录" : "Search up to 500 personal records")} query={query} onQueryChange={value => { setQuery(value); changePage(1) }} />} />}
     {error && <Alert type="error" title={error} action={<Button onClick={() => void load()}>{t("refresh")}</Button>} />}
     {view === "myConnections" ? <ExternalGrantsPage locale={locale} t={t} /> : <>
-      <Input.Search aria-label={zh ? "搜索" : "Search"} placeholder={view === "myServers" ? (zh ? "搜索获准的服务或工具" : "Search authorized services or tools") : (zh ? "搜索已加载的最近500条本人记录" : "Search up to 500 loaded personal records")} value={query} onChange={event => { setQuery(event.target.value); changePage(1) }} allowClear />
       {view === "myServers" && <p className="text-sm text-muted-foreground">{zh ? "仅显示当前账号获准查看的工具所属服务；已配置但没有可见工具的服务不会列在这里。" : "Services with tools visible to your account. Configured services without visible tools are not listed here."}</p>}
       {view === "myServers" ? <Table locale={{ emptyText: query.trim() ? t("noMatchingRecords") : t("noData") }} className="personal-services-table" rowKey="id" size="small" loading={busy} onScroll={event => { restoreTop.current = event.currentTarget.scrollTop; setScrollTop(event.currentTarget.scrollTop) }} dataSource={error ? [] : services} scroll={{ x: 500, y: "100%" }} pagination={{ current: page, pageSize: 20, total, hideOnSinglePage: true, showSizeChanger: false, onChange: changePage }} columns={[
         { title: zh ? "服务" : "Service", dataIndex: "name", render: (name: string, item: Service) => <Button type="link" onClick={event => { detailTrigger.current = event.currentTarget; openDetail(item.id) }}>{name}</Button> },

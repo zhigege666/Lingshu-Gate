@@ -2,7 +2,7 @@
 
 [English](../first-call.md) · [开始使用](getting-started.md) · [文档索引](README.md)
 
-使用随包提供的内存 MCP 验证发现、发布、限权令牌和真实写入拒绝。它不需要外部账号，不执行数据库、文件系统命令或网络操作；进程退出后，便笺、版本和写入计数清空。
+使用随包提供的内存 MCP 验证自动发现、工具策略、限权令牌和真实写入拒绝。它不需要外部账号，不执行数据库、文件系统命令或网络操作；进程退出后，便笺、版本和写入计数清空。
 
 请先[安装 Gate、登录并修改初始密码](getting-started.md)。本流程使用现有 HTTP 工具，不需要另装桌面 MCP 客户端。
 
@@ -37,12 +37,12 @@ docker compose -f compose.yaml -f examples/compose.demo.yaml up -d --build --wai
 
 命令等待 Core 与实际 demo 监听就绪。离线安装先载入匹配镜像，在选定的 env 文件中设置 `LINGSHU_GATE_PULL_POLICY=never`。演示服务与 Core 使用同一个镜像、共享网络命名空间，不新增宿主端口。普通独立容器不能通过服务名访问这个只监听回环地址的服务。
 
-## 接入并发布
+## 接入并设置演示只读策略
 
 1. 管理员登录。全新实例先读取本地一次性凭据、修改密码并重新登录；旧会话被撤销，自动生成的初始凭据文件被删除。生产环境外部准备的密码文件继续由操作员管理。
-2. 在 MCP 工作区，根据[演示配置](../../examples/mcp.d/demo.yaml)创建**外部 Streamable HTTP** 服务。分别进行校验、保存、应用和启动。地址为 `http://127.0.0.1:18880/mcp`，协议自动协商。
-3. 发现三个工具。将 `gate_demo_echo`、`gate_demo_note_read` 审核为**只读、非破坏、幂等**。将 `gate_demo_note_write` 审核为**写入、非破坏、非幂等**，因为重复写入仍增加计数。
-4. 确认分类审核，再单独发布。仅发现、保存配置或确认审核均不等于发布授权。
+2. 在 MCP 工作区，根据[演示配置](../../examples/mcp.d/demo.yaml)创建**外部 Streamable HTTP** 服务，选择“保存并连接”。保存时自动校验，连接后同步工具。地址为 `http://127.0.0.1:18880/mcp`，协议自动协商。
+3. 在“工具权限”将 `gate_demo_echo`、`gate_demo_note_read` 保存为**只读**，供下一步的只读调用者使用；两者均非破坏、幂等。`gate_demo_note_write` 保持默认**读写**，非破坏、非幂等，重复写入仍增加计数。
+4. 策略保存即生效，无需审核后再发布。此处只读设置用于演示最小权限，不是接入每一个新工具的必经步骤。
 
 示例服务 ID 是 `demo`；若修改 ID，应使用自己目录返回的工具引用。
 
@@ -166,7 +166,7 @@ docker compose --env-file .env.quickstart -f compose.quickstart.yaml -f examples
 
 生产使用 `.env` 和 `compose.yaml`；源码 Compose 保留原来的两个文件。原生在 demo 终端 Ctrl+C。再次正确读取，查看 MCP 错误、服务状态和调用结果。目录或恢复失败可能包含结构化错误码；传输连接失败也可能只返回 `isError: true` 和文本 `content`。核对对应的失败调用审计；工具已离开注册表时，核对目录拒绝事件。Gate 自身 `/readyz` 仍应正常。停止或断连可能使工具离开可调用目录；任何分支都不应返回缓存的成功便签。
 
-用原命令重启 demo，必要时在 Gate 重新连接已保存服务。再次 search/describe，用当前读合同调用。定义未变时保留已发布审核，demo 内存便签与计数重置；定义改变需要重新审核、发布后才能使用。
+用原命令重启 demo，必要时在 Gate 重新连接已保存服务。再次 search/describe，用当前读合同调用。同步保留本地权限策略，demo 内存便签与计数重置；Schema 改变时重新描述并使用当前修订，无需发布。服务移除/替换或工具禁用/恢复会使旧精确授权失效，需要时重新选择相应工具。
 
 最后在 **My authorizations / 我的授权** 撤销 viewer 令牌，用相同 bearer 重试，必须认证失败；明确失效的 bearer 不会回退到 Console cookie。终端用 `unset GATE_TOKEN` 清理凭据，`unset -f gate_request` 移除函数。PowerShell 使用 `$GateToken = $null; $SecureToken.Dispose(); Remove-Variable GateToken, SecureToken; Remove-Item Function:\Invoke-GateRequest`。
 
@@ -175,7 +175,7 @@ docker compose --env-file .env.quickstart -f compose.quickstart.yaml -f examples
 | 现象 | 检查 |
 |---|---|
 | 无法连接 | 演示进程、共享网络命名空间、精确地址及 Gate 服务状态 |
-| 目录为空或缺工具 | 分类是否发布、账号资源授权、令牌功能范围及 MCP 选择 |
+| 目录为空或缺工具 | 服务是否连接并同步、工具是否禁用、账号资源授权、令牌功能范围及 MCP 选择 |
 | 合同版本被拒绝 | 重新描述当前可见工具，审核变更后的定义 |
 | 拒绝调用看起来成功 | 查看 `isError` 或工具错误，不能只看 HTTP 200 |
 | 客户端目录未变化 | 修改发现设置后刷新工具缓存或重连 |

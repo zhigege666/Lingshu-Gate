@@ -1,3 +1,4 @@
+import { expandsExternalGrant, expandsExternalTrust } from "@/features/external-connections/authorization-changes"
 import { QuotaSettings } from "@/features/external-connections/mcp-authorization-editor"
 import { ConnectionGuide, ConnectionGuideChecks } from "@/features/external-connections/connection-guide"
 import { EditorNavigationContext, useEditorNavigationGuards } from "@/components/editor-navigation-guard"
@@ -58,6 +59,7 @@ function ExternalConnectionInfrastructure({ locale, t }: Props) {
   const [draft, setDraft] = useState(emptyConnection)
   const [open, setOpen] = useState(false)
   const [guideOpen, setGuideOpen] = useState(false)
+  const [showInactiveTransport, setShowInactiveTransport] = useState(false)
   const [guideStep, setGuideStep] = useState(() => { try { const value = Number(sessionStorage.getItem("gate-connection-guide-step") || 0); return Number.isInteger(value) && value >= 0 && value <= 3 ? value : 0 } catch { return 0 } })
   const registerExit = useContext(EditorNavigationContext)
   const [busy, setBusy] = useState(false)
@@ -73,7 +75,7 @@ function ExternalConnectionInfrastructure({ locale, t }: Props) {
   const closeGuide = useDraftCloseGuard({ dirty, pending: busy, locale, confirm, onClose: () => { setGuideOpen(false); if(snapshot) setDraft(connectionDraft(snapshot)) } })
   useEffect(() => { if (guideOpen) return registerExit?.({dirty,pending:busy}) }, [guideOpen, dirty, busy, registerExit])
   function changeGuideStep(next: number) { setGuideStep(next); try { sessionStorage.setItem("gate-connection-guide-step", String(next)) } catch { /* optional progress preference */ } }
-  function beginGuide() { if (!snapshot) return; const next=connectionDraft(snapshot); setDraft(next); baseline.current=JSON.stringify(next); setFormError(""); setGuideOpen(true) }
+  function beginGuide() { if (!snapshot) return; const next=connectionDraft(snapshot); setDraft(next); baseline.current=JSON.stringify(next); setFormError(""); setShowInactiveTransport(false); setGuideOpen(true) }
   async function load() {
     const revision = ++generation.current
     setBusy(true); setError("")
@@ -83,45 +85,62 @@ function ExternalConnectionInfrastructure({ locale, t }: Props) {
   }
   useEffect(() => { void load(); return () => { generation.current++ } }, [])
   usePageRefresh(load, busy || open || guideOpen)
-  function edit() { if (!snapshot) return; const next = connectionDraft(snapshot); setDraft(next); baseline.current = JSON.stringify(next); setFormError(""); setOpen(true) }
+  function edit() { if (!snapshot) return; const next = connectionDraft(snapshot); setDraft(next); baseline.current = JSON.stringify(next); setFormError(""); setShowInactiveTransport(false); setOpen(true) }
   async function save() {
     if (pending.current || !snapshot) return
     setMessage("")
     const invalid = connectionError(draft)
-    if (invalid) { setFormError(externalError(new Error(invalid), zh)); return }
+    if (invalid) { setShowInactiveTransport(true); setFormError(externalError(new Error(invalid), zh)); return }
     if (draft.enabled && connectionReadiness(draft).length) { setFormError((zh ? "尚未配置完成：" : "Configuration incomplete: ") + connectionReadiness(draft).map(reason => activationReason(reason, zh)).join(" · ")); return }
     pending.current = true; setBusy(true); setFormError("")
     try {
-      if (draft.enabled && !(await confirm({ title: zh ? "启用外部令牌验证配置？" : "Enable external token verification?", description: zh ? "此设置将立即控制受信令牌的接受范围。它不会完成外部 OAuth 登录或启动隧道。" : "This immediately controls which trusted tokens Gate accepts. It does not complete OAuth sign-in or launch a tunnel." }))) return
+      if (expandsExternalTrust(connectionDraft(snapshot), draft) && !(await confirm({ title: zh ? "允许新的外部令牌信任范围？" : "Allow the new external token trust scope?", description: zh ? "此设置将立即控制受信令牌的接受范围。它不会完成外部 OAuth 登录或启动隧道。" : "This immediately controls which trusted tokens Gate accepts. It does not complete OAuth sign-in or launch a tunnel." }))) return
       const result = await request<ConnectionSnapshot>("/v1/auth/external-connection/config", { method: "PUT", body: JSON.stringify({ ...draft, expected_revision: snapshot.revision }) })
       if (result.enabled !== draft.enabled) throw new Error("Unexpected enablement state")
       setSnapshot(result); baseline.current = JSON.stringify(draft); setOpen(false); setMessage(zh ? "配置已保存；未执行外部 OAuth 登录。" : "Configuration saved; no external OAuth sign-in was performed."); return true
     } catch (cause) { setFormError(externalError(cause, zh)) }
     finally { pending.current = false; setBusy(false) }
   }
-  const configurationForm = (<form id="connection-draft" className="grid min-w-0 grid-cols-1 items-start gap-6 lg:grid-cols-2" onSubmit={event => { event.preventDefault(); void save() }}>
-        {(!guideOpen || guideStep === 0) && <fieldset className="min-w-0 space-y-4"><legend className="mb-3 font-medium">{zh ? "连通配置" : "Connectivity"}</legend>
-        <Field label={zh ? "传输方式" : "Transport mode"}><FilterRadio hideLabel label={zh ? "计划传输方式" : "Planned transport"} value={draft.mode} disabled={busy} onChange={mode => setDraft(current => ({ ...current, mode: mode as typeof current.mode }))} options={[{ value: "disabled", label: zh ? "关闭" : "Disabled" }, { value: "direct", label: transportLabel("direct", zh) }, { value: "secure_mcp_tunnel", label: transportLabel("secure_mcp_tunnel", zh) }]} /></Field>
-        {(!guideOpen || draft.mode === "direct") && <Field label={zh ? "HTTPS 接入地址" : "HTTPS endpoint"}><Input disabled={busy} value={draft.endpoint ?? ""} onChange={event => setDraft(current => ({ ...current, endpoint: event.target.value || null }))} /></Field>}
-        {(!guideOpen || draft.mode !== "disabled") && <Field label={zh ? "Gate 规范资源 URL" : "Gate canonical resource URL"} help={zh ? "空白时使用接入地址。" : "Defaults to the endpoint when empty."} zh={zh}><Input disabled={busy} value={draft.canonical_resource_url ?? ""} onChange={event => setDraft(current => ({ ...current, canonical_resource_url: event.target.value || null }))} /></Field>}
-        {(!guideOpen || draft.mode === "secure_mcp_tunnel") && <Field label={zh ? "隧道引用" : "Tunnel reference"} help={zh ? "使用 tunnel:ID 格式。" : "Use the tunnel:ID format."} zh={zh}><Input disabled={busy} value={draft.tunnel_reference ?? ""} onChange={event => setDraft(current => ({ ...current, tunnel_reference: event.target.value || null }))} /></Field>}
-        {(!guideOpen || draft.mode === "secure_mcp_tunnel") && <Field label={zh ? "运行秘密引用" : "Runtime secret reference"} help={zh ? "使用 credential:ID 格式，勿填写秘密。" : "Use the credential:ID format; never enter the secret."} zh={zh}><Input disabled={busy} autoComplete="off" value={draft.runtime_secret_reference ?? ""} onChange={event => setDraft(current => ({ ...current, runtime_secret_reference: event.target.value || null }))} /></Field>}
-        </fieldset>}
-        {(!guideOpen || guideStep === 1) && <fieldset className="min-w-0 space-y-4"><legend className="mb-3 font-medium">{zh ? "令牌信任" : "Token trust"}</legend>
-        <Field label={zh ? "接受已签发的受信 OAuth 令牌" : "Accept already-issued trusted OAuth tokens"}><Switch className="self-start shrink-0" aria-label={zh ? "启用令牌验证" : "Enable token verification"} checked={draft.enabled} disabled={busy || (!draft.enabled && connectionReadiness(draft).length > 0)} onChange={enabled => setDraft(current => ({ ...current, enabled }))} /></Field>
-        <Field label={zh ? "受信 issuer" : "Trusted issuers"} help={zh ? "每行填写一个 HTTPS URL。" : "Enter one HTTPS URL per line."} zh={zh}><Input.TextArea disabled={busy} rows={3} value={draft.trusted_issuers.join("\n")} onChange={event => setDraft(current => ({ ...current, trusted_issuers: event.target.value ? event.target.value.split("\n") : [] }))} /></Field>
-        <Field label={zh ? "允许的客户端 ID" : "Allowed client IDs"} help={zh ? "每行填写一个，匹配 client_id / azp。" : "Enter one per line; matches client_id / azp."} zh={zh}><Input.TextArea disabled={busy} value={draft.client_allowlist.join("\n")} onChange={event => setDraft(current => ({ ...current, client_allowlist: event.target.value ? event.target.value.split("\n") : [] }))} /></Field>
-        {connectionReadiness(draft).length > 0 && <Alert type="warning" title={zh ? "启用前须完成配置" : "Complete configuration before enabling"} description={connectionReadiness(draft).map(reason => activationReason(reason, zh)).join(" · ")} />}
-        </fieldset>}
-        {(!guideOpen || guideStep === 1) && <fieldset className="min-w-0 space-y-3 lg:col-span-2"><legend>{zh ? "受信 issuer → 固定 JWKS URL（仅 RS256）" : "Trusted issuer → fixed JWKS URL (RS256 only)"}</legend>
-          {draft.issuer_jwks.map((pair, index) => <div className="flex min-w-0 flex-col gap-2 rounded border p-3" key={index}>{pair.map((value, part) => <Input key={part} aria-label={`${part === 0 ? "Issuer" : "JWKS URL"} ${index + 1}`} disabled={busy} value={value} onChange={event => setDraft(current => ({ ...current, issuer_jwks: current.issuer_jwks.map((item, row) => row === index ? item.map((entry, column) => column === part ? event.target.value : entry) as [string, string] : item) }))} />)}<Button className="self-end" disabled={busy} onClick={() => setDraft(current => ({ ...current, issuer_jwks: current.issuer_jwks.filter((_, row) => row !== index) }))}>{t("delete")}</Button></div>)}
-          <Button disabled={busy || draft.issuer_jwks.length >= 20} onClick={() => setDraft(current => ({ ...current, issuer_jwks: [...current.issuer_jwks, ["", ""]] }))}>{zh ? "添加签发方 JWKS" : "Add issuer JWKS"}</Button>
-        </fieldset>}
-        {(!guideOpen || guideStep === 1) && <fieldset className="min-w-0 space-y-3 lg:col-span-2"><legend>{zh ? "外部 audience → canonical resource 精确映射" : "Exact external audience → canonical resource mappings"}</legend>
-          {draft.resource_mappings.map((pair, index) => <div className="flex min-w-0 flex-col gap-2 rounded border p-3" key={index}>{pair.map((value, part) => <Input key={part} aria-label={`${part === 0 ? "External audience" : "Canonical resource"} ${index + 1}`} disabled={busy} value={value} onChange={event => setDraft(current => ({ ...current, resource_mappings: current.resource_mappings.map((item, row) => row === index ? item.map((entry, column) => column === part ? event.target.value : entry) as [string, string] : item) }))} />)}<Button className="self-end" disabled={busy} onClick={() => setDraft(current => ({ ...current, resource_mappings: current.resource_mappings.filter((_, row) => row !== index) }))}>{t("delete")}</Button></div>)}
-          <Button disabled={busy || draft.resource_mappings.length >= 20} onClick={() => setDraft(current => ({ ...current, resource_mappings: [...current.resource_mappings, ["", ""]] }))}>{zh ? "添加映射" : "Add mapping"}</Button>
-        </fieldset>}
-      </form>)
+  const endpointField = <Field label={zh ? "HTTPS 接入地址" : "HTTPS endpoint"}><Input disabled={busy} value={draft.endpoint ?? ""} onChange={event => setDraft(current => ({ ...current, endpoint: event.target.value || null }))} /></Field>
+  const tunnelFields = <>
+    <Field label={zh ? "隧道引用" : "Tunnel reference"} help={zh ? "使用 tunnel:ID 格式。" : "Use the tunnel:ID format."} zh={zh}><Input disabled={busy} value={draft.tunnel_reference ?? ""} onChange={event => setDraft(current => ({ ...current, tunnel_reference: event.target.value || null }))} /></Field>
+    <Field label={zh ? "运行秘密引用" : "Runtime secret ref"} help={zh ? "使用 credential:ID 格式，勿填写秘密。" : "Use the credential:ID format; never enter the secret."} zh={zh}><Input disabled={busy} autoComplete="off" value={draft.runtime_secret_reference ?? ""} onChange={event => setDraft(current => ({ ...current, runtime_secret_reference: event.target.value || null }))} /></Field>
+  </>
+  const resourceField = <Field label={zh ? "Gate 规范资源 URL" : "Canonical resource"} help={zh ? "空白时使用接入地址。" : "Defaults to the endpoint when empty."} zh={zh}><Input disabled={busy} value={draft.canonical_resource_url ?? ""} onChange={event => setDraft(current => ({ ...current, canonical_resource_url: event.target.value || null }))} /></Field>
+  const hasInactiveTransport = (draft.mode !== "direct" && Boolean(draft.endpoint)) || (draft.mode !== "secure_mcp_tunnel" && Boolean(draft.tunnel_reference || draft.runtime_secret_reference))
+  const configurationForm = (<form id="connection-draft" className="connection-configuration-form" onSubmit={event => { event.preventDefault(); void save() }}>
+    {(!guideOpen || guideStep === 0) && <fieldset className="connection-configuration-section"><legend>{zh ? "传输连接" : "Transport"}</legend>
+      <Field label={zh ? "传输方式" : "Transport mode"}><FilterRadio hideLabel label={zh ? "计划传输方式" : "Planned transport"} value={draft.mode} disabled={busy} onChange={mode => setDraft(current => ({ ...current, mode: mode as typeof current.mode }))} options={[{ value: "disabled", label: zh ? "关闭" : "Disabled" }, { value: "direct", label: transportLabel("direct", zh) }, { value: "secure_mcp_tunnel", label: transportLabel("secure_mcp_tunnel", zh) }]} /></Field>
+      {draft.mode === "direct" && endpointField}
+      {draft.mode === "secure_mcp_tunnel" && tunnelFields}
+      {guideOpen && resourceField}
+      {(hasInactiveTransport || showInactiveTransport) && <details className="connection-inactive-transport" open={showInactiveTransport} onToggle={event => setShowInactiveTransport(event.currentTarget.open)}>
+        <summary>{zh ? "其他传输方式的保留设置" : "Retained settings for other transports"}</summary>
+        <div className="gate-form-fields">{draft.mode !== "direct" && endpointField}{draft.mode !== "secure_mcp_tunnel" && tunnelFields}</div>
+      </details>}
+    </fieldset>}
+    {(!guideOpen || guideStep === 1) && <fieldset className="connection-configuration-section"><legend>{zh ? "令牌策略" : "Token policy"}</legend>
+      <Field label={zh ? "令牌验证" : "Token verification"} help={zh ? "接受已签发且验证通过的受信 OAuth 令牌。" : "Accept already-issued trusted OAuth tokens after verification."} zh={zh}><Switch aria-label={zh ? "启用令牌验证" : "Enable token verification"} checked={draft.enabled} disabled={busy || (!draft.enabled && connectionReadiness(draft).length > 0)} onChange={enabled => setDraft(current => ({ ...current, enabled }))} /></Field>
+      <Field label={zh ? "允许的客户端 ID" : "Allowed client IDs"} help={zh ? "每行填写一个，匹配 client_id / azp。" : "Enter one per line; matches client_id / azp."} zh={zh}><Input.TextArea disabled={busy} rows={3} value={draft.client_allowlist.join("\n")} onChange={event => setDraft(current => ({ ...current, client_allowlist: event.target.value ? event.target.value.split("\n") : [] }))} /></Field>
+      {connectionReadiness(draft).length > 0 && <Alert type="warning" title={zh ? "启用前须完成配置" : "Complete configuration before enabling"} description={connectionReadiness(draft).map(reason => activationReason(reason, zh)).join(" · ")} />}
+    </fieldset>}
+    {(!guideOpen || guideStep === 1) && <fieldset className="connection-configuration-section"><legend>{zh ? "签发方与公钥" : "Issuers and public keys"}</legend>
+      <Field label={zh ? "受信 issuer" : "Trusted issuers"} help={zh ? "每行填写一个 HTTPS URL。固定 JWKS 地址仅支持 RS256。" : "One HTTPS URL per line. Fixed JWKS URLs support RS256 only."} zh={zh}><Input.TextArea disabled={busy} rows={3} value={draft.trusted_issuers.join("\n")} onChange={event => setDraft(current => ({ ...current, trusted_issuers: event.target.value ? event.target.value.split("\n") : [] }))} /></Field>
+      {draft.issuer_jwks.map((pair, index) => <div className="connection-mapping-row" key={index}>
+        {pair.map((value, part) => <Field key={part} label={part === 0 ? "Issuer" : "JWKS URL"}><Input aria-label={`${part === 0 ? "Issuer" : "JWKS URL"} ${index + 1}`} disabled={busy} value={value} onChange={event => setDraft(current => ({ ...current, issuer_jwks: current.issuer_jwks.map((item, row) => row === index ? item.map((entry, column) => column === part ? event.target.value : entry) as [string, string] : item) }))} /></Field>)}
+        <Button className="self-end" aria-label={`${zh ? "删除签发方 JWKS" : "Delete issuer JWKS"} ${index + 1}`} disabled={busy} onClick={() => setDraft(current => ({ ...current, issuer_jwks: current.issuer_jwks.filter((_, row) => row !== index) }))}>{t("delete")}</Button>
+      </div>)}
+      <Button className="self-start" disabled={busy || draft.issuer_jwks.length >= 20} onClick={() => setDraft(current => ({ ...current, issuer_jwks: [...current.issuer_jwks, ["", ""]] }))}>{zh ? "添加签发方 JWKS" : "Add issuer JWKS"}</Button>
+    </fieldset>}
+    {(!guideOpen || guideStep === 1) && <fieldset className="connection-configuration-section"><legend>{zh ? "资源与受众映射" : "Resources and audiences"}</legend>
+      {resourceField}
+      {draft.resource_mappings.map((pair, index) => <div className="connection-mapping-row" key={index}>
+        {pair.map((value, part) => <Field key={part} label={part === 0 ? "External audience" : "Canonical resource"}><Input aria-label={`${part === 0 ? "External audience" : "Canonical resource"} ${index + 1}`} disabled={busy} value={value} onChange={event => setDraft(current => ({ ...current, resource_mappings: current.resource_mappings.map((item, row) => row === index ? item.map((entry, column) => column === part ? event.target.value : entry) as [string, string] : item) }))} /></Field>)}
+        <Button className="self-end" aria-label={`${zh ? "删除映射" : "Delete mapping"} ${index + 1}`} disabled={busy} onClick={() => setDraft(current => ({ ...current, resource_mappings: current.resource_mappings.filter((_, row) => row !== index) }))}>{t("delete")}</Button>
+      </div>)}
+      <Button className="self-start" disabled={busy || draft.resource_mappings.length >= 20} onClick={() => setDraft(current => ({ ...current, resource_mappings: [...current.resource_mappings, ["", ""]] }))}>{zh ? "添加映射" : "Add mapping"}</Button>
+    </fieldset>}
+  </form>)
   if (guideOpen) return <div className="space-y-4">
     <PageHeader variant="detail" title={zh ? "外部接入引导" : "External connection setup"} closeLabel={t("close")} actions={<Button disabled={busy} onClick={() => void closeGuide()}>{zh ? "返回总览" : "Back to overview"}</Button>} />
     <p className="text-sm text-muted-foreground">{zh ? "可返回任意步骤。步骤位置会保留；未保存的输入离开前会提示，已保存配置可继续编辑。" : "Revisit any step. Your step position is retained; leaving warns about unsaved input, and saved configuration can be resumed."}</p>
@@ -129,7 +148,7 @@ function ExternalConnectionInfrastructure({ locale, t }: Props) {
       {guideStep < 2 && configurationForm}
       {guideStep === 2 && <div className="space-y-4"><ExternalSubjectLinks locale={locale} t={t} issuers={snapshot?.trusted_issuers ?? []} /><p>{zh ? "用户在“我的授权”设置自己的授权；管理员不能替用户自动同意 OAuth。" : "Users configure their own grants in My authorizations; administrators cannot automatically consent on their behalf."}</p><a href="#/myConnections" className="underline">{zh ? "打开我的授权" : "Open My authorizations"}</a></div>}
       {guideStep === 3 && <><ConnectionGuideChecks draft={connectionDraft(snapshot || {revision:0})} zh={zh} />{dirty && <p className="text-sm text-amber-600">{zh ? "检查针对已保存配置；前面步骤还有未保存修改。" : "Checks use saved configuration; previous steps contain unsaved edits."}</p>}<Button className="mt-3" disabled={busy} onClick={() => void load()}>{zh ? "重新读取配置状态" : "Reload configuration status"}</Button></>}
-      {formError && <Alert className="mt-4" type="error" title={formError} />}
+      {formError && <Alert className="mt-4" type="error" title={formError} action={<Button disabled={busy} onClick={() => { setShowInactiveTransport(true); setGuideOpen(false); setOpen(true) }}>{zh ? "查看完整配置" : "Review all configuration"}</Button>} />}
       {message && <Alert className="mt-4" type="success" title={message} />}
     </ConnectionGuide>
     <div className="connection-guide-footer">{guideStep < 2 && <Button disabled={busy} onClick={() => void save()}>{draft.enabled ? (zh ? "保存配置" : "Save configuration") : (zh ? "保存草稿" : "Save draft")}</Button>}<Button disabled={busy || guideStep === 0} onClick={() => changeGuideStep(guideStep-1)}>{zh ? "上一步" : "Previous"}</Button>
@@ -137,7 +156,7 @@ function ExternalConnectionInfrastructure({ locale, t }: Props) {
     </div>{confirmDialog}
   </div>
   return <div className="space-y-4">
-    <PageHeader closeLabel={t("close")} title={zh ? "连接基础设施" : "Connection infrastructure"} actions={<><Button type="primary" disabled={busy || !snapshot || Boolean(error)} onClick={beginGuide}>{zh ? "接入引导" : "Setup guide"}</Button><Button disabled={busy || !snapshot || Boolean(error)} onClick={edit}>{zh ? "编辑验证配置" : "Edit verification configuration"}</Button></>} />
+    <PageHeader closeLabel={t("close")} title={zh ? "连接基础设施" : "Connection infrastructure"} actions={<><Button disabled={busy || !snapshot || Boolean(error)} onClick={beginGuide}>{zh ? "接入帮助" : "Setup help"}</Button><Button type="primary" disabled={busy || !snapshot || Boolean(error)} onClick={edit}>{zh ? "配置连接" : "Configure connection"}</Button></>} />
     <ConnectionNotice zh={zh} />
     {error && <Alert type="error" title={error} action={<Button onClick={() => void load()}>{t("retry")}</Button>} />}
     {message && <Alert type="success" title={message} />}
@@ -224,7 +243,7 @@ export function ExternalIdentityGrants({ locale, t, embedded = false, snapshot, 
     editTrigger.current = document.querySelector<HTMLElement>(".ant-dropdown-trigger.ant-dropdown-open") || (document.activeElement instanceof HTMLElement ? document.activeElement : null)
     editReturnScope.current = editTrigger.current?.closest<HTMLElement>('[data-authorization-page]') || null
     editFocusPending.current = false
-    const next = item ? { enabled: item.enabled, client_id: item.client_id, server_allowlist: item.server_allowlist, tool_allowlist: item.tool_allowlist, access: item.access, expires_at: item.expires_at, rate_per_minute: item.rate_per_minute, concurrency: item.concurrency } : newGrant()
+    const next = item ? { enabled: item.enabled, client_id: item.client_id, server_allowlist: item.server_allowlist, tool_allowlist: item.tool_allowlist, access: item.access, expires_at: item.expires_at, rate_per_minute: item.rate_per_minute, concurrency: item.concurrency } : { ...newGrant(), enabled: readiness.connection_ready, client_id: readiness.allowed_client_ids.length === 1 ? readiness.allowed_client_ids[0] : "", expires_at: new Date(Date.now() + 30 * 86400000).toISOString() }
     setEditing(item ?? null); setAccessFilter(next.access[0] ?? "read"); setDraft(next); baseline.current = JSON.stringify(next); setToolQuery(""); setServer(""); setFormError(""); setOpen(true)
     void loadTools()
   }
@@ -243,7 +262,7 @@ export function ExternalIdentityGrants({ locale, t, embedded = false, snapshot, 
     if (draft.enabled && (!readiness.connection_ready || activationBlockers.length)) { setFormError(activationBlockers.map(code => activationReason(code, zh)).join(" · ") || (zh ? "外部验证配置尚未启用" : "External verification is not enabled")); return }
     pending.current = true; setBusy(true); setFormError("")
     try {
-      if (draft.enabled && !(await confirm({ title: zh ? "启用此个人授权范围？" : "Enable this personal grant scope?", description: `${draft.client_id} · ${draft.tool_allowlist.length} ${zh ? "个工具" : "tools"} · ${draft.expires_at}` }))) return
+      if (editing && expandsExternalGrant(editing, draft) && !(await confirm({ title: zh ? "允许扩大的个人授权范围？" : "Allow expanded personal access?", description: `${draft.client_id} · ${draft.tool_allowlist.length} ${zh ? "个工具" : "tools"} · ${draft.expires_at}` }))) return
       const result = await request<Grant>(`/v1/auth/external-grants${editing ? `/${encodeURIComponent(editing.id)}` : ""}`, { method: editing ? "PATCH" : "POST", body: JSON.stringify({ ...draft, ...(editing ? { expected_revision: editing.revision } : {}) }) })
       if (result.enabled !== draft.enabled) throw new Error("Unexpected enablement state")
       setGrants(current => editing ? current.map(item => item.id === result.id ? result : item) : [result, ...current]); setOpen(false); onChanged?.(); setMessage(zh ? "个人授权设置已保存；未执行外部 OAuth 登录。" : "Personal grant saved; no external OAuth sign-in was performed.")
@@ -298,7 +317,7 @@ export function ExternalIdentityGrants({ locale, t, embedded = false, snapshot, 
 
         <div className="flex flex-wrap gap-2"><Input aria-label={zh ? "搜索获准工具" : "Search authorized tools"} value={toolQuery} onChange={event => setToolQuery(event.target.value)} /><Select className="min-w-48" aria-label={zh ? "筛选获准 MCP" : "Filter authorized MCP"} showSearch optionFilterProp="label" value={server} onChange={setServer} options={[{ value: "", label: zh ? "所有获准 MCP" : "All authorized MCP" }, ...[...new Set(eligible.map(tool => String(tool.metadata.server_id)))].map(id => ({ value: id, label: id }))]} /></div>
         <div className="flex items-center justify-between"><span>{zh ? `跨页已选 ${selected.size} 项` : `${selected.size} selected across pages`}</span><Button disabled={busy || !selected.size} onClick={() => setDraft(current => ({ ...current, tool_allowlist: [], server_allowlist: [], access: [] }))}>{zh ? "清空选择" : "Clear selection"}</Button></div>
-        <ListViewport actions={false} viewport={toolPaging.viewport} label={zh ? "已发布且获准工具" : "Published authorized tools"}><Table><TableHeader><TableRow><TableHead>{zh ? "选择" : "Select"}</TableHead><TableHead>{zh ? "MCP / 工具" : "MCP / tool"}</TableHead></TableRow></TableHeader><TableBody>{toolPaging.items.map(tool => <TableRow key={tool.id}><TableCell><input type="checkbox" aria-label={tool.id} checked={selected.has(tool.id)} disabled={busy} onChange={event => selectTool(tool.id, event.target.checked)} /></TableCell><TableCell>{String(tool.metadata.server_id)} · {tool.name}<div className="text-xs">{tool.id}</div></TableCell></TableRow>)}</TableBody></Table></ListViewport><ListPagination paging={toolPaging} t={t} />
+        <ListViewport actions={false} viewport={toolPaging.viewport} label={zh ? "当前获准工具" : "Currently authorized tools"}><Table><TableHeader><TableRow><TableHead>{zh ? "选择" : "Select"}</TableHead><TableHead>{zh ? "MCP / 工具" : "MCP / tool"}</TableHead></TableRow></TableHeader><TableBody>{toolPaging.items.map(tool => <TableRow key={tool.id}><TableCell><input type="checkbox" aria-label={tool.id} checked={selected.has(tool.id)} disabled={busy} onChange={event => selectTool(tool.id, event.target.checked)} /></TableCell><TableCell>{String(tool.metadata.server_id)} · {tool.name}<div className="text-xs">{tool.id}</div></TableCell></TableRow>)}</TableBody></Table></ListViewport><ListPagination paging={toolPaging} t={t} />
       </form>
     </FormDialog>{confirmDialog}
   </div>

@@ -1,3 +1,4 @@
+import { effectiveToolPolicy } from "@/features/tool-policy"
 import { replaceConsoleRouteHash } from "@/routing/use-console-route"
 import "./servers-page.css"
 import { ServiceDeployments } from "@/features/servers/service-deployments"
@@ -134,7 +135,7 @@ export function ServersPage(props: Props) {
   const visible = selected && props.visibleTools ? props.visibleTools.filter(tool => tool.source === "mcp" && asRecord(tool.metadata).server_id === selected.id) : null
   const preview = visible ? toTools(visible.map(tool => asRecord(tool))) : []
   const classifications = states.overview?.classifications
-  const published = classifications?.filter(item => item.status === "published" && asRecord(item.evidence.lifecycle).status !== "retired").length
+  const published = classifications?.filter(item => effectiveToolPolicy(item) !== "none" && asRecord(item.evidence.lifecycle).status !== "retired").length
   const classificationByName = useMemo(() => {
     const result = new Map<string, ToolClassification>()
     for (const item of classifications || []) {
@@ -146,8 +147,8 @@ export function ServersPage(props: Props) {
 
   function classification(row: ToolRow) {
     const item = classificationByName.get(row.name) || classificationByName.get(String(row.raw.id || ""))
-    if (item?.status === "published") return <Tag color={item.effective_access === "read" ? "success" : "warning"}>{item.effective_access === "read" ? c.read : c.write}</Tag>
-    if (item) return <Tag>{c.review}</Tag>
+    if (item && effectiveToolPolicy(item) !== "none") return <Tag color={effectiveToolPolicy(item) === "read" ? "success" : undefined}>{effectiveToolPolicy(item) === "read" ? c.read : c.write}</Tag>
+    if (item) return <Tag>{c.disabled}</Tag>
     return <span className="service-description">{c.unknownAccess}</span>
   }
 
@@ -198,7 +199,6 @@ export function ServersPage(props: Props) {
           <dt>{c.visible}</dt><dd>{!props.canReadTools ? c.noToolsAccess : props.toolsError ? c.visibleError : visible === null ? c.loading : visible.length}</dd>
           <dd className="service-fact-note service-fact-note-wide">{c.visibleHint}</dd>
           <dt>{c.client}</dt><dd>{c.clientUnknown} <Tooltip title={c.clientHint}><InfoCircleOutlined /></Tooltip></dd>
-          <dd className="service-fact-note service-fact-note-wide">{c.clientHint}</dd>
         </dl>
       </section>
     </div>

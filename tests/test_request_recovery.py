@@ -50,7 +50,7 @@ def recovery(tmp_path, monkeypatch, request):
     registry.register(definition, lambda _: pytest.fail("Runtime should own MCP dispatch"))
     catalog = ToolCatalog(registry, access)
     catalog.synchronize()
-    database.execute("UPDATE mcp_tool_classifications SET effective_access='read',status='published'")
+    database.execute("UPDATE mcp_tool_classifications SET effective_access='read',status='published',required_access='read',access_policy_source='local_override'")
     access.save_grant(subject_type="user", subject_id="alice", server_id=client.manifest.id,
                       permission_type_code="read", created_by="alice")
     monkeypatch.setattr(client, "call_tool", lambda name, arguments: client.request(

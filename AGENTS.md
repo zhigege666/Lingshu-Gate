@@ -7,15 +7,15 @@ These instructions apply to the entire repository.
 - Use `Lingshu Gate` for the product, `Gate` for short prose, `lingshu_gate` for the Python package, `lingshu-gate` for commands and artifacts, `LINGSHU_GATE_` for environment variables, and `gate_` for first-party MCP tools.
 - Use `MCP` only for the open protocol and its generic messages, transports, servers, tools, resources, and prompts.
 - Keep downstream connections vendor-neutral through the generic manifest and protocol transports. Use neutral examples and original project text.
-- The only repository-owned Skill is `.agents/skills/lingshu-gate-upload-build-start/`. It is part of the Project Delivery boundary and must retain confirmation, digest, idempotency, credential, and classification checks.
+- The only repository-owned Skill is `.agents/skills/lingshu-gate-upload-build-start/`. It is part of the Project Delivery boundary and must retain required impact confirmations, digest, idempotency, credential and effective tool-policy checks.
 
 ## Architecture boundaries
 
 - Keep protocol transport, application policy, persistence, and HTTP presentation separable.
 - Control-plane writes require explicit permission checks and auditable events.
-- Tool discovery never grants access. Classification review and publication remain distinct operations.
+- Tool discovery never grants account or client authority. External tools default to requiring write access; local policies can override this requirement. Ordinary discovery and invocation do not require classification publication. Legacy review/publication APIs retain compatibility and truthful safety evidence.
 - Credentials are stored outside manifests, encrypted at rest, masked in responses, and never logged as values.
-- Project upload, build, deployment, overwrite, startup, cancellation, and abandonment keep independent confirmation boundaries.
+- Project upload, build, deployment, overwrite, startup, cancellation and abandonment retain their permission and execution boundaries. The Console combines routine validation/planning with the requested action; confirm concrete destruction, overwrite/interruption, expansion or dirty-work discard once.
 - Docker Core remains unprivileged, read-only at the root filesystem, and disconnected from container-engine sockets.
 - SQLite deployment is single-writer and single-Core unless a different store is implemented and tested.
 

@@ -17,7 +17,7 @@ test("My authorizations loads each source once and retries tools only inside an 
     if (path === "/v1/tools") {
       counts.set(path, (counts.get(path) || 0) + 1)
       if (counts.get(path) === 1) return route.fulfill({ status: 503, json: { detail: "Synthetic catalog unavailable" } })
-      return route.fulfill({ json: [{ ...tools[0], id: "synthetic-read", name: "Synthetic read", metadata: { server_id: "synthetic-mcp", gate_access: { classification_status: "published", required_access: "read" } } }] })
+      return route.fulfill({ json: [{ ...tools[0], id: "synthetic-read", name: "Synthetic read", metadata: { server_id: "synthetic-mcp", gate_access: { classification_status: "configured", required_access: "read", policy_source: "local_override" } } }] })
     }
     if (path in fixtures) {
       counts.set(path, (counts.get(path) || 0) + 1)
@@ -71,7 +71,7 @@ test("Editing an existing resource grant preserves its identity and exact expiry
   const writes: Record<string, unknown>[] = []
   const fixtures: Record<string, unknown> = {
     ...listFixtures,
-    "/v1/access/resources": { resources: [{ server_id: current.server_id, tool_id: current.tool_id, tool_name: "Synthetic read", classification: "read", classification_status: "published" }] },
+    "/v1/access/resources": { resources: [{ server_id: current.server_id, tool_id: current.tool_id, tool_name: "Synthetic read", classification: "read", required_access: "read", policy_source: "local_override", classification_status: "configured" }] },
     "/v1/access/permission-types": { permission_types: [{ id: "read", code: "read", name: "Read", base_level: "read", enabled: true }, { id: "write", code: "write", name: "Read & write", base_level: "write", enabled: true }] },
   }
   await page.route("**/v1/**", route => {
@@ -96,8 +96,7 @@ test("Editing an existing resource grant preserves its identity and exact expiry
   await expect(dialog.locator("#grant-server")).toHaveAttribute("readonly", "")
   await expect(dialog.locator("#grant-tool")).toHaveValue(current.tool_id)
   await expect(dialog.getByRole("radiogroup", { name: "Subject type", exact: true }).getByRole("radio").first()).toBeDisabled()
-  await dialog.locator("#grant-permissionType").click()
-  await page.getByRole("option", { name: "Read & write", exact: true }).click()
+  await dialog.getByRole("radiogroup", { name: "Permission type", exact: true }).getByRole("radio", { name: "Read & write", exact: true }).check()
   await dialog.getByRole("button", { name: "Save grant", exact: true }).click()
   await expect(dialog).toHaveCount(0)
   expect(writes).toEqual([{ subject_type: current.subject_type, subject_id: current.subject_id, server_id: current.server_id, tool_id: current.tool_id, permission_type_code: "write", expires_at: "2099-01-01T08:09:10.123Z" }])
@@ -138,15 +137,14 @@ test("Token save waits for list refresh and restores focus to Retry when the sav
     const edit = page.getByRole("row").filter({ hasText: token.name }).getByRole("button", { name: "Adjust", exact: true })
     await edit.click()
     const dialog = page.getByRole("dialog", { name: "Adjust authorization", exact: true })
-    await dialog.getByText("Advanced · Call limits", { exact: true }).click()
+    await dialog.getByRole("tab", { name: "Call limits", exact: true }).click()
     await dialog.getByRole("spinbutton", { name: "Calls per minute", exact: true }).fill("301")
     await dialog.getByRole("button", { name: "Save authorization", exact: true }).click()
-    const review = page.getByRole("alertdialog", { name: "Save authorization?", exact: true })
-    await review.getByRole("button", { name: "Confirm", exact: true }).click()
+    await expect(page.getByRole("region", { name: "Authorization change details", exact: true })).toHaveCount(0)
     await expect.poll(() => refreshStarted).toBe(true)
     await expect(dialog).toHaveCount(0)
     await expect(edit).toBeDisabled()
-    await expect(page.getByRole("button", { name: "New authorization", exact: true })).toBeDisabled()
+    await expect(page.getByRole("button", { name: "Create API token", exact: true })).toBeDisabled()
     await expect(page.getByRole("button", { name: "Retry", exact: true })).toHaveCount(0)
     releaseRefresh()
     await expect(page.getByText("API token load failed", { exact: true })).toBeVisible()

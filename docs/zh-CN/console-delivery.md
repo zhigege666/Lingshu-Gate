@@ -2,13 +2,19 @@
 
 这些接口要求 `operations.manage`；普通工具授权不赋予部署权限。测试仅用合成的本地项目，不启动隧道、不注册 OAuth、不授予外部持久授权，也不部署生产服务。
 
+## Console 操作流程
+
+Console 分为来源、构建、部署三个阶段。**导入项目**一次完成 Git 输入校验、固定计划和源码拉取；**检查来源**是可选的查看操作。**创建构建**会保存当前交付选项，取得包含预检结果的计划后再派发构建。用户无需先单独运行预检，也无需在另一个弹窗确认摘要；计划和阻塞检查仍可查看。
+
+**部署构建**自动取得最终配置预览。首次部署的目标明确且没有变化、不覆盖已有配置、不打断服务时直接执行。覆盖、已有配置、服务中断、目标未明确或发生变化时，只确认一次具体目标及影响。停止、删除、回滚保留各自的影响确认。这些界面动作继续保留 API 的摘要、归属、版本和幂等检查。
+
 ## 最终配置与确认
 
 `POST /v1/builds/{build_id}/deploy/preview` 接受 `server_id`、`start`（默认 false）、`overwrite`（默认 false）、`manifest_patch`、`credential_policy`（默认 `preserve_existing`，或 `require_none`）。补丁递归合并到成功构建的 Manifest；只提交用户相对生成配置的改动，避免上传阶段的完整配置覆盖构建产物设置。部署补丁不能替换制品绑定的 `launch.type`、`launch.command`、`launch.cwd`。数组按整体替换，`null` 删除对象字段；受管凭据保留策略可能仍保留被补丁删除的引用。
 
 预览返回脱敏最终 `manifest`、`changed_fields`、`config_digest`、`expected_previous_config_digest`、`expected_credential_binding_digest`、`credential_state`、`interrupts_existing_service`。这是静态检查，不是下游连接探测；预览不写部署记录或服务配置。
 
-确认后调用 `POST /v1/builds/{build_id}/deploy`，提交原始补丁及预览的两个 `expected_*` 字段，同时提交 `expected_config_digest=preview.config_digest`。实际部署必须提交候选摘要；客户端需要先预览再提交。覆盖现有目标始终要求正确的旧配置摘要，凭据继承要求已验证的绑定摘要。冲突返回 HTTP 409，需要重新预览与确认。不要将预览的掩码 Manifest 作为补丁写回；掩码补丁在计算摘要前即被拒绝。
+完成预览及必要的影响确认后，调用 `POST /v1/builds/{build_id}/deploy`，提交原始补丁及预览的两个 `expected_*` 字段，同时提交 `expected_config_digest=preview.config_digest`。实际部署必须提交候选摘要；客户端需要先预览再提交。覆盖现有目标始终要求正确的旧配置摘要，凭据继承要求已验证的绑定摘要。冲突返回 HTTP 409；再次执行前必须取得新预览，并确认其中的覆盖、中断或目标变化。Console 不会在冲突后自动重放部署。不要将预览的掩码 Manifest 作为补丁写回；掩码补丁在计算摘要前即被拒绝。
 
 最终合并配置在应用运行态前只保存一次。受管凭据引用和用户 Slot 声明复用已有交付保留检查，不从掩码响应复制秘密值。部署历史保存脱敏配置及加密旧快照。摘要检查与配置写入共享单 Core 修改锁，但文件、运行态和 SQLite 不构成一个事务。失败报告实际补偿结果；`rollback_succeeded=null` 表示未知，不能当成功。
 

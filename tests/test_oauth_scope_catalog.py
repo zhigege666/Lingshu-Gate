@@ -44,7 +44,7 @@ def publish(gate, server_id="synthetic-plane"):
     gate["access"].publish_classifications(server_id=server_id, reviewer_id=gate["admin"]["id"])
 
 
-def test_admin_api_token_calls_unpublished_new_mcp_while_oauth_explains_publication_gate(gate):
+def test_discovered_mcp_is_eligible_without_expanding_existing_exact_oauth_grant(gate):
     principal, session, _, _, grant, tokens = admin_grant(gate)
     discover(gate)
     calls = []
@@ -80,13 +80,14 @@ def test_admin_api_token_calls_unpublished_new_mcp_while_oauth_explains_publicat
         response = browser.get(f"/v1/auth/oauth/grants/{grant['id']}/scope-options")
         assert response.headers["cache-control"] == "no-store"
         offered = response.json()
-    assert all(tool["server_id"] != "synthetic-plane" for tool in offered["tools"])
-    assert offered["unavailable_servers"] == [{"server_id": "synthetic-plane", "server_name": "Synthetic Plane",
-        "reasons": [{"code": "classification_not_published", "count": 2}]}]
-    assert offered["can_review_classifications"] is True
-    with pytest.raises(OAuthError, match="tool_scope_changed"):
-        gate["server"].preview_scope(principal, grant["id"], session, offered["csrf"], grant["revision"],
-            ["mcp.A.read", "mcp.synthetic-plane.project"], grant["expires_at"], grant["rate_per_minute"], grant["concurrency"])
+    assert {tool["id"]: tool["access"] for tool in offered["tools"] if tool["server_id"] == "synthetic-plane"} == {
+        "mcp.synthetic-plane.list": "write", "mcp.synthetic-plane.project": "write"}
+    assert offered["unavailable_servers"] == []
+    # Listing eligible choices never silently extends an existing exact grant.
+    assert "mcp.synthetic-plane.project" not in gate["server"].verify(tokens["access_token"]).external_tool_ids
+    prepared = gate["server"].preview_scope(principal, grant["id"], session, offered["csrf"], grant["revision"],
+        ["mcp.A.read", "mcp.synthetic-plane.project"], grant["expires_at"], grant["rate_per_minute"], grant["concurrency"])
+    assert "mcp.synthetic-plane.project" in prepared["tool_ids"]
 
 
 def test_fresh_options_include_published_new_service_and_cannot_expand_old_read_only_family(gate):

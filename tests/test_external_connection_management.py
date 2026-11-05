@@ -160,7 +160,7 @@ def test_ext10_reject_unconfigured_activation_wildcards_past_expiry_and_persiste
         assert client.post("/v1/auth/external-grants", json=draft(**patch)).status_code == 422
 
 
-def test_ext11_token_scope_and_unpublished_admin_drafts(api):
+def test_ext11_token_scope_and_immediately_effective_local_policy(api):
     client, login, store, access, users, auth, database = api
     login("writer")
     principal, _, _ = auth.login(username="writer", password="Synthetic-Only-123!")
@@ -173,6 +173,9 @@ def test_ext11_token_scope_and_unpublished_admin_drafts(api):
     login("synthetic-admin")
     access.set_classification(server_id="A", tool_id="mcp.A.read", access="read", destructive=False,
                               idempotent=True, reviewer_id="synthetic")
+    assert client.post("/v1/auth/external-grants", json=draft()).status_code == 201
+    access.set_classification(server_id="A", tool_id="mcp.A.read", access="unknown", destructive=False,
+                              idempotent=False, reviewer_id="synthetic")
     assert client.post("/v1/auth/external-grants", json=draft()).status_code == 403
 
 

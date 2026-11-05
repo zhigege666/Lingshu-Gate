@@ -2,22 +2,25 @@
 .network-settings-grid .ant-card { min-width: 0; }
 .network-settings-fields { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: var(--space-4); }
 .network-settings-field { min-width: 0; }
-.network-settings-field .ant-select { width: 100%; }
+.network-settings-field .ant-select { width: 100%; min-width: 0; max-width: 100%; }
 .network-settings-actions { display: flex; flex-wrap: wrap; gap: var(--space-2); align-items: center; }
 .network-settings-full { grid-column: 1 / -1; }
-.git-source-form { display: grid; grid-template-columns: minmax(0, 1.5fr) minmax(0, 1fr); gap: var(--space-4) var(--space-5); align-items: start; }
+.git-source-form { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: var(--space-4) var(--space-5); align-items: start; }
 .git-source-review { padding: var(--space-4); border: 1px solid hsl(var(--border)); border-radius: 8px; overflow-wrap: anywhere; }
 .git-source-review dl { display: grid; grid-template-columns: auto minmax(0, 1fr); gap: var(--space-2) var(--space-4); font-size: 13px; }
 .git-source-review dd { margin: 0; }
 .git-source-review code { overflow-wrap: anywhere; }
 .network-settings-dialog .network-settings-grid { grid-template-columns: minmax(0, 1fr); }
 .git-source-full { grid-column: 1 / -1; }
+.git-source-actions { display: flex; justify-content: flex-end; margin-top: var(--space-4); }
+.git-source-form .gate-form-control { min-width: 0; }
 @media (max-width: 1280px) { .network-settings-grid { grid-template-columns: minmax(0, 1fr); } }
 @media (max-width: 760px) { .git-source-form, .network-settings-fields { grid-template-columns: minmax(0, 1fr); } .git-source-full, .network-settings-full { grid-column: auto; } }
 
 .network-settings-grid { gap: var(--section-gap); }
 .network-settings-fields, .git-source-form { gap: var(--field-gap); }
 .network-settings-field.gate-form-row { display: grid; grid-template-columns: var(--form-label-width) minmax(0, 1fr); gap: var(--space-1) var(--space-3); align-items: start; }
+.network-settings-full > .network-settings-field.gate-form-row + .network-settings-field.gate-form-row { margin-top: var(--space-2); }
 .gate-network-dialog { width: min(1200px, calc(100vw - var(--dialog-edge) * 2)); }
 .gate-network-profile-dialog { width: min(768px, calc(100vw - var(--dialog-edge) * 2)); }
 .git-source-review { padding: var(--panel-padding-compact); border-radius: var(--radius-panel); background: hsl(var(--muted) / .45); }

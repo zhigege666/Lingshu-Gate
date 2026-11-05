@@ -96,7 +96,9 @@ def test_real_5000_service_50000_tool_pages_search_selection_and_atomic_limits(p
     assert [item["id"] for item in found["items"]] == ["mcp.synthetic-4999.tool-8"]
     selection = select(paged, last, mode="groups", server_ids=["synthetic-4999"]).json()
     assert len(selection["tool_ids"]) == 10 and selection["unavailable_ids"] == []
-    assert selection["selected_counts"]["mcps"] == 2 and selection["difference_summary"]["added"] == 10
+    # Rebuilding display/review metadata preserves the existing selected tool;
+    # only the nine newly selected tools count as added authorization.
+    assert selection["selected_counts"]["mcps"] == 2 and selection["difference_summary"]["added"] == 9
     assert "input_schema" not in json.dumps(selection) and "description" not in json.dumps(selection)
     prior = dict(paged["db"].query_one("SELECT * FROM gate_oauth_grants WHERE id=?", (paged["grant"]["id"],)))
     for mode in ("all", "read"):
@@ -172,7 +174,7 @@ def test_revision_conflicts_reject_cursor_selection_preview_and_save_without_mut
     offered = catalog(paged, limit=1)
     preview = prepared(paged, offered, ["mcp.A.read", "mcp.A.write"])
     if change == "classification":
-        paged["db"].execute("UPDATE mcp_tool_classifications SET status='pending' WHERE tool_id='mcp.A.write'")
+        paged["db"].execute("UPDATE mcp_tool_classifications SET required_access='none' WHERE tool_id='mcp.A.write'")
     elif change == "registry":
         paged["registry"].unregister_by_metadata("original_tool_name", "write", source="mcp")
     elif change == "owner_permission":
@@ -233,19 +235,19 @@ def test_single_confirmation_limits_and_explicit_invalid_selection_removal(paged
     assert paged["browser"].post(paged["path"] + "/scope", json=body, headers={"Origin": ISSUER}).status_code == 409
 
 
-@pytest.mark.parametrize("reason", ["classification_not_published", "grant_scope_ceiling", "client_scope_ceiling"])
+@pytest.mark.parametrize("reason", ["review_pending", "grant_scope_ceiling", "client_scope_ceiling"])
 def test_unavailable_reasons_are_paged_owner_visible_and_follow_exact_ceilings(paged, reason):
     paged["db"].execute("UPDATE mcp_tool_classifications SET status='pending' WHERE server_id='B'")
-    if reason == "classification_not_published":
+    if reason == "review_pending":
         paged["db"].execute("UPDATE mcp_tool_classifications SET status='pending' WHERE tool_id='mcp.A.write'")
     elif reason == "grant_scope_ceiling":
         paged["db"].execute("UPDATE gate_oauth_grants SET scopes_json='[\"tools.read\"]'")
     else:
         paged["db"].execute("UPDATE gate_oauth_clients SET scopes_json='[\"tools.read\"]'")
     offered = catalog(paged)
-    if reason == "classification_not_published":
-        # A non-admin writer loses current invocation authority for pending
-        # tools. Diagnostics must not disclose definitions it cannot access.
+    if reason == "review_pending":
+        # Pending review evidence does not remove existing invocation rights.
+        assert any(item["id"] == "mcp.A.write" for item in offered["items"])
         assert offered["unavailable_counts"] == {"tools": 0, "read": 0, "write": 0, "mcps": 0}
         assert catalog(paged, view="unavailable")["items"] == []
         return
@@ -256,7 +258,7 @@ def test_unavailable_reasons_are_paged_owner_visible_and_follow_exact_ceilings(p
     assert "B.write" not in json.dumps(missing)
 
 
-def test_admin_api_token_calls_unpublished_new_mcp_and_paged_catalog_explains_it(gate):
+def test_admin_api_token_calls_discovered_mcp_and_catalog_preserves_oauth_scope(gate):
     principal, session, _, _, grant, tokens = admin_grant(gate)
     index = ToolCatalog(gate["registry"], gate["access"])
     gate["server"].candidate_catalog = OAuthCandidateCatalog(index, gate["access"])
@@ -290,9 +292,10 @@ def test_admin_api_token_calls_unpublished_new_mcp_and_paged_catalog_explains_it
         browser.cookies.set(gate["auth"].cookie_name, session)
         offered = browser.get(path + "/scope-catalog").json()
         missing = browser.get(path + "/scope-catalog", params={"view": "unavailable", "limit": 1}).json()
-        assert missing["items"] == [{"server_id": "synthetic-plane", "server_name": None,
-            "reasons": [{"code": "classification_not_published", "count": 2}]}]
-        assert offered["unavailable_counts"]["tools"] == 2 and offered["can_review_classifications"] is True
+        assert missing["items"] == []
+        assert offered["unavailable_counts"]["tools"] == 0
+        discovered = {item["id"]: item["access"] for item in offered["items"] if item["server_id"] == "synthetic-plane"}
+        assert discovered == {"mcp.synthetic-plane.list": "write", "mcp.synthetic-plane.project": "write"}
         publish(gate)
         fresh = browser.get(path + "/scope-catalog", params={"server_id": "synthetic-plane"}).json()
         assert {tool["id"]: tool["access"] for tool in fresh["items"]} == {

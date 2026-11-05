@@ -12,6 +12,6 @@ export function getToolAccessDisplay(tool: ToolDefinition): {
   return {
     access: gate.required_access === "read" || gate.required_access === "write" ? gate.required_access : "unknown",
     classificationStatus: status,
-    pending: status === "pending",
+    pending: status === "pending" && gate.required_access !== "read" && gate.required_access !== "write",
   }
 }

@@ -252,14 +252,14 @@ def test_offline_plan_and_save_do_not_connect_or_start_remote(gate):
     assert not gate["calls"]
 
 
-def test_connect_discover_requires_review_and_idempotent_replay_does_not_create_again(gate):
+def test_connect_discovers_ready_policy_and_idempotent_replay_does_not_create_again(gate):
     plan = planned(gate, connect=True, refresh_tools=True)
     args = apply_arguments(plan)
     operation = gate["service"].apply(args, gate["context"])
     result = wait(gate, operation["operation_id"])
     assert result["status"] == "success" and result["config_applied"] is True
     assert result["connection_state"] == "connected" and result["discovery_state"] == "succeeded"
-    assert result["classification_state"] == "needs_review" and result["counts"]["needs_review"] == 1
+    assert result["classification_state"] == "ready" and result["counts"]["needs_review"] == 0
     assert result["counts"]["new"] == 1 and len(result["tool_snapshot_digest"]) == 64
     assert sum(action == "discover" for action, _ in gate["calls"]) == 1
     assert result["effective_permissions_expanded"] is False and result["remote_process_started"] is False
@@ -795,7 +795,7 @@ def test_initial_discovery_quarantines_changed_published_schema_without_a_second
     service = gate["service"]
     plan = planned(gate, connect=True, refresh_tools=refresh)
     result = wait(gate, service.apply(apply_arguments(plan), gate["context"])["operation_id"])
-    assert result["counts"]["new"] == 1 and result["classification_state"] == "needs_review"
+    assert result["counts"]["new"] == 1 and result["classification_state"] == "ready"
     assert sum(action == "discover" for action, _ in gate["calls"]) == 1
     tool_id = "mcp.synthetic-external.synthetic_read"
     service.access.set_classification(server_id=plan["server_id"], tool_id=tool_id, access="read",

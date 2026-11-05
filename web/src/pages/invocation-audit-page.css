@@ -3,3 +3,7 @@
 .audit-technical > summary { cursor: pointer; font-size: 13px; }
 .audit-technical > .audit-detail-grid { padding-block: var(--space-3); }
 @media (max-width: 640px) { .audit-detail-grid { grid-template-columns: minmax(0, 1fr); } }
+
+.audit-filter-row { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: var(--field-gap); padding-bottom: var(--space-2); }
+.audit-filter-row > * { min-width: 0; }
+@media (max-width: 1100px) { .audit-filter-row { grid-template-columns: minmax(0, 1fr); } }

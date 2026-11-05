@@ -56,9 +56,9 @@ def _install(gate, definitions):
         gate["registry"].register(tool, lambda arguments: {"synthetic": True}, replace=True)
     with gate["db"].session() as connection:
         gate["access"]._synchronize_tools(connection, definitions)
-        connection.executemany("UPDATE mcp_tool_classifications SET effective_access=?,status='published',source='manual',"
+        connection.executemany("UPDATE mcp_tool_classifications SET required_access=?,access_policy_source='local_override',effective_access=?,status='published',source='manual',"
             "reviewed_by=?,reviewed_at='2026-10-05T00:00:00+00:00' WHERE server_id=? AND tool_id=?",
-            [(tool.permission, gate["admin"]["id"], tool.metadata["server_id"], tool.id) for tool in definitions])
+            [(tool.permission, tool.permission, gate["admin"]["id"], tool.metadata["server_id"], tool.id) for tool in definitions])
 
 
 def test_one_saved_tool_survives_more_than_5000_owner_candidates(gate, monkeypatch):
@@ -71,7 +71,7 @@ def test_one_saved_tool_survives_more_than_5000_owner_candidates(gate, monkeypat
         gate["registry"].register(tool, lambda arguments: {"synthetic": True})
     with gate["db"].session() as connection:
         gate["access"]._synchronize_tools(connection, gate["registry"].list_definitions())
-        connection.execute("UPDATE mcp_tool_classifications SET effective_access='read',status='published',"
+        connection.execute("UPDATE mcp_tool_classifications SET required_access='read',access_policy_source='local_override',effective_access='read',status='published',"
             "source='manual',reviewed_by=?,reviewed_at='2026-10-05T00:00:00+00:00' WHERE tool_id LIKE 'mcp.A.extra-%'",
             (gate["admin"]["id"],))
     register_mcp_gateway_route(gate["app"], gate["settings"], gate["registry"], gate["access"],
@@ -141,14 +141,14 @@ def test_5000_services_50000_tools_verify_refresh_and_call_only_saved_targets(ga
         "verify_incremental_peak_bytes": peak}, sort_keys=True))
 
 
-@pytest.mark.parametrize("change", ["missing", "unpublished", "reclassified", "owner_grant", "client_scope", "family_scope"])
+@pytest.mark.parametrize("change", ["missing", "disabled", "reclassified", "owner_grant", "client_scope", "family_scope"])
 def test_targeted_grant_rechecks_current_authority_and_never_admits_other_tools(gate, monkeypatch, change):
     client, secret = enable(gate)
     tokens = exchange(gate["server"], client, secret, issue_code(gate, client))
     if change == "missing":
         gate["registry"].unregister_by_metadata("original_tool_name", "read", source="mcp")
-    elif change == "unpublished":
-        gate["db"].execute("UPDATE mcp_tool_classifications SET status='pending' WHERE tool_id='mcp.A.read'")
+    elif change == "disabled":
+        gate["db"].execute("UPDATE mcp_tool_classifications SET required_access='none' WHERE tool_id='mcp.A.read'")
     elif change == "reclassified":
         gate["access"].set_classification(server_id="A", tool_id="mcp.A.read", access="write", destructive=False,
             idempotent=False, reviewer_id=gate["admin"]["id"])

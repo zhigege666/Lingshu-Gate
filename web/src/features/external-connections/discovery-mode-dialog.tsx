@@ -28,6 +28,7 @@ export function DiscoveryModeDialog({ target, locale, t, onClose, onSaved, onClo
   const [pins, setPins] = useState<Pin[]>([]), [budgetDraft, setBudgetDraft] = useState<BudgetDraft>(() => toBudgetDraft(DEFAULT_BUDGET))
   const [busy, setBusy] = useState(false), [error, setError] = useState<string | null>(null), [refreshRequired, setRefreshRequired] = useState(false)
   const generation = useRef(0)
+  const saveLock = useRef(false)
   const lastValidLength = useRef(String(DEFAULT_BUDGET.max_characters))
   const language = useRef(zh)
   language.current = zh
@@ -57,18 +58,14 @@ export function DiscoveryModeDialog({ target, locale, t, onClose, onSaved, onClo
     return () => { generation.current++ }
   }, [load])
 
-  async function save(trigger: HTMLElement) {
-    if (!saved || !target || busy || refreshRequired || !budgetValid) return
+  async function save() {
+    if (!saved || !target || busy || saveLock.current || refreshRequired || !budgetValid) return
     const current = generation.current
     const body = { tool_discovery_mode: mode, expected_revision: saved.discovery_revision, csrf: saved.csrf, pinned_tools: pins, result_budget: budget }
-    setBusy(true); setError(null)
+    saveLock.current = true; setBusy(true); setError(null)
     let writing = false
     try {
       const preview = await oauthRequest<{ csrf: string; previous: ToolDiscoveryMode; tool_discovery_mode: ToolDiscoveryMode }>(`${path}-preview`, body)
-      if (generation.current !== current) return
-      if (!(await confirm({ title: zh ? "确认调整工具发现与结果？" : "Confirm discovery and result settings?", description: `${target.name} · ${discoveryLabel(preview.previous, zh)} → ${discoveryLabel(preview.tool_discovery_mode, zh)} · ${pins.length} ${zh ? "个固定工具" : "pins"} · ${budget.enabled ? `${budget.max_characters} ${zh ? "字符预览" : "character preview"}` : zh ? "完整结果" : "Full results"}`, returnFocus: trigger }))) {
-        await load(true); return
-      }
       if (generation.current !== current) return
       writing = true
       await oauthRequest(path, { ...body, csrf: preview.csrf })
@@ -76,17 +73,17 @@ export function DiscoveryModeDialog({ target, locale, t, onClose, onSaved, onClo
       onSaved(); onClose()
     } catch (cause) {
       if (generation.current !== current) return
-      const unknown = writing && (!(cause instanceof OAuthRequestError) || cause.status === 0)
+      const unknown = writing && (!(cause instanceof OAuthRequestError) || cause.status === 0 || cause.status >= 500)
       setError(unknown ? zh ? "保存结果未知，请刷新核对后再操作。" : "Save outcome unknown. Refresh before another write."
         : zh ? "设置或会话已变化，请刷新核对后重试。" : "Settings or session changed. Refresh before retrying.")
       setRefreshRequired(true)
-    } finally { if (generation.current === current) setBusy(false) }
+    } finally { saveLock.current = false; if (generation.current === current) setBusy(false) }
   }
 
   return <><FormDialog open={Boolean(target)} title={zh ? "工具发现与结果" : "Tool discovery and results"} closeLabel={t("close")} onClose={() => void close()} pending={busy} dirty={dirty} error={error}
     className="sm:max-w-[800px]" bodyClassName="space-y-5" onCloseAutoFocus={onCloseAutoFocus}
     onEscapeKeyDown={event => { if (event.target instanceof Element && event.target.closest('[role="combobox"][aria-expanded="true"]')) event.preventDefault() }}
-    footer={<><Button disabled={busy} onClick={() => void close()}>{t("cancel")}</Button><Button disabled={busy} onClick={() => void load(dirty)}>{zh ? "刷新" : "Refresh"}</Button><Button type="primary" disabled={busy || !dirty || refreshRequired || !budgetValid} onClick={event => void save(event.currentTarget)}>{t("save")}</Button></>}>
+    footer={<><Button disabled={busy} onClick={() => void close()}>{t("cancel")}</Button>{refreshRequired && <Button disabled={busy} onClick={() => void load(dirty)}>{zh ? "读取已保存设置" : "Read saved settings"}</Button>}<Button type="primary" loading={busy && Boolean(saved)} disabled={busy || !dirty || refreshRequired || !budgetValid} onClick={() => void save()}>{t("save")}</Button></>}>
     <p className="mb-4 text-sm text-muted-foreground">{target?.name}</p>
     <div className="authorization-field"><label id="authorization-discovery-label">{zh ? "工具发现" : "Tool discovery"}</label>
       <Radio.Group aria-labelledby="authorization-discovery-label" value={saved ? mode : undefined} disabled={busy || !saved || refreshRequired} onChange={event => setMode(event.target.value)}>

@@ -1,4 +1,5 @@
 import { trendGeometry, trendPointerIndex } from "@/features/dashboard-trend"
+import { PageHeader } from "@/components/page-shell"
 import { useRemainingViewport } from "@/components/use-remaining-viewport"
 import { useEffect, useId, useMemo, useState, type ReactNode } from "react"
 import { Activity, AlertTriangle, ArrowUpRight, BarChart3, Info, MousePointerClick, RefreshCw, Server, Wrench } from "lucide-react"
@@ -51,7 +52,7 @@ export function DashboardPage({ health, healthError, servers, tools, principalId
 
   return (
     <div className="dashboard-page">
-      <h1 className="sr-only">{t("dashboard")}</h1>
+      <PageHeader title={t("dashboard")} />
 
       <DashboardResourceOverview health={health} healthError={healthError} servers={servers} tools={tools} operationsAllowed={operationsAllowed} canReadTools={canReadTools} toolsLoaded={toolsLoaded} toolsError={toolsError} serversLoaded={serversLoaded} serversError={serversError} locale={locale} t={t} />
 
@@ -74,7 +75,7 @@ export function DashboardPage({ health, healthError, servers, tools, principalId
               <Button size="sm" variant={hours === 24 ? "secondary" : "ghost"} aria-pressed={hours === 24} onClick={() => selectHours(24)}>{t("dashboard24Hours")}</Button>
               <Button size="sm" variant={hours === 168 ? "secondary" : "ghost"} aria-pressed={hours === 168} onClick={() => selectHours(168)}>{t("dashboard7Days")}</Button>
             </div>
-            <Button size="sm" variant="outline" aria-label={t("refresh")} onClick={refreshStatistics} disabled={statisticsLoading}><RefreshCw className="size-4" />{t("refresh")}</Button>
+            {statisticsError && <Button size="sm" variant="outline" onClick={refreshStatistics} disabled={statisticsLoading}><RefreshCw className="size-4" />{t("refresh")}</Button>}
           </div>
         </div>
 

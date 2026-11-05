@@ -126,6 +126,7 @@ class StreamableHttpMcpClient:
         self.manifest = manifest
         self.settings = settings
         self.log_sink = log_sink
+        self.on_tools_changed: Callable[[], None] | None = None
         self._sensitive_payloads = False
         self.endpoint = manifest.transport.endpoint or ""
         self.protocol_version = resolve_downstream_protocol_version(manifest.transport.protocol_version)
@@ -718,6 +719,10 @@ class StreamableHttpMcpClient:
         except json.JSONDecodeError:
             return None
         if not isinstance(message, dict):
+            return None
+        if "id" not in message and message.get("method") == "notifications/tools/list_changed":
+            if self.on_tools_changed is not None:
+                self.on_tools_changed()
             return None
         if self.settings.mcp_log_payloads and not self._sensitive_payloads:
             log_event(logger, logging.DEBUG, "gate.mcp.http_message_received", "MCP HTTP SSE message received", server_id=self.manifest.id, payload=self._redact(message))

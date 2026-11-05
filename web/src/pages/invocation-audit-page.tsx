@@ -4,8 +4,8 @@ import "./invocation-audit-page.css"
 import { InvocationContent } from "@/components/invocation-content"
 import { RemainingList, ListPagination, ListViewport, useListPage } from "@/components/list-pagination"
 import { usePageRefresh } from "@/components/page-refresh"
-import { QueryStatus, querySignature } from "@/components/query-status"
-import { useEffect, useMemo, useState } from "react"
+import { QueryStatus } from "@/components/query-status"
+import { useEffect, useMemo, useRef, useState } from "react"
 import { ShieldCheck, ShieldX } from "lucide-react"
 import { api, type InvocationAudit, type InvocationAuditFilterOptions } from "@/api/client"
 import { JsonPanel } from "@/components/json-panel"
@@ -49,7 +49,7 @@ const copy = {
     allServers: "全部 MCP 服务",
     allTools: "全部工具",
     search: "在当前结果中搜索用户、MCP 服务、工具或关联 ID",
-    filterHint: "决策和结果单选即时筛选；用户、服务和工具条件需点击「应用筛选」。搜索只匹配当前结果，最多 300 条。",
+    filterHint: "选择条件即查询。搜索只匹配当前已加载结果，最多 300 条。",
     noData: "暂无调用审计",
     detail: "审计详情",
     payload: "参数摘要",
@@ -91,7 +91,7 @@ const copy = {
     allServers: "All MCP servers",
     allTools: "All tools",
     search: "Search current results by actor, server, tool, or correlation ID",
-    filterHint: "Decision and outcome apply immediately. Apply user, service and tool conditions separately; search covers up to 300 loaded records.",
+    filterHint: "Filters query immediately. Search matches the loaded results, up to 300 records.",
     noData: "No invocation audits",
     detail: "Audit detail",
     payload: "Payload summary",
@@ -124,6 +124,8 @@ export function InvocationAuditPage({ locale, t, canReadPayload = false }: { loc
   const [selected, setSelected] = useState<InvocationAudit | null>(null)
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const requestId = useRef(0)
+  const requested = useRef(applied)
 
   const visibleAudits = useMemo(() => {
     const needle = query.trim().toLowerCase()
@@ -137,10 +139,12 @@ export function InvocationAuditPage({ locale, t, canReadPayload = false }: { loc
 
   const paging = useListPage(visibleAudits, JSON.stringify([query, applied]))
 
-  usePageRefresh(() => load(applied), busy)
-  useEffect(() => { void load(applied) }, [])
+  usePageRefresh(() => load(), busy)
+  useEffect(() => { void load(applied); return () => { requestId.current += 1 } }, [])
 
-  async function load(snapshot = { userId, serverId, toolId, decision, outcome }) {
+  async function load(snapshot = requested.current) {
+    const id = ++requestId.current
+    requested.current = snapshot
     setBusy(true)
     setError(null)
     try {
@@ -152,38 +156,37 @@ export function InvocationAuditPage({ locale, t, canReadPayload = false }: { loc
         outcome: snapshot.outcome === "__all" ? undefined : snapshot.outcome,
         limit: 300,
       })
+      if (id !== requestId.current) return
       setApplied(snapshot)
       setLastLoadedAt(new Date().toISOString())
       setAudits(result.audits)
       setFilterOptions(result.filter_options)
     } catch (err) {
-      setError(err instanceof Error ? err.message : String(err))
+      if (id === requestId.current) setError(err instanceof Error ? err.message : String(err))
     } finally {
-      setBusy(false)
+      if (id === requestId.current) setBusy(false)
     }
   }
 
   const allowCount = audits.filter((item) => item.decision === "allow").length
   const denyCount = audits.filter((item) => item.decision === "deny").length
   const errorCount = audits.filter((item) => item.outcome === "error").length
-  const advancedFilters = [
-    userId !== "__all" && `${c.userId}: ${filterOptions.users.find((user) => user.id === userId)?.username || userId}`,
-    serverId !== "__all" && `${c.serverId}: ${serverId}`,
-    toolId !== "__all" && `${c.toolId}: ${toolId}`,
-  ].filter(Boolean)
+  function changeFilters(patch: Partial<typeof applied>) {
+    const next = { ...requested.current, ...patch }
+    setUserId(next.userId); setServerId(next.serverId); setToolId(next.toolId)
+    setDecision(next.decision); setOutcome(next.outcome)
+    void load(next)
+  }
 
   function changeServer(value: string) {
-    setServerId(value)
-    if (toolId === "__all") return
-    const toolStillMatches = filterOptions.tools.some((item) => item.tool_id === toolId && (value === "__all" || item.server_id === value))
-    if (!toolStillMatches) setToolId("__all")
+    const currentTool = requested.current.toolId
+    const toolStillMatches = filterOptions.tools.some(item => item.tool_id === currentTool && (value === "__all" || item.server_id === value))
+    changeFilters({ serverId: value, toolId: toolStillMatches ? currentTool : "__all" })
   }
 
   function changeTool(value: string) {
-    setToolId(value)
-    if (value === "__all" || serverId !== "__all") return
-    const selectedTool = filterOptions.tools.find((item) => item.tool_id === value)
-    if (selectedTool) setServerId(selectedTool.server_id)
+    const selectedTool = filterOptions.tools.find(item => item.tool_id === value)
+    changeFilters({ toolId: value, ...(value !== "__all" && requested.current.serverId === "__all" && selectedTool ? { serverId: selectedTool.server_id } : {}) })
   }
 
   return (
@@ -195,28 +198,26 @@ export function InvocationAuditPage({ locale, t, canReadPayload = false }: { loc
         helpLabel={t("pageHelp")}
         helpContent={<p>{c.filterHint}</p>}
         toolbar={<PageToolbar query={query} onQueryChange={setQuery} placeholder={c.search} resultCount={visibleAudits.length} resultLabel={c.title} clearLabel={t("clearSearch")}>
-          <FilterRadio label={c.decision} value={decision} disabled={busy} onChange={value => { setDecision(value); void load({ ...applied, decision: value }) }} options={[{ value: "__all", label: t("all") }, { value: "allow", label: c.allow }, { value: "deny", label: c.deny }]} />
-          <FilterRadio label={c.outcome} value={outcome} disabled={busy} onChange={value => { setOutcome(value); void load({ ...applied, outcome: value }) }} options={[{ value: "__all", label: t("all") }, { value: "success", label: c.success }, { value: "error", label: c.error }, { value: "not_invoked", label: c.not_invoked }]} />
+          <FilterRadio label={c.decision} value={decision} onChange={value => changeFilters({ decision: value })} options={[{ value: "__all", label: t("all") }, { value: "allow", label: c.allow }, { value: "deny", label: c.deny }]} />
+          <FilterRadio label={c.outcome} value={outcome} onChange={value => changeFilters({ outcome: value })} options={[{ value: "__all", label: t("all") }, { value: "success", label: c.success }, { value: "error", label: c.error }, { value: "not_invoked", label: c.not_invoked }]} />
         </PageToolbar>}
         stats={[
           { label: c.allow, value: allowCount, tone: "success" },
           { label: c.deny, value: denyCount, tone: denyCount ? "danger" : "default" },
           { label: c.error, value: errorCount, tone: errorCount ? "warning" : "default" },
         ]}
-        actions={<><Button variant="outline" disabled={busy} onClick={() => { const defaults = { userId: "__all", serverId: "__all", toolId: "__all", decision: "__all", outcome: "__all" }; setQuery(""); setUserId(defaults.userId); setServerId(defaults.serverId); setToolId(defaults.toolId); setDecision(defaults.decision); setOutcome(defaults.outcome); void load(defaults) }}>{t("resetConditions")}</Button><Button onClick={() => void load()} disabled={busy}>{t("applyFilters")}</Button></>}
+        actions={<Button variant="outline" onClick={() => { setQuery(""); changeFilters({ userId: "__all", serverId: "__all", toolId: "__all", decision: "__all", outcome: "__all" }) }}>{t("resetConditions")}</Button>}
       />
-      <QueryStatus t={t} pendingChanges={querySignature({ userId, serverId, toolId, decision, outcome }) !== querySignature(applied)} lastLoadedAt={lastLoadedAt} summary={Object.entries(applied).filter(([, value]) => value !== "__all").map(([key, value]) => `${c[key as keyof typeof c] || key}: ${value}`).join(" · ") || `${t("all")} · ${t("limit")}: 300`} />
-      {error && <Alert variant="destructive"><AlertDescription>{error}</AlertDescription></Alert>}
+      <QueryStatus t={t} pendingChanges={false} lastLoadedAt={lastLoadedAt} summary={Object.entries(applied).filter(([, value]) => value !== "__all").map(([key, value]) => `${c[key as keyof typeof c] || key}: ${value}`).join(" · ") || `${t("all")} · ${t("limit")}: 300`} />
+      {busy && <p className="text-xs text-muted-foreground" role="status">{t("loadingData")}</p>}
+      {error && <Alert variant="destructive" role="alert"><AlertDescription className="flex flex-wrap items-center justify-between gap-2"><span>{error}</span><Button variant="outline" size="sm" disabled={busy} onClick={() => void load()}>{t("retry")}</Button></AlertDescription></Alert>}
       <Card>
-        <CardContent className="flex flex-col gap-3 p-3 md:p-4">
-          <details className="rounded-md border bg-muted/20 px-3 py-2">
-            <summary className="cursor-pointer text-xs font-medium text-muted-foreground">{t("advancedFilters")} ({advancedFilters.length}){advancedFilters.length > 0 && <span className="ml-2 break-words font-normal">{advancedFilters.join(" · ")}</span>}</summary>
-            <div className="mt-3 grid gap-3 md:grid-cols-3">
-              <FilterField label={c.userId}><Select value={userId} onValueChange={setUserId}><SelectTrigger aria-label={c.userId}><SelectValue /></SelectTrigger><SelectContent><SelectItem value="__all">{c.allUsers}</SelectItem>{filterOptions.users.map((user) => <SelectItem key={user.id} value={user.id}>{user.username} · {user.id}</SelectItem>)}</SelectContent></Select></FilterField>
+        <CardContent className="flex flex-col gap-3 p-3 md:p-4" aria-busy={busy}>
+          <div className="audit-filter-row">
+              <FilterField label={c.userId}><Select value={userId} onValueChange={value => changeFilters({ userId: value })}><SelectTrigger aria-label={c.userId}><SelectValue /></SelectTrigger><SelectContent><SelectItem value="__all">{c.allUsers}</SelectItem>{filterOptions.users.map((user) => <SelectItem key={user.id} value={user.id}>{user.username} · {user.id}</SelectItem>)}</SelectContent></Select></FilterField>
               <FilterField label={c.serverId}><Select value={serverId} onValueChange={changeServer}><SelectTrigger aria-label={c.serverId}><SelectValue /></SelectTrigger><SelectContent><SelectItem value="__all">{c.allServers}</SelectItem>{filterOptions.servers.map((server) => <SelectItem key={server} value={server}>{server}</SelectItem>)}</SelectContent></Select></FilterField>
               <FilterField label={c.toolId}><Select value={toolId} onValueChange={changeTool}><SelectTrigger aria-label={c.toolId}><SelectValue /></SelectTrigger><SelectContent><SelectItem value="__all">{c.allTools}</SelectItem>{toolOptions.map((tool) => <SelectItem key={`${tool.server_id}:${tool.tool_id}`} value={tool.tool_id}>{tool.tool_id}{serverId === "__all" ? ` · ${tool.server_id}` : ""}</SelectItem>)}</SelectContent></Select></FilterField>
-            </div>
-          </details>
+          </div>
           <RemainingList className="rounded-lg border">
             <ListViewport actions={false} viewport={paging.viewport} label={t("toolShowing")}>
             <Table>

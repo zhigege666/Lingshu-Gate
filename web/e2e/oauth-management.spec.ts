@@ -85,15 +85,16 @@ for (const locale of ["en-US", "zh-CN"]) {
       } finally { release() }
       const secret = page.getByRole("dialog", { name: zh ? "仅展示一次的客户端密钥" : "One-time client secret", exact: true })
       await expect(secret.getByLabel("Client Secret", { exact: true })).toHaveValue(syntheticSecret)
+      if (closeMethod === "X") await secret.getByRole("button", { name: zh ? "关闭" : "Close", exact: true }).click()
+      else { await secret.getByLabel("Client Secret", { exact: true }).focus(); await page.keyboard.press("Escape") }
+      const warning = page.getByRole("alertdialog", { name: zh ? "关闭后无法再次查看密钥" : "The secret cannot be viewed after closing", exact: true })
+      await expect(warning).toContainText(zh ? "关闭后只能通过轮换获得新密钥" : "After closing, only rotation can provide a new secret")
+      await warning.getByRole("button", { name: zh ? "保留密钥窗口" : "Keep secret open", exact: true }).click()
+      await expect(secret.getByLabel("Client Secret", { exact: true })).toHaveValue(syntheticSecret)
       await secret.getByRole("button", { name: zh ? "复制密钥" : "Copy secret", exact: true }).click()
       await expect(secret.getByRole("button", { name: zh ? "已复制" : "Copied", exact: true })).toBeVisible()
       if (closeMethod === "X") await secret.getByRole("button", { name: zh ? "关闭" : "Close", exact: true }).click()
       else { await secret.getByLabel("Client Secret", { exact: true }).focus(); await page.keyboard.press("Escape") }
-      const warning = page.getByRole("alertdialog", { name: zh ? "关闭后无法再次查看密钥" : "The secret cannot be viewed after closing", exact: true })
-      await expect(warning).toContainText(zh ? "复制到剪贴板不代表已安全保存" : "Copying to the clipboard is not confirmation of safe storage")
-      await warning.getByRole("button", { name: zh ? "保留密钥窗口" : "Keep secret open", exact: true }).click()
-      await expect(secret.getByLabel("Client Secret", { exact: true })).toHaveValue(syntheticSecret)
-      await secret.getByRole("button", { name: zh ? "已保存，关闭" : "Saved, close", exact: true }).click()
       await expect(secret).toHaveCount(0)
       await expect(page.getByRole("alertdialog")).toHaveCount(0)
       await expect(register).toBeFocused()

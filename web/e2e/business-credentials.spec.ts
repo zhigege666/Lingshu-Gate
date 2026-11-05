@@ -41,7 +41,8 @@ async function openBusiness(page: Page, viewport = sizes[0], locale = "zh-CN", t
         return route.fulfill({ json: saved })
       }
       if (path === "/v1/business-credentials/synthetic-account" && method === "PUT") {
-        saved = { ...saved, ...body, version: saved.version + 1 }
+        const { username: _username, password: _password, ...metadata } = body
+        saved = { ...saved, ...metadata, version: saved.version + 1 }
         return route.fulfill({ json: saved })
       }
       if (path === "/v1/business-credentials/synthetic-account/bindings" && method === "POST") {
@@ -85,7 +86,7 @@ for (const viewport of sizes) {
     expect(box!.x + box!.width).toBeLessThanOrEqual(viewport.width)
     expect(box!.y).toBeGreaterThanOrEqual(0)
     expect(box!.y + box!.height).toBeLessThanOrEqual(viewport.height)
-    await expect(dialog.getByRole("button", { name: "保存", exact: true })).toBeInViewport()
+    await expect(dialog.getByRole("button", { name: "保存并同步", exact: true })).toBeInViewport()
     const fields = await dialog.locator(".business-field").evaluateAll(elements => elements.filter(element => (element as HTMLElement).offsetParent).map(element => {
       const label = element.firstElementChild!.getBoundingClientRect()
       const input = element.querySelector(".business-field-control")!.getBoundingClientRect()
@@ -106,7 +107,7 @@ test("business edit preserves secrets, cancels discard, then saves one revision 
   await expect(page.getByRole("alertdialog")).toBeVisible()
   await page.getByRole("button", { name: "继续编辑", exact: true }).click()
   await expect(dialog.getByLabel("凭据名称", { exact: true })).toHaveValue("测试环境医生 · 更新")
-  await dialog.getByRole("button", { name: "保存", exact: true }).click()
+  await dialog.getByRole("button", { name: "仅保存", exact: true }).click()
   await expect(dialog).not.toBeVisible()
   expect(fixture.writes).toHaveLength(1)
   expect(fixture.writes[0]).toMatchObject({ method: "PUT", body: { username: null, password: null, expected_version: 2, login_url: "https://app.example.test/#/login" } })
@@ -117,7 +118,7 @@ test("business edit preserves secrets, cancels discard, then saves one revision 
 test("node sync, remote deletion and browser closure remain independent actions @full", async ({ page }, testInfo) => {
   test.setTimeout(60_000)
   const fixture = await openBusiness(page)
-  await page.getByRole("button", { name: "管理节点", exact: true }).click()
+  await page.getByRole("button", { name: "测试环境医生", exact: true }).click()
   const dialog = page.getByRole("dialog", { name: "授权节点 · 测试环境医生", exact: true })
   await expect(dialog.getByText("节点版本 v1 / 目标 v2")).toBeVisible()
   await dialog.getByRole("button", { name: "同步密码", exact: true }).click()
@@ -147,7 +148,7 @@ test("English dark business editor keeps field labels on one row @full", async (
   await openBusiness(page, sizes[0], "en-US", "dark")
   await page.getByRole("button", { name: "Edit", exact: true }).click()
   const dialog = page.getByRole("dialog", { name: "Edit business account", exact: true })
-  await expect(dialog.getByRole("button", { name: "Save", exact: true })).toBeInViewport()
+  await expect(dialog.getByRole("button", { name: "Save and sync", exact: true })).toBeInViewport()
   const fields = await dialog.locator(".business-field > :is(label, .field-label)").evaluateAll(elements => elements.filter(element => (element as HTMLElement).offsetParent).map(element => ({ scroll: element.scrollWidth, client: element.clientWidth })))
   for (const field of fields) expect(field.scroll).toBeLessThanOrEqual(field.client + 1)
   await page.screenshot({ path: testInfo.outputPath("business-editor-en-dark.png") })
@@ -161,11 +162,26 @@ test("business grants and node selectors stay inside dialogs and require managed
   await editor.getByRole("combobox", { name: "Gate 用户", exact: true }).click()
   await editor.getByText("Synthetic user", { exact: true }).click()
   await editor.getByLabel("凭据名称", { exact: true }).click()
-  await editor.getByRole("button", { name: "保存", exact: true }).click()
+  await editor.getByRole("button", { name: "仅保存", exact: true }).click()
   await expect(editor).not.toBeVisible()
   expect(fixture.writes[0].body.allowed_user_ids).toEqual(["synthetic-user"])
-  await page.getByRole("button", { name: "管理节点", exact: true }).click()
+  await page.getByRole("button", { name: "测试环境医生", exact: true }).click()
   const dialog = page.getByRole("dialog", { name: "授权节点 · 测试环境医生", exact: true })
+  await expect(dialog.getByRole("combobox", { name: "MCP 实例", exact: true })).toHaveCount(0)
+  await dialog.getByRole("button", { name: "添加节点", exact: true }).click()
+  await dialog.getByRole("combobox", { name: "MCP 实例", exact: true }).click()
+  await dialog.getByText("另一个测试节点 · browser-next", { exact: true }).click()
+  await dialog.getByRole("radio", { name: "auth_*", exact: true }).click()
+  await dialog.getByRole("button", { name: "取消", exact: true }).click()
+  const discard = page.getByRole("alertdialog", { name: "放弃绑定修改？", exact: true })
+  await discard.getByRole("button", { name: "继续编辑", exact: true }).click()
+  await expect(dialog.getByRole("combobox", { name: "MCP 实例", exact: true }).locator("..")).toContainText("browser-next")
+  expect(fixture.writes).toHaveLength(1)
+  await dialog.getByRole("button", { name: "取消", exact: true }).click()
+  await discard.getByRole("button", { name: "放弃修改", exact: true }).click()
+  await expect(dialog.getByRole("button", { name: "添加绑定", exact: true })).toHaveCount(0)
+  await expect(dialog.getByRole("button", { name: "添加节点", exact: true })).toBeFocused()
+  await dialog.getByRole("button", { name: "添加节点", exact: true }).click()
   await dialog.getByRole("combobox", { name: "MCP 实例", exact: true }).click()
   await dialog.getByText("另一个测试节点 · browser-next", { exact: true }).click()
   await dialog.getByRole("radio", { name: "auth_*", exact: true }).click()
@@ -176,6 +192,7 @@ test("business grants and node selectors stay inside dialogs and require managed
   await confirm.getByRole("button", { name: "确认绑定", exact: true }).click()
   await expect(dialog.getByRole("code").filter({ hasText: /^browser-next$/ })).toBeVisible()
   expect(fixture.writes[1]).toMatchObject({ method: "POST", body: { server_id: "browser-next", tool_prefix: "", expected_version: 3, confirm_managed_mode: true } })
+  await expect(dialog.getByRole("combobox", { name: "MCP 实例", exact: true })).toHaveCount(0)
 })
 
 test("personal business account creation clears submitted secrets and has no shared grants @full", async ({ page }) => {
@@ -197,4 +214,20 @@ test("personal business account creation clears submitted secrets and has no sha
   await page.getByRole("button", { name: "新增业务账号", exact: true }).click()
   await expect(dialog.getByLabel("账号", { exact: true })).toHaveValue("")
   await expect(dialog.getByLabel("密码", { exact: true })).toHaveValue("")
+})
+
+test("business Save and sync updates the credential once and only its existing authorized nodes @full", async ({ page }) => {
+  const fixture = await openBusiness(page)
+  await page.getByRole("button", { name: "编辑", exact: true }).click()
+  const dialog = page.getByRole("dialog", { name: "编辑业务账号", exact: true })
+  await dialog.getByLabel("密码", { exact: true }).fill("Synthetic-replacement-only")
+  await dialog.getByRole("button", { name: "保存并同步", exact: true }).click()
+  await expect(dialog).not.toBeVisible()
+  await expect(page.getByRole("alertdialog")).toHaveCount(0)
+  expect(fixture.writes).toHaveLength(2)
+  expect(fixture.writes[0]).toMatchObject({ path: "/v1/business-credentials/synthetic-account", method: "PUT", body: { password: "Synthetic-replacement-only", expected_version: 2 } })
+  expect(fixture.writes[1]).toMatchObject({ path: "/v1/business-credentials/synthetic-account/bindings/synthetic-binding/sync", method: "POST", body: { expected_version: 3, expected_revision: 1 } })
+  expect(fixture.writes[1].body.password).toBeUndefined()
+  expect(fixture.getSaved().bindings[0]).toMatchObject({ synced_version: 3, sync_status: "synced" })
+  await expect(page.getByText("已保存并同步到 1 个已授权节点。", { exact: true })).toBeVisible()
 })

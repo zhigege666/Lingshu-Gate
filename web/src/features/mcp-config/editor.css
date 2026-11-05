@@ -81,3 +81,7 @@
 .manifest-dialog .manifest-editor-json .manifest-field { flex: 1; min-height: 0; }
 .manifest-dialog .manifest-editor-json .manifest-field-control { min-height: 0; align-self: stretch; }
 .manifest-dialog .manifest-editor-json .manifest-json { flex: 1; min-height: 0; resize: none; overflow-y: auto; }
+
+/* Short forms follow their content; JSON keeps its bounded editing workspace. */
+.manifest-dialog:has(.manifest-editor-form),
+.service-config-dialog:has(.manifest-editor-form) { height: auto; }

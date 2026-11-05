@@ -46,7 +46,7 @@ curl --fail --silent --show-error http://127.0.0.1:8000/readyz
 
 每张卡片可打开完整详情，或将对应的已注册工具带入调用编辑器。打开编辑器不会执行工具，并会重置上一工具的参数与结果。发现和调用继续使用现有授权校验。
 
-`/v1/tools` 和 `/v1/tools/{tool_id}` 在 `metadata.gate_access` 中返回当前请求的 `required_access` 与 `classification_status` 快照。读写标签使用该后端判定，不从 MCP 注解或 Manifest 默认声明推断。快照不会修改注册定义、发布分类或授予权限；实际调用时仍重新评估访问策略。
+`/v1/tools` 和 `/v1/tools/{tool_id}` 在 `metadata.gate_access` 中返回当前请求的 `required_access`、`policy_source` 与 `classification_status` 快照。读写标签使用该后端判定，不从 MCP 注解或 Manifest 默认声明推断。快照不会修改注册定义、发布分类或授予权限；实际调用时仍重新评估访问策略。
 
 ## 日志和事件
 
@@ -127,7 +127,7 @@ Cache Miss 可能增加延迟或重复工具链检查，但不能绕过校验或
 - 校验 Readiness 和磁盘空间；
 - 检查新的 Error 日志和被拒绝的调用审计；
 - 检查观测状态与期望状态不一致的下游目标；
-- 复核待处理的工具分类变化；
+- 按需检查失败的目录同步或主动设置的本地工具策略；
 - 确认备份成功，且没有只复制在线 SQLite 状态。
 
 ### 变更窗口之前

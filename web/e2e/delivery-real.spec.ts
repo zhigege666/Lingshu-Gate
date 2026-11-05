@@ -97,7 +97,7 @@ test('E2E-007 @delivery real upload, build, configure, deploy and start', async 
   await config.fill(JSON.stringify(manifest, null, 2))
   await editor.getByRole('button', { name: 'Save delivery draft', exact: true }).click()
   await expect(editor).toHaveCount(0)
-  await page.getByText('Advanced settings (runtime, root, server ID)', { exact: true }).click()
+  await page.getByText('Advanced build settings', { exact: true }).click()
   const target = page.getByLabel('Optional: override server_id on deploy', { exact: true })
   const savedTarget = await target.inputValue()
   const unsavedWrites: string[] = []
@@ -113,7 +113,7 @@ test('E2E-007 @delivery real upload, build, configure, deploy and start', async 
   expect(unsavedWrites).toEqual([])
   page.off('request', recordWrite)
   await target.fill(savedTarget)
-  await page.getByText('Advanced settings (runtime, root, server ID)', { exact: true }).click()
+  await page.getByText('Advanced build settings', { exact: true }).click()
   await page.getByRole('checkbox', { name: /Start after deploy/ }).check()
   const deploy = page.getByRole('button', { name: 'Deploy Build', exact: true })
   await expectInViewportAndUnobscured(deploy)

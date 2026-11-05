@@ -35,12 +35,12 @@ test('workspace route reads are scoped and direct server entry reads its shared 
   })
   await page.goto('/console/#/invocationAudit')
   await expect(page.getByRole('button', { name: audits[0].tool_id, exact: true })).toBeVisible()
-  await expect(refresh(page)).not.toHaveClass(/ant-btn-loading/)
+  await expect(refresh(page)).toBeEnabled()
   expect(reads.filter(path => ['/v1/mcp/configs', '/v1/mcp/servers', '/v1/tools'].includes(path))).toEqual([])
 
   await page.goto('/console/#/configs')
   await expect.poll(() => reads.filter(path => path === '/v1/mcp/configs').length).toBe(1)
-  await expect(refresh(page)).not.toHaveClass(/ant-btn-loading/)
+  await expect(refresh(page)).toBeEnabled()
   expect(reads.filter(path => ['/v1/mcp/servers', '/v1/tools'].includes(path))).toEqual([])
 
   // A new document catches the former mount refresh + route refresh duplicate.
@@ -48,7 +48,7 @@ test('workspace route reads are scoped and direct server entry reads its shared 
   await expect.poll(() => reads.filter(path => path === '/v1/mcp/servers').length).toBe(1)
   await expect.poll(() => reads.filter(path => path === '/v1/tools').length).toBe(1)
   await expect(page.getByText(servers[0].name, { exact: true }).first()).toBeVisible()
-  await expect(refresh(page)).not.toHaveClass(/ant-btn-loading/)
+  await expect(refresh(page)).toBeEnabled()
   expect(reads.filter(path => path === '/v1/mcp/configs')).toHaveLength(1)
   expect(reads.filter(path => path === '/v1/mcp/servers')).toHaveLength(1)
 })
@@ -81,18 +81,18 @@ test('dashboard loads statistics initially and keeps top refresh pending until t
     await expect.poll(() => statisticsReads).toBe(1)
     await expect(page.locator('[data-resource="servers"]')).toHaveAttribute('aria-busy', 'false')
     await expect(page.locator('[data-resource="tools"]')).toHaveAttribute('aria-busy', 'false')
-    await expect(refresh(page)).toHaveClass(/ant-btn-loading/)
+    await expect(refresh(page)).toBeDisabled()
     releaseInitial()
     await expect(page.locator('.dashboard-metric-grid')).toContainText('111')
-    await expect(refresh(page)).not.toHaveClass(/ant-btn-loading/)
+    await expect(refresh(page)).toBeEnabled()
     expect([serverReads, toolReads, configReads]).toEqual([1, 1, 0])
 
     await refresh(page).click()
     await expect.poll(() => statisticsReads).toBe(2)
-    await expect(refresh(page)).toHaveClass(/ant-btn-loading/)
+    await expect(refresh(page)).toBeDisabled()
     releaseRefresh()
     await expect(page.locator('.dashboard-metric-grid')).toContainText('222')
-    await expect(refresh(page)).not.toHaveClass(/ant-btn-loading/)
+    await expect(refresh(page)).toBeEnabled()
     expect([serverReads, toolReads, configReads, statisticsReads]).toEqual([2, 2, 0, 2])
   } finally {
     releaseInitial()
@@ -131,12 +131,11 @@ for (const failed of ['logs', 'events'] as const) {
 
     await page.getByRole('textbox', { name: 'Keyword', exact: true }).fill(`retry-${failed}`)
     version = 2; failure = true
-    await page.getByRole('button', { name: 'Apply Filters', exact: true }).click()
     await expect(page.getByRole('alert')).toContainText(`synthetic ${failed} failure`)
     await expect(snapshot(failed, 1)).toBeVisible()
-    await expect(page.getByRole('button', { name: 'Apply Filters', exact: true })).toBeEnabled()
+    await expect(page.getByRole('button', { name: 'Apply Filters', exact: true })).toHaveCount(0)
     await tab(sibling).click()
-    await expect(snapshot(sibling, 2)).toBeVisible()
+    await expect(snapshot(sibling, 1)).toBeVisible()
     await expect(page.getByText('All MCPs and system records', { exact: true })).toBeVisible()
     await expect(page.getByRole('alert')).toHaveCount(0)
     await tab(failed).click()
@@ -148,14 +147,35 @@ for (const failed of ['logs', 'events'] as const) {
     await expect(page.getByRole('alert')).toHaveCount(0)
     expect(requests[failed]).toHaveLength(3)
     expect(requests[failed].at(-1)!.searchParams.get('keyword')).toBe(`retry-${failed}`)
-    expect(requests[sibling]).toHaveLength(2)
+    expect(requests[sibling]).toHaveLength(1)
     await tab(sibling).click()
-    await expect(snapshot(sibling, 2)).toBeVisible()
+    await expect(snapshot(sibling, 1)).toBeVisible()
     await expect(page.getByText('All MCPs and system records', { exact: true })).toBeVisible()
     // Switching a tab reads only the newly visible selector, not both panels.
     await expect.poll(() => directoryReads).toBe(4)
   })
 }
+
+test('changing a log filter does not cancel the independent initial event query', async ({ page }) => {
+  let releaseEvents!: () => void
+  const eventsReady = new Promise<void>(resolve => { releaseEvents = resolve })
+  let logReads = 0, eventReads = 0
+  const requestedLevels: Array<string | null> = []
+  await page.route('**/v1/logs**', route => { logReads += 1; requestedLevels.push(new URL(route.request().url()).searchParams.get('level')); return route.fulfill({ json: { logs: [log(logReads)] } }) })
+  await page.route('**/v1/events**', async route => { eventReads += 1; await eventsReady; return route.fulfill({ json: { events: [event(1)] } }) })
+  await page.route('**/v1/observability/mcp-scopes**', route => route.fulfill({ json: scopes }))
+  try {
+    await page.goto('/console/#/logs')
+    await expect(page.getByRole('button', { name: 'Log snapshot 1', exact: true })).toBeVisible()
+    await page.getByRole('radiogroup', { name: 'Level', exact: true }).getByRole('radio', { name: 'error', exact: true }).check()
+    await expect(page.getByRole('button', { name: 'Log snapshot 2', exact: true })).toBeVisible()
+    releaseEvents()
+    await page.getByRole('tab', { name: /^Events \(/ }).click()
+    await expect(page.getByRole('button', { name: 'synthetic.event.snapshot.1', exact: true })).toBeVisible()
+    expect([logReads, eventReads]).toEqual([2, 1])
+    expect(requestedLevels).toEqual([null, 'error'])
+  } finally { releaseEvents() }
+})
 
 test('JSON output reports clipboard failure, retains content and supports retry', async ({ page }) => {
   await page.addInitScript(() => {

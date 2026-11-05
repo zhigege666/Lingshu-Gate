@@ -131,7 +131,7 @@ export function BuiltinOAuthInfrastructure({ locale, t }: Props) {
     })
   }
   async function rotateKey() {
-    if (!(await confirm({ title: zh ? "生成或轮换签名密钥？" : "Generate or rotate signing key?", description: zh ? "新私钥将加密保存。旧公钥保留 10 分钟以验证已有访问令牌；不会输出私钥。" : "The new private key is encrypted at rest. Old public keys remain for 10 minutes to validate existing access tokens. Private keys are never returned.", confirmText: zh ? "生成密钥" : "Generate key", cancelText: t("cancel") }))) return
+    if (keys.phase === "ready" && keys.count > 0 && !(await confirm({ title: zh ? "轮换签名密钥？" : "Rotate signing key?", description: zh ? "新私钥将加密保存。旧公钥保留 10 分钟以验证已有访问令牌；不会输出私钥。" : "The new private key is encrypted at rest. Old public keys remain for 10 minutes to validate existing access tokens. Private keys are never returned.", confirmText: zh ? "生成密钥" : "Generate key", cancelText: t("cancel") }))) return
     await mutate(async () => {
       setKeys({ phase: "loading" })
       try {
@@ -157,7 +157,7 @@ export function BuiltinOAuthInfrastructure({ locale, t }: Props) {
   }
   async function clientAction(client: OAuthClient, rotate: boolean) {
     const trigger = clientActionTrigger.current
-    if (!(await confirm({ title: rotate ? zh ? "轮换客户端密钥？" : "Rotate client secret?" : client.enabled ? zh ? "停用客户端？" : "Disable client?" : zh ? "启用客户端？" : "Enable client?", description: `${client.name} (${client.id}) — ${rotate ? zh ? "旧密钥立即失效，已有令牌族撤销，需要重新连接。" : "The old secret stops working immediately and existing token families are revoked. Reconnect the client." : zh ? "停用时下一次请求即拒绝；重新启用不恢复已撤销的令牌族。" : "Disabling denies the next request; enabling does not restore revoked token families."}`, confirmText: rotate ? zh ? "轮换密钥" : "Rotate secret" : client.enabled ? zh ? "停用" : "Disable" : zh ? "启用" : "Enable", cancelText: t("cancel"), destructive: rotate || client.enabled, returnFocus: trigger }))) return
+    if ((rotate || client.enabled) && !(await confirm({ title: rotate ? zh ? "轮换客户端密钥？" : "Rotate client secret?" : client.enabled ? zh ? "停用客户端？" : "Disable client?" : zh ? "启用客户端？" : "Enable client?", description: `${client.name} (${client.id}) — ${rotate ? zh ? "旧密钥立即失效，已有令牌族撤销，需要重新连接。" : "The old secret stops working immediately and existing token families are revoked. Reconnect the client." : zh ? "停用时下一次请求即拒绝；重新启用不恢复已撤销的令牌族。" : "Disabling denies the next request; enabling does not restore revoked token families."}`, confirmText: rotate ? zh ? "轮换密钥" : "Rotate secret" : client.enabled ? zh ? "停用" : "Disable" : zh ? "启用" : "Enable", cancelText: t("cancel"), destructive: rotate || client.enabled, returnFocus: trigger }))) return
     let revealedSecret = false
     await mutate(async () => { const result = await oauthRequest<{ client: OAuthClient; client_secret?: string }>(`/v1/auth/oauth/clients/${client.id}`, { name: client.name, redirect_uris: client.redirect_uris, scopes: client.scopes, enabled: rotate ? client.enabled : !client.enabled, expected_revision: client.revision, rotate_secret: rotate }, "PATCH"); setClients(current => current.map(item => item.id === client.id ? result.client : item)); if (result.client_secret) { revealedSecret = true; secretTrigger.current = trigger; setOneTime({ client: result.client, client_secret: result.client_secret }); setCopied(false) } })
     if (!revealedSecret) requestAnimationFrame(() => { if (trigger?.isConnected) trigger.focus({ preventScroll: true }) })
@@ -165,9 +165,10 @@ export function BuiltinOAuthInfrastructure({ locale, t }: Props) {
   function closeSavedSecret() { setOneTime(null); setCopied(false); setFormError("") }
   async function requestSecretClose() {
     if (!oneTime || secretClosePending.current) return
+    if (copied) { closeSavedSecret(); return }
     secretClosePending.current = true
     try {
-      if (await confirm({ title: zh ? "关闭后无法再次查看密钥" : "The secret cannot be viewed after closing", description: zh ? "请先保存到客户端的安全秘密配置中。复制到剪贴板不代表已安全保存；继续关闭后只能通过轮换获得新密钥。" : "Store it in the client's secure secret configuration first. Copying to the clipboard is not confirmation of safe storage. After closing, only rotation can provide a new secret.", confirmText: zh ? "已安全保存，关闭" : "Stored safely, close", cancelText: zh ? "保留密钥窗口" : "Keep secret open" })) closeSavedSecret()
+      if (await confirm({ title: zh ? "关闭后无法再次查看密钥" : "The secret cannot be viewed after closing", description: zh ? "请先保存到客户端的安全秘密配置中。关闭后只能通过轮换获得新密钥。" : "Store it in the client's secure secret configuration first. After closing, only rotation can provide a new secret.", confirmText: zh ? "已安全保存，关闭" : "Stored safely, close", cancelText: zh ? "保留密钥窗口" : "Keep secret open" })) closeSavedSecret()
     } finally { secretClosePending.current = false }
   }
   async function copyClientId(client: OAuthClient) {
@@ -193,7 +194,7 @@ export function BuiltinOAuthInfrastructure({ locale, t }: Props) {
       </div>}
       actions={<>
         <Button ref={guideTrigger} disabled={open || Boolean(oneTime)} onClick={() => setGuideOpen(true)}>{zh ? "接入指引" : "Connection guide"}</Button>
-        <Button disabled={busy || managementBusy || configDirty || open || Boolean(oneTime)} onClick={() => void load()}>{t("refresh")}</Button>
+
       </>} />
     {error && <Alert type="error" showIcon title={error} />}
     <div className="oauth-admin-layout">

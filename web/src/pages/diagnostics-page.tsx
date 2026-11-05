@@ -1,5 +1,5 @@
 import { usePageRefresh } from "@/components/page-refresh"
-import { useEffect, useState } from "react"
+import { useEffect, useRef, useState } from "react"
 import { api, type DiagnosticsResponse, type RuntimeEnvironment } from "@/api/client"
 import { PageHeader, PageToolbar } from "@/components/page-shell"
 import { Alert, AlertDescription } from "@/components/ui/alert"
@@ -37,7 +37,7 @@ export function DiagnosticsPage({ diagnostics, t, busy, onRefreshDiagnostics, on
       />
       <Card>
         <CardContent className="overflow-x-auto p-3 md:p-4">
-          <Table><TableHeader><TableRow><TableHead>{t("check")}</TableHead><TableHead>{t("status")}</TableHead><TableHead>{t("detail")}</TableHead></TableRow></TableHeader><TableBody>{filteredChecks.length === 0 ? <TableEmptyRow colSpan={3} title={diagnostics ? query.trim() ? t("noMatchingRecords") : t("noData") : t("waiting")} /> : filteredChecks.map((check) => <TableRow key={check.name} className="cursor-pointer" onClick={() => setSelectedCheck(check)}><TableCell className="font-medium"><button type="button" className="text-left underline underline-offset-4" onClick={e => { e.stopPropagation(); setSelectedCheck(check) }}>{check.name}</button></TableCell><TableCell>{statusBadge(check.ok ? "ok" : check.severity, t)}</TableCell><TableCell className="max-w-md truncate text-muted-foreground" title={check.detail}>{check.detail}</TableCell></TableRow>)}</TableBody></Table>
+          <Table><TableHeader><TableRow><TableHead>{t("check")}</TableHead><TableHead>{t("status")}</TableHead><TableHead>{t("detail")}</TableHead></TableRow></TableHeader><TableBody>{filteredChecks.length === 0 ? <TableEmptyRow colSpan={3} title={diagnostics ? query.trim() ? t("noMatchingRecords") : t("noData") : t("waiting")} /> : filteredChecks.map((check) => <TableRow key={check.name} className="cursor-pointer" onClick={() => setSelectedCheck(check)}><TableCell className="font-medium"><button type="button" className="text-left underline underline-offset-4" onClick={e => { e.stopPropagation(); setSelectedCheck(check) }}>{check.name}</button></TableCell><TableCell>{statusBadge(check.ok ? "ok" : check.severity, t)}</TableCell><TableCell className="max-w-3xl whitespace-pre-wrap break-words text-muted-foreground">{check.detail}</TableCell></TableRow>)}</TableBody></Table>
         </CardContent>
       </Card>
       <RuntimeEnvironmentCard t={t} onRefreshDiagnostics={onRefreshDiagnostics} />
@@ -58,29 +58,35 @@ export function DiagnosticsPage({ diagnostics, t, busy, onRefreshDiagnostics, on
 function RuntimeEnvironmentCard({ t, onRefreshDiagnostics }: { t: TFunction; onRefreshDiagnostics: () => Promise<void> }) {
   const [env, setEnv] = useState<RuntimeEnvironment | null>(null)
   const [error, setError] = useState("")
+  const [loading, setLoading] = useState(false)
+  const requestId = useRef(0)
 
   async function refresh() {
+    const id = ++requestId.current
+    setLoading(true)
     try {
-      setEnv(await api.runtimeEnvironment())
+      const value = await api.runtimeEnvironment()
+      if (id !== requestId.current) return
+      setEnv(value)
       setError("")
     } catch (err) {
-      setError(err instanceof Error ? err.message : String(err))
-    }
+      if (id === requestId.current) setError(err instanceof Error ? err.message : String(err))
+    } finally { if (id === requestId.current) setLoading(false) }
   }
 
-  usePageRefresh(async () => { await Promise.all([onRefreshDiagnostics(), refresh()]) })
-  useEffect(() => { void refresh() }, [])
+  usePageRefresh(async () => { await Promise.all([onRefreshDiagnostics(), refresh()]) }, loading)
+  useEffect(() => { void refresh(); return () => { requestId.current += 1 } }, [])
 
   return (
     <Card>
       <CardContent className="flex flex-col gap-3 p-3 md:p-4">
-        {error ? <Alert variant="destructive"><AlertDescription>{error}</AlertDescription></Alert> : null}
+        {error ? <Alert variant="destructive" role="alert"><AlertDescription className="flex flex-wrap items-center justify-between gap-2"><span>{error}</span><Button variant="outline" size="sm" disabled={loading} onClick={() => void refresh()}>{t("retry")}</Button></AlertDescription></Alert> : null}
         <details>
           <summary className="cursor-pointer text-sm font-medium">{t("runtimeEnvironment")}</summary>
           <div className="mt-3 flex flex-col gap-4">
             <div className="flex flex-wrap items-center justify-between gap-3">
               <p className="text-sm text-muted-foreground">{t("runtimeEnvironmentDesc")}</p>
-              <Button size="sm" variant="secondary" onClick={() => void refresh()}>{t("refresh")}</Button>
+              <Button size="sm" variant="outline" disabled={loading} onClick={() => void refresh()}>{t("refresh")}</Button>
             </div>
             {env ? <>
               <div className="grid gap-2 text-sm md:grid-cols-4">

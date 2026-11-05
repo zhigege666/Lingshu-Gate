@@ -41,6 +41,21 @@ describe("OAuth scope and request boundaries", () => {
     expect(fetch).toHaveBeenCalledTimes(1)
     expect(oauthError(new OAuthRequestError("authorization_confirmation_changed", 409), true)).toContain("草稿已保留")
   })
+  it.each([200, 409, 503])("keeps an unreadable write response distinct from a known rejection (HTTP %i)", async status => {
+    vi.stubGlobal("window", { setTimeout, clearTimeout })
+    const fetch = vi.fn().mockResolvedValue(new Response("{broken", { status, headers: { "Content-Type": "application/json" } }))
+    vi.stubGlobal("fetch", fetch)
+    await expect(oauthRequest("/v1/auth/tokens/authorization", { confirmation: "synthetic-once" })).rejects.toMatchObject({ code: "invalid_response", status })
+    expect(fetch).toHaveBeenCalledTimes(1)
+    expect(oauthError(new OAuthRequestError("invalid_response", status), false)).toContain("before repeating a write")
+  })
+  it("preserves an explicit business rejection so the editor can correct and resubmit", async () => {
+    vi.stubGlobal("window", { setTimeout, clearTimeout })
+    const fetch = vi.fn().mockResolvedValue(new Response(JSON.stringify({ detail: "invalid_token_scope" }), { status: 400 }))
+    vi.stubGlobal("fetch", fetch)
+    await expect(oauthRequest("/v1/auth/tokens/authorization", { confirmation: "synthetic-once" })).rejects.toMatchObject({ code: "invalid_token_scope", status: 400 })
+    expect(fetch).toHaveBeenCalledTimes(1)
+  })
   it("returns a one-time secret only to the current caller", async () => {
     vi.stubGlobal("window", { setTimeout, clearTimeout })
     vi.stubGlobal("fetch", vi.fn().mockResolvedValue(new Response(JSON.stringify({ client: { id: "synthetic" }, client_secret: "synthetic-once" }), { status: 201 })))

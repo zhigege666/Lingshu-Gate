@@ -5,7 +5,7 @@ import {
   api,
   type DiagnosticsResponse,
   type HealthResponse,
-  type HttpTrustSaveOptions,
+  type ConfigSaveOptions,
   type McpConfig,
   type McpServer,
   type ToolDefinition,
@@ -13,7 +13,7 @@ import {
 import { useAuth } from "@/components/auth-gate"
 import { gateVersionText } from "@/features/gate-version"
 import { createMcpConfigTemplate } from "@/features/mcp-config/model"
-import { configurationApplyResultError } from "@/features/servers/configuration-result"
+import { configurationApplyResultError, configurationResultError, readConfigurationRuntime } from "@/features/servers/configuration-result"
 import { RouteErrorBoundary, RouteLoadingFallback } from "@/components/route-boundary"
 import { useConfirm } from "@/components/confirm-dialog"
 import { HighlightText } from "@/components/highlight-text"
@@ -127,6 +127,7 @@ export default function App() {
   const [message, setMessage] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [busy, setBusy] = useState(false)
+  const configMutationPending = useRef(false)
   const [sharedLoading, setSharedLoading] = useState(false)
   const [dashboardBusy, setDashboardBusy] = useState(false)
   const [dashboardRefreshId, setDashboardRefreshId] = useState(0)
@@ -307,7 +308,9 @@ export default function App() {
     setSelectedConfigId(""); setSelectedConfigDigest(undefined); setConfigText(prettyJson(createMcpConfigTemplate())); setConfigEditorOpen(true)
   }
 
-  async function saveConfig(nextValue?: string, httpTrust: HttpTrustSaveOptions = {}) {
+  async function saveConfig(nextValue?: string, httpTrust: ConfigSaveOptions = {}, apply = false) {
+    if (configMutationPending.current) return
+    configMutationPending.current = true
     const manifestText = nextValue || configText
     setBusy(true); setError(null)
     try {
@@ -326,13 +329,20 @@ export default function App() {
       }
       const manifest = { ...parsed }
       delete manifest.user_credential_values
-      // 一次性秘密不得继续留在编辑器状态或后续 Manifest 查询中。
-      setConfigText(prettyJson(manifest))
+      const current = apply ? await readConfigurationRuntime(selectedConfigId || String(manifest.id), api.servers, locale === "zh-CN") : undefined
+      if (current?.status === "running" && !(await confirm({
+        title: locale === "zh-CN" ? "保存并应用运行配置？" : "Save and activate this configuration?",
+        description: locale === "zh-CN" ? `${manifest.id}：将替换运行实例并连接或启动服务，现有连接会中断。` : `${manifest.id}: Replace the runtime instance and connect or start the service. Existing connections will be interrupted.`,
+        confirmText: locale === "zh-CN" ? "保存并应用" : "Save and activate",
+      }))) return
+      // 普通保存先移除一次性秘密；组合保存仅保留本次内存草稿供幂等核对。
+      if (!httpTrust.credential_write) setConfigText(prettyJson(manifest))
       const response = selectedConfigId
-        ? await api.updateConfig(selectedConfigId, manifest, false, false, userCredentialValues, selectedConfigDigest, httpTrust)
-        : await api.createConfig(manifest, false, false, userCredentialValues, httpTrust)
-      if (response.config?.id !== String(manifest.id || selectedConfigId)) throw new Error(locale === "zh-CN" ? "保存结果未知，请刷新配置后核对。" : "Save result unknown. Refresh the configuration to reconcile.")
-      setMessage(`${locale === "zh-CN" ? "已保存，尚未应用到服务" : "Saved; not applied to the service"}: ${response.config.id}`)
+        ? await api.updateConfig(selectedConfigId, manifest, apply, apply, userCredentialValues, selectedConfigDigest, httpTrust)
+        : await api.createConfig(manifest, apply, apply, userCredentialValues, httpTrust)
+      const outcomeError = configurationResultError(response, String(manifest.id || selectedConfigId), apply, locale === "zh-CN")
+      if (outcomeError) throw new Error(outcomeError)
+      setMessage(`${apply ? locale === "zh-CN" ? "已保存并应用启动" : "Saved and activated" : locale === "zh-CN" ? "已保存，尚未应用到服务" : "Saved; not applied to the service"}: ${response.config?.id}`)
       setSelectedConfigId(String(response.config?.id || manifest.id || ""))
       setConfigEditorOpen(false)
       await refreshAll()
@@ -340,23 +350,48 @@ export default function App() {
       // 保存失败交回编辑器显示，避免错误提示被 Modal 遮挡且草稿被关闭。
       throw err
     }
-    finally { setBusy(false) }
+    finally { configMutationPending.current = false; setBusy(false) }
   }
 
-  async function deleteConfig(id: string) { if (!(await confirm({ title: t("confirmDeleteConfig"), description: id, destructive: true }))) return; setBusy(true); try { await api.deleteConfig(id); if (selectedConfigId === id) setSelectedConfigId(""); setMessage(`${t("deleted")}: ${id}`); await refreshAll() } catch (err) { setError(err instanceof Error ? err.message : String(err)) } finally { setBusy(false) } }
+  async function deleteConfig(id: string) { if (!(await confirm({ title: t("confirmDeleteConfig"), description: `${id} · ${locale === "zh-CN" ? "删除开始后，关联服务组的授权会失效；即使删除失败或运行实例恢复，也需核对并重新确认相关组。共享凭据会保留。" : "Starting deletion invalidates related service-group authorizations. If deletion fails or the runtime is restored, review and reconfirm those groups. Shared credentials are retained."}`, destructive: true }))) return; setBusy(true); try { await api.deleteConfig(id); if (selectedConfigId === id) setSelectedConfigId(""); setMessage(`${t("deleted")}: ${id}`); await refreshAll() } catch (err) { setError(err instanceof Error ? err.message : String(err)) } finally { setBusy(false) } }
   async function reloadConfigs() { setBusy(true); try { await api.reloadConfigs(); setMessage("configs reloaded"); await refreshAll() } catch (err) { setError(err instanceof Error ? err.message : String(err)) } finally { setBusy(false) } }
   async function applyConfig(id: string) {
-    if (busy || !(await confirm({ title: locale === "zh-CN" ? "应用配置并保持停止？" : "Apply configuration and leave stopped?", description: locale === "zh-CN" ? `${id}：此操作会停止并替换当前运行实例，不是热更新。应用后需另行启动。` : `${id}: This stops and replaces the current instance. It is not a hot update; start the service separately afterwards.`, destructive: true }))) return
+    if (busy || configMutationPending.current) return
+    configMutationPending.current = true
     setBusy(true); setError(null)
+    let submitted = false
+    let failure: string | null = null
     try {
+      const current = await readConfigurationRuntime(id, api.servers, locale === "zh-CN")
+      if (current?.status === "running" && !(await confirm({
+        title: locale === "zh-CN" ? `应用配置并重启 · ${id}` : `Apply and restart · ${id}`,
+        description: locale === "zh-CN" ? "现有连接会中断，运行中的调用可能失败。服务恢复后会自动同步工具。" : "Existing connections will be interrupted and active calls may fail. Tools synchronize when the service reconnects.",
+        confirmText: locale === "zh-CN" ? "应用并重启" : "Apply and restart",
+      }))) return
+      submitted = true
       const result = await api.applyConfig(id)
       const outcomeError = configurationApplyResultError(result, id, locale === "zh-CN")
       if (outcomeError) throw new Error(outcomeError)
-      const disabled = result.server?.enabled === false
-      setMessage(`${disabled ? (locale === "zh-CN" ? "已应用，服务仍为停用" : "Applied; service remains disabled") : (locale === "zh-CN" ? "已应用，尚未启动" : "Applied; not started")}: ${id}`)
-      await refreshAll()
-    } catch (err) { setError(err instanceof Error ? err.message : String(err)) }
-    finally { setBusy(false) }
+      if (result.server?.enabled === false) {
+        setMessage(`${locale === "zh-CN" ? "已应用，服务保持停用" : "Applied; service remains disabled"}: ${id}`)
+      } else {
+        try {
+          const started = await api.serverAction(id, "start")
+          if (started.id !== id || started.status !== "running") throw new Error(started.last_error || started.status)
+        } catch (cause) {
+          const detail = cause instanceof Error ? cause.message : String(cause)
+          throw new Error(`${locale === "zh-CN" ? "配置已应用，但启动状态尚未确认。请先检查服务状态，再决定是否重试" : "Configuration applied, but startup was not confirmed. Inspect the service before retrying"}: ${detail}`)
+        }
+        setMessage(`${locale === "zh-CN" ? "已应用并启动" : "Applied and started"}: ${id}`)
+      }
+    } catch (err) { failure = err instanceof Error ? err.message : String(err) }
+    finally {
+      // Reconcile after a submitted write, including a partial activation. A
+      // refresh must not erase the action error or cause the write to repeat.
+      if (submitted) await refreshAll()
+      if (failure) setError(failure)
+      configMutationPending.current = false; setBusy(false)
+    }
   }
   async function serverAction(id: string, action: "start" | "stop" | "restart") {
     if (busy) return

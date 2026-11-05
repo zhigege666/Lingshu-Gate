@@ -1,3 +1,10 @@
+import type { DeploymentPreview } from "@/api/builds"
+
+/** Ordinary first deployments use the explicit Deploy action as consent. */
+export function requiresDeploymentConfirmation(preview: Pick<DeploymentPreview, "server_id" | "interrupts_existing_service" | "expected_previous_config_digest">, expectedTarget: string, overwrite: boolean): boolean {
+  return overwrite || preview.interrupts_existing_service || Boolean(preview.expected_previous_config_digest) || !expectedTarget || preview.server_id !== expectedTarget
+}
+
 /** Rollback options belong to one deployment, never to the table selection. */
 export function rollbackStartFor(option: { deploymentId: string; start: boolean }, deploymentId: string): boolean {
   return option.deploymentId === deploymentId && option.start

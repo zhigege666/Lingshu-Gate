@@ -151,6 +151,38 @@ class ToolClassificationMcpTest(unittest.TestCase):
         self.assertEqual(published.output["needs_review_count"], 0)
         self.assertEqual(published.output["classifications"][0]["status"], "published")
 
+    def test_review_saves_explicit_policy_and_restores_automatic_without_publication(self) -> None:
+        self.access_store.synchronize_tools([self.definition])
+        before = self.access_store.list_classifications(server_id="sample-service")[0]
+        for mode, required, source in (("read", "read", "local_override"),
+                                       ("unknown", "none", "local_override"),
+                                       ("automatic", "write", "default_write")):
+            response = self.registry.invoke("gate_tool_classification_review", {
+                "items": [{"server_id": "sample-service", "tool_id": self.definition.id,
+                           "expected_fingerprint": before["fingerprint"], "access": mode}],
+                "idempotency_key": f"explicit-policy-{mode}", "confirmed": True,
+            }, context=self.context)
+            self.assertTrue(response.ok, response.error)
+            self.assertEqual(response.output["status"], "saved")
+            self.assertFalse(response.output["publication_required"])
+            saved = response.output["confirmed"][0]
+            self.assertEqual(saved["required_access"], required)
+            self.assertEqual(saved["policy_source"], source)
+            self.assertEqual(saved["status"], "pending")
+            self.assertIsNone(saved["reviewed_at"])
+
+    def test_dedicated_control_permissions_cannot_be_changed_through_generic_policy_tool(self) -> None:
+        listed = self.service.list_classifications({}, self.context)
+        fixed = next(item for item in listed["classifications"] if item["tool_id"] == "gate_tool_classification_list")
+        self.assertFalse(fixed["policy_editable"])
+        response = self.registry.invoke("gate_tool_classification_review", {
+            "items": [{"server_id": fixed["server_id"], "tool_id": fixed["tool_id"],
+                       "expected_fingerprint": fixed["fingerprint"], "access": "unknown"}],
+            "idempotency_key": "fixed-policy-rejected", "confirmed": True,
+        }, context=self.context)
+        self.assertFalse(response.ok)
+        self.assertEqual(response.output["error"]["code"], "tool_policy_not_editable")
+
     def test_publish_requires_explicit_scope(self) -> None:
         response = self.registry.invoke(
             "gate_tool_classification_publish",

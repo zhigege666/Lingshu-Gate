@@ -46,7 +46,7 @@ from lingshu_gate.transports.oauth import (
 JSONRPC_VERSION = "2.0"
 SERVER_NAME = "lingshu_gate"
 GATEWAY_INSTRUCTIONS = (
-    "Tool discovery and invocation are filtered by published classifications, "
+    "Tool discovery and invocation follow local access policy and existing "
     "resource grants, and token scopes."
 )
 
