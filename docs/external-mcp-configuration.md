@@ -44,7 +44,7 @@ When connection permission is revoked or needs review, the restore action is vis
 
 HTTP service IDs accept letters, numbers, dots, underscores and hyphens, up to 128 characters. The editor reports an invalid ID at its field instead of waiting indefinitely for permission loading. Public hosts and domain names use HTTPS; plaintext HTTP is limited to localhost/canonical loopback and explicitly authorized private IPv4 targets. URLs cannot contain user information, query parameters or fragments. Shared-credential IDs are a separate field and support up to 512 characters.
 
-Tool review remains separate from a successful connection. Both single-item and batch review can return a tool to **Unknown / needs a decision**. That state cannot be published or invoked until its classification is reviewed and published again; the single-item editor explains this before saving.
+A successful connection automatically synchronizes the complete tool catalog. Routine discovery and invocation do not require a review or publication step. Calls are still checked against the caller's current account grants, Token/OAuth scopes and each tool's effective local access policy. Use the tool-permissions page only when you intentionally want to change a tool from its automatic default to read, write or disabled.
 
 ## Legacy authority and input
 

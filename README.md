@@ -2,11 +2,11 @@
 
 A self-hosted MCP gateway that connects tools, limits who can call them, and records what happened.
 
-[简体中文](README.zh-CN.md) · [Download 0.5.11](https://github.com/zhigege666/Lingshu-Gate/releases/tag/v0.5.11) · [Get started](docs/getting-started.md) · [Documentation](docs/README.md) · [Security](SECURITY.md)
+[简体中文](README.zh-CN.md) · [Download 0.5.12](https://github.com/zhigege666/Lingshu-Gate/releases/tag/v0.5.12) · [Get started](docs/getting-started.md) · [Documentation](docs/README.md) · [Security](SECURITY.md)
 
 <img src="docs/images/console-refactor/dashboard.png" alt="Lingshu Gate Console: compact navigation and operational overview" width="1200">
 
-*Current source Console, captured at 2560×1440 with synthetic test data. The published 0.5.7 release remains a separate release baseline.*
+*Current source Console, captured at 2560×1440 with synthetic test data. The screenshots show the current source tree; release binaries and source tags are versioned independently.*
 
 ## Where Gate fits
 
@@ -30,7 +30,7 @@ Open [http://127.0.0.1:8000/](http://127.0.0.1:8000/). Read `data/initial-admin-
 
 ### Released Docker trial
 
-Verify and extract `lingshu-gate-v0.5.11-docker-compose.tar.gz`, enter that directory and run:
+Verify and extract `lingshu-gate-v0.5.12-docker-compose.tar.gz`, enter that directory and run:
 
 ```bash
 cp .env.quickstart.example .env.quickstart
@@ -65,16 +65,15 @@ The [included demo walkthrough](docs/first-call.md) needs no external service ac
 
 Check the successful audit, deny a write with an unchanged counter, reject an invalid revision, stop/restart the demo and revoke the caller. Saving and connecting validates the configuration and synchronizes tools automatically; ordinary use needs no separate review/publication. Access still requires both resource grants and token scope.
 
-## 0.5.11 — Cloudflare Tunnel and verified native updates
+## 0.5.12 — Console redesign and simpler MCP workflows
 
-- Add an opt-in Cloudflare Tunnel sidecar for Compose and Unraid deployments. The token is mounted from a protected host file; Gate Core does not receive Docker Socket access.
-- Add authenticated GitHub latest-release checks in System settings, including release notes and current/latest version comparison.
-- Allow the update checker to use an existing, version-pinned HTTP/HTTPS proxy profile without changing other Gate network traffic.
-
-- Start a native installation with `lingshu-gate native-update update-start` to verify and activate stable updates through the host GitHub CLI.
+- Rebuild the management Console around the shadcn-admin layout direction: consistent navigation, page headers, filters, tables, forms, dialogs and theme tokens. Bilingual screenshots cover the dashboard, tools, services, builds and authorization pages.
+- Synchronize MCP tools automatically after discovery. Routine tool review/publication is removed; account, Token and OAuth scopes and local tool policies still control invocation.
+- Fail closed when a service identity changes, preserve exact Token grants when editing unrelated selections, and reject malformed tool-list responses without clearing the last complete catalog.
+- Refreshing the configuration list is read-only and no longer interrupts running MCP instances.
+- Retain the Cloudflare Tunnel deployment profile and verified native update checks introduced in 0.5.11. Docker and Unraid image updates remain host-managed.
 
 See [Cloudflare Tunnel](docs/cloudflare-tunnel.md), [release update checks](docs/release-updates.md), the [changelog](CHANGELOG.md) and the [bilingual release notes](packaging/release-notes.md).
-
 ## 0.5.10 — SQLite readiness when the database file is missing
 
 If the main database file disappears after Gate starts, `GET /readyz` returns HTTP 503 without creating a replacement. The database check opens only an existing file and reads the baseline migration on one read-only connection. Normal startup, migrations and business writes keep their existing behavior.

@@ -62,3 +62,31 @@ def apply_tool_access_policy_revision_migration(connection: sqlite3.Connection) 
         UPDATE mcp_tool_classifications SET status='stale',effective_access='unknown',reviewed_at=NULL
             WHERE access_policy_source='default_write' AND status='published';
     """)
+
+
+TOOL_ACCESS_POLICY_IDENTITY_FAIL_CLOSED_MIGRATION_ID = "0027_tool_access_policy_identity_fail_closed"
+
+
+def apply_tool_access_policy_identity_fail_closed_migration(connection: sqlite3.Connection) -> None:
+    # A service identity change is not a user approval. Fail closed until an
+    # administrator explicitly chooses the policy for the replacement target.
+    execute_sql_script(connection, """
+        DROP TRIGGER IF EXISTS gate_tool_policy_identity_changed;
+        DROP TRIGGER IF EXISTS gate_tool_policy_identity_deleted;
+        CREATE TRIGGER gate_tool_policy_identity_changed AFTER UPDATE OF binding
+            ON gate_mcp_authorization_identities WHEN old.binding != new.binding BEGIN
+            UPDATE mcp_tool_classifications SET required_access='none',
+                access_policy_source='unavailable', access_policy_binding=new.binding,
+                access_policy_revision=access_policy_revision+1,
+                legacy_authorization_snapshot='',status='stale',effective_access='unknown',reviewed_at=NULL
+                WHERE server_id=new.server_id;
+        END;
+        CREATE TRIGGER gate_tool_policy_identity_deleted AFTER DELETE
+            ON gate_mcp_authorization_identities BEGIN
+            UPDATE mcp_tool_classifications SET required_access='none',
+                access_policy_source='unavailable', access_policy_binding='',
+                access_policy_revision=access_policy_revision+1,
+                legacy_authorization_snapshot='',status='stale',effective_access='unknown',reviewed_at=NULL
+                WHERE server_id=old.server_id;
+        END;
+    """)

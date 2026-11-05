@@ -24,7 +24,7 @@ The gateway does not make discovered tools callable by default. Discovery produc
 | Web Console | Static management UI served by Gate | Uses the same authenticated API; no privileged side channel |
 | Control API | Configuration, access, credentials, runtime, delivery, and diagnostics | Each route enforces its required role or permission |
 | MCP gateway | Request validation, tool discovery, and invocation at `/mcp` | Applies authentication, protocol, classification, grant, and scope checks |
-| Registry | Stable tool definitions and downstream routing | Definitions are untrusted until reviewed and published |
+| Registry | Stable tool definitions and downstream routing | Definitions are untrusted input; invocation uses current account grants, Token/OAuth scopes and the effective local tool-access policy |
 | Runtime | Stateless external HTTP requests and native managed stdio processes | Launch support depends on deployment mode |
 | Persistence | SQLite records, manifests, encrypted credentials, operation state | Local filesystem ownership is part of the trust boundary |
 | Project Delivery | Upload, preflight, plan, build, deploy, start, and refresh | Every remote write is confirmation- and idempotency-bound |

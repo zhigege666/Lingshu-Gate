@@ -103,9 +103,9 @@ Deployment defaults to `start=false`. Immediate startup can be part of the confi
 
 ### 5. Reconcile tools
 
-After the process reports running, verify health and discovery. Refresh with `gate_server_refresh_tools` only after confirmation and with the current configuration digest.
+After the process reports running, verify health and discovery. Refresh with the current configuration digest; routine catalog synchronization does not require a separate user confirmation.
 
-Accept the refresh only when `effective_permissions_expanded=false`. New, changed, missing, or reappearing tools remain inactive or `needs_review` until a human reviews and publishes their classifications.
+Accept the refresh only when effective_permissions_expanded=false. Newly discovered tools synchronize automatically and receive no caller authority from discovery alone. Verify the intended caller's current account grants, Token/OAuth scopes and effective local tool policy. A changed service identity remains unavailable until an administrator explicitly chooses its local policy.
 
 Delivery is complete only when deployment succeeds, the observed state is running, health is not failed, discovery succeeds, and classification reconciliation does not expand access. Otherwise report partial completion precisely.
 

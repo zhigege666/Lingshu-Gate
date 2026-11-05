@@ -354,7 +354,7 @@ export default function App() {
   }
 
   async function deleteConfig(id: string) { if (!(await confirm({ title: t("confirmDeleteConfig"), description: `${id} · ${locale === "zh-CN" ? "删除开始后，关联服务组的授权会失效；即使删除失败或运行实例恢复，也需核对并重新确认相关组。共享凭据会保留。" : "Starting deletion invalidates related service-group authorizations. If deletion fails or the runtime is restored, review and reconfirm those groups. Shared credentials are retained."}`, destructive: true }))) return; setBusy(true); try { await api.deleteConfig(id); if (selectedConfigId === id) setSelectedConfigId(""); setMessage(`${t("deleted")}: ${id}`); await refreshAll() } catch (err) { setError(err instanceof Error ? err.message : String(err)) } finally { setBusy(false) } }
-  async function reloadConfigs() { setBusy(true); try { await api.reloadConfigs(); setMessage("configs reloaded"); await refreshAll() } catch (err) { setError(err instanceof Error ? err.message : String(err)) } finally { setBusy(false) } }
+  async function reloadConfigs() { setBusy(true); try { const result = await api.configs(); setConfigs(result.configs); setConfigErrors(result.errors); setMessage("configs refreshed") } catch (err) { setError(err instanceof Error ? err.message : String(err)) } finally { setBusy(false) } }
   async function applyConfig(id: string) {
     if (busy || configMutationPending.current) return
     configMutationPending.current = true

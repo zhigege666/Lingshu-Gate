@@ -761,6 +761,8 @@ class AccessControlStore:
         A replacement service or a removed/reappearing tool gets no old rule.
         """
         source = row.get("access_policy_source", "unresolved")
+        if source == "unavailable":
+            return
         automatic_access, automatic_source = effective_policy(definition, None)
         current_contract = (source not in {"builtin_contract", "default_write"}
                             or (automatic_source == source and row.get("required_access") == automatic_access))
@@ -1144,6 +1146,7 @@ class AccessControlStore:
 
     def reset_tool_access_policy(
         self, definition: ToolDefinition, *, reviewer_id: str, note: str = "", expected_fingerprint: str | None = None,
+        expected_policy_revision: int | None = None,
     ) -> dict[str, Any]:
         """Remove a local override without interpreting downstream suggestions."""
         if control_tool_access(definition) is not None:
@@ -1158,6 +1161,8 @@ class AccessControlStore:
             assert row is not None
             if expected_fingerprint is not None and row["fingerprint"] != expected_fingerprint:
                 raise ClassificationConfirmationConflictError("Tool metadata changed; refresh the tool before saving its access policy.")
+            if expected_policy_revision is not None and int(row["access_policy_revision"]) != expected_policy_revision:
+                raise ClassificationConfirmationConflictError("Tool access policy changed; refresh before saving.")
             self._reset_access_policy(connection, dict(row), effective_policy(definition, None), reviewer_id, note)
             updated = connection.execute("SELECT * FROM mcp_tool_classifications WHERE id=?", (row["id"],)).fetchone()
         return _classification_row(updated)
@@ -1173,6 +1178,7 @@ class AccessControlStore:
         reviewer_id: str,
         note: str = "",
         expected_fingerprint: str | None = None,
+        expected_policy_revision: int | None = None,
         definition: ToolDefinition | None = None,
     ) -> dict[str, Any]:
         if access not in {"read", "write", "unknown"}:
@@ -1188,6 +1194,8 @@ class AccessControlStore:
                 raise KeyError(f"tool classification not found: {server_id}/{tool_id}")
             if expected_fingerprint is not None and row["fingerprint"] != expected_fingerprint:
                 raise ClassificationConfirmationConflictError("Tool metadata changed; refresh the tool before saving its access policy.")
+            if expected_policy_revision is not None and int(row["access_policy_revision"]) != expected_policy_revision:
+                raise ClassificationConfirmationConflictError("Tool access policy changed; refresh before saving.")
             evidence = _loads(row["evidence_json"])
             evidence["manual"] = {"note": note.strip(), "reviewer_id": reviewer_id}
             now = iso_now()
@@ -2543,6 +2551,7 @@ def _classification_row(row: Any) -> dict[str, Any]:
         "effective_access": row["effective_access"],
         "required_access": row["required_access"],
         "policy_source": row["access_policy_source"],
+        "policy_revision": int(row["access_policy_revision"]),
         "status": row["status"],
         "confidence": float(row["confidence"]),
         "source": row["source"],

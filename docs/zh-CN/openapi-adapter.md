@@ -38,7 +38,7 @@ lingshu-gate openapi validate --schema examples/openapi/status.openapi.yaml --co
 lingshu-gate openapi serve --schema examples/openapi/status.openapi.yaml --config examples/openapi/adapter.json --host 127.0.0.1 --port 18881
 ~~~
 
-源码使用 `uv run lingshu-gate`。Gate 按[适配器配置](../../examples/mcp.d/openapi.yaml)接入，依次保存、应用、启动、审核、发布工具，再授予调用者权限。
+源码使用 `uv run lingshu-gate`。Gate 按[适配器配置](../../examples/mcp.d/openapi.yaml)接入。保存并连接适配器后，Gate 会自动发现并同步工具；再通过现有账号、Token 或 OAuth 授权控制授予调用者所需权限，日常接入不需要工具审核或发布。
 
 非回环监听必须同时提供 **`--tls-cert`、`--tls-key`、`--token-file`、精确 `--allowed-host`**；host 和 origin 参数可重复。`--ca-file` 配置上游 API CA，不替代监听证书。入站与上游令牌独立，不公开未认证监听。
 
@@ -46,7 +46,7 @@ lingshu-gate openapi serve --schema examples/openapi/status.openapi.yaml --confi
 
 工具名由有界 operation ID 前缀和 SHA-256 执行合同摘要组成。Base URL、方法/路径、参数、响应或凭据引用变化形成新身份，需要重新发现与审核；轮换令牌文件内容不会把权限转移给另一引用。没有后台自动刷新 schema。
 
-指定工具授权快照不会转移到新工具身份。审核/发布后，既有持续策略只能在原先确认的服务/读写范围、当前账号权限及相同服务生命周期内纳入新合同；信任目标变化须重新确认。
+指定工具授权快照不会转移到新工具身份。既有持续策略只能在配置的服务/读写范围、当前账号权限及相同服务生命周期内纳入新发现工具。信任目标变化时失败关闭；管理员必须明确选择新目标的本地策略后才能调用。
 
 支持 **OpenAPI 3.0.x / 3.1.x** 的有限子集：
 

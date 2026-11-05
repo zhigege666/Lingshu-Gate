@@ -121,7 +121,7 @@ export function ConfigsPage(props: {
         toolbar={<PageToolbar query={query} onQueryChange={setQuery} placeholder={`${t("search")} ID / ${t("path")}`} resultCount={filteredConfigs.length} resultLabel={t("configs")} clearLabel={t("clearSearch")} />}
         actions={<>
           <Button ref={newConfigButton} onClick={handleCreateNew} disabled={busy} className="shadow-xs"><Plus className="size-4 mr-1.5" />{zh ? "新建配置" : "New Config"}</Button>
-          <Button variant="outline" onClick={onReloadConfigs} disabled={busy}><RefreshCcw className="size-4 mr-1.5" />{t("reload")}</Button>
+          <Button variant="outline" onClick={onReloadConfigs} disabled={busy}><RefreshCcw className="size-4 mr-1.5" />{zh ? "刷新列表" : "Refresh list"}</Button>
         </>}
       />
 

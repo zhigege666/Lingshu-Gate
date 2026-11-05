@@ -126,6 +126,7 @@ export type ToolClassification = {
   effective_access: "read" | "write" | "unknown"
   required_access?: "none" | "read" | "write"
   policy_source?: "default_write" | "local_override" | "builtin_contract" | "control_permission" | "unavailable"
+  policy_revision?: number
   policy_editable?: boolean
   policy_constraint?: "control_permission" | null
   status: "pending" | "published" | "stale"
@@ -245,7 +246,7 @@ export const identityAccessApi = {
   deleteResourceGrant: (grantId: string) => request<{ message: string }>(`/v1/access/grants/${encodeURIComponent(grantId)}`, { method: "DELETE" }),
   toolClassifications: (filters: { server_id?: string; status?: string } = {}, signal?: AbortSignal) => request<{ classifications: ToolClassification[] }>(`/v1/access/tool-classifications${queryString(filters)}`, { signal }),
   analyzeToolClassifications: (payload: { server_id?: string | null }) => request<{ classifications: ToolClassification[] }>("/v1/access/tool-classifications/analyze", { method: "POST", body: JSON.stringify(payload) }),
-  updateToolClassification: (serverId: string, toolId: string, payload: { access: "automatic" | "read" | "write" | "unknown"; destructive: boolean; idempotent: boolean; note?: string; expected_fingerprint?: string }) => request<ToolClassification>(`/v1/access/tool-classifications/${encodeURIComponent(serverId)}/${encodeURIComponent(toolId)}`, { method: "PUT", body: JSON.stringify(payload) }),
+  updateToolClassification: (serverId: string, toolId: string, payload: { access: "automatic" | "read" | "write" | "unknown"; destructive: boolean; idempotent: boolean; note?: string; expected_fingerprint?: string; expected_policy_revision?: number }) => request<ToolClassification>(`/v1/access/tool-classifications/${encodeURIComponent(serverId)}/${encodeURIComponent(toolId)}`, { method: "PUT", body: JSON.stringify(payload) }),
   confirmToolClassifications: (payload: { items: Array<{ server_id: string; tool_id: string; expected_fingerprint: string }>; note?: string; publish?: boolean }) => request<ToolClassificationConfirmResponse>("/v1/access/tool-classifications/confirm", { method: "POST", body: JSON.stringify(payload) }),
   publishToolClassifications: (payload: { server_id?: string | null; tool_ids?: string[] }) => request<{ classifications: ToolClassification[] }>("/v1/access/tool-classifications/publish", { method: "POST", body: JSON.stringify(payload) }),
   invocationAudits: (filters: { user_id?: string; server_id?: string; tool_id?: string; decision?: string; outcome?: string; limit?: number } = {}) => request<{ audits: InvocationAudit[]; filter_options: InvocationAuditFilterOptions }>(`/v1/access/invocation-audits${queryString(filters)}`),

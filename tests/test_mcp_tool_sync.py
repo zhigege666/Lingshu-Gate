@@ -93,6 +93,15 @@ def test_invalid_background_discovery_keeps_the_last_complete_catalog(runtime, m
         assert len(access.list_classifications()) == 1
 
 
+def test_stdio_tools_list_missing_tools_field_is_protocol_error(runtime):
+    _, current, _, _, _, settings = runtime
+    client = StdioMcpClient(current.manifest, settings)
+    client.request = lambda method, params, timeout=None: {}
+    from lingshu_gate.mcp_stdio_client import McpProtocolError
+    with pytest.raises(McpProtocolError, match="must contain tools"):
+        client.list_tools()
+
+
 def test_http_and_stdio_notifications_only_wake_the_runtime_worker(runtime):
     _, current, _, _, _, settings = runtime
     notification = {"jsonrpc": "2.0", "method": "notifications/tools/list_changed"}

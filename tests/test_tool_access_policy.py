@@ -147,7 +147,7 @@ def test_persisted_pre_policy_database_upgrades_without_losing_valid_exact_autho
         connection.execute("DROP TRIGGER gate_tool_policy_identity_deleted")
         for column in ("required_access", "access_policy_source", "access_policy_binding", "access_policy_revision", "legacy_authorization_snapshot"):
             connection.execute(f"ALTER TABLE mcp_tool_classifications DROP COLUMN {column}")
-        connection.execute("DELETE FROM schema_migrations WHERE id IN ('0025_tool_access_policy','0026_tool_access_policy_revision')")
+        connection.execute("DELETE FROM schema_migrations WHERE id IN ('0025_tool_access_policy','0026_tool_access_policy_revision','0027_tool_access_policy_identity_fail_closed')")
     reopened = SQLiteDatabase("", tmp_path)
     migrated_access = AccessControlStore(reopened)
     migrated_access.synchronize_tools([definition])
@@ -182,7 +182,28 @@ def test_new_tools_follow_existing_service_scope_but_never_expand_exact_or_read_
     database.execute("UPDATE gate_mcp_authorization_identities SET binding='replacement' WHERE server_id='example'")
     assert not access.evaluate(writer, added)["allowed"]
     assert not access.evaluate(exact, definition)["allowed"]
-    assert row(database, added)["required_access"] == "write"
+    assert row(database, added)["required_access"] == "none"
+    assert row(database, added)["policy_source"] == "unavailable"
+    catalog.synchronize()
+    assert row(database, added)["required_access"] == "none"
+    assert row(database, added)["policy_source"] == "unavailable"
+
+
+def test_concurrent_policy_edit_cannot_overwrite_a_newer_disabled_decision(policy):
+    database, access, actor, definition, _, _ = policy
+    before = row(database, definition)
+    revision = before["access_policy_revision"]
+    access.set_classification(server_id="example", tool_id=definition.id, access="unknown",
+        destructive=False, idempotent=True, reviewer_id=actor.id, expected_fingerprint=before["fingerprint"],
+        expected_policy_revision=revision, definition=definition)
+    disabled = row(database, definition)
+    assert disabled["required_access"] == "none"
+    assert disabled["policy_source"] == "local_override"
+    with pytest.raises(ClassificationConfirmationConflictError, match="policy changed"):
+        access.set_classification(server_id="example", tool_id=definition.id, access="read",
+            destructive=False, idempotent=True, reviewer_id=actor.id, expected_fingerprint=before["fingerprint"],
+            expected_policy_revision=revision, definition=definition)
+    assert row(database, definition)["required_access"] == "none"
 
 
 def test_only_gate_owned_builtin_permission_can_supply_automatic_read(policy):

@@ -16,6 +16,6 @@ describe("automatic tool access", () => {
     expect(result.saved.map(item => item.id)).toEqual(["a", "c"])
     expect(result.failed.map(item => item.item.id)).toEqual(["b"])
     expect(save).toHaveBeenCalledTimes(3)
-    expect(save.mock.calls[0][2]).toEqual({ access: "write", note: "", destructive: true, idempotent: false, expected_fingerprint: "schema-a" })
+    expect(save.mock.calls[0][2]).toEqual({ access: "write", note: "", destructive: true, idempotent: false, expected_fingerprint: "schema-a", expected_policy_revision: 1 })
   })
 })

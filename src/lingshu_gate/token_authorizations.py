@@ -194,8 +194,15 @@ class TokenAuthorizationStore:
         quota_only = (set(ids) == set(state["tool_ids"]) and same_policies and body["mode"] == state["mode"]
                       and scopes == state["scopes"])
         for key in ids:
-            if quota_only and key in state["tools"]:
-                tools[key] = state["tools"][key]
+            previous = state["tools"].get(key)
+            if previous is not None:
+                if quota_only:
+                    tools[key] = previous
+                    continue
+                current = catalog.get(key)
+                if current is None or current.get("snapshot") != previous.get("snapshot"):
+                    raise HTTPException(409, detail="tool_scope_changed")
+                tools[key] = previous
                 continue
             if key not in catalog:
                 raise HTTPException(409, detail="tool_scope_changed")

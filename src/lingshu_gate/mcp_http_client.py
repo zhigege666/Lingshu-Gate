@@ -290,7 +290,9 @@ class StreamableHttpMcpClient:
                 params["cursor"] = cursor
             result = self.request("tools/list", params)
             page_count += 1
-            batch = result.get("tools", []) if isinstance(result, dict) else []
+            if not isinstance(result, dict) or "tools" not in result:
+                raise McpProtocolError("tools/list result must contain tools")
+            batch = result["tools"]
             if not isinstance(batch, list):
                 raise McpProtocolError("tools/list result.tools must be a list")
             if len(tools) + len(batch) > MAX_DISCOVERED_TOOLS:

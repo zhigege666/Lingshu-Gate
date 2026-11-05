@@ -82,6 +82,7 @@ class ClassificationAnalyzeRequest(BaseModel):
 class ClassificationUpdateRequest(BaseModel):
     access: str
     expected_fingerprint: str | None = None
+    expected_policy_revision: int | None = Field(default=None, ge=1)
     destructive: bool = False
     idempotent: bool = False
     note: str = ""
@@ -541,6 +542,7 @@ def register_access_routes(
             if request.access == "automatic":
                 classification = access_store.reset_tool_access_policy(
                     definition, reviewer_id=principal.id, note=request.note, expected_fingerprint=request.expected_fingerprint,
+                    expected_policy_revision=request.expected_policy_revision,
                 )
                 return _with_registry_origins([classification], definitions)[0]
             access_store.synchronize_tools([definition])
@@ -553,6 +555,7 @@ def register_access_routes(
                 reviewer_id=principal.id,
                 note=request.note,
                 expected_fingerprint=request.expected_fingerprint,
+                expected_policy_revision=request.expected_policy_revision,
                 definition=definition,
             )
             return _with_registry_origins([classification], definitions)[0]

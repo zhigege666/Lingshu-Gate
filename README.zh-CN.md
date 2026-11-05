@@ -2,11 +2,11 @@
 
 自托管 MCP 网关：连接工具，限定谁可以调用，并记录调用结果。
 
-[English](README.md) · [下载 0.5.11](https://github.com/zhigege666/Lingshu-Gate/releases/tag/v0.5.11) · [开始使用](docs/zh-CN/getting-started.md) · [文档](docs/zh-CN/README.md) · [安全](SECURITY.zh-CN.md)
+[English](README.md) · [下载 0.5.12](https://github.com/zhigege666/Lingshu-Gate/releases/tag/v0.5.12) · [开始使用](docs/zh-CN/getting-started.md) · [文档](docs/zh-CN/README.md) · [安全](SECURITY.zh-CN.md)
 
 <img src="docs/images/console-refactor/dashboard.png" alt="Lingshu Gate Console：紧凑导航与运行总览" width="1200">
 
-*当前源码 Console，以合成测试数据在 2560×1440 下实际截图；已发布的 0.5.7 是独立发行基线。*
+*当前源码 Console，以合成测试数据在 2560×1440 下实际截图；截图展示当前源码树；发行二进制和源码标签分别按版本管理。*
 
 ## 适合哪些场景
 
@@ -30,7 +30,7 @@
 
 ### 已发布 Docker 本机试用
 
-校验并解压 `lingshu-gate-v0.5.11-docker-compose.tar.gz`，进入该目录后执行：
+校验并解压 `lingshu-gate-v0.5.12-docker-compose.tar.gz`，进入该目录后执行：
 
 ```bash
 cp .env.quickstart.example .env.quickstart
@@ -65,16 +65,15 @@ uv run lingshu-gate
 
 核对成功审计、写入拒绝且计数不变、错误修订拒绝、demo 停止/恢复和调用者撤销。保存并连接时自动校验和同步工具，无需单独审核发布；访问仍须同时满足资源权限和 token scope。
 
-## 0.5.11 — Cloudflare Tunnel 与原生包自动更新
+## 0.5.12 — 控制台重构与 MCP 流程精简
 
-- 为 Compose 和 Unraid 部署增加可选的 Cloudflare Tunnel Sidecar。Token 从受保护的宿主机文件挂载，Gate Core 不接触 Docker Socket。
-- 在系统设置中增加经过认证的 GitHub 最新 Release 检查，展示更新说明并比较当前/最新版本。
-- 更新检查可使用已有的固定版本 HTTP/HTTPS 代理配置，不改变 Gate 其他网络流量。
-
-- 原生安装可用 `lingshu-gate native-update update-start` 启动。宿主 GitHub CLI 校验正式制品的构建来源后，启动器切换到新版。
+- 按 shadcn-admin 方向重构管理控制台，统一导航、页面标题、筛选、表格、表单、弹窗和主题。中英文截图覆盖总览、工具、服务、构建和授权页面。
+- MCP 工具发现后自动同步，移除日常审核／发布；调用仍受账号、Token、OAuth 授权及工具本地策略约束。
+- MCP 服务身份变化时失败关闭；编辑其他工具时保留 Token 精确授权；无效工具列表响应不会清空最后一次完整目录。
+- 刷新配置列表改为只读，不再中断运行中的 MCP 实例。
+- 保留 0.5.11 引入的 Cloudflare Tunnel 部署和原生包验证更新。Docker 与 Unraid 镜像仍由宿主平台升级。
 
 参见 [Cloudflare Tunnel](docs/zh-CN/cloudflare-tunnel.md)、[版本更新检查](docs/zh-CN/release-updates.md)、[更新记录](CHANGELOG.zh-CN.md)和[双语发行说明](packaging/release-notes.md)。
-
 ## 0.5.10 — SQLite 主库文件缺失时的就绪检查
 
 如果 Gate 启动后主库文件消失，`GET /readyz` 返回 HTTP 503，不会创建替代文件。数据库检查只打开已有文件，用一个只读连接读取基线迁移记录。正常启动、迁移和业务写入沿用原有行为。

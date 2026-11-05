@@ -63,6 +63,8 @@ from lingshu_gate.persistence.business_credentials_migration import (
 from lingshu_gate.persistence.tool_access_policy_migration import (
     TOOL_ACCESS_POLICY_MIGRATION_ID, apply_tool_access_policy_migration,
     TOOL_ACCESS_POLICY_REVISION_MIGRATION_ID, apply_tool_access_policy_revision_migration,
+    TOOL_ACCESS_POLICY_IDENTITY_FAIL_CLOSED_MIGRATION_ID,
+    apply_tool_access_policy_identity_fail_closed_migration,
 )
 from lingshu_gate.persistence.release_updates_migration import (
     RELEASE_UPDATES_MIGRATION_ID, apply_release_updates_migration,
@@ -148,9 +150,10 @@ class SQLiteDatabase:
              Migration(TOOL_PREFERENCES_MIGRATION_ID, apply_tool_preferences_migration),
              Migration(ARGUMENT_POLICY_MIGRATION_ID, apply_argument_policy_migration),
              Migration(BUSINESS_CREDENTIALS_MIGRATION_ID, apply_business_credentials_migration),
+             Migration(RELEASE_UPDATES_MIGRATION_ID, apply_release_updates_migration),
              Migration(TOOL_ACCESS_POLICY_MIGRATION_ID, apply_tool_access_policy_migration),
              Migration(TOOL_ACCESS_POLICY_REVISION_MIGRATION_ID, apply_tool_access_policy_revision_migration),
-             Migration(RELEASE_UPDATES_MIGRATION_ID, apply_release_updates_migration)),
+             Migration(TOOL_ACCESS_POLICY_IDENTITY_FAIL_CLOSED_MIGRATION_ID, apply_tool_access_policy_identity_fail_closed_migration)),
         ).run()
 
     def _apply_baseline_migration(self, connection: sqlite3.Connection) -> None:
