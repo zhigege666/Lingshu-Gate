@@ -155,6 +155,16 @@ def smoke(bundle_dir: Path, target: str, timeout_seconds: int) -> None:
                 "WEB_CONCURRENCY": "2",
             }
         )
+        # Exercise the actual installed selector and argument forwarding without
+        # fetching a release or starting a second server.
+        probe = subprocess.run(
+            [str(executable), "native-update", "start", "--", "--version"],
+            cwd=bundle_dir, env=environment, check=True,
+            capture_output=True, text=True, timeout=45,
+        )
+        version = json.loads((bundle_dir / "BUILD-INFO.json").read_text(encoding="utf-8"))["version"]
+        if probe.stdout.splitlines() != [f"Lingshu Gate {version} ({target})", f"lingshu-gate {version}"]:
+            raise RuntimeError(f"Native update launcher selected an unexpected version: {probe.stdout!r}")
         log_path = runtime_root / "server.log"
         with log_path.open("wb") as log:
             windows_target = target.startswith("windows-")

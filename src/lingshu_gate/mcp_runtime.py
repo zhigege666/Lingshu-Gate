@@ -26,7 +26,7 @@ from lingshu_gate.domain.tool_structure import check_tool_structure
 from lingshu_gate.endpoint_security import redact_endpoint
 from lingshu_gate.invocation_payloads import audit_header_values, snapshot
 from lingshu_gate.logging import log_event
-from lingshu_gate.mcp_config_loader import McpConfigLoader
+from lingshu_gate.mcp_config_loader import McpConfigLoader, McpConfigScanStatus
 from lingshu_gate.mcp_container import docker_available
 from lingshu_gate.mcp_managed_http_client import ManagedHttpMcpClient
 from lingshu_gate.mcp_manifest import McpServerManifest
@@ -307,6 +307,7 @@ class McpRuntimeManager:
         self.state_store = state_store or McpRuntimeStateStore(SQLiteDatabase(settings.db_url, settings.data_dir))
         self._servers: dict[str, McpServerRuntime] = {}
         self.load_errors: list[str] = []
+        self._config_scan_status: McpConfigScanStatus = "not_scanned"
         self._manager_lock = DispatchLock()
         self._route_process_generation = uuid4().hex
         self.credential_sensitive_target: Callable[[str], bool] | None = None
@@ -340,6 +341,7 @@ class McpRuntimeManager:
         with self._manager_lock:
             previous_intents = {server_id: runtime.desired_intent for server_id, runtime in self._servers.items()}
             self.load_errors = result.errors
+            self._config_scan_status = result.scan_status
             self._servers.clear()
             for manifest in result.manifests:
                 intent: McpRuntimeIntent | None
@@ -925,6 +927,11 @@ class McpRuntimeManager:
             log_event(logger, logging.INFO, "gate.mcp.server_restarting", "Restarting MCP server", server_id=server_id)
             self._log_runtime(server_id, "info", "Restarting MCP server", "gate.mcp.server_restarting", {})
             return self.start_server(server_id)
+
+    def configuration_scan_snapshot(self) -> tuple[McpConfigScanStatus, int, int]:
+        """Return the last full scan outcome and current catalog counts atomically."""
+        with self._manager_lock:
+            return self._config_scan_status, len(self._servers), len(self.load_errors)
 
     def list_servers(self) -> McpServerListResponse:
         with self._manager_lock:

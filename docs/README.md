@@ -19,7 +19,7 @@ This documentation describes the current Gate product boundary. English is autho
 | [Configuration](configuration.md) | Environment variables, directories, manifests, credentials, and reverse proxy settings |
 | [Business credentials](business-credentials.md) | Development addition: personal/shared website accounts, explicit MCP bindings, agent-browser synchronization and separate cleanup |
 | [MCP gateway](mcp-gateway.md) | Gateway endpoint, protocol negotiation, downstream HTTP/stdio, discovery, classification, and invocation |
-| [On-demand tools](on-demand-tools.md) | Six bounded discovery/session entries, per-authorization modes defaulting to on-demand, unchanged authority and synthetic benchmarks |
+| [On-demand tools](on-demand-tools.md) | Seven bounded discovery/session/recovery entries, including `gate_request_status`, per-authorization modes defaulting to on-demand, unchanged authority and synthetic benchmarks |
 | [On-demand integration provenance](on-demand-integration.md) | Exact group commit mapping, conflict resolution and targeted security evidence |
 | [On-demand integration validation](on-demand-integration-validation.md) | Exact test checkpoints, physical/group measurements and native worker evidence |
 | [Gate feature integration candidate](gate-feature-integration.md) | OAuth/catalog/groups/Native provenance, a3b57f7 frontend checks, fresh ed34c5a wheel/Linux package acceptance and inherited backend evidence |
@@ -65,3 +65,8 @@ API schemas are served by a running Gate instance at `/docs`. Security policy an
 | `/readyz` | Request-path readiness | Probe |
 
 Use the three purpose-specific endpoints above for orchestration.
+
+## Network and updates
+
+- [Cloudflare Tunnel](cloudflare-tunnel.md)
+- [Release update checks](release-updates.md)

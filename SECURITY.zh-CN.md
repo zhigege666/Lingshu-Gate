@@ -48,6 +48,10 @@ certifi 必须为 2026.10.19 或更高版本，以修复 [GHSA-6q48-6c7w-9gw2](h
 
 工具目录的 `metadata.gate_access` 仅是当前请求中现有访问判定的输出快照，供页面展示，不是授权凭证或鉴权输入。Gate 会覆盖可见工具中的下游同名值，不修改注册定义，并在每次调用时重新评估访问策略。
 
+Cloudflare Tunnel 使用独立的 cloudflared 容器，只有该容器挂载只读 Token 文件。为公网路由配置 Cloudflare Access 策略，并在 Gate 中配置实际的代理来源和公网 HTTPS 来源。
+
+原生更新器以安装目录所有者的身份运行，校验发行制品摘要与仓库工作流的构建来源后再选定程序。安装目录及其中的 `.native-updates` 仅应允许该账号写入。发生数据库迁移后，回退程序还需配套的数据库备份。参见[原生更新](docs/zh-CN/release-updates.md)。
+
 ## 执行边界
 
 外部 HTTP 管理仅限管理员，实时重查身份、角色权限、token/令牌族 scope 与委托上限。旧外部配置 REST 适配器保留严格 Origin 与绑定有效会话/动作/请求体的 CSRF。旧、新管理 MCP 工具在通用注册表入口均拒绝 Console 会话。普通业务 OAuth 不能配置地址；默认关闭的[独立管理资源](docs/zh-CN/oauth-external-management-design.md)要求明确的工具、scope 和目标同意。新 `gate_http_mcp_*` 工具复用原操作引擎及日志，不改变旧工具指纹。离线计划绑定配置、生命周期、trust 和凭据版本，应用/取消要求确认与幂等键；有权创建/更新可随配置保存精确内网许可，删除/撤销/恢复为明确模式。未知执行字段和 Header 秘密原文仍拒绝。连接成功后自动同步工具目录，不授予账号/客户端权限，也不伪造安全评审证据。文件/trust/runtime 部分变更或中断明确要求对账，不安装、重启或卸载远程进程。见[合同](docs/zh-CN/external-mcp-configuration.md)。

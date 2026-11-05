@@ -16,6 +16,7 @@ from lingshu_gate.endpoint_security import redact_endpoint
 from lingshu_gate.logging import log_event
 from lingshu_gate.mcp_runtime import McpRuntimeManager
 from lingshu_gate.models import DiagnosticsCheck, DiagnosticsResponse
+from lingshu_gate.path_diagnostics import inspect_directory
 from lingshu_gate.registry import ToolRegistry
 from lingshu_gate.redaction import redact_text
 
@@ -29,7 +30,16 @@ def run_diagnostics(settings: Settings, registry: ToolRegistry, runtime: McpRunt
     log_event(logger, logging.INFO, "gate.diagnostics.started", "Runtime diagnostics started")
 
     _check_path(checks, "allowed_root", settings.allowed_root, must_be_dir=True)
-    _check_path(checks, "config_dir", settings.config_dir, must_be_dir=True)
+    configuration = inspect_directory(settings.config_dir, allow_missing=True, require_writable=True)
+    checks.append(
+        DiagnosticsCheck(
+            name="path.config_dir",
+            ok=configuration.ok,
+            severity="info" if configuration.ok else "error",
+            detail=configuration.detail,
+            metadata={"reason_code": configuration.code, **configuration.metadata()},
+        )
+    )
     _check_path(checks, "data_dir", settings.data_dir, must_be_dir=True, require_writable=True)
     _check_path(
         checks,

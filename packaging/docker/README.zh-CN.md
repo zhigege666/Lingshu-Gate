@@ -43,6 +43,14 @@ Rootless Docker 和 Docker Desktop 的宿主、虚拟机 UID 映射不同，需�
 
 `SBOM.spdx.json` 列明 Python 应用运行依赖闭包和本版本 Console 生产依赖，不是操作系统或容器层清单。使用发行级 `SHA256SUMS` 与构建证明校验它和归档。
 
+## 宿主 bind mount
+
+发行包 Compose 使用命名的 `config` 与 `data` 卷。改为宿主 bind mount（包括 Unraid 模板）会遮盖镜像中准备好的目录和属主。需要为 UID/GID `10001:10001` 准备**实际选中的宿主路径**，包括 `data/home`、`data/cache` 和 `config/mcp.d`；修改容器名称或模板默认值不会准备新路径。
+
+全新空实例的准备及最终容器身份下可执行的检查，见[自定义宿主目录](../../docs/zh-CN/deployment.md#自定义宿主目录)。既有数据先检查属主、权限模式与 ACL，再做针对性修正；不要递归放宽权限或改用 root 运行 Core。根文件系统和工作区继续保持只读。
+
+`--version` 不会初始化服务。部署验收需检查完整启动、持续的容器健康状态、`/readyz` 和配置扫描。空实例配置目录缺失但可创建时仍有效；预期下游配置应另行核对。见[扫描与就绪语义](../../docs/zh-CN/operations.md#配置目录与扫描状态)。
+
 ## 包内指南与可选服务
 
 包内包含中英文 README、`docs/`、`examples/`、安全与发行说明及 Project Delivery Skill。参见[首次授权调用](../../docs/zh-CN/first-call.md)。启动可选 demo 前先完成本包的 Compose 配置，使用所选镜像，不进行源码构建。

@@ -487,13 +487,6 @@ jobs:
       - name: Inspect and smoke-test offline Core images
         run: |
           set -euo pipefail
-          containers=()
-          cleanup() {
-            for container in "${containers[@]}"; do
-              docker rm --force "$container" >/dev/null 2>&1 || true
-            done
-          }
-          trap cleanup EXIT
           image_repository="${{ needs.docker-publish.outputs.image }}"
           source_digest="${{ needs.docker-publish.outputs.digest }}"
           candidate_digest="${{ needs.docker-publish.outputs.candidate_digest }}"
@@ -527,25 +520,8 @@ jobs:
                 && grep --quiet "^gate:x:10001:" /etc/group \
                 && ! command -v node && ! command -v npm && ! command -v npx && ! command -v docker'
 
-            container="lingshu-gate-offline-${architecture}"
-            containers+=("$container")
-            docker run --detach --platform "linux/${architecture}" --name "$container" \
-              --publish 127.0.0.1::8000 "$image"
-            host_port=$(docker port "$container" 8000/tcp | sed -n 's/.*://p')
-            test -n "$host_port"
-            ready=false
-            for _attempt in $(seq 1 60); do
-              if curl --fail --silent --show-error "http://127.0.0.1:${host_port}/readyz" >/dev/null; then
-                ready=true
-                break
-              fi
-              sleep 2
-            done
-            if [[ "$ready" != "true" ]]; then
-              docker logs "$container" >&2 || true
-              exit 1
-            fi
-            docker rm --force "$container" >/dev/null
+            sudo "$(command -v python)" scripts/quality/smoke_core_bind_mounts.py \
+              --image "$image" --platform "linux/${architecture}" --timeout 120
           done
 
       - name: Upload offline Core images

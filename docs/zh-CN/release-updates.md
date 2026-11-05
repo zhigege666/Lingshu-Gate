@@ -1,0 +1,31 @@
+# 检查与安装更新
+
+打开 **系统设置 → 版本更新**，Gate 会查询 `zhigege666/Lingshu-Gate` 的最新正式版，显示运行版本、最新标签、发布日期、发行说明和链接。点击 **检查更新** 可重新查询。
+
+## 为版本检查指定代理
+
+在 **系统设置 → 网络与依赖** 建立 HTTP 或 HTTPS 代理配置，再到 **版本更新** 选择已启用的配置，点击 **保存并检查**。本次检查即使用所选配置的固定修订。选回 **直连 GitHub** 并保存即可恢复直连。代理凭据使用 Gate 的加密凭据库。Git 拉取、包仓库和 MCP 各自沿用已有网络设置。
+
+具有 `system_settings.manage` 权限的 Agent 可用 `GET /v1/system-settings/updates` 读取当前修订，再向同一路径 `PUT` 提交 `expected_revision`、`proxy_profile_id` 和 `proxy_profile_version`。直连时将两个代理字段置为 null。用 `POST /v1/system-settings/updates/check` 发起检查。
+
+## 开启原生包启动时自动更新
+
+先一起备份数据库、配置和凭据密钥。将 GitHub CLI 安装到运行服务账号的 PATH 中，已验证版本为 `gh 2.103.3`。启动器匿名下载 GitHub 公开制品，再通过 `gh attestation verify` 核验签名工作流、源码提交和时间戳。宿主请求使用宿主代理环境，控制台所选代理用于 Gate 发起的版本检查。
+
+停止原有 Gate 进程，将服务启动命令改为以下命令。在原安装目录运行，或使用可执行文件的绝对路径。
+
+```sh
+./lingshu-gate native-update update-start
+```
+
+Windows 使用 `.\lingshu-gate.exe native-update update-start`。每次启动会检查正式版，校验对应平台制品的大小、SHA-256 和 GitHub Actions 构建来源，再启动选定的程序。后续也使用这个启动入口，继续沿用原安装的数据、配置及工作区路径。
+
+| `native-update` 后的命令 | 用途 |
+|---|---|
+| `update` | 检查并准备新版本，下次通过更新启动器启动时生效。可放进宿主机的定时任务。 |
+| `start` | 直接启动已选的本地版本。GitHub 暂时不可达时也可使用。 |
+| `rollback` | 选回上一版程序。先停服务，如果数据库已迁移，启动旧版前还须恢复与其匹配的备份。 |
+
+从 0.5.10 接入时，先校验 0.5.11 发行包并解压到单独目录。停掉旧进程，用新版可执行文件运行 `native-update update-start --install-dir "/原安装目录"`，在服务配置中保留这个新版启动器路径。启动后检查 `/readyz` 和控制台显示的运行版本。
+
+Docker 和 Unraid 同样可在控制台检查版本，升级镜像时使用 Compose 或 Unraid 容器管理界面。

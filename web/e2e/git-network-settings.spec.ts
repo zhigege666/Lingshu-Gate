@@ -31,6 +31,11 @@ for (const [width, height] of [[1600, 900], [1920, 1080], [2560, 1080], [2560, 1
       await expect(page.getByText('Synthetic network', { exact: true })).toBeVisible()
       await expect(page.getByText(/safe_executor_unavailable/)).toHaveCount(0) // Friendly explanation precedes transport details.
       expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(width)
+      await page.getByRole('tab', { name: 'Cloudflare Tunnel' }).click()
+      await expect(page.getByRole('link', { name: zh ? '配置指南' : 'Setup guide' })).toHaveAttribute('href', `https://github.com/zhigege666/Lingshu-Gate/blob/main/docs/${zh ? 'zh-CN/' : ''}cloudflare-tunnel.md`)
+      await expect(page.getByText('docker compose --profile cloudflare-tunnel up -d cloudflared', { exact: true })).toBeVisible()
+      await expect(page.getByText('docker compose stop cloudflared', { exact: true })).toBeVisible()
+      expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(width)
       await page.goto('/console/#/uploads')
       await page.getByText(zh ? 'Git 仓库' : 'Git repository', { exact: true }).click()
       const repository = page.getByLabel(zh ? '仓库 URL（HTTPS）' : 'Repository URL (HTTPS)', { exact: true })

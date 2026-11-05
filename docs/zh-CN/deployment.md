@@ -127,6 +127,61 @@ ARM64 主机在两处名称中都使用 `arm64`。把 Compose Image 变量设为
 
 不要仅为了让下游命令工作，就以管理员或 Root 运行 Gate。应修复所有权，或使用权限更窄的专用执行账户。
 
+## 自定义宿主目录
+
+仓库提供的 Compose 使用命名卷保存 `/data` 与 `/config`。改用宿主 bind mount（包括 Unraid 模板）时，最终宿主路径由部署者负责准备。Bind mount 会遮盖镜像中已经准备的目录树；镜像构建时的属主以及 `/config/mcp.d`、`/data/home`、`/data/cache` 不会自动初始化替换后的宿主路径。
+
+编辑模板或修改实例目录后，核对实际挂载的源路径和目标路径。容器名称、模板默认路径都不能证明当前选中的宿主路径已经准备好。
+
+| 容器路径 | 默认 Core 用户需要的宿主准备 |
+|---|---|
+| `/data` | UID/GID `10001:10001` 能进入并写入数据目录，能够访问既有数据库及其父目录。 |
+| `/data/home`、`/data/cache` | 挂载 `/data` 时准备可写的 home 和 cache 子目录。 |
+| `/config/mcp.d` | 在实际 `/config` 宿主源目录下准备该目录，服务需要读、写、进入权限。 |
+| `/workspace` | 保持只读挂载，仅为预期工作区提供读取和进入权限。 |
+
+Linux rootful Docker 的**全新空实例**先选定最终宿主根目录。以下示例在根目录已经存在时停止：
+
+```bash
+gate_root=/srv/lingshu-gate-instance
+(
+  set -eu
+  if sudo test -e "$gate_root" || sudo test -L "$gate_root"; then
+    printf '%s\n' 'Inspect the existing installation before changing ownership or modes.' >&2
+    exit 1
+  fi
+  sudo install -d -o 10001 -g 10001 -m 0750 \
+    "$gate_root" "$gate_root/data" "$gate_root/data/home" "$gate_root/data/cache" \
+    "$gate_root/config" "$gate_root/config/mcp.d" "$gate_root/workspace"
+)
+```
+
+既有数据应先检查选定路径、当前属主、权限模式和 ACL，再进行有针对性的修正。保留原有文件模式及凭据文件保护，不无条件递归执行 `chmod` 或 `chown`。Rootless Docker 与 Docker Desktop 应使用实际 UID 映射。可选的 SSH 目录挂载需要单独核对；挂载该目录不会让 Core 获得本机进程执行能力。
+
+使用最终服务相同的镜像、身份和挂载检查目录。以下命令只检查目录元数据和访问条件，不启动 Gate、不读取秘密、不创建探测文件：
+
+```bash
+gate_image='ghcr.io/zhigege666/lingshu-gate@sha256:<digest>'
+docker run --rm --network none --read-only --user 10001:10001 \
+  --cap-drop ALL --security-opt no-new-privileges:true \
+  --mount "type=bind,src=$gate_root/data,dst=/data" \
+  --mount "type=bind,src=$gate_root/config,dst=/config" \
+  --entrypoint sh "$gate_image" -ec '
+    id
+    for path in /data /data/home /data/cache /config/mcp.d; do
+      stat -c "%n uid=%u gid=%g mode=%a" "$path"
+      test -d "$path"
+      test -r "$path"
+      test -w "$path"
+      test -x "$path"
+    done
+  '
+```
+
+将示例镜像 digest 和宿主路径替换为实际部署值，并加入实际使用的额外挂载或数据库父目录。访问条件检查不能证明数据库事务一定成功；`--version` 成功只验证程序的版本输出路径，不会完成存储初始化、配置加载或 HTTP 启动。
+
+完整验收需要按复核后的配置启动 Gate，检查持续运行与健康状态、`/readyz`、启动存储诊断和最近一次配置扫描。预期下游配置应另行核对，允许全新空实例。HTTP 资源检查和登录页实际渲染可补充 Console 证据；登录与下游调用仍需要各自获准的验证。参见[配置目录与扫描状态](operations.md#配置目录与扫描状态)。
+
 ## 健康探针
 
 | Endpoint | 含义 | 编排器操作 |

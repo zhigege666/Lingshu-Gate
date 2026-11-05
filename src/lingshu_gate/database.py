@@ -2,13 +2,17 @@
 
 from __future__ import annotations
 
+import logging
+import os
 import sqlite3
 import time
 from collections.abc import Iterator
 from contextlib import closing, contextmanager
 from pathlib import Path
 from typing import Any
+from urllib.parse import quote_from_bytes
 
+from lingshu_gate.path_diagnostics import log_path_failure
 from lingshu_gate.persistence.migrations import (
     Migration,
     MigrationRunner,
@@ -60,6 +64,11 @@ from lingshu_gate.persistence.tool_access_policy_migration import (
     TOOL_ACCESS_POLICY_MIGRATION_ID, apply_tool_access_policy_migration,
     TOOL_ACCESS_POLICY_REVISION_MIGRATION_ID, apply_tool_access_policy_revision_migration,
 )
+from lingshu_gate.persistence.release_updates_migration import (
+    RELEASE_UPDATES_MIGRATION_ID, apply_release_updates_migration,
+)
+
+logger = logging.getLogger(__name__)
 
 BASELINE_MIGRATION_ID = "0001_gate_baseline"
 SQLITE_BUSY_TIMEOUT_MS = 30_000
@@ -75,8 +84,20 @@ class SQLiteDatabase:
 
     def __init__(self, db_url: str, data_dir: Path) -> None:
         self.path = _resolve_sqlite_path(db_url, data_dir)
-        self.path.parent.mkdir(parents=True, exist_ok=True)
-        self.initialize()
+        try:
+            self.path.parent.mkdir(parents=True, exist_ok=True)
+        except OSError as error:
+            log_path_failure(
+                logger, component="database", phase="database_directory", path=self.path, error=error,
+            )
+            raise
+        try:
+            self.initialize()
+        except (OSError, sqlite3.Error) as error:
+            log_path_failure(
+                logger, component="database", phase="database_initialize", path=self.path, error=error,
+            )
+            raise
 
     def connect(self) -> sqlite3.Connection:
         connection = sqlite3.connect(
@@ -94,6 +115,17 @@ class SQLiteDatabase:
             # prolongs the same schema/journal lock for competing initializers.
             connection.close()
             raise
+
+    def probe_baseline_migration(self) -> bool:
+        """Read the existing database without initializing it or changing its journal mode."""
+        # Escape native separators too: a UNC filename must not become a URI authority.
+        filename = quote_from_bytes(os.fsencode(self.path.absolute()), safe="")
+        uri = f"file:{filename}?mode=ro"
+        with closing(sqlite3.connect(uri, uri=True, timeout=SQLITE_LOCK_RETRY_MAX_SECONDS)) as connection:
+            return connection.execute(
+                "SELECT applied_at FROM schema_migrations WHERE id = ?",
+                (BASELINE_MIGRATION_ID,),
+            ).fetchone() is not None
 
     def initialize(self) -> None:
         MigrationRunner(
@@ -117,7 +149,8 @@ class SQLiteDatabase:
              Migration(ARGUMENT_POLICY_MIGRATION_ID, apply_argument_policy_migration),
              Migration(BUSINESS_CREDENTIALS_MIGRATION_ID, apply_business_credentials_migration),
              Migration(TOOL_ACCESS_POLICY_MIGRATION_ID, apply_tool_access_policy_migration),
-             Migration(TOOL_ACCESS_POLICY_REVISION_MIGRATION_ID, apply_tool_access_policy_revision_migration)),
+             Migration(TOOL_ACCESS_POLICY_REVISION_MIGRATION_ID, apply_tool_access_policy_revision_migration),
+             Migration(RELEASE_UPDATES_MIGRATION_ID, apply_release_updates_migration)),
         ).run()
 
     def _apply_baseline_migration(self, connection: sqlite3.Connection) -> None:

@@ -56,6 +56,10 @@ Follow [First successful and denied calls](../../docs/first-call.md): connect th
 
 The demo only changes its own in-memory note. Ctrl+C stops it and clears that note; Gate remains a separate process. Ctrl+C in Gate's terminal stops Gate while preserving its data and configuration.
 
+## Automatic updates on startup
+
+With GitHub CLI installed on the host, run `./lingshu-gate native-update update-start` (Windows: `.\lingshu-gate.exe native-update update-start`). Use this launcher for subsequent starts. See [updates, scheduling and rollback](../../docs/release-updates.md).
+
 ## Keep a working installation
 
 Use one Gate process per database. Back up data, configuration and credential keys consistently before upgrades; preserve the matching old backup for rollback. Avoid extracting a new version over a live data directory. A native installation can execute trusted local projects and stdio tools, so run it under a suitably restricted user.

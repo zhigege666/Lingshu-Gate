@@ -25,6 +25,7 @@ from lingshu_gate.mcp_manifest import McpServerManifest, validate_manifest_for_w
 from lingshu_gate.mcp_http_trust import McpHttpTrustStore, require_mcp_http_endpoint
 from lingshu_gate.mcp_authorization_policy import record_config_identity, server_binding
 from lingshu_gate.models import McpConfigListResponse, McpConfigResponse
+from lingshu_gate.path_diagnostics import log_path_failure
 from lingshu_gate.redaction import redact_text, redact_validation_errors
 
 logger = logging.getLogger(__name__)
@@ -59,7 +60,15 @@ class McpConfigStore:
         if self.http_trust_store is not None:
             saved_endpoints: dict[str, str] = {}
             # 启动时对账已保存配置；外部替换文件不能恢复旧持续授权身份。
-            for path in self._iter_files():
+            try:
+                paths = self._iter_files()
+            except OSError as error:
+                log_path_failure(
+                    logger, component="configuration", phase="configuration_scan",
+                    path=self.config_dir, error=error, directory=True,
+                )
+                raise
+            for path in paths:
                 try:
                     manifest = self._load_manifest(path)
                     self._record_authorization_identity(manifest, path, check_previous=True)
@@ -282,7 +291,9 @@ class McpConfigStore:
         return response
 
     def _iter_files(self) -> list[Path]:
-        if not self.config_dir.exists():
+        try:
+            self.config_dir.stat()
+        except FileNotFoundError:
             return []
         return sorted(path for path in self.config_dir.iterdir() if path.is_file() and path.suffix.lower() in SUPPORTED_SUFFIXES)
 

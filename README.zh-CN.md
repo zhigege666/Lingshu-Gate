@@ -2,7 +2,7 @@
 
 自托管 MCP 网关：连接工具，限定谁可以调用，并记录调用结果。
 
-[English](README.md) · [下载 0.5.7](https://github.com/zhigege666/Lingshu-Gate/releases/tag/v0.5.7) · [开始使用](docs/zh-CN/getting-started.md) · [文档](docs/zh-CN/README.md) · [安全](SECURITY.zh-CN.md)
+[English](README.md) · [下载 0.5.11](https://github.com/zhigege666/Lingshu-Gate/releases/tag/v0.5.11) · [开始使用](docs/zh-CN/getting-started.md) · [文档](docs/zh-CN/README.md) · [安全](SECURITY.zh-CN.md)
 
 <img src="docs/images/console-refactor/dashboard.png" alt="Lingshu Gate Console：紧凑导航与运行总览" width="1200">
 
@@ -30,7 +30,7 @@
 
 ### 已发布 Docker 本机试用
 
-校验并解压 `lingshu-gate-v0.5.7-docker-compose.tar.gz`，进入该目录后执行：
+校验并解压 `lingshu-gate-v0.5.11-docker-compose.tar.gz`，进入该目录后执行：
 
 ```bash
 cp .env.quickstart.example .env.quickstart
@@ -65,13 +65,21 @@ uv run lingshu-gate
 
 核对成功审计、写入拒绝且计数不变、错误修订拒绝、demo 停止/恢复和调用者撤销。保存并连接时自动校验和同步工具，无需单独审核发布；访问仍须同时满足资源权限和 token scope。
 
-## 0.5.7 — MCP 超时信息与迟到响应回读
+## 0.5.11 — Cloudflare Tunnel 与原生包自动更新
 
-MCP 等待期限到期时返回结构化的 `mcp_request_timeout`。调用方可以区分尚未派发的请求与执行结果未知的操作；超时不会被报告成远端进程已停止，也不会触发自动重试。
+- 为 Compose 和 Unraid 部署增加可选的 Cloudflare Tunnel Sidecar。Token 从受保护的宿主机文件挂载，Gate Core 不接触 Docker Socket。
+- 在系统设置中增加经过认证的 GitHub 最新 Release 检查，展示更新说明并比较当前/最新版本。
+- 更新检查可使用已有的固定版本 HTTP/HTTPS 代理配置，不改变 Gate 其他网络流量。
 
-符合条件的共享 stdio 调用可使用返回的恢复句柄，通过 `gate_request_status` 或 `POST /v1/catalog/requests/status` 读取迟到响应。句柄绑定原身份、工具修订与运行时连接，每次读取都复核当前权限。按需模式默认入口由六个增加为七个，完整工具列表模式保持不变。
+- 原生安装可用 `lingshu-gate native-update update-start` 启动。宿主 GitHub CLI 校验正式制品的构建来源后，启动器切换到新版。
 
-回读有容量与时间上限，仅在当前 Gate 进程内有效，不能跨 Gate 重启恢复，也不能替代远端作业接口。本版 HTTP 调用仅增加结构化超时信息，不支持迟到回读；收到完整响应仍不代表已经确认远端命令退出码。相对 0.5.6 不新增运行依赖或数据库迁移。参见[请求回读](docs/zh-CN/on-demand-tools.md)、[MCP 连接行为](docs/zh-CN/mcp-gateway.md)、[变更记录](CHANGELOG.zh-CN.md)和[双语发行说明](packaging/release-notes.md)。
+参见 [Cloudflare Tunnel](docs/zh-CN/cloudflare-tunnel.md)、[版本更新检查](docs/zh-CN/release-updates.md)、[更新记录](CHANGELOG.zh-CN.md)和[双语发行说明](packaging/release-notes.md)。
+
+## 0.5.10 — SQLite 主库文件缺失时的就绪检查
+
+如果 Gate 启动后主库文件消失，`GET /readyz` 返回 HTTP 503，不会创建替代文件。数据库检查只打开已有文件，用一个只读连接读取基线迁移记录。正常启动、迁移和业务写入沿用原有行为。
+
+就绪检查不会恢复丢失的数据，也不能证明下一次写入一定成功。参见[运维说明](docs/zh-CN/operations.md#sqlite-数据库就绪检查)。
 
 ## 架构总览
 
@@ -220,6 +228,9 @@ Core 管理的凭据加密保存；辅助进程使用独立受保护本地凭据
 - SQLite 与配额为单 Core/单进程边界，不提供多租户或分布式配额保证。Core 不执行本地 build/deploy/start，不挂容器引擎 socket。原生可信项目执行不等于代码隔离。
 - Git SSH、自动 hooks/submodule/LFS 和重定向凭据转发不支持。交付代理不会自动传入运行时 MCP，也不修改宿主全局 Git/npm 设置；准确版本 manager 运行要求管理员受审查的 Node/CLI 注册表，不自动安装工具。
 - 已实现的自动化测试使用合成隔离环境；真实 ChatGPT/OAuth、用户 Git/代理与生产升级验收需要另行完成。不同平台的原生产物和镜像以该 Tag 的发布工作流实际结果为准。
+
+- [Cloudflare Tunnel](docs/zh-CN/cloudflare-tunnel.md) — 通过独立 cloudflared Sidecar 发布内网服务。
+- [版本更新检查](docs/zh-CN/release-updates.md) — 检查最新 GitHub Release，并单独配置检查代理。
 
 ## 文档
 

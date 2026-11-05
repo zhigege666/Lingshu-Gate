@@ -70,6 +70,14 @@ an application dependency inventory, not an operating-system or container-layer
 inventory. Verify it and this archive through the release-level `SHA256SUMS` and
 artifact attestation.
 
+## Host bind mounts
+
+The bundled Compose files use named `config` and `data` volumes. Replacing them with host bind mounts, including an Unraid template, hides the directories and ownership prepared in the image. Prepare the **actual selected host paths** for UID/GID `10001:10001`, including `data/home`, `data/cache` and `config/mcp.d`; changing a container name or template default does not prepare a new path.
+
+For a new empty installation and an executable check under the final container identity, follow [Custom host directories](../../docs/deployment.md#custom-host-directories). Inspect existing owners, modes and ACLs before targeted corrections; do not recursively relax permissions or run Core as root to bypass them. Keep the root filesystem and workspace read-only.
+
+`--version` does not initialize the service. Verify a full startup, stable container health, `/readyz` and the configuration scan before accepting the deployment. A missing but creatable configuration directory is valid for an empty instance; check expected downstream configurations separately. See [scan and readiness semantics](../../docs/operations.md#configuration-directory-and-scan-state).
+
 ## Included guides and optional services
 
 The archive includes paired READMEs, `docs/`, `examples/`, security/release notes and the Project Delivery Skill. See [First authorized call](../../docs/first-call.md) or [首次授权调用](../../docs/zh-CN/first-call.md). Follow the archive's Compose startup instructions before the optional demo override. Packaged deployments use the selected image and do not build from source.

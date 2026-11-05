@@ -120,7 +120,7 @@ Change the second argument to `gate_tool_invoke` for invocation bodies. A nonzer
 {"jsonrpc":"2.0","id":1,"method":"tools/list","params":{"_meta":{"io.modelcontextprotocol/protocolVersion":"2026-07-28","io.modelcontextprotocol/clientCapabilities":{}}}}
 ~~~
 
-Without pins, on-demand discovery lists six entries, including `gate_catalog_search`, `gate_tool_describe` and `gate_tool_invoke`. Listing an entry does not grant downstream access.
+Without pins, on-demand discovery lists seven default entries, including `gate_catalog_search`, `gate_tool_describe`, `gate_tool_invoke` and the read-only `gate_request_status`. Listing an entry does not grant downstream access.
 
 **Search the permitted catalog** with `gate_request tools/call gate_catalog_search request.json`:
 

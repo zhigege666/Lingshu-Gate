@@ -2,7 +2,7 @@
 
 A self-hosted MCP gateway that connects tools, limits who can call them, and records what happened.
 
-[简体中文](README.zh-CN.md) · [Download 0.5.7](https://github.com/zhigege666/Lingshu-Gate/releases/tag/v0.5.7) · [Get started](docs/getting-started.md) · [Documentation](docs/README.md) · [Security](SECURITY.md)
+[简体中文](README.zh-CN.md) · [Download 0.5.11](https://github.com/zhigege666/Lingshu-Gate/releases/tag/v0.5.11) · [Get started](docs/getting-started.md) · [Documentation](docs/README.md) · [Security](SECURITY.md)
 
 <img src="docs/images/console-refactor/dashboard.png" alt="Lingshu Gate Console: compact navigation and operational overview" width="1200">
 
@@ -30,7 +30,7 @@ Open [http://127.0.0.1:8000/](http://127.0.0.1:8000/). Read `data/initial-admin-
 
 ### Released Docker trial
 
-Verify and extract `lingshu-gate-v0.5.7-docker-compose.tar.gz`, enter that directory and run:
+Verify and extract `lingshu-gate-v0.5.11-docker-compose.tar.gz`, enter that directory and run:
 
 ```bash
 cp .env.quickstart.example .env.quickstart
@@ -65,13 +65,21 @@ The [included demo walkthrough](docs/first-call.md) needs no external service ac
 
 Check the successful audit, deny a write with an unchanged counter, reject an invalid revision, stop/restart the demo and revoke the caller. Saving and connecting validates the configuration and synchronizes tools automatically; ordinary use needs no separate review/publication. Access still requires both resource grants and token scope.
 
-## 0.5.7 — MCP timeout visibility and late-response recovery
+## 0.5.11 — Cloudflare Tunnel and verified native updates
 
-MCP waiting deadlines now return structured `mcp_request_timeout` details. Callers can distinguish a request that was not dispatched from an operation whose execution outcome is unknown; a timeout does not report remote termination or authorize an automatic retry.
+- Add an opt-in Cloudflare Tunnel sidecar for Compose and Unraid deployments. The token is mounted from a protected host file; Gate Core does not receive Docker Socket access.
+- Add authenticated GitHub latest-release checks in System settings, including release notes and current/latest version comparison.
+- Allow the update checker to use an existing, version-pinned HTTP/HTTPS proxy profile without changing other Gate network traffic.
 
-For eligible shared stdio calls, use the returned recovery handle with `gate_request_status` or `POST /v1/catalog/requests/status` to read a late response. The handle stays bound to the original identity, tool revision and runtime connection, with current access checked on every read. The default on-demand entry list grows from six to seven; full tool-list mode is unchanged.
+- Start a native installation with `lingshu-gate native-update update-start` to verify and activate stable updates through the host GitHub CLI.
 
-Recovery is bounded and process-local. It does not survive a Gate restart or replace a remote job API; HTTP calls receive structured timeout information without late-response recovery in this release. A completed response still does not establish a remote command's exit code. No new runtime dependency or database migration is added over 0.5.6. See [request recovery](docs/on-demand-tools.md), [MCP connection behavior](docs/mcp-gateway.md), [changes](CHANGELOG.md) and the [bilingual release notes](packaging/release-notes.md).
+See [Cloudflare Tunnel](docs/cloudflare-tunnel.md), [release update checks](docs/release-updates.md), the [changelog](CHANGELOG.md) and the [bilingual release notes](packaging/release-notes.md).
+
+## 0.5.10 — SQLite readiness when the database file is missing
+
+If the main database file disappears after Gate starts, `GET /readyz` returns HTTP 503 without creating a replacement. The database check opens only an existing file and reads the baseline migration on one read-only connection. Normal startup, migrations and business writes keep their existing behavior.
+
+The check does not restore lost data or test whether the next write will succeed. See [operator guidance](docs/operations.md#sqlite-database-readiness).
 
 ## Architecture overview
 
@@ -214,6 +222,9 @@ Native archives bundle Gate, not every project runtime. Downstream launch and bu
 - SQLite and quotas have a single-Core/single-process boundary, with no multi-tenancy or distributed quota guarantee. Core cannot execute local build/deploy/start and has no engine socket. Native trusted-project execution is not code isolation.
 - Git SSH, automatic hooks/submodules/LFS and redirect credential forwarding are unsupported. Delivery proxies do not flow into runtime MCP or alter global Git/npm settings. Exact manager startup requires an administrator-reviewed Node/CLI registry; tools are not installed automatically.
 - Automated checks use synthetic isolated environments. Real ChatGPT/OAuth, user Git/proxy and production upgrade acceptance remain separate. Platform packages and images are available only when the tagged release workflow actually publishes them.
+
+- [Cloudflare Tunnel](docs/cloudflare-tunnel.md) — optional isolated cloudflared sidecar for private-origin publishing.
+- [Release update checks](docs/release-updates.md) — latest GitHub release discovery and per-check proxy selection.
 
 ## Documentation
 

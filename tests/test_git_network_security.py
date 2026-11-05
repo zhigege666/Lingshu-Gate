@@ -11,6 +11,7 @@ from types import SimpleNamespace
 from unittest.mock import patch
 import zipfile
 
+import httpx2
 import pytest
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
@@ -572,3 +573,180 @@ def test_executor_interruption_requires_evidence_before_reporting_termination(se
     assert services.database.query_one("SELECT count(*) FROM git_imports WHERE status IN ('queued','running','cancel_requested')")[0] == 0
     references = services.network.references(saved["id"])
     assert any(row["resource_type"] == "git_import" for row in references) is (not terminated)
+
+
+def test_release_update_settings_pin_existing_proxy_profile_and_check_release(services):
+    from lingshu_gate.release_updates import ReleaseUpdateService
+
+    profile = services.network.save_profile(
+        ProfileWrite(name="GitHub egress", endpoint="http://proxy.example.invalid:8080"),
+        "actor-one",
+    )
+    updates = ReleaseUpdateService(services.database, services.network, "0.5.10", services.audit)
+    saved = updates.save(
+        expected_revision=0,
+        proxy_profile_id=profile["id"],
+        proxy_profile_version=profile["version"],
+        actor_id="actor-one",
+    )
+    assert saved["proxy_profile"] == {
+        "id": profile["id"], "version": profile["version"], "name": "GitHub egress", "enabled": True,
+    }
+    with pytest.raises(ToolExecutionError, match="Referenced"):
+        services.network.delete_profile(profile["id"], profile["version"], "actor-one")
+
+    payload = {"tag_name": "v0.5.11", "html_url": "https://github.com/zhigege666/Lingshu-Gate/releases/tag/v0.5.11"}
+    def reply(request):
+        assert request.url.path.endswith("/releases/latest")
+        return httpx2.Response(200, stream=httpx2.ByteStream(json.dumps(payload).encode()))
+
+    client = httpx2.Client(transport=httpx2.MockTransport(reply))
+    with patch("lingshu_gate.release_updates.httpx2.Client", return_value=client) as build:
+        result = updates.check()
+    assert result["update_available"] is True
+    assert result["latest_version"] == "0.5.11"
+    assert result["release_url"] == payload["html_url"]
+    assert result["proxy"] == "configured"
+    options = build.call_args.kwargs
+    assert str(options["proxy"].url) == "http://proxy.example.invalid:8080"
+    assert options["trust_env"] is False
+    assert options["follow_redirects"] is False
+    assert options["timeout"] == 12
+
+
+def test_release_update_proxy_rejects_disabled_or_unsupported_profile(services):
+    from lingshu_gate.release_updates import ReleaseUpdateService
+
+    updates = ReleaseUpdateService(services.database, services.network, "0.5.10", services.audit)
+    profile = services.network.save_profile(
+        ProfileWrite(name="SOCKS proxy", endpoint="socks5://proxy.example.invalid:1080"),
+        "actor-one",
+    )
+    with pytest.raises(ValueError, match="HTTP and HTTPS"):
+        updates.save(
+            expected_revision=0,
+            proxy_profile_id=profile["id"],
+            proxy_profile_version=profile["version"],
+            actor_id="actor-one",
+        )
+    disabled = services.network.save_profile(
+        ProfileWrite(name="Disabled proxy", endpoint="http://proxy.example.invalid:8080", enabled=False),
+        "actor-one",
+    )
+    with pytest.raises(ToolExecutionError, match="disabled"):
+        updates.save(
+            expected_revision=0,
+            proxy_profile_id=disabled["id"],
+            proxy_profile_version=disabled["version"],
+            actor_id="actor-one",
+        )
+
+
+def test_release_update_settings_compare_and_swap_and_direct_mode(services):
+    from lingshu_gate.release_updates import ReleaseUpdateService
+
+    updates = ReleaseUpdateService(services.database, services.network, "0.5.10", services.audit)
+    assert updates.settings()["proxy_profile"] is None
+    saved = updates.save(expected_revision=0, proxy_profile_id=None, proxy_profile_version=None, actor_id="actor-one")
+    assert saved["revision"] == 1
+    with pytest.raises(ToolExecutionError, match="changed"):
+        updates.save(expected_revision=0, proxy_profile_id=None, proxy_profile_version=None, actor_id="actor-one")
+
+
+
+def test_release_update_semver_comparison_handles_prereleases():
+    from lingshu_gate.release_updates import _is_newer
+
+    assert _is_newer("0.5.11", "0.5.10")
+    assert _is_newer("0.5.11", "0.5.11-rc.1")
+    assert _is_newer("0.5.11-rc.2", "0.5.11-rc.1")
+    assert not _is_newer("0.5.11-rc.1", "0.5.11")
+    assert not _is_newer("0.5.10", "0.5.11")
+    with pytest.raises(ValueError):
+        _is_newer("0.5", "0.5.10")
+
+@pytest.mark.parametrize("status,body,expected", [
+    (200, b'{"tag_name":"v0.5.11","html_url":"https://github.com/zhigege666/Lingshu-Gate/releases/tag/../../settings"}', ""),
+    (302, b"", "github_release_check_failed"),
+    (200, b"[" * 4096, "github_release_check_failed"),
+    (200, b"X" * (1024 * 1024 + 1), "update_response_too_large"),
+], ids=["invalid-link", "redirect", "deep-json", "too-large"])
+def test_release_update_bounds_remote_response(services, status, body, expected):
+    from lingshu_gate.release_updates import ReleaseUpdateService
+
+    updates = ReleaseUpdateService(services.database, services.network, "0.5.10", services.audit)
+    def reply(request):
+        return httpx2.Response(status, headers={"Location": "https://example.invalid"}, stream=httpx2.ByteStream(body))
+    client = httpx2.Client(transport=httpx2.MockTransport(reply))
+    with patch("lingshu_gate.release_updates.httpx2.Client", return_value=client):
+        if expected:
+            with pytest.raises(ToolExecutionError) as exc:
+                updates.check()
+            assert exc.value.code == expected
+        else:
+            assert updates.check()["release_url"] == ""
+
+
+def test_release_update_proxy_connect_uses_pinned_credentials_despite_no_proxy(services, monkeypatch):
+    import base64
+    import threading
+    from http.server import BaseHTTPRequestHandler, HTTPServer
+
+    from lingshu_gate.release_updates import ReleaseUpdateService
+
+    requests = []
+    class ProxyHandler(BaseHTTPRequestHandler):
+        def do_CONNECT(self):
+            requests.append((self.path, self.headers.get("Proxy-Authorization")))
+            self.send_error(407, "upstream-private-error")
+        def log_message(self, *args):
+            pass
+
+    monkeypatch.setenv("NO_PROXY", "*")
+    monkeypatch.setenv("no_proxy", "*")
+    with HTTPServer(("127.0.0.1", 0), ProxyHandler) as server:
+        server.timeout = 3
+        services.credentials.save_credential(name="Proxy login", value="demo:test:password", credential_id="proxy-credential")
+        profile = services.network.save_profile(ProfileWrite(name="Proxy", endpoint=f"http://127.0.0.1:{server.server_port}",
+                                                             credential_ref="proxy-credential"), "actor-one")
+        updates = ReleaseUpdateService(services.database, services.network, "0.5.10", services.audit)
+        updates.save(expected_revision=0, proxy_profile_id=profile["id"], proxy_profile_version=1, actor_id="actor-one")
+        thread = threading.Thread(target=server.handle_request)
+        thread.start()
+        try:
+            with pytest.raises(ToolExecutionError) as exc:
+                updates.check()
+        finally:
+            thread.join()
+        assert exc.value.code == "github_release_check_failed"
+        assert "upstream-private-error" not in str(exc.value.to_payload())
+        assert "test:password" not in str(exc.value.to_payload())
+        assert requests == [("api.github.com:443", "Basic " + base64.b64encode(b"demo:test:password").decode())]
+        services.credentials.save_credential(name="Proxy login", value="new-password", credential_id="proxy-credential")
+        with pytest.raises(ToolExecutionError) as exc:
+            updates.check()
+        assert exc.value.code == "update_proxy_credential_changed"
+
+
+def test_release_update_routes_require_settings_management(services):
+    from lingshu_gate.interfaces.control_api.release_update_routes import register_release_update_routes
+    from lingshu_gate.release_updates import ReleaseUpdateService
+
+    app = FastAPI()
+    service = ReleaseUpdateService(services.database, services.network, "0.5.10", services.audit)
+    principal = AuthPrincipal(id="manager", username="manager", role="operator", permissions=("network.use",))
+    register_release_update_routes(app, service=service, auth=SimpleNamespace(authenticate_request=lambda request: principal),
+                                   access=AccessControlStore(services.database))
+    client = TestClient(app)
+    url = "/v1/system-settings/updates"
+    for actor in (principal, replace(principal, role="admin", auth_type="token", permissions=("*",), scopes=("network.use",))):
+        principal = actor
+        assert client.get(url).status_code == 403
+        assert client.put(url, json={"expected_revision": 0}).status_code == 403
+        assert client.post(url + "/check").status_code == 403
+    principal = replace(principal, role="operator", auth_type="session", permissions=("system_settings.manage",))
+    assert client.get(url).json()["revision"] == 0
+    assert client.put(url, json={"expected_revision": 0}).json()["revision"] == 1
+    with patch.object(service, "check", return_value={"proxy": "direct"}) as check:
+        assert client.post(url + "/check").json() == {"proxy": "direct"}
+        check.assert_called_once_with("manager")

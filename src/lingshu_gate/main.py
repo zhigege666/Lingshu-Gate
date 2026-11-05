@@ -53,6 +53,8 @@ from lingshu_gate.interfaces.control_api.business_credential_routes import regis
 from lingshu_gate.network_settings import NetworkSettingsStore
 from lingshu_gate.git_import_mcp import GitImportService, register_git_import_tools
 from lingshu_gate.interfaces.control_api.network_routes import register_network_routes
+from lingshu_gate.interfaces.control_api.release_update_routes import register_release_update_routes
+from lingshu_gate.release_updates import ReleaseUpdateService
 from lingshu_gate.database import SQLiteDatabase
 from lingshu_gate.interfaces.control_api import (
     register_auth_routes,
@@ -399,6 +401,7 @@ def create_app() -> FastAPI:
     state.startup_state = startup_state
     state.health_service = health_service
     register_network_routes(app, network=network_settings_store, imports=git_import_service, auth=auth_store, access=access_store)
+    register_release_update_routes(app, service=ReleaseUpdateService(database, network_settings_store, settings.version, observability_store), auth=auth_store, access=access_store)
     app.state.retention_store = retention_store
     app.state.retention_worker = retention_worker
     register_retention_routes(app, store=retention_store, auth_store=auth_store,

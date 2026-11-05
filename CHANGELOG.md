@@ -1,5 +1,33 @@
 # Changelog
 
+## 0.5.11
+
+- Add an optional Cloudflare Tunnel cloudflared sidecar profile to both Compose manifests. The tunnel token is mounted from a host file; Gate Core receives no Docker socket or tunnel secret. Add paired setup and security guidance for Compose and Unraid.
+- Add authenticated GitHub latest-release checks in System settings → Updates, with current/latest version comparison and release notes.
+- Allow the update checker to pin an existing enabled HTTP/HTTPS proxy profile revision. The setting affects only the GitHub Release API request; direct mode explicitly ignores process proxy environment variables. Proxy credentials remain encrypted and masked; changes and checks are audited.
+- Add a dedicated SQLite migration and compare-and-swap update settings. Docker and Unraid image upgrades remain host-managed.
+- Add a native update launcher for Linux, macOS and Windows. It verifies the release asset size, digest and provenance before selecting it for the next start. The previous binary remains available for rollback.
+- Add focused regression coverage for proxy selection, unsupported/disabled profiles, settings revision conflicts and release version comparison.
+
+## 0.5.10
+
+- Fix a side effect of `GET /readyz`: if the SQLite main database file disappears at runtime, the probe returns HTTP 503 without creating an empty file at the configured path.
+- Read the baseline migration using one read-only connection to the existing database. The probe honors SQLite locking and does not switch journal mode. Normal database creation at startup, migrations and business connections are unchanged.
+
+## 0.5.9
+
+- Diagnose storage startup failures with bounded path, effective UID/GID and permission facts. Keep credentials, database contents and unrelated environment values out of errors; do not repair ownership or broaden permissions automatically.
+- Share configuration-directory checks between readiness and administrator diagnostics. Preserve readiness for a missing but creatable directory on an empty instance, and report the last full configuration scan separately from the current directory state.
+- Distinguish a skipped missing-directory scan from a loaded empty directory. Readiness reads and manual directory creation do not reload services; existing explicit reload and single-configuration apply behavior are retained.
+- Document actual host bind-mount preparation, service-user permission checks, the limits of `--version`, and full-startup acceptance. Add focused directory/diagnostic regressions and container smoke cases using UID/GID `10001`, a read-only root and allowed or denied data mounts.
+- Retain non-root Core operation, existing data and credential paths, MCP request recovery and authorization boundaries. No runtime dependency or database migration is added over 0.5.8.
+
+## 0.5.8
+
+- Align the fixed catalog schema regression with the seventh on-demand entry, `gate_request_status`, while retaining the existing invocation and schema assertions.
+- Use absolute documentation links pinned to `v0.5.8` in the bilingual GitHub release notes so they resolve to this release. Synchronize current on-demand entry lists in the paired guides and repository delivery Skill.
+- Retain the MCP timeout and late-response recovery added in 0.5.7 without changing request handling. No additional runtime dependency or database migration is introduced.
+
 ## 0.5.7
 
 - Report MCP waiting deadlines as structured `mcp_request_timeout` errors with dispatch and connection context. Keep execution outcomes unknown when they cannot be observed; do not automatically replay or cancel the original operation.
