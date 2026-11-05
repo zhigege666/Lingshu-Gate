@@ -50,6 +50,8 @@ from lingshu_gate.domain.mcp_request_outcome import find_request_timeout
 logger = logging.getLogger(__name__)
 RuntimeLogSink = Callable[[str, str, str | None, str, dict[str, Any]], None]
 McpClient = StdioMcpClient | StreamableHttpMcpClient | ManagedHttpMcpClient
+TOOL_SYNC_INTERVAL_SECONDS = 60.0
+TOOL_SYNC_MIN_INTERVAL_SECONDS = 1.0
 
 
 def _now() -> str:
@@ -193,6 +195,9 @@ class McpServerRuntime:
     lock: threading.RLock = field(default_factory=threading.RLock)
     monitor_thread: threading.Thread | None = None
     health_thread: threading.Thread | None = None
+    tool_sync_thread: threading.Thread | None = None
+    tool_sync_wakeup: threading.Event = field(default_factory=threading.Event)
+    tool_sync_stop: threading.Event = field(default_factory=threading.Event)
     restart_scheduled: bool = False
     restart_count: int = 0
     restart_attempts: int = 0
@@ -307,6 +312,7 @@ class McpRuntimeManager:
         self._route_process_generation = uuid4().hex
         self.credential_sensitive_target: Callable[[str], bool] | None = None
         self.external_connection_guard: Callable[[str, str | None], None] | None = None
+        self.tool_policy_sync: Callable[[str, list[ToolDefinition]], Any] | None = None
         self._credential_sensitive_servers: set[str] = set()
 
     @contextmanager
@@ -724,6 +730,7 @@ class McpRuntimeManager:
                         log_sink=lambda level, message, event_type, payload: self._log_runtime(server_id, level, message, event_type, payload),
                     )
                 runtime.client = client
+                self._prepare_tool_sync(runtime, client)
                 runtime.advance_connection_generation()
                 self._protect_credential_client(server_id, client)
                 client.start()
@@ -737,6 +744,7 @@ class McpRuntimeManager:
                 if client.process is not None:
                     self._start_process_monitor(server_id, runtime, client)
                 self._start_health_monitor(server_id, runtime, client)
+                self._start_tool_sync(server_id, runtime, client)
             except Exception as exc:  # noqa: BLE001 - runtime boundary records and continues
                 runtime.state = McpServerState.FAILED
                 safe_error = "Sensitive MCP startup error suppressed" if credential_sensitive else redact_text(
@@ -869,6 +877,7 @@ class McpRuntimeManager:
                 self.external_connection_guard(server_id, operation_id)
             client = StreamableHttpMcpClient(manifest, self.settings, log_sink=lambda level, message, event_type, payload: self._log_runtime(server_id, level, message, event_type, payload))
             runtime.client = client
+            self._prepare_tool_sync(runtime, client)
             self._protect_credential_client(server_id, client)
             with client.operation_bounds(cancel, deadline, credential_revisions=credential_revisions) if cancel is not None and deadline is not None else nullcontext():
                 runtime.advance_connection_generation()
@@ -879,6 +888,7 @@ class McpRuntimeManager:
                 discovery.update(snapshot)
             runtime.state = McpServerState.RUNNING
             runtime.last_started_at = _now()
+            self._start_tool_sync(server_id, runtime, client)
             log_event(logger, logging.INFO, "gate.mcp.server_running", "External MCP server is connected", server_id=server_id, endpoint=safe_endpoint, tool_count=len(runtime.tools))
             self._log_runtime(server_id, "info", "External MCP server is connected", "gate.mcp.server_running", {"endpoint": safe_endpoint, "tool_count": len(runtime.tools)})
         except Exception as exc:  # noqa: BLE001 - runtime boundary records and continues
@@ -1002,6 +1012,8 @@ class McpRuntimeManager:
                 self._stop_runtime_locked(server_id, runtime, clear_error=False)
 
     def _stop_runtime_locked(self, server_id: str, runtime: McpServerRuntime, *, clear_error: bool) -> None:
+        runtime.tool_sync_stop.set()
+        runtime.tool_sync_wakeup.set()
         self.registry.unregister_by_metadata("server_id", server_id, source="mcp", retire=False)
         runtime.restart_scheduled = False
         runtime.next_restart_at = None
@@ -1030,6 +1042,46 @@ class McpRuntimeManager:
         thread = threading.Thread(target=self._health_loop, args=(server_id, runtime, client), name=f"mcp-health-{server_id}", daemon=True)
         runtime.health_thread = thread
         thread.start()
+
+    @staticmethod
+    def _prepare_tool_sync(runtime: McpServerRuntime, client: McpClient) -> None:
+        runtime.tool_sync_stop.set()
+        runtime.tool_sync_wakeup.set()
+        runtime.tool_sync_wakeup = threading.Event()
+        runtime.tool_sync_stop = threading.Event()
+        client.on_tools_changed = runtime.tool_sync_wakeup.set
+
+    def _start_tool_sync(self, server_id: str, runtime: McpServerRuntime, client: McpClient) -> None:
+        thread = threading.Thread(
+            target=self._tool_sync_loop,
+            args=(server_id, runtime, client, runtime.tool_sync_wakeup, runtime.tool_sync_stop),
+            name=f"mcp-tools-{server_id}", daemon=True,
+        )
+        runtime.tool_sync_thread = thread
+        thread.start()
+
+    def _tool_sync_loop(self, server_id: str, runtime: McpServerRuntime, client: McpClient,
+                        wakeup: threading.Event, stop: threading.Event) -> None:
+        # Notifications are coalesced; polling also covers HTTP servers without
+        # a long-lived notification stream. One worker owns each connection.
+        last_sync = time.monotonic()
+        while not stop.is_set():
+            wakeup.wait(TOOL_SYNC_INTERVAL_SECONDS)
+            wakeup.clear()
+            if stop.wait(max(0.0, TOOL_SYNC_MIN_INTERVAL_SECONDS - (time.monotonic() - last_sync))):
+                return
+            try:
+                with self._manager_lock.read_lock():
+                    if self._servers.get(server_id) is not runtime:
+                        return
+                    with runtime.lock:
+                        if runtime.client is not client or runtime.state != McpServerState.RUNNING or stop.is_set():
+                            return
+                        self._refresh_server_tools_locked(server_id, skip_unchanged=True)
+            except Exception:  # noqa: BLE001 - preserve the last valid catalog; retry on the next bounded tick
+                self._log_runtime(server_id, "warning", "Automatic tool synchronization failed; retained the last valid catalog.",
+                                  "gate.mcp.tools_sync_failed", {})
+            last_sync = time.monotonic()
 
     def _monitor_process(self, server_id: str, runtime: McpServerRuntime, client: McpClient) -> None:
         process = client.process
@@ -1226,6 +1278,8 @@ class McpRuntimeManager:
         records = self._mcp_tool_records(runtime, runtime.tools, strict=strict)
         if before_replace is not None:
             before_replace([record.definition for record in records])
+        elif self.tool_policy_sync is not None:
+            self.tool_policy_sync(manifest.id, [record.definition for record in records])
         self.registry.replace_by_metadata(
             "server_id",
             manifest.id,
@@ -1254,7 +1308,7 @@ class McpRuntimeManager:
         deadline: float | None = None,
         before_discovery: Callable[[], None] | None = None,
     ) -> dict[str, Any]:
-        """重新发现工具；可先执行失败关闭的分类门禁，再原子替换快照。"""
+        """同步工具及本地访问策略，再原子替换快照。"""
 
         guard = operation_lock(self._manager_lock, cancel=cancel, deadline=deadline) if deadline is not None else self._manager_lock
         with guard:
@@ -1274,6 +1328,7 @@ class McpRuntimeManager:
         server_id: str,
         *,
         before_replace: Callable[[list[ToolDefinition]], None] | None = None,
+        skip_unchanged: bool = False,
     ) -> dict[str, Any]:
         """Refresh tools while the caller holds the manager lock."""
 
@@ -1286,11 +1341,16 @@ class McpRuntimeManager:
             discovered = runtime.client.list_tools()
             records = self._mcp_tool_records(runtime, discovered, strict=True)
             snapshot_digest = self._tool_snapshot_digest(records)
+            if skip_unchanged and discovered == runtime.tools:
+                return {"server_id": server_id, "tool_count": len(records), "tool_snapshot_digest": snapshot_digest,
+                        "unchanged": True, "removed_count": 0, "registered_count": 0}
             definitions = [record.definition for record in records]
             if before_replace is not None:
-                # 分类门禁先于 Registry 提交：门禁失败最多收紧旧分类，不能让新工具
-                # 暂时沿用旧发布结论，也不会暴露半完成的新 Registry 快照。
+                # Persist policy and invalidate stale safety evidence before
+                # publishing the complete replacement registry snapshot.
                 before_replace(definitions)
+            elif self.tool_policy_sync is not None:
+                self.tool_policy_sync(server_id, definitions)
             replace_result = self.registry.replace_by_metadata(
                 "server_id",
                 server_id,
@@ -1489,7 +1549,7 @@ class McpRuntimeManager:
             raise ToolExecutionError(
                 "mcp_tool_changed_after_reconnect",
                 "MCP session reconnected, but tool metadata changed; the call was not replayed",
-                next_action="Review and publish the current tool classification before invoking again.",
+                next_action="Describe the updated tool contract and validate the arguments before invoking again.",
             )
         if not retry_read_only:
             raise ToolExecutionError(
@@ -1704,7 +1764,7 @@ class McpRuntimeManager:
                 if old_tool is None or old_tool != new_tool:
                     raise ToolExecutionError(
                         "mcp_tool_changed_after_reconnect", "Tool metadata changed; the user call was not replayed",
-                        next_action="Refresh tools and review the current classification before invoking again.",
+                        next_action="Describe the updated tool contract and validate the arguments before invoking again.",
                     )
                 if not retry_read_only:
                     raise ToolExecutionError(

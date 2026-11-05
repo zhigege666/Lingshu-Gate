@@ -57,7 +57,7 @@ export function ConnectionGuide({ step, onStep, zh, children, disabled, mode = "
             <li>{zh ? "重新发现工具，用只读工具验证；核对“我的调用”和调用审计的授权决定、执行结果与关联 ID。" : "Refresh discovery and test a read-only tool. Check My invocations and audit records for decision, outcome and correlation ID."}</li>
           </ol>
           <p><Doc href={docs.chatgpt}>{zh ? "ChatGPT 接入步骤" : "ChatGPT setup"}</Doc> · <Doc href={docs.tunnel}>{zh ? "隧道排错" : "Tunnel troubleshooting"}</Doc></p>
-          <p>{zh ? "401：检查签名、issuer、aud、客户端及过期时间；403：检查身份绑定、个人授权、工具发布状态与用户权限；找不到隧道：检查工作区关联及 Tunnels Read + Use。" : "401: inspect signature, issuer, aud, client and expiry. 403: inspect identity link, personal grant, tool publication and user access. Missing tunnel: check workspace association and Tunnels Read + Use."}</p>
+          <p>{zh ? "401：检查签名、issuer、aud、客户端及过期时间；403：检查身份绑定、个人授权、工具访问策略与用户权限；找不到隧道：检查工作区关联及 Tunnels Read + Use。" : "401: inspect signature, issuer, aud, client and expiry. 403: inspect identity link, personal grant, tool access policy and user access. Missing tunnel: check workspace association and Tunnels Read + Use."}</p>
         </>}
         <p className="text-xs text-muted-foreground">{zh ? "外部路径按 2026-10-01 官方文档核对，版本变化时以链接说明为准。" : "External paths checked against official documentation on 2026-10-01; consult links if the UI changes."}</p>
       </aside>

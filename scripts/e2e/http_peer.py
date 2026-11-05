@@ -41,6 +41,10 @@ def synthetic_http_peer(root: Path):
                 return
             if expected is not None:
                 state["last_authenticated_path"] = self.path
+                if self.path in {"/auth-basic", "/auth-api-key"}:
+                    state["unrelated_headers_preserved"] = (
+                        self.headers.get("X-Tenant") == "keep-me" and self.headers.get("X-Empty") == ""
+                    )
             method = request["method"]
             if method == "server/discover":
                 state["discoveries"] += 1

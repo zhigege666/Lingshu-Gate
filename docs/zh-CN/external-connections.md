@@ -105,7 +105,7 @@ Gate 仅有两种启用的外部接入类型：`secure_mcp_tunnel` 和 `direct` 
 
 保存范围时，将当前已发布工具与当前 Gate 能力、资源授权及调用者的 token/委托上限求交集。未知或无权资源返回 `403`，不泄露名称。启用还要求完整且已启用的信任配置、允许的客户端和已启用身份绑定，缺少前提返回 `409`。每个用户/客户端只能匹配一个未过期、未撤销的启用授权。多个受信 issuer 中显式绑定到同一 Gate 用户的身份可共享该用户/客户端委托，不会按邮箱自动合并身份。PATCH 需要 `expected_revision` 并推进策略版本；停用专用 PATCH 只需 `enabled=false` 与版本，因此资源权限丢失不会阻止停用。DELETE 撤销授权，重复撤销幂等，已撤销记录不能编辑。
 
-后续经批准的设置顺序为：配置受信关系、将 provider subject 绑定 Gate 用户、审核发布工具并分配普通 Gate 权限，再启用该用户面向指定客户端的委托。provider 同意与令牌签发由 Gate 外部完成。用 `activation_errors`、`scope_currently_authorized` 和记录 `state` 检查本地就绪状态；`limits_enforced=true` 表示当前有效启用的本地授权执行配额，非有效记录为 false；它不代表 provider 同意，启用记录也不等于外部登录或连接成功。
+后续设置顺序为：配置受信关系、将 provider subject 绑定 Gate 用户、分配普通 Gate 权限，再启用该用户面向指定客户端的委托。发现的 MCP 工具自动同步；调用者权限仍单独执行检查。provider 同意与令牌签发由 Gate 外部完成。用 `activation_errors`、`scope_currently_authorized` 和记录 `state` 检查本地就绪状态；`limits_enforced=true` 表示当前有效启用的本地授权执行配额，非有效记录为 false；它不代表 provider 同意，启用记录也不等于外部登录或连接成功。
 
 ## JWT 验证与权限
 

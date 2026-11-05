@@ -1,7 +1,7 @@
 import { FilterRadio } from "@/components/filter-radio"
 import { RemainingList, ListPagination, ListViewport, useListPage } from "@/components/list-pagination"
 import { useEffect, useMemo, useRef, useState } from "react"
-import { ArrowRight, CheckCircle2, Info, KeySquare, Plus, Shield, SlidersHorizontal, X } from "lucide-react"
+import { CheckCircle2, KeySquare, Plus, Shield, SlidersHorizontal } from "lucide-react"
 import { api, type AccessRole, type AccessRoleSaveRequest, type ControlPermission, type PermissionType, type PermissionTypeSaveRequest } from "@/api/client"
 import { useConfirm } from "@/components/confirm-dialog"
 import { FormDialog } from "@/components/form-dialog"
@@ -17,7 +17,7 @@ import { Switch } from "@/components/ui/switch"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { Textarea } from "@/components/ui/textarea"
 import { Toaster } from "@/components/ui/toast"
-import { AccessInlineActions } from "@/features/access-roles/inline-actions"
+import { ActionMenu, ActionMenuItem } from "@/components/action-menu"
 import { accessDraftChanged, accessIdentityErrors, canDeleteAccessItem, copyPermissionTypePayload, copyRolePayload, emptyAccessFilters, filterAccessItems, normalizeAccessCode, permissionTypePayload, rolePayload, roleSaveSnapshot, type AccessFilters, type AccessItem } from "@/features/access-roles/model"
 import { accessRolesCopy, presentControlPermission } from "@/features/access-roles/presentation"
 import type { Locale, TFunction } from "@/i18n"
@@ -50,7 +50,6 @@ export function AccessRolesPage({ locale, t }: { locale: Locale; t: TFunction })
   const saving = useRef(false)
   const closing = useRef(false)
   const { confirm, confirmDialog } = useConfirm(t)
-  const wideDetails = useWideDetails()
   const detailTrigger = useRef<HTMLElement | null>(null)
   const roleTabRef = useRef<HTMLButtonElement>(null)
   const typeTabRef = useRef<HTMLButtonElement>(null)
@@ -75,7 +74,7 @@ export function AccessRolesPage({ locale, t }: { locale: Locale; t: TFunction })
   const identityMessage = (error?: "required" | "duplicate", field?: "code" | "name") => !showFieldErrors || !error ? undefined : error === "duplicate" ? c.duplicateCode : field === "code" ? c.requiredCode : c.requiredName
 
   useEffect(() => { void load() }, [])
-  usePageRefresh(load, busy)
+  usePageRefresh(load, busy || editingRole !== null || editingType !== null)
   useEffect(() => {
     if (selectedId && !selected && !busy) setSelectedId(null)
   }, [selectedId, selected, busy])
@@ -242,9 +241,9 @@ export function AccessRolesPage({ locale, t }: { locale: Locale; t: TFunction })
   </div>
 
   return <div className="access-roles-page">
-    <div className={`access-roles-layout${selected && wideDetails ? " with-details" : ""}`}>
+    <div className="access-roles-layout">
       <div className="access-roles-directory">
-        <PageHeader closeLabel={t("close")} title={c.title} description={c.description} helpLabel={t("pageHelp")}
+        <PageHeader closeLabel={t("close")} title={c.title} description={c.description} helpLabel={t("pageHelp")} helpContent={<p>{roleMode ? c.rolesHint : c.typesHint}</p>} actions={<Button disabled={busy} onClick={() => roleMode ? openRole() : openType()}><Plus />{roleMode ? c.newRole : c.newType}</Button>}
           toolbar={<div className="access-role-tabs" role="tablist" aria-label={c.managementTabs} onKeyDown={event => {
             if (!["ArrowLeft", "ArrowRight", "Home", "End"].includes(event.key)) return
             event.preventDefault()
@@ -261,32 +260,29 @@ export function AccessRolesPage({ locale, t }: { locale: Locale; t: TFunction })
             <FilterRadio label={c.source} value={filters.source} onChange={value => setFilters(current => ({...current, source: value as AccessFilters["source"]}))} options={[{value:"all",label:t("all")}, {value:"system",label:c.system}, {value:"custom",label:c.custom}]} />
             <FilterRadio label={t("status")} value={filters.status} onChange={value => setFilters(current => ({...current, status: value as AccessFilters["status"]}))} options={[{value:"all",label:t("all")}, {value:"enabled",label:c.enabledStatus}, {value:"disabled",label:c.disabledStatus}]} />
             {!roleMode && <FilterRadio label={c.baseLevel} value={filters.level} onChange={value => setFilters(current => ({...current, level: value as AccessFilters["level"]}))} options={[{value:"all",label:t("all")}, {value:"none",label:c.noneLevel}, {value:"read",label:c.readLevel}, {value:"write",label:c.writeLevel}]} />}
-            <Button className="access-create" disabled={busy} onClick={() => roleMode ? openRole() : openType()}><Plus />{roleMode ? c.newRole : c.newType}</Button>
           </PageToolbar>
           <RemainingList>
           <ListViewport viewport={paging.viewport} label={t("toolShowing")}>
             <Table className="access-role-table">
-            <colgroup><col style={{ width: "20%" }} /><col style={{ width: roleMode ? "7%" : "12%" }} /><col style={{ width: roleMode ? "22%" : "17%" }} /><col style={{ width: "12%" }} /><col style={{ width: "11%" }} /><col style={{ width: "28%" }} /></colgroup>
+            <colgroup><col style={{ width: "24%" }} /><col style={{ width: roleMode ? "8%" : "13%" }} /><col style={{ width: roleMode ? "30%" : "25%" }} /><col style={{ width: "12%" }} /><col style={{ width: "10%" }} /><col style={{ width: "16%" }} /></colgroup>
             <TableHeader><TableRow>{(roleMode ? [c.roles, c.members, c.controlPermissions, c.source, t("status"), t("actions")] : [c.permissionTypes, c.baseLevel, c.references, c.source, t("status"), t("actions")]).map(label => <TableHead key={label} scope="col">{label}</TableHead>)}</TableRow></TableHeader>
             <TableBody>{visibleItems.length === 0 ? <TableEmptyRow colSpan={6} title={busy ? c.loading : error ? t("error") : (roleMode ? roles : permissionTypes).length ? c.noMatches : roleMode ? c.noRoles : c.noTypes} /> : paging.items.map(item => <TableRow key={item.id} data-state={selectedId === item.id ? "selected" : undefined}>
               <TableCell><button type="button" className="access-name" aria-label={`${c.view} ${item.name}`} onClick={() => viewItem(item)}>{"permissions" in item ? <Shield /> : <KeySquare />}<span><strong>{item.name}</strong><small title={item.code}>{item.code}</small></span></button></TableCell>
-              {"permissions" in item ? <><TableCell>{item.member_count}</TableCell><TableCell><button type="button" className="access-permission-summary" onClick={() => viewItem(item)} aria-label={`${item.name} ${c.controlPermissions}`}><strong>{item.permissions.length} {c.permissionCount}</strong><small>{item.permissions.map(code => permissionPresentationByCode.get(code)?.name || code).join("、") || c.noPermissions}</small></button></TableCell></> : <><TableCell><AccessLevelBadge level={item.base_level} labels={c} /></TableCell><TableCell>{item.reference_count}</TableCell></>}
+              {"permissions" in item ? <><TableCell>{item.member_count}</TableCell><TableCell><div className="access-permission-summary" aria-label={`${item.name} ${c.controlPermissions}`}><strong>{item.permissions.length} {c.permissionCount}</strong><small>{item.permissions.map(code => permissionPresentationByCode.get(code)?.name || code).join("、") || c.noPermissions}</small></div></TableCell></> : <><TableCell><AccessLevelBadge level={item.base_level} labels={c} /></TableCell><TableCell>{item.reference_count}</TableCell></>}
               <TableCell><Badge variant="secondary" className="whitespace-nowrap text-[11px]">{item.is_system ? c.system : c.custom}</Badge></TableCell>
               <TableCell><AccessStatus enabled={item.enabled} locale={locale} /></TableCell>
-              <TableCell><AccessInlineActions item={item} locale={locale} t={t} busy={busy} onView={() => viewItem(item)} onEdit={() => editItem(item)} onCopy={() => editItem(item, true)} onToggle={() => void toggleItem(item)} onDelete={() => void removeItem(item)} /></TableCell>
+              <TableCell><div className="flex items-center gap-1"><Button variant="ghost" size="sm" aria-label={`${t("edit")} ${item.name}`} disabled={busy} onClick={() => editItem(item)}>{t("edit")}</Button><ActionMenu label={t("actions")}><ActionMenuItem disabled={busy} onClick={() => editItem(item, true)}>{c.copy}</ActionMenuItem>{!item.is_system && <><ActionMenuItem disabled={busy} onClick={() => void toggleItem(item)}>{item.enabled ? c.disable : c.enable}</ActionMenuItem><ActionMenuItem destructive disabled={busy || !canDeleteAccessItem(item)} title={canDeleteAccessItem(item) ? undefined : "member_count" in item ? c.assignedRole : c.referencedType} onClick={() => void removeItem(item)}>{t("delete")}</ActionMenuItem></>}</ActionMenu></div></TableCell>
             </TableRow>)}</TableBody>
           </Table>
             </ListViewport>
             <ListPagination paging={paging} t={t} />
           <div className="access-role-count flex items-center gap-3"><span aria-live="polite">{c.total} {visibleItems.length} / {roleMode ? roles.length : permissionTypes.length} {c.items}</span></div>
-        <div className="access-role-tip"><Info /><span>{roleMode ? c.rolesHint : c.typesHint}</span><Button variant="ghost" size="sm" onClick={() => switchTab(roleMode ? "types" : "roles")}>{roleMode ? c.manageTypes : c.manageRoles}<ArrowRight /></Button></div>
           </RemainingList>
         </section>
       </div>
-      {selected && wideDetails && <aside className="access-role-detail" aria-label={roleMode ? c.roleDetails : c.typeDetails}><div className="access-role-detail-header"><h2>{roleMode ? c.roleDetails : c.typeDetails}</h2><Button variant="ghost" size="sm" aria-label={c.closeDetails} onClick={closeDetails}><X /></Button></div>{detailContent}</aside>}
     </div>
-    <Dialog open={Boolean(selected && !wideDetails && !editingRole && !editingType)} onOpenChange={open => { if (!open) closeDetails() }}>
-      <DialogContent closeLabel={t("close")} className="left-auto right-0 top-0 h-dvh max-h-dvh w-full max-w-md translate-x-0 translate-y-0 rounded-none">
+    <Dialog open={Boolean(selected && !editingRole && !editingType)} onOpenChange={open => { if (!open) closeDetails() }}>
+      <DialogContent closeLabel={t("close")} className="max-w-2xl">
         <DialogHeader><DialogTitle>{roleMode ? c.roleDetails : c.typeDetails}</DialogTitle><DialogDescription className="sr-only">{selected?.name}</DialogDescription></DialogHeader><DialogBody>{detailContent}</DialogBody>
       </DialogContent>
     </Dialog>
@@ -348,16 +344,4 @@ function AccessLevelBadge({ level, labels }: { level: PermissionType["base_level
   if (level === "write") return <Badge variant="warning">{labels.writeLevel}</Badge>
   if (level === "read") return <Badge variant="success">{labels.readLevel}</Badge>
   return <Badge variant="secondary">{labels.noneLevel}</Badge>
-}
-
-function useWideDetails() {
-  const [wide, setWide] = useState(() => typeof window !== "undefined" && window.matchMedia("(min-width: 1440px)").matches)
-  useEffect(() => {
-    const media = window.matchMedia("(min-width: 1440px)")
-    const change = () => setWide(media.matches)
-    change()
-    media.addEventListener("change", change)
-    return () => media.removeEventListener("change", change)
-  }, [])
-  return wide
 }

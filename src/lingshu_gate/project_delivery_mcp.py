@@ -425,7 +425,7 @@ PROJECT_DELIVERY_TOOL_DEFINITIONS = [
     _definition(
         "gate_server_refresh_tools",
         "刷新 MCP Server 工具",
-        "重新执行目标 Server 的 tools/list，原子替换 Registry 工具并刷新读写分类对账；不会发布分类或扩大权限。",
+        "立即同步目标 Server 的工具目录与访问策略。连接及运行期间也会自动同步；调用始终受现有账号和Token授权约束，无需额外审核或发布。",
         ServerRefreshToolsInput,
         permission="write:project_delivery",
         read_only=False,

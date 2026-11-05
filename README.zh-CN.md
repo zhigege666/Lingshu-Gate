@@ -2,15 +2,15 @@
 
 自托管 MCP 网关：连接工具，限定谁可以调用，并记录调用结果。
 
-[English](README.md) · [下载 0.5.11](https://github.com/zhigege666/Lingshu-Gate/releases/tag/v0.5.11) · [开始使用](docs/zh-CN/getting-started.md) · [文档](docs/zh-CN/README.md) · [安全](SECURITY.zh-CN.md)
+[English](README.md) · [下载 0.5.12](https://github.com/zhigege666/Lingshu-Gate/releases/tag/v0.5.12) · [开始使用](docs/zh-CN/getting-started.md) · [文档](docs/zh-CN/README.md) · [安全](SECURITY.zh-CN.md)
 
-<img src="docs/images/console/zh-CN/v0.5.0-discovery.png" alt="Lingshu Gate 0.5.0：每条授权的固定工具、逻辑组和有界文本预览" width="1200">
+<img src="docs/images/console-refactor/dashboard.png" alt="Lingshu Gate Console：紧凑导航与运行总览" width="1200">
 
-*0.5.0 Console，以合成用户和服务在 2560×1440 下实际截图。[捕获记录](docs/images/console/v0.5.0-capture.json)。*
+*当前源码 Console，以合成测试数据在 2560×1440 下实际截图；截图展示当前源码树；发行二进制和源码标签分别按版本管理。*
 
 ## 适合哪些场景
 
-- **统一受控工具入口：** 接入多个 MCP 服务，审核并发布工具，再通过一个 `/mcp` 入口为不同用户和授权提供限定范围。
+- **统一受控工具入口：** 接入多个 MCP 服务并自动同步工具，通过一个 `/mcp` 入口按账号和客户端授权范围调用。
 - **接入已有服务：** 通过明确配置的连接器访问私网 HTTP MCP，或将本地 OpenAPI 快照中的选定操作转换为工具。可信本地 stdio 和项目交付使用原生 Gate。
 - **核对运行结果：** 查看调用决策，限制实际工具参数，并按需接入 Prometheus 指标或 OTLP 链路。
 
@@ -30,7 +30,7 @@
 
 ### 已发布 Docker 本机试用
 
-校验并解压 `lingshu-gate-v0.5.11-docker-compose.tar.gz`，进入该目录后执行：
+校验并解压 `lingshu-gate-v0.5.12-docker-compose.tar.gz`，进入该目录后执行：
 
 ```bash
 cp .env.quickstart.example .env.quickstart
@@ -61,20 +61,19 @@ uv run lingshu-gate
 
 ## 首次授权调用
 
-[内置 demo 流程](docs/zh-CN/first-call.md)不需要外部服务账号或桌面 MCP 客户端。启动独立内存 demo，在 Gate 中接入，审核并发布三个工具，创建独立只读调用者，再使用实际返回的引用和修订完成 `tools/list → gate_catalog_search → gate_tool_describe → gate_tool_invoke`。
+[内置 demo 流程](docs/zh-CN/first-call.md)不需要外部服务账号或桌面 MCP 客户端。启动独立内存 demo，在 Gate 中接入并自动同步三个工具，为两个读工具保存只读策略，再创建独立只读调用者，再使用实际返回的引用和修订完成 `tools/list → gate_catalog_search → gate_tool_describe → gate_tool_invoke`。
 
-核对成功审计、写入拒绝且计数不变、错误修订拒绝、demo 停止/恢复和调用者撤销。Gate 启动、工具发现、分类确认、发布分别进行；访问仍须同时满足资源权限和 token scope。
+核对成功审计、写入拒绝且计数不变、错误修订拒绝、demo 停止/恢复和调用者撤销。保存并连接时自动校验和同步工具，无需单独审核发布；访问仍须同时满足资源权限和 token scope。
 
-## 0.5.11 — Cloudflare Tunnel 与原生包自动更新
+## 0.5.12 — 控制台重构与 MCP 流程精简
 
-- 为 Compose 和 Unraid 部署增加可选的 Cloudflare Tunnel Sidecar。Token 从受保护的宿主机文件挂载，Gate Core 不接触 Docker Socket。
-- 在系统设置中增加经过认证的 GitHub 最新 Release 检查，展示更新说明并比较当前/最新版本。
-- 更新检查可使用已有的固定版本 HTTP/HTTPS 代理配置，不改变 Gate 其他网络流量。
-
-- 原生安装可用 `lingshu-gate native-update update-start` 启动。宿主 GitHub CLI 校验正式制品的构建来源后，启动器切换到新版。
+- 按 shadcn-admin 方向重构管理控制台，统一导航、页面标题、筛选、表格、表单、弹窗和主题。中英文截图覆盖总览、工具、服务、构建和授权页面。
+- MCP 工具发现后自动同步，移除日常审核／发布；调用仍受账号、Token、OAuth 授权及工具本地策略约束。
+- MCP 服务身份变化时失败关闭；编辑其他工具时保留 Token 精确授权；无效工具列表响应不会清空最后一次完整目录。
+- 刷新配置列表改为只读，不再中断运行中的 MCP 实例。
+- 保留 0.5.11 引入的 Cloudflare Tunnel 部署和原生包验证更新。Docker 与 Unraid 镜像仍由宿主平台升级。
 
 参见 [Cloudflare Tunnel](docs/zh-CN/cloudflare-tunnel.md)、[版本更新检查](docs/zh-CN/release-updates.md)、[更新记录](CHANGELOG.zh-CN.md)和[双语发行说明](packaging/release-notes.md)。
-
 ## 0.5.10 — SQLite 主库文件缺失时的就绪检查
 
 如果 Gate 启动后主库文件消失，`GET /readyz` 返回 HTTP 503，不会创建替代文件。数据库检查只打开已有文件，用一个只读连接读取基线迁移记录。正常启动、迁移和业务写入沿用原有行为。
@@ -93,7 +92,7 @@ flowchart TB
     subgraph Gate["Lingshu Gate (网关与控制面)"]
         Gateway["MCP 网关 (/mcp) · 完整目录 | 按需发现模式"]
         Auth["认证与 RBAC 权限"]
-        Governance["工具治理与分类审核"]
+        Governance["工具同步与权限策略"]
         Delivery["项目交付与构建引擎"]
         Audit["审计、保留策略与内容记录"]
     end
@@ -115,6 +114,30 @@ flowchart TB
     Gateway --> Container
 ```
 
+## 控制台重构（当前源码）
+
+布局参考 [shadcn-admin](https://github.com/satnaing/shadcn-admin)，使用既有 React、Tailwind 和 shadcn/Radix 组件。导航、页面标题、搜索、表单与明暗主题采用同一套规范；保留的复杂 Ant Design 表格接入相同颜色和尺寸 token。
+
+| 批次 | 覆盖范围 | 交互变化 |
+|---|---|---|
+| 1 | 登录、总览、MCP 服务与配置、工具目录/调试/权限 | 默认保存并启动，连接后自动同步；移除日常接入的分析、审核和发布步骤。 |
+| 2 | 项目交付、构建/部署、日志、审计、诊断、缓存与网络设置 | 导入/构建自动校验和计划，筛选即生效；首次部署直接执行，覆盖或中断时确认具体影响。 |
+| 3 | 成员、角色、资源授权、共享/个人凭据、Token 与 OAuth | API Token 一步进入创建；新建、缩权和配额修改一次保存；实际扩权展示差异；凭据保存后同步已授权且启用的绑定。 |
+
+新增外部工具默认需要**读写授权**，远端 `readOnlyHint` 不会赋予只读权限。已有服务持续授权保留原级别，精确工具选择不会自动扩展。Schema 变化时重新 describe，无需发布；普通同步不改变权限策略修订，移除、替换、禁用和策略变化会使相应旧快照失效。内置管理工具继续受专用控制面权限约束。
+
+以下为实际构建在隔离测试环境中的截图，使用合成数据，不代表生产实例或业务统计。
+
+![工具权限：自动发现与可选策略](docs/images/console-refactor/toolClassifications.png)
+
+![中文工具权限：一次保存生效](docs/images/console-refactor/tool-access-zh.jpg)
+
+*中文权限编辑器为 1363×936 浏览器实拍；其余列表截图为 2560×1440。*
+
+![项目交付](docs/images/console-refactor/builds.png)
+
+![我的授权](docs/images/console-refactor/myConnections.png)
+
 ## 现有功能
 
 
@@ -129,7 +152,7 @@ flowchart TB
 | OpenAPI 适配器 | 本地 OpenAPI 3.0/3.1 快照的选定操作、固定来源与绑定执行合同的工具名称。 | [指南](docs/zh-CN/openapi-adapter.md) |
 | 标准观测 | 默认关闭的 Prometheus 聚合与 OTLP/HTTP 追踪，受控入口、有界导出。 | [指南](docs/zh-CN/telemetry.md) |
 | 用户与 RBAC | 本地登录、注册审核、自定义角色和权限类型、服务/工具授权与到期、限定范围的个人 API 令牌及用户状态管理。 | [指南](docs/zh-CN/configuration.md) |
-| 工具权限治理 | 发现 → 规则分析 → 人工审核 → 发布；读写、破坏性与幂等分类、指纹检查、批量审核和过期定义对账。发现不授予权限。 | [指南](docs/zh-CN/mcp-gateway.md) |
+| 工具权限治理 | 连接后自动同步；外部新工具默认要求读写授权，可按需设置只读、读写、禁用或恢复默认，保存即生效。账号、Token/OAuth、精确范围和服务绑定仍独立校验。 | [指南](docs/zh-CN/mcp-gateway.md) |
 | 内置 OAuth 与远程访问 | 明确启用的授权码流程，面向 OAuth 2.1 / PKCE 客户端：机密静态客户端、S256、每用户工具同意、加密 RS256 签名密钥、刷新轮换与撤销。独立公网同意页；不支持 DCR/CIMD，不宣称全面规范合规。 | [指南](docs/zh-CN/builtin-oauth.md) |
 | 外部身份提供方 | 可选外部 RS256 JWT 校验，精确 issuer/JWKS/audience/resource/client 绑定、身份映射和仅本人可管理的委托。支持直连 HTTPS 或管理员维护的隧道配置；Gate 不创建隧道。 | [指南](docs/zh-CN/external-connections.md) |
 | 服务配置与生命周期 | Manifest 表单/JSON 编辑、静态校验、应用/重载、启动/停止/连接、分区详情、健康、日志与重启历史。原生托管容器要求明确复核的 digest 固定镜像。 | [指南](docs/zh-CN/configuration.md) |
@@ -138,7 +161,7 @@ flowchart TB
 | 加密凭据 | 共享凭据 MCP/REST 增删改查，版本校验、幂等、只写入原文及精确 HTTP 使用范围；个人下游绑定保持独立。 | [指南](docs/zh-CN/shared-system-credentials.md) |
 | 业务账号与浏览器绑定 | 加密的个人/共享网站账号、明确的用户/角色及 MCP 目标、版本化密码库同步和隔离的逻辑会话。首个适配器要求专用可信的 agent-browser 实例；绑定不授予 MCP 访问权限。 | [指南](docs/zh-CN/business-credentials.md) |
 | 可信项目交付 | ZIP 分析与可续传 MCP 上传、预检、摘要绑定 BuildPlan、有界构建日志/取消、部署预览与覆盖保护、启动及工具对账。原生执行要求信任项目源码，并非不可信代码沙箱。 | [指南](docs/zh-CN/project-delivery.md) |
-| 私有草稿与恢复 | 加密且带版本的交付草稿、独立的上传/构建/部署/启动确认、幂等 MCP 写操作及受保护的手动回滚。替换可中断服务，不做无缝会话迁移。 | [指南](docs/zh-CN/console-delivery.md) |
+| 私有草稿与恢复 | 加密且带版本的交付草稿、合并的校验/计划/执行流程、实际覆盖或中断确认、幂等 MCP 写操作及受保护的手动回滚。替换可中断服务，不做无缝会话迁移。 | [指南](docs/zh-CN/console-delivery.md) |
 | Git、代理与依赖源 — 部分支持 | HTTPS 固定 commit、来源限额、加密代理不可变修订、独立 Git/install 与 inherit/direct/profile。本开发分支实现可选 Native/Linux 获取/代理测试/固定工具准备和 registry-only npm、pnpm 8/9、Yarn Classic 离线安装/构建；其他 manager cache 安装明确阻断，真实宿主验收未测。 | [指南](docs/zh-CN/git-import-network.md) |
 | 个人工作区与文件引用 | 我的 MCP、连接、授权、调用、API 令牌和下游凭据；仅对明确支持的工具提供短期、用户/目标绑定的 `fileRef` 上传。 | [指南](docs/zh-CN/mcp-gateway.md) |
 | 审计与可观测性 | 工具授权决策审计、调用统计、按权限限定的服务/工具日志范围、事件、诊断、内存/环境摘要、运行缓存及存活/启动/就绪探针。 | [指南](docs/zh-CN/operations.md) |
@@ -149,7 +172,7 @@ flowchart TB
 
 ## 项目交付与远程访问
 
-上传、预检、构建、部署、覆盖、启动、取消和放弃各自保留权限与确认；MCP 写操作还绑定幂等键和摘要。Console 可保存加密私有草稿，预览部署差异，并在受保护快照可用时明确执行手动回滚。参见[交付指南](docs/zh-CN/project-delivery.md)、[Console 交付](docs/zh-CN/console-delivery.md)和仓库自带 [Delivery Skill](.agents/skills/lingshu-gate-upload-build-start/SKILL.md)。
+上传、预检、构建、部署、覆盖、启动、取消和放弃保留各自后端权限；MCP 写操作绑定幂等键和摘要。Console 在目标任务内自动完成校验和计划，覆盖已有目标或中断运行服务时仅确认一次实际影响。私有草稿保持加密，部署差异可以查看，受保护快照可用时支持明确请求的手动回滚。参见[交付指南](docs/zh-CN/project-delivery.md)、[Console 交付](docs/zh-CN/console-delivery.md)和仓库自带 [Delivery Skill](.agents/skills/lingshu-gate-upload-build-start/SKILL.md)。
 
 远程访问可使用 Gate API 令牌、内置 OAuth 或外部 RS256 IdP；OAuth 默认关闭。内置模式复用 Gate 用户，在单独的公网页面登录与同意工具范围；外部模式只验证 provider 签发的令牌。`direct` HTTPS 和 `secure_mcp_tunnel` 是管理员维护的网络选择，反向代理不能单独穿透 NAT，机器隧道密钥不能替代用户身份。参见[内置 OAuth](docs/zh-CN/builtin-oauth.md)与[外部身份/网络接入](docs/zh-CN/external-connections.md)。Console 和 `/v1` 保持私有，仅公开所选模式所需的 MCP、发现与 `/oauth` 路径。
 
@@ -160,7 +183,7 @@ flowchart TB
 - 会话 Cookie 使用 `HttpOnly` 和 `SameSite=Lax`；HTTPS 部署应设置 `LINGSHU_GATE_AUTH_COOKIE_SECURE=true`。
 - MCP payload 日志默认关闭。
 - Secret 加密保存，响应中仅返回掩码元数据；Manifest 应使用 `${credential:<id>}` 引用。
-- Tool annotation 只是提示。人工复核并发布的分类和显式授权共同决定有效访问权限。
+- Tool annotation 只是提示。外部工具默认要求读写授权；只有本地策略能改变权限级别。每次调用仍检查账号、资源授权、Token/OAuth 范围和当前服务身份。
 - Docker Core 服务会丢弃 Linux capabilities、禁止权限提升，并以只读方式挂载 workspace。
 
 在单台受信任主机之外暴露 Gate 前，请先阅读 [SECURITY.zh-CN.md](SECURITY.zh-CN.md)。

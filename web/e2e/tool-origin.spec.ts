@@ -10,7 +10,7 @@ const definitions = groups.map((serverId, i) => ({
 const spoof = { ...tools[4], id: 'gate_synthetic_spoof', name: 'Synthetic third-party', metadata: { ...tools[4].metadata, server_id: 'gate-control' } }
 const resources = [...definitions, spoof].map(tool => ({
   server_id: tool.metadata.server_id, tool_id: tool.id, tool_name: tool.name,
-  registry_source: tool.source, classification: 'read', classification_status: 'published',
+  registry_source: tool.source, classification: 'read', classification_status: 'configured', required_access: 'read', policy_source: 'local_override',
 }))
 const syntheticGrants = resources.map((resource, i) => ({
   ...grants[i], id: `synthetic-origin-grant-${i}`, server_id: resource.server_id, tool_id: resource.tool_id,
@@ -39,8 +39,8 @@ for (const locale of ['en-US', 'zh-CN'] as const) {
       return data === undefined ? route.fallback() : route.fulfill({ json: data })
     })
     const zh = locale === 'zh-CN'
-    const names = zh ? ['Gate 基础能力', '工具审核管理', '项目交付与服务管理', '工具文件传输']
-      : ['Gate core capabilities', 'Tool review management', 'Project delivery and service management', 'Tool file transfer']
+    const names = zh ? ['Gate 基础能力', '工具权限管理', '项目交付与服务管理', '工具文件传输']
+      : ['Gate core capabilities', 'Tool access management', 'Project delivery and service management', 'Tool file transfer']
     const badge = zh ? '系统内置' : 'Built in'
     await page.setViewportSize({ width: 1600, height: 900 })
     await page.goto('/console/#/tools')

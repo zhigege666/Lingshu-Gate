@@ -2,6 +2,7 @@ import { RemainingList, ListPagination, ListViewport, useListPage } from "@/comp
 import { usePageRefresh } from "@/components/page-refresh"
 import { useEffect, useMemo, useRef, useState } from "react"
 import { Plus, Save } from "lucide-react"
+import { Select as SearchSelect } from "antd"
 import {
   api,
   type AccessResource,
@@ -45,7 +46,7 @@ const copy = {
     selectServer: "请选择 MCP 服务",
     scope: "授权范围",
     wholeServer: "整个 MCP 服务",
-    wholeServerHint: "授权作用于整个服务，并非当前工具列表的快照；每次调用仍会校验工具分类。",
+    wholeServerHint: "持续授权此服务，后续同步的工具自动纳入；每次调用仍受读写策略和用户权限约束。",
     singleTool: "单个工具",
     tool: "工具",
     selectTool: "请选择工具",
@@ -57,24 +58,28 @@ const copy = {
     editGrant: "编辑授权",
     editHint: "调整此记录的权限和有效期；主体与资源保持原记录。",
     grants: "授权记录",
-    classification: "工具分类",
+    classification: "当前工具策略",
     source: "来源",
     noGrants: "暂无授权记录",
     search: "搜索主体、MCP 服务或工具",
     deleteGrant: "删除授权",
-    step1: "识别工具读写",
-    step2: "选择授权主体",
-    step3: "分配资源范围",
+    step1: "选择授权主体",
+    step2: "选择服务或精确工具",
+    step3: "设置读写权限并保存",
     step4: "调用时强制校验",
-    unknownWarning: "未发布分类的工具即使获得授权也无法调用；请先到工具分类页完成审核发布。",
+    unknownWarning: "工具自动同步。外部工具默认按写入处理，已配置的本地策略和内置契约决定只读能力。",
     noneLevel: "无权限",
     readLevel: "只读",
     writeLevel: "读写",
-    unknownLevel: "待分类",
-    pendingStatus: "待发布",
+    unknownLevel: "不可用",
+    pendingStatus: "自动策略",
+    automaticStatus: "默认写入",
+    configuredStatus: "本地配置",
+    builtinStatus: "内置契约",
+    disabledStatus: "已停用",
     staleStatus: "已失效",
     missingStatus: "未分类",
-    publishedStatus: "已发布",
+    publishedStatus: "本地策略",
     gateBuiltin: "Lingshu Gate 内置",
   },
   "en-US": {
@@ -90,7 +95,7 @@ const copy = {
     selectServer: "Select an MCP server",
     scope: "Scope",
     wholeServer: "Entire server",
-    wholeServerHint: "This grants server-level access, not a snapshot of this tool list. Classification is still checked on each invocation.",
+    wholeServerHint: "Continuous service access includes future synced tools. Every call remains subject to read/write policy and user permissions.",
     singleTool: "Single tool",
     tool: "Tool",
     selectTool: "Select a tool",
@@ -102,24 +107,28 @@ const copy = {
     editGrant: "Edit grant",
     editHint: "Adjust permissions and expiry for this record. Its subject and resource remain fixed.",
     grants: "Grants",
-    classification: "Tool classification",
+    classification: "Current tool policy",
     source: "Source",
     noGrants: "No grants",
     search: "Search subject, server, or tool",
     deleteGrant: "Delete grant",
-    step1: "Classify tool access",
-    step2: "Choose subject",
-    step3: "Grant resources",
+    step1: "Choose a subject",
+    step2: "Choose a service or exact tool",
+    step3: "Set access and save",
     step4: "Enforce on invoke",
-    unknownWarning: "A tool without a published classification remains blocked even when granted. Review it on the classification page first.",
+    unknownWarning: "Tools sync automatically. External tools default to write access; configured local policies and built-in contracts determine read-only access.",
     noneLevel: "None",
     readLevel: "Read",
     writeLevel: "Read & write",
-    unknownLevel: "Unclassified",
-    pendingStatus: "Pending",
+    unknownLevel: "Unavailable",
+    pendingStatus: "Automatic policy",
+    automaticStatus: "Write by default",
+    configuredStatus: "Local override",
+    builtinStatus: "Built-in contract",
+    disabledStatus: "Disabled",
     staleStatus: "Stale",
     missingStatus: "Missing",
-    publishedStatus: "Published",
+    publishedStatus: "Local policy",
     gateBuiltin: "Lingshu Gate built-in",
   },
 } satisfies Record<Locale, Record<string, string>>
@@ -240,7 +249,7 @@ export function AccessGrantsPage({ locale, t }: { locale: Locale; t: TFunction }
     setForm((current) => ({
       ...current,
       subject_type: subjectType,
-      subject_id: subjectType === "user" ? users[0]?.id || "" : roles[0]?.id || "",
+      subject_id: subjectType === "user" ? users.length === 1 ? users[0].id : "" : roles.length === 1 ? roles[0].id : "",
     }))
   }
 
@@ -249,7 +258,7 @@ export function AccessGrantsPage({ locale, t }: { locale: Locale; t: TFunction }
     editorReturnFocus.current = createTrigger.current
     setEditingGrant(null)
     setFormError(null)
-    const draft: ResourceGrantSaveRequest = { subject_type: "user", subject_id: users[0]?.id || "", server_id: resources[0]?.server_id || "", tool_id: null, permission_type_code: "read", expires_at: null }
+    const draft: ResourceGrantSaveRequest = { subject_type: "user", subject_id: users.length === 1 ? users[0].id : "", server_id: servers.length === 1 ? servers[0] : "", tool_id: null, permission_type_code: "read", expires_at: null }
     baseline.current = JSON.stringify({ form: draft, scope: "server" })
     setForm(draft)
     setScope("server")
@@ -265,7 +274,8 @@ export function AccessGrantsPage({ locale, t }: { locale: Locale; t: TFunction }
   }
 
   function changeServer(serverId: string) {
-    const firstTool = resources.find((resource) => resource.server_id === serverId)?.tool_id || null
+    const tools = resources.filter(resource => resource.server_id === serverId)
+    const firstTool = tools.length === 1 ? tools[0].tool_id : null
     setForm((current) => ({ ...current, server_id: serverId, tool_id: firstTool }))
   }
 
@@ -292,24 +302,24 @@ export function AccessGrantsPage({ locale, t }: { locale: Locale; t: TFunction }
         <form id="resource-grant-editor" className="flex flex-col gap-4" onSubmit={event => { event.preventDefault(); void save() }}>
             <div className="grid gap-4 sm:grid-cols-2">
               <Field label={c.subjectType} id="grant-subjectType"><FilterRadio id="grant-subjectType" hideLabel label={c.subjectType} disabled={busy || Boolean(editingGrant)} value={form.subject_type} onChange={value => changeSubjectType(value as "user" | "role")} options={[{ value: "user", label: c.user }, { value: "role", label: c.role }]} /></Field>
-              <Field label={c.subject} id="grant-subject">{editingGrant ? <Input id="grant-subject" readOnly value={subjectLabel(editingGrant, users, roles)} /> : <Select disabled={busy} value={form.subject_id} onValueChange={(subject_id) => setForm((current) => ({ ...current, subject_id }))}><SelectTrigger id="grant-subject"><SelectValue placeholder={c.selectSubject} /></SelectTrigger><SelectContent>{subjectOptions.map((subject) => <SelectItem key={subject.id} value={subject.id}>{subject.label}</SelectItem>)}</SelectContent></Select>}</Field>
+              <Field label={c.subject} id="grant-subject">{editingGrant ? <Input id="grant-subject" readOnly value={subjectLabel(editingGrant, users, roles)} /> : <SearchSelect id="grant-subject" aria-label={c.subject} showSearch optionFilterProp="label" getPopupContainer={(trigger: HTMLElement) => trigger.closest<HTMLElement>('[role="dialog"]') || trigger.parentElement!} disabled={busy} value={form.subject_id || undefined} placeholder={c.selectSubject} onChange={subject_id => setForm(current => ({ ...current, subject_id }))} options={subjectOptions.map(subject => ({ value: subject.id, label: subject.label }))} />}</Field>
             </div>
-            <Field label={c.server} id="grant-server">{editingGrant ? <Input id="grant-server" readOnly value={form.server_id} /> : <Select disabled={busy} value={form.server_id} onValueChange={changeServer}><SelectTrigger id="grant-server"><SelectValue placeholder={c.selectServer} /></SelectTrigger><SelectContent>{servers.map((server) => <SelectItem key={server} value={server}>{grantOriginName(resources, server, null, locale) || server} · {server}</SelectItem>)}</SelectContent></Select>}</Field>
+            <Field label={c.server} id="grant-server">{editingGrant ? <Input id="grant-server" readOnly value={form.server_id} /> : <SearchSelect id="grant-server" aria-label={c.server} showSearch optionFilterProp="label" getPopupContainer={(trigger: HTMLElement) => trigger.closest<HTMLElement>('[role="dialog"]') || trigger.parentElement!} disabled={busy} value={form.server_id || undefined} placeholder={c.selectServer} onChange={changeServer} options={servers.map(server => ({ value: server, label: grantOriginName(resources, server, null, locale) ? `${grantOriginName(resources, server, null, locale)} · ${server}` : server }))} />}</Field>
             <div className="grid gap-4 sm:grid-cols-2">
-              <Field label={c.scope} id="grant-scope"><FilterRadio id="grant-scope" hideLabel label={c.scope} disabled={busy || Boolean(editingGrant)} value={scope} onChange={value => { setScope(value as "server" | "tool"); if (value === "tool" && !form.tool_id) setForm(current => ({ ...current, tool_id: serverTools[0]?.tool_id || null })) }} options={[{ value: "server", label: c.wholeServer }, { value: "tool", label: c.singleTool }]} /></Field>
-              {scope === "tool" && <Field label={c.tool} id="grant-tool">{editingGrant ? <Input id="grant-tool" readOnly value={form.tool_id || ""} /> : <Select disabled={busy} value={form.tool_id || ""} onValueChange={(tool_id) => setForm((current) => ({ ...current, tool_id }))}><SelectTrigger id="grant-tool"><SelectValue placeholder={c.selectTool} /></SelectTrigger><SelectContent>{serverTools.map((resource) => <SelectItem key={resource.tool_id} value={resource.tool_id}>{resource.tool_name} · {resource.tool_id}</SelectItem>)}</SelectContent></Select>}</Field>}
+              <Field label={c.scope} id="grant-scope"><FilterRadio id="grant-scope" hideLabel label={c.scope} disabled={busy || Boolean(editingGrant)} value={scope} onChange={value => { setScope(value as "server" | "tool"); if (value === "tool" && !form.tool_id) setForm(current => ({ ...current, tool_id: serverTools.length === 1 ? serverTools[0].tool_id : null })) }} options={[{ value: "server", label: c.wholeServer }, { value: "tool", label: c.singleTool }]} /></Field>
+              {scope === "tool" && <Field label={c.tool} id="grant-tool">{editingGrant ? <Input id="grant-tool" readOnly value={form.tool_id || ""} /> : <SearchSelect id="grant-tool" aria-label={c.tool} showSearch optionFilterProp="label" getPopupContainer={(trigger: HTMLElement) => trigger.closest<HTMLElement>('[role="dialog"]') || trigger.parentElement!} disabled={busy} value={form.tool_id || undefined} placeholder={c.selectTool} onChange={tool_id => setForm(current => ({ ...current, tool_id }))} options={serverTools.map(resource => ({ value: resource.tool_id, label: `${resource.tool_name} · ${resource.tool_id}` }))} />}</Field>}
             </div>
             {scope === "server" && <p className="text-xs text-muted-foreground">{c.wholeServerHint}</p>}
             {scope === "tool" && selectedResource && <div className="flex items-center justify-between rounded-lg border bg-muted/30 p-3 text-sm"><span>{c.classification}</span><div className="flex gap-2"><AccessBadge level={selectedResource.classification} labels={c} /><Badge variant="outline">{classificationStatusLabel(selectedResource.classification_status, c)}</Badge></div></div>}
-            <Field label={c.permissionType} id="grant-permissionType"><Select disabled={busy} value={form.permission_type_code} onValueChange={(permission_type_code) => setForm((current) => ({ ...current, permission_type_code }))}><SelectTrigger id="grant-permissionType"><SelectValue /></SelectTrigger><SelectContent>{permissionTypes.map((item) => <SelectItem key={item.id} value={item.code}>{permissionTypeLabel(item, c)}</SelectItem>)}</SelectContent></Select></Field>
+            <Field label={c.permissionType} id="grant-permissionType">{permissionTypes.length <= 5 ? <FilterRadio id="grant-permissionType" hideLabel label={c.permissionType} disabled={busy} value={form.permission_type_code} onChange={permission_type_code => setForm(current => ({ ...current, permission_type_code }))} options={permissionTypes.map(item => ({ value: item.code, label: permissionTypeLabel(item, c) }))} /> : <Select disabled={busy} value={form.permission_type_code} onValueChange={(permission_type_code) => setForm((current) => ({ ...current, permission_type_code }))}><SelectTrigger id="grant-permissionType"><SelectValue /></SelectTrigger><SelectContent>{permissionTypes.map((item) => <SelectItem key={item.id} value={item.code}>{permissionTypeLabel(item, c)}</SelectItem>)}</SelectContent></Select>}</Field>
             <Field label={c.expiresAt} id="grant-expiresAt"><Input id="grant-expiresAt" disabled={busy} type="datetime-local" step="1" value={form.expires_at || ""} onChange={(event) => setForm((current) => ({ ...current, expires_at: event.target.value || null }))} /><div className="text-xs text-muted-foreground">{form.expires_at ? formatDateTime(form.expires_at) : c.neverExpires}</div></Field>
-            <Alert><AlertDescription>{c.unknownWarning}</AlertDescription></Alert>
+
         </form>
       </FormDialog>
 
         <Card>
-          <CardContent className="p-3 md:p-4">
-            <RemainingList className="rounded-lg border">
+          <CardContent className="p-0">
+            <RemainingList>
               <ListViewport viewport={paging.viewport} label={t("toolShowing")}>
             <Table>
                 <TableHeader><TableRow><TableHead>{c.subject}</TableHead><TableHead>{c.server}</TableHead><TableHead>{c.scope}</TableHead><TableHead>{c.permissionType}</TableHead><TableHead>{c.expiresAt}</TableHead><TableHead>{t("actions")}</TableHead></TableRow></TableHeader>
@@ -357,7 +367,8 @@ function permissionTypeLabel(item: PermissionType, labels: Record<string, string
   return item.name === level ? item.name : `${item.name} · ${level}`
 }
 
-function classificationStatusLabel(status: AccessResource["classification_status"], labels: Record<string, string>) {
+function classificationStatusLabel(status: string, labels: Record<string, string>) {
+  if (["automatic", "configured", "builtin", "disabled"].includes(status)) return labels[`${status}Status`]
   if (status === "published") return labels.publishedStatus
   if (status === "stale") return labels.staleStatus
   if (status === "missing") return labels.missingStatus

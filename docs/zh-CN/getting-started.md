@@ -80,4 +80,4 @@ docker compose exec core cat /data/initial-admin-credentials.json
 
 ## 完成首次调用
 
-[首次调用指南](first-call.md)依次说明独立内存 demo、明确审核/发布、普通 viewer 的授权、动态工具发现、真实调用、审计、写入拒绝、错误修订、demo 停止/恢复及撤销。Gate 健康并不代表下游工具已经发布或获得授权。
+[首次调用指南](first-call.md)依次说明独立内存 demo、自动同步与可选的本地只读策略、普通 viewer 的授权、动态工具发现、真实调用、审计、写入拒绝、错误修订、demo 停止/恢复及撤销。Gate 健康并不代表下游工具已经连接、完成同步或获得授权。

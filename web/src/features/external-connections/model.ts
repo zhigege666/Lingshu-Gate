@@ -42,7 +42,7 @@ export function connectionReadiness(draft: ConnectionDraft): string[] {
 export function eligibleTools(tools: ToolDefinition[], access: "read" | "write") {
   return tools.filter(tool => {
     const policy = tool.metadata.gate_access as { classification_status?: string; required_access?: string } | undefined
-    return tool.source === "mcp" && typeof tool.metadata.server_id === "string" && policy?.classification_status === "published" && policy.required_access === access
+    return tool.source === "mcp" && typeof tool.metadata.server_id === "string" && policy?.required_access === access
   })
 }
 export function grantError(draft: GrantDraft, tools: ToolDefinition[], now = Date.now()): string | null {
@@ -51,7 +51,7 @@ export function grantError(draft: GrantDraft, tools: ToolDefinition[], now = Dat
   if (!Number.isInteger(draft.rate_per_minute) || (draft.rate_per_minute ?? 0) < 1 || (draft.rate_per_minute ?? 0) > 10000 || !Number.isInteger(draft.concurrency) || (draft.concurrency ?? 0) < 1 || (draft.concurrency ?? 0) > 100) return "Rate and concurrency must be whole numbers within the displayed bounds."
   if (!draft.access.length || draft.access.some(value => !["read", "write"].includes(value))) return "Choose an access level."
   const eligible = new Set(draft.access.flatMap(access => eligibleTools(tools, access).map(tool => tool.id)))
-  if (!draft.tool_allowlist.length || draft.tool_allowlist.length > 1000 || draft.tool_allowlist.some(id => !eligible.has(id))) return "Select currently authorized published tools; unavailable selections must be removed."
+  if (!draft.tool_allowlist.length || draft.tool_allowlist.length > 1000 || draft.tool_allowlist.some(id => !eligible.has(id))) return "Select currently authorized tools; unavailable selections must be removed."
   if (!draft.server_allowlist.length || draft.server_allowlist.length > 100) return "Select tools from at most 100 services."
   const selectedTools = tools.filter(tool => draft.tool_allowlist.includes(tool.id))
   const levels = new Set(selectedTools.map(tool => (tool.metadata.gate_access as { required_access: string }).required_access))

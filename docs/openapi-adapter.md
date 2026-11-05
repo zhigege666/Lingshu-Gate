@@ -38,7 +38,7 @@ Run the validated snapshot:
 lingshu-gate openapi serve --schema examples/openapi/status.openapi.yaml --config examples/openapi/adapter.json --host 127.0.0.1 --port 18881
 ~~~
 
-Use `uv run lingshu-gate` from source. Gate connects using [the adapter manifest](../examples/mcp.d/openapi.yaml). Save, apply, start, review and publish the new tools, then grant the caller access.
+Use `uv run lingshu-gate` from source. Gate connects using [the adapter manifest](../examples/mcp.d/openapi.yaml). Save and connect the adapter; Gate discovers and synchronizes its tools automatically. Grant the intended caller access through the existing account, Token or OAuth controls. No routine tool review or publication step is required.
 
 For non-loopback listening, add **`--tls-cert`, `--tls-key`, `--token-file` and exact `--allowed-host`**. `--allowed-host` and `--allowed-origin` may repeat. `--ca-file` supplies the upstream API CA; it does not replace the listener's certificate. Keep upstream and inbound tokens independent. Do not expose an unauthenticated listener remotely.
 
@@ -46,7 +46,7 @@ For non-loopback listening, add **`--tls-cert`, `--tls-key`, `--token-file` and 
 
 Tool names contain a bounded operation-ID prefix and a SHA-256 execution-contract digest. Base URL, method/path, parameter, response or credential-reference changes produce a new identity and require discovery/review. Rotating a token file's contents does not move authority to another reference. The adapter has no background schema refresh.
 
-Selected-tool authorization snapshots do not transfer to the new tool identity. After review/publication, an existing continuous policy may include it only within previously confirmed service/access scopes, current account permissions and the same service lifecycle. A changed trust target requires reconfirmation.
+Selected-tool authorization snapshots do not transfer to the new tool identity. Existing continuous policies can include newly discovered tools only within their configured service/access scope, the caller's current permissions and the same service lifecycle. A changed trust target fails closed; an administrator must explicitly choose the local policy before the replacement can be called.
 
 Supported OpenAPI versions are **3.0.x and 3.1.x**, with this deliberately limited subset:
 

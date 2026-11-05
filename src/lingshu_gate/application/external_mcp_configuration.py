@@ -648,7 +648,7 @@ class ExternalMcpConfigurationService:
                 result["connection_state"] = "not_connected"
             success_action = ("The Gate configuration was deleted; the remote service and shared credentials were retained."
                               if plan["mode"] == "delete" else "Connection permission was revoked; explicitly restore it before reconnecting."
-                              if plan["mode"] == "revoke_trust" else "Review and publish tool classifications separately; discovery grants no access.")
+                              if plan["mode"] == "revoke_trust" else "The tool catalog is synchronized automatically; existing account and token authorizations apply.")
             failure_action = ("The configuration file was removed; reconcile the remaining local permission, group and tool cleanup before recreating this target."
                               if result.get("config_deleted") else
                               "Read the saved configuration and operation; use an update plan with its current digest for recovery.")

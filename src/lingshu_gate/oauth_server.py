@@ -112,7 +112,9 @@ def callback(request: dict[str, Any], issuer: str, **result: str) -> str:
 
 def tool_scope_matches(saved: dict[str, Any], current: dict[str, Any]) -> bool:
     # Display-only MCP names can change without changing a permission envelope.
-    return all(saved.get(key) == current.get(key) for key in ("id", "server_id", "access", "snapshot"))
+    return (all(saved.get(key) == current.get(key) for key in ("id", "server_id", "access"))
+            and (saved.get("snapshot") == current.get("snapshot")
+                 or bool(current.get("legacy_snapshot") and saved.get("snapshot") == current["legacy_snapshot"])))
 
 
 class OAuthServer:
@@ -476,17 +478,15 @@ class OAuthServer:
             access = policy.get("required_access")
             required_scope = "tools.read" if access == "read" else "tools.invoke"
             server_id = tool.metadata.get("server_id")
-            if (tool.source != "mcp" or policy.get("classification_status") != "published"
-                    or access not in {"read", "write"} or required_scope not in scopes or not server_id):
+            if (tool.source != "mcp" or access not in {"read", "write"} or required_scope not in scopes or not server_id):
                 continue
-            classification = classifications[(str(server_id), tool.id)]
-            if classification["status"] != "published" or classification["effective_access"] != access:
-                continue
+            classification = classifications.get((str(server_id), tool.id))
             snapshot = tool_snapshot(tool, classification)
             result[tool.id] = {"id": tool.id, "name": tool.name, "server_id": str(server_id),
                                "server_name": tool.metadata["server_name"].strip()
                                if isinstance(tool.metadata.get("server_name"), str) and tool.metadata["server_name"].strip() else None,
-                               "access": access, "snapshot": snapshot}
+                               "access": access, "snapshot": snapshot,
+                               "legacy_snapshot": (classification or {}).get("legacy_authorization_snapshot", "")}
         if len(result) > MAX_TOOLS:
             raise OAuthError("tool_catalog_limit", 409)
         return result
@@ -754,27 +754,23 @@ class OAuthServer:
         # Diagnostics follow current tool visibility, including the admin's
         # explicit API/Console bypass. Never enumerate another user's services.
         visible = self.access.visible_tools(principal, self.registry.list_definitions(), connection=connection)
-        classifications = {(row["server_id"], row["tool_id"]): row for row in
-                           connection.execute("SELECT * FROM mcp_tool_classifications").fetchall()}
         groups: dict[str, dict[str, Any]] = {}
         client_scopes = set(json.loads(client["scopes_json"]))
         for tool in visible:
             server_id = tool.metadata.get("server_id")
             if tool.source != "mcp" or not server_id or tool.id in catalog:
                 continue
-            classification = classifications.get((str(server_id), tool.id))
-            if not classification or classification["status"] != "published":
-                reason = "classification_not_published"
-            elif classification["effective_access"] not in {"read", "write"}:
-                reason = "classification_unavailable"
+            access = tool.metadata.get("gate_access", {}).get("required_access")
+            if access not in {"read", "write"}:
+                reason = "local_policy_disabled"
             else:
-                scope = "tools.read" if classification["effective_access"] == "read" else "tools.invoke"
+                scope = "tools.read" if access == "read" else "tools.invoke"
                 if scope not in grant["scopes"]:
                     reason = "grant_scope_ceiling"
                 elif scope not in client_scopes:
                     reason = "client_scope_ceiling"
                 else:
-                    reason = "classification_unavailable"
+                    reason = "tool_scope_unavailable"
             name = tool.metadata.get("server_name")
             group = groups.setdefault(str(server_id), {"server_id": str(server_id),
                 "server_name": name.strip() if isinstance(name, str) and name.strip() else None, "counts": {}})

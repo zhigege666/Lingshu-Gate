@@ -7,6 +7,7 @@ import pytest
 from fastapi import HTTPException
 from fastapi.testclient import TestClient
 
+from lingshu_gate.access_control import AccessDeniedError
 from lingshu_gate.observability_store import ObservabilityStore
 from lingshu_gate.models import ToolDefinition
 from lingshu_gate.token_authorizations import TokenAuthorizationStore, register_token_authorization_routes
@@ -70,8 +71,57 @@ def test_empty_independent_scope_is_not_account_mode_and_modes_are_mutually_excl
     assert principal.api_token_authorization_mode == "independent" and principal.api_token_tool_snapshots == ()
     with pytest.raises(ValueError, match="server_scope_modes_conflict"):
         save(tokens, gate, tool_ids=["mcp.A.read"], server_policies=[{"server_id": "A", "mode": "continuous", "access": "read"}])
-    with pytest.raises(ValueError, match="account_mode_cannot_be_restored"):
-        save(tokens, gate, created["id"], mode="account")
+    with pytest.raises(ValueError, match="account_mode_has_no_independent_scope"):
+        save(tokens, gate, created["id"], mode="account", tool_ids=["mcp.A.read"])
+
+
+def test_account_mode_can_be_created_and_explicitly_restored_without_expanding_function_scopes(tokens, gate):
+    created = save(tokens, gate, mode="account", scopes=["tools.read"], rate_per_minute=30, concurrency=1)
+    principal = gate["auth"].authenticate_request(mcp_request(created["token"]))
+    assert principal.api_token_authorization_mode == "account"
+    assert principal.scopes == ("tools.read",)
+    assert principal.api_token_rate_per_minute == 30 and principal.api_token_concurrency == 1
+    independent = save(tokens, gate, created["id"], mode="independent", tool_ids=["mcp.A.read"])
+    assert independent["authorization_mode"] == "independent"
+    restored = save(tokens, gate, created["id"], mode="account", tool_ids=[], server_policies=[])
+    assert restored["authorization_mode"] == "account" and restored["authorization_revision"] == 3
+    assert restored["scopes"] == ["tools.read"]
+    assert restored["tool_ids"] == [] and restored["server_policies"] == []
+    assert restored["rate_per_minute"] == 30 and restored["concurrency"] == 1
+
+
+def test_mode_switch_requires_matching_owner_confirmation_and_current_revision(tokens, gate):
+    created = save(tokens, gate, tool_ids=["mcp.A.read"])
+    owner, session = gate["principals"]["alice"], gate["sessions"]["alice"]
+    offered = tokens.options(owner, session, created["id"])
+    body = draft(offered, mode="account", tool_ids=[])
+    preview = tokens.change(owner, session, created["id"], {**body, "csrf": offered["csrf"]}, save=False)
+    with pytest.raises(HTTPException):
+        tokens.change(gate["principals"]["bob"], gate["sessions"]["bob"], created["id"],
+                      {**body, "confirmation": preview["confirmation"]}, save=True)
+    with pytest.raises(HTTPException):
+        tokens.change(owner, session, created["id"], {**body, "mode": "independent", "confirmation": preview["confirmation"]}, save=True)
+    assert gate["auth"].authenticate_request(mcp_request(created["token"])).api_token_authorization_mode == "independent"
+    save(tokens, gate, created["id"], concurrency=1)
+    with pytest.raises(HTTPException):
+        tokens.change(owner, session, created["id"], {**body, "confirmation": preview["confirmation"]}, save=True)
+
+
+def test_account_mode_call_limits_survive_mode_round_trip(tokens, gate):
+    created = save(tokens, gate, mode="account", scopes=["tools.read"], rate_per_minute=2, concurrency=1)
+    principal = gate["auth"].authenticate_request(mcp_request(created["token"]))
+    lease = gate["access"]._acquire_external_invocation(principal)
+    with pytest.raises(AccessDeniedError, match="concurrency"):
+        gate["access"]._acquire_external_invocation(principal)
+    gate["access"]._release_external_invocation(lease)
+    save(tokens, gate, created["id"], mode="independent", tool_ids=["mcp.A.read"])
+    save(tokens, gate, created["id"], mode="account", tool_ids=[])
+    current = gate["auth"].authenticate_request(mcp_request(created["token"]))
+    lease = gate["access"]._acquire_external_invocation(current)
+    gate["access"]._release_external_invocation(lease)
+    with pytest.raises(AccessDeniedError, match="rate limit"):
+        gate["access"]._acquire_external_invocation(current)
+    assert current.scopes == ("tools.read",)
 
 
 def test_confirmation_replay_and_concurrent_scope_change_are_rejected(tokens, gate):
@@ -129,6 +179,18 @@ def test_quota_only_does_not_reapprove_changed_tool_snapshot(tokens, gate):
     assert changed["concurrency"] == 1
     after = gate["db"].query_one("SELECT tools_json FROM api_token_authorizations WHERE token_id=?", (created["id"],))[0]
     assert json.loads(before) == json.loads(after)
+
+
+def test_editing_one_exact_token_scope_does_not_rebind_another_changed_tool(tokens, gate):
+    created = save(tokens, gate, tool_ids=["mcp.A.read", "mcp.A.write"])
+    gate["db"].execute(
+        "UPDATE mcp_tool_classifications SET access_policy_revision=access_policy_revision+1 WHERE tool_id='mcp.A.read'"
+    )
+    offered = tokens.options(gate["principals"]["alice"], gate["sessions"]["alice"], created["id"])
+    body = draft(offered, tool_ids=["mcp.A.read"])
+    with pytest.raises(HTTPException, match="tool_scope_changed"):
+        tokens.change(gate["principals"]["alice"], gate["sessions"]["alice"], created["id"],
+                      {**body, "csrf": offered["csrf"]}, save=False)
 
 
 def test_preview_can_be_cancelled_and_latest_confirmation_replaces_previous(tokens, gate):

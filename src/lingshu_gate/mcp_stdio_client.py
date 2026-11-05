@@ -76,6 +76,7 @@ class StdioMcpClient:
             manifest.transport.protocol_version, allow_legacy_stdio=True,
         )
         self.log_sink = log_sink
+        self.on_tools_changed: Callable[[], None] | None = None
         self._sensitive_payloads = False
         self.process: subprocess.Popen[str] | None = None
         self._responses: dict[int, queue.Queue[dict[str, Any]]] = {}
@@ -268,7 +269,9 @@ class StdioMcpClient:
                 params["cursor"] = cursor
             result = self.request("tools/list", params)
             page_count += 1
-            batch = result.get("tools", []) if isinstance(result, dict) else []
+            if not isinstance(result, dict) or "tools" not in result:
+                raise McpProtocolError("tools/list result must contain tools")
+            batch = result["tools"]
             if not isinstance(batch, list):
                 raise McpProtocolError("tools/list result.tools must be a list")
             if len(tools) + len(batch) > MAX_DISCOVERED_TOOLS:
@@ -542,6 +545,12 @@ class StdioMcpClient:
                     log_event(logger, logging.WARNING, "gate.mcp.stdio_unmatched_response", "Received response without pending request", server_id=self.manifest.id, response_id=safe_id)
                     self._store_log("warning", "Received response without pending request", "gate.mcp.stdio_unmatched_response", {"response_id": safe_id})
             else:
+                if (generation == self._connection_generation and isinstance(message, dict)
+                        and message.get("method") == "notifications/tools/list_changed"
+                        and self.on_tools_changed is not None):
+                    # The runtime callback only wakes a worker; never issue a
+                    # synchronous request from the stdout response reader.
+                    self.on_tools_changed()
                 log_event(logger, logging.INFO, "gate.mcp.stdio_notification_received", "Received MCP notification/request", server_id=self.manifest.id)
         with self._response_lock:
             if generation == self._connection_generation:

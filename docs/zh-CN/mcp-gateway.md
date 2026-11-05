@@ -36,32 +36,21 @@ Header 与参数不一致时，Gate 会在 Dispatch 前拒绝请求。携带当�
 ## 从发现到授权
 
 ```mermaid
-flowchart LR
-    D["发现"] --> A["规则分析"]
-    A --> R["人工复核"]
-    R --> P["发布分类"]
-    P --> G["授权并调用"]
+flowchart TD
+    C["保存并连接 MCP"] --> S["自动同步工具目录"]
+    S --> A{"账号与客户端范围允许？"}
+    A -->|是| I["校验当前 Schema 并执行"]
+    A -->|否| E["显示缺失的权限"]
+    I --> R["返回结果与审计记录"]
 ```
 
-发现不等于授权。下游工具只有在以下适用检查全部通过时才可调用：
+工具连接时同步；下游发送 `tools/list_changed` 时触发更新，不发送通知的服务由 60 秒补充轮询覆盖。失败的同步保留最近一次完整有效目录；没有变化的目录不更新权限版本。
 
-1. 调用方已认证；
-2. 调用方按需要拥有 `tools.read` 或 `tools.invoke`；
-3. 工具有当前、经过人工复核且已发布的读写分类；
-4. 调用方拥有对应服务或工具资源授权；
-5. 使用 API Token 时，其 scope 足够；
-6. 该调用方已配置必需的下游凭据。
+外部新增工具默认需要 `write`，不会采信工具名称、描述、Schema、manifest 声明或 annotation 作为只读权限。管理员可以在“工具权限”按需保存 `read` / `write` / `unknown`（禁用）或 `automatic`（恢复默认），一次保存生效，无需发布。`required_access` 和 `policy_source` 表示当前有效策略；历史 `status`、复核时间和风险证据不再作为普通调用的发布门禁。受专用控制面权限管理的内置工具不能通过通用工具策略降级。
 
-新增、变化、消失和重新出现的定义都要重新进入复核。Gate 不会根据工具名称、描述、Schema 或 annotation 推断权限。
+发现不授予新的访问范围。每次调用仍须同时满足身份、功能权限、账号/角色资源授权、Token/OAuth 范围、有效期、服务身份绑定、参数限制和所需凭据。服务持续授权依原级别覆盖新工具；精确工具选择不自动增加。元数据变化不删除已有本地访问策略，但变化后的 Schema 必须重新 describe；退役、服务替换、禁用或策略变更不会让旧精确授权复活。
 
-第一方分类操作为：
-
-- `gate_tool_classification_list`
-- `gate_tool_classification_analyze`
-- `gate_tool_classification_review`
-- `gate_tool_classification_publish`
-
-分析只使用本地规则并生成复核输入。复核与发布是两个独立写操作，发布必须绑定当前 fingerprint。
+兼容保留 `gate_tool_classification_list`、`gate_tool_classification_analyze`、`gate_tool_classification_review` 和 `gate_tool_classification_publish`。`review` 支持一次保存策略；分析只提供提示；旧发布操作仅维护可选的组路由安全证据，日常连接和调用不需要它。这些证据用于跨实例合同比较与路由约束。只读重试依据可信本地只读策略或 Gate 内置只读契约，派发前仍重新核验权限与工具版本；不能把自动默认伪装成人工复核。
 
 ## 下游 Streamable HTTP
 
@@ -82,7 +71,7 @@ flowchart LR
 }
 ```
 
-Gate 发送 `initialize`，校验返回的版本及服务信息，再发送 `notifications/initialized`。协商结果必须属于上述三个握手版本。后续请求使用协商版本以及初始化时服务端分配的 Session ID，支持 JSON 和 POST SSE 响应。会话限定在当前连接与凭据内，不在不同用户的客户端之间共享。关闭会话时发送 DELETE，允许下游返回 404/405。会话过期返回 404 时连接失效，Gate 可恢复一次；仅已发布只读、合同未变且当前权限和参数策略仍通过的调用可重试一次。写调用、分组调用、变化合同或恢复失败不会自动重放。
+Gate 发送 `initialize`，校验返回的版本及服务信息，再发送 `notifications/initialized`。协商结果必须属于上述三个握手版本。后续请求使用协商版本以及初始化时服务端分配的 Session ID，支持 JSON 和 POST SSE 响应。会话限定在当前连接与凭据内，不在不同用户的客户端之间共享。关闭会话时发送 DELETE，允许下游返回 404/405。会话过期返回 404 时连接失效，Gate 可恢复一次；仅由可信本地只读策略或 Gate 内置只读契约覆盖、合同未变且当前权限和参数策略仍通过的调用可重试一次。写调用、分组调用、变化合同或恢复失败不会自动重放。
 
 超时、普通 HTTP/认证错误、无效发现结果及业务方法错误不触发协商或重放；前述有界会话恢复另行处理。自动协商不会重新启动在发现阶段退出的 stdio 进程；要求首条消息必须为初始化的服务，可显式固定版本。本次不增加使用独立事件与消息端点的旧 HTTP+SSE 传输、服务端主动请求或可恢复的 GET 事件流。Registry 中任意命名冲突都会让发现与调用一致地拒绝处理，可见性过滤不改变工具标识。
 
@@ -128,7 +117,7 @@ Console 和 `/v1/mcp/configs` API 支持列表、校验、创建、更新、应�
 4. 复核配置 Diff 和解析到的凭据 ID。
 5. 应用或启动服务。
 6. 检查健康状态和发现的定义。
-7. 分析、复核并发布分类。
+7. 连接后自动同步目录；需要调整权限级别时保存本地策略。
 8. 添加最小资源授权。
 9. 先验证一次只读调用，再开放写权限。
 
@@ -142,7 +131,7 @@ Gate 只注册属于自身控制和交付边界的操作：
 |---|---|
 | `gate_system_debug` | 受限只读的概览、服务详情、日志、事件和诊断 |
 | `gate_file_upload_*` | 为明确接受文件引用的调用创建用户绑定、短期有效的 `fileRef` |
-| `gate_tool_classification_*` | 工具分类的列表、规则分析、人工复核和发布 |
+| `gate_tool_classification_*` | 工具策略查询与一次保存；旧分析/发布操作保留兼容 |
 | 项目交付 `gate_*` 工具 | 上传、构建、部署、启动、状态和工具对账 |
 
 完整交付工具列表见 [项目交付](project-delivery.md)。第一方工具与下游工具遵循相同的认证、权限、scope 和审计检查。
@@ -174,4 +163,4 @@ MCP 等待期限到期时返回结构化 `mcp_request_timeout`，标明传输、
 
 ## 可选发现与集成
 
-[固定项和结果预算](on-demand-tools.md)保留相同调用检查，[参数策略](argument-policies.md)在执行前限制实际输入。[连接器](private-connector.md)和[OpenAPI 适配器](openapi-adapter.md)提供单独配置的 HTTP MCP 地址，仍须在 Core 注册、审核、发布及授权。Gate 的 `/docs` 描述控制 API；适配器消费另一个本地上游 OpenAPI 文件。[首次调用演示](first-call.md)无需桌面客户端即可验证只读授权、写入拒绝和撤销。
+[固定项和结果预算](on-demand-tools.md)保留相同调用检查，[参数策略](argument-policies.md)在执行前限制实际输入。[连接器](private-connector.md)和[OpenAPI 适配器](openapi-adapter.md)提供单独配置的 HTTP MCP 地址，仍须在 Core 注册并同步，再按账号与客户端范围授权。Gate 的 `/docs` 描述控制 API；适配器消费另一个本地上游 OpenAPI 文件。[首次调用演示](first-call.md)无需桌面客户端即可验证只读授权、写入拒绝和撤销。

@@ -2,15 +2,18 @@ import { useEffect, useRef, useState } from "react"
 import { api, type HttpTrustSaveOptions, type McpHttpTrustPolicy } from "@/api/client"
 import { Button } from "@/components/ui/button"
 import { privateHttpOrigin } from "@/features/mcp-config/http-trust"
+import { validHttpServiceId } from "@/features/credential-writes"
 import { REDACTED_ENDPOINT } from "@/features/mcp-config/model"
 
-export type HttpTrustEditorState = { targetKey: string; ready: boolean; options: HttpTrustSaveOptions; credentialOrigin?: string | null }
+export type HttpTrustEditorState = { targetKey: string; ready: boolean; options: HttpTrustSaveOptions; credentialOrigin?: string | null; serverBinding?: string | null }
+export type HttpTrustRestoreIntent = { targetKey: string; revision: number; serverBinding: string | null; configuredServerBinding: string | null; state: McpHttpTrustPolicy["state"] }
 export function httpTrustTargetKey(serverId: string, endpoint: unknown) { return JSON.stringify([serverId, endpoint]) }
 
 /** Saving owns new permissions. Only an explicit revocation writes independently. */
-export function McpHttpTrustControl({ serverId, endpoint, draftRevision, canManage, saved, locked, zh, denied = false, precheckSequence = 0, onBusyChange, onStateChange, onPolicyUpdated }: {
+export function McpHttpTrustControl({ serverId, endpoint, draftRevision, canManage, saved, locked, zh, denied = false, precheckSequence = 0, restoreIntent, onRestoreIntentChange, onBusyChange, onStateChange, onPolicyUpdated }: {
   serverId: string; endpoint: unknown; draftRevision: number; canManage: boolean; saved: boolean; locked: boolean; zh: boolean; denied?: boolean; precheckSequence?: number
   onBusyChange: (busy: boolean) => void; onStateChange: (state: HttpTrustEditorState) => void; onPolicyUpdated: () => Promise<unknown>
+  restoreIntent: HttpTrustRestoreIntent | null; onRestoreIntentChange: (intent: HttpTrustRestoreIntent | null) => void
 }) {
   const directOrigin = privateHttpOrigin(endpoint)
   const maskedTarget = saved && endpoint === REDACTED_ENDPOINT
@@ -19,8 +22,8 @@ export function McpHttpTrustControl({ serverId, endpoint, draftRevision, canMana
   const policy = record?.targetKey === targetKey ? record.policy : null
   const origin = directOrigin || (maskedTarget ? policy?.configured_origin : null)
   const needsPolicy = Boolean(directOrigin || maskedTarget)
+  const validServerId = validHttpServiceId(serverId)
   const credentialOrigin = maskedTarget ? policy?.configured_endpoint_origin || (origin ? `http://${origin.ip}:${origin.port}` : null) : null
-  const [restore, setRestore] = useState(false)
   const [confirmRevoke, setConfirmRevoke] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [loading, setLoading] = useState(false)
@@ -33,11 +36,19 @@ export function McpHttpTrustControl({ serverId, endpoint, draftRevision, canMana
   const revoked = policy?.revoked || policy?.state === "revoked"
   const needsReview = policy?.needs_review || policy?.state === "needs_review"
   const authorized = !denied && !revoked && !needsReview && policy?.state === "active" && Boolean(origin && policy.origins.some(item => item.ip === origin.ip && item.port === origin.port))
+  const restore = Boolean(policy && restoreIntent && restoreIntent.targetKey === targetKey && restoreIntent.revision === policy.revision
+    && restoreIntent.serverBinding === policy.server_binding && restoreIntent.configuredServerBinding === (policy.configured_server_binding ?? null)
+    && restoreIntent.state === policy.state)
 
-  useEffect(() => { setRestore(false); setConfirmRevoke(false) }, [draftRevision, targetKey])
+  useEffect(() => { setConfirmRevoke(false) }, [targetKey, policy?.revision, policy?.server_binding, policy?.configured_server_binding, policy?.state])
   useEffect(() => {
-    setRecord(null); setError(null); setLoading(false); setConfirmRevoke(false); setRestore(false)
-    if (!canManage || !needsPolicy || !/^[A-Za-z0-9_.-]{1,128}$/.test(serverId)) return
+    // Keep the reviewed intent across metadata edits and form/JSON remounts.
+    // A new target or newly observed permission identity requires another choice.
+    if (restoreIntent && (restoreIntent.targetKey !== targetKey || policy && !restore)) onRestoreIntentChange(null)
+  }, [targetKey, policy, restore, restoreIntent, onRestoreIntentChange])
+  useEffect(() => {
+    setRecord(null); setError(null); setLoading(false); setConfirmRevoke(false)
+    if (!canManage || !needsPolicy || !validServerId) return
     const controller = new AbortController()
     let active = true
     const timer = window.setTimeout(() => {
@@ -54,10 +65,10 @@ export function McpHttpTrustControl({ serverId, endpoint, draftRevision, canMana
       window.clearTimeout(timer)
     })
     return () => { active = false; controller.abort(); window.clearTimeout(timer) }
-  }, [targetKey, canManage, serverId, needsPolicy, zh, readAttempt, deniedCheck, denied])
+  }, [targetKey, canManage, serverId, validServerId, needsPolicy, zh, readAttempt, deniedCheck, denied])
 
   useEffect(() => {
-    onStateChange({ targetKey, ready: !needsPolicy || !canManage || Boolean(policy && !loading && !pending && !error), credentialOrigin,
+    onStateChange({ targetKey, ready: !needsPolicy || !canManage || Boolean(policy && !loading && !pending && !error), credentialOrigin, serverBinding: policy?.configured_server_binding,
       options: !canManage && needsPolicy ? { http_trust_action: "preserve" } : origin && policy ? {
       expected_http_trust_revision: policy.revision, http_trust_action: restore ? "restore" : "auto",
     } : {} })
@@ -65,6 +76,7 @@ export function McpHttpTrustControl({ serverId, endpoint, draftRevision, canMana
   useEffect(() => () => onBusyChange(false), [onBusyChange])
 
   if (!origin && !(maskedTarget && canManage && !policy)) return null
+  if (canManage && needsPolicy && !validServerId) return <p role="alert" className="text-xs text-destructive">{zh ? "请修正服务 ID：最多 128 个字符，只能使用字母、数字、点、下划线和短横线；修正后自动读取许可。" : "Correct the service ID: up to 128 letters, numbers, dots, underscores or hyphens. Permission will load automatically afterward."}</p>
   async function revoke() {
     if (!policy || !origin || !confirmRevoke || busy.current || locked || latest.current.targetKey !== targetKey) return
     const snapshot = { targetKey, draftRevision, policy }
@@ -74,7 +86,7 @@ export function McpHttpTrustControl({ serverId, endpoint, draftRevision, canMana
     try {
       const result = await api.replaceMcpHttpTrust(serverId, [], policy.revision, controller.signal)
       if (latest.current.targetKey !== snapshot.targetKey || latest.current.draftRevision !== snapshot.draftRevision) return
-      setRecord({ targetKey, policy: result }); setConfirmRevoke(false); setRestore(false)
+      setRecord({ targetKey, policy: result }); setConfirmRevoke(false); onRestoreIntentChange(null)
       await onPolicyUpdated()
     } catch (err) {
       if (latest.current.targetKey === snapshot.targetKey) {
@@ -95,13 +107,15 @@ export function McpHttpTrustControl({ serverId, endpoint, draftRevision, canMana
   return <div className="manifest-http-permission space-y-2 text-xs">
     <p>{status}</p>
     {origin && <p className="text-muted-foreground">{zh ? "HTTP 不加密，请使用受信任的内网。仅保存不会连接远端服务。" : "HTTP is unencrypted; use a trusted internal network. Saving alone does not connect to the remote service."}</p>}
+    {canManage && origin && (revoked || needsReview) && !restore && <Button type="button" size="sm" variant="outline" disabled={locked || loading || !policy || Boolean(error)} onClick={() => {
+      if (policy) onRestoreIntentChange({ targetKey, revision: policy.revision, serverBinding: policy.server_binding, configuredServerBinding: policy.configured_server_binding ?? null, state: policy.state })
+    }}>{zh ? "保存时恢复此地址连接许可" : "Restore this address permission on save"}</Button>}
+    {restore && <div role="status" className="space-y-2"><p>{zh ? "本次保存将恢复上述服务和地址的连接许可。是否连接由保存方式决定。" : "This save will restore connection permission for the service and address above. The selected save behavior controls whether it connects."}</p><Button type="button" size="sm" variant="ghost" disabled={locked} onClick={() => onRestoreIntentChange(null)}>{zh ? "取消恢复" : "Cancel restoration"}</Button></div>}
     {canManage && origin && <details>
       <summary className="cursor-pointer text-muted-foreground">{zh ? "连接许可详情" : "Connection permission details"}</summary>
       <div className="mt-2 space-y-2">
         <p className="break-all">{zh ? "服务" : "Service"}: <code>{serverId}</code> · {zh ? "地址" : "Address"}: <code>{origin.ip}:{origin.port}</code>{policy && <> · {zh ? "版本" : "Revision"}: {policy.revision}</>}</p>
         {!error && <Button type="button" size="sm" variant="ghost" disabled={pending || loading || locked} onClick={() => setReadAttempt(attempt => attempt + 1)}>{zh ? "刷新连接许可" : "Refresh connection permission"}</Button>}
-        {(revoked || needsReview) && !restore && <Button type="button" size="sm" variant="outline" disabled={locked || loading || !policy || Boolean(error)} onClick={() => setRestore(true)}>{zh ? "保存时恢复此地址连接许可" : "Restore this address permission on save"}</Button>}
-        {restore && <div role="status" className="space-y-2"><p>{zh ? "本次保存将恢复上述服务和地址的连接许可。是否连接由保存方式决定。" : "This save will restore connection permission for the service and address above. The selected save behavior controls whether it connects."}</p><Button type="button" size="sm" variant="ghost" disabled={locked} onClick={() => setRestore(false)}>{zh ? "取消恢复" : "Cancel restoration"}</Button></div>}
         {saved && authorized && !confirmRevoke && <Button type="button" size="sm" variant="outline" disabled={locked || loading} onClick={() => setConfirmRevoke(true)}>{zh ? "撤销连接许可" : "Revoke connection permission"}</Button>}
         {confirmRevoke && <section role="group" aria-label={zh ? "确认撤销连接许可" : "Confirm connection revocation"} className="space-y-2 border-t pt-2">
           <p>{zh ? `撤销 ${serverId} 的连接许可后，后续请求将被阻止；配置草稿保留。已经发出的请求无法撤回。` : `Revoking ${serverId}'s connection permission blocks subsequent requests and keeps this configuration draft. Requests already sent cannot be recalled.`}</p>

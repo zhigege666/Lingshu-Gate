@@ -43,6 +43,7 @@ function SharedServiceCredentialsPage({ locale, t }: { locale: Locale; t: TFunct
   const [credentials, setCredentials] = useState<Credential[]>([])
   const [selectedId, setSelectedId] = useState("")
   const [selectedRevision, setSelectedRevision] = useState("")
+  const [scopeRevision, setScopeRevision] = useState<string | null>(null)
   const [editorOpen, setEditorOpen] = useState(false)
   const createTrigger = useRef<HTMLButtonElement>(null)
   const editorReturnFocus = useRef<HTMLButtonElement | null>(null)
@@ -70,9 +71,9 @@ function SharedServiceCredentialsPage({ locale, t }: { locale: Locale; t: TFunct
 
   const paging = useListPage(filteredCredentials, query)
 
-  usePageRefresh(load, busy)
+  usePageRefresh(load, busy || editorOpen)
   useEffect(() => { void load() }, [])
-  useEffect(() => { writeKey.current = null }, [form, secretMode, selectedId, selectedRevision])
+  useEffect(() => { writeKey.current = null }, [form, secretMode, selectedId, selectedRevision, scopeRevision])
 
   async function load() {
     setBusy(true)
@@ -97,6 +98,7 @@ function SharedServiceCredentialsPage({ locale, t }: { locale: Locale; t: TFunct
     baseline.current = { name: credential.name, value: null, description: credential.description, http_scopes: credential.http_scopes || [] }
     setSelectedId(credential.id)
     setSelectedRevision(credential.updated_at)
+    setScopeRevision(credential.http_scopes_revision || null)
     setForm({ ...baseline.current })
     setEditorOpen(true)
   }
@@ -111,6 +113,7 @@ function SharedServiceCredentialsPage({ locale, t }: { locale: Locale; t: TFunct
     baseline.current = { ...emptyForm }
     setSelectedId("")
     setSelectedRevision("")
+    setScopeRevision(null)
     setForm({ ...emptyForm })
     setEditorOpen(true)
   }
@@ -131,7 +134,7 @@ function SharedServiceCredentialsPage({ locale, t }: { locale: Locale; t: TFunct
       const payload: CredentialSaveRequest = { ...form, value: selectedId && secretMode === "keep" ? null : form.value || null, idempotency_key: writeKey.current,
         ...(selectedId ? { expected_revision: selectedRevision } : {}) }
       if (selectedId && JSON.stringify(form.http_scopes) === JSON.stringify(baseline.current.http_scopes)) delete payload.http_scopes
-      else if (payload.http_scopes) payload.http_scopes = payload.http_scopes.map(({ server_id, origin }) => ({ server_id, origin }))
+      else if (selectedId && scopeRevision) payload.expected_http_scopes_revision = scopeRevision
       const credential = selectedId ? await api.updateCredential(selectedId, payload) : await api.createCredential(payload)
       setSelectedId(credential.id)
       setSelectedRevision(credential.updated_at)
@@ -193,6 +196,18 @@ function SharedServiceCredentialsPage({ locale, t }: { locale: Locale; t: TFunct
     finally { setBusy(false) }
   }
 
+  function adoptLatestCredential() {
+    if (!latestCredential) return
+    const scopes = latestCredential.http_scopes || []
+    setSelectedRevision(latestCredential.updated_at)
+    setScopeRevision(latestCredential.http_scopes_revision || null)
+    setForm(current => ({ ...current, http_scopes: scopes }))
+    baseline.current = { ...baseline.current, http_scopes: scopes }
+    writeKey.current = null
+    setFormError(null)
+    setLatestCredential(null)
+  }
+
   function showDetail(credential: Credential) {
     setDetail({ title: credential.id, body: { credential, reference: credentialRef(credential.id) } })
   }
@@ -217,18 +232,18 @@ function SharedServiceCredentialsPage({ locale, t }: { locale: Locale; t: TFunct
         <form id="credential-editor" onSubmit={event => { event.preventDefault(); void save() }} className="flex flex-col gap-4">
           {formError && selectedId && <section className="space-y-2 text-xs">
             <Button type="button" variant="outline" size="sm" disabled={busy} onClick={() => void readLatestCredential()}>{locale === "zh-CN" ? "读取当前凭据版本" : "Read current credential revision"}</Button>
-            {latestCredential && <><p>{locale === "zh-CN" ? "当前已保存版本" : "Current saved revision"}: {latestCredential.updated_at}</p><p>{locale === "zh-CN" ? "名称 / 说明" : "Name / description"}: {latestCredential.name} / {latestCredential.description || "—"}</p><p>{locale === "zh-CN" ? "HTTP 用途" : "HTTP targets"}: {(latestCredential.http_scopes || []).map(scope => `${scope.server_id} → ${scope.origin}`).join("; ") || "—"}</p><p>{locale === "zh-CN" ? "核对差异后，可用该版本提交当前表单；保持凭据值会保留服务器当前的秘密。" : "After reviewing differences, use this revision with your current form. Keeping the secret preserves the value currently stored on the server."}</p><Button type="button" variant="outline" size="sm" disabled={busy} onClick={() => { setSelectedRevision(latestCredential.updated_at); writeKey.current = null; setFormError(null); setLatestCredential(null) }}>{locale === "zh-CN" ? "使用此版本继续编辑" : "Use this revision and continue editing"}</Button></>}
+            {latestCredential && <><p>{locale === "zh-CN" ? "当前已保存版本" : "Current saved revision"}: {latestCredential.updated_at}</p><p>{locale === "zh-CN" ? "名称 / 说明" : "Name / description"}: {latestCredential.name} / {latestCredential.description || "—"}</p><p>{locale === "zh-CN" ? "HTTP 用途" : "HTTP targets"}: {(latestCredential.http_scopes || []).map(scope => `${scope.server_id} → ${scope.origin}`).join("; ") || "—"}</p><p>{locale === "zh-CN" ? "核对后可重新载入当前 HTTP 用途；本次名称、说明和秘密输入会保留。若曾修改用途，请在载入后重新调整，避免覆盖其他服务的授权。" : "Reload the current HTTP targets after review. Your name, description and secret input are retained. Reapply any target edits afterward so other service authorizations are not overwritten."}</p><Button type="button" variant="outline" size="sm" disabled={busy} onClick={adoptLatestCredential}>{locale === "zh-CN" ? "载入当前用途并保留其他输入" : "Reload current targets and keep other inputs"}</Button></>}
           </section>}
           <Field id="credential-name" label={t("name")}><Input id="credential-name" value={form.name} disabled={busy} aria-required="true" aria-invalid={showValidation && nameInvalid || undefined} aria-describedby={showValidation && nameInvalid ? "credential-name-error" : undefined} onChange={event => setForm(current => ({ ...current, name: event.target.value }))} placeholder="SERVICE_PASSWORD" />{showValidation && nameInvalid && <span id="credential-name-error" className="text-xs text-destructive">{t("required")}</span>}</Field>
-          {selectedId && <Field id="credential-secret-mode" label={c.secretMode} help={`${c.keepHint} ${t("credentialRefHint")}`} helpId="credential-secret-mode-hint" zh={locale === "zh-CN"}><FilterRadio id="credential-secret-mode" hideLabel label={c.secretMode} aria-describedby="credential-secret-mode-hint" value={secretMode} disabled={busy} onChange={value => { const mode = value as "keep" | "replace"; setSecretMode(mode); setForm(current => ({ ...current, value: mode === "keep" ? null : "" })) }} options={[{ value: "keep", label: c.keep }, { value: "replace", label: c.replace }]} /></Field>}
+          {selectedId && <Field id="credential-secret-mode" label={c.secretMode} help={`${c.keepHint} ${t("credentialRefHint")}`} helpId="credential-secret-mode-hint" zh={locale === "zh-CN"}><FilterRadio id="credential-secret-mode" hideLabel label={c.secretMode} aria-describedby="credential-secret-mode-hint" value={secretMode} disabled={busy} onChange={value => { setSecretMode(value as "keep" | "replace") }} options={[{ value: "keep", label: c.keep }, { value: "replace", label: c.replace }]} /></Field>}
           {(!selectedId || secretMode === "replace") && <Field id="credential-value" label={t("credentialValue")} help={selectedId ? c.replaceHint : `${c.replaceHint} ${t("credentialRefHint")}`} helpId="credential-value-hint" zh={locale === "zh-CN"}><Input id="credential-value" type="password" autoComplete="new-password" value={form.value || ""} disabled={busy} aria-required="true" aria-invalid={showValidation && valueInvalid || undefined} aria-describedby={showValidation && valueInvalid ? "credential-value-error credential-value-hint" : "credential-value-hint"} onChange={event => setForm(current => ({ ...current, value: event.target.value }))} />{showValidation && valueInvalid && <span id="credential-value-error" className="text-xs text-destructive">{t("required")}</span>}</Field>}
           <Field id="credential-description" label={t("description")}><Textarea id="credential-description" value={form.description || ""} disabled={busy} onChange={event => setForm(current => ({ ...current, description: event.target.value }))} /></Field>
           <Field id="credential-http-scopes" label={locale === "zh-CN" ? "HTTP MCP 用途" : "HTTP MCP targets"}>
             <div id="credential-http-scopes" className="space-y-2">
               <p className="text-xs text-muted-foreground">{locale === "zh-CN" ? "指定可使用此凭据的服务 ID 和源地址（协议、主机、端口）。留空时不能用于新的 HTTP MCP 连接；Git、构建等其他用途保持各自规则。" : "Choose the service ID and origin (scheme, host and port) allowed to use this credential. Empty targets cannot authorize new HTTP MCP connections; Git and build credentials retain their own rules."}</p>
               {(form.http_scopes || []).map((scope, index) => <div key={index} className="flex flex-wrap items-center gap-2">
-                <Input className="min-w-0 flex-1" aria-label={`${locale === "zh-CN" ? "允许的服务 ID" : "Allowed service ID"} ${index + 1}`} placeholder="service-id" value={scope.server_id} disabled={busy} onChange={event => setForm(current => ({ ...current, http_scopes: current.http_scopes?.map((item, i) => i === index ? { ...item, server_id: event.target.value, server_binding: undefined } : item) }))} />
-                <Input className="min-w-0 flex-[2]" aria-label={`${locale === "zh-CN" ? "允许的源地址" : "Allowed origin"} ${index + 1}`} placeholder="https://service.example:443" value={scope.origin} disabled={busy} onChange={event => setForm(current => ({ ...current, http_scopes: current.http_scopes?.map((item, i) => i === index ? { ...item, origin: event.target.value, server_binding: undefined } : item) }))} />
+                <Input className="min-w-0 flex-1" aria-label={`${locale === "zh-CN" ? "允许的服务 ID" : "Allowed service ID"} ${index + 1}`} placeholder="service-id" value={scope.server_id} disabled={busy} onChange={event => setForm(current => ({ ...current, http_scopes: current.http_scopes?.map((item, i) => i === index ? { ...item, server_id: event.target.value, server_binding: undefined, pending_rebind: false } : item) }))} />
+                <Input className="min-w-0 flex-[2]" aria-label={`${locale === "zh-CN" ? "允许的源地址" : "Allowed origin"} ${index + 1}`} placeholder="https://service.example:443" value={scope.origin} disabled={busy} onChange={event => setForm(current => ({ ...current, http_scopes: current.http_scopes?.map((item, i) => i === index ? { ...item, origin: event.target.value, server_binding: undefined, pending_rebind: false } : item) }))} />
                 <Button type="button" variant="ghost" size="sm" disabled={busy} aria-label={`${locale === "zh-CN" ? "移除 HTTP 用途" : "Remove HTTP target"} ${index + 1}`} onClick={() => setForm(current => ({ ...current, http_scopes: current.http_scopes?.filter((_, i) => i !== index) }))}>{locale === "zh-CN" ? "移除" : "Remove"}</Button>
               </div>)}
               <Button type="button" size="sm" variant="outline" disabled={busy} onClick={() => setForm(current => ({ ...current, http_scopes: [...(current.http_scopes || []), { server_id: "", origin: "" }] }))}>{locale === "zh-CN" ? "添加 HTTP 用途" : "Add HTTP target"}</Button>
@@ -238,17 +253,17 @@ function SharedServiceCredentialsPage({ locale, t }: { locale: Locale; t: TFunct
       </FormDialog>
 
         <Card className="maintenance-list-card">
-          <CardContent className="maintenance-list-content p-3 md:p-4">
+          <CardContent className="maintenance-list-content p-0">
             <ListViewport viewport={paging.viewport} label={t("toolShowing")}>
             <Table className="maintenance-table maintenance-credential-table">
               <TableHeader><TableRow><TableHead>{t("id")}</TableHead><TableHead>{t("name")}</TableHead><TableHead>{t("description")}</TableHead><TableHead>{t("updatedAt")}</TableHead><TableHead>{t("actions")}</TableHead></TableRow></TableHeader>
               <TableBody>
-                {filteredCredentials.length === 0 ? <TableEmptyRow colSpan={5} title={busy ? t("loadingData") : error ? t("error") : query.trim() ? t("noMatchingRecords") : t("noData")} /> : paging.items.map((credential) => <TableRow key={credential.id} className={selectedId === credential.id ? "cursor-pointer bg-accent/50" : "cursor-pointer"} onClick={() => showDetail(credential)}>
+                {filteredCredentials.length === 0 ? <TableEmptyRow colSpan={5} title={busy ? t("loadingData") : error ? t("error") : query.trim() ? t("noMatchingRecords") : t("noData")} /> : paging.items.map((credential) => <TableRow key={credential.id} className={selectedId === credential.id ? "bg-accent/50" : undefined}>
                   <TableCell><button type="button" className="text-left text-primary underline-offset-4 hover:underline focus-visible:underline" onClick={() => showDetail(credential)}><code>{credential.id}</code></button><div className="text-xs text-muted-foreground">{credential.value_masked}</div><div className="maintenance-row-summary">{credential.name}</div></TableCell>
                   <TableCell>{credential.name}</TableCell>
                   <TableCell>{credential.description || "-"}</TableCell>
                   <TableCell className="whitespace-nowrap text-xs">{formatDateTime(credential.updated_at)}</TableCell>
-                  <TableCell onClick={(event) => event.stopPropagation()}><ActionMenu inline label={t("actions")}><ActionMenuItem disabled={busy} onClick={(event) => edit(credential, event.currentTarget)}>{t("edit")}</ActionMenuItem><ActionMenuItem onClick={() => void copyReference(credential.id)}>{t("copyRef")}</ActionMenuItem><ActionMenuItem onClick={() => showDetail(credential)}>{t("detail")}</ActionMenuItem><ActionMenuItem destructive disabled={busy} onClick={() => void remove(credential.id)}>{t("delete")}</ActionMenuItem></ActionMenu></TableCell>
+                  <TableCell onClick={(event) => event.stopPropagation()}><ActionMenu inline label={t("actions")}><ActionMenuItem disabled={busy} onClick={(event) => edit(credential, event.currentTarget)}>{t("edit")}</ActionMenuItem><ActionMenuItem onClick={() => void copyReference(credential.id)}>{t("copyRef")}</ActionMenuItem><ActionMenuItem destructive disabled={busy} onClick={() => void remove(credential.id)}>{t("delete")}</ActionMenuItem></ActionMenu></TableCell>
                 </TableRow>)}
               </TableBody>
             </Table>

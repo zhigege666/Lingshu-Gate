@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react"
-import { Alert, Button, Input, Select, Segmented, Table, Tag } from "antd"
+import { Alert, Button, Input, Segmented, Table, Tag } from "antd"
 import { McpAuthorizationEditor, McpPolicyDifference, QuotaSettings, validQuotas, policyGroups, type McpServerPolicy, type McpAuthorizationMode } from "@/features/external-connections/mcp-authorization-editor"
 import { PageHeader } from "@/components/page-shell"
 import { FormDialog } from "@/components/form-dialog"
@@ -12,9 +12,11 @@ import { ManagementTargetsEditor } from "@/features/external-connections/managem
 import { managementTargetRows } from "@/features/external-connections/management-targets-model"
 import { OAuthToolPicker } from "@/features/external-connections/oauth-tool-picker"
 import { OAuthPagedToolPicker, type ScopeSelectionOperation } from "@/features/external-connections/oauth-paged-tool-picker"
+import { OAuthPagedMcpEditor } from "@/features/external-connections/oauth-paged-mcp-editor"
 import { scopeEditorTools } from "@/features/external-connections/oauth-tool-selection"
 import { ScopeAvailability } from "@/features/external-connections/oauth-scope-availability"
 import { preventOAuthMcpPopupDismiss } from "@/features/external-connections/oauth-mcp-filter"
+import { expandsServerPolicies } from "@/features/external-connections/authorization-changes"
 import { ScopeRules } from "@/features/external-connections/oauth-scope-rules"
 import { ScopeDifference, scopeDifference } from "@/features/external-connections/oauth-scope-difference"
 import { oauthError, oauthRequest, OAuthRequestError, type OAuthGrant, type OAuthScopeGroup, type OAuthScopeCatalog, type OAuthScopeOptions, type OAuthScopePreview, type OAuthScopeSelection, type OAuthTool } from "@/features/external-connections/oauth-api"
@@ -149,17 +151,8 @@ export function BuiltinOAuthGrants({ locale, t, embedded = false, action, onChan
           csrf: next.csrf, expected_revision: target.revision, catalog_revision: next.catalog_revision, mode: "ids", tool_ids: draft,
         })
         if (generation !== scopeGeneration.current) return
-        const groups: OAuthScopeGroup[] = []
-        let cursor = ""
-        do {
-          const params = new URLSearchParams({ view: "groups", limit: "100", catalog_revision: next.catalog_revision })
-          if (cursor) params.set("cursor", cursor)
-          const page = await oauthRequest<OAuthScopeCatalog>(`/v1/auth/oauth/grants/${target.id}/scope-catalog?${params}`)
-          if (generation !== scopeGeneration.current) return
-          groups.push(...page.items as OAuthScopeGroup[]); cursor = page.next_cursor || ""
-        } while (cursor)
-        for (const policy of target.server_policies || []) if (!groups.some(group => group.server_id === policy.server_id)) groups.push({ server_id: policy.server_id, server_name: null, tool_count: 0, read_count: 0, write_count: 0 })
-        setServerGroups(groups)
+        // Selected tools and policies survive paging. Service choices load on demand.
+        setServerGroups(policyGroups(checked.tools, target.server_policies || []))
         setScopeCatalog(next); setScopeSelection(checked); setScopeOptions(null); setScopeRefreshKey(key => key + 1)
         setRememberedTools(previous => [...new Map([...previous.filter(tool => draft.includes(tool.id)), ...checked.tools].map(tool => [tool.id, tool])).values()])
         applySavedState()
@@ -174,6 +167,9 @@ export function BuiltinOAuthGrants({ locale, t, embedded = false, action, onChan
     } catch (cause) { if (generation === scopeGeneration.current) { setScopeOptions(null); setScopeCatalog(null); setFormError(oauthError(cause, zh)) } }
     finally { if (generation === scopeGeneration.current) setScopeLoading(false) }
   }
+  const rememberServerGroups = useCallback((groups: OAuthScopeGroup[]) => {
+    setServerGroups(previous => [...new Map([...previous, ...groups].map(group => [group.server_id, group])).values()])
+  }, [])
   async function resolveSelection(operation: ScopeSelectionOperation): Promise<OAuthScopeSelection | null> {
     if (selectionLock.current || scopeLoading || busy || !editing || !scopeCatalog) return null
     const generation = scopeGeneration.current, target = editing
@@ -193,14 +189,14 @@ export function BuiltinOAuthGrants({ locale, t, embedded = false, action, onChan
     }; return null }
     finally { selectionLock.current = false; if (generation === scopeGeneration.current) setScopeLoading(false) }
   }
-  async function changeServerMode(server: string, mode: McpAuthorizationMode) {
+  async function changeServerMode(server: string, mode: McpAuthorizationMode, access: "read" | "write" = "read") {
     if (busy || scopeLoading) return
     if (mode !== "selected") {
       if (paged) { const result = await resolveSelection({ mode: "groups", server_ids: [server], checked: false }); if (!result) return }
       else setSelected(ids => ids.filter(id => !editorTools.some(tool => tool.id === id && tool.server_id === server)))
     }
     setModes(current => ({ ...current, [server]: mode })); if (mode === "selected") setToolServer(server)
-    setPolicies(current => [...current.filter(policy => policy.server_id !== server), ...(mode === "continuous" ? [{ server_id: server, server_binding: (paged ? serverGroups : scopeOptions?.servers || []).find(group => group.server_id === server)?.server_binding || undefined, mode: "continuous" as const, access: "read" as const }] : [])])
+    setPolicies(current => [...current.filter(policy => policy.server_id !== server), ...(mode === "continuous" ? [{ server_id: server, server_binding: (paged ? serverGroups : scopeOptions?.servers || []).find(group => group.server_id === server)?.server_binding || undefined, mode: "continuous" as const, access }] : [])])
   }
   async function save() {
     if (lock.current || saveUncertain || !editing || scopeLoading || !activeOptions || !validQuotas(rate, concurrency) || (!selected.length && !policies.length) || (unavailableSelected.length > 0 && !quotaOnly)) return
@@ -211,7 +207,7 @@ export function BuiltinOAuthGrants({ locale, t, embedded = false, action, onChan
     try {
       const preview = await oauthRequest<OAuthScopePreview>(`/v1/auth/oauth/grants/${target.id}/scope-preview`, { ...body, csrf: activeOptions.csrf })
       if (current !== version.current || generation !== scopeGeneration.current) return
-      if (!(await confirm({ title: zh ? "确认更新当前连接？" : "Update this connection?",
+      if (((preview.difference_summary?.added ?? preview.added.length) > 0 || expandsServerPolicies(target.server_policies || [], preview.server_policies || policies)) && !(await confirm({ title: zh ? "允许新增的工具与服务范围？" : "Allow the added tools and service access?",
         description: target.client_name,
         details: <><ScopeDifference before={preview.difference_summary ? target.tools : preview.previous_tools} selected={preview.tool_ids} catalog={preview.tools} zh={zh} summary={preview.difference_summary} addedIds={preview.added} removedIds={preview.removed} /><McpPolicyDifference before={target.server_policies || []} after={preview.server_policies || policies} beforeSelected={target.tools.map(tool => tool.server_id)} afterSelected={Object.keys(modes).filter(id => modes[id] === "selected")} zh={zh} /><p>{zh ? "每分钟" : "Per minute"} {target.rate_per_minute} → {preview.rate_per_minute} · {zh ? "并发" : "Concurrent"} {target.concurrency} → {preview.concurrency}</p><p className="oauth-muted">{zh ? "到期（UTC）：" : "Expiry (UTC): "}{utcGrantTime(preview.expires_at)} · {preview.rate_per_minute} / min · {preview.concurrency} {zh ? "并发" : "concurrent"}</p></>,
         confirmText: zh ? "确认并更新" : "Confirm update", cancelText: t("cancel") }))) return
@@ -250,7 +246,7 @@ export function BuiltinOAuthGrants({ locale, t, embedded = false, action, onChan
   return <div className="space-y-4" data-authorization-page={!embedded ? "" : undefined}>
     {!embedded && <>
     <PageHeader title={zh ? "我的 OAuth 授权" : "My OAuth grants"} closeLabel={t("close")} actions={<Button data-authorization-refresh disabled={busy || Boolean(editing) || Boolean(viewing) || Boolean(targetEditing)} onClick={() => void load()}>{t("refresh")}</Button>} />
-    <p>{zh ? "这里只展示本人的授权。在 Gate 内明确确认即可增加或减少现有 OAuth scope 内的 MCP 和工具，无需客户端再次 OAuth；可随时撤销。" : "Only your own grants appear here. Explicit confirmation in Gate adds or removes MCPs and tools within existing OAuth scopes, without another client OAuth flow. You can revoke at any time."}</p>
+    <p>{zh ? "管理本人的 OAuth 授权。调整工具与服务范围后直接保存；扩大现有权限时显示新增范围，可随时撤销。" : "Manage your own OAuth grants. Save tool and service changes directly; added access is shown when expanding an existing grant. Revoke at any time."}</p>
     {error && <Alert type="error" title={error} action={<Button data-authorization-retry disabled={busy} onClick={() => void load()}>{t("retry")}</Button>} />}
     <div className="oauth-grants-toolbar"><Segmented aria-label={zh ? "授权状态" : "Grant state"} value={filter} onChange={value => { setFilter(value as GrantFilter); setPage(1); setSnapshotAt(Math.floor(Date.now() / 1000)) }} options={[{ value: "active", label: zh ? "有效" : "Active" }, { value: "expired", label: zh ? "已过期" : "Expired" }, { value: "revoked", label: zh ? "已撤销" : "Revoked" }, { value: "all", label: zh ? "全部" : "All" }]} /><Input aria-label={zh ? "搜索我的授权" : "Search my grants"} placeholder={zh ? "搜索客户端、MCP 或工具" : "Search client, MCP or tool"} allowClear value={query} onChange={event => { setQuery(event.target.value); setPage(1); setSnapshotAt(Math.floor(Date.now() / 1000)) }} /></div>
     <p className="oauth-muted" role="status">{zh ? `匹配 ${filtered.length} / 已读取 ${grants.length} 条本人授权；到期时间为 UTC，剩余时间按本次读取或筛选计算。` : `${filtered.length} matching / ${grants.length} loaded personal grants; expiry is UTC, remaining time reflects the latest read or filter.`}</p>
@@ -263,7 +259,7 @@ export function BuiltinOAuthGrants({ locale, t, embedded = false, action, onChan
         { title: zh ? "到期 / 剩余" : "Expiry / remaining", width: 215, render: (_, grant) => <><div>{utcGrantTime(grant.expires_at) || "—"}</div>{grantState(grant, snapshotAt) === "active" && <div className="oauth-muted">{grantRemaining(grant.expires_at, snapshotAt, zh)}</div>}</> },
         { title: zh ? "调用配额" : "Call limits", width: 135, render: (_, grant) => <><div>{grant.rate_per_minute} / min</div><div className="oauth-muted">{grant.concurrency} {zh ? "并发" : "concurrent"}</div></> },
         { title: zh ? "状态" : "State", width: 100, render: (_, grant) => <Tag color={grantState(grant, snapshotAt) === "active" ? "green" : undefined}>{stateLabel(grantState(grant, snapshotAt))}</Tag> },
-        { title: t("actions"), width: 290, render: (_, grant) => <div className="flex flex-wrap gap-2"><Button size="small" disabled={busy} onClick={() => view(grant)}>{zh ? "详情" : "Details"}</Button>{grantState(grant, snapshotAt) === "active" && <><Button size="small" disabled={busy} onClick={() => grant.resource_kind === "management" ? editTargets(grant) : edit(grant)}>{grant.resource_kind === "management" ? zh ? "调整管理目标" : "Adjust targets" : zh ? "调整授权范围" : "Adjust scope"}</Button><Button size="small" danger disabled={busy} onClick={() => void revoke(grant)}>{zh ? "撤销" : "Revoke"}</Button></>}</div> },
+        { title: t("actions"), width: 200, render: (_, grant) => <div className="flex flex-wrap gap-2">{grantState(grant, snapshotAt) === "active" && <><Button size="small" disabled={busy} onClick={() => grant.resource_kind === "management" ? editTargets(grant) : edit(grant)}>{grant.resource_kind === "management" ? zh ? "调整管理目标" : "Adjust targets" : zh ? "调整授权范围" : "Adjust scope"}</Button><Button size="small" danger disabled={busy} onClick={() => void revoke(grant)}>{zh ? "撤销" : "Revoke"}</Button></>}</div> },
       ]} />
     </>}
     {embedded && error && <Alert type="error" title={error} />}
@@ -278,9 +274,8 @@ export function BuiltinOAuthGrants({ locale, t, embedded = false, action, onChan
         <div className="authorization-field"><label>{zh ? "到期时间（UTC）" : "Expiry (UTC)"}</label><Input type="datetime-local" aria-label={zh ? "到期时间（UTC）" : "Expiry (UTC)"} disabled={busy} max={new Date(editing.expires_at * 1000).toISOString().slice(0, 16)} value={new Date(expiry * 1000).toISOString().slice(0, 16)} onChange={event => { const next = Date.parse(`${event.target.value}:00Z`); if (Number.isFinite(next)) setExpiry(Math.floor(next / 1000)) }} /></div>
         <QuotaSettings rate={rate} concurrency={concurrency} onRate={setRate} onConcurrency={setConcurrency} disabled={busy} zh={zh} />
         <Button className="self-start" disabled={busy || scopeLoading} loading={scopeLoading} onClick={() => void readScopeOptions(editing, selected, saveUncertain)}>{zh ? "刷新可授权范围" : "Refresh available scope"}</Button>
-        <McpAuthorizationEditor groups={paged ? serverGroups : activeOptions?.servers || policyGroups(editorTools, policies)} policies={policies} modes={modes} onMode={(server, mode) => void changeServerMode(server, mode)} onAccess={(server, access) => setPolicies(items => items.map(policy => policy.server_id === server ? { ...policy, access } : policy))} canWrite={Boolean(activeOptions?.effective_scopes.includes("tools.invoke"))} disabled={busy || scopeLoading || !activeOptions} zh={zh} />
-        {Object.values(modes).includes("selected") && <Select aria-label={zh ? "选择工具所属 MCP" : "MCP for tool selection"} value={modes[toolServer] === "selected" ? toolServer : Object.keys(modes).find(id => modes[id] === "selected")} onChange={setToolServer} options={Object.keys(modes).filter(id => modes[id] === "selected").map(value => ({ value, label: serverGroups.find(group => group.server_id === value)?.server_name || value }))} />}
-        {Object.values(modes).includes("selected") && (paged ? <OAuthPagedToolPicker serverId={modes[toolServer] === "selected" ? toolServer : Object.keys(modes).find(id => modes[id] === "selected")} key={`${editing.id}:${toolServer}`} grantId={editing.id} catalog={scopeCatalog} selection={scopeSelection} selected={selected} refreshKey={scopeRefreshKey} zh={zh} disabled={busy || scopeLoading} onResolve={resolveSelection} onRefresh={() => void readScopeOptions(editing, selected, saveUncertain)} onCatalog={setScopeCatalog} onLoading={setScopeLoading} onError={cause => { setScopeCatalog(null); setFormError(oauthError(cause, zh)) }} /> : <OAuthToolPicker tools={editorTools.filter(tool => modes[tool.server_id] === "selected")} eligibleTools={eligibleScopeTools} selected={selected} onChange={setSelected} zh={zh} disabled={busy || scopeLoading || !scopeOptions} fillViewport bulkActions compact quickAction={<Button type="text" aria-label={zh ? "刷新可授权范围" : "Refresh available scope"} aria-busy={scopeLoading} loading={scopeLoading} disabled={busy || scopeLoading} onClick={() => void readScopeOptions(editing, selected, saveUncertain)}>{zh ? "刷新可授权范围" : "Refresh available scope"}</Button>} />)}</>}
+        {paged ? scopeCatalog && <OAuthPagedMcpEditor key={editing.id} grantId={editing.id} revision={scopeCatalog.catalog_revision} refreshKey={scopeRefreshKey} onGroups={rememberServerGroups} onEditTools={setToolServer} policies={policies} modes={modes} onMode={(server, mode, access) => void changeServerMode(server, mode, access)} onAccess={(server, access) => setPolicies(items => items.map(policy => policy.server_id === server ? { ...policy, access } : policy))} canWrite={Boolean(activeOptions?.effective_scopes.includes("tools.invoke"))} disabled={busy || scopeLoading} zh={zh} /> : <McpAuthorizationEditor groups={activeOptions?.servers || policyGroups(editorTools, policies)} policies={policies} modes={modes} onMode={(server, mode, access) => void changeServerMode(server, mode, access)} onAccess={(server, access) => setPolicies(items => items.map(policy => policy.server_id === server ? { ...policy, access } : policy))} canWrite={Boolean(activeOptions?.effective_scopes.includes("tools.invoke"))} disabled={busy || scopeLoading || !activeOptions} zh={zh} />}
+        {Object.values(modes).includes("selected") && (paged ? <OAuthPagedToolPicker serverId={modes[toolServer] === "selected" ? toolServer : Object.keys(modes).find(id => modes[id] === "selected")} key={`${editing.id}:${toolServer}`} grantId={editing.id} catalog={scopeCatalog} selection={scopeSelection} selected={selected} refreshKey={scopeRefreshKey} zh={zh} disabled={busy || scopeLoading} onResolve={resolveSelection} onRefresh={() => void readScopeOptions(editing, selected, saveUncertain)} onCatalog={setScopeCatalog} onLoading={setScopeLoading} onError={cause => { setScopeCatalog(null); setFormError(oauthError(cause, zh)) }} /> : <OAuthToolPicker tools={editorTools.filter(tool => modes[tool.server_id] === "selected")} eligibleTools={eligibleScopeTools} selected={selected} onChange={setSelected} zh={zh} disabled={busy || scopeLoading || !scopeOptions} fillViewport bulkActions compact />)}</>}
     </FormDialog>{confirmDialog}<Toaster toast={toast} onClose={dismissToast} closeLabel={t("close")} />
   </div>
 }

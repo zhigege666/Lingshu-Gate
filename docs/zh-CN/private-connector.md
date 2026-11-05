@@ -31,7 +31,7 @@ Agent 目标固定为 HTTPS、回环 HTTP，或通过 `allow_private_http` 明�
 
 agent 和 status 命令的 CA 配置不作用于 Gate Core，relay 证书还必须被 Gate 进程信任。使用私有 CA 时须另外加入 Gate 主机/容器的信任库；Core Manifest 没有 CA 文件字段。将示例 relay/目标地址替换为实际地址；保留 18880 端口回环目标时，先在 agent 主机启动演示服务。
 
-在 Gate 凭据库保存 consumer 令牌，依据[relay 目标配置](../../examples/mcp.d/connector.yaml)建立外部 Streamable HTTP 服务，把 `credential:connector-consumer` 换成实际凭据 ID。依次校验、保存、应用、启动、审核分类、发布及授权；连接器不代替任何 Gate 授权步骤。
+在 Gate 凭据库保存 consumer 令牌，依据[relay 目标配置](../../examples/mcp.d/connector.yaml)建立外部 Streamable HTTP 服务，把 `credential:connector-consumer` 换成实际凭据 ID。校验并保存连接器后连接即可，Gate 会自动同步发现的工具。再通过 Gate 现有账号、Token 或 OAuth 控制授予用户所需权限；连接器不代替任何 Gate 授权步骤。
 
 通过 consumer 的受保护文件检查状态：
 

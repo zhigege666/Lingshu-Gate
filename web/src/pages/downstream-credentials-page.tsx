@@ -117,7 +117,7 @@ function PersonalServiceCredentialsPage({ locale, t }: { locale: Locale; t: TFun
   const closeEditor = useDraftCloseGuard({ dirty: value.length > 0, pending: busy, locale, confirm, onClose: () => { setSelected(null); setValue(""); setFormError(null) } })
   const secureTransport = useMemo(() => {
     if (typeof window === "undefined") return false
-    return window.location.protocol === "https:" || ["localhost", "127.0.0.1", "::1"].includes(window.location.hostname)
+    return window.location.protocol === "https:" || ["localhost", "127.0.0.1", "::1", "[::1]"].includes(window.location.hostname)
   }, [])
 
   const [query, setQuery] = useState("")
@@ -129,7 +129,7 @@ function PersonalServiceCredentialsPage({ locale, t }: { locale: Locale; t: TFun
   const paging = useListPage(filteredRecords, JSON.stringify([query,serverFilter,statusFilter,requiredFilter]))
   const emptyState = downstreamEmptyState(credentials.length, busy, Boolean(error))
 
-  usePageRefresh(load, busy)
+  usePageRefresh(load, busy || selected !== null)
   useEffect(() => { void load() }, [])
 
   async function load() {
@@ -255,7 +255,7 @@ function PersonalServiceCredentialsPage({ locale, t }: { locale: Locale; t: TFun
         </CardContent>
       </Card>
 
-      <FormDialog dirty={value.length > 0} open={selected !== null} onClose={() => void closeEditor()} title={c.panelTitle} description={c.panelDescription} closeLabel={t("close")} pending={busy} error={formError}
+      <FormDialog dirty={value.length > 0} open={selected !== null} onClose={() => void closeEditor()} title={selected?.configured ? locale === "zh-CN" ? "更新个人凭据" : "Update personal credential" : c.panelTitle} description={c.panelDescription} closeLabel={t("close")} pending={busy} error={formError}
         footer={<><Button variant="outline" disabled={busy} onClick={() => void closeEditor()}>{t("cancel")}</Button><Button type="submit" form="downstream-credential-editor" disabled={busy || !secureTransport || !value.trim()}><KeyRound />{c.save}</Button></>}>
         <form id="downstream-credential-editor" className="flex flex-col gap-4" onSubmit={event => { event.preventDefault(); void save() }}>
           <dl className="grid grid-cols-[auto_minmax(0,1fr)] gap-x-4 gap-y-2 text-sm">

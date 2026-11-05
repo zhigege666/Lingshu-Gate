@@ -1,0 +1,45 @@
+.token-scope-selector {
+  container-type: inline-size;
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+  gap: var(--panel-gap);
+}
+
+.token-scope-options {
+  display: grid;
+  min-width: 0;
+  grid-template-columns: minmax(0, 1fr);
+  column-gap: var(--space-6);
+}
+
+.token-scope-option {
+  display: flex;
+  min-width: 0;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: var(--space-3);
+  padding-block: var(--space-3);
+  border-top: 1px solid hsl(var(--border));
+}
+
+.token-scope-option:first-child {
+  border-top: 0;
+}
+
+/* Each group follows DOM order. Only its permission rows share columns, so a
+   short group never inherits the height of an unrelated neighboring group.
+   Use the selector's available width, including narrower dialog consumers. */
+@container (min-width: 640px) {
+  .token-scope-options {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .token-scope-option:nth-child(2) {
+    border-top: 0;
+  }
+
+  .token-scope-option:last-child:nth-child(odd) {
+    grid-column: 1 / -1;
+  }
+}

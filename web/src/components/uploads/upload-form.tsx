@@ -18,7 +18,7 @@ export function UploadForm({ busy, selectedFile, onFileChange, onUpload, t, acti
       </CardHeader>
       <CardContent className="flex flex-col gap-3">
         <Input ref={input} id={fieldId} disabled={busy} aria-label={t("uploadZip")} aria-describedby={`${fieldId}-help`} type="file" accept=".zip,application/zip" onChange={(event) => onFileChange(event.target.files?.[0] || null)} />
-        {actionContainer ? createPortal(<Button onClick={onUpload} disabled={busy || !selectedFile}>{t("uploadAndAnalyze")}</Button>, actionContainer) : <Button onClick={onUpload} disabled={busy || !selectedFile}>{t("uploadAndAnalyze")}</Button>}
+        {actionContainer ? createPortal(<Button onClick={onUpload} disabled={busy || !selectedFile}>{t("uploadAndAnalyze")}</Button>, actionContainer) : <Button className="self-end" onClick={onUpload} disabled={busy || !selectedFile}>{t("uploadAndAnalyze")}</Button>}
       </CardContent>
     </Card>
   )

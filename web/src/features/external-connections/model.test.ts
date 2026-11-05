@@ -4,7 +4,7 @@ import { connectionDraft, connectionError, connectionReadiness, emptyConnection,
 function tool(id: string, access: string, status = "published"): ToolDefinition {
   return { id: `mcp.${id}.tool`, name: id, source: "mcp", permission: "", description: "synthetic", input_schema: {}, metadata: { server_id: id, gate_access: { required_access: access, classification_status: status } } }
 }
-const tools = [tool("a", "read"), tool("b", "write"), tool("pending", "read", "pending")]
+const tools = [tool("a", "read", "configured"), tool("b", "write", "automatic"), tool("disabled", "unknown", "disabled")]
 const grant: GrantDraft = { enabled: false, client_id: "synthetic-client", server_allowlist: ["a"], tool_allowlist: ["mcp.a.tool"], access: ["read"], expires_at: "2099-01-01T00:00:00Z", rate_per_minute: 30, concurrency: 1 }
 describe("external trust and scope local validation", () => {
   it("rejects secrets in URLs and literal keys instead of safe references", () => {
@@ -15,8 +15,9 @@ describe("external trust and scope local validation", () => {
   it("rejects ambiguous audiences rather than disabling audience checks", () => {
     expect(connectionError({ ...emptyConnection, resource_mappings: [["https://external.invalid", "https://gate.invalid/a"], ["https://external.invalid", "https://gate.invalid/b"]] })).not.toBeNull()
   })
-  it("offers only published authorized MCP tools and rejects forged or stale choices", () => {
+  it("offers current effective MCP access without a publication step and rejects forged or disabled choices", () => {
     expect(eligibleTools(tools, "read").map(item => item.id)).toEqual(["mcp.a.tool"])
+    expect(eligibleTools(tools, "write").map(item => item.id)).toEqual(["mcp.b.tool"])
     expect(grantError(grant, tools)).toBeNull()
     expect(grantError({ ...grant, tool_allowlist: ["mcp.hidden.tool"] }, tools)).not.toBeNull()
     expect(grantError(grant, [])).not.toBeNull()

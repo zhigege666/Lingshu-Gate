@@ -67,7 +67,7 @@ class TokenAuthorizationStore:
 
     def _catalog(self, connection: sqlite3.Connection, principal: AuthPrincipal,
                  state: dict[str, Any] | None = None) -> tuple[dict[str, Any], list[dict[str, Any]]]:
-        # 复用账号资源覆盖规则，再强制检查已发布分类；管理员独立范围也不能绕过发布。
+        # 复用账号资源覆盖与有效本地策略；令牌选择不会扩大账号现有授权。
         if state is None:
             definitions = self.registry.list_definitions()
         else:
@@ -99,12 +99,9 @@ class TokenAuthorizationStore:
             if len(servers) > 100:
                 raise HTTPException(409, detail="authorization_catalog_limit")
             classification = classifications.get((server_id, tool.id))
-            if not classification or classification["status"] != "published" or classification["effective_access"] not in {"read", "write"}:
+            access = tool.metadata.get("gate_access", {}).get("required_access")
+            if access not in {"read", "write"}:
                 continue
-            policy = tool.metadata.get("gate_access", {})
-            if policy.get("classification_status") != "published":
-                continue
-            access = classification["effective_access"]
             catalog[tool.id] = {"id": tool.id, "name": tool.name, "server_id": server_id, "server_name": name,
                                 "access": access, "snapshot": tool_snapshot(tool, classification), "server_binding": binding}
             servers[server_id]["tool_count"] += 1
@@ -177,8 +174,6 @@ class TokenAuthorizationStore:
                 catalog: dict[str, Any], body: dict[str, Any], target_id: str) -> dict[str, Any]:
         if body["expected_revision"] != state["revision"]:
             raise HTTPException(409, detail="revision_conflict")
-        if body["mode"] == "account" and (target_id == "new" or state["mode"] != "account"):
-            raise ValueError("account_mode_cannot_be_restored")
         scopes = self.auth._normalize_api_token_scopes(principal=principal, scopes=body["scopes"], allow_default=False)
         if (type(body["rate_per_minute"]) is not int or not 1 <= body["rate_per_minute"] <= 10000
                 or type(body["concurrency"]) is not int or not 1 <= body["concurrency"] <= 100):
@@ -199,8 +194,15 @@ class TokenAuthorizationStore:
         quota_only = (set(ids) == set(state["tool_ids"]) and same_policies and body["mode"] == state["mode"]
                       and scopes == state["scopes"])
         for key in ids:
-            if quota_only and key in state["tools"]:
-                tools[key] = state["tools"][key]
+            previous = state["tools"].get(key)
+            if previous is not None:
+                if quota_only:
+                    tools[key] = previous
+                    continue
+                current = catalog.get(key)
+                if current is None or current.get("snapshot") != previous.get("snapshot"):
+                    raise HTTPException(409, detail="tool_scope_changed")
+                tools[key] = previous
                 continue
             if key not in catalog:
                 raise HTTPException(409, detail="tool_scope_changed")

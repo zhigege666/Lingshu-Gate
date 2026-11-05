@@ -37,7 +37,7 @@ describe("持续 MCP 授权与配额", () => {
     const policies: McpServerPolicy[] = [{ server_id: "demo", mode: "continuous", access: "write" }]
     const html = renderToStaticMarkup(<McpAuthorizationEditor groups={policyGroups([], policies)} policies={policies} onMode={vi.fn()} onAccess={vi.fn()} canWrite disabled zh />)
     const radios = [...html.matchAll(/<input\b[^>]*type="radio"[^>]*>/g)].map(match => match[0])
-    expect(radios).toHaveLength(5)
+    expect(radios).toHaveLength(4)
     expect(radios.every(radio => radio.includes('disabled=""'))).toBe(true)
   })
   it("工具分类计数取实际读写结果，显示名称不是身份", () => {

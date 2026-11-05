@@ -56,6 +56,16 @@ def canonical_http_origin(endpoint: str) -> str:
     return f"{parsed.scheme.lower()}://{host}:{parsed.port or (443 if parsed.scheme.lower() == 'https' else 80)}"
 
 
+def http_scopes_revision(scopes: list[dict[str, Any]]) -> str:
+    """Hash public scope authority, including seals that retain the value revision."""
+    normalized = [{"server_id": scope["server_id"], "origin": canonical_http_origin(scope["origin"]),
+                   "server_binding": scope.get("server_binding"), "pending_rebind": scope.get("pending_rebind", False)}
+                  for scope in scopes]
+    normalized.sort(key=lambda item: (item["server_id"], item["origin"], item["server_binding"] or "", item["pending_rebind"]))
+    encoded = json.dumps(normalized, sort_keys=True, separators=(",", ":"), ensure_ascii=False).encode()
+    return hashlib.sha256(b"gate-credential-http-scopes-v1\0" + encoded).hexdigest()
+
+
 def _now() -> str:
     return datetime.now(timezone.utc).isoformat()
 
@@ -134,11 +144,14 @@ class CredentialStore:
 
     def update_credential(self, credential_id: str, *, expected_revision: str, name: str | None = None,
                           value: str | None = None, description: str | None = None,
-                          http_scopes: list[dict[str, Any]] | None = None) -> CredentialResponse:
+                          http_scopes: list[dict[str, Any]] | None = None,
+                          expected_http_scopes_revision: str | None = None) -> CredentialResponse:
         with self._lock:
             current = self.get_credential(credential_id)
             if not expected_revision or current.updated_at != expected_revision:
                 raise CredentialRevisionConflict("Credential revision changed; reload before updating.")
+            if expected_http_scopes_revision is not None and current.http_scopes_revision != expected_http_scopes_revision:
+                raise CredentialRevisionConflict("Credential HTTP scopes changed; reload before updating.")
             if value is not None and (not value or value == "***"):
                 raise ValueError("Use null to retain the value; masks are not credential values.")
             return self.save_credential(name=name if name is not None else current.name, value=value,
@@ -193,13 +206,13 @@ class CredentialStore:
                 raise CredentialRevisionConflict("Managed credential binding changed after planning.")
             if any(scope.get("server_id") == server_id and scope.get("origin") == origin
                    and ((server_binding is not None and scope.get("server_binding") == server_binding)
-                        or (allow_pending and scope.get("server_binding") is None))
+                        or (allow_pending and (scope.get("server_binding") is None or scope.get("pending_rebind") is True)))
                    for scope in item.get("http_scopes", [])):
                 return
             raise CredentialUsageDenied("Credential is not approved for this HTTP service, origin and generation.")
 
     def bind_http_usage(self, credential_ids: Any, *, server_id: str, endpoint: str, server_binding: str) -> None:
-        """Seal explicit pending scopes once, after configuration identity save.
+        """Seal pending scopes and explicit rebindings after configuration save.
 
         This consumes existing authority, so the approved value revision stays
         unchanged. No runtime/read path calls this method.
@@ -215,8 +228,10 @@ class CredentialStore:
             data, changed = self._read_all(), False
             for ref in refs:
                 for scope in data[ref].get("http_scopes", []):
-                    if scope.get("server_id") == server_id and scope.get("origin") == origin and scope.get("server_binding") is None:
+                    if scope.get("server_id") == server_id and scope.get("origin") == origin and (
+                            scope.get("server_binding") is None or scope.get("pending_rebind") is True):
                         scope["server_binding"], changed = server_binding, True
+                        scope.pop("pending_rebind", None)
             if changed:
                 self._write_all(data)
 
@@ -241,6 +256,7 @@ class CredentialStore:
             created_at=item.get("created_at", ""),
             updated_at=item.get("updated_at", ""),
             http_scopes=item.get("http_scopes", []),
+            http_scopes_revision=http_scopes_revision(item.get("http_scopes", [])),
         )
 
     def _read_all(self) -> dict[str, dict[str, Any]]:

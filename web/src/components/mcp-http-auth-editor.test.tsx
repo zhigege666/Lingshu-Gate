@@ -5,8 +5,8 @@ import { McpConnectionTestResult } from "./mcp-connection-test-result"
 import type { HttpConnectionResult } from "@/api/http-connection-test"
 
 const props = { serverId: "synthetic", endpoint: "https://mcp.example.test/mcp", zh: false, disabled: false,
-  credentials: [], loading: false, loadError: false, canCreate: true, onChange: vi.fn(), onCreated: vi.fn(), onReload: vi.fn(),
-  onPendingChange: vi.fn(), onDraftChange: vi.fn(), onAdvanced: vi.fn(), onHomeTemplate: vi.fn() }
+  credentials: [], loading: false, loadError: false, canCreate: true, onChange: vi.fn(), credentialDraft: null, onCredentialDraftChange: vi.fn(), onReload: vi.fn(),
+  onDraftChange: vi.fn(), onAdvanced: vi.fn(), onHomeTemplate: vi.fn() }
 
 describe("HTTP authentication initial rendering", () => {
   it.each([undefined, {}])("renders a new empty-header draft without dereferencing a missing local selection", value => {
@@ -24,6 +24,30 @@ describe("HTTP authentication initial rendering", () => {
     const html = renderToStaticMarkup(<McpHttpAuthEditor {...props} loadError value={{ Authorization: "Bearer ${credential:synthetic}" }} />)
     expect(html).toContain("credential list could not be loaded")
     expect(html).not.toContain("No credential matches")
+  })
+  it("offers an in-place target authorization with the exact service and origin", () => {
+    const credential = { id: "synthetic", name: "Synthetic", description: "", value_masked: "***", created_at: "v1", updated_at: "v1", http_scopes_revision: "a".repeat(64), http_scopes: [] }
+    const html = renderToStaticMarkup(<McpHttpAuthEditor {...props} credentials={[credential]} value={{ Authorization: "Bearer ${credential:synthetic}" }} />)
+    expect(html).toContain("Credential target authorization")
+    expect(html).toContain("Authorize this use on save")
+    expect(html).toContain("https://mcp.example.test:443")
+    expect(html).toContain("cancelling leaves existing grants unchanged")
+  })
+  it("explains missing management authority without offering a write", () => {
+    const credential = { id: "synthetic", name: "Synthetic", description: "", value_masked: "***", created_at: "v1", updated_at: "v1", http_scopes_revision: "a".repeat(64), http_scopes: [] }
+    const html = renderToStaticMarkup(<McpHttpAuthEditor {...props} canCreate={false} credentials={[credential]} value={{ Authorization: "Bearer ${credential:synthetic}" }} />)
+    expect(html).toContain("A shared-credential administrator must authorize this use")
+    expect(html).not.toContain("Authorize this use on save")
+  })
+  it("keeps cancellation and reload reachable when a staged target becomes stale", () => {
+    const credential = { id: "synthetic", name: "Synthetic", description: "", value_masked: "***", created_at: "v1", updated_at: "v1", http_scopes_revision: "a".repeat(64),
+      http_scopes: [{ server_id: "synthetic", origin: "https://mcp.example.test:443" }] }
+    const html = renderToStaticMarkup(<McpHttpAuthEditor {...props} credentials={[credential]} value={{ Authorization: "Bearer ${credential:synthetic}" }}
+      credentialDraft={{ targetKey: JSON.stringify(["synthetic", "https://previous.example.test/mcp"]), write: { kind: "authorize", credential_id: "synthetic",
+        target: { server_id: "synthetic", origin: "https://previous.example.test:443" }, expected_revision: "v1", expected_http_scopes_revision: "a".repeat(64) } }} />)
+    expect(html).toContain("The target changed")
+    expect(html).toContain("Cancel this grant draft")
+    expect(html).toContain("Reload and review credential")
   })
 })
 

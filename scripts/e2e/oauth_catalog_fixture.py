@@ -14,9 +14,9 @@ def seed_oauth_catalog(app: FastAPI) -> None:
     state = app.state
     auth, access, registry, server = state.auth_store, state.access_store, state.registry, state.oauth_server
     admin = auth.list_users()[0]
-    # Match the reported administrator case: admins can invoke an unpublished
-    # tool with an API token, while OAuth still requires publication. Ordinary
-    # owner ACL filtering is exercised separately by the real HTTP suite.
+    # Exercise the administrator's large candidate catalog. OAuth exact scopes
+    # remain selected explicitly; ordinary owner ACL filtering is exercised
+    # separately by the real HTTP suite.
     user = auth.create_user(username="synthetic-oauth-owner", password="Synthetic-oauth-owner-123!", role="admin")
     registry.unregister_by_metadata("server_id", "synthetic-fixture", source="mcp")
     owner, session, _ = auth.login(username="synthetic-oauth-owner", password="Synthetic-oauth-owner-123!")
@@ -36,9 +36,9 @@ def seed_oauth_catalog(app: FastAPI) -> None:
         permission_type_code="write", created_by=admin["id"])
     with state.database.session() as connection:
         access._synchronize_tools(connection, definitions[:2])
-        connection.executemany("UPDATE mcp_tool_classifications SET effective_access=?,status='published',source='manual',"
+        connection.executemany("UPDATE mcp_tool_classifications SET required_access=?,access_policy_source='local_override',effective_access=?,status='published',source='manual',"
             "reviewed_by=?,reviewed_at='2026-10-05T00:00:00+00:00' WHERE server_id=? AND tool_id=?",
-            [(tool.permission, admin["id"], tool.metadata["server_id"], tool.id) for tool in definitions[:2]])
+            [(tool.permission, tool.permission, admin["id"], tool.metadata["server_id"], tool.id) for tool in definitions[:2]])
     issuer = "https://gate.example.test"
     server.save_config({"enabled": False, "issuer": issuer, "resource": issuer + "/mcp"}, 0)
     server.rotate_key()
@@ -63,15 +63,15 @@ def seed_oauth_catalog(app: FastAPI) -> None:
     permission = state.database.query_one("SELECT id FROM permission_types WHERE code='write'")[0]
     with state.database.session() as connection:
         access._synchronize_tools(connection, definitions[2:])
-        connection.executemany("UPDATE mcp_tool_classifications SET effective_access=?,status='published',source='manual',"
+        connection.executemany("UPDATE mcp_tool_classifications SET required_access=?,access_policy_source='local_override',effective_access=?,status='published',source='manual',"
             "reviewed_by=?,reviewed_at='2026-10-05T00:00:00+00:00' WHERE server_id=? AND tool_id=?",
-            [(tool.permission, admin["id"], tool.metadata["server_id"], tool.id) for tool in definitions[2:]])
+            [(tool.permission, tool.permission, admin["id"], tool.metadata["server_id"], tool.id) for tool in definitions[2:]])
         connection.executemany("INSERT INTO mcp_resource_grants"
             "(id,subject_type,subject_id,server_id,tool_id,permission_type_id,created_by,created_at,updated_at)"
             " VALUES(?,'user',?,?,'',?,?,?,?)", [(f"oauth-fixture-{index}", user["id"], f"oauth-scale-{index:04}",
                 permission, admin["id"], "2026-10-05T00:00:00+00:00", "2026-10-05T00:00:00+00:00") for index in range(1,5000)])
     assert len(definitions) == 50000
-    # A visible unpublished service gives the UI an actual classification reason.
-    state.database.execute("UPDATE mcp_tool_classifications SET status='pending' WHERE server_id='oauth-scale-4998'")
+    # An explicitly disabled service is unavailable even though discovery is automatic.
+    state.database.execute("UPDATE mcp_tool_classifications SET required_access='none',access_policy_source='local_override',access_policy_revision=access_policy_revision+1 WHERE server_id='oauth-scale-4998'")
     state.tool_catalog.synchronize()
     print(json.dumps({"fixture": "oauth-catalog", "services": 5000, "tools": 50000, "secrets_logged": False}))

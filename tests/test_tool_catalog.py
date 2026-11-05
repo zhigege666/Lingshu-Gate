@@ -37,7 +37,7 @@ def catalog(tmp_path):
                 metadata={"server_id": instance}), lambda arguments: arguments)
     service = ToolCatalog(registry, access)
     service.synchronize()
-    database.execute("UPDATE mcp_tool_classifications SET effective_access='read',status='published'")
+    database.execute("UPDATE mcp_tool_classifications SET effective_access='read',status='published',required_access='read',access_policy_source='local_override'")
     access.save_grant(subject_type="user", subject_id="alice", server_id="one", permission_type_code="read", created_by="alice")
     principal = AuthPrincipal(id="alice", username="alice", role="operator", roles=("operator",), permissions=("tools.read", "tools.invoke"))
     return service, principal
@@ -131,13 +131,15 @@ def test_none_tool_override_and_hidden_ranking(catalog):
     assert service.search(principal, CatalogSearch(query="read"))["tools"] == output["tools"]
 
 
-def test_oauth_exact_allowlist_and_publication(catalog):
+def test_oauth_exact_allowlist_and_local_policy(catalog):
     service, principal = catalog
     oauth = replace(principal, auth_type="oauth", scopes=("mcp.read",), delegated_scopes=("mcp.read",),
         external_grant_id="synthetic", external_server_ids=("one",), external_tool_ids=("mcp.one.read_1",),
         external_access=("read",), external_expires_at="2999-01-01T00:00:00+00:00")
     assert [item["tool_ref"] for item in service.search(oauth, CatalogSearch())["tools"]] == ["mcp.one.read_1"]
     service.database.execute("UPDATE mcp_tool_classifications SET status='stale' WHERE tool_id='mcp.one.read_1'")
+    assert [item["tool_ref"] for item in service.search(oauth, CatalogSearch())["tools"]] == ["mcp.one.read_1"]
+    service.database.execute("UPDATE mcp_tool_classifications SET required_access='none' WHERE tool_id='mcp.one.read_1'")
     assert service.search(oauth, CatalogSearch())["tools"] == []
     assert service.search(replace(oauth, oauth_resource="https://gate.example.test/mcp/manage"), CatalogSearch())["tools"] == []
 
@@ -164,7 +166,7 @@ def test_describe_preserves_empty_schema_and_absent_output_distinction(catalog, 
     changed = definition.model_copy(update={"input_schema": {}, "metadata": {**definition.metadata, **metadata}})
     service.registry.update_definition(changed)
     service.synchronize()
-    service.database.execute("UPDATE mcp_tool_classifications SET effective_access='read',status='published' WHERE tool_id=?", (changed.id,))
+    service.database.execute("UPDATE mcp_tool_classifications SET effective_access='read',status='published',required_access='read',access_policy_source='local_override' WHERE tool_id=?", (changed.id,))
     described = service.describe(principal, CatalogDescribe(tool_ref=changed.id))
     assert described["input_schema"] == {}
     assert ("output_schema" in described) == bool(metadata)
@@ -174,7 +176,7 @@ def test_describe_preserves_empty_schema_and_absent_output_distinction(catalog, 
 
 def test_read_token_cannot_invoke_write_and_oauth_cannot_guess_target(catalog):
     service, principal = catalog
-    service.database.execute("UPDATE mcp_tool_classifications SET effective_access='write' WHERE tool_id='mcp.one.read_0'")
+    service.database.execute("UPDATE mcp_tool_classifications SET required_access='write' WHERE tool_id='mcp.one.read_0'")
     service.access.save_grant(subject_type="user", subject_id="alice", server_id="one", permission_type_code="write", created_by="alice")
     definition = service.registry.get_definition("mcp.one.read_0")
     request = CatalogInvoke(tool_ref=definition.id, schema_revision=schema_revision(definition), arguments={"key": "x"})

@@ -29,3 +29,6 @@
 .personal-tools-dialog .ant-table-pagination { flex-shrink: 0; }
 .personal-workspace-page .ant-table-body,
 .personal-tools-dialog .ant-table-body { flex: 0 1 auto; min-height: 0; max-height: none !important; overflow-y: auto !important; }
+
+.personal-workspace-page .page-header-toolbar { flex: 0 1 720px; min-width: 0; }
+.personal-workspace-page .page-header-toolbar .ant-input-search { width: 100%; }

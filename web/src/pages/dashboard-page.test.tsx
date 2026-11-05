@@ -108,7 +108,7 @@ describe("dashboard resource permissions and independent loading", () => {
     expect(html).not.toContain(t("serverOverview"))
     expect(html).not.toContain("Service first")
     expect(html).not.toContain(t("dashboardUsage"))
-    expect(html).toMatch(/<h1\b[^>]*>Dashboard<\/h1>/)
+    expect(html).toMatch(/<h1\b[^>]*>Overview<\/h1>/)
   })
 
   it("pending Gate health does not hide independently loaded servers or tools", () => {

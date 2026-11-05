@@ -11,7 +11,7 @@ from urllib.parse import urlsplit
 from uuid import uuid4
 
 from fastapi import HTTPException
-from pydantic import BaseModel, ConfigDict, Field, ValidationError
+from pydantic import BaseModel, ConfigDict, Field, ValidationError, model_validator
 
 from lingshu_gate.access_control import AccessControlStore
 from lingshu_gate.application.tool_authority import current_tool_principal
@@ -25,7 +25,7 @@ from lingshu_gate.database import SQLiteDatabase
 from lingshu_gate.domain.mcp_groups import McpGroupError
 from lingshu_gate.mcp_authorization_policy import server_binding
 from lingshu_gate.mcp_config_store import McpConfigStore
-from lingshu_gate.models import CredentialHttpScope, CredentialResponse
+from lingshu_gate.models import CredentialHttpScope, CredentialHttpTarget, CredentialResponse
 from lingshu_gate.observability_store import ObservabilityStore
 from lingshu_gate.oauth_server import OAuthError
 from lingshu_gate.registry import ToolExecutionError, ToolInvocationContext
@@ -57,11 +57,19 @@ class CredentialCreateInput(CredentialInput):
 
 class CredentialUpdateInput(CredentialGetInput):
     expected_revision: str = Field(min_length=1, max_length=128)
+    expected_http_scopes_revision: str | None = Field(default=None, min_length=64, max_length=64, pattern=r"^[0-9a-f]{64}$")
     name: str | None = Field(default=None, min_length=1, max_length=256)
     value: str | None = Field(default=None, min_length=1, max_length=65536, repr=False)
     description: str | None = Field(default=None, max_length=4096)
     http_scopes: list[CredentialHttpScope] | None = Field(default=None, max_length=100)
+    authorize_http_target: CredentialHttpTarget | None = None
     idempotency_key: str = Field(min_length=1, max_length=128)
+
+    @model_validator(mode="after")
+    def separate_scope_operations(self) -> CredentialUpdateInput:
+        if self.http_scopes is not None and self.authorize_http_target is not None:
+            raise ValueError("Use either http_scopes or authorize_http_target.")
+        return self
 
 
 class CredentialDeleteInput(CredentialGetInput):
@@ -75,6 +83,18 @@ def _now() -> str:
 
 def _json(value: Any) -> str:
     return json.dumps(value, sort_keys=True, ensure_ascii=False, separators=(",", ":"))
+
+
+def _operation_arguments(body: BaseModel) -> dict[str, Any]:
+    """Keep legacy receipt fingerprints stable for absent optional authority."""
+    arguments = body.model_dump(mode="json")
+    for field in ("authorize_http_target", "expected_http_scopes_revision"):
+        if arguments.get(field) is None:
+            arguments.pop(field, None)
+    for scope in arguments.get("http_scopes") or []:
+        if scope.get("pending_rebind") is False:
+            scope.pop("pending_rebind")
+    return arguments
 
 
 def _error(code: str, message: str, **details: Any) -> ToolExecutionError:
@@ -173,16 +193,45 @@ class SharedCredentialService:
             return self.credentials.create_credential(credential_id=credential_id, name=body.name, value=body.value,
                 description=body.description, http_scopes=self._scopes(body.http_scopes))
         return self._run(context, "gate_credential_create", "credential.create", credential_id,
-                         body.model_dump(mode="json"), mutate, value_saved=True)
+                         _operation_arguments(body), mutate, value_saved=True)
 
     def update(self, arguments: dict[str, Any], context: ToolInvocationContext) -> dict[str, Any]:
         body = self._parse(CredentialUpdateInput, arguments)
         def mutate() -> CredentialResponse:
+            # _run holds both configuration and credential mutation barriers.
+            # Read after acquiring them: configuration saves may seal another
+            # scope without advancing the credential's approved value revision.
+            current = self.credentials.get_credential(body.credential_id)
+            if current.updated_at != body.expected_revision:
+                raise CredentialRevisionConflict("Credential revision changed; reload before updating.")
+            if body.expected_http_scopes_revision is not None and current.http_scopes_revision != body.expected_http_scopes_revision:
+                raise CredentialRevisionConflict("Credential HTTP scopes changed; reload before updating.")
+            scopes = None
+            if body.authorize_http_target is not None:
+                target = self._scopes([CredentialHttpScope(**body.authorize_http_target.model_dump())])[0]
+                target_key = (target["server_id"], target["origin"])
+                scopes = []
+                for scope in current.http_scopes:
+                    if (scope.server_id, canonical_http_origin(scope.origin)) == target_key:
+                        if scope.server_binding is not None:
+                            # The current generation keeps working until save
+                            # consumes this explicit grant for the next one.
+                            target["server_binding"] = scope.server_binding
+                            target["pending_rebind"] = True
+                    else:
+                        scopes.append(scope.model_dump(mode="json"))
+                # Unrelated bindings and pending grants remain unchanged.
+                scopes.append(target)
+                if len(scopes) > 100:
+                    raise CredentialUsageDenied("A credential may authorize at most 100 HTTP targets.")
+                scopes.sort(key=lambda scope: (str(scope["server_id"]), str(scope["origin"])))
+            elif body.http_scopes is not None:
+                scopes = self._scopes(body.http_scopes, existing=current.http_scopes)
             return self.credentials.update_credential(body.credential_id, expected_revision=body.expected_revision,
                 name=body.name, value=body.value, description=body.description,
-                http_scopes=self._scopes(body.http_scopes) if body.http_scopes is not None else None)
+                http_scopes=scopes, expected_http_scopes_revision=body.expected_http_scopes_revision)
         return self._run(context, "gate_credential_update", "credential.update", body.credential_id,
-                         body.model_dump(mode="json"), mutate, value_saved=body.value is not None)
+                         _operation_arguments(body), mutate, value_saved=body.value is not None)
 
     def delete(self, arguments: dict[str, Any], context: ToolInvocationContext) -> dict[str, Any]:
         body = self._parse(CredentialDeleteInput, arguments)
@@ -199,8 +248,11 @@ class SharedCredentialService:
         return self._run(context, "gate_credential_delete", "credential.delete", body.credential_id,
                          body.model_dump(mode="json"), mutate, value_saved=False)
 
-    def _scopes(self, scopes: builtins.list[CredentialHttpScope]) -> builtins.list[dict[str, Any]]:
+    def _scopes(self, scopes: builtins.list[CredentialHttpScope], *,
+                existing: builtins.list[CredentialHttpScope] | None = None) -> builtins.list[dict[str, Any]]:
         result, seen = [], set()
+        retained = {(scope.server_id, canonical_http_origin(scope.origin), scope.server_binding)
+                    for scope in existing or []}
         for scope in scopes:
             if urlsplit(scope.origin).path not in {"", "/"}:
                 raise CredentialUsageDenied("Credential scope must be an origin, without a path.")
@@ -209,16 +261,19 @@ class SharedCredentialService:
             if key in seen:
                 raise CredentialUsageDenied("Duplicate credential HTTP scope.")
             seen.add(key)
-            if scope.server_binding is not None:
+            # Keeping an unchanged grant does not grant a new generation. It
+            # remains unusable if its saved service was removed or replaced.
+            if scope.server_binding is not None and (scope.server_id, origin, scope.server_binding) not in retained:
                 manifest = self.configs.load_manifest(scope.server_id)
                 if manifest.transport.type != "streamable_http" or canonical_http_origin(manifest.transport.endpoint or "") != origin:
                     raise CredentialUsageDenied("Saved service does not match the requested scope.")
                 with self.database.session() as connection:
                     if server_binding(connection, scope.server_id) != scope.server_binding:
                         raise CredentialUsageDenied("Saved service identity changed.")
-            # None is an explicit pending grant for precisely this service and
-            # origin. Only configuration save can consume it into a generation.
-            result.append({"server_id": scope.server_id, "origin": origin, "server_binding": scope.server_binding})
+            # A pending rebind grants only a future configuration save; it
+            # never changes the actual generation accepted by runtime sends.
+            result.append({"server_id": scope.server_id, "origin": origin,
+                           "server_binding": scope.server_binding, "pending_rebind": scope.pending_rebind})
         return sorted(result, key=lambda item: (str(item["server_id"]), str(item["origin"])))
 
     def _migrate_legacy(self) -> None:

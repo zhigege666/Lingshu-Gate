@@ -32,9 +32,19 @@ For a private HTTP create/update, the reviewed plan contains the exact service I
 
 Revocation is persistent. Ordinary update, reconnect and automatic startup cannot restore it. Use an explicit `restore_trust` plan, or the Console's restore action, after checking the exact current endpoint. Trust is tied to `server_binding`, not merely a reusable service ID. Only legacy permission records matching a currently saved service are adopted once; unmatched records require review. A pre-save permission is pending and cannot connect until the matching configuration is saved. Deleting a service removes its trust; recreating it requires a new authorized create and cannot inherit its predecessor's permission.
 
-Delete previews affected tools, groups and personal downstream bindings. Apply uses the normal configuration/runtime cleanup path, removes the saved external configuration and its current catalog/group membership, and invalidates the old identity. Shared credentials and audit history remain. No operation uninstalls or stops the remote MCP process. Referenced shared credentials must be detached before their own explicit deletion.
+Delete previews affected tools, groups and personal downstream bindings. Apply uses the normal configuration/runtime cleanup path, removes the saved external configuration and its current catalog/group membership, and invalidates the old identity. Shared credentials and audit history remain. No operation uninstalls or stops the remote MCP process. Referenced shared credentials must be detached before their own explicit deletion. Console configuration deletion explains that related service-group authorizations are invalidated before destructive work. A failed deletion or runtime rollback does not automatically restore those authorizations; inspect the current state and explicitly reconfirm affected groups.
 
 Credential values are never embedded in an HTTP plan. First create or update a separately scoped credential, then use `${credential:example-binding}` in the manifest. Its HTTP scope must match the service, origin and incarnation. A pending scope may be consumed by the first matching save. See [shared system credentials](shared-system-credentials.md) for write-only values, revision checks and rotation results.
+
+## Console task flow
+
+The service editor validates automatically on save; a successful connection test is optional. **Save only** writes the reviewed configuration directly without a second generic confirmation. Applying, starting, restarting or reconnecting still asks for confirmation of the runtime interruption. Saving can establish the exact target permission shown beside the endpoint; it does not itself connect to the peer.
+
+When connection permission is revoked or needs review, the restore action is visible beside that status. A chosen restoration survives name edits and Form/JSON switches. Changing the target or observing a different permission revision, state or service identity clears that choice and requires review again. Ordinary save never restores a revoked permission by itself.
+
+HTTP service IDs accept letters, numbers, dots, underscores and hyphens, up to 128 characters. The editor reports an invalid ID at its field instead of waiting indefinitely for permission loading. Public hosts and domain names use HTTPS; plaintext HTTP is limited to localhost/canonical loopback and explicitly authorized private IPv4 targets. URLs cannot contain user information, query parameters or fragments. Shared-credential IDs are a separate field and support up to 512 characters.
+
+A successful connection automatically synchronizes the complete tool catalog. Routine discovery and invocation do not require a review or publication step. Calls are still checked against the caller's current account grants, Token/OAuth scopes and each tool's effective local access policy. Use the tool-permissions page only when you intentionally want to change a tool from its automatic default to read, write or disabled.
 
 ## Legacy authority and input
 

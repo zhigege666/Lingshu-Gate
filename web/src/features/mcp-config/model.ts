@@ -17,7 +17,7 @@ export type PrecheckResult = { errors: string[]; warnings: string[] }
 
 export const REDACTED_ENDPOINT = "[REDACTED]"
 
-/** 新建配置默认启用并自启；保存操作不会直接启动实例。 */
+/** 新建配置默认启用并自启；是否立即连接或启动由编辑器的保存方式决定。 */
 export function createMcpConfigTemplate(): ManifestLike {
   return {
     id: "mcp-server", name: "MCP Server", enabled: true,
@@ -87,6 +87,7 @@ export function manifestValidationIssues(checks: ManifestValidationCheck[], revi
 export type ManifestPrecheckMessageKey =
   | "idRequired"
   | "idPattern"
+  | "httpIdTooLong"
   | "launchRequired"
   | "transportRequired"
   | "launchTypeRequired"
@@ -231,11 +232,11 @@ export function precheckManifest(
 ): PrecheckResult {
   const errors: string[] = []
   const warnings: string[] = []
-  const id = String(manifest.id || "").trim()
+  const id = String(manifest.id || "")
   const launch = manifest.launch && typeof manifest.launch === "object" && !Array.isArray(manifest.launch) ? manifest.launch : null
   const transport = manifest.transport && typeof manifest.transport === "object" && !Array.isArray(manifest.transport) ? manifest.transport : null
 
-  if (!id) errors.push(copy("idRequired"))
+  if (!id.trim()) errors.push(copy("idRequired"))
   else if (!/^[a-zA-Z0-9_.-]+$/.test(id)) errors.push(copy("idPattern"))
   if (!launch) errors.push(copy("launchRequired"))
   if (!transport) errors.push(copy("transportRequired"))
@@ -292,6 +293,7 @@ export function precheckManifest(
 
   if (transport) {
     const transportType = String(transport.type || "")
+    if (transportType === "streamable_http" && id.length > 128) errors.push(copy("httpIdTooLong"))
     if (!transportType) errors.push(copy("transportTypeRequired"))
     if (transportType === "stdio" && launch && !["managed_process", "managed_container"].includes(String(launch.type || ""))) errors.push(copy("stdioLaunchError"))
     if (transportType === "streamable_http" && !transport.endpoint) errors.push(copy("streamableEndpointError"))

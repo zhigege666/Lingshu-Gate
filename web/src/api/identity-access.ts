@@ -8,13 +8,15 @@ export type Credential = {
   created_at: string
   updated_at: string
   http_scopes?: CredentialHttpScope[]
+  http_scopes_revision?: string | null
   connections?: Array<{ server_id: string; status?: string; state?: string; error_code?: string }>
   value_saved?: boolean | null
   connection_verified?: boolean
 }
 
-export type CredentialHttpScope = { server_id: string; origin: string; server_binding?: string | null }
-export type CredentialSaveRequest = { credential_id?: string; name: string; value?: string | null; description?: string; expected_revision?: string; idempotency_key?: string; http_scopes?: CredentialHttpScope[] }
+export type CredentialHttpScope = { server_id: string; origin: string; server_binding?: string | null; pending_rebind?: boolean }
+export type CredentialSaveRequest = { credential_id?: string; name: string; value?: string | null; description?: string; expected_revision?: string; idempotency_key?: string; http_scopes?: CredentialHttpScope[]; expected_http_scopes_revision?: string; authorize_http_target?: { server_id: string; origin: string } }
+export type CredentialUpdateRequest = Omit<CredentialSaveRequest, "name"> & { name?: string }
 
 export type AccessUser = {
   id: string
@@ -106,7 +108,11 @@ export type AccessResource = {
   tool_id: string
   tool_name: string
   classification: "read" | "write" | "unknown"
-  classification_status: "pending" | "published" | "stale" | "missing"
+  classification_status: "automatic" | "configured" | "builtin" | "disabled" | "pending" | "published" | "stale" | "missing"
+  required_access?: "none" | "read" | "write"
+  policy_source?: "default_write" | "local_override" | "builtin_contract" | "control_permission" | "unavailable"
+  policy_editable?: boolean
+  policy_constraint?: "control_permission" | null
 }
 
 export type ToolClassification = {
@@ -118,6 +124,11 @@ export type ToolClassification = {
   fingerprint: string
   suggested_access: "read" | "write" | "unknown"
   effective_access: "read" | "write" | "unknown"
+  required_access?: "none" | "read" | "write"
+  policy_source?: "default_write" | "local_override" | "builtin_contract" | "control_permission" | "unavailable"
+  policy_revision?: number
+  policy_editable?: boolean
+  policy_constraint?: "control_permission" | null
   status: "pending" | "published" | "stale"
   confidence: number
   source: string
@@ -214,7 +225,7 @@ export const identityAccessApi = {
   credentials: () => request<Credential[]>("/v1/credentials"),
   credential: (credentialId: string) => request<Credential>(`/v1/credentials/${encodeURIComponent(credentialId)}`),
   createCredential: (credential: CredentialSaveRequest) => request<Credential>("/v1/credentials", { method: "POST", body: JSON.stringify(credential) }),
-  updateCredential: (credentialId: string, credential: CredentialSaveRequest) => request<Credential>(`/v1/credentials/${encodeURIComponent(credentialId)}`, { method: "PUT", body: JSON.stringify(credential) }),
+  updateCredential: (credentialId: string, credential: CredentialUpdateRequest) => request<Credential>(`/v1/credentials/${encodeURIComponent(credentialId)}`, { method: "PUT", body: JSON.stringify(credential) }),
   deleteCredential: (credentialId: string, expectedRevision: string, idempotencyKey: string) => request<Credential>(`/v1/credentials/${encodeURIComponent(credentialId)}${queryString({ expected_revision: expectedRevision, idempotency_key: idempotencyKey })}`, { method: "DELETE" }),
   accessUsers: () => request<{ users: AccessUser[] }>("/v1/access/users"),
   createAccessUser: (payload: AccessUserCreateRequest) => request<AccessUser>("/v1/access/users", { method: "POST", body: JSON.stringify(payload) }),
@@ -235,7 +246,7 @@ export const identityAccessApi = {
   deleteResourceGrant: (grantId: string) => request<{ message: string }>(`/v1/access/grants/${encodeURIComponent(grantId)}`, { method: "DELETE" }),
   toolClassifications: (filters: { server_id?: string; status?: string } = {}, signal?: AbortSignal) => request<{ classifications: ToolClassification[] }>(`/v1/access/tool-classifications${queryString(filters)}`, { signal }),
   analyzeToolClassifications: (payload: { server_id?: string | null }) => request<{ classifications: ToolClassification[] }>("/v1/access/tool-classifications/analyze", { method: "POST", body: JSON.stringify(payload) }),
-  updateToolClassification: (serverId: string, toolId: string, payload: { access: "read" | "write" | "unknown"; destructive: boolean; idempotent: boolean; note?: string }) => request<ToolClassification>(`/v1/access/tool-classifications/${encodeURIComponent(serverId)}/${encodeURIComponent(toolId)}`, { method: "PUT", body: JSON.stringify(payload) }),
+  updateToolClassification: (serverId: string, toolId: string, payload: { access: "automatic" | "read" | "write" | "unknown"; destructive: boolean; idempotent: boolean; note?: string; expected_fingerprint?: string; expected_policy_revision?: number }) => request<ToolClassification>(`/v1/access/tool-classifications/${encodeURIComponent(serverId)}/${encodeURIComponent(toolId)}`, { method: "PUT", body: JSON.stringify(payload) }),
   confirmToolClassifications: (payload: { items: Array<{ server_id: string; tool_id: string; expected_fingerprint: string }>; note?: string; publish?: boolean }) => request<ToolClassificationConfirmResponse>("/v1/access/tool-classifications/confirm", { method: "POST", body: JSON.stringify(payload) }),
   publishToolClassifications: (payload: { server_id?: string | null; tool_ids?: string[] }) => request<{ classifications: ToolClassification[] }>("/v1/access/tool-classifications/publish", { method: "POST", body: JSON.stringify(payload) }),
   invocationAudits: (filters: { user_id?: string; server_id?: string; tool_id?: string; decision?: string; outcome?: string; limit?: number } = {}) => request<{ audits: InvocationAudit[]; filter_options: InvocationAuditFilterOptions }>(`/v1/access/invocation-audits${queryString(filters)}`),

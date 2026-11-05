@@ -20,8 +20,8 @@ export function UploadList({ uploads, builds, deployments, selectedId, busy, loa
               <div className="break-words font-medium">{upload.filename}</div>
               <div className="flex flex-wrap items-center gap-2 text-xs text-muted-foreground"><span>{upload.detected_runtime}</span><Badge variant="outline">{localizeStatus(t, projectStatus(upload.id, upload.status, builds, deployments))}</Badge></div>
             </button>
-            <div className="min-w-0 max-w-full">
-              <ActionMenu inline label={t("actions")}>
+            <div className="flex min-w-0 max-w-full flex-wrap items-center gap-2">
+              <ActionMenu label={t("actions")}>
                 <ActionMenuItem onClick={() => onDraft(upload.id)} disabled={busy}>{t("draftManifest")}</ActionMenuItem>
                 <ActionMenuItem onClick={() => onCreateBuild(upload.id)} disabled={busy}>{t("createBuild")}</ActionMenuItem>
                 <ActionMenuItem destructive onClick={() => onDelete(upload.id)} disabled={busy}>{t("delete")}</ActionMenuItem>

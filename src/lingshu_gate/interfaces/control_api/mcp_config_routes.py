@@ -2,21 +2,28 @@
 
 from __future__ import annotations
 
+import json
 from typing import Any
 from urllib.parse import urlsplit
 
 from fastapi import Depends, FastAPI, HTTPException, Request
+from fastapi.responses import JSONResponse
+from pydantic import ValidationError
+from starlette.concurrency import run_in_threadpool
 
+from lingshu_gate.application.configuration_credentials import ConfigurationCredentialService, ConfigurationCredentialSaveError
 from lingshu_gate.application.mcp_configuration import (
     McpConfigurationService,
     PreparedUserCredentials,
 )
+from lingshu_gate.application.shared_credentials import SharedCredentialService
 from lingshu_gate.auth import AuthPrincipal, AuthStore
 from lingshu_gate.config import Settings
 from lingshu_gate.credential_store import canonical_http_origin
-from lingshu_gate.domain.http_mcp_management import McpConfigSaveWithHttpTrustRequest
+from lingshu_gate.domain.http_mcp_management import McpConfigCredentialSaveRequest, McpConfigSaveWithHttpTrustRequest
 from lingshu_gate.endpoint_security import private_http_origin
 from lingshu_gate.interfaces.control_api.dependencies import AuthDependency
+from lingshu_gate.interfaces.control_api.console_security import console_origin_allowed
 from lingshu_gate.mcp_config_store import McpConfigConflict, McpConfigPartialError, McpConfigStore
 from lingshu_gate.mcp_http_trust import McpHttpTrustConflict, McpHttpTrustDenied, McpHttpTrustUpdate
 from lingshu_gate.mcp_manifest_validation import validate_mcp_manifest
@@ -29,6 +36,7 @@ from lingshu_gate.models import (
 )
 from lingshu_gate.observability_store import ObservabilityStore
 from lingshu_gate.redaction import redact_text
+from lingshu_gate.registry import ToolExecutionError
 
 
 def _safe_error_detail(error: Exception) -> str:
@@ -59,8 +67,47 @@ def register_mcp_config_routes(
     configuration_service: McpConfigurationService,
     observability_store: ObservabilityStore,
     require_operations_manager: AuthDependency,
+    shared_credential_service: SharedCredentialService | None = None,
 ) -> None:
     """Register manifest validation and transactional configuration routes."""
+
+    if shared_credential_service is not None:
+        combined = ConfigurationCredentialService(configuration_service, shared_credential_service)
+        private_headers = {"Cache-Control": "no-store", "Pragma": "no-cache"}
+
+        @app.post("/v1/mcp/configs/with-credential", tags=["mcp-configs"])
+        async def save_configuration_with_credential(http_request: Request,
+                principal: AuthPrincipal = Depends(require_operations_manager)) -> JSONResponse:
+            if not auth_store.enabled or principal.auth_type not in {"session", "token"}:
+                raise HTTPException(403, detail={"code": "credential_permission_denied"}, headers=private_headers)
+            if principal.auth_type == "session" and not console_origin_allowed(http_request, required=False):
+                raise HTTPException(403, detail={"code": "cross_origin_denied"}, headers=private_headers)
+            if http_request.headers.get("content-type", "").split(";", 1)[0].strip().lower() != "application/json":
+                raise HTTPException(415, detail={"code": "credential_json_required"}, headers=private_headers)
+            chunks, size = [], 0
+            async for chunk in http_request.stream():
+                size += len(chunk)
+                if size > 2_097_152:
+                    raise HTTPException(413, detail={"code": "configuration_request_too_large"}, headers=private_headers)
+                chunks.append(chunk)
+            try:
+                body = McpConfigCredentialSaveRequest.model_validate(json.loads(b"".join(chunks)))
+            except (ValidationError, ValueError, UnicodeError, RecursionError, TypeError):
+                # Never reflect rejected fields or secret-bearing raw input.
+                raise HTTPException(422, detail={"code": "configuration_credential_request_invalid",
+                    "message": "Check the configuration, credential draft and current revisions."}, headers=private_headers) from None
+            # Match the existing shared-credential REST transport contract;
+            # personal downstream values keep their existing HTTPS requirement.
+            if body.user_credential_values:
+                _require_secure_credential_transport(http_request)
+            try:
+                result = await run_in_threadpool(combined.save, body, principal)
+                return JSONResponse(result, headers=private_headers)
+            except ConfigurationCredentialSaveError as exc:
+                raise HTTPException(exc.status, detail=exc.detail, headers=private_headers) from None
+            except ToolExecutionError as exc:
+                status = 403 if exc.code == "credential_permission_denied" else 409
+                raise HTTPException(status, detail=exc.to_payload()["error"], headers=private_headers) from None
 
     def require_trust_admin(request: Request) -> AuthPrincipal:
         principal = require_operations_manager(request)
@@ -91,12 +138,13 @@ def register_mcp_config_routes(
         try:
             manifest = mcp_config_store.load_manifest(policy["server_id"])
         except KeyError:
-            origin, endpoint_origin = None, None
+            origin, endpoint_origin, configured_binding = None, None, None
         else:
             origin = private_http_origin(manifest.transport.endpoint) if manifest.transport.endpoint else None
             endpoint_origin = canonical_http_origin(manifest.transport.endpoint) if manifest.transport.endpoint else None
+            configured_binding = configuration_service.http_credential_binding(manifest) if manifest.transport.type == "streamable_http" else None
         return {**policy, "configured_origin": {"ip": origin[0], "port": origin[1]} if origin else None,
-                "configured_endpoint_origin": endpoint_origin}
+                "configured_endpoint_origin": endpoint_origin, "configured_server_binding": configured_binding}
 
     @app.get("/v1/mcp/http-trust/{server_id}", tags=["mcp-configs"])
     def get_http_trust(server_id: str, principal: AuthPrincipal = Depends(require_trust_admin)) -> dict[str, Any]:

@@ -39,6 +39,7 @@ class ManagedHttpMcpClient:
         self.manifest = manifest
         self.settings = settings
         self.log_sink = log_sink
+        self.on_tools_changed: Callable[[], None] | None = None
         self._sensitive_payloads = False
         self.process: subprocess.Popen[str] | None = None
         self.last_stdout: list[str] = []
@@ -138,6 +139,7 @@ class ManagedHttpMcpClient:
                 redaction_values=self._redaction_values,
             )
             self._http_client = client
+            client.on_tools_changed = self.on_tools_changed
             if self._sensitive_payloads:
                 client.suppress_payload_logging()
             try:

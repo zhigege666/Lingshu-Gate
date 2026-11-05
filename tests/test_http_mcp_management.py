@@ -92,9 +92,9 @@ def test_connect_discovers_without_publishing_and_replay_has_no_side_effect(gate
     result = apply(gate, preview)
     assert result["status"] == "success", result
     assert result["connection_state"] == "connected"
-    assert result["classification_state"] == "needs_review"
+    assert result["classification_state"] == "ready"
     assert result["effective_permissions_expanded"] is False
-    assert result["counts"]["needs_review"] == 1
+    assert result["counts"]["needs_review"] == 0
     calls = list(gate["calls"])
     replay = gate["service"].http_apply(apply_arguments(preview, "apply-" + preview["plan_id"]), gate["context"])
     assert replay["idempotent_replay"] is True
@@ -410,5 +410,5 @@ def test_recreate_after_partial_delete_retires_old_published_classifications(gat
     retired = service.access.list_classifications(server_id=SERVER)[0]
     assert retired["status"] == "stale" and retired["effective_access"] == "unknown"
     connected = apply(gate, plan(gate, "restore_trust", connect=True, refresh_tools=True))
-    assert connected["status"] == "success" and connected["classification_state"] == "needs_review"
-    assert connected["counts"]["needs_review"] == 1
+    assert connected["status"] == "success" and connected["classification_state"] == "ready"
+    assert connected["counts"]["needs_review"] == 0

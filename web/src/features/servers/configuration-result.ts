@@ -1,4 +1,17 @@
-import type { ApplyResponse } from "@/api/client"
+import type { ApplyResponse, McpServer } from "@/api/client"
+
+/** Saved drafts may have no runtime; an unavailable snapshot is not an idle service. */
+export async function readConfigurationRuntime(serverId: string, read: () => Promise<{ servers: McpServer[] }>, zh = false): Promise<McpServer | undefined> {
+  try {
+    const snapshot = await read()
+    if (!Array.isArray(snapshot.servers)) throw new Error("Invalid runtime snapshot")
+    const current = snapshot.servers.find(server => server.id === serverId)
+    if (current && !current.status) throw new Error("Missing runtime status")
+    return current
+  } catch {
+    throw new Error(zh ? `无法核对 ${serverId} 的当前运行状态，请稍后重试。尚未提交配置修改。` : `Could not verify the current service state for ${serverId}. Try again when it is available. No configuration changes were submitted.`)
+  }
+}
 
 /** HTTP success alone cannot establish that the replacement runtime started. */
 export function configurationResultError(response: ApplyResponse, serverId: string, apply: boolean, zh = false): string | null {

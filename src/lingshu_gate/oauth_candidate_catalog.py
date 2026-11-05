@@ -1,25 +1,26 @@
 """Permission-first OAuth candidate queries over the shared schema-free index."""
 from __future__ import annotations
 
-import json
 import re
 import sqlite3
 from typing import Any
 
 from lingshu_gate.access_control import AccessControlStore
-from lingshu_gate.auth import AuthPrincipal, hash_secret
+from lingshu_gate.auth import AuthPrincipal
 from lingshu_gate.oauth_server import MAX_TOOLS, OAuthError
 from lingshu_gate.ports.oauth_candidate_catalog import SharedCatalogIndex
+from lingshu_gate.tool_access_policy import policy_snapshot
 
 JOIN = "FROM gate_tool_catalog c LEFT JOIN mcp_tool_classifications p ON p.server_id=c.instance_id AND p.tool_id=c.tool_ref"
-FIELDS = "c.tool_ref,c.instance_id,c.name,p.effective_access,p.fingerprint,p.reviewed_at"
+FIELDS = "c.tool_ref,c.instance_id,c.name,p.required_access,p.access_policy_binding,p.access_policy_revision,p.legacy_authorization_snapshot"
 
 
 def summary(row: sqlite3.Row) -> dict[str, Any]:
-    access = row["effective_access"]
+    access = row["required_access"]
     return {"id": row["tool_ref"], "server_id": row["instance_id"], "server_name": None,
             "name": row["name"], "access": access,
-            "snapshot": hash_secret(json.dumps([row["fingerprint"], access, row["reviewed_at"]], sort_keys=True))}
+            "snapshot": policy_snapshot(row["instance_id"], row["tool_ref"], access, row["access_policy_binding"], row["access_policy_revision"]),
+            "legacy_snapshot": row["legacy_authorization_snapshot"]}
 
 
 class OAuthCandidateCatalog:
@@ -39,16 +40,16 @@ class OAuthCandidateCatalog:
         return generation, policy, int(expired)
 
     def _where(self, connection: sqlite3.Connection, owner: AuthPrincipal, scopes: set[str], *,
-               query: str = "", server_id: str = "", access: str = "", published: bool = True) -> tuple[list[str], list[Any]]:
+               query: str = "", server_id: str = "", access: str = "", scoped: bool = True) -> tuple[list[str], list[Any]]:
         if owner.auth_type != "session":
             raise OAuthError("session_required", 403)
         connection.create_function("gate_oauth_candidate_allowed", 7, self.access.catalog_authorizer(connection, owner))
         clauses = ["c.source='mcp'", "c.instance_id!=''",
-            "gate_oauth_candidate_allowed(c.tool_ref,c.instance_id,c.source,c.permission,c.policy_json,p.effective_access,p.status)=1"]
+            "gate_oauth_candidate_allowed(c.tool_ref,c.instance_id,c.source,c.permission,c.policy_json,p.required_access,p.access_policy_source)=1"]
         params: list[Any] = []
-        if published:
+        if scoped:
             allowed = [level for scope, level in (("tools.read", "read"), ("tools.invoke", "write")) if scope in scopes]
-            clauses.extend(["p.status='published'", "p.effective_access IN (" + ",".join("?" for _ in allowed) + ")"])
+            clauses.append("p.required_access IN (" + ",".join("?" for _ in allowed) + ")")
             params.extend(allowed)
         terms = re.findall(r"[^\W_]+", query.casefold(), re.UNICODE)
         if len(terms) > 8 or len(query.encode()) > 1024:
@@ -62,14 +63,14 @@ class OAuthCandidateCatalog:
             clauses.append("c.instance_id=?")
             params.append(server_id)
         if access:
-            clauses.append("p.effective_access=?")
+            clauses.append("p.required_access=?")
             params.append(access)
         return clauses, params
 
     @staticmethod
     def _counts(connection: sqlite3.Connection, clauses: list[str], params: list[Any]) -> dict[str, int]:
-        row = connection.execute("SELECT COUNT(*),COALESCE(SUM(p.effective_access='read'),0),"
-            "COALESCE(SUM(p.effective_access='write'),0),COUNT(DISTINCT c.instance_id) " + JOIN +
+        row = connection.execute("SELECT COUNT(*),COALESCE(SUM(p.required_access='read'),0),"
+            "COALESCE(SUM(p.required_access='write'),0),COUNT(DISTINCT c.instance_id) " + JOIN +
             " WHERE " + " AND ".join(clauses), params).fetchone()
         return dict(zip(("tools", "read", "write", "mcps"), map(int, row), strict=True))
 
@@ -87,9 +88,8 @@ class OAuthCandidateCatalog:
             ids = [row[0] for row in rows[:limit]]
             groups = {key: {"server_id": key, "server_name": None, "reasons": []} for key in ids}
             if ids:
-                reason = """CASE WHEN p.status IS NULL OR p.status!='published' THEN 'classification_not_published'
-                    WHEN p.effective_access NOT IN ('read','write') THEN 'classification_unavailable'
-                    WHEN (p.effective_access='read' AND ?=0) OR (p.effective_access='write' AND ?=0)
+                reason = """CASE WHEN p.required_access NOT IN ('read','write') THEN 'local_policy_disabled'
+                    WHEN (p.required_access='read' AND ?=0) OR (p.required_access='write' AND ?=0)
                         THEN 'grant_scope_ceiling' ELSE 'client_scope_ceiling' END"""
                 details = connection.execute("SELECT c.instance_id," + reason + " AS reason,COUNT(*) AS count " + JOIN +
                     " WHERE " + " AND ".join(clauses) + " AND c.instance_id IN (" + ",".join("?" for _ in ids) +
@@ -105,7 +105,7 @@ class OAuthCandidateCatalog:
             # A filter finds groups, but group counts and selection cover their
             # whole eligible membership, including tools outside the filter.
             query_sql = "SELECT c.instance_id AS server_id,NULL AS server_name,COUNT(*) AS tool_count,"
-            query_sql += "SUM(p.effective_access='read') AS read_count,SUM(p.effective_access='write') AS write_count " + JOIN
+            query_sql += "SUM(p.required_access='read') AS read_count,SUM(p.required_access='write') AS write_count " + JOIN
             query_sql += " WHERE " + " AND ".join(base) + " AND c.instance_id>? AND c.instance_id IN (SELECT c.instance_id "
             query_sql += JOIN + " WHERE " + " AND ".join(clauses) + ") GROUP BY c.instance_id ORDER BY c.instance_id LIMIT ?"
             rows = connection.execute(query_sql, [*base_params, after, *params, limit + 1]).fetchall()
@@ -121,9 +121,9 @@ class OAuthCandidateCatalog:
 
     def _unavailable_where(self, connection: sqlite3.Connection, owner: AuthPrincipal, scopes: set[str], *,
                            query: str = "", server_id: str = "", access: str = "") -> tuple[list[str], list[Any]]:
-        clauses, params = self._where(connection, owner, scopes, query=query, server_id=server_id, access=access, published=False)
-        clauses.append("(p.status IS NULL OR p.status!='published' OR p.effective_access NOT IN ('read','write') OR "
-            "(p.effective_access='read' AND ?=0) OR (p.effective_access='write' AND ?=0))")
+        clauses, params = self._where(connection, owner, scopes, query=query, server_id=server_id, access=access, scoped=False)
+        clauses.append("(p.required_access NOT IN ('read','write') OR "
+            "(p.required_access='read' AND ?=0) OR (p.required_access='write' AND ?=0))")
         params.extend([int("tools.read" in scopes), int("tools.invoke" in scopes)])
         return clauses, params
 

@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from collections.abc import Callable
-from typing import Any
+from typing import Any, Literal
 
 from fastapi import Depends, FastAPI, HTTPException, Query, Request
 from pydantic import BaseModel, Field
@@ -12,6 +12,7 @@ from lingshu_gate.access_control import (
     AccessControlStore,
     AccessDeniedError,
     ClassificationConfirmationConflictError,
+    tool_policy_constraints,
 )
 from lingshu_gate.auth import AuthPrincipal, AuthStore
 from lingshu_gate.application.tool_classification_catalog import (
@@ -24,6 +25,7 @@ from lingshu_gate.mcp_runtime import McpRuntimeManager
 from lingshu_gate.models import ToolDefinition
 from lingshu_gate.observability_store import ObservabilityStore
 from lingshu_gate.registry import ToolRegistry
+from lingshu_gate.tool_access_policy import policy_status
 from lingshu_gate.user_credential_store import UserCredentialStore
 
 
@@ -79,6 +81,8 @@ class ClassificationAnalyzeRequest(BaseModel):
 
 class ClassificationUpdateRequest(BaseModel):
     access: str
+    expected_fingerprint: str | None = None
+    expected_policy_revision: int | None = Field(default=None, ge=1)
     destructive: bool = False
     idempotent: bool = False
     note: str = ""
@@ -88,6 +92,9 @@ class ClassificationConfirmItem(BaseModel):
     server_id: str = Field(min_length=1)
     tool_id: str = Field(min_length=1)
     expected_fingerprint: str = Field(min_length=1)
+    access: Literal["read", "write", "unknown", "automatic"] | None = None
+    destructive: bool | None = None
+    idempotent: bool | None = None
 
 
 class ClassificationConfirmRequest(BaseModel):
@@ -448,25 +455,19 @@ def register_access_routes(
             (item["server_id"], item["tool_id"]): item
             for item in access_store.list_classifications()
         }
-        return {
-            "resources": [
-                {
-                    "server_id": str(item.metadata.get("server_id") or item.source or "builtin"),
-                    "tool_id": item.id,
-                    "tool_name": item.name,
-                    "registry_source": item.source,
-                    "classification": classifications.get(
-                        (str(item.metadata.get("server_id") or item.source or "builtin"), item.id),
-                        {},
-                    ).get("effective_access", "unknown"),
-                    "classification_status": classifications.get(
-                        (str(item.metadata.get("server_id") or item.source or "builtin"), item.id),
-                        {},
-                    ).get("status", "missing"),
-                }
-                for item in definitions
-            ]
-        }
+        resources = []
+        for definition in definitions:
+            server_id = str(definition.metadata.get("server_id") or "").strip() or definition.source or "builtin"
+            policy = classifications[(server_id, definition.id)]
+            required, source = policy["required_access"], policy["policy_source"]
+            resources.append({"server_id": server_id, "tool_id": definition.id, "tool_name": definition.name,
+                "registry_source": definition.source, "classification": required, "required_access": required,
+                "policy_source": source, "classification_status": policy_status(source, required),
+                **tool_policy_constraints(definition)})
+            if resources[-1]["policy_constraint"] == "control_permission":
+                resources[-1]["classification"] = resources[-1]["required_access"]
+                resources[-1]["classification_status"] = "control_plane"
+        return {"resources": resources}
 
     @app.put("/v1/access/grants", tags=["access"])
     def save_grant(
@@ -537,6 +538,14 @@ def register_access_routes(
         if (server_id, tool_id) not in current_tool_keys(definitions):
             raise HTTPException(status_code=404, detail="The tool is no longer registered; refresh the current catalog.")
         try:
+            definition = next(item for item in definitions if item.id == tool_id)
+            if request.access == "automatic":
+                classification = access_store.reset_tool_access_policy(
+                    definition, reviewer_id=principal.id, note=request.note, expected_fingerprint=request.expected_fingerprint,
+                    expected_policy_revision=request.expected_policy_revision,
+                )
+                return _with_registry_origins([classification], definitions)[0]
+            access_store.synchronize_tools([definition])
             classification = access_store.set_classification(
                 server_id=server_id,
                 tool_id=tool_id,
@@ -545,8 +554,13 @@ def register_access_routes(
                 idempotent=request.idempotent,
                 reviewer_id=principal.id,
                 note=request.note,
+                expected_fingerprint=request.expected_fingerprint,
+                expected_policy_revision=request.expected_policy_revision,
+                definition=definition,
             )
             return _with_registry_origins([classification], definitions)[0]
+        except ClassificationConfirmationConflictError as exc:
+            raise HTTPException(status_code=409, detail=str(exc)) from exc
         except KeyError as exc:
             raise HTTPException(status_code=404, detail=str(exc)) from exc
         except ValueError as exc:
@@ -568,6 +582,7 @@ def register_access_routes(
                 items=[item.model_dump() for item in request.items],
                 note=request.note or "",
                 publish=request.publish,
+                definitions=definitions,
             )
             return {**result, "confirmed": _with_registry_origins(result["confirmed"], definitions)}
         except ClassificationConfirmationConflictError as exc:
@@ -801,16 +816,21 @@ def _with_registry_origins(
     """Project live origins without changing stored recommendation sources or policy."""
 
     origins: dict[tuple[str, str], set[str]] = {}
+    current: dict[tuple[str, str], ToolDefinition] = {}
     for definition in definitions:
         server_id = definition.metadata.get("server_id")
         # Match the classification store's server-key normalization.
         server_id = server_id.strip() if isinstance(server_id, str) and server_id.strip() else definition.source or "builtin"
         origins.setdefault((server_id, definition.id), set()).add(definition.source)
+        current[(server_id, definition.id)] = definition
     result = []
     for classification in classifications:
         sources = origins.get((classification["server_id"], classification["tool_id"]), set())
         source = next(iter(sources)) if len(sources) == 1 else None
-        result.append({**classification, "registry_source": source})
+        current_definition = current.get((classification["server_id"], classification["tool_id"]))
+        constraints = tool_policy_constraints(current_definition) if current_definition is not None and source is not None else {
+            "policy_editable": False, "policy_constraint": "tool_unavailable"}
+        result.append({**classification, "registry_source": source, **constraints})
     return result
 
 

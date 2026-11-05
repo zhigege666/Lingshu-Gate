@@ -1,8 +1,27 @@
 import { describe, expect, it } from "vitest"
 import type { ApplyResponse, McpServer } from "@/api/client"
-import { configurationApplyResultError, configurationResultError } from "./configuration-result"
+import { configurationApplyResultError, configurationResultError, readConfigurationRuntime } from "./configuration-result"
 
 const result = (status?: string): ApplyResponse => ({ message: "ok", config: { id: "safe", path: "safe.json", format: "json", manifest: {} }, ...(status ? { server: { id: "safe", status } as NonNullable<ApplyResponse["server"]> } : {}) })
+describe("runtime evidence before configuration activation", () => {
+  it("reads a fresh exact target for every activation attempt", async () => {
+    let status = "stopped", reads = 0
+    const read = async () => { reads++; return { servers: [{ id: "other", status: "running" }, { id: "safe", status }] as McpServer[] } }
+    expect((await readConfigurationRuntime("safe", read))?.status).toBe("stopped")
+    status = "running"
+    expect((await readConfigurationRuntime("safe", read))?.status).toBe("running")
+    expect(reads).toBe(2)
+  })
+  it("allows a saved draft with no loaded runtime only after a successful collection read", async () => {
+    expect(await readConfigurationRuntime("safe", async () => ({ servers: [] }))).toBeUndefined()
+    await expect(readConfigurationRuntime("safe", async () => { throw new Error("unavailable") })).rejects.toThrow("No configuration changes were submitted")
+  })
+  it("rejects malformed runtime evidence with localized recovery guidance", async () => {
+    await expect(readConfigurationRuntime("safe", async () => ({ servers: [{ id: "safe" }] as McpServer[] }), true)).rejects.toThrow("尚未提交配置修改")
+    await expect(readConfigurationRuntime("safe", async () => ({ servers: undefined as unknown as McpServer[] }))).rejects.toThrow("Could not verify the current service state for safe")
+  })
+})
+
 describe("configuration save outcome", () => {
   it("does not report HTTP 200 failed or unknown activation as successful", () => {
     for (const status of ["failed", "starting", "stopped", undefined]) expect(configurationResultError(result(status), "safe", true)).toBeTruthy()

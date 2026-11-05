@@ -25,6 +25,7 @@ import { Toaster } from "@/components/ui/toast"
 import type { Locale, TFunction } from "@/i18n"
 import { formatDateTime } from "@/lib/utils"
 import { TableEmptyRow } from "@/pages/page-utils"
+import { saveBusinessCredentialWithSync } from "./business-credentials-panel-model"
 import "./business-credentials-panel.css"
 
 type Props = { locale: Locale; t: TFunction; scope: BusinessCredentialScope }
@@ -60,6 +61,9 @@ export function BusinessCredentialsPanel({ locale, t, scope }: Props) {
   const [editorError, setEditorError] = useState<string | null>(null)
   const [bindingCredentialId, setBindingCredentialId] = useState<string | null>(null)
   const [bindingDraft, setBindingDraft] = useState<BindingDraft>(emptyBinding)
+  const [bindingFormOpen, setBindingFormOpen] = useState(false)
+  const bindingFormHeading = useRef<HTMLHeadingElement>(null)
+  const addBindingTrigger = useRef<HTMLButtonElement>(null)
   const bindingBaseline = useRef(JSON.stringify(emptyBinding()))
   const [bindingError, setBindingError] = useState<string | null>(null)
   const bindingRevision = useRef(0)
@@ -76,6 +80,7 @@ export function BusinessCredentialsPanel({ locale, t, scope }: Props) {
   const { confirm, confirmDialog } = useConfirm(t, true)
   const secure = typeof window !== "undefined" && secureBusinessCredentialTransport(window.location)
   const pending = mutation !== ""
+  const canSyncOnSave = Boolean(editor?.record && draft.enabled && editor.record.bindings.some(binding => binding.enabled))
   const dirty = editor !== null && JSON.stringify(draft) !== draftBaseline.current
   const bindingDirty = bindingCredentialId !== null && JSON.stringify(bindingDraft) !== bindingBaseline.current
   const selectedCredential = records.find(record => record.id === bindingCredentialId)
@@ -133,7 +138,7 @@ export function BusinessCredentialsPanel({ locale, t, scope }: Props) {
   useEffect(() => {
     if (selectedCredential && !bindingDirty && !bindingDraft.id) bindingCredentialVersion.current = selectedCredential.version
   }, [selectedCredential?.version, bindingCredentialId, bindingDirty, bindingDraft.id])
-  usePageRefresh(load, loading || pending)
+  usePageRefresh(load, loading || pending || editor !== null || bindingCredentialId !== null)
 
   async function load() {
     loadController.current?.abort()
@@ -187,15 +192,22 @@ export function BusinessCredentialsPanel({ locale, t, scope }: Props) {
     if (scope === "shared") void loadTargets()
   }
 
+  useEffect(() => {
+    if (bindingCredentialId !== null) {
+      if (bindingFormOpen) bindingFormHeading.current?.focus()
+      else addBindingTrigger.current?.focus()
+    }
+  }, [bindingFormOpen, bindingCredentialId])
+
   function resetBinding() {
-    const next = emptyBinding(); setBindingDraft(next); bindingBaseline.current = JSON.stringify(next)
+    const next = emptyBinding(); setBindingDraft(next); bindingBaseline.current = JSON.stringify(next); setBindingFormOpen(false)
   }
 
   function openBindings(record: BusinessCredential, trigger: HTMLButtonElement) {
     if (pending) return
     bindingReturnFocus.current = trigger
     bindingCredentialVersion.current = record.version
-    setBindingCredentialId(record.id); resetBinding(); setBindingError(null); void loadTargets()
+    setBindingCredentialId(record.id); resetBinding(); setBindingFormOpen(record.bindings.length === 0); setBindingError(null); void loadTargets()
   }
 
   async function mutate(key: string, action: () => Promise<unknown>, success: string, setFailure: (value: string | null) => void = setActionError): Promise<boolean> {
@@ -213,16 +225,28 @@ export function BusinessCredentialsPanel({ locale, t, scope }: Props) {
     return ok
   }
 
-  async function saveCredential() {
+  async function saveCredential(synchronize = canSyncOnSave) {
     if (!editor || mutationLock.current || !secure) return
     setShowValidation(true)
     if (Object.keys(errors).length) { document.getElementById(`business-${Object.keys(errors)[0]}`)?.focus(); return }
     const original = editor.record
     const body = businessCredentialWrite(draft, original !== null, scope)
-    const ok = await mutate("credential-save", () => original
-      ? businessCredentialsApi.update(original.id, { ...body, expected_version: original.version })
-      : businessCredentialsApi.create({ ...body, scope }), tx("业务凭据已保存；各节点需要分别同步。", "Business credential saved; synchronize each bound node separately."), setEditorError)
-    if (ok && mounted.current) clearEditor()
+    const outcomes: Awaited<ReturnType<typeof saveBusinessCredentialWithSync>>[] = []
+    const ok = await mutate("credential-save", async () => {
+      outcomes.push(await saveBusinessCredentialWithSync(() => original
+        ? businessCredentialsApi.update(original.id, { ...body, expected_version: original.version })
+        : businessCredentialsApi.create({ ...body, scope }), businessCredentialsApi.sync, synchronize))
+    }, tx("业务凭据已保存。", "Business credential saved."), setEditorError)
+    if (ok && mounted.current) {
+      clearEditor()
+      const results = outcomes[0]?.results || []
+      const unresolved = results.filter(result => result.status !== "synced")
+      if (unresolved.length) setActionError(tx(
+        `凭据已保存；${unresolved.length} 个节点未确认同步成功：${unresolved.map(result => result.serverId).join("、")}。请打开“授权节点”查看实际状态后重试。`,
+        `Credential saved; synchronization is not confirmed for ${unresolved.length} nodes: ${unresolved.map(result => result.serverId).join(", ")}. Open Authorized nodes to read their actual state before retrying.`,
+      ))
+      else if (results.length) { setActionError(null); setMessage(tx(`已保存并同步到 ${results.length} 个已授权节点。`, `Saved and synchronized to ${results.length} authorized nodes.`)) }
+    }
   }
 
   async function toggleCredential(record: BusinessCredential) {
@@ -247,7 +271,7 @@ export function BusinessCredentialsPanel({ locale, t, scope }: Props) {
     const target = targets?.servers.find(server => server.server_id === bindingDraft.server_id)
     if (!editingBinding && !target?.compatible) { setBindingError(tx("该实例尚未满足绑定条件，请刷新目标列表。", "This instance does not meet binding requirements. Refresh the target list.")); return }
     if (!editingBinding && !bindingPrefixes.includes(bindingDraft.tool_prefix)) { setBindingError(tx("请明确选择该实例支持的工具契约。", "Explicitly choose a tool contract supported by this instance.")); return }
-    if (!editingBinding && !(await confirm({ title: tx("授权此 MCP 实例使用凭据？", "Authorize this MCP instance to use the credential?"),
+    if (!editingBinding && !target?.managed && !(await confirm({ title: tx("授权此 MCP 实例使用凭据？", "Authorize this MCP instance to use the credential?"),
       description: `${selectedCredential.name} → ${target?.name || bindingDraft.server_id}. ${managedNotice()}`,
       confirmText: tx("确认绑定", "Confirm binding") }))) return
     const record = selectedCredential
@@ -288,7 +312,7 @@ export function BusinessCredentialsPanel({ locale, t, scope }: Props) {
       description: tx("当前绑定表单的输入将被替换。", "The current binding form input will be replaced."), destructive: true }))) return
     const next = { id: binding.id, server_id: binding.server_id, tool_prefix: binding.tool_prefix, enabled: binding.enabled }
     bindingBaseline.current = JSON.stringify(next); bindingRevision.current = binding.revision; bindingCredentialVersion.current = record.version
-    setBindingDraft(next); setBindingError(null)
+    setBindingDraft(next); setBindingFormOpen(true); setBindingError(null)
   }
 
   async function closeSession(record: BusinessCredential, session: BusinessCredentialSession) {
@@ -350,7 +374,7 @@ export function BusinessCredentialsPanel({ locale, t, scope }: Props) {
           <TableCell><Button size="sm" variant="ghost" disabled={pending} onClick={event => openBindings(record, event.currentTarget)}>{record.bindings.length} {tx("个节点", "nodes")}</Button><div className="text-xs text-muted-foreground">{record.bindings.filter(binding => binding.sync_status === "synced" && binding.synced_version === record.version).length} {tx("个版本一致", "up to date")}</div></TableCell>
           <TableCell><Badge variant={record.enabled ? "success" : "secondary"}>{record.enabled ? tx("启用", "Enabled") : tx("停用", "Disabled")}</Badge></TableCell>
           <TableCell><ActionMenu inline label={t("actions")}><ActionMenuItem disabled={pending} onClick={event => openEditor(record, event.currentTarget)}>{t("edit")}</ActionMenuItem>
-            <ActionMenuItem disabled={pending} onClick={event => openBindings(record, event.currentTarget)}>{tx("管理节点", "Manage nodes")}</ActionMenuItem>
+
             <ActionMenuItem onClick={() => void copyPrompt(record)}>{tx("复制引用", "Copy reference")}</ActionMenuItem>
             <ActionMenuItem disabled={pending} onClick={() => void toggleCredential(record)}>{record.enabled ? tx("停用", "Disable") : tx("启用", "Enable")}</ActionMenuItem>
             <ActionMenuItem destructive disabled={pending} onClick={() => void removeCredential(record)}>{t("delete")}</ActionMenuItem>
@@ -363,14 +387,14 @@ export function BusinessCredentialsPanel({ locale, t, scope }: Props) {
       description={scope === "shared" ? tx("共享凭据仅允许明确选择的用户、角色和绑定实例使用。", "Shared credentials may be used only by explicitly selected users, roles, and bound instances.") : tx("个人凭据归当前 Gate 用户所有，保存后不会返回明文。", "Personal credentials belong to the current Gate user. Saved secrets are never returned.")}
       error={editorError} className="business-credential-editor"
       onCloseAutoFocus={event => { event.preventDefault(); (editorReturnFocus.current?.isConnected ? editorReturnFocus.current : createTrigger.current)?.focus() }}
-      footer={<><Button variant="outline" disabled={pending} onClick={() => void closeEditor()}>{t("cancel")}</Button><Button form="business-credential-form" type="submit" disabled={pending || !secure}><KeyRound aria-hidden />{pending ? tx("保存中…", "Saving…") : t("save")}</Button></>}>
+      footer={<><Button variant="outline" disabled={pending} onClick={() => void closeEditor()}>{t("cancel")}</Button>{canSyncOnSave && <Button variant="outline" disabled={pending || !secure} onClick={() => void saveCredential(false)}>{tx("仅保存", "Save only")}</Button>}<Button form="business-credential-form" type="submit" disabled={pending || !secure}><KeyRound aria-hidden />{pending ? tx("保存中…", "Saving…") : canSyncOnSave ? tx("保存并同步", "Save and sync") : t("save")}</Button></>}>
       <form id="business-credential-form" onSubmit={event => { event.preventDefault(); void saveCredential() }} className="business-credential-form">
         {input("name", tx("凭据名称", "Credential name"))}
         <BusinessField id="business-enabled" label={tx("启用", "Enabled")} help={tx("停用立即阻止后续受控使用，不自动删除节点密码或退出网站。", "Disabling blocks subsequent managed use; node passwords and website sessions require separate cleanup.")} zh={zh}><Switch id="business-enabled" checked={draft.enabled} disabled={pending} onChange={enabled => setDraft(current => ({ ...current, enabled }))} /></BusinessField>
         {input("environment", tx("环境", "Environment"), tx("可选分类，例如测试或生产。", "Optional classification, such as test or production."))}{input("business_role", tx("业务角色", "Business role"), tx("可选分类，用于区分医生、护士、管理员等业务账号，不等于 Gate 的授权角色。", "Optional classification for accounts such as doctor, nurse, or administrator; this is separate from Gate authorization roles."))}
         <div className="business-full-row">{input("login_url", tx("登录地址", "Login URL"), tx("密码仅用于此固定登录地址，不允许模型覆盖目标站点。不要在地址中加入账号密码或查询参数。", "Credentials are used for this fixed login URL. Agents cannot override the destination. Do not include credentials or query parameters."))}</div>
         {input("username", tx("账号", "Username"), editor?.record ? tx("留空保留原账号，页面只回读掩码。", "Leave empty to keep the username; the page reads only a mask.") : undefined)}
-        {input("password", tx("密码", "Password"), editor?.record ? tx("留空保留原密码；更改后各节点将显示待同步。", "Leave empty to keep the password. Replacing it makes bound nodes pending synchronization.") : tx("只通过安全连接提交，不写入浏览器存储，也不进入模型请求。", "Submitted over a secure connection; never persisted in browser storage or sent to a model."))}
+        {input("password", tx("密码", "Password"), editor?.record ? tx("留空保留原密码；可在保存时同步到已授权节点。", "Leave empty to keep the password. Save and sync updates already authorized nodes.") : tx("只通过安全连接提交，不写入浏览器存储，也不进入模型请求。", "Submitted over a secure connection; never persisted in browser storage or sent to a model."))}
         <div className="business-full-row"><BusinessField id="business-allow-http" label={tx("允许 HTTP 站点", "Allow HTTP site")} help={tx("仅用于受信内网或本机测试站点。HTTP 登录可能明文传输业务账号密码；这不会放宽控制台提交密码的 HTTPS 要求。", "For trusted private-network or loopback test sites. HTTP login can transmit business credentials in cleartext. This does not relax the console's HTTPS requirement.")} zh={zh}><Switch id="business-allow-http" checked={draft.allow_http} disabled={pending} onChange={allow_http => setDraft(current => ({ ...current, allow_http }))} /></BusinessField></div>
         {scope === "shared" && <section className="business-full-row business-form-section">
           <h3>{tx("允许使用的用户和角色", "Users and roles allowed to use this credential")}</h3>
@@ -388,9 +412,9 @@ export function BusinessCredentialsPanel({ locale, t, scope }: Props) {
     <FormDialog open={bindingCredentialId !== null} onClose={() => void closeBindings()} dirty={bindingDirty} pending={pending} closeLabel={t("close")}
       title={`${tx("授权节点", "Authorized nodes")} · ${selectedCredential?.name || ""}`} description={managedNotice()} error={bindingError}
       className="business-binding-dialog" onCloseAutoFocus={event => { event.preventDefault(); bindingReturnFocus.current?.isConnected ? bindingReturnFocus.current.focus() : createTrigger.current?.focus() }}
-      footer={<><Button variant="outline" disabled={pending} onClick={() => void closeBindings()}>{t("close")}</Button><Button type="submit" form="business-binding-form" disabled={pending || !selectedCredential || targetLoading || !targets}>{bindingDraft.id ? t("save") : tx("添加绑定", "Add binding")}</Button></>}>
+      footer={<><Button variant="outline" disabled={pending} onClick={() => void closeBindings()}>{t("close")}</Button>{bindingFormOpen && <Button type="submit" form="business-binding-form" disabled={pending || !selectedCredential || targetLoading || !targets}>{bindingDraft.id ? t("save") : tx("添加绑定", "Add binding")}</Button>}</>}>
       {selectedCredential ? <div className="flex min-w-0 flex-col gap-4">
-        <div className="business-binding-summary"><span>{tx("当前凭据版本", "Current credential version")} <strong>v{selectedCredential.version}</strong></span><Button size="sm" variant="outline" onClick={() => void copyPrompt(selectedCredential)}><Copy aria-hidden />{tx("复制调用示例", "Copy call example")}</Button><Button size="sm" variant="ghost" disabled={pending || loading || sessionLoading} onClick={() => { void load(); void loadSessions(selectedCredential.id) }}><RefreshCw aria-hidden />{t("refresh")}</Button></div>
+        <div className="business-binding-summary">{!bindingFormOpen && <Button ref={addBindingTrigger} size="sm" disabled={pending} onClick={() => { setBindingFormOpen(true); setBindingError(null) }}>{tx("添加节点", "Add node")}</Button>}<span>{tx("当前凭据版本", "Current credential version")} <strong>v{selectedCredential.version}</strong></span><Button size="sm" variant="outline" onClick={() => void copyPrompt(selectedCredential)}><Copy aria-hidden />{tx("复制调用示例", "Copy call example")}</Button><Button size="sm" variant="ghost" disabled={pending || loading || sessionLoading} onClick={() => { void load(); void loadSessions(selectedCredential.id) }}><RefreshCw aria-hidden />{t("refresh")}</Button></div>
         <p className="text-xs text-muted-foreground">{tx("Agent 使用 auth_login 的 name=gate:凭据ID 和独立 session。节点同步状态不代表业务登录已验证。凭据或节点密码版本变化后，请关闭旧会话并重新登录。", "Agents pass name=gate:credentialID and an isolated session to auth_login. Node synchronization does not verify website sign-in. After a credential or node password version changes, close old sessions and sign in again.")}</p>
         <div className="business-binding-list"><Table><TableHeader><TableRow><TableHead>{tx("MCP 实例", "MCP instance")}</TableHead><TableHead>{tx("版本与同步结果", "Version and synchronization")}</TableHead><TableHead>{tx("最近同步", "Last sync")}</TableHead><TableHead>{t("actions")}</TableHead></TableRow></TableHeader><TableBody>
           {!selectedCredential.bindings.length ? <TableEmptyRow colSpan={4} title={tx("尚未绑定节点，密码未下发。", "No nodes are bound; the password has not been distributed.")} /> : selectedCredential.bindings.map(binding => <TableRow key={binding.id}>
@@ -415,16 +439,20 @@ export function BusinessCredentialsPanel({ locale, t, scope }: Props) {
             <TableCell><div>{session.server_id}</div><code>{session.logical_session}</code></TableCell><TableCell>{session.status === "active" ? tx("浏览器打开", "Browser open") : session.status === "unknown" ? tx("状态待核对", "State unconfirmed") : tx("已关闭", "Closed")}</TableCell><TableCell>v{session.credential_version}{session.status !== "closed" && session.credential_version !== selectedCredential.version && <div className="text-xs text-amber-700 dark:text-amber-400">{tx("凭据已更新，关闭后重新登录", "Credential updated; close and sign in again")}</div>}</TableCell><TableCell><Button size="sm" variant="outline" disabled={pending || session.status === "closed"} onClick={() => void closeSession(selectedCredential, session)}>{tx("关闭浏览器会话", "Close browser session")}</Button></TableCell>
           </TableRow>)}</TableBody></Table></div>}
         </details>
-        <form id="business-binding-form" className="business-form-section" onSubmit={event => { event.preventDefault(); void saveBinding() }}>
-          <div className="flex items-center justify-between gap-3"><h3>{bindingDraft.id ? tx("编辑绑定", "Edit binding") : tx("绑定一个 MCP 实例", "Bind an MCP instance")}</h3>{bindingDraft.id && <Button type="button" size="sm" variant="ghost" disabled={pending} onClick={async () => { if (!bindingDirty || await confirm({ title: tx("放弃绑定修改？", "Discard binding edits?"), description: tx("清除当前绑定表单中未保存的修改。", "Clears unsaved changes in the binding form."), destructive: true })) resetBinding() }}>{tx("取消编辑", "Cancel edit")}</Button>}</div>
+        {bindingFormOpen && <form id="business-binding-form" className="business-form-section" onSubmit={event => { event.preventDefault(); void saveBinding() }}>
+          <div className="flex items-center justify-between gap-3"><h3 ref={bindingFormHeading} tabIndex={-1}>{bindingDraft.id ? tx("编辑绑定", "Edit binding") : tx("绑定一个 MCP 实例", "Bind an MCP instance")}</h3><Button type="button" size="sm" variant="ghost" disabled={pending} onClick={async () => { if (!bindingDirty || await confirm({ title: tx("放弃绑定修改？", "Discard binding edits?"), description: tx("清除当前绑定表单中未保存的修改。", "Clears unsaved changes in the binding form."), confirmText: tx("放弃修改", "Discard changes"), cancelText: tx("继续编辑", "Continue editing"), destructive: true })) resetBinding() }}>{t("cancel")}</Button></div>
           {targetError && <Alert variant="destructive" role="alert"><AlertDescription>{targetError}</AlertDescription><Button type="button" variant="outline" size="sm" disabled={pending || targetLoading} onClick={() => void loadTargets()}>{t("refresh")}</Button></Alert>}
           <BusinessField id="business-target" label={tx("MCP 实例", "MCP instance")} zh={zh}><Select getPopupContainer={dialogPopupContainer} id="business-target" showSearch optionFilterProp="label" value={bindingDraft.server_id || undefined} disabled={pending || Boolean(bindingDraft.id) || targetLoading || !targets} loading={targetLoading}
-            onChange={server_id => setBindingDraft(current => ({ ...current, server_id }))} placeholder={tx("选择已授权的目标实例", "Choose an authorized target instance")}
+            onChange={server_id => setBindingDraft(current => {
+              const target = targets?.servers.find(server => server.server_id === server_id)
+              const prefixes = target?.compatible_prefixes ?? (target?.tool_prefix !== undefined ? [target.tool_prefix] : ["agent_browser_", ""])
+              return { ...current, server_id, tool_prefix: prefixes.length === 1 ? prefixes[0] as BindingDraft["tool_prefix"] : current.tool_prefix }
+            })} placeholder={tx("选择已授权的目标实例", "Choose an authorized target instance")}
             options={(targets?.servers || []).filter(server => bindingDraft.id || !selectedCredential.bindings.some(binding => binding.server_id === server.server_id)).map(server => ({ value: server.server_id, label: `${server.name} · ${server.server_id}${!server.compatible && server.reason ? ` · ${explainCode(server.reason) || server.reason}` : ""}`, disabled: !server.compatible }))} /></BusinessField>
-          <BusinessField id="business-contract" label={tx("工具契约", "Tool contract")} help={tx("只显示该实例兼容的工具契约，请明确选择。保存时后端再次校验。原生需要启用 state 工具组。已保存绑定的实例与契约固定，变更时需清理旧绑定后新建。", "Choose explicitly from this instance's compatible tool contracts. The backend verifies it again on save. Native agent-browser requires the state tool group. Saved instance and contract pins are immutable; clean up the old binding before creating a replacement.")} zh={zh}><FilterRadio id="business-contract" hideLabel label={tx("工具契约", "Tool contract")} value={bindingDraft.tool_prefix || "short"} disabled={pending || Boolean(bindingDraft.id)} onChange={value => setBindingDraft(current => ({ ...current, tool_prefix: value === "short" ? "" : "agent_browser_" }))} options={bindingPrefixes.map(prefix => ({ value: prefix || "short", label: prefix ? "agent_browser_auth_*" : "auth_*" }))} /></BusinessField>
+          {(bindingDraft.id || bindingPrefixes.length > 1) && <BusinessField id="business-contract" label={tx("工具契约", "Tool contract")} help={tx("只显示该实例兼容的工具契约，请明确选择。保存时后端再次校验。原生需要启用 state 工具组。已保存绑定的实例与契约固定，变更时需清理旧绑定后新建。", "Choose explicitly from this instance's compatible tool contracts. The backend verifies it again on save. Native agent-browser requires the state tool group. Saved instance and contract pins are immutable; clean up the old binding before creating a replacement.")} zh={zh}><FilterRadio id="business-contract" hideLabel label={tx("工具契约", "Tool contract")} value={bindingDraft.tool_prefix || "short"} disabled={pending || Boolean(bindingDraft.id)} onChange={value => setBindingDraft(current => ({ ...current, tool_prefix: value === "short" ? "" : "agent_browser_" }))} options={bindingPrefixes.map(prefix => ({ value: prefix || "short", label: prefix ? "agent_browser_auth_*" : "auth_*" }))} /></BusinessField>}
           <BusinessField id="business-binding-enabled" label={tx("启用绑定", "Enable binding")} zh={zh}><Switch id="business-binding-enabled" checked={bindingDraft.enabled} disabled={pending} onChange={enabled => setBindingDraft(current => ({ ...current, enabled }))} /></BusinessField>
           <p className="text-xs text-muted-foreground">{tx("保存绑定不会自动下发密码。每个节点使用独立同步结果；停用不会删除节点密码，也不会退出网站。", "Saving a binding does not send its password. Each node tracks its own synchronization; disabling does not delete node passwords or sign out of websites.")}</p>
-        </form>
+        </form>}
       </div> : <p role="status">{loading ? t("loadingData") : tx("该凭据记录已不可用，请关闭并刷新列表。", "This credential is no longer available. Close and refresh the list.")}</p>}
     </FormDialog>
     <Dialog open={copyFallback !== null} onOpenChange={open => { if (!open) setCopyFallback(null) }}><DialogContent closeLabel={t("close")}><DialogHeader><DialogTitle>{tx("凭据引用调用示例", "Credential reference example")}</DialogTitle><DialogDescription>{tx("剪贴板不可用，请手动复制。按目标实例选择 auth_login 工具，session 请改为本轮独立名称。", "Clipboard access is unavailable. Copy manually, choose the target auth_login tool, and replace session with an isolated name for this task.")}</DialogDescription></DialogHeader><DialogBody><pre className="whitespace-pre-wrap break-all rounded-md bg-muted p-4 text-sm">{copyFallback}</pre></DialogBody></DialogContent></Dialog>
