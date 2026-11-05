@@ -32,10 +32,10 @@ function actionButtons(busy: boolean, count = 1) {
 }
 
 describe("MCP 配置行操作", () => {
-  it("只显示一次编辑、应用和删除，删除无需打开重复菜单", () => {
+  it("只显示一次编辑、应用并启动和删除，删除无需打开重复菜单", () => {
     expect(actionButtons(false)).toEqual([
       { label: "编辑", disabled: false },
-      { label: "应用", disabled: false },
+      { label: "应用并启动", disabled: false },
       { label: "删除", disabled: false },
     ])
   })
@@ -43,7 +43,7 @@ describe("MCP 配置行操作", () => {
   it("操作繁忙时同时禁用三个行按钮", () => {
     expect(actionButtons(true)).toEqual([
       { label: "编辑", disabled: true },
-      { label: "应用", disabled: true },
+      { label: "应用并启动", disabled: true },
       { label: "删除", disabled: true },
     ])
   })
