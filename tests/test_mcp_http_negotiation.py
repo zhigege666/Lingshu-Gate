@@ -65,7 +65,6 @@ def test_real_http_400_null_id_falls_back_once_and_reports_actual_version(tmp_pa
         assert runtime.to_response().negotiated_protocol_version is None
 
 
-@pytest.mark.parametrize("version", [None, "auto", MCP_PROTOCOL_VERSION])
 def test_tools_list_missing_tools_field_is_protocol_error(tmp_path):
     client = http_client(tmp_path, "https://mcp.example.test/mcp", "auto")
     client.request = lambda method, params, timeout=None: {}
@@ -73,6 +72,7 @@ def test_tools_list_missing_tools_field_is_protocol_error(tmp_path):
         client.list_tools()
 
 
+@pytest.mark.parametrize("version", [None, "auto", MCP_PROTOCOL_VERSION])
 def test_modern_unsupported_version_is_not_a_legacy_signal(tmp_path, version):
     with legacy_http_peer(discovery_error=(-32022, "Unsupported protocol version")) as (endpoint, state):
         client = http_client(tmp_path, endpoint, version)
