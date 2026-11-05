@@ -183,10 +183,10 @@ def test_new_tools_follow_existing_service_scope_but_never_expand_exact_or_read_
     assert not access.evaluate(writer, added)["allowed"]
     assert not access.evaluate(exact, definition)["allowed"]
     assert row(database, added)["required_access"] == "none"
-    assert row(database, added)["policy_source"] == "unavailable"
+    assert row(database, added)["access_policy_source"] == "unavailable"
     catalog.synchronize()
     assert row(database, added)["required_access"] == "none"
-    assert row(database, added)["policy_source"] == "unavailable"
+    assert row(database, added)["access_policy_source"] == "unavailable"
 
 
 def test_concurrent_policy_edit_cannot_overwrite_a_newer_disabled_decision(policy):
@@ -198,7 +198,7 @@ def test_concurrent_policy_edit_cannot_overwrite_a_newer_disabled_decision(polic
         expected_policy_revision=revision, definition=definition)
     disabled = row(database, definition)
     assert disabled["required_access"] == "none"
-    assert disabled["policy_source"] == "local_override"
+    assert disabled["access_policy_source"] == "local_override"
     with pytest.raises(ClassificationConfirmationConflictError, match="policy changed"):
         access.set_classification(server_id="example", tool_id=definition.id, access="read",
             destructive=False, idempotent=True, reviewer_id=actor.id, expected_fingerprint=before["fingerprint"],
