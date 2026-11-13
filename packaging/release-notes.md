@@ -16,6 +16,7 @@
 - Configuration-list refresh is read-only and does not stop running MCP instances. An explicit runtime reload remains a separate, disruptive operation.
 - System settings retain the optional Cloudflare Tunnel Compose profile and authenticated GitHub release checks. The release checker can pin an existing enabled HTTP/HTTPS proxy profile revision; this affects only the GitHub release request.
 - Native Linux, macOS and Windows installations retain verified startup updates. The launcher checks asset size, SHA-256 and signed workflow provenance before activation, and keeps the previous binary available for rollback. Docker and Unraid image updates remain host-managed.
+- Upgrade the OpenTelemetry API, SDK and OTLP HTTP exporter to 1.45.1 with compatible semantic conventions 0.66b1 to address quadratic parsing of untrusted `tracestate` headers ([GHSA-xcq7-p3pf-p88h / CVE-2026-114603](https://github.com/open-telemetry/opentelemetry-python/security/advisories/GHSA-xcq7-p3pf-p88h)). Adapt the exporter request entry while retaining the fixed OTLP destination, disabled redirects, TLS verification and sanitized responses.
 
 The release adds an additive SQLite migration for fail-closed service-identity policy handling. Back up the database, configuration and credential keys together before upgrading. Rolling back the program after database migration also requires restoring a matching backup.
 
@@ -39,6 +40,7 @@ Source-candidate evidence includes the Console refactor's TypeScript checks, UX 
 - 配置列表刷新改为只读，不会停止运行中的 MCP 实例。明确的运行时重载仍是独立且会中断服务的操作。
 - 系统设置保留可选 Cloudflare Tunnel Compose profile 和经过认证的 GitHub Release 检查。版本检查可固定使用已有且启用的 HTTP/HTTPS 代理配置修订，该配置只影响 GitHub Release 请求。
 - Linux、macOS 和 Windows 原生安装保留经过验证的启动时更新。启动器在切换前检查制品大小、SHA-256 和签名工作流来源，并保留旧二进制供回退。Docker 和 Unraid 镜像仍由宿主平台升级。
+- 将 OpenTelemetry API、SDK 和 OTLP HTTP 导出器升级至 1.45.1，配套语义约定包升级至 0.66b1，修复解析不可信 `tracestate` 请求头时的二次复杂度问题（[GHSA-xcq7-p3pf-p88h / CVE-2026-114603](https://github.com/open-telemetry/opentelemetry-python/security/advisories/GHSA-xcq7-p3pf-p88h)）。同步适配导出器请求入口，保留固定 OTLP 端点、禁止重定向、TLS 验证和响应清洗约束。
 
 本版增加服务身份策略失败关闭的增量 SQLite 迁移。升级前请一起备份数据库、配置和凭据密钥。数据库迁移后如需退回旧程序，还需恢复匹配的备份。
 

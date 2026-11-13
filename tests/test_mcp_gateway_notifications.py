@@ -218,6 +218,27 @@ def test_subscription_filter_is_validated_without_coercion(streaming_gateway, pa
     error.value.close()
 
 
+def test_subscription_validation_errors_do_not_expose_exception_details(streaming_gateway, monkeypatch):
+    gate, endpoint = streaming_gateway
+    token = credential(gate)
+
+    def reject(_params):
+        raise ValueError("private-parser-canary /private/config Traceback: internal validation")
+
+    monkeypatch.setattr("lingshu_gate.mcp_gateway.subscription_tools_requested", reject)
+    request = rpc(endpoint, token["token"], "subscriptions/listen", {"notifications": {"toolsListChanged": True}})
+    request.add_header("Accept", "text/event-stream")
+    with pytest.raises(urllib.error.HTTPError) as error:
+        urllib.request.urlopen(request, timeout=2)
+    try:
+        assert error.value.code == 400
+        payload = json.load(error.value)
+        assert payload["error"] == {"code": -32602, "message": "Invalid notification subscription parameters"}
+        assert "private-parser-canary" not in json.dumps(payload)
+    finally:
+        error.value.close()
+
+
 def test_get_preserves_authentication_origin_version_and_accept_boundaries(streaming_gateway):
     gate, endpoint = streaming_gateway
     token = credential(gate)

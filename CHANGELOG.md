@@ -14,6 +14,7 @@
 - Reject malformed tools/list pages that omit result.tools; keep the last complete catalog instead of treating an invalid envelope as an empty list.
 - Make the configuration-page refresh read-only. Refreshing the list no longer stops all running MCP instances.
 - Remove the obsolete TypeScript baseUrl compiler option for the pinned TypeScript 7 toolchain.
+- Upgrade the OpenTelemetry API, SDK and OTLP HTTP exporter to 1.45.1 with compatible semantic conventions 0.66b1 to address quadratic parsing of untrusted `tracestate` headers ([GHSA-xcq7-p3pf-p88h / CVE-2026-114603](https://github.com/open-telemetry/opentelemetry-python/security/advisories/GHSA-xcq7-p3pf-p88h)). Adapt the exporter request entry while retaining the fixed OTLP destination, disabled redirects, TLS verification and sanitized responses.
 
 ## 0.5.11
 

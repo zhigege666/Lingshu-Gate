@@ -65,6 +65,14 @@ def test_client_removed_during_lock_wait_never_reaches_a_downstream_tool(oauth_h
     admin, _, _ = state.auth_store.login(username=env.users["admin"]["username"], password=PASSWORD)
     manifest = state.mcp_runtime._servers["A"].manifest
     state.mcp_config_store.save_config(manifest.model_dump(exclude={"manifest_path"}))
+    # Creating the saved configuration rotates identity; grant its local policy
+    # before testing revocation while dispatch waits on that configuration.
+    state.access_store.synchronize_tools(state.registry.list_definitions())
+    state.access_store.set_classification(server_id="A", tool_id="mcp.A.read", access="read",
+        destructive=False, idempotent=True, reviewer_id=admin.id)
+    # Grouped dispatch still requires reviewed compatibility safety. Establish
+    # that contract so this test reaches lock-wait revocation, not review denial.
+    state.access_store.publish_classifications(tool_ids=["mcp.A.read"], reviewer_id=admin.id)
     group = state.mcp_group_service.save(McpGroupCreate(**draft(members=["A"])), admin)
     actor = verified_actor(env)
     state.access_store.save_grant(subject_type="user", subject_id=actor.id, server_id=logical_service_id(group["id"]),

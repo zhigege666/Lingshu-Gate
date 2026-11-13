@@ -148,7 +148,7 @@ def test_http_admin_entry_defaults_empty_rejects_operator_and_cross_site_then_li
         assert client.post("/v1/auth/login", json={"username": "synthetic-trust-api-admin", "password": "Synthetic-Admin-123!"}).status_code == 200
         assert client.get("/v1/mcp/http-trust/synthetic-private").json() == {
             "server_id": "synthetic-private", "revision": 0, "origins": [], "state": "unconfigured",
-            "server_binding": None, "revoked": False, "needs_review": False, "configured_origin": None,
+            "server_binding": None, "configured_server_binding": None, "revoked": False, "needs_review": False, "configured_origin": None,
             "configured_endpoint_origin": None}
         assert client.put("/v1/mcp/http-trust/synthetic-private", json=_request().model_dump(), headers={"Origin": "https://untrusted.example.test"}).status_code == 403
         assert client.put("/v1/mcp/http-trust/synthetic-private", json=_request().model_dump()).status_code == 200

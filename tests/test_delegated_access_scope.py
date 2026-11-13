@@ -53,7 +53,7 @@ def test_delivery_context_preserves_admin_delegation_ceiling(tmp_path):
 
 
 @pytest.mark.parametrize("auth_type,delegated", [("oauth", None), ("session", ("tools.invoke",))])
-def test_delegated_admin_requires_published_classification(tmp_path, auth_type, delegated):
+def test_delegated_admin_honors_default_write_and_explicit_local_policy(tmp_path, auth_type, delegated):
     store = AccessControlStore(SQLiteDatabase(f"sqlite:///{tmp_path / 'scope.db'}", tmp_path))
     tool = ToolDefinition(id="mcp.synthetic.write", name="Write", description="Synthetic",
         source="mcp", metadata={"server_id": "synthetic"})
@@ -64,16 +64,27 @@ def test_delegated_admin_requires_published_classification(tmp_path, auth_type, 
         external_expires_at="2099-01-01T00:00:00+00:00")
     ordinary_admin = replace(principal, auth_type="session", delegated_scopes=None)
     assert store.evaluate(ordinary_admin, tool)["allowed"]
-    assert not store.evaluate(principal, tool)["allowed"]
+    decision = store.evaluate(principal, tool)
+    assert decision["allowed"] and decision["required_access"] == "write"
+    reader = replace(principal, scopes=("tools.read",),
+        delegated_scopes=("tools.read",) if delegated is not None else None,
+        external_access=("read", "write"))
+    assert not store.evaluate(reader, tool)["allowed"]
     store.synchronize_tools([tool])
-    store.set_classification(server_id="synthetic", tool_id=tool.id, access="write",
-        destructive=False, idempotent=False, reviewer_id="synthetic")
-    assert not store.evaluate(principal, tool)["allowed"]
-    store.publish_classifications(server_id="synthetic", reviewer_id="synthetic")
     assert store.evaluate(principal, tool)["allowed"]
+    assert not store.evaluate(reader, tool)["allowed"]
     store.set_classification(server_id="synthetic", tool_id=tool.id, access="write",
         destructive=False, idempotent=False, reviewer_id="synthetic")
+    assert store.evaluate(principal, tool)["allowed"]
+    assert not store.evaluate(reader, tool)["allowed"]
+    store.set_classification(server_id="synthetic", tool_id=tool.id, access="read",
+        destructive=False, idempotent=True, reviewer_id="synthetic")
+    assert store.evaluate(reader, tool)["allowed"]
+    store.set_classification(server_id="synthetic", tool_id=tool.id, access="unknown",
+        destructive=False, idempotent=False, reviewer_id="synthetic")
+    assert not store.evaluate(reader, tool)["allowed"]
     assert not store.evaluate(principal, tool)["allowed"]
+    assert not store.evaluate(ordinary_admin, tool)["allowed"]
 
 
 @pytest.mark.parametrize("change", [

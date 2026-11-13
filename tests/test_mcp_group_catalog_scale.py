@@ -164,7 +164,8 @@ def test_full_directory_5000_instances_50000_tools(gate, monkeypatch, record_pro
             alternating_misses.append(batch_misses[-1])
             assert batch_misses[-1] < 25_000
     before_writer = counts.copy()
-    # A newly published last-member structure forces one cold preparation.
+    # A changed last-member description forces one cold preparation. The saved
+    # read policy survives, while reviewed safety must follow the new fingerprint.
     # Pause it while a real configuration writer acquires the mutation lock.
     last_group, last_instance = groups[-1], tool_instances - 1
     definition = registry.get_definition(f"mcp.scale-{last_instance:04}.query-{tools_each - 1:02}")
@@ -189,14 +190,23 @@ def test_full_directory_5000_instances_50000_tools(gate, monkeypatch, record_pro
                 overwrite=True)
         return wait
     with patch.object(structures, "prepare_tool_structure", side_effect=paused), ThreadPoolExecutor(max_workers=2) as pool:
-        reader = pool.submit(client.get, catalog_path(last_group), headers=headers)
+        reader = pool.submit(client.get, catalog_path(last_group), params={"limit": 100}, headers=headers)
         try:
             assert reached.wait(5)
             lock_wait = pool.submit(writer).result(timeout=5)
         finally:
             release.set()
         after = reader.result(timeout=20)
-    assert after.status_code == 200 and after.json()["visible_tool_count"] == 1000 * tools_each - 1
+    assert after.status_code == 200 and after.json()["visible_tool_count"] == 1000 * tools_each
+    assert after.json()["visible_member_count"] == 1000 and after.json()["total"] == tools_each + 1
+    changed_variants = [item for item in after.json()["variants"]
+                        if item["original_tool_name"] == f"query-{tools_each - 1:02}"]
+    assert len(changed_variants) == 2
+    unreviewed = next(item for item in changed_variants if item["compatibility"] == "review_required")
+    assert unreviewed["visible_member_count"] == 1 and unreviewed["safety"] is None
+    reviewed = next(item for item in changed_variants if item["compatibility"] == "reviewed_contract_match")
+    assert reviewed["visible_member_count"] == 999 and reviewed["safety"]["required_access"] == "read"
+    assert unreviewed["input_schema_digest"] == reviewed["input_schema_digest"], "Only description changed"
     assert counts["fingerprints"] == before_writer["fingerprints"] + writer_initial_misses
     assert counts["normalizations"] == before_writer["normalizations"] + writer_initial_misses
     assert counts["canonical_serializations"] == before_writer["canonical_serializations"] + 3 * writer_initial_misses

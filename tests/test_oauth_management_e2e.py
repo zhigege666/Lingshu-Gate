@@ -162,7 +162,11 @@ def test_complete_management_chain_and_target_confirmation_preserve_business_fam
     result = wait(gate, operation["operation_id"])
     reported = output(call(browser, bearer, "gate_mcp_config_status", {"operation_id": operation["operation_id"]}))
     assert reported["status"] == result["status"] == "success" and reported["terminal"]
-    assert reported["counts"]["needs_review"] == 1 and reported["classification_state"] == "needs_review"
+    assert reported["counts"]["discovered"] == 1
+    assert reported["counts"]["needs_review"] == 0 and reported["classification_state"] == "ready"
+    policy = db.query_one("SELECT required_access,access_policy_source FROM mcp_tool_classifications WHERE tool_id=?",
+                          ("mcp.synthetic-a.synthetic_read",))
+    assert tuple(policy) == ("write", "default_write")
     assert len([item for item in gate["calls"] if item[0] == "discover"]) == 1
     assert reported["effective_permissions_expanded"] is False and reported["remote_process_started"] is False
     assert output(call(browser, bearer, "gate_mcp_config_apply", apply_arguments(planned)))["idempotent_replay"]

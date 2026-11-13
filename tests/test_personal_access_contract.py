@@ -147,7 +147,7 @@ def test_p04_existing_session_rechecks_revoked_and_expired_grants(contract):
     assert client.get("/v1/me/mcp-servers").json()["total"] == 0
 
 
-def test_p05_token_scope_and_publication_intersection(contract):
+def test_p05_token_scope_and_local_policy_intersection(contract):
     client, state, users, calls, login = contract
     login("writer")
     token = client.post("/v1/auth/tokens", json={"name": "read-only", "scopes": ["tools.read"]})
@@ -158,8 +158,11 @@ def test_p05_token_scope_and_publication_intersection(contract):
     assert invoke(client, "mcp.B.write").status_code == 403
     state.access_store.set_classification(server_id="B", tool_id="mcp.B.read", access="read",
         destructive=False, idempotent=True, reviewer_id="synthetic")
+    assert invoke(client, "mcp.B.read").status_code == 200
+    state.access_store.set_classification(server_id="B", tool_id="mcp.B.read", access="write",
+        destructive=False, idempotent=True, reviewer_id="synthetic")
     assert invoke(client, "mcp.B.read").status_code == 403
-    assert calls["mcp.B.read"] == 1
+    assert calls["mcp.B.read"] == 2 and calls["mcp.B.write"] == 0
 
 
 

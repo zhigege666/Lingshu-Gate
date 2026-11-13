@@ -339,7 +339,15 @@ def test_ohttp04_admin_read_delegation_does_not_bypass_scope_or_tool_policy(oaut
     env.assert_denied_without_dispatch(token, "mcp.C.read")
     env.state.access_store.set_classification(server_id="A", tool_id="mcp.A.read", access="read",
         destructive=False, idempotent=True, reviewer_id=env.users["admin"]["id"])
+    # Saving the same local read policy stays effective without publication.
+    before = env.calls["mcp.A.read"]
+    assert env.call("mcp.A.read", token).json()["result"].get("isError") is not True
+    assert env.calls["mcp.A.read"] == before + 1
+    # Raising the requirement immediately rejects the unchanged read delegation.
+    env.state.access_store.set_classification(server_id="A", tool_id="mcp.A.read", access="write",
+        destructive=False, idempotent=False, reviewer_id=env.users["admin"]["id"])
     env.assert_denied_without_dispatch(token, "mcp.A.read")
+    env.assert_denied_without_dispatch(wildcard, "mcp.A.read")
 
 
 def test_ohttp05_invalid_bearer_cannot_inherit_cookie_and_jwt_cannot_enter_console(oauth_http):

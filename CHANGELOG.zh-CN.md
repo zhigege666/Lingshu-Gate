@@ -14,6 +14,7 @@
 - tools/list 响应缺少 result.tools 时按协议错误处理，保留最后一次完整目录，不再把无效响应误认为空目录。
 - 配置页刷新改为只读操作；刷新列表不再停止全部运行中的 MCP 实例。
 - 移除 TypeScript 7 工具链已废弃的 baseUrl 编译选项。
+- 将 OpenTelemetry API、SDK 和 OTLP HTTP 导出器升级至 1.45.1，配套语义约定包升级至 0.66b1，修复解析不可信 `tracestate` 请求头时的二次复杂度问题（[GHSA-xcq7-p3pf-p88h / CVE-2026-114603](https://github.com/open-telemetry/opentelemetry-python/security/advisories/GHSA-xcq7-p3pf-p88h)）。同步适配导出器请求入口，保留固定 OTLP 端点、禁止重定向、TLS 验证和响应清洗约束。
 
 ## 0.5.11
 

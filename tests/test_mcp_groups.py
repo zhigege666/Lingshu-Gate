@@ -639,7 +639,7 @@ def test_catalog_only_counts_visible_members_variants_and_current_scopes(gate):
     assert body["variants"][0]["safety"] is None
 
 
-def test_catalog_changed_fingerprint_is_not_authorized_by_old_review_and_get_never_syncs(gate):
+def test_catalog_changed_fingerprint_preserves_local_access_but_not_review_and_get_never_syncs(gate):
     group = create(gate)
     catalog_tool(gate, "instance-0")
     second, handler = catalog_tool(gate, "instance-1")
@@ -648,8 +648,13 @@ def test_catalog_changed_fingerprint_is_not_authorized_by_old_review_and_get_nev
     gate["registry"].register(second.model_copy(update={"input_schema": {"type": "object"}}), handler, replace=True)
     before = [dict(row) for row in gate["database"].query_all("SELECT * FROM mcp_tool_classifications ORDER BY tool_id")]
     response = gate["client"].get(catalog_path(group), headers=headers)
-    assert response.status_code == 200 and response.json()["visible_tool_count"] == 1
-    assert response.json()["variants"][0]["variant_id"] == old
+    assert response.status_code == 200 and response.json()["visible_tool_count"] == 2
+    # The saved read policy remains effective; changed schema cannot inherit
+    # the reviewed safety contract or merge into its existing variant.
+    variants = {item["variant_id"]: item for item in response.json()["variants"]}
+    assert len(variants) == 2 and variants[old]["safety"] is not None
+    changed = next(item for identifier, item in variants.items() if identifier != old)
+    assert changed["compatibility"] == "review_required" and changed["safety"] is None
     admin = gate["client"].get(catalog_path(group)).json()
     assert admin["total"] == 2 and sum(item["compatibility"] == "review_required" for item in admin["variants"]) == 1
     assert before == [dict(row) for row in gate["database"].query_all("SELECT * FROM mcp_tool_classifications ORDER BY tool_id")]

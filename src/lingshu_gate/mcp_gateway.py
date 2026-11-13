@@ -190,8 +190,8 @@ def register_mcp_gateway_route(
                     protocol_version=protocol_context.protocol_version)
             try:
                 tools_requested = True if legacy_stream else subscription_tools_requested(message.get("params"))
-            except ValueError as exc:
-                return _error_response(request_id, -32602, str(exc), settings, status_code=400,
+            except ValueError:
+                return _error_response(request_id, -32602, "Invalid notification subscription parameters", settings, status_code=400,
                     protocol_version=protocol_context.protocol_version)
             identity = _notification_identity(principal)
 

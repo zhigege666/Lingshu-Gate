@@ -147,7 +147,7 @@ def test_extracted_routes_preserve_authentication_boundaries() -> None:
                 tool_routes += 1
                 assert "authenticate_request" in dependencies, route.path
 
-        assert operation_routes == 32
+        assert operation_routes == 34
         assert network_project_routes == set(NETWORK_PROJECT_PERMISSIONS)
         assert credential_routes == 5
         assert tool_routes == 4
