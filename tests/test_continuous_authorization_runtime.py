@@ -13,7 +13,7 @@ from lingshu_gate.mcp_http_trust import McpHttpTrustStore
 from lingshu_gate.mcp_gateway import register_mcp_gateway_route
 from lingshu_gate.transports.http import build_protocol_request
 from test_builtin_oauth import ISSUER, gate as gate, mcp_request
-from test_oauth_continuous_scope import discover, publish
+from test_oauth_continuous_scope import discover
 from test_token_authorizations import save, tokens as tokens
 
 
@@ -21,7 +21,7 @@ def token_actor(gate, token):
     return gate["auth"].authenticate_request(mcp_request(token["token"]))
 
 
-def test_api_token_continuous_range_includes_only_future_published_allowed_tools(tokens, gate):
+def test_api_token_continuous_range_includes_only_future_discovered_allowed_tools(tokens, gate):
     token = save(tokens, gate, scopes=["tools.read", "tools.invoke"],
         server_policies=[{"server_id": "A", "mode": "continuous", "access": "write"}])
     actor = token_actor(gate, token)
@@ -30,15 +30,20 @@ def test_api_token_continuous_range_includes_only_future_published_allowed_tools
     assert access.evaluate(actor, registry.get_definition("mcp.A.write"))["allowed"]
     assert not access.evaluate(actor, registry.get_definition("mcp.B.read"))["allowed"]
     later = discover(gate)
-    assert not access.evaluate(token_actor(gate, token), registry.get_definition(later))["allowed"]
-    publish(gate, later)
-    assert access.evaluate(token_actor(gate, token), registry.get_definition(later))["allowed"]
+    tool = registry.get_definition(later)
+    decision = access.evaluate(token_actor(gate, token), tool)
+    assert decision["allowed"] and decision["required_access"] == "write"
+    reader = replace(token_actor(gate, token), scopes=("tools.read",))
+    assert not access.evaluate(reader, tool)["allowed"]
+    access.set_classification(server_id="A", tool_id=later, access="read", destructive=False,
+                              idempotent=True, reviewer_id=gate["admin"]["id"])
+    assert access.evaluate(reader, tool)["allowed"]
     access.save_grant(subject_type="user", subject_id=actor.id, server_id="A", tool_id=later,
                       permission_type_code="none", created_by=gate["admin"]["id"])
     assert not access.evaluate(token_actor(gate, token), registry.get_definition(later))["allowed"]
 
 
-def test_same_api_bearer_lists_and_calls_new_tool_only_after_publication(tokens, gate):
+def test_read_api_bearer_lists_and_calls_new_tool_after_explicit_read_policy(tokens, gate):
     created = save(tokens, gate, server_policies=[{"server_id": "A", "mode": "continuous", "access": "read"}])
     # 此用例专门覆盖完整列表合同，显式配置授权，不依赖旧默认值。
     gate["db"].execute("INSERT INTO authorization_discovery VALUES('api',?,'direct',1)", (created["id"],))
@@ -68,9 +73,11 @@ def test_same_api_bearer_lists_and_calls_new_tool_only_after_publication(tokens,
 
         assert {item["name"] for item in rpc("tools/list")["tools"]} == {"mcp__A__read"}
         later = discover(gate)
+        assert "mcp__A__later" not in {item["name"] for item in rpc("tools/list")["tools"]}
         rejected = rpc("tools/call", {"name": "mcp__A__later", "arguments": {}})
         assert rejected["isError"] and not calls
-        publish(gate, later)
+        gate["access"].set_classification(server_id="A", tool_id=later, access="read", destructive=False,
+                                          idempotent=True, reviewer_id=gate["admin"]["id"])
         assert "mcp__A__later" in {item["name"] for item in rpc("tools/list")["tools"]}
         assert not rpc("tools/call", {"name": "mcp__A__later", "arguments": {}}).get("isError", False)
         assert calls == [("A", "later", gate["users"]["alice"]["id"])]
@@ -82,14 +89,22 @@ def test_empty_independent_token_is_not_admin_business_bypass(tokens, gate):
     assert not gate["access"].evaluate(actor, gate["registry"].get_definition("mcp.A.read"))["allowed"]
 
 
-def test_token_selected_snapshot_invalidates_after_reclassification(tokens, gate):
-    token = save(tokens, gate, tool_ids=["mcp.A.read"])
+def test_token_selected_snapshot_invalidates_only_after_actual_policy_change(tokens, gate):
+    token = save(tokens, gate, scopes=["tools.read", "tools.invoke"], tool_ids=["mcp.A.read"])
     access = gate["access"]
     tool = gate["registry"].get_definition("mcp.A.read")
     assert access.evaluate(token_actor(gate, token), tool)["allowed"]
     access.set_classification(server_id="A", tool_id=tool.id, access="read", destructive=False,
                               idempotent=True, reviewer_id=gate["admin"]["id"])
+    assert access.evaluate(token_actor(gate, token), tool)["allowed"]
+    access.set_classification(server_id="A", tool_id=tool.id, access="write", destructive=False,
+                              idempotent=True, reviewer_id=gate["admin"]["id"])
     assert not access.evaluate(token_actor(gate, token), tool)["allowed"]
+    access.set_classification(server_id="A", tool_id=tool.id, access="read", destructive=False,
+                              idempotent=True, reviewer_id=gate["admin"]["id"])
+    assert not access.evaluate(token_actor(gate, token), tool)["allowed"]
+    replacement = save(tokens, gate, tool_ids=[tool.id])
+    assert access.evaluate(token_actor(gate, replacement), tool)["allowed"]
 
 
 def test_api_token_quota_shares_counter_after_owner_changes_limits(tokens, gate):
@@ -155,14 +170,28 @@ def test_token_selected_and_continuous_scopes_do_not_survive_same_id_recreation(
     manifest = external_manifest()
     manifest["id"] = "A"
     configs.save_config(manifest)
+    access = gate["access"]
+    tool = gate["registry"].get_definition("mcp.A.read")
+    access.synchronize_tools(gate["registry"].list_definitions())
+    access.set_classification(server_id="A", tool_id=tool.id, access="read", destructive=False,
+                              idempotent=True, reviewer_id=gate["admin"]["id"])
+    with gate["db"].session() as connection:
+        original_binding = server_binding(connection, "A")
     scope = {"server_policies": [{"server_id": "A", "mode": "continuous", "access": "read"}]} if continuous else {
         "tool_ids": ["mcp.A.read"]}
     token = save(tokens, gate, **scope)
-    tool = gate["registry"].get_definition("mcp.A.read")
-    assert gate["access"].evaluate(token_actor(gate, token), tool)["allowed"]
+    assert access.evaluate(token_actor(gate, token), tool)["allowed"]
     configs.delete_config("A")
     configs.save_config(manifest)
-    assert not gate["access"].evaluate(token_actor(gate, token), tool)["allowed"]
+    with gate["db"].session() as connection:
+        assert server_binding(connection, "A") != original_binding
+    access.synchronize_tools(gate["registry"].list_definitions())
+    assert not access.evaluate(token_actor(gate, token), tool)["allowed"]
+    access.set_classification(server_id="A", tool_id=tool.id, access="read", destructive=False,
+                              idempotent=True, reviewer_id=gate["admin"]["id"])
+    assert not access.evaluate(token_actor(gate, token), tool)["allowed"]
+    replacement = save(tokens, gate, **scope)
+    assert access.evaluate(token_actor(gate, replacement), tool)["allowed"]
 
 
 def test_bound_policies_reject_replaced_identity_and_unknown_fields(gate):

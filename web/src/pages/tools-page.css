@@ -51,3 +51,33 @@
 .tool-catalog-scroll { flex: 0 1 auto; min-height: 0; overflow: auto; min-width: 0; overscroll-behavior: contain; }
 
 .tool-catalog > .page-header, .tool-catalog-summary, .tool-catalog-pagination { flex-shrink: 0; }
+
+/* Both views use the same records, actions and scroll viewport. */
+.tool-catalog-grid[data-view="list"] { grid-template-columns: minmax(0, 1fr); gap: 0; border: 1px solid hsl(var(--border)); border-radius: var(--radius-panel); overflow: hidden; }
+.tool-catalog-grid[data-view="list"] > .tool-catalog-card { display: grid; grid-template-columns: minmax(240px, 1fr) minmax(220px, 1.2fr) minmax(160px, .65fr) auto; align-items: center; gap: var(--space-5); padding: var(--space-4); border: 0; border-bottom: 1px solid hsl(var(--border)); border-radius: 0; box-shadow: none; }
+.tool-catalog-grid[data-view="list"] > .tool-catalog-card:last-child { border-bottom: 0; }
+.tool-catalog-grid[data-view="list"] > .tool-catalog-card:hover { background: hsl(var(--accent) / .45); }
+.tool-catalog-grid[data-view="list"] .tool-card-heading { grid-column: 1; flex-wrap: wrap; gap: var(--space-2); }
+.tool-catalog-grid[data-view="list"] .tool-card-icon, .tool-catalog-grid[data-view="list"] .tool-card-permission { display: none; }
+.tool-catalog-grid[data-view="list"] .tool-card-description { grid-column: 2; grid-row: 1; margin: 0; }
+.tool-catalog-grid[data-view="list"] .tool-card-footer { display: contents; }
+.tool-catalog-grid[data-view="list"] .tool-card-service { grid-column: 3; grid-row: 1; font-size: 12px; }
+.tool-catalog-grid[data-view="list"] .tool-card-actions { grid-column: 4; grid-row: 1; }
+.tool-catalog-grid[data-view="list"][aria-busy="true"] > * { height: 88px; }
+@media (max-width: 1200px) {
+  .tool-catalog-grid[data-view="list"] > .tool-catalog-card { grid-template-columns: minmax(0, 1fr) minmax(0, 1.2fr) auto; }
+  .tool-catalog-grid[data-view="list"] .tool-card-service { grid-column: 1; grid-row: 2; }
+  .tool-catalog-grid[data-view="list"] .tool-card-actions { grid-column: 3; }
+  .tool-catalog-grid[data-view="list"] .tool-card-description { grid-row: 1 / span 2; }
+}
+@media (max-width: 720px) {
+  .tool-catalog-grid[data-view="list"] > .tool-catalog-card { grid-template-columns: minmax(0, 1fr) auto; gap: var(--space-3); }
+  .tool-catalog-grid[data-view="list"] .tool-card-heading { grid-column: 1 / -1; }
+  .tool-catalog-grid[data-view="list"] .tool-card-description { grid-column: 1 / -1; grid-row: 2; }
+  .tool-catalog-grid[data-view="list"] .tool-card-service { grid-column: 1; grid-row: 3; }
+  .tool-catalog-grid[data-view="list"] .tool-card-actions { grid-column: 2; grid-row: 3; }
+}
+
+.tool-title-button { text-align: left; border-radius: 2px; cursor: pointer; }
+.tool-title-button:hover { text-decoration: underline; text-underline-offset: 3px; }
+.tool-title-button:focus-visible { outline: 2px solid hsl(var(--ring)); outline-offset: 3px; }

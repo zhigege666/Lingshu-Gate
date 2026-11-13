@@ -89,12 +89,15 @@ class McpConfigurationService:
         except (KeyError, ValueError):
             return None
 
-    def validate_http_credentials(self, manifest: McpServerManifest, *, allow_pending: bool = True) -> None:
+    def validate_http_credentials(self, manifest: McpServerManifest, *, allow_pending: bool = True,
+                                  staged_credential_id: str | None = None) -> None:
         if self._credentials is None or manifest.transport.type != "streamable_http":
             return
         binding = self.http_credential_binding(manifest)
         for value in manifest.transport.headers.values():
             for ref in extract_credential_refs(value):
+                if ref == staged_credential_id:
+                    continue
                 self._credentials.assert_http_binding(ref, server_id=manifest.id, endpoint=manifest.transport.endpoint or "",
                                                       server_binding=binding, allow_pending=allow_pending)
 
@@ -117,7 +120,8 @@ class McpConfigurationService:
         if self._credentials is not None and manifest.transport.type == "streamable_http":
             origin = canonical_http_origin(manifest.transport.endpoint or "")
             refs = {ref for value in manifest.transport.headers.values() for ref in extract_credential_refs(value)}
-            return any(scope.server_id == manifest.id and scope.origin == origin and scope.server_binding is None
+            return any(scope.server_id == manifest.id and scope.origin == origin
+                       and (scope.server_binding is None or scope.pending_rebind)
                        for ref in refs for scope in self._credentials.get_credential(ref).http_scopes)
         return False
 
@@ -140,6 +144,7 @@ class McpConfigurationService:
         *,
         existing_server_id: str | None = None,
         http_trust_plan: dict[str, Any] | None = None,
+        staged_credential_id: str | None = None,
     ) -> PreparedUserCredentials:
         """Validate one-time secrets without adding them to the manifest."""
 
@@ -153,7 +158,7 @@ class McpConfigurationService:
             manifest_data = with_new_manifest_defaults(manifest_data)
         manifest = validate_manifest_for_write(manifest_data, http_trust_store=getattr(self._config_store, "http_trust_store", None),
                                                check_http_trust=http_trust_plan is None)
-        self.validate_http_credentials(manifest)
+        self.validate_http_credentials(manifest, staged_credential_id=staged_credential_id)
         values = dict(request.user_credential_values)
         declared_slots = {slot.id for slot in manifest.user_credentials}
         unknown = sorted(set(values) - declared_slots)

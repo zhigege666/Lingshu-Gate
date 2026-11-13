@@ -231,6 +231,31 @@ def test_collector_response_never_redirects_reads_unbounded_body_or_logs_private
     assert "unrelated-business-http-log" in caplog.text
 
 
+@pytest.mark.parametrize("method,changed_endpoint,code", [
+    ("GET", False, "otlp_method_not_allowed"),
+    ("POST", True, "otlp_endpoint_mismatch"),
+])
+def test_exporter_request_rejects_other_methods_and_destinations(monkeypatch, method, changed_endpoint, code):
+    import requests
+    from opentelemetry.exporter.otlp.proto.http import trace_exporter
+
+    original = trace_exporter.OTLPSpanExporter
+    sessions = []
+
+    def capture_session(*args, **kwargs):
+        sessions.append(kwargs["session"])
+        return original(*args, **kwargs)
+
+    monkeypatch.setattr(trace_exporter, "OTLPSpanExporter", capture_session)
+    with collector() as (endpoint, state), tracing(endpoint) as service:
+        assert service.status()["traces_ready"] and len(sessions) == 1
+        url = endpoint + "/endpoint-private-canary" if changed_endpoint else endpoint
+        with pytest.raises(requests.RequestException, match=code) as caught:
+            sessions[0].request(method, url, data=b"")
+        assert "private-canary" not in str(caught.value)
+        assert not state["requests"]
+
+
 def tls_files(tmp_path):
     key = rsa.generate_private_key(public_exponent=65537, key_size=2048)
     name = x509.Name([x509.NameAttribute(x509.NameOID.COMMON_NAME, "Synthetic telemetry CA")])
@@ -263,6 +288,20 @@ def test_tls_certificate_verification_and_explicit_ca(tmp_path, monkeypatch):
             emit(service)
             wait_until(lambda: service.status()["export_accepted_spans"] == 1)
             assert len(state["protobuf"]) == 1
+
+
+def test_missing_ca_file_does_not_expose_its_path_in_exporter_logs(tmp_path, caplog):
+    certificate, context = tls_files(tmp_path)
+    private_path = certificate.rename(tmp_path / "ca-path-private-canary.pem")
+    caplog.set_level(logging.DEBUG)
+    with collector(tls=context) as (endpoint, state), tracing(endpoint, otlp_ca_file=private_path) as service:
+        private_path.unlink()
+        emit(service)
+        wait_until(lambda: service.status()["failed_spans"] == 1)
+        assert not state["requests"]
+        assert "private-canary" not in caplog.text
+        assert str(private_path) not in caplog.text
+        assert service.status()["last_failure_code"] == "export_failed"
 
 
 def test_slow_collector_capacity_and_bounded_shutdown_do_not_wait_on_business():

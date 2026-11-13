@@ -559,6 +559,13 @@ def test_business_bindings_reject_http_targets_with_per_user_transport_routes(ga
     gate["configs"].save_config(manifest, overwrite=True)
     gate["target"].manifest = gate["configs"].load_manifest(SERVER)
     record = create(gate)
+    # A different transport target cannot inherit the original local policy.
+    assert_denied("credential_tool_denied", lambda: bind(gate, record))
+    assert not gate["peer"].calls
+    gate["access"].set_classification(server_id=SERVER, tool_id=f"mcp.{SERVER}.agent_browser_auth_login",
+        access="write", destructive=False, idempotent=False, reviewer_id=gate["actors"]["admin"].id)
+    # Even an explicit policy for the replacement cannot permit secret transfer
+    # through per-user transport routes.
     assert_denied("credential_target_user_routing", lambda: bind(gate, record))
     assert not gate["store"].is_managed_server(SERVER)
     assert not gate["peer"].calls

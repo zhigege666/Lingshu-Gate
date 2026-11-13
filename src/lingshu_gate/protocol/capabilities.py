@@ -39,7 +39,7 @@ class GatewayCapabilityPolicy:
     """Capabilities implemented by Gate at its public MCP boundary."""
 
     server_capabilities: dict[str, Any] = field(
-        default_factory=lambda: {"tools": {"listChanged": False}}
+        default_factory=lambda: {"tools": {"listChanged": True}}
     )
 
     def advertised(self) -> dict[str, Any]:

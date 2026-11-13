@@ -5,7 +5,7 @@ import {
   api,
   type DiagnosticsResponse,
   type HealthResponse,
-  type HttpTrustSaveOptions,
+  type ConfigSaveOptions,
   type McpConfig,
   type McpServer,
   type ToolDefinition,
@@ -13,7 +13,9 @@ import {
 import { useAuth } from "@/components/auth-gate"
 import { gateVersionText } from "@/features/gate-version"
 import { createMcpConfigTemplate } from "@/features/mcp-config/model"
-import { configurationApplyResultError } from "@/features/servers/configuration-result"
+import { configurationApplyResultError, configurationResultError, readConfigurationRuntime } from "@/features/servers/configuration-result"
+import { serverCopy } from "@/features/servers/copy"
+import { reconcileServerSnapshots, toolCatalogChanged, toolSyncResult } from "@/features/servers/tool-sync-model"
 import { RouteErrorBoundary, RouteLoadingFallback } from "@/components/route-boundary"
 import { useConfirm } from "@/components/confirm-dialog"
 import { HighlightText } from "@/components/highlight-text"
@@ -127,6 +129,8 @@ export default function App() {
   const [message, setMessage] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [busy, setBusy] = useState(false)
+  const configMutationPending = useRef(false)
+  const toolSyncPending = useRef(false)
   const [sharedLoading, setSharedLoading] = useState(false)
   const [dashboardBusy, setDashboardBusy] = useState(false)
   const [dashboardRefreshId, setDashboardRefreshId] = useState(0)
@@ -188,6 +192,44 @@ export default function App() {
     })
     return () => { active = false }
   }, [view, user.id, canReadTools, needsFullToolCatalog])
+
+  // The service route owns live snapshots. Hidden pages and mutations suspend
+  // reads; changing the owner aborts older responses before they can publish.
+  useEffect(() => {
+    if (view !== "servers" || !canManageOperations || busy || routeLoading) return
+    const controller = new AbortController()
+    let reading = false
+    const read = async () => {
+      if (document.hidden || reading || controller.signal.aborted) return
+      reading = true
+      try {
+        const snapshot = await api.servers(controller.signal)
+        if (controller.signal.aborted) return
+        const nextServers = reconcileServerSnapshots(servers, snapshot.servers)
+        const changed = nextServers.length !== servers.length || nextServers.some((server, index) => server !== servers[index])
+        let catalog: ToolDefinition[] | undefined
+        let catalogError: string | undefined
+        if (canReadTools && (toolsError || toolCatalogChanged(servers, snapshot.servers))) {
+          try { catalog = await api.tools(controller.signal) }
+          catch (reason) { catalogError = reason instanceof Error ? reason.message : String(reason) }
+        }
+        if (controller.signal.aborted || toolSyncPending.current) return
+        if (changed) setServers(nextServers)
+        setLoadErrors(snapshot.load_errors); setServersLoaded(true); setServersError(null)
+        if (catalog) { setTools(catalog); setToolsLoaded(true); setToolsError(null) }
+        else if (catalogError) setToolsError(catalogError)
+      } catch (reason) {
+        if (!controller.signal.aborted) {
+          const detail = reason instanceof Error ? reason.message : String(reason)
+          setServersError(detail); setLoadErrors([detail])
+        }
+      } finally { reading = false }
+    }
+    const timer = window.setInterval(() => { void read() }, 15_000)
+    const onVisibility = () => { if (!document.hidden) void read() }
+    document.addEventListener("visibilitychange", onVisibility)
+    return () => { controller.abort(); window.clearInterval(timer); document.removeEventListener("visibilitychange", onVisibility) }
+  }, [view, user, canManageOperations, canReadTools, busy, routeLoading, servers, toolsError])
 
   useEffect(() => {
     const onKey = (event: KeyboardEvent) => {
@@ -307,7 +349,9 @@ export default function App() {
     setSelectedConfigId(""); setSelectedConfigDigest(undefined); setConfigText(prettyJson(createMcpConfigTemplate())); setConfigEditorOpen(true)
   }
 
-  async function saveConfig(nextValue?: string, httpTrust: HttpTrustSaveOptions = {}) {
+  async function saveConfig(nextValue?: string, httpTrust: ConfigSaveOptions = {}, apply = false) {
+    if (configMutationPending.current) return
+    configMutationPending.current = true
     const manifestText = nextValue || configText
     setBusy(true); setError(null)
     try {
@@ -326,13 +370,20 @@ export default function App() {
       }
       const manifest = { ...parsed }
       delete manifest.user_credential_values
-      // 一次性秘密不得继续留在编辑器状态或后续 Manifest 查询中。
-      setConfigText(prettyJson(manifest))
+      const current = apply ? await readConfigurationRuntime(selectedConfigId || String(manifest.id), api.servers, locale === "zh-CN") : undefined
+      if (current?.status === "running" && !(await confirm({
+        title: locale === "zh-CN" ? "保存并应用运行配置？" : "Save and activate this configuration?",
+        description: locale === "zh-CN" ? `${manifest.id}：将替换运行实例并连接或启动服务，现有连接会中断。` : `${manifest.id}: Replace the runtime instance and connect or start the service. Existing connections will be interrupted.`,
+        confirmText: locale === "zh-CN" ? "保存并应用" : "Save and activate",
+      }))) return
+      // 普通保存先移除一次性秘密；组合保存仅保留本次内存草稿供幂等核对。
+      if (!httpTrust.credential_write) setConfigText(prettyJson(manifest))
       const response = selectedConfigId
-        ? await api.updateConfig(selectedConfigId, manifest, false, false, userCredentialValues, selectedConfigDigest, httpTrust)
-        : await api.createConfig(manifest, false, false, userCredentialValues, httpTrust)
-      if (response.config?.id !== String(manifest.id || selectedConfigId)) throw new Error(locale === "zh-CN" ? "保存结果未知，请刷新配置后核对。" : "Save result unknown. Refresh the configuration to reconcile.")
-      setMessage(`${locale === "zh-CN" ? "已保存，尚未应用到服务" : "Saved; not applied to the service"}: ${response.config.id}`)
+        ? await api.updateConfig(selectedConfigId, manifest, apply, apply, userCredentialValues, selectedConfigDigest, httpTrust)
+        : await api.createConfig(manifest, apply, apply, userCredentialValues, httpTrust)
+      const outcomeError = configurationResultError(response, String(manifest.id || selectedConfigId), apply, locale === "zh-CN")
+      if (outcomeError) throw new Error(outcomeError)
+      setMessage(`${apply ? locale === "zh-CN" ? "已保存并应用启动" : "Saved and activated" : locale === "zh-CN" ? "已保存，尚未应用到服务" : "Saved; not applied to the service"}: ${response.config?.id}`)
       setSelectedConfigId(String(response.config?.id || manifest.id || ""))
       setConfigEditorOpen(false)
       await refreshAll()
@@ -340,23 +391,48 @@ export default function App() {
       // 保存失败交回编辑器显示，避免错误提示被 Modal 遮挡且草稿被关闭。
       throw err
     }
-    finally { setBusy(false) }
+    finally { configMutationPending.current = false; setBusy(false) }
   }
 
-  async function deleteConfig(id: string) { if (!(await confirm({ title: t("confirmDeleteConfig"), description: id, destructive: true }))) return; setBusy(true); try { await api.deleteConfig(id); if (selectedConfigId === id) setSelectedConfigId(""); setMessage(`${t("deleted")}: ${id}`); await refreshAll() } catch (err) { setError(err instanceof Error ? err.message : String(err)) } finally { setBusy(false) } }
-  async function reloadConfigs() { setBusy(true); try { await api.reloadConfigs(); setMessage("configs reloaded"); await refreshAll() } catch (err) { setError(err instanceof Error ? err.message : String(err)) } finally { setBusy(false) } }
+  async function deleteConfig(id: string) { if (!(await confirm({ title: t("confirmDeleteConfig"), description: `${id} · ${locale === "zh-CN" ? "删除开始后，关联服务组的授权会失效；即使删除失败或运行实例恢复，也需核对并重新确认相关组。共享凭据会保留。" : "Starting deletion invalidates related service-group authorizations. If deletion fails or the runtime is restored, review and reconfirm those groups. Shared credentials are retained."}`, destructive: true }))) return; setBusy(true); try { await api.deleteConfig(id); if (selectedConfigId === id) setSelectedConfigId(""); setMessage(`${t("deleted")}: ${id}`); await refreshAll() } catch (err) { setError(err instanceof Error ? err.message : String(err)) } finally { setBusy(false) } }
+  async function reloadConfigs() { setBusy(true); try { const result = await api.configs(); setConfigs(result.configs); setConfigErrors(result.errors); setMessage("configs refreshed") } catch (err) { setError(err instanceof Error ? err.message : String(err)) } finally { setBusy(false) } }
   async function applyConfig(id: string) {
-    if (busy || !(await confirm({ title: locale === "zh-CN" ? "应用配置并保持停止？" : "Apply configuration and leave stopped?", description: locale === "zh-CN" ? `${id}：此操作会停止并替换当前运行实例，不是热更新。应用后需另行启动。` : `${id}: This stops and replaces the current instance. It is not a hot update; start the service separately afterwards.`, destructive: true }))) return
+    if (busy || configMutationPending.current) return
+    configMutationPending.current = true
     setBusy(true); setError(null)
+    let submitted = false
+    let failure: string | null = null
     try {
+      const current = await readConfigurationRuntime(id, api.servers, locale === "zh-CN")
+      if (current?.status === "running" && !(await confirm({
+        title: locale === "zh-CN" ? `应用配置并重启 · ${id}` : `Apply and restart · ${id}`,
+        description: locale === "zh-CN" ? "现有连接会中断，运行中的调用可能失败。服务恢复后会自动同步工具。" : "Existing connections will be interrupted and active calls may fail. Tools synchronize when the service reconnects.",
+        confirmText: locale === "zh-CN" ? "应用并重启" : "Apply and restart",
+      }))) return
+      submitted = true
       const result = await api.applyConfig(id)
       const outcomeError = configurationApplyResultError(result, id, locale === "zh-CN")
       if (outcomeError) throw new Error(outcomeError)
-      const disabled = result.server?.enabled === false
-      setMessage(`${disabled ? (locale === "zh-CN" ? "已应用，服务仍为停用" : "Applied; service remains disabled") : (locale === "zh-CN" ? "已应用，尚未启动" : "Applied; not started")}: ${id}`)
-      await refreshAll()
-    } catch (err) { setError(err instanceof Error ? err.message : String(err)) }
-    finally { setBusy(false) }
+      if (result.server?.enabled === false) {
+        setMessage(`${locale === "zh-CN" ? "已应用，服务保持停用" : "Applied; service remains disabled"}: ${id}`)
+      } else {
+        try {
+          const started = await api.serverAction(id, "start")
+          if (started.id !== id || started.status !== "running") throw new Error(started.last_error || started.status)
+        } catch (cause) {
+          const detail = cause instanceof Error ? cause.message : String(cause)
+          throw new Error(`${locale === "zh-CN" ? "配置已应用，但启动状态尚未确认。请先检查服务状态，再决定是否重试" : "Configuration applied, but startup was not confirmed. Inspect the service before retrying"}: ${detail}`)
+        }
+        setMessage(`${locale === "zh-CN" ? "已应用并启动" : "Applied and started"}: ${id}`)
+      }
+    } catch (err) { failure = err instanceof Error ? err.message : String(err) }
+    finally {
+      // Reconcile after a submitted write, including a partial activation. A
+      // refresh must not erase the action error or cause the write to repeat.
+      if (submitted) await refreshAll()
+      if (failure) setError(failure)
+      configMutationPending.current = false; setBusy(false)
+    }
   }
   async function serverAction(id: string, action: "start" | "stop" | "restart") {
     if (busy) return
@@ -369,6 +445,29 @@ export default function App() {
       await refreshAll()
     } catch (err) { setError(err instanceof Error ? err.message : String(err)) }
     finally { setBusy(false) }
+  }
+  async function serverToolSync(id: string) {
+    if (busy || toolSyncPending.current || !canManageOperations) return
+    toolSyncPending.current = true
+    setBusy(true); setMessage(null); setError(null)
+    let resultMessage: string | null = null
+    let failure: string | null = null
+    try { resultMessage = toolSyncResult(id, await api.serverToolSync(id), serverCopy(locale)) }
+    catch (reason) { failure = reason instanceof Error ? reason.message : String(reason) }
+    finally {
+      // Reconcile both successful writes and upstream failures. Refreshing the
+      // view must not hide the write result or repeat the synchronization.
+      const reads = [api.servers().then(data => { setServers(data.servers); setLoadErrors(data.load_errors); setServersLoaded(true); setServersError(null) })]
+      if (canReadTools) reads.push(api.tools().then(data => { setTools(data); setToolsLoaded(true); setToolsError(null) }).catch(reason => {
+        setToolsError(reason instanceof Error ? reason.message : String(reason)); throw reason
+      }))
+      const settled = await Promise.allSettled(reads)
+      const refreshErrors = settled.filter((result): result is PromiseRejectedResult => result.status === "rejected").map(result => result.reason instanceof Error ? result.reason.message : String(result.reason))
+      if (failure) setError([`${id}: ${failure}`, ...refreshErrors].join(" · "))
+      else if (refreshErrors.length) setError([resultMessage, ...refreshErrors].filter(Boolean).join(" · "))
+      else setMessage(resultMessage)
+      toolSyncPending.current = false; setBusy(false)
+    }
   }
   async function runDiagnostics() { setBusy(true); try { setDiagnostics(await api.runDiagnostics()); setMessage("diagnostics completed") } catch (err) { setError(err instanceof Error ? err.message : String(err)) } finally { setBusy(false) } }
 
@@ -408,7 +507,7 @@ export default function App() {
             {view === "connectionInfrastructure" && <ConnectionInfrastructurePage locale={locale} t={t} />}
             {view === "dashboard" && <DashboardPage health={health} healthError={healthError} servers={servers} serversLoaded={serversLoaded} serversError={serversError} tools={tools} principalId={user.id} globalRefreshId={dashboardRefreshId} onBusyChange={setDashboardBusy} operationsAllowed={can("operations.manage")} canReadAudit={can("audit.read")} canReadTools={can("tools.read")} toolsLoaded={toolsLoaded} toolsError={toolsError} t={t} />}
             {view === "configs" && <ConfigsPage canManageCredentials={can("credentials.manage.system")} canManageHttpTrust={canManageHttpTrust} locale={locale} t={t} configs={configs} configErrors={configErrors} selectedConfigId={selectedConfigId} configText={configText} busy={busy || routeLoading} editorOpen={configEditorOpen} onCloseEditor={() => { if (!busy) { setConfigEditorOpen(false); setConfigText(prettyJson(createMcpConfigTemplate())) } }} onNewConfig={newConfig} onReloadConfigs={reloadConfigs} onEditConfig={editConfig} onApplyConfig={applyConfig} onDeleteConfig={deleteConfig} onConfigTextChange={setConfigText} onSaveConfig={saveConfig} />}
-            {view === "servers" && <ServersPage canManageCredentials={can("credentials.manage.system")} canManageGroups={canManageHttpTrust} canWriteGroups={canManageHttpTrust && can("tools.invoke")} canManageHttpTrust={canManageHttpTrust} initialServerId={routeServerId} locale={locale} t={t} servers={servers} loadErrors={loadErrors} busy={busy || routeLoading} visibleTools={toolsLoaded ? tools : null} toolsError={toolsError} canReadTools={can("tools.read")} canManageClassifications={can("classifications.manage")} onServerAction={serverAction} onRefresh={refreshCurrentPage} onNewConfig={newConfig} onNavigate={navigate} onInvoke={async toolId => { if (await navigate("invoke")) setSelectedToolId(toolId) }} />}
+            {view === "servers" && <ServersPage canManageCredentials={can("credentials.manage.system")} canManageGroups={canManageHttpTrust} canWriteGroups={canManageHttpTrust && can("tools.invoke")} canManageHttpTrust={canManageHttpTrust} canSyncTools={canManageOperations} initialServerId={routeServerId} locale={locale} t={t} servers={servers} loadErrors={loadErrors} busy={busy || routeLoading} visibleTools={toolsLoaded ? tools : null} toolsError={toolsError} canReadTools={can("tools.read")} canManageClassifications={can("classifications.manage")} onServerAction={serverAction} onServerToolSync={serverToolSync} onRefresh={refreshCurrentPage} onNewConfig={newConfig} onNavigate={navigate} onInvoke={async toolId => { if (await navigate("invoke")) setSelectedToolId(toolId) }} />}
             {view === "builds" && <BuildsPage t={t} initialBuildId={routeBuildId} />}
             {view === "credentials" && <CredentialsPage locale={locale} t={t} />}
             {view === "accessUsers" && <AccessUsersPage locale={locale} t={t} />}

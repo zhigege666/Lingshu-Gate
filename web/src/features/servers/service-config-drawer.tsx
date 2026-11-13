@@ -1,11 +1,11 @@
 import { useEffect, useRef, useState } from "react"
 import { Radio } from "antd"
-import { api, type HttpTrustSaveOptions, type McpServer } from "@/api/client"
+import { api, type ConfigSaveOptions, type McpServer } from "@/api/client"
 import { McpConfigEditor } from "@/components/mcp-config-editor"
 import { FormDialog } from "@/components/form-dialog"
 import { useConfirm } from "@/components/confirm-dialog"
 import { useDraftCloseGuard } from "@/components/use-draft-close-guard"
-import { configurationResultError } from "./configuration-result"
+import { configurationResultError, readConfigurationRuntime } from "./configuration-result"
 import type { Locale, TFunction } from "@/i18n"
 
 /** Service-owned edit session. Snapshot is never replaced by background refresh. */
@@ -20,7 +20,10 @@ export function ServiceConfigDrawer({ server, manifest, configDigest, canManageH
   const [value, setValue] = useState(initial)
   const [pending, setPending] = useState(false)
   const [entryDirty, setEntryDirty] = useState(false)
-  const [apply, setApply] = useState(false)
+  const [apply, setApply] = useState(() => manifest.enabled !== false)
+  let enabled = false
+  try { enabled = JSON.parse(value).enabled !== false } catch { /* Validation owns invalid JSON. */ }
+  const shouldApply = apply && enabled
   const [footer, setFooter] = useState<HTMLDivElement | null>(null)
   const [returnFocus] = useState(() => document.activeElement instanceof HTMLElement ? document.activeElement : null)
   const saveReturnFocus = useRef<HTMLElement | null>(null)
@@ -34,18 +37,20 @@ export function ServiceConfigDrawer({ server, manifest, configDigest, canManageH
   const { confirm, confirmDialog } = useConfirm(t, true)
   const dirty = entryDirty || value !== initial
   const close = useDraftCloseGuard({ dirty, pending, locale, confirm, onClose })
-  const action = apply ? server.launch_type === "external"
+  const action = shouldApply ? server.launch_type === "external"
     ? (zh ? "保存并重新连接" : "Save and reconnect")
     : server.status === "running" ? (zh ? "保存并重启" : "Save and restart") : (zh ? "保存并启动" : "Save and start")
     : (zh ? "仅保存（未生效）" : "Save only (not applied)")
-  async function save(text = value, httpTrust: HttpTrustSaveOptions = {}) {
+  async function save(text = value, httpTrust: ConfigSaveOptions = {}) {
     if (saving.current) return
     saving.current = true
     try {
-      if (!(await confirm({
-        title: `${action} · ${server.id}`,
-        description: !apply ? (zh ? "覆盖已保存配置；运行实例暂不改变。请核对凭据引用与权限声明。" : "Overwrite the saved configuration without changing the runtime. Review credential references and access declarations.") : zh ? "将替换此服务的运行配置并建立新的运行实例；现有连接会中断。静态预检查不是连接测试。" : "Replace this service's runtime configuration and start a new instance. Existing connections will be interrupted. Static validation is not a connection test.",
-        confirmText: action,
+      const current = shouldApply ? await readConfigurationRuntime(server.id, api.servers, zh) : undefined
+      const interruptAction = current?.launch_type === "external" ? (zh ? "保存并重新连接" : "Save and reconnect") : (zh ? "保存并重启" : "Save and restart")
+      if (current?.status === "running" && !(await confirm({
+        title: `${interruptAction} · ${server.id}`,
+        description: zh ? "现有连接会中断，运行中的调用可能失败。配置保存后会自动重连并同步工具。" : "Existing connections will be interrupted and active calls may fail. The service will reconnect and synchronize tools after saving.",
+        confirmText: interruptAction,
         returnFocus: saveReturnFocus.current,
       }))) return
       const parsed = JSON.parse(text) as Record<string, unknown>
@@ -59,9 +64,9 @@ export function ServiceConfigDrawer({ server, manifest, configDigest, canManageH
         }
       }
       delete parsed.user_credential_values
-      setValue(JSON.stringify(parsed, null, 2))
-      const response = await api.updateConfig(server.id, parsed, apply, apply, credentials, configDigest, httpTrust)
-      const error = configurationResultError(response, server.id, apply, zh)
+      if (!httpTrust.credential_write) setValue(JSON.stringify(parsed, null, 2))
+      const response = await api.updateConfig(server.id, parsed, shouldApply, shouldApply, credentials, configDigest, httpTrust)
+      const error = configurationResultError(response, server.id, shouldApply, zh)
       if (error) throw new Error(error)
       await onSaved()
       onClose()
@@ -78,17 +83,17 @@ export function ServiceConfigDrawer({ server, manifest, configDigest, canManageH
       }}
       footer={<div ref={setFooter} className="w-full" />}>
       <div className="service-config-save-intent">
-        <Radio.Group aria-label={zh ? "保存方式" : "Save behavior"} value={apply} onChange={event => setApply(event.target.value as boolean)} disabled={pending} options={[
-          { value: true, label: zh ? "保存并应用启动" : "Save, apply and start" },
+        <Radio.Group aria-label={zh ? "保存方式" : "Save behavior"} value={shouldApply} onChange={event => setApply(event.target.value as boolean)} disabled={pending} options={[
+          { value: true, disabled: !enabled, label: server.status === "running" ? (zh ? "保存后重启 / 重连" : "Restart / reconnect after saving") : (zh ? "保存后启动" : "Start after saving") },
           { value: false, label: zh ? "仅保存（未生效）" : "Save only (not applied)" },
         ]} />
-        <p className="text-xs text-muted-foreground">{zh ? "仅保存不会改变当前实例；应用启动会连接/重启服务，仍须确认。静态校验不测试网络连通性。" : "Saving alone keeps the current instance. Applying and starting connects/restarts the service and requires confirmation. Static validation does not test connectivity."}</p>
+        <p className="text-xs text-muted-foreground">{shouldApply ? (zh ? "保存时自动校验，连接后自动同步工具。" : "Configuration is validated on save; tools synchronize after connection.") : (zh ? "配置将保存为草稿，当前实例保持不变。" : "Save a configuration draft without changing the running instance.")}</p>
       </div>
       <McpConfigEditor locale={locale} selectedConfigId={server.id} savedConfigDigest={configDigest} value={value} onChange={setValue} onSave={save}
         canManageHttpTrust={canManageHttpTrust}
         canManageCredentials={canManageCredentials}
         onClose={() => void close()} onPendingChange={setPending} onDraftDirtyChange={setEntryDirty}
-        footerContainer={footer} busy={false} saveLabel={zh ? "保存配置" : "Save configuration"} />
+        footerContainer={footer} busy={false} saveLabel={action} />
     </FormDialog>
     {confirmDialog}
   </>

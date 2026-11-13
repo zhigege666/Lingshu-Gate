@@ -25,9 +25,32 @@ async function openHttpEditor(page: Page, viewport = { width: 1600, height: 900 
   return page.getByRole('dialog', { name: `${locale === 'zh-CN' ? '修改配置' : 'Edit configuration'} · ${server.id}`, exact: true })
 }
 
-async function confirmSaveOnly(page: Page) {
-  await page.getByRole('alertdialog').getByRole('button', { name: 'Save only (not applied)', exact: true }).click()
+async function expectDirectSave(page: Page) {
+  await expect(page.getByRole('alertdialog')).toHaveCount(0)
 }
+
+test('runtime-changing service saves still require an explicit interruption confirmation', async ({ page }) => {
+  await page.route('**/v1/mcp/http-trust/*', route => route.fulfill({ json: policy('active', 2) }))
+  const editor = await openHttpEditor(page)
+  const writes: Record<string, unknown>[] = []
+  await page.route('**/v1/mcp/configs/*', route => {
+    if (route.request().method() !== 'PUT') return route.fallback()
+    const body = route.request().postDataJSON(); writes.push(body)
+    return route.fulfill({ json: { config: { id: server.id, manifest: body.manifest }, server: { ...server, status: 'running' }, message: 'updated' } })
+  })
+  await editor.getByRole('radio', { name: 'Save, apply and start', exact: true }).check()
+  await editor.getByRole('button', { name: 'Save configuration', exact: true }).click()
+  const confirmation = page.getByRole('alertdialog')
+  await expect(confirmation).toContainText('Existing connections will be interrupted')
+  expect(writes).toHaveLength(0)
+  await confirmation.getByRole('button', { name: 'Cancel', exact: true }).click()
+  await expect(editor).toBeVisible()
+  await editor.getByRole('button', { name: 'Save configuration', exact: true }).click()
+  await confirmation.getByRole('button', { name: 'Save and reconnect', exact: true }).click()
+  await expect(editor).toHaveCount(0)
+  expect(writes).toHaveLength(1)
+  expect(writes[0]).toMatchObject({ apply: true, start: true })
+})
 
 test('E2E-210 @full a private target saves once with its revision and no separate authorization write', async ({ page }) => {
   let trustWrites = 0
@@ -46,7 +69,7 @@ test('E2E-210 @full a private target saves once with its revision and no separat
   await expect(editor.getByRole('button', { name: 'Authorize this address', exact: true })).toHaveCount(0)
   await editor.getByLabel('Name', { exact: true }).fill('Synthetic retained draft')
   await editor.getByRole('button', { name: 'Save configuration', exact: true }).click()
-  await confirmSaveOnly(page)
+  await expectDirectSave(page)
   await expect(editor).toHaveCount(0)
   expect(trustWrites).toBe(0)
   expect(configWrites).toEqual([expect.objectContaining({ apply: false, start: false, http_trust_action: 'auto', expected_http_trust_revision: 0,
@@ -98,7 +121,7 @@ test('E2E-213 @full JSON target changes receive a fresh policy snapshot without 
   expect(reads).toBeGreaterThanOrEqual(2); expect(writes).toBe(0)
 })
 
-test('E2E-214 @full restoring revoked permission is an explicit save intent and draft changes clear it', async ({ page }) => {
+test('E2E-214 @full restoration survives metadata and view changes but a changed target requires review', async ({ page }, testInfo) => {
   let writes = 0
   const configWrites: Record<string, unknown>[] = []
   await page.route('**/v1/mcp/http-trust/*', route => {
@@ -107,11 +130,18 @@ test('E2E-214 @full restoring revoked permission is an explicit save intent and 
   })
   const editor = await openHttpEditor(page)
   await expect(editor.getByText('Connection permission was revoked. A normal save will not restore it.', { exact: true })).toBeVisible()
-  await editor.getByText('Connection permission details', { exact: true }).click()
   const restore = editor.getByRole('button', { name: 'Restore this address permission on save', exact: true })
+  await expect(restore).toBeVisible()
   await restore.click()
   await expect(editor.getByRole('button', { name: 'Cancel restoration', exact: true })).toBeVisible()
   await editor.getByLabel('Name', { exact: true }).fill('Synthetic changed after restore choice')
+  await expect(editor.getByRole('button', { name: 'Cancel restoration', exact: true })).toBeVisible()
+  await editor.getByRole('button', { name: 'JSON', exact: true }).click()
+  await expect(editor.getByRole('button', { name: 'Cancel restoration', exact: true })).toBeVisible()
+  await editor.getByRole('button', { name: 'Form', exact: true }).click()
+  await expect(editor.getByRole('button', { name: 'Cancel restoration', exact: true })).toBeVisible()
+  await page.screenshot({ path: testInfo.outputPath('visible-restoration-retains-intent.png'), animations: 'disabled' })
+  await editor.getByLabel('MCP Endpoint', { exact: true }).fill('http://10.23.45.68:8080/mcp')
   await expect(editor.getByRole('button', { name: 'Cancel restoration', exact: true })).toHaveCount(0)
   await restore.click()
   await page.route('**/v1/mcp/configs/*', route => {
@@ -120,7 +150,7 @@ test('E2E-214 @full restoring revoked permission is an explicit save intent and 
     return route.fulfill({ json: { config: { id: server.id, manifest: body.manifest }, message: 'updated' } })
   })
   await editor.getByRole('button', { name: 'Save configuration', exact: true }).click()
-  await confirmSaveOnly(page)
+  await expectDirectSave(page)
   await expect(editor).toHaveCount(0)
   expect(configWrites).toEqual([expect.objectContaining({ http_trust_action: 'restore', expected_http_trust_revision: 4 })])
   expect(writes).toBe(0)
@@ -162,8 +192,8 @@ test('a saved masked endpoint keeps permission recovery and scoped credential cr
   await editor.getByRole('radio', { name: 'New credential', exact: true }).check()
   const credentialEditor = editor.getByRole('region', { name: 'New service credential', exact: true })
   await expect(credentialEditor).toContainText('http://10.23.45.67:8080')
-  await expect(credentialEditor.getByRole('button', { name: 'Save and use credential', exact: true })).toBeEnabled()
-  await credentialEditor.getByRole('button', { name: 'Cancel and clear input', exact: true }).click()
+  await expect(credentialEditor.getByLabel('Token', { exact: true })).toBeEnabled()
+  await credentialEditor.getByRole('button', { name: 'Cancel new credential', exact: true }).click()
   await editor.getByRole('radio', { name: 'None', exact: true }).check()
   await expect(editor.getByText('Connection permission was revoked. A normal save will not restore it.', { exact: true })).toBeVisible()
   await editor.getByText('Connection permission details', { exact: true }).click()
@@ -175,7 +205,7 @@ test('a saved masked endpoint keeps permission recovery and scoped credential cr
     return route.fulfill({ json: { config: { id: server.id, manifest: body.manifest }, message: 'updated' } })
   })
   await editor.getByRole('button', { name: 'Save configuration', exact: true }).click()
-  await confirmSaveOnly(page)
+  await expectDirectSave(page)
   await expect(editor).toHaveCount(0)
   expect(writes).toEqual([expect.objectContaining({ http_trust_action: 'restore', expected_http_trust_revision: 7,
     manifest: expect.objectContaining({ transport: expect.objectContaining({ endpoint: '[REDACTED]' }) }) })])
@@ -206,9 +236,12 @@ test('inline shared credential keeps the secret outside the manifest and retries
   await page.route('**/v1/mcp/http-trust/*', route => route.fulfill({ json: policy('unconfigured') }))
   await page.route('**/v1/credentials', route => {
     if (route.request().method() === 'GET') return route.fulfill({ json: [] })
+    return route.fulfill({ status: 400, json: { detail: 'Unexpected separate credential write' } })
+  })
+  await page.route('**/v1/mcp/configs/with-credential', route => {
     const body = route.request().postDataJSON(); credentialWrites.push(body)
     if (credentialWrites.length === 1) return route.fulfill({ status: 503, json: { detail: 'Synthetic credential save unavailable' } })
-    return route.fulfill({ json: { id: 'synthetic-http-token', name: 'Synthetic HTTP token', description: '', value_masked: '***', created_at: 't1', updated_at: 't1', http_scopes: body.http_scopes } })
+    return route.fulfill({ json: { config: { id: server.id, manifest: body.manifest }, message: 'updated' } })
   })
   const editor = await openHttpEditor(page)
   await editor.getByRole('radio', { name: 'Bearer Token', exact: true }).check()
@@ -218,18 +251,16 @@ test('inline shared credential keeps the secret outside the manifest and retries
   await inline.getByLabel('Credential ID', { exact: true }).fill('synthetic-http-token')
   await inline.getByLabel('Credential name', { exact: true }).fill('Synthetic HTTP token')
   await inline.getByLabel('Token', { exact: true }).fill(secret)
-  await inline.getByRole('button', { name: 'Save and use credential', exact: true }).click()
-  await expect(inline.getByRole('alert')).toContainText('Inputs are retained')
+  expect(credentialWrites).toHaveLength(0)
+  await editor.getByRole('button', { name: 'Save configuration', exact: true }).click()
+  await expect(editor.getByRole('alert').filter({ hasText: 'Synthetic credential save unavailable' })).toBeVisible()
   await expect(inline.getByLabel('Token', { exact: true })).toHaveValue(secret)
-  await inline.getByRole('button', { name: 'Save and use credential', exact: true }).click()
-  await expect(inline).toHaveCount(0)
+  await editor.getByRole('button', { name: 'Save configuration', exact: true }).click()
+  await expect(editor).toHaveCount(0)
   expect(credentialWrites).toHaveLength(2)
   expect(credentialWrites[1]).toEqual(credentialWrites[0])
-  expect(credentialWrites[0]).toMatchObject({ credential_id: 'synthetic-http-token', value: secret,
-    http_scopes: [{ server_id: server.id, origin: 'http://10.23.45.67:8080' }] })
-  await expect(editor.getByText('The authentication header is set automatically; no Add step is needed. The secret stays outside the configuration.', { exact: true })).toBeVisible()
-  await editor.getByRole('button', { name: 'JSON', exact: true }).click()
-  const json = editor.getByLabel('Manifest JSON', { exact: true })
-  await expect(json).toHaveValue(/Bearer \$\{credential:synthetic-http-token\}/)
-  expect(await json.inputValue()).not.toContain(secret)
+  expect(credentialWrites[0]).toMatchObject({ existing_server_id: server.id, expected_config_digest: 'c'.repeat(64), apply: false, start: false,
+    credential_write: { kind: 'create', credential_id: 'synthetic-http-token', value: secret, target: { server_id: server.id, origin: 'http://10.23.45.67:8080' } },
+    manifest: { transport: { headers: { Authorization: 'Bearer ${credential:synthetic-http-token}' } } } })
+  expect(JSON.stringify(credentialWrites[0].manifest)).not.toContain(secret)
 })

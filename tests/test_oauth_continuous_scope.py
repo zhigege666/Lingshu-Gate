@@ -14,6 +14,7 @@ from lingshu_gate.oauth_candidate_catalog import OAuthCandidateCatalog
 from lingshu_gate.oauth_server import OAuthError
 from lingshu_gate.registry import ToolRecord
 from lingshu_gate.tool_catalog import ToolCatalog
+from lingshu_gate.tool_access_policy import legacy_snapshot
 from lingshu_gate.transports.http import build_protocol_request
 from lingshu_gate.transports.oauth import McpOAuthDiscoveryBoundary, OAuthProtectedResourceMetadata
 from test_builtin_oauth import ISSUER, RESOURCE, enable, exchange, parameters, refresh
@@ -78,14 +79,15 @@ def test_selected_oauth_bearer_survives_restart_and_upgrade_without_new_consent(
         gate["server"].verify(tokens["access_token"])
 
 
-def test_same_bearer_gains_future_published_tools_and_readback_keeps_policy_separate(gate):
+def test_same_bearer_gains_future_discovered_tools_and_readback_keeps_policy_separate(gate):
     client, secret, grant, tokens = initial(gate, both=True)
     saved, prepared = save_policy(gate, grant)
     assert saved["tools"] == {} and saved["server_policies"][0]["server_binding"]
     assert prepared["previous_server_policies"] == []
     assert set(gate["server"].verify(tokens["access_token"]).external_tool_ids) == {"mcp.A.read", "mcp.A.write"}
     later = discover(gate)
-    assert later not in gate["server"].verify(tokens["access_token"]).external_tool_ids
+    assert later in gate["server"].verify(tokens["access_token"]).external_tool_ids
+    # An explicit read override may be saved later; it is no publication gate.
     publish(gate, later)
     assert later in gate["server"].verify(tokens["access_token"]).external_tool_ids
     assert later in gate["server"].verify(refresh(gate["server"], client, secret, tokens["refresh_token"])["access_token"]).external_tool_ids
@@ -95,7 +97,7 @@ def test_same_bearer_gains_future_published_tools_and_readback_keeps_policy_sepa
     assert result["effective_tool_count"] == 3 and len(result["server_policies"]) == 1
 
 
-def test_same_http_bearer_lists_and_calls_later_published_tool_without_new_consent(gate):
+def test_same_http_bearer_lists_and_calls_later_discovered_tool_without_new_consent(gate):
     _, _, grant, tokens = initial(gate, both=True)
     gate["db"].execute("INSERT INTO authorization_discovery VALUES('builtin',?,'direct',1)", (grant["id"],))
     save_policy(gate, grant)
@@ -110,7 +112,7 @@ def test_same_http_bearer_lists_and_calls_later_published_tool_without_new_conse
     register_mcp_gateway_route(gate["app"], gate["settings"], gate["registry"], gate["access"],
         gate["auth"].authenticate_mcp_request,
         McpOAuthDiscoveryBoundary(OAuthProtectedResourceMetadata(RESOURCE, (ISSUER,))))
-    later = discover(gate)
+    discover(gate)
     with TestClient(gate["app"], base_url=ISSUER) as browser:
         def request(method, arguments=None):
             params, headers = build_protocol_request(method, arguments, client_name="Synthetic", client_version="1")
@@ -119,8 +121,6 @@ def test_same_http_bearer_lists_and_calls_later_published_tool_without_new_conse
             assert result.status_code == 200, result.text
             return result.json()["result"]
 
-        assert "mcp__A__later" not in {item["name"] for item in request("tools/list")["tools"]}
-        publish(gate, later)
         assert "mcp__A__later" in {item["name"] for item in request("tools/list")["tools"]}
         result = request("tools/call", {"name": "mcp__A__later", "arguments": {}})
     assert not result.get("isError", False)
@@ -146,7 +146,7 @@ def test_continuous_policy_rechecks_account_permissions_and_service_lifecycle(ga
     assert gate["server"].verify(tokens["access_token"]).external_tool_ids == ()
 
 
-def test_new_selected_snapshot_is_bound_to_service_identity_but_legacy_snapshot_is_compatible(gate):
+def test_selected_snapshot_cannot_revive_after_replacement_even_without_binding_field(gate):
     _, _, grant, tokens = initial(gate, both=True)
     assert all(item["server_binding"] for item in grant["tools"].values())
     gate["db"].execute("UPDATE gate_mcp_authorization_identities SET binding='synthetic-selected-replaced' WHERE server_id='A'")
@@ -154,7 +154,19 @@ def test_new_selected_snapshot_is_bound_to_service_identity_but_legacy_snapshot_
     legacy_tools = {key: {field: value for field, value in item.items() if field != "server_binding"}
                     for key, item in grant["tools"].items()}
     gate["db"].execute("UPDATE gate_oauth_grants SET tools_json=? WHERE id=?", (json.dumps(legacy_tools), grant["id"]))
-    assert set(gate["server"].verify(tokens["access_token"]).external_tool_ids) == {"mcp.A.read", "mcp.A.write"}
+    assert gate["server"].verify(tokens["access_token"]).external_tool_ids == ()
+
+
+def test_valid_legacy_oauth_snapshots_migrate_without_consent_and_never_revive_after_replacement(gate):
+    _, _, grant, tokens = initial(gate, both=True)
+    previous = {row["tool_id"]: dict(row) for row in gate["db"].query_all("SELECT * FROM mcp_tool_classifications")}
+    legacy_tools = {key: {**{field: value for field, value in item.items() if field != "server_binding"},
+                          "snapshot": legacy_snapshot(previous[key])} for key, item in grant["tools"].items()}
+    gate["db"].execute("UPDATE gate_oauth_grants SET tools_json=? WHERE id=?", (json.dumps(legacy_tools), grant["id"]))
+    gate["db"].execute("UPDATE mcp_tool_classifications SET access_policy_source='unresolved',required_access='write'")
+    assert set(gate["server"].verify(tokens["access_token"]).external_tool_ids) == set(grant["tools"])
+    gate["db"].execute("UPDATE gate_mcp_authorization_identities SET binding='legacy-replaced' WHERE server_id='A'")
+    assert gate["server"].verify(tokens["access_token"]).external_tool_ids == ()
 
 
 def test_selected_scope_confirmation_does_not_rebind_service_replaced_after_preview(gate):
@@ -164,7 +176,7 @@ def test_selected_scope_confirmation_does_not_rebind_service_replaced_after_prev
     prepared = gate["server"].preview_scope(owner, grant["id"], session, offered["csrf"], grant["revision"], ["mcp.A.read"],
         grant["expires_at"], 30, 1)
     gate["db"].execute("UPDATE gate_mcp_authorization_identities SET binding='synthetic-selected-replaced' WHERE server_id='A'")
-    with pytest.raises(OAuthError, match="scope_confirmation_changed"):
+    with pytest.raises(OAuthError, match="scope_confirmation_changed|tool_scope_changed"):
         gate["server"].update_scope(owner, grant["id"], session, prepared["confirmation"], grant["revision"], ["mcp.A.read"],
             grant["expires_at"], 30, 1)
 
@@ -194,14 +206,14 @@ def test_saved_zero_tool_policy_remains_visible_and_quota_edit_does_not_remove_i
     assert gate["server"].verify(tokens["access_token"]).external_tool_ids == ()
 
 
-@pytest.mark.parametrize("kind", ["selected_stale", "binding_replaced"])
+@pytest.mark.parametrize("kind", ["selected_disabled", "binding_replaced"])
 def test_quota_only_preserves_invalid_saved_authority_without_reapproving_it(gate, kind):
     _, _, grant, tokens = initial(gate, both=True)
     if kind == "binding_replaced":
         grant, _ = save_policy(gate, grant)
         gate["db"].execute("UPDATE gate_mcp_authorization_identities SET binding='synthetic-replaced' WHERE server_id='A'")
     else:
-        gate["db"].execute("UPDATE mcp_tool_classifications SET status='stale',effective_access='unknown' WHERE tool_id='mcp.A.read'")
+        gate["db"].execute("UPDATE mcp_tool_classifications SET required_access='none' WHERE tool_id='mcp.A.read'")
     before = gate["server"].verify(tokens["access_token"]).external_tool_ids
     offered = options(gate, grant)
     owner, session = gate["principals"]["alice"], gate["sessions"]["alice"]
@@ -241,6 +253,13 @@ def test_other_mcp_scope_edit_preserves_stale_binding_until_explicit_current_bin
     rebound = gate["server"].update_scope(owner, updated["id"], session, prepared["confirmation"], updated["revision"], ["mcp.B.read"],
         updated["expires_at"], 6000, 100, server_policies=policies)
     assert rebound["server_policies"][0]["server_binding"] == "synthetic-replaced"
+    # Confirming a personal subscription cannot restore the replacement's
+    # globally disabled tools. An administrator must choose their local policy.
+    assert gate["server"].verify(tokens["access_token"]).external_tool_ids == ("mcp.B.read",)
+    for tool_id in ("mcp.A.read", "mcp.A.write"):
+        restored = gate["access"].reset_tool_access_policy(gate["registry"].get_definition(tool_id),
+            reviewer_id=gate["admin"]["id"])
+        assert restored["required_access"] == "write" and restored["policy_source"] == "default_write"
     assert set(gate["server"].verify(tokens["access_token"]).external_tool_ids) == {"mcp.A.read", "mcp.A.write", "mcp.B.read"}
 
 
@@ -257,7 +276,7 @@ def test_unsubscribed_large_owner_catalog_does_not_block_small_continuous_grant(
         gate["registry"].register(tool, lambda arguments: None)
     with gate["db"].session() as connection:
         gate["access"]._synchronize_tools(connection, definitions)
-        connection.execute("UPDATE mcp_tool_classifications SET effective_access='read',status='published',"
+        connection.execute("UPDATE mcp_tool_classifications SET required_access='read',access_policy_source='local_override',effective_access='read',status='published',"
             "source='manual',reviewed_by=?,reviewed_at='2026-10-05T00:00:00+00:00' WHERE server_id='B'",
             (gate["admin"]["id"],))
     if paged:

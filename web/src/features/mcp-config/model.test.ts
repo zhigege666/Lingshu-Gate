@@ -19,6 +19,13 @@ import {
 
 const copy = (key: ManifestPrecheckMessageKey) => key
 
+it("reports the HTTP service ID limit before permission loading, without imposing it on Stdio", () => {
+  const id = "_" + "a".repeat(128)
+  expect(precheckManifest({ id, launch: { type: "external" }, transport: { type: "streamable_http", endpoint: "http://10.23.45.67/mcp" } }, copy).errors).toContain("httpIdTooLong")
+  expect(precheckManifest({ id, launch: { type: "managed_process", command: "synthetic" }, transport: { type: "stdio" } }, copy).errors).not.toContain("httpIdTooLong")
+  expect(precheckManifest({ id: "_service", launch: { type: "external" }, transport: { type: "streamable_http", endpoint: "https://mcp.example.test/mcp" } }, copy).errors).toEqual([])
+})
+
 describe("MCP config model", () => {
   it("新建默认启用自启，并在切换表单模式时保留明确关闭", () => {
     const draft = createMcpConfigTemplate()

@@ -2,6 +2,19 @@ import { describe, expect, it } from "vitest"
 import { readableResult, resultMatches, resultWindow } from "./result-model"
 
 describe("read-only invocation result presentation", () => {
+  it("shows the actual Console invoke output without transport wrappers", () => {
+    const raw = JSON.stringify({ ok: true, tool_id: "mcp.demo.echo", output: { content: [{ type: "text", text: "synthetic-loopback-ok" }], isError: false }, error: null })
+    expect(readableResult(raw)).toMatchObject({ value: "synthetic-loopback-ok", text: "synthetic-loopback-ok", structured: false })
+    expect(JSON.parse(raw).output.content[0].text).toBe("synthetic-loopback-ok")
+    const business = { output: { content: [{ type: "text", text: "ordinary business data" }] } }
+    expect(readableResult(JSON.stringify(business)).value).toEqual(business)
+  })
+  it("keeps actual invocation failures visible even with no output", () => {
+    expect(readableResult(JSON.stringify({ ok: false, tool_id: "mcp.demo.echo", output: null, error: { code: "denied" } })).value)
+      .toEqual({ error: { code: "denied" }, result: null })
+    expect(readableResult(JSON.stringify({ ok: false, tool_id: "mcp.demo.echo", output: "failed", error: null })).value)
+      .toEqual({ ok: false, result: "failed" })
+  })
   it("decodes MCP JSON-in-text once and retains raw input untouched", () => {
     const raw=JSON.stringify({ duration_ms:126, result:{ content:[{type:"text",text:JSON.stringify({items:[{title:"知识库"}]})}],isError:false } })
     const result=readableResult(raw)

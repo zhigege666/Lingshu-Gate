@@ -1,6 +1,23 @@
 # Changelog
 
+## 0.5.12
+
+- Complete the Console migration to the shadcn-admin layout direction: consistent navigation, page headers, filters, tables, forms, dialogs, status feedback and theme tokens across the management pages. Add refreshed bilingual screenshots and verify the four supported desktop viewport sizes.
+- Remove the routine MCP tool review/publish lifecycle from discovery and invocation. Newly discovered tools synchronize automatically; existing account, Token and OAuth scopes remain the authority boundary. Explicit local access policies remain available.
+- Listen for downstream HTTP tool changes on an independent notification stream, with approximately one-minute fallback discovery and bounded recovery backoff. Unsupported notification transports fall back to polling; malformed discovery preserves the last complete catalog.
+- Persist local access policies across normal synchronization, reconnects and Gate restarts. Restore a retired tool to conservative write defaults only within the same service identity; keep explicit disabled policies and invalidate old exact authorizations. Share retirement handling between the runtime and catalog.
+- Distinguish `auth_required` from transient synchronization failure. HTTP 401/403 and denied credential use pause automatic retry until credentials are corrected and the operator reconnects or synchronizes again. Expired sessions reconnect and rediscover without replaying writes or changed contracts.
+- Expose synchronization state, last successful synchronization, change counts and next retry in the service API and Console. A running connection does not imply a fresh tool catalog.
+- Notify connected clients when their authorized visible tool list changes, through legacy HTTP GET/SSE or current-protocol `subscriptions/listen`. Recheck authority while streaming. On-demand business tools remain available through search/describe without expanding fixed entries or an existing authorization.
+- Fail closed when an MCP service identity changes. A replacement identity no longer silently inherits a write default; affected tools remain unavailable until an administrator chooses a policy.
+- Preserve unchanged exact Token tool snapshots when editing another selection. A changed or unavailable existing grant now blocks the save rather than being silently rebound.
+- Reject malformed tools/list pages that omit result.tools; keep the last complete catalog instead of treating an invalid envelope as an empty list.
+- Make the configuration-page refresh read-only. Refreshing the list no longer stops all running MCP instances.
+- Remove the obsolete TypeScript baseUrl compiler option for the pinned TypeScript 7 toolchain.
+- Upgrade the OpenTelemetry API, SDK and OTLP HTTP exporter to 1.45.1 with compatible semantic conventions 0.66b1 to address quadratic parsing of untrusted `tracestate` headers ([GHSA-xcq7-p3pf-p88h / CVE-2026-114603](https://github.com/open-telemetry/opentelemetry-python/security/advisories/GHSA-xcq7-p3pf-p88h)). Adapt the exporter request entry while retaining the fixed OTLP destination, disabled redirects, TLS verification and sanitized responses.
+
 ## 0.5.11
+
 
 - Add an optional Cloudflare Tunnel cloudflared sidecar profile to both Compose manifests. The tunnel token is mounted from a host file; Gate Core receives no Docker socket or tunnel secret. Add paired setup and security guidance for Compose and Unraid.
 - Add authenticated GitHub latest-release checks in System settings → Updates, with current/latest version comparison and release notes.

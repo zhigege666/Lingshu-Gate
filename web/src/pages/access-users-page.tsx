@@ -129,7 +129,7 @@ export function AccessUsersPage({ locale, t }: { locale: Locale; t: TFunction })
 
   const paging = useListPage(visibleUsers, JSON.stringify([query, statusFilter]))
 
-  usePageRefresh(load, busy)
+  usePageRefresh(load, busy || createOpen || selected !== null)
   useEffect(() => { void load() }, [])
 
   async function load() {
@@ -252,14 +252,14 @@ export function AccessUsersPage({ locale, t }: { locale: Locale; t: TFunction })
       />
       {error && <Alert variant="destructive" role="alert"><AlertDescription>{error}</AlertDescription><Button variant="outline" size="sm" className="mt-2" disabled={busy} onClick={() => void load()}>{t("refresh")}</Button></Alert>}
       <Card>
-        <CardContent className="flex flex-col gap-3 p-3 md:p-4">
-          <RemainingList className="rounded-lg border">
+        <CardContent className="p-0">
+          <RemainingList>
             <ListViewport viewport={paging.viewport} label={t("toolShowing")}>
             <Table>
               <TableHeader><TableRow><TableHead>{c.account}</TableHead><TableHead>{t("status")}</TableHead><TableHead>{c.roles}</TableHead><TableHead>{c.registeredAt}</TableHead><TableHead>{t("actions")}</TableHead></TableRow></TableHeader>
               <TableBody>
                 {visibleUsers.length === 0 ? <TableEmptyRow colSpan={5} title={busy ? t("loadingData") : error ? t("error") : query.trim() || statusFilter !== "__all" ? t("noMatchingRecords") : c.noUsers} /> : paging.items.map((user) => (
-                  <TableRow key={user.id} className="cursor-pointer" onClick={() => edit(user)}>
+                  <TableRow key={user.id}>
                     <TableCell><button type="button" className="text-left font-medium text-primary underline-offset-4 hover:underline focus-visible:underline" disabled={busy} onClick={() => edit(user)}>{user.display_name || user.username}</button><div className="text-xs text-muted-foreground">@{user.username}</div></TableCell>
                     <TableCell><UserStatusBadge status={user.status} labels={c} /></TableCell>
                     <TableCell><div className="flex flex-wrap gap-1">{user.roles.map((role) => <Badge key={role} variant="outline">{role}</Badge>)}</div></TableCell>

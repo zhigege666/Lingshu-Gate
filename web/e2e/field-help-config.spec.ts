@@ -101,7 +101,8 @@ async function openEditor(page: Page, locale: Locale, manifest: Record<string, u
     if (path === '/v1/mcp/servers') return route.fulfill({ json: { servers: [fixtureServer()], load_errors: [] } })
     if (path === `/v1/mcp/servers/${serverId}/detail`) return route.fulfill({ json: { server: fixtureServer(), manifest: saved, config_digest: digest, tools: [] } })
     if (path === '/v1/mcp/configs') return route.fulfill({ json: { configs: [{ id: serverId, manifest: saved, config_digest: digest }], errors: [] } })
-    if (path === '/v1/credentials') return route.fulfill({ json: credentials })
+    if (path === '/v1/credentials') return route.fulfill({ json: credentials.map(item => ({ ...item, name: item.id,
+      http_scopes: [{ server_id: serverId, origin: 'https://synthetic.example.test:443' }] })) })
     return route.continue()
   })
   await page.goto('/console/#/servers')
@@ -135,9 +136,9 @@ async function expectContainerFields(editor: Locator, locale: Locale, original: 
   await expect(editor.getByLabel(c.cwd, { exact: true })).toHaveCount(0)
   await expect(editor.getByRole('textbox', { name: `${c.args} 3`, exact: true })).toHaveValue('')
   const environment = editor.getByRole('group', { name: c.env, exact: true })
-  await expect(environment.getByLabel('SYNTHETIC_EMPTY', { exact: true })).toHaveValue('')
-  await expect(environment.getByLabel('SYNTHETIC_PADDED', { exact: true })).toHaveValue(' value ')
-  await expect(environment.getByLabel('SYNTHETIC_FLAG', { exact: true })).toHaveValue('false')
+  await expect(environment.getByLabel(`${c.env} ${locale === 'zh-CN' ? '值' : 'value'} 1`, { exact: true })).toHaveValue('')
+  await expect(environment.getByLabel(`${c.env} ${locale === 'zh-CN' ? '值' : 'value'} 2`, { exact: true })).toHaveValue(' value ')
+  await expect(environment.getByLabel(`${c.env} ${locale === 'zh-CN' ? '值' : 'value'} 3`, { exact: true })).toHaveValue('false')
 }
 
 async function saveOnly(page: Page, fixture: Awaited<ReturnType<typeof openEditor>>, locale: Locale, expectedManifest: Record<string, unknown>) {
@@ -147,7 +148,7 @@ async function saveOnly(page: Page, fixture: Awaited<ReturnType<typeof openEdito
   await expect(save).toBeEnabled()
   await expectInViewportAndUnobscured(save)
   await save.click()
-  await page.getByRole('alertdialog').getByRole('button', { name: c.saveOnly, exact: true }).click()
+  await expect(page.getByRole('alertdialog')).toHaveCount(0)
   await expect(fixture.editor).toHaveCount(0)
   expect(fixture.validations).toEqual([{ manifest: expectedManifest, apply: false, start: false }])
   expect(fixture.writes).toEqual([{ manifest: expectedManifest, apply: false, start: false, expected_config_digest: digest, user_credential_values: {} }])
@@ -155,7 +156,7 @@ async function saveOnly(page: Page, fixture: Awaited<ReturnType<typeof openEdito
 }
 
 for (const locale of locales) {
-  test(`HTTP credential references require an explicit header key and retain reserved-header diagnostics ${locale} @full`, async ({ page }) => {
+  test(`HTTP header rows edit directly, retain empty values and block duplicates ${locale} @full`, async ({ page }) => {
     const c = copy[locale], zh = locale === 'zh-CN', label = zh ? 'HTTP 请求头' : 'HTTP headers'
     const original = {
       id: serverId, name: 'Synthetic HTTP header references', enabled: true, auto_start: false, timeout_seconds: 30,
@@ -165,6 +166,7 @@ for (const locale of locales) {
     }
     const fixture = await openEditor(page, locale, original, viewports[0], [{ id: 'synthetic-header-token' }])
     const { editor } = fixture
+    await editor.locator('summary').filter({ hasText: zh ? '高级请求头' : 'Advanced headers' }).click()
     const field = editor.locator('.manifest-field').filter({ has: page.getByRole('group', { name: label, exact: true }) })
     const map = field.getByRole('group', { name: label, exact: true })
     const warning = field.getByRole('status')
@@ -175,23 +177,25 @@ for (const locale of locales) {
     await expect(editor.locator('[data-field-help-content]')).toContainText('Authorization')
     await expect(editor.locator('[data-field-help-content]')).toContainText('***')
     await page.keyboard.press('Escape')
-    await map.getByRole('button', { name: 'synthetic-header-token', exact: true }).click()
-    const key = map.getByRole('textbox', { name: `${label} ${zh ? '新键名' : 'new key'}`, exact: true })
-    const value = map.getByRole('textbox', { name: `${label} ${zh ? '新值' : 'new value'}`, exact: true })
-    await expect(key).toHaveValue('')
+    await map.getByRole('combobox', { name: zh ? '插入凭据引用' : 'Insert credential reference', exact: true }).click()
+    await page.locator('.ant-select-item-option').filter({ hasText: 'synthetic-header-token' }).click()
+    await map.getByRole('radio', { name: zh ? '原始值' : 'Raw value', exact: true }).check()
+    const key = map.getByRole('textbox', { name: `${label} ${zh ? '键名' : 'key'} 3`, exact: true })
+    const value = map.getByRole('textbox', { name: `${label} ${zh ? '值' : 'value'} 3`, exact: true })
+    await expect(key).toHaveValue('Authorization')
     await expect(value).toHaveValue('${credential:synthetic-header-token}')
+    await expect(map.getByRole('button', { name: `${zh ? '添加' : 'Add'} ${label}`, exact: true })).toHaveCount(0)
+    await key.fill('accept')
     await expect(editor.getByRole('button', { name: c.save, exact: true })).toBeDisabled()
-    const add = map.getByRole('button', { name: `${zh ? '添加' : 'Add'} ${label}`, exact: true })
-    await add.click()
-    await expect(map.getByRole('alert')).toBeVisible()
+    await expect(map.getByRole('alert').first()).toContainText(zh ? '键名重复' : 'duplicated')
     await key.fill('Authorization')
-    await add.click()
-    await expect(map.getByLabel('Authorization', { exact: true })).toHaveValue('${credential:synthetic-header-token}')
-    await expect(key).toHaveValue('')
-    await expect(value).toHaveValue('')
+    await expect(value).toHaveValue('${credential:synthetic-header-token}')
+    await expect(map.getByRole('textbox', { name: `${label} ${zh ? '值' : 'value'} 2`, exact: true })).toHaveValue('')
+    await expect(map.getByRole('textbox', { name: `${label} ${zh ? '键名' : 'key'} 4`, exact: true })).toHaveValue('')
     const expected = { ...original, transport: { ...original.transport, headers: { ...original.transport.headers, Authorization: '${credential:synthetic-header-token}' } } }
     expect(await readJson(editor, locale)).toEqual(expected)
     await showForm(editor, locale)
+    await editor.locator('summary').filter({ hasText: zh ? '高级请求头' : 'Advanced headers' }).click()
     await expect(warning).toBeVisible()
     await saveOnly(page, fixture, locale, expected)
   })
@@ -232,7 +236,7 @@ for (const locale of locales) {
     expect(renamedJson).not.toHaveProperty('startup_policy')
 
     await showForm(editor, locale)
-    await editor.getByRole('group', { name: c.env, exact: true }).getByLabel('SYNTHETIC_FLAG', { exact: true }).fill('0')
+    await editor.getByRole('group', { name: c.env, exact: true }).getByLabel(`${c.env} ${locale === 'zh-CN' ? '值' : 'value'} 3`, { exact: true }).fill('0')
     const expected = { ...renamed, launch: { ...renamed.launch, environment: { ...renamed.launch.environment, SYNTHETIC_FLAG: '0' } } }
     const finalJson = await readJson(editor, locale)
     expect(finalJson).toEqual(expected)

@@ -14,7 +14,7 @@ from test_mcp_groups import catalog_path, catalog_token, catalog_tool, create, d
 from test_mcp_groups import gate as gate
 
 
-def test_warm_pages_reuse_structure_but_current_review_and_scopes_remain_authoritative(gate):
+def test_warm_pages_reuse_structure_but_current_policy_and_scopes_remain_authoritative(gate):
     group = create(gate)
     first, first_handler = catalog_tool(gate, "instance-0")
     second, second_handler = catalog_tool(gate, "instance-1")
@@ -41,8 +41,17 @@ def test_warm_pages_reuse_structure_but_current_review_and_scopes_remain_authori
         gate["database"].execute("UPDATE api_tokens SET scopes_json=? WHERE id=?", (json.dumps(["operations.manage", "tools.read"]), token["id"]))
         gate["registry"].update_definition(first.model_copy(update={"input_schema": {"type": "object"}}))
         changed = gate["client"].get(catalog_path(group), headers=headers).json()
-        assert changed["visible_tool_count"] == 0, "Old review must not authorize a newly published structure"
+        assert changed["visible_tool_count"] == 1, "A changed schema preserves the saved local read policy"
+        assert changed["total"] == 1
+        assert changed["variants"][0]["compatibility"] == "review_required"
+        assert changed["variants"][0]["safety"] is None, "A saved access policy must not reuse stale reviewed safety"
+        assert changed["variants"][0]["variant_id"] != variant
         assert fingerprints.call_count == normalization.call_count == 3, "Only the changed publication is prepared again"
+        disabled = gate["access"].set_classification(server_id="instance-0", tool_id=first.id, access="unknown",
+            destructive=False, idempotent=False, reviewer_id=gate["principal"].id)
+        assert disabled["required_access"] == "none"
+        assert gate["client"].get(catalog_path(group), headers=headers).json()["visible_tool_count"] == 0
+        assert fingerprints.call_count == normalization.call_count == 3, "A current access change must reuse structure without caching authority"
     first_handler.assert_not_called()
     second_handler.assert_not_called()
 
@@ -186,9 +195,17 @@ def test_retry_reuses_request_structures_beyond_cache_but_rechecks_current_input
             "Retry must reuse every unchanged immutable publication held by this request, even after shared eviction"
         assert comparison.call_count == 1, "Known-stale metadata must not reach policy projection or comparison"
         assert projection.call_count == 1
-        expected = {"metadata": 3, "publication": 2, "membership": 2, "scopes": 0}[change]
+        expected = {"metadata": 3, "publication": 3, "membership": 2, "scopes": 0}[change]
         assert response.json()["visible_tool_count"] == expected
         assert gate["catalog"].structures.usage()[0] == 2
+        if change == "publication":
+            variants = response.json()["variants"]
+            assert len(variants) == 2
+            changed = next(item for item in variants if item["compatibility"] == "review_required")
+            assert changed["visible_member_count"] == 1 and changed["safety"] is None
+            reviewed = next(item for item in variants if item["compatibility"] == "reviewed_contract_match")
+            assert reviewed["visible_member_count"] == 2 and reviewed["safety"]["required_access"] == "read"
+            assert changed["input_schema_digest"] != reviewed["input_schema_digest"]
         if change == "metadata":
             before = prepare.call_count
             variant = response.json()["variants"][0]["variant_id"]

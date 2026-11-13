@@ -14,9 +14,11 @@ Git 拉取和依赖安装分别配置默认值。项目明确选择 `inherit`（
 
 Native adapter 代码已存在，宿主准备与真实验收分开。缓存闭环覆盖 registry-only npm lock v2/v3、pnpm 8/9 v3 store、Yarn Classic 1.22 mirror；pnpm 10/11、Berry、Python sandbox 安装及不安全缓存形态明确拒绝。固定官方 npm/pnpm/Yarn 工具准备和所选离线 Node build script 已实现。见[执行决策](git-executor-decision.md)及[精确支持矩阵](native-executor.md#获取与包支持)。Core 远程阶段/制品/runtime 交付不在本范围。
 
-来源表单接受 HTTPS 仓库 URL、分支/tag/完整 commit、相对项目子目录、私有仓库凭据引用、独立 Git/安装网络选择，以及 Node/Python 运行模板。任何网络请求前先验证输入。安全执行器必须从实际环境解析完整 commit SHA；歧义或不存在的 ref 均失败。导入计划绑定 SHA、来源选择、凭据修订、网络修订、策略修订、限制和摘要。拉取单独要求明确确认及幂等键，固定取该 SHA，不重新解析移动分支。执行器输出有界 ZIP，不输出 Git 工作目录。Gate 经 `ProjectUploadStore` 验证并导入，附上源码/文件清单摘要、仓库 commit、所选修订和来源记录，继续原有构建部署链路。
+来源表单接受 HTTPS 仓库 URL、分支/tag/完整 commit、相对项目子目录、私有仓库凭据引用、独立 Git/安装网络选择，以及 Node/Python 运行模板。**导入项目**会在 Git 网络访问前验证输入，再自动创建计划并拉取源码，一次完成。**检查来源**仍可按需使用；输入未变且未过期的计划可以复用。私有凭据和网络选择位于高级来源选项。
 
-预检与 BuildPlan 保持可审查；依赖安装和构建要求自己的确认及摘要绑定。部署、覆盖、启动、取消和回滚保留原有 Project Delivery 边界及归属检查。新制品使用新目录；导入或构建失败不能替换已部署版本。部署复用现有目标补偿及明确回滚，不提供无缝 MCP 会话迁移。
+安全执行器必须从实际环境解析完整 commit SHA；歧义或不存在的 ref 均失败。导入计划绑定 SHA、来源选择、凭据修订、网络修订、策略修订、限制和摘要。拉取 API 仍要求 `plan_id`、`plan_digest`、`confirmed=true` 和幂等键；Console 在用户明确点击导入时一并提交，不再弹出第二次确认。拉取固定取该 SHA，不重新解析移动分支。执行器输出有界 ZIP，不输出 Git 工作目录。Gate 经 `ProjectUploadStore` 验证并导入，附上源码/文件清单摘要、仓库 commit、所选修订和来源记录，继续原有构建部署链路。
+
+**创建构建**自动取得 BuildPlan 及其预检结果，再派发所选安装/构建任务。预检和计划详情仍可查看，无需先手工检查或重复确认摘要。隔离构建 API 仍要求源码摘要、计划指纹、`confirmed=true` 和幂等键。**部署构建**自动预览最终配置；首次部署的目标明确且未变化、不覆盖配置、不打断服务时直接执行。覆盖、已有配置、服务中断、目标未明确或发生变化时，只确认一次具体影响。启动选项、取消、回滚和归属检查继续遵守原有 Project Delivery 边界。新制品使用新目录；导入或构建失败不能替换已部署版本。部署复用现有目标补偿及明确回滚，不提供无缝 MCP 会话迁移。
 
 ## 网络与来源限制
 
@@ -38,7 +40,7 @@ Native adapter 代码已存在，宿主准备与真实验收分开。缓存闭�
 
 支持命令族：npm 9–11 + package-lock/shrinkwrap v2/v3（`npm ci`）；pnpm 8–11 + 对应格式锁文件（`pnpm install --frozen-lockfile`）；Yarn Classic 1.22.x + v1 锁文件（`yarn install --frozen-lockfile`）。Yarn Berry 的 immutable/PnP 行为不同，本期明确不支持。Node 必须安装但无锁文件时阻断；纯封装项目继续支持。
 
-精确 `packageManager` 声明或明确项目覆盖固定工具版本。工具缺失或已安装版本不符时，在同一个待确认 BuildPlan 中增加**工具准备步骤**：安全执行器通过所选安装代理/registry 获取固定版本的官方 npm/pnpm/Yarn 分发包，校验官方 registry integrity，记录版本/来源/integrity，按 manager/version/integrity 在项目产物外隔离缓存。解包经过审查的官方分发包，不执行工具安装生命周期。Corepack 不是前置依赖：缺失或损坏时也走受控官方分发路径。禁止宿主全局安装/配置、浮动 latest、未经确认的 Corepack 下载或静默版本替换。Node engine 不兼容、下载或校验失败会停止构建；项目生命周期与工具准备均出现在安装/构建确认中。
+精确 `packageManager` 声明或明确项目覆盖固定工具版本。工具缺失或已安装版本不符时，在同一个绑定摘要的 BuildPlan 中增加**工具准备步骤**：安全执行器通过所选安装代理/registry 获取固定版本的官方 npm/pnpm/Yarn 分发包，校验官方 registry integrity，记录版本/来源/integrity，按 manager/version/integrity 在项目产物外隔离缓存。解包经过审查的官方分发包，不执行工具安装生命周期。Corepack 不是前置依赖：缺失或损坏时也走受控官方分发路径。禁止宿主全局安装/配置、浮动 latest、未经确认的 Corepack 下载或静默版本替换。Node engine 不兼容、下载或校验失败会停止构建；项目生命周期与工具准备均可在计划详情查看，创建构建时按该计划的执行契约提交所选任务。
 
 只在实际所选项目根检查锁文件。声明/覆盖能唯一选中对应锁时，保留其他包管理器锁并警告；npm shrinkwrap 遵循其原生优先级。真正歧义返回结构化候选，可存入操作者私有、带修订的项目交付草稿，并原样返回计划/创建。未知工具版本及锁格式不兼容仍明确报错。计划只接受生成的准备/安装/构建命令及对应依赖。可选择安全相对文件形式的 Node `bin` 入口，如 `bin/ssh-mcp.mjs`；这不配置 SSH 密钥或执行远控。Python `requirements.txt` 保持原行为，不隐式支持 uv/Poetry 等。
 
@@ -61,7 +63,7 @@ Native adapter 代码已存在，宿主准备与真实验收分开。缓存闭�
 
 pnpm 11.5.0 版本证据：[官方 package engines](https://github.com/pnpm/pnpm/blob/v11.5.0/pnpm/package.json)、[安装命令语义](https://github.com/pnpm/pnpm/blob/v11.5.0/installing/commands/src/install.ts)、[提交的 9.0 锁文件](https://github.com/pnpm/pnpm/blob/v11.5.0/pnpm-lock.yaml)。仅阅读官方元数据/源码，未安装或运行 pnpm 分发包。运行时/工具自动下载及依赖出口变更必须由受审查执行器禁止，不能依赖工具自身的默认行为。
 
-执行器需先冻结输出再交给 Gate 导出。网络产物导出增加 30 秒、500 MiB 与 30,000 条目限制；拒绝外部/绝对/循环/指向忽略目录的链接及已知网络秘密，保留范围内的相对包链接。这是额外防线，不能隔离仍在运行的恶意进程。Git 文件摘要在计划、排队和 worker 复制前复核；快照变化要求重新导入和确认。
+执行器需先冻结输出再交给 Gate 导出。网络产物导出增加 30 秒、500 MiB 与 30,000 条目限制；拒绝外部/绝对/循环/指向忽略目录的链接及已知网络秘密，保留范围内的相对包链接。这是额外防线，不能隔离仍在运行的恶意进程。Git 文件摘要在计划、排队和 worker 复制前复核；快照变化要求取得新的有效计划，并明确执行重新导入。
 
 ## 验收证据
 

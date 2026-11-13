@@ -10,6 +10,8 @@ from pathlib import Path
 from typing import Any
 from uuid import uuid4
 
+from lingshu_gate.tool_access_policy import effective_policy, policy_snapshot
+
 MAX_AUTHORIZATION_SERVERS = 100
 
 
@@ -65,10 +67,22 @@ def bind_server_policies(connection: sqlite3.Connection, policies: list[dict[str
     return sorted(result, key=lambda item: item["server_id"])
 
 
-def tool_snapshot(definition: Any, classification: dict[str, Any] | sqlite3.Row) -> str:
-    """与现有 OAuth 工具快照使用同一分类指纹、级别和审核版本。"""
-    return hashlib.sha256(json.dumps([classification["fingerprint"], classification["effective_access"],
-                                     classification["reviewed_at"]], sort_keys=True).encode()).hexdigest()
+def tool_snapshot(definition: Any, classification: dict[str, Any] | sqlite3.Row | None) -> str:
+    """Bind exact authorization to access; schema checks remain at dispatch."""
+    row = dict(classification) if classification is not None else {}
+    access, _ = effective_policy(definition, row)
+    server_id = str(definition.metadata.get("server_id") or definition.source or "builtin")
+    return policy_snapshot(server_id, definition.id, access, str(row.get("access_policy_binding", "")),
+                           int(row.get("access_policy_revision", 1)))
+
+
+def tool_snapshot_matches(definition: Any, classification: dict[str, Any] | None, expected: str) -> bool:
+    if tool_snapshot(definition, classification) == expected:
+        return True
+    # Only a fingerprint-validated upgrade adopts a historical snapshot alias.
+    # Access changes, tool retirement and service replacement clear that alias.
+    alias = classification.get("legacy_authorization_snapshot") if classification else None
+    return bool(alias and alias == expected)
 
 
 def record_config_identity(connection: sqlite3.Connection, server_id: str, path: Path,

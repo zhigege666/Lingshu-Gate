@@ -22,24 +22,23 @@ function Shell({ authType }: { authType: string }) {
     busy={false} onNavigate={noop} onSearch={noop} onRefresh={noop} onLogout={noop}>内容</ConsoleShell>
 }
 
-describe("账号与上传操作直接展示", () => {
+describe("控制台导航与上传行操作", () => {
   it.each(["session", "disabled"])("%s 账号首屏展示适用操作", authType => {
     const html = renderToStaticMarkup(<Shell authType={authType} />)
-    const header = html.match(/<header\b[\s\S]*?<\/header>/)?.[0] || ""
-    expect(header).toContain("OpenAPI")
-    expect(header.includes("退出登录")).toBe(authType !== "disabled")
+    expect(html).toContain('aria-label="账号菜单"')
+    expect(html).toContain('class="console-mobile-context">MCP 服务</span>')
+    expect(html).not.toContain("OpenAPI")
   })
-  it.each([false, true])("上传行按钮直接展示并保留忙碌禁用：%s", busy => {
+  it.each([false, true])("上传行操作收纳在菜单中，避免占用首屏：%s", busy => {
     const html = renderToStaticMarkup(<UploadList
       uploads={[{ id: "example-upload", filename: "example.zip", status: "analyzed", detected_runtime: "python", created_at: "", updated_at: "" }]}
       builds={[]} deployments={[]} selectedId="" busy={busy} loading={false} failed={false} filtered={false}
       onSelect={noop} onDraft={noop} onCreateBuild={noop} onDelete={noop} t={t} />)
     const buttons = [...html.matchAll(/<button\b[^>]*>[\s\S]*?<\/button>/g)].map(([button]) => ({
-      label: button.replace(/<[^>]+>/g, ""), disabled: button.includes('disabled=""'),
+      markup: button, disabled: button.includes('disabled=""'),
     }))
-    for (const key of ["draftManifest", "createBuild", "delete"] as const) {
-      expect(buttons).toContainEqual({ label: t(key), disabled: busy })
-    }
-    expect(html).not.toContain('aria-haspopup="menu"')
+    expect(buttons).toContainEqual({ markup: expect.stringContaining(">操作<"), disabled: false })
+    expect(html).toContain('aria-haspopup="menu"')
+    expect(html).not.toContain(t("draftManifest"))
   })
 })

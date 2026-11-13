@@ -498,6 +498,7 @@ def create_app() -> FastAPI:
         configuration_service=mcp_configuration_service,
         observability_store=observability_store,
         require_operations_manager=require_operations_manager,
+        shared_credential_service=shared_credential_service,
     )
     register_external_mcp_config_routes(app, auth=auth_store, service=external_mcp_configuration_service)
     register_mcp_group_routes(app, auth=auth_store, service=mcp_group_service,

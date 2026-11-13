@@ -30,6 +30,18 @@ test('E2E-101 @large-data 5000 tools render one page and reset internal scroll',
   await next.click()
   await expect.poll(() => viewport.evaluate(el => el.scrollTop)).toBe(0)
   await expect(cards.first()).not.toContainText('Synthetic tool 0000')
+  const firstTool = await cards.first().getAttribute('aria-label')
+  await page.getByRole('radio', { name: 'Cards', exact: true }).check()
+  await expect(cards.first()).toHaveAttribute('aria-label', firstTool!)
+  await cards.first().getByRole('button', { name: /^Invoke Tool/ }).click()
+  await expect(page).toHaveURL(/#\/invoke/)
+  await page.getByRole('link', { name: 'Tool catalog', exact: true }).click()
+  await expect(page.getByRole('radio', { name: 'Cards', exact: true })).toBeChecked()
+  await expect(cards.first()).toHaveAttribute('aria-label', firstTool!)
+  await page.getByRole('radio', { name: 'List', exact: true }).check()
+  await viewport.evaluate(el => { el.scrollTop = el.scrollHeight })
+  await next.click()
+  await expect.poll(() => viewport.evaluate(el => el.scrollTop)).toBe(0)
 })
 
 test('E2E-102 @large-data 5000 classifications bound DOM and keep review action visible', async ({ page }, testInfo) => {
@@ -101,7 +113,7 @@ test('E2E-119 @large-data build and deployment records render bounded pages', as
 
 test('E2E-120 @large-data upload history renders 20 synthetic projects', async ({ page }) => {
   await page.goto('/console/#/uploads')
-  await page.getByRole('button', { name: 'View upload history', exact: true }).click()
+  await page.getByRole('button', { name: 'Upload history', exact: true }).click()
   const projects = page.getByRole('button', { name: /synthetic-project-\d+\.zip/ })
   await expect(projects.first()).toBeVisible()
   expect(await projects.count()).toBe(20)

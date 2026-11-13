@@ -32,8 +32,13 @@ describe("HTTP authentication preset conversion foundation", () => {
     expect(httpAuthHeaders(custom, inferHttpAuth(custom), { kind: "custom", credentialId: "", headerName: "" })).toEqual(custom)
   })
 
-  it.each(["Host", "Content-Type", "Mcp-Session-Id", "Proxy-Authorization", "X Key", "X\r\nBad"])("rejects reserved or malformed header %s", headerName => {
+  it.each(["Host", "Content-Type", "Mcp-Session-Id", "Proxy-Authorization", "X Key", "X:Key", "X\r\nBad"])("rejects reserved or malformed header %s", headerName => {
     expect(() => httpAuthHeaders({}, inferHttpAuth({}), { kind: "api_key", credentialId: "example-api", headerName })).toThrow("invalid_auth_header")
+  })
+
+  it.each(["X_API_Key", "X.Service.Key", "X-" + "a".repeat(128)])("accepts an HTTP token header without a preset-only character or length restriction: %s", headerName => {
+    expect(httpAuthHeaders({}, inferHttpAuth({}), { kind: "api_key", credentialId: "example-api", headerName }))
+      .toEqual({ [headerName]: "${credential:example-api}" })
   })
 
   it("normalizes one pasted Bearer prefix and encodes Basic separately from the manifest", () => {

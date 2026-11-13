@@ -18,6 +18,7 @@ from test_mcp_groups import gate as gate
 CATALOG_COLUMNS = {
     "server_id", "tool_id", "fingerprint", "status", "effective_access",
     "reviewed_by", "reviewed_at", "destructive", "idempotent", "open_world",
+    "required_access", "access_policy_source", "access_policy_binding", "access_policy_revision", "legacy_authorization_snapshot",
 }
 
 
@@ -88,8 +89,8 @@ def test_narrow_projection_matches_full_policy_and_reviewed_variants(gate, chang
     if change in {"write", "pending", "stale", "unknown", "fingerprint", "reviewer", "review_time",
                   "destructive", "idempotent", "open_world"}:
         updates = {
-            "write": ("effective_access", "write"), "pending": ("status", "pending"),
-            "stale": ("status", "stale"), "unknown": ("effective_access", "unknown"),
+            "write": ("required_access", "write"), "pending": ("status", "pending"),
+            "stale": ("status", "stale"), "unknown": ("required_access", "none"),
             "fingerprint": ("fingerprint", "changed"), "reviewer": ("reviewed_by", None),
             "review_time": ("reviewed_at", None), "destructive": ("destructive", 1),
             "idempotent": ("idempotent", 1), "open_world": ("open_world", 0),
@@ -141,11 +142,15 @@ def test_narrow_projection_matches_full_policy_and_reviewed_variants(gate, chang
             complete = project(connection)
         narrow = project(connection)
     assert narrow == complete
-    hidden_changes = {"write", "pending", "stale", "unknown", "fingerprint", "registry_contract", "grant_revoked",
+    hidden_changes = {"write", "unknown", "grant_revoked",
                       "tool_none", "grant_expired", "role_grant", "oauth_tool", "oauth_instance"}
     members = [member.tool_id for variant in narrow for member in variant.members]
     assert len(members) == (1 if change in hidden_changes else 0 if change in {
         "token_no_tools", "control_permission", "oauth_access", "oauth_expired"} else 2)
+    if change in {"pending", "stale", "fingerprint", "registry_contract", "reviewer", "review_time"}:
+        changed_variant = next(variant for variant in narrow if any(member.tool_id == changed.id for member in variant.members))
+        assert changed_variant.summary.safety is None
+        assert changed_variant.summary.compatibility != "reviewed_contract_match"
 
 
 def test_catalog_batches_keep_all_keys_and_preserve_duplicate_and_missing_behavior(gate):

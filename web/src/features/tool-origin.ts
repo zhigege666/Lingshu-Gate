@@ -3,7 +3,7 @@ import type { Locale } from "@/i18n"
 
 const BUILTIN_NAMES = {
   builtin: { "zh-CN": "Gate 基础能力", "en-US": "Gate core capabilities" },
-  "gate-control": { "zh-CN": "工具审核管理", "en-US": "Tool review management" },
+  "gate-control": { "zh-CN": "工具权限管理", "en-US": "Tool access management" },
   "gate-delivery": { "zh-CN": "项目交付与服务管理", "en-US": "Project delivery and service management" },
   "gate-tool-files": { "zh-CN": "工具文件传输", "en-US": "Tool file transfer" },
 } satisfies Record<string, Record<Locale, string>>

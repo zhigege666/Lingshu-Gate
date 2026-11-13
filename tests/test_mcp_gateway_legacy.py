@@ -81,7 +81,7 @@ def test_legacy_initialize_notify_list_call_and_ping(gateway, version):
     result = response.json()["result"]
     assert result["protocolVersion"] == version
     assert result["serverInfo"]["name"] == "lingshu_gate"
-    assert result["capabilities"] == {"tools": {"listChanged": False}}
+    assert result["capabilities"] == {"tools": {"listChanged": True}}
     assert "mcp-session-id" not in response.headers
     headers = {"MCP-Protocol-Version": version}
     notification = client.post(

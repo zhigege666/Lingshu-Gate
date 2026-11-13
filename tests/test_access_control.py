@@ -438,7 +438,7 @@ class DefaultAdminTest(unittest.TestCase):
         ]
         self.access_store.synchronize_tools(definitions)
         self.database.execute(
-            "UPDATE mcp_tool_classifications SET effective_access = 'read', status = 'published' WHERE server_id = ?",
+            "UPDATE mcp_tool_classifications SET effective_access = 'read', status = 'published', required_access='read', access_policy_source='local_override' WHERE server_id = ?",
             ("discovery",),
         )
         grant = self.access_store.save_grant(
@@ -452,7 +452,8 @@ class DefaultAdminTest(unittest.TestCase):
         original_metadata = dict(definitions[0].metadata)
         visible = self.access_store.visible_tools(principal, definitions)
         self.assertEqual(visible[0].metadata["gate_access"], {
-            "required_access": "read", "classification_status": "published",
+            "required_access": "read", "classification_status": "configured", "policy_source": "local_override",
+            "policy_editable": True, "policy_constraint": None,
         })
         self.assertEqual(definitions[0].metadata, original_metadata)
         self.assertIsNot(visible[0], definitions[0])
@@ -466,7 +467,7 @@ class DefaultAdminTest(unittest.TestCase):
             permission_type_code="write", created_by="test-admin",
         )
         self.database.execute(
-            "UPDATE mcp_tool_classifications SET effective_access = 'write' WHERE tool_id = ?",
+            "UPDATE mcp_tool_classifications SET required_access = 'write' WHERE tool_id = ?",
             (definitions[0].id,),
         )
         updated = self.access_store.visible_tools(principal, definitions)
@@ -474,13 +475,13 @@ class DefaultAdminTest(unittest.TestCase):
         self.assertTrue(definitions[0].metadata["annotations"]["readOnlyHint"])
         self.assertEqual(self.access_store.evaluate(principal, definitions[0])["required_access"], "write")
 
-    def test_output_contract_change_invalidates_published_classification_and_access_snapshot(self) -> None:
+    def test_output_contract_change_invalidates_reviewed_safety_but_preserves_local_policy(self) -> None:
         principal, definitions, _ = self._discovery_fixture()
         self.assertEqual(len(self.access_store.visible_tools(principal, definitions)), 2)
         changed = definitions[0].model_copy(
             update={"metadata": {**definitions[0].metadata, "outputSchema": {}}}
         )
-        self.assertEqual(self.access_store.visible_tools(principal, [changed]), [])
+        self.assertEqual([item.id for item in self.access_store.visible_tools(principal, [changed])], [changed.id])
         row = self.access_store.list_classifications(server_id="discovery")[0]
         self.assertEqual(row["status"], "stale")
         self.assertEqual(row["effective_access"], "unknown")
@@ -489,10 +490,9 @@ class DefaultAdminTest(unittest.TestCase):
         registry = ToolRegistry()
         handler = unittest.mock.Mock(return_value={})
         registry.register(changed, handler)
-        with self.assertRaises(AccessDeniedError):
-            self.access_store.invoke_tool(registry, principal, changed.id, {})
-        handler.assert_not_called()
-        self.assertEqual(self.access_store.visible_tools(principal, [changed]), [])
+        self.access_store.invoke_tool(registry, principal, changed.id, {})
+        handler.assert_called_once_with({})
+        self.assertEqual([item.id for item in self.access_store.visible_tools(principal, [changed])], [changed.id])
         repeated = self.access_store.list_classifications(server_id="discovery")[0]
         self.assertEqual(repeated["evidence"]["invalidation"]["changed_fields"], ["output_schema"])
 
@@ -508,7 +508,7 @@ class DefaultAdminTest(unittest.TestCase):
         changed = definitions[0].model_copy(
             update={"metadata": {**definitions[0].metadata, "outputSchema": {"type": "object"}}}
         )
-        self.assertEqual(self.access_store.visible_tools(principal, [changed]), [])
+        self.assertEqual([item.id for item in self.access_store.visible_tools(principal, [changed])], [changed.id])
         invalidation = self.access_store.list_classifications(server_id="discovery")[0]["evidence"]["invalidation"]
         self.assertTrue(invalidation["previous_definition_unrecorded"])
         self.assertTrue(invalidation["output_schema_recorded"])
@@ -547,8 +547,8 @@ class DefaultAdminTest(unittest.TestCase):
         )
         changed = definitions[0].model_copy(update={"description": "Changed contract"})
         visible = self.access_store.visible_tools(principal, [changed, definitions[1]])
-        self.assertEqual([item.id for item in visible], [definitions[1].id])
-        self.assertEqual(self.access_store.evaluate(principal, changed)["classification_status"], "stale")
+        self.assertEqual([item.id for item in visible], [changed.id, definitions[1].id])
+        self.assertEqual(self.access_store.evaluate(principal, changed)["classification_status"], "configured")
 
     def test_batched_grants_preserve_user_role_expiry_and_disabled_role_precedence(self) -> None:
         principal, definitions, grant_id = self._discovery_fixture()

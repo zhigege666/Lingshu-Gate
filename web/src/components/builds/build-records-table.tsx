@@ -7,6 +7,7 @@ import { ActionMenu, ActionMenuItem } from "@/components/action-menu"
 import { formatDateTime, shortId } from "@/components/builds/build-utils"
 import { StatusBadge } from "@/components/builds/status-badge"
 import { ColGroup, SortHead, useColumnWidths, usePagedSorted } from "@/components/table-tools"
+import { Button } from "@/components/ui/button"
 import { Card, CardContent } from "@/components/ui/card"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import type { TFunction } from "@/i18n"
@@ -81,14 +82,15 @@ export function BuildRecordsTable({ builds, busy, selectedBuildId, canRequestSto
             <TableCell className="whitespace-nowrap text-xs text-muted-foreground">{formatDateTime(build.created_at)}</TableCell>
             <TableCell className="whitespace-nowrap text-xs text-muted-foreground">{formatDateTime(build.updated_at)}</TableCell>
             <TableCell className="text-right" onClick={(event) => event.stopPropagation()} onKeyDown={(event) => event.stopPropagation()}>
-              <ActionMenu inline label={t("actions")}>
-                <ActionMenuItem onClick={() => onShowBuild(build)}>{tx("view")}</ActionMenuItem>
-                <ActionMenuItem onClick={() => onLoadLogs(build)}>{tx("viewLogs")}</ActionMenuItem>
-                {canRequestStop(build) ? <ActionMenuItem disabled={busy} onClick={() => onRequestStop(build.id)}>{t("requestStop")}</ActionMenuItem> : null}
-                {build.status === "success" ? <ActionMenuItem disabled={busy} onClick={() => onDeploy(build.id)}>{t("deployBuild")}</ActionMenuItem> : null}
-                {RETRYABLE_BUILD_STATUSES.has(build.status) ? <ActionMenuItem disabled={busy} onClick={() => onRetry(build)}>{tx("retryBuild")}</ActionMenuItem> : null}
-                <ActionMenuItem destructive disabled={busy || ACTIVE_BUILD_STATUSES.has(build.status)} onClick={() => onDelete(build)}>{tx("deleteRecord")}</ActionMenuItem>
-              </ActionMenu>
+              <div className="flex flex-wrap items-center justify-end gap-1">
+                <Button variant="ghost" size="sm" onClick={() => onLoadLogs(build)}>{t("uploads") === "项目上传" ? "查看日志" : "Logs"}</Button>
+                {canRequestStop(build) ? <Button variant="ghost" size="sm" disabled={busy} onClick={() => onRequestStop(build.id)}>{t("requestStop")}</Button> : null}
+                {build.status === "success" ? <Button variant="outline" size="sm" disabled={busy} onClick={() => onDeploy(build.id)}>{t("uploads") === "项目上传" ? "配置部署" : "Configure deployment"}</Button> : null}
+                {RETRYABLE_BUILD_STATUSES.has(build.status) ? <Button variant="outline" size="sm" disabled={busy} onClick={() => onRetry(build)}>{tx("retryBuild")}</Button> : null}
+                <ActionMenu label={t("actions")}>
+                  <ActionMenuItem destructive disabled={busy || ACTIVE_BUILD_STATUSES.has(build.status)} onClick={() => onDelete(build)}>{tx("deleteRecord")}</ActionMenuItem>
+                </ActionMenu>
+              </div>
             </TableCell>
           </TableRow>
         })}</TableBody>

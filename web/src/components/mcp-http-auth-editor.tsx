@@ -1,16 +1,18 @@
 import { useEffect, useId, useRef, useState } from "react"
 import { Radio, Select } from "antd"
-import type { Credential } from "@/api/client"
+import type { ConfigurationCredentialWrite, Credential } from "@/api/client"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { InlineServiceCredential } from "@/components/inline-service-credential"
-import { credentialHttpOrigin } from "@/features/credential-writes"
+import { InlineCredentialTarget } from "@/components/inline-credential-target"
+import { credentialDraftTarget, currentCredentialDraft, type ConfigurationCredentialDraft } from "@/features/mcp-config/credential-draft"
+import { credentialMatchesHttpTarget } from "@/features/credential-writes"
 import { httpAuthHeaders, inferHttpAuth, type HttpAuthKind, type HttpAuthSelection } from "@/features/mcp-config/http-auth"
 
-export type HttpAuthDraftReason = "credential" | "authentication" | null
+export type HttpAuthDraftReason = "credential" | "authentication" | "target" | null
 const errors: Record<string, [string, string]> = {
-  draft_changed: ["配置草稿已变化，未覆盖新的内容。已保存凭据仍然保留，请重新选择。", "The draft changed and was not overwritten. Saved credentials remain available; select again."],
+  draft_changed: ["配置草稿已变化，请核对当前凭据与目标后再保存。", "The draft changed. Review the credential and target before saving."],
   credential_required: ["请选择凭据，或新增一个。", "Select a credential or create one."],
   invalid_auth_header: ["请输入有效的自定义头名，不能使用协议保留头。", "Enter a valid custom header name, not a reserved protocol header."],
   header_conflict: ["此请求头已经存在，请在高级请求头中核对，避免覆盖。", "This header already exists. Review advanced headers before replacing it."],
@@ -19,12 +21,13 @@ const errors: Record<string, [string, string]> = {
 }
 
 /** Presets edit only their owned header. Secrets and unfinished choices never enter the manifest. */
-export function McpHttpAuthEditor({ value, serverId, endpoint, zh, disabled, credentials, loading, loadError, canCreate,
-  onChange, onCreated, onReload, onPendingChange, onDraftChange, onAdvanced, onHomeTemplate }: {
-  value: unknown; serverId: string; endpoint: unknown; zh: boolean; disabled: boolean
+export function McpHttpAuthEditor({ value, serverId, endpoint, savedService = true, serverBinding, zh, disabled, credentials, loading, loadError, canCreate,
+  onChange, credentialDraft, onCredentialDraftChange, onReload, onDraftChange, onAdvanced, onHomeTemplate }: {
+  value: unknown; serverId: string; endpoint: unknown; savedService?: boolean; serverBinding?: string | null; zh: boolean; disabled: boolean
   credentials: Credential[]; loading: boolean; loadError: boolean; canCreate: boolean
-  onChange: (headers: Record<string, string>) => boolean; onCreated: (credential: Credential) => void
-  onReload: () => void; onPendingChange: (pending: boolean) => void
+  onChange: (headers: Record<string, string>) => boolean
+  credentialDraft: ConfigurationCredentialDraft | null; onCredentialDraftChange: (draft: ConfigurationCredentialDraft | null) => void
+  onReload: () => void
   onDraftChange: (reason: HttpAuthDraftReason) => void; onAdvanced: () => void; onHomeTemplate: () => void
 }) {
   const id = useId()
@@ -40,30 +43,45 @@ export function McpHttpAuthEditor({ value, serverId, endpoint, zh, disabled, cre
   const callbacks = useRef({ onDraftChange })
   callbacks.current = { onDraftChange }
   const incomplete = Boolean(draft && draft.key === valueKey && !["none", "custom"].includes(selection.kind))
-  const reason: HttpAuthDraftReason = source === "new" ? "credential" : incomplete ? "authentication" : null
+  const stagedReady = currentCredentialDraft(credentialDraft, serverId, endpoint, value)
+  const priorHeaders = useRef<Record<string, string>>({})
+  const matches = (credential: Credential) => stagedReady && credentialDraft?.write.credential_id === credential.id || credentialMatchesHttpTarget(credential, serverId, endpoint, savedService, serverBinding)
+  const selectedCredential = credentials.find(item => item.id === selection.credentialId)
+  const needsTarget = Boolean(selectedCredential && !matches(selectedCredential) && !loadError && !loading)
+  const reason: HttpAuthDraftReason = source === "new" ? stagedReady && credentialDraft?.write.kind === "create" ? null : "credential" : needsTarget ? "target" : incomplete ? "authentication" : null
   useEffect(() => { callbacks.current.onDraftChange(reason) }, [reason])
   useEffect(() => () => callbacks.current.onDraftChange(null), [])
-  const origin = credentialHttpOrigin(endpoint)
-  const matches = (credential: Credential) => Boolean(origin && credential.http_scopes?.some(scope => scope.server_id === serverId && scope.origin === origin))
-  const selectedCredential = credentials.find(item => item.id === selection.credentialId)
   const editablePreset = ["bearer", "api_key", "basic"].includes(selection.kind)
-  const controlsLocked = disabled || source === "new"
+  const controlsLocked = disabled || source === "new" || Boolean(credentialDraft)
 
   function change(next: HttpAuthSelection) {
     if (disabled) return
     setError(null)
+    if (credentialDraft && (next.credentialId !== credentialDraft.write.credential_id || ["none", "custom"].includes(next.kind))) onCredentialDraftChange(null)
     if (next.kind === "custom") {
       setDraft({ key: valueKey, selection: next }); onAdvanced(); return
     }
     if (next.kind !== "none" && !next.credentialId) { setDraft({ key: valueKey, selection: next }); return }
     try {
-      if (!onChange(httpAuthHeaders(value, inferred, next))) throw new Error("draft_changed")
+      const headers = httpAuthHeaders(value, inferred, next)
+      const credential = credentials.find(item => item.id === next.credentialId)
+      if (next.kind !== "none" && credential && !matches(credential)) {
+        setDraft({ key: valueKey, selection: next }); return
+      }
+      if (!onChange(headers)) throw new Error("draft_changed")
       setDraft(null)
     } catch (err) {
       setDraft(next.kind === "none" ? null : { key: valueKey, selection: next })
       setError(err instanceof Error ? err.message : "custom_headers_required")
     }
   }
+
+  // An explicitly selected target may have been saved despite a lost response.
+  // A metadata reload can finish attaching that selection without another grant.
+  const selectedReady = Boolean(incomplete && selectedCredential && matches(selectedCredential) && !loading && !loadError)
+  useEffect(() => {
+    if (selectedReady && source === "existing" && !disabled) change(selection)
+  }, [selectedReady, source, disabled, valueKey, selection.kind, selection.credentialId, selection.headerName])
 
   useEffect(() => {
     // Credential completion and the parent pending lock settle separately.
@@ -87,18 +105,21 @@ export function McpHttpAuthEditor({ value, serverId, endpoint, zh, disabled, cre
     change({ kind, credentialId: "", headerName: kind === "api_key" ? "X-API-Key" : "Authorization" })
   }
 
-  // A successful explicit credential write may finish while parent inputs are locked.
-  // The parent owns target/revision protection and accepts only the reference.
-  function created(credential: Credential) {
-    onCreated(credential)
+  function stage(write: ConfigurationCredentialWrite | null) {
+    if (!write) { onCredentialDraftChange(null); return }
     try {
-      if (!onChange(httpAuthHeaders(value, inferred, { ...selection, credentialId: credential.id }))) throw new Error("draft_changed")
-      setDraft(null); setError(null); setSource("existing"); focusCredential()
+      if (!credentialDraft && source !== "new") priorHeaders.current = (value || {}) as Record<string, string>
+      if (!onChange(httpAuthHeaders(value, inferred, { ...selection, credentialId: write.credential_id }))) throw new Error("draft_changed")
+      onCredentialDraftChange({ write, targetKey: credentialDraftTarget(serverId, endpoint) })
+      setDraft(null); setError(null)
     } catch (err) {
-      setSource("existing")
-      setDraft({ key: valueKey, selection: { ...selection, credentialId: credential.id } })
+      onCredentialDraftChange(null)
       setError(err instanceof Error ? err.message : "custom_headers_required")
     }
+  }
+  function discardCredential() {
+    if (!onChange(priorHeaders.current)) { setError("draft_changed"); return }
+    onCredentialDraftChange(null); setDraft(null); setSource("existing"); setError(null); focusCredential()
   }
 
   return <section className="manifest-auth" aria-label={zh ? "HTTP 鉴权" : "HTTP authentication"}>
@@ -119,7 +140,7 @@ export function McpHttpAuthEditor({ value, serverId, endpoint, zh, disabled, cre
           <p>{zh ? "MCP 地址通常以 /mcp 结尾；维护书签请选择空间范围。模板只填写草稿，不发送令牌。" : "The MCP endpoint normally ends with /mcp. Select a space-scoped token for bookmarks. The template edits the draft only; it sends no token."}</p>
         </div>}
         {selection.kind === "none" && <p className="text-xs text-muted-foreground">{zh ? "不添加鉴权头。服务如要求令牌，请选择 Bearer Token 或 API Key。" : "No authentication header is added. Choose Bearer Token or API Key when required by the service."}</p>}
-        {selection.kind === "custom" && <p className="text-xs text-muted-foreground">{zh ? "保留当前请求头，不猜测掩码中的鉴权格式。" : "Existing headers are retained; authentication is not guessed from masked values."} <button type="button" className="text-primary underline" disabled={disabled} onClick={onAdvanced}>{zh ? "编辑高级请求头" : "Edit advanced headers"}</button></p>}
+        {selection.kind === "custom" && <p className="text-xs text-muted-foreground">{zh ? "保留现有请求头。若要改用已有凭据，请选择上方的鉴权方式，再选择凭据；特殊鉴权可在高级请求头中调整。" : "Existing headers are retained. To use an existing credential, choose an authentication type above and select the credential. Use advanced headers for other authentication."} <button type="button" className="text-primary underline" disabled={disabled} onClick={onAdvanced}>{zh ? "编辑高级请求头" : "Edit advanced headers"}</button></p>}
       </div>
     </div>
     {selection.kind === "api_key" && <div className="manifest-field">
@@ -139,28 +160,40 @@ export function McpHttpAuthEditor({ value, serverId, endpoint, zh, disabled, cre
             options={[{ value: "existing", label: zh ? "已有凭据" : "Existing credential" }, { value: "new", label: zh ? "新增凭据" : "New credential", disabled: !canCreate }]}
             onChange={event => {
               if (event.target.value === "new") {
+                priorHeaders.current = (value || {}) as Record<string, string>
                 try { httpAuthHeaders(value, inferred, { ...selection, credentialId: "validation-only" }) }
                 catch (err) { setError(err instanceof Error ? err.message : "custom_headers_required"); return }
               }
               setSource(event.target.value as "existing" | "new"); setError(null)
             }} />
+          {!canCreate && <p className="text-xs text-muted-foreground">{zh ? "当前账号不能新增凭据或扩展其用途；请由共享凭据管理员完成授权。已有引用会保留。" : "This account cannot create credentials or extend their use. A shared-credential administrator must authorize changes. Existing references are retained."}</p>}
           {source === "existing" && <>
             <Select id={`${id}-credential`} className="w-full" showSearch optionFilterProp="label" aria-label={zh ? "选择服务凭据" : "Select service credential"}
+              getPopupContainer={(trigger: HTMLElement) => trigger.closest<HTMLElement>('[role="dialog"]') || trigger.parentElement!}
               value={selection.credentialId || undefined} disabled={disabled || loading} loading={loading}
-              placeholder={zh ? "搜索适用于此服务的凭据" : "Search credentials for this service"}
-              options={credentials.map(item => ({ value: item.id, label: `${item.name} · ${item.id}${matches(item) ? "" : zh ? "（目标不匹配）" : " (different target)"}`, disabled: !matches(item) }))}
+              placeholder={zh ? "选择凭据，缺少的目标授权可在此补齐" : "Choose a credential; authorize this target here if needed"}
+              options={credentials.map(item => ({ value: item.id, label: `${item.name} · ${item.id}${matches(item) ? "" : zh ? "（需授权此目标）" : " (authorize this target)"}`, disabled: !matches(item) && !canCreate }))}
               onChange={credentialId => change({ ...selection, credentialId })} />
             {loadError ? <p role="alert" className="text-xs text-destructive">{zh ? "凭据列表加载失败，未将其当作空列表。" : "The credential list could not be loaded; this is not an empty list."} <button type="button" className="underline" disabled={disabled || loading} onClick={onReload}>{zh ? "重新加载" : "Reload"}</button></p>
-              : !loading && !credentials.some(matches) && <p className="text-xs text-muted-foreground">{zh ? "没有匹配此服务和地址的凭据。填写完整地址后新增，或在凭据管理中核对使用范围。" : "No credential matches this service and address. Enter the full endpoint and create one, or review its usage scope in credential management."}</p>}
-            {!loadError && selectedCredential && !matches(selectedCredential) && <p role="alert" className="text-xs text-warning">{zh ? "已保留原凭据引用，但其目标范围与当前地址不匹配，请重新选择。" : "The original reference is retained, but its target scope does not match this endpoint. Select a matching credential."}</p>}
+              : !loading && credentials.length === 0 && <p className="text-xs text-muted-foreground">{canCreate
+                ? (zh ? "尚无可选择的共享凭据。可在上方选择新增凭据。" : "No shared credentials are available. Choose New credential above to create one.")
+                : (zh ? "尚无可选择的共享凭据。请由管理员配置后重新加载。" : "No shared credentials are available. Ask an administrator to configure one, then reload.")}</p>}
+            {!loadError && !loading && credentials.length > 0 && !selectedCredential && canCreate && <p className="text-xs text-muted-foreground">{zh ? "选择已有凭据后，Gate 会检查当前服务和地址；缺少授权时可在此完成。" : "Choose an existing credential. Gate checks this service and origin and lets you authorize a missing target here."}</p>}
+            {needsTarget && selectedCredential && <InlineCredentialTarget credential={selectedCredential} serverId={serverId} endpoint={endpoint} zh={zh}
+              disabled={disabled || loading} canManage={canCreate} onStaged={stage} onReload={onReload} />}
+            {credentialDraft?.write.kind === "authorize" && <div className="text-xs text-muted-foreground">
+              <p>{stagedReady ? zh ? "此用途将在保存配置时授权。" : "This use will be authorized when you save the configuration." : zh ? "目标已改变，请重新核对或取消此授权草稿。" : "The target changed. Review or cancel this grant draft."}</p>
+              <div className="flex flex-wrap gap-2"><button type="button" className="underline" disabled={disabled} onClick={discardCredential}>{zh ? "取消此授权草稿" : "Cancel this grant draft"}</button>
+                <button type="button" className="underline" disabled={disabled || loading} onClick={() => { onCredentialDraftChange(null); setDraft({ key: valueKey, selection }); onReload() }}>{zh ? "重新读取并复核凭据" : "Reload and review credential"}</button></div>
+            </div>}
             {selection.kind === "basic" && <p className="text-xs text-muted-foreground">{zh ? "已有 Basic 凭据应保存编码后的用户名与密码。新增凭据可直接填写用户名和密码，由 Gate 表单完成编码。" : "An existing Basic credential must contain the encoded username and password. Create a new credential to enter them separately; the form handles encoding."}</p>}
-            {selection.credentialId && !incomplete && <p className="text-xs text-muted-foreground">{zh ? "已自动生成鉴权头，无需点击添加。秘密值不会进入配置。" : "The authentication header is set automatically; no Add step is needed. The secret stays outside the configuration."}</p>}
+            {selection.credentialId && !incomplete && !needsTarget && <p className="text-xs text-muted-foreground">{zh ? "已自动生成鉴权头，无需点击添加。秘密值不会进入配置。" : "The authentication header is set automatically; no Add step is needed. The secret stays outside the configuration."}</p>}
           </>}
         </div>
       </div>
       {source === "new" && <InlineServiceCredential serverId={serverId} endpoint={endpoint} disabled={disabled} zh={zh}
         format={selection.kind === "basic" ? "basic" : selection.kind === "bearer" ? "bearer" : "raw"}
-        onCreated={created} onPendingChange={onPendingChange} onCancel={() => { setSource("existing"); focusCredential() }} />}
+        onDraftChange={stage} onCancel={discardCredential} />}
     </>}
     {error && <p role="alert" className="manifest-auth-error text-sm text-destructive">{errors[error]?.[zh ? 0 : 1] || (zh ? "鉴权配置未能更新，当前值已保留。" : "Authentication could not be updated; the current values are retained.")}</p>}
   </section>

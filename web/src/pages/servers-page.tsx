@@ -1,3 +1,4 @@
+import { effectiveToolPolicy } from "@/features/tool-policy"
 import { replaceConsoleRouteHash } from "@/routing/use-console-route"
 import "./servers-page.css"
 import { ServiceDeployments } from "@/features/servers/service-deployments"
@@ -16,6 +17,8 @@ import { FormDialog } from "@/components/form-dialog"
 import { PageHeader, PageToolbar } from "@/components/page-shell"
 import { serverCopy, type ServerCopy } from "@/features/servers/copy"
 import { useServerDetails, type DetailSection, type DetailState } from "@/features/servers/use-server-details"
+import { ToolSyncBadge, ToolSyncSummary } from "@/features/servers/tool-sync"
+import { canSyncServerTools, hasToolSyncIssue } from "@/features/servers/tool-sync-model"
 import { localizeStatus, type Locale, type TFunction } from "@/i18n"
 import { formatDateTime } from "@/lib/utils"
 import type { ConsoleView } from "@/routing/console-routes"
@@ -41,7 +44,9 @@ type Props = {
   canManageCredentials?: boolean
   canWriteGroups?: boolean
   canManageGroups?: boolean
+  canSyncTools?: boolean
   onServerAction: (id: string, action: Action) => Promise<void> | void
+  onServerToolSync?: (id: string) => Promise<void> | void
   onRefresh: () => Promise<void> | void
   onInvoke?: (toolId: string) => void
   onNewConfig: () => void
@@ -85,8 +90,9 @@ export function ServersPage(props: Props) {
   const [selectedRecord, setSelectedRecord] = useState<RecordValue | null>(null)
   const detailTrigger = useRef<HTMLElement | null>(null)
   const [actionBusy, setActionBusy] = useState(false)
+  const [syncBusy, setSyncBusy] = useState(false)
   const selected = servers.find(server => server.id === selectedId) || null
-  const { states, load } = useServerDetails(selected?.id || null, servers, props.canManageClassifications)
+  const { states, load } = useServerDetails(selected?.id || null, selected, props.canManageClassifications)
   const activeSection: DetailSection = tab === "logs" ? logTab : tab === "deployments" ? "overview" : tab
 
   useEffect(() => { if (props.initialServerId) chooseServer(props.initialServerId) }, [props.initialServerId])
@@ -126,15 +132,17 @@ export function ServersPage(props: Props) {
     if (filter === "running" && server.status !== "running") return false
     if (filter === "issues" && !hasServerIssue(server)) return false
     const needle = query.trim().toLowerCase()
-    return !needle || [server.id, server.name, server.last_error].filter(Boolean).join(" ").toLowerCase().includes(needle)
+    return !needle || [server.id, server.name, server.last_error, server.tool_sync?.last_error].filter(Boolean).join(" ").toLowerCase().includes(needle)
   }), [servers, query, filter])
   const runningCount = servers.filter(server => server.status === "running").length
   const issueCount = servers.filter(hasServerIssue).length
   const server = states.overview?.data?.server || selected
+  const syncError = server && hasToolSyncIssue(server) ? server.tool_sync?.last_error : null
+  const runtimeError = server && ([server.last_error, server.restore_blocked_reason].find(reason => reason && reason !== "Server is disabled") || server.last_error || server.restore_blocked_reason)
   const visible = selected && props.visibleTools ? props.visibleTools.filter(tool => tool.source === "mcp" && asRecord(tool.metadata).server_id === selected.id) : null
   const preview = visible ? toTools(visible.map(tool => asRecord(tool))) : []
   const classifications = states.overview?.classifications
-  const published = classifications?.filter(item => item.status === "published" && asRecord(item.evidence.lifecycle).status !== "retired").length
+  const published = classifications?.filter(item => effectiveToolPolicy(item) !== "none" && asRecord(item.evidence.lifecycle).status !== "retired").length
   const classificationByName = useMemo(() => {
     const result = new Map<string, ToolClassification>()
     for (const item of classifications || []) {
@@ -146,8 +154,8 @@ export function ServersPage(props: Props) {
 
   function classification(row: ToolRow) {
     const item = classificationByName.get(row.name) || classificationByName.get(String(row.raw.id || ""))
-    if (item?.status === "published") return <Tag color={item.effective_access === "read" ? "success" : "warning"}>{item.effective_access === "read" ? c.read : c.write}</Tag>
-    if (item) return <Tag>{c.review}</Tag>
+    if (item && effectiveToolPolicy(item) !== "none") return <Tag color={effectiveToolPolicy(item) === "read" ? "success" : undefined}>{effectiveToolPolicy(item) === "read" ? c.read : c.write}</Tag>
+    if (item) return <Tag>{c.disabled}</Tag>
     return <span className="service-description">{c.unknownAccess}</span>
   }
 
@@ -169,13 +177,19 @@ export function ServersPage(props: Props) {
     try { await props.onServerAction(server.id, action) }
     finally { setActionBusy(false) }
   }
+  async function syncTools() {
+    if (!server || !props.canSyncTools || !props.onServerToolSync || !canSyncServerTools(server) || actionBusy || syncBusy || props.busy) return
+    setSyncBusy(true)
+    try { await props.onServerToolSync(server.id) }
+    finally { setSyncBusy(false) }
+  }
   const actionName = (action: Action) => action === "start" ? (server?.launch_type === "external" ? c.connect : c.start) : action === "stop" ? (server?.launch_type === "external" ? c.disconnect : c.stop) : c.restart
   const rows = toTools(states.tools?.data?.tools || [])
   const filteredTools = rows.filter(row => [row.name, row.description].join(" ").toLowerCase().includes(toolQuery.trim().toLowerCase()))
 
   const overview = server && <div>
     {states.overview?.error && <Alert className="service-panel-error" type="warning" showIcon title={c.loadFailed} description={states.overview.error} action={<Button onClick={() => void load("overview", true)}>{c.retry}</Button>} />}
-    {(server.last_error || server.restore_blocked_reason) && <Alert className="service-panel-error" type={isPlannedDisabled(server) ? "info" : "error"} showIcon title={isPlannedDisabled(server) ? c.disabled : c.lastError} description={isPlannedDisabled(server) ? c.disabledHint : [server.last_error, server.restore_blocked_reason].find(reason => reason && reason !== "Server is disabled") || server.last_error || server.restore_blocked_reason}
+    {runtimeError && runtimeError !== syncError && <Alert className="service-panel-error" type={isPlannedDisabled(server) ? "info" : "error"} showIcon title={isPlannedDisabled(server) ? c.disabled : c.lastError} description={isPlannedDisabled(server) ? c.disabledHint : runtimeError}
       action={isPlannedDisabled(server) ? <Button disabled={props.busy || Boolean(requestedConfigId)} onClick={() => { setRequestedConfigId(server.id); setTab("configuration"); void load("configuration", true) }}>{c.editAndEnable}</Button> : undefined} />}
     <div className="service-summary-grid">
       <section>
@@ -198,7 +212,6 @@ export function ServersPage(props: Props) {
           <dt>{c.visible}</dt><dd>{!props.canReadTools ? c.noToolsAccess : props.toolsError ? c.visibleError : visible === null ? c.loading : visible.length}</dd>
           <dd className="service-fact-note service-fact-note-wide">{c.visibleHint}</dd>
           <dt>{c.client}</dt><dd>{c.clientUnknown} <Tooltip title={c.clientHint}><InfoCircleOutlined /></Tooltip></dd>
-          <dd className="service-fact-note service-fact-note-wide">{c.clientHint}</dd>
         </dl>
       </section>
     </div>
@@ -236,7 +249,7 @@ export function ServersPage(props: Props) {
       <div className="service-directory-list">
         {filteredServers.slice((Math.min(directoryPage, Math.max(1, Math.ceil(filteredServers.length / 20))) - 1) * 20, Math.min(directoryPage, Math.max(1, Math.ceil(filteredServers.length / 20))) * 20).map(item => <button key={item.id} className="service-entry" data-active={item.id === selectedId} aria-pressed={item.id === selectedId} onClick={() => { chooseServer(item.id); replaceConsoleRouteHash(`#/servers/${encodeURIComponent(item.id)}`) }}>
           <span><span className="service-entry-name" title={item.name || item.id}>{item.name || item.id}</span><span className="service-entry-subtitle" title={item.id}>{item.id}</span></span>
-          <span className="service-entry-meta"><RuntimeBadge server={item} t={t} /><span className="service-entry-count">{item.tool_count}</span></span>
+          <span className="service-entry-meta"><ServiceBadge server={item} t={t} c={c} /><span className="service-entry-count">{item.tool_count}</span></span>
         </button>)}
         {filteredServers.length === 0 && <div className="inline-empty"><Empty image={Empty.PRESENTED_IMAGE_SIMPLE} description={servers.length ? c.noMatches : <>{c.emptyServices}<p className="service-fact-note">{c.emptyHint}</p></>} /></div>}
       </div>
@@ -246,17 +259,21 @@ export function ServersPage(props: Props) {
     <section className="service-detail" aria-label={selected ? selected.id : c.selectService}>
       {server ? <>
         <Button type="text" className="service-detail-back" icon={<ArrowLeftOutlined />} onClick={() => chooseServer(null)}>{c.back}</Button>
-        <PageHeader closeLabel={t("close")} variant="detail" title={server.name || server.id} description={server.id} titleExtra={<RuntimeBadge server={server} t={t} pill />} actions={<>
+        <PageHeader closeLabel={t("close")} variant="detail" title={server.name || server.id} description={server.id} titleExtra={<ServiceBadge server={server} t={t} c={c} pill />} actions={<>
           <Button type="primary" icon={<ExportOutlined />} onClick={() => setTab("tools")}>{c.viewTools}</Button>
-          {actions.map(action => <Button key={action} danger={action === "stop"} disabled={actionBusy || props.busy} onClick={() => void runAction(action)}>{actionName(action)}</Button>)}
+          {actions.map(action => <Button key={action} danger={action === "stop"} disabled={actionBusy || syncBusy || props.busy} onClick={() => void runAction(action)}>{actionName(action)}</Button>)}
         </>} />
         <div className="service-detail-identity"><code>{server.launch_type} / {server.transport_type}</code></div>
+        {server.tool_sync && <ToolSyncSummary sync={server.tool_sync} c={c} />}
+        {syncError && <Alert className="service-panel-error" showIcon type={server.tool_sync?.state === "auth_required" ? "error" : "warning"} title={server.tool_sync?.state === "auth_required" ? c.syncAuthRequired : c.syncRetrying} description={syncError}
+          action={server.tool_sync?.state === "auth_required" && props.canSyncTools ? <Button disabled={props.busy || Boolean(requestedConfigId)} onClick={() => { setRequestedConfigId(server.id); setTab("configuration"); void load("configuration", true) }}>{c.editConfiguration}</Button> : undefined} />}
         <Tabs className="service-detail-tabs" activeKey={tab} onChange={value => { if (value !== "configuration") setRequestedConfigId(null); setTab(value as MainTab) }} items={[
           { key: "overview", label: c.overview, children: overview },
-          { key: "tools", label: c.tools + " " + server.tool_count, children: <SectionContent state={states.tools} c={c} onRetry={() => void load("tools", true)}>{() => <>
-            <div className="service-panel-toolbar"><Input value={toolQuery} onChange={event => setToolQuery(event.target.value)} placeholder={c.searchTools} aria-label={c.searchTools} prefix={<SearchOutlined />} allowClear /><Button icon={<ReloadOutlined />} onClick={() => void load("tools", true)}>{c.refresh}</Button></div>
+          { key: "tools", label: c.tools + " " + server.tool_count, children: <>
+            <div className="service-panel-toolbar"><Input value={toolQuery} onChange={event => setToolQuery(event.target.value)} placeholder={c.searchTools} aria-label={c.searchTools} prefix={<SearchOutlined />} allowClear />{props.canSyncTools && props.onServerToolSync && server.tool_sync ? <Button aria-label={c.syncNow} icon={<ReloadOutlined aria-hidden="true" />} loading={syncBusy} disabled={actionBusy || props.busy || !canSyncServerTools(server)} onClick={() => void syncTools()}>{c.syncNow}</Button> : <Button icon={<ReloadOutlined />} onClick={() => void load("tools", true)}>{c.refresh}</Button>}</div>
+            <SectionContent state={states.tools} c={c} onRetry={() => void load("tools", true)}>{() => <>
             <Table className="service-table" columns={toolColumns} dataSource={filteredTools} size="small" tableLayout="fixed" pagination={{ defaultPageSize: 10, showSizeChanger: true, pageSizeOptions: [10, 25, 50], hideOnSinglePage: true }} scroll={{ x: 620 }} locale={{ emptyText: c.noTools }} />
-          </>}</SectionContent> },
+          </>}</SectionContent></> },
           { key: "deployments", label: locale === "zh-CN" ? "版本与部署" : "Versions and deployments", children: <ServiceDeployments serverId={server.id} locale={locale} /> },
           { key: "logs", label: c.logs, children: <div className="service-panel-stack">
             <div className="service-panel-toolbar"><Segmented aria-label={c.logs} value={logTab} onChange={value => setLogTab(value as LogTab)} options={[{ value: "logs", label: c.serviceLogs }, { value: "events", label: c.events }, { value: "recovery", label: c.recovery }]} /><Button icon={<ReloadOutlined />} onClick={() => void load(logTab, true)} aria-label={c.refresh} /></div>
@@ -326,7 +343,15 @@ export function isPlannedDisabled(server: McpServer) {
 }
 
 export function hasServerIssue(server: McpServer) {
-  return !isPlannedDisabled(server) && Boolean(["failed", "unsupported"].includes(server.status) || server.last_error || server.restore_blocked_reason)
+  return !isPlannedDisabled(server) && Boolean(["failed", "unsupported"].includes(server.status) || server.last_error || server.restore_blocked_reason || hasToolSyncIssue(server))
+}
+
+function ServiceBadge({ server, t, c, pill = false }: { server: McpServer; t: TFunction; c: ServerCopy; pill?: boolean }) {
+  if (!isPlannedDisabled(server) && hasToolSyncIssue(server) && server.tool_sync) {
+    const badge = <ToolSyncBadge sync={server.tool_sync} c={c} />
+    return pill ? <Tag className="service-title-state" color={server.tool_sync.state === "auth_required" ? "error" : "warning"}>{badge}</Tag> : badge
+  }
+  return <RuntimeBadge server={server} t={t} pill={pill} />
 }
 
 function RuntimeBadge({ server, t, pill = false }: { server: McpServer; t: TFunction; pill?: boolean }) {

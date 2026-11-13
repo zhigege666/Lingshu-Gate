@@ -22,7 +22,7 @@ def test_resolved_physical_rejection_has_exactly_one_not_invoked_audit(catalog, 
     elif reason == "instance":
         instance = "two"
     elif reason == "read_scope":
-        service.database.execute("UPDATE mcp_tool_classifications SET effective_access='write'")
+        service.database.execute("UPDATE mcp_tool_classifications SET required_access='write'")
         service.access.save_grant(subject_type="user", subject_id=actor.id, server_id="one",
             permission_type_code="write", created_by=actor.id)
         actor = replace(actor, auth_type="token", scopes=("tools.read",))

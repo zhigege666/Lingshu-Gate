@@ -119,7 +119,7 @@ def register_external_connection_routes(app: FastAPI, *, auth_store: AuthStore,
         return {definition.id: definition for definition in
                 access_store.visible_tools(principal, registry.list_definitions())
                 if definition.source == "mcp"
-                and definition.metadata.get("gate_access", {}).get("classification_status") == "published"}
+                and definition.metadata.get("gate_access", {}).get("required_access") in {"read", "write"}}
 
     def allowed(payload: dict[str, Any], principal: AuthPrincipal,
                 definitions: dict[str, Any] | None = None) -> bool:

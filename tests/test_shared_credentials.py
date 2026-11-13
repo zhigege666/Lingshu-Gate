@@ -12,14 +12,16 @@ import pytest
 from fastapi.testclient import TestClient
 
 from lingshu_gate.access_control import AccessDeniedError
+from lingshu_gate.application.mcp_configuration import McpConfigurationService
 from lingshu_gate.application.shared_credentials import SharedCredentialService, credential_context
 from lingshu_gate.credential_store import CredentialAlreadyExists, CredentialRevisionConflict, CredentialStore, CredentialUsageDenied
 from lingshu_gate.logging import JsonFormatter
 from lingshu_gate.mcp_authorization_policy import server_binding
-from lingshu_gate.mcp_config_store import McpConfigStore
+from lingshu_gate.mcp_config_store import McpConfigPartialError, McpConfigStore
 from lingshu_gate.mcp_http_client import StreamableHttpMcpClient
 from lingshu_gate.mcp_http_trust import McpHttpTrustUpdate
 from lingshu_gate.mcp_manifest import McpServerManifest
+from lingshu_gate.models import McpConfigSaveRequest
 from lingshu_gate.registry import ToolExecutionError
 
 PASSWORD = "Synthetic-Shared-123!"
@@ -153,6 +155,366 @@ def test_pending_origin_scope_is_consumed_once_and_cannot_follow_recreation(gate
                    {**params, "endpoint": "https://other.example.test/mcp"}):
         with pytest.raises(CredentialUsageDenied):
             store.assert_http_binding(current["id"], **target, allow_pending=True)
+
+
+def test_single_http_target_preserves_concurrent_seals_and_replay_does_not_reopen_them(gate, monkeypatch):
+    current = create(gate, http_scopes=[{"server_id": "first", "origin": "https://first.example.test"}])
+    service, store = gate["service"], gate["service"].credentials
+    reserve = service._reserve
+
+    def reserve_then_seal_other_target(*args, **kwargs):
+        result = reserve(*args, **kwargs)
+        if result[1] is None:
+            store.bind_http_usage([current["id"]], server_id="first", endpoint="https://first.example.test/mcp",
+                                 server_binding="first-generation")
+        return result
+
+    # Deterministically interleave a configuration save after request planning
+    # but before the update acquires its mutation barriers.
+    monkeypatch.setattr(service, "_reserve", reserve_then_seal_other_target)
+    target = {"server_id": "second", "origin": "https://second.example.test"}
+    result = update(gate, current, authorize_http_target=target, idempotency_key="authorize-second")
+    scopes = {scope["server_id"]: scope for scope in result["http_scopes"]}
+    assert scopes["first"]["server_binding"] == "first-generation"
+    assert scopes["second"]["server_binding"] is None
+    assert result["value_saved"] is False and store.resolve_value(current["id"]) == SECRET
+    store.bind_http_usage([current["id"]], server_id="second", endpoint="https://second.example.test/mcp",
+                         server_binding="second-generation")
+    sealed = store.get_credential(current["id"])
+    replay = update(gate, current, authorize_http_target=target, idempotency_key="authorize-second")
+    assert replay["idempotent_replay"] and store.get_credential(current["id"]) == sealed
+    with pytest.raises(ToolExecutionError) as stale:
+        update(gate, current, authorize_http_target=target, idempotency_key="stale-target-update")
+    assert stale.value.code == "credential_revision_conflict"
+    with pytest.raises(ToolExecutionError) as changed_request:
+        update(gate, current, authorize_http_target={**target, "server_id": "third"}, idempotency_key="authorize-second")
+    assert changed_request.value.code == "idempotency_conflict"
+
+
+def test_single_http_target_preserves_unrelated_stale_grants_and_only_authorizes_explicit_rebind(gate):
+    current, old_binding = saved_http(gate)
+    service, store = gate["service"], gate["service"].credentials
+    service.configs.delete_config("synthetic-http")
+    result = update(gate, current, authorize_http_target={"server_id": "new-http", "origin": "https://new.example.test"})
+    old_scope = next(scope for scope in result["http_scopes"] if scope["server_id"] == "synthetic-http")
+    assert old_scope["server_binding"] == old_binding
+    with pytest.raises(CredentialUsageDenied):
+        store.assert_http_binding(current["id"], server_id="synthetic-http", endpoint="https://mcp.example.test/mcp",
+                                  server_binding="replacement-generation", allow_pending=True)
+    store.bind_http_usage([current["id"]], server_id="new-http", endpoint="https://new.example.test/mcp",
+                         server_binding="new-generation")
+    renewed = update(gate, result, authorize_http_target={"server_id": "synthetic-http", "origin": "https://mcp.example.test"})
+    assert {scope["server_id"]: scope["server_binding"] for scope in renewed["http_scopes"]} == {
+        "synthetic-http": old_binding, "new-http": "new-generation"}
+    assert {scope["server_id"]: scope["pending_rebind"] for scope in renewed["http_scopes"]} == {
+        "synthetic-http": True, "new-http": False}
+
+
+def test_same_target_seal_conflicts_with_old_scope_digest_and_authorization_keeps_actual_binding(gate):
+    selected, binding = saved_http(gate)
+    store = gate["service"].credentials
+    sealed = store.get_credential(selected["id"])
+    assert sealed.updated_at == selected["updated_at"]
+    target = {"server_id": "synthetic-http", "origin": "https://mcp.example.test"}
+    with pytest.raises(ToolExecutionError) as stale:
+        update(gate, selected, authorize_http_target=target,
+               expected_http_scopes_revision=selected["http_scopes_revision"], idempotency_key="stale-same-target")
+    assert stale.value.code == "credential_revision_conflict"
+    assert store.get_credential(selected["id"]) == sealed
+    # Compatibility callers without the optional digest also cannot erase a
+    # seal that completed after their selection snapshot.
+    result = update(gate, selected, authorize_http_target=target, idempotency_key="merge-same-target")
+    assert result["http_scopes"][0]["server_binding"] == binding
+    assert result["http_scopes"][0]["pending_rebind"] is True
+    assert result["http_scopes_revision"] != sealed.http_scopes_revision
+
+
+def test_pending_rebind_keeps_running_client_when_draft_is_unsaved_or_cancelled(gate):
+    current, binding = saved_http(gate)
+    service, store = gate["service"], gate["service"].credentials
+    client, sent = client_for(gate)
+    send(client)
+    current = store.get_credential(current["id"]).model_dump(mode="json")
+    pending = update(gate, current, authorize_http_target={"server_id": "synthetic-http", "origin": "https://mcp.example.test"},
+                     expected_http_scopes_revision=current["http_scopes_revision"])
+    send(client)
+    configuration = McpConfigurationService(service.configs, Mock(), Mock(), credentials=store)
+    draft = McpConfigSaveRequest(manifest=manifest(endpoint="https://mcp.example.test/new-mcp"))
+    configuration.prepare_user_credentials(draft, existing_server_id="synthetic-http")
+    # Discarding this prepared draft performs no save and consumes no grant.
+    assert service.configs.load_manifest("synthetic-http").transport.endpoint == "https://mcp.example.test/mcp"
+    send(client)
+    assert sent == [("POST", "Bearer " + SECRET)] * 3
+    assert store.get_credential(current["id"]).http_scopes[0].server_binding == binding
+    assert store.get_credential(current["id"]).http_scopes_revision == pending["http_scopes_revision"]
+    with pytest.raises(CredentialUsageDenied):
+        store.assert_http_binding(current["id"], server_id="synthetic-http", endpoint=draft.manifest["transport"]["endpoint"],
+                                  server_binding="unsealed-generation")
+
+
+def test_same_origin_path_save_seals_rebind_and_rejects_previous_client_generation(gate):
+    current, old_binding = saved_http(gate)
+    service, store = gate["service"], gate["service"].credentials
+    old_client, old_sent = client_for(gate)
+    send(old_client)
+    current = store.get_credential(current["id"]).model_dump(mode="json")
+    configuration = McpConfigurationService(service.configs, Mock(), Mock(), credentials=store)
+    data = manifest(endpoint="https://mcp.example.test/new-mcp")
+    request = McpConfigSaveRequest(manifest=data)
+    with pytest.raises(CredentialUsageDenied):
+        configuration.prepare_user_credentials(request, existing_server_id="synthetic-http")
+    pending = update(gate, current, authorize_http_target={"server_id": "synthetic-http", "origin": "https://mcp.example.test"},
+                     expected_http_scopes_revision=current["http_scopes_revision"])
+    prepared = configuration.prepare_user_credentials(request, existing_server_id="synthetic-http")
+    configuration.update("synthetic-http", request, user_id=gate["principal"].id, prepared=prepared)
+    with service.database.session() as connection:
+        binding = server_binding(connection, "synthetic-http")
+    sealed = store.get_credential(current["id"])
+    assert binding != old_binding and sealed.http_scopes[0].server_binding == binding
+    assert sealed.http_scopes[0].pending_rebind is False
+    assert sealed.updated_at == pending["updated_at"]
+    assert sealed.http_scopes_revision != pending["http_scopes_revision"]
+    with pytest.raises(CredentialUsageDenied):
+        send(old_client)
+    assert len(old_sent) == 1
+    new_client, new_sent = client_for(gate, data)
+    send(new_client)
+    assert new_sent == [("POST", "Bearer " + SECRET)]
+
+
+def test_failed_apply_after_rebind_sealing_retains_new_configuration_as_partial(gate):
+    current, old_binding = saved_http(gate)
+    service, store = gate["service"], gate["service"].credentials
+    current = store.get_credential(current["id"]).model_dump(mode="json")
+    update(gate, current, authorize_http_target={"server_id": "synthetic-http", "origin": "https://mcp.example.test"},
+           expected_http_scopes_revision=current["http_scopes_revision"])
+    runtime = Mock()
+    runtime.apply_manifest.side_effect = RuntimeError("Synthetic apply failure")
+    configuration = McpConfigurationService(service.configs, runtime, Mock(), credentials=store)
+    request = McpConfigSaveRequest(manifest=manifest(endpoint="https://mcp.example.test/new-mcp"), apply=True)
+    prepared = configuration.prepare_user_credentials(request, existing_server_id="synthetic-http")
+    with pytest.raises(McpConfigPartialError):
+        configuration.update("synthetic-http", request, user_id=gate["principal"].id, prepared=prepared)
+    assert service.configs.load_manifest("synthetic-http").transport.endpoint == "https://mcp.example.test/new-mcp"
+    with service.database.session() as connection:
+        binding = server_binding(connection, "synthetic-http")
+    sealed = store.get_credential(current["id"])
+    assert binding != old_binding and sealed.http_scopes[0].server_binding == binding
+    assert sealed.http_scopes[0].pending_rebind is False
+
+
+def test_legacy_update_receipts_remain_replayable_after_optional_scope_fields_are_added(gate):
+    current = create(gate)
+    service = gate["service"]
+    legacy_scopes = [{"server_id": "target", "origin": "https://target.example.test:443", "server_binding": None}]
+    legacy_arguments = {"credential_id": current["id"], "expected_revision": current["updated_at"],
+        "name": None, "value": None, "description": "Legacy metadata update", "http_scopes": legacy_scopes,
+        "idempotency_key": "legacy-update"}
+    result = service._run(gate["context"], "gate_credential_update", "credential.update", current["id"],
+        legacy_arguments, lambda: service.credentials.update_credential(current["id"],
+            expected_revision=current["updated_at"], description="Legacy metadata update", http_scopes=legacy_scopes), value_saved=False)
+    replay = update(gate, current, description="Legacy metadata update", http_scopes=legacy_scopes, idempotency_key="legacy-update")
+    assert replay["idempotent_replay"] and replay["updated_at"] == result["updated_at"]
+
+
+def test_legacy_create_receipts_ignore_default_false_pending_rebind_fields(gate):
+    service = gate["service"]
+    legacy_arguments = {"credential_id": "legacy-created", "name": "Legacy created", "value": SECRET, "description": "",
+        "http_scopes": [{"server_id": "target", "origin": "https://target.example.test:443", "server_binding": None}],
+        "idempotency_key": "legacy-create"}
+    result = service._run(gate["context"], "gate_credential_create", "credential.create", "legacy-created",
+        legacy_arguments, lambda: service.credentials.create_credential(credential_id="legacy-created", name="Legacy created",
+            value=SECRET, http_scopes=legacy_arguments["http_scopes"]), value_saved=True)
+    replay = service.create(legacy_arguments, gate["context"])
+    assert replay["idempotent_replay"] and replay["updated_at"] == result["updated_at"]
+
+
+def test_full_scope_replace_detects_sealing_without_a_value_revision_change(gate):
+    current = create(gate, http_scopes=[{"server_id": "first", "origin": "https://first.example.test"}])
+    store = gate["service"].credentials
+    store.bind_http_usage([current["id"]], server_id="first", endpoint="https://first.example.test/mcp",
+                         server_binding="first-generation")
+    sealed = store.get_credential(current["id"])
+    assert sealed.updated_at == current["updated_at"]
+    assert sealed.http_scopes_revision != current["http_scopes_revision"]
+    additional = {"server_id": "second", "origin": "https://second.example.test"}
+    with pytest.raises(ToolExecutionError) as stale:
+        update(gate, current, http_scopes=[*current["http_scopes"], additional],
+               expected_http_scopes_revision=current["http_scopes_revision"], idempotency_key="stale-scope-list")
+    assert stale.value.code == "credential_revision_conflict"
+    assert store.get_credential(current["id"]) == sealed
+    with pytest.raises(CredentialRevisionConflict):
+        store.update_credential(current["id"], expected_revision=current["updated_at"],
+            expected_http_scopes_revision=current["http_scopes_revision"], http_scopes=current["http_scopes"])
+    latest = sealed.model_dump(mode="json")
+    result = update(gate, latest, http_scopes=[*latest["http_scopes"], additional],
+                    expected_http_scopes_revision=latest["http_scopes_revision"], idempotency_key="fresh-scope-list")
+    assert result["http_scopes"][0]["server_binding"] == "first-generation"
+
+
+def test_full_scope_replace_can_retain_an_unchanged_deleted_service_grant(gate):
+    current, old_binding = saved_http(gate)
+    service = gate["service"]
+    service.configs.delete_config("synthetic-http")
+    current = service.credentials.get_credential(current["id"]).model_dump(mode="json")
+    result = update(gate, current, http_scopes=[*current["http_scopes"],
+        {"server_id": "new-http", "origin": "https://new.example.test"}],
+        expected_http_scopes_revision=current["http_scopes_revision"])
+    assert next(scope for scope in result["http_scopes"] if scope["server_id"] == "synthetic-http")["server_binding"] == old_binding
+    with pytest.raises(CredentialUsageDenied):
+        service.credentials.assert_http_binding(current["id"], server_id="synthetic-http",
+            endpoint="https://mcp.example.test/mcp", server_binding="replacement-generation", allow_pending=True)
+
+
+def test_full_scope_replace_preserves_explicit_pending_rebind_for_an_unchanged_binding(gate):
+    current, binding = saved_http(gate)
+    service, store = gate["service"], gate["service"].credentials
+    current = store.get_credential(current["id"]).model_dump(mode="json")
+    pending = update(gate, current, http_scopes=[{**current["http_scopes"][0], "pending_rebind": True}],
+                     expected_http_scopes_revision=current["http_scopes_revision"])
+    assert pending["http_scopes"][0]["server_binding"] == binding
+    assert pending["http_scopes"][0]["pending_rebind"] is True
+    service.configs.delete_config("synthetic-http")
+    preserved = update(gate, pending, http_scopes=[*pending["http_scopes"],
+        {"server_id": "additional", "origin": "https://additional.example.test"}],
+        expected_http_scopes_revision=pending["http_scopes_revision"])
+    scope = next(scope for scope in preserved["http_scopes"] if scope["server_id"] == "synthetic-http")
+    assert scope["server_binding"] == binding and scope["pending_rebind"] is True
+
+
+@pytest.mark.parametrize("change", [{"server_binding": "forged-generation"}, {"origin": "https://other.example.test"},
+                                    {"server_binding": "forged-generation", "pending_rebind": True}])
+def test_full_scope_replace_revalidates_new_or_changed_nonnull_bindings(gate, change):
+    current, _ = saved_http(gate)
+    store = gate["service"].credentials
+    current = store.get_credential(current["id"]).model_dump(mode="json")
+    with pytest.raises(ToolExecutionError) as invalid:
+        update(gate, current, http_scopes=[{**current["http_scopes"][0], **change}],
+               expected_http_scopes_revision=current["http_scopes_revision"])
+    assert invalid.value.code == "credential_http_scope_invalid"
+    assert store.get_credential(current["id"]).http_scopes_revision == current["http_scopes_revision"]
+
+
+def test_http_scope_revision_normalizes_order_and_origins_without_hashing_secret_values(tmp_path):
+    store = CredentialStore(tmp_path)
+    current = store.create_credential(credential_id="synthetic", name="Synthetic", value=SECRET, http_scopes=[
+        {"server_id": "first", "origin": "https://FIRST.example.test", "server_binding": None},
+        {"server_id": "second", "origin": "https://second.example.test:443", "server_binding": "old-generation"}])
+    reordered = store.update_credential(current.id, expected_revision=current.updated_at, value=ROTATED, http_scopes=[
+        {"server_id": "second", "origin": "https://SECOND.example.test", "server_binding": "old-generation", "pending_rebind": False},
+        {"server_id": "first", "origin": "https://first.example.test:443"}])
+    assert len(current.http_scopes_revision) == 64
+    assert reordered.http_scopes_revision == current.http_scopes_revision
+    store.bind_http_usage([current.id], server_id="first", endpoint="https://first.example.test/mcp",
+                         server_binding="first-generation")
+    sealed = store.get_credential(current.id)
+    assert sealed.updated_at == reordered.updated_at
+    assert sealed.http_scopes_revision != reordered.http_scopes_revision
+    pending = store.update_credential(current.id, expected_revision=sealed.updated_at, http_scopes=[
+        {**scope.model_dump(mode="json"), "pending_rebind": scope.server_id == "first"} for scope in sealed.http_scopes])
+    assert pending.http_scopes_revision != sealed.http_scopes_revision
+    store.bind_http_usage([current.id], server_id="first", endpoint="https://first.example.test/mcp",
+                         server_binding="first-generation")
+    consumed = store.get_credential(current.id)
+    assert consumed.updated_at == pending.updated_at
+    assert consumed.http_scopes_revision == sealed.http_scopes_revision
+
+
+@pytest.mark.parametrize("changes", [
+    {"authorize_http_target": {"server_id": "target", "origin": "https://target.example.test"}, "http_scopes": []},
+    {"authorize_http_target": {"server_id": "target", "origin": "https://target.example.test", "server_binding": None}},
+    {"authorize_http_target": {"server_id": "target", "origin": "https://target.example.test", "server_binding": "forged"}},
+])
+def test_single_http_target_rejects_full_replacement_and_caller_supplied_generation(gate, changes):
+    current = create(gate)
+    with pytest.raises(ToolExecutionError) as invalid:
+        update(gate, current, **changes)
+    assert invalid.value.code == "credential_request_invalid"
+    assert gate["service"].credentials.get_credential(current["id"]).http_scopes == []
+
+
+def test_single_http_target_enforces_origin_and_scope_count_limits(gate):
+    current = create(gate, http_scopes=[{"server_id": f"target-{index}", "origin": "https://target.example.test"}
+                                      for index in range(100)])
+    for key, target in (("path", {"server_id": "target-0", "origin": "https://target.example.test/path"}),
+                        ("limit", {"server_id": "overflow", "origin": "https://target.example.test"})):
+        with pytest.raises(ToolExecutionError) as invalid:
+            update(gate, current, authorize_http_target=target, idempotency_key="invalid-target-" + key)
+        assert invalid.value.code == "credential_http_scope_invalid"
+    renewed = update(gate, current, authorize_http_target={"server_id": "target-0", "origin": "https://target.example.test"})
+    assert len(renewed["http_scopes"]) == 100
+
+
+@pytest.mark.parametrize("scopes", [["operations.manage", "tools.invoke"], ["credentials.manage.system"]])
+def test_single_http_target_requires_both_current_credential_write_permissions(gate, scopes):
+    current = create(gate)
+    token = gate["auth"].create_api_token(principal=gate["principal"], name="Synthetic insufficient target grant", scopes=scopes)
+    actor = gate["auth"]._principal_from_api_token(token["token"])
+    with pytest.raises(ToolExecutionError) as denied:
+        gate["service"].update({"credential_id": current["id"], "expected_revision": current["updated_at"],
+            "authorize_http_target": {"server_id": "target", "origin": "https://target.example.test"},
+            "idempotency_key": "denied-target"}, credential_context(actor))
+    assert denied.value.code == "credential_permission_denied"
+    assert gate["service"].credentials.get_credential(current["id"]).http_scopes == []
+
+
+def test_single_http_target_rechecks_revocation_after_operation_reservation(gate, monkeypatch):
+    current = create(gate)
+    service, auth = gate["service"], gate["auth"]
+    token = auth.create_api_token(principal=gate["principal"], name="Synthetic revoked target grant",
+                                 scopes=["credentials.manage.system", "tools.invoke"])
+    context = credential_context(auth._principal_from_api_token(token["token"]))
+    reserve = service._reserve
+
+    def reserve_then_revoke(*args, **kwargs):
+        result = reserve(*args, **kwargs)
+        auth.revoke_api_token(token["id"], user_id=gate["principal"].id)
+        return result
+
+    monkeypatch.setattr(service, "_reserve", reserve_then_revoke)
+    with pytest.raises(ToolExecutionError) as denied:
+        service.update({"credential_id": current["id"], "expected_revision": current["updated_at"],
+            "authorize_http_target": {"server_id": "target", "origin": "https://target.example.test"},
+            "idempotency_key": "revoked-target"}, context)
+    assert denied.value.code == "credential_permission_denied"
+    assert service.credentials.get_credential(current["id"]).http_scopes == []
+
+
+def test_rest_single_http_target_uses_existing_update_route_and_strict_target_schema(gate):
+    current = create(gate)
+    target = {"server_id": "target", "origin": "https://target.example.test"}
+    with TestClient(gate["app"]) as client:
+        client.cookies.set(gate["auth"].cookie_name, gate["cookie"])
+        base = {"expected_revision": current["updated_at"], "authorize_http_target": target}
+        for extra in ({"http_scopes": []}, {"authorize_http_target": {**target, "server_binding": None}}):
+            invalid = client.put("/v1/credentials/" + current["id"], json={**base, **extra})
+            assert invalid.status_code == 422
+        result = client.put("/v1/credentials/" + current["id"], json={**base, "idempotency_key": "rest-target"})
+        assert result.status_code == 200 and SECRET not in result.text
+        assert result.json()["http_scopes"] == [{**target, "origin": "https://target.example.test:443", "server_binding": None,
+                                                 "pending_rebind": False}]
+        assert len(result.json()["http_scopes_revision"]) == 64
+
+
+def test_http_trust_reports_current_configuration_identity_without_a_policy_binding(gate):
+    service = gate["service"]
+    data = manifest()
+    data["transport"]["headers"] = {}
+    service.configs.save_config(data)
+    with TestClient(gate["app"]) as client:
+        client.cookies.set(gate["auth"].cookie_name, gate["cookie"])
+        with service.database.session() as connection:
+            binding = server_binding(connection, "synthetic-http")
+        response = client.get("/v1/mcp/http-trust/synthetic-http")
+        assert response.status_code == 200
+        assert response.json().get("server_binding") is None
+        assert response.json()["configured_server_binding"] == binding
+        assert response.json()["configured_endpoint_origin"] == "https://mcp.example.test:443"
+        service.configs.delete_config("synthetic-http")
+        deleted = client.get("/v1/mcp/http-trust/synthetic-http")
+        assert deleted.status_code == 200
+        assert deleted.json()["configured_server_binding"] is None
+        assert deleted.json()["configured_endpoint_origin"] is None
 
 
 def test_http_rotation_refreshes_existing_post_and_session_delete(gate):

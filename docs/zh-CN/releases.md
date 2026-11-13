@@ -4,9 +4,9 @@
 
 Lingshu Gate 发行自动化会生成可直接运行的原生包、Docker Compose 部署包，以及只在 Tag 发行提供的 Core 离线镜像。每个已发布资产都由 `SHA256SUMS` 和仓库 Build Provenance Attestation 覆盖。
 
-当前源码版本为 `0.5.11`。本版为 Compose 部署增加可选的 Cloudflare Tunnel Sidecar，并在控制台增加经过认证的 GitHub Release 检查。更新检查可单独选择固定版本的 HTTP/HTTPS 代理配置，不改变 Gate 其他网络流量。运行时、Python 元数据、CLI 和归档名称统一使用 `src/lingshu_gate/_version.py`。参见[双语发行说明](../../packaging/release-notes.md)、[Cloudflare Tunnel](cloudflare-tunnel.md)和[版本更新检查](release-updates.md)。 原生包还支持通过宿主 GitHub CLI 校验并在启动时应用更新。
+当前源码版本为 `0.5.12`。本版结合控制台重构、HTTP MCP 工具持续同步、本地策略持久化与明确的同步／恢复状态。下游通知和周期发现持续更新目录；凭据错误暂停恢复，会话恢复不重放写调用，日常工具使用无需审核或发布。0.5.11 的 Cloudflare Tunnel、固定代理版本的发行检查和原生启动验证更新继续保留。运行时、Python 元数据、CLI 和归档名称统一使用 `src/lingshu_gate/_version.py`。参见[双语发行说明](../../packaging/release-notes.md)、[MCP 同步与授权](mcp-gateway.md#从发现到授权)、[Cloudflare Tunnel](cloudflare-tunnel.md)和[版本更新检查](release-updates.md)。
 
-升级会执行 `0025_gate_release_updates` 及此前尚未应用的迁移，包括 `0024_business_credentials`；从 0.5.0 之前升级时，还包括 `0022_tool_preferences` 和 `0023_tool_argument_policy`。应一致备份数据库、配置和全部凭据密钥。业务账号密文保存在 Gate 数据库中，对应密钥为 `<data-dir>/business-credentials/credential.key`，开始使用业务凭据后必须纳入备份。远端浏览器密码库有独立的密钥与生命周期。0.5.0 之前的二进制不执行参数策略，0.5.2 之前的二进制不执行受管浏览器限制。专用实例要求、目标兼容性检查和独立清理操作见[业务凭据指南](business-credentials.md)。
+升级会执行尚未应用的迁移，包括 `0025_gate_release_updates`、`0025_tool_access_policy`、`0026_tool_access_policy_revision` 和 `0027_tool_access_policy_identity_fail_closed`。历史有效本地决策须核对当前工具指纹与服务身份后才会迁入；工具发现不授予账号、Token 或 OAuth 权限。切换可执行文件前，在写入方停止后统一备份完整 data 目录、配置、workspace 和服务配置，包含所有凭据密钥；使用业务凭据时也须包含 `<data-dir>/business-credentials/credential.key`。切回旧二进制不会撤销数据库迁移，必须先恢复与旧版本匹配的数据和配置快照。远端浏览器密码库有独立的密钥与生命周期。0.5.0 之前的二进制不执行参数策略，0.5.2 之前的二进制不执行受管浏览器限制。专用实例要求、目标兼容性检查和独立清理操作见[业务凭据指南](business-credentials.md)。
 
 当前源码控制台还包含卡片式工具目录，支持按具体 MCP 部署筛选、展示实际读写要求，并将选中工具带入调用编辑器。工具发现新增当前请求的 `metadata.gate_access` 展示快照，详见[运维指南](operations.md#工具目录)。策略、发现偏好与业务账号存储均适用上述一致备份要求。
 
@@ -26,7 +26,7 @@ Lingshu Gate 发行自动化会生成可直接运行的原生包、Docker Compos
 
 ## 产物矩阵
 
-既有恢复行为：外部 HTTP 工具调用遇到 MCP 会话过期时，重新握手并发现工具一次。仅已发布为只读且工具定义未变化的调用自动重试一次，其余调用返回可操作的结构化错误；恢复失败会反映在运行状态和健康状态中。本能力由请求触发，不定时探活或重启外部进程，需要部署更新后的源码才生效。
+HTTP 目录通过通知、周期发现和有界退避重试保持同步。会话过期后重新初始化并发现工具；只有契约未变且受信本地策略为只读时，才允许一次重新鉴权的调用重试，该策略无需发布。写调用和已变化的契约不重放，Gate 不重启外部服务进程。参见 [MCP 失败行为](mcp-gateway.md#失败行为)。
 
 | 目标 | 资产 | 构建架构 |
 |---|---|---|
@@ -53,7 +53,7 @@ Gate 在同一 `/mcp` 入口支持 `initialize` 和 `2026-07-28` 发现流程。
 
 切换可执行文件时，应保留服务环境、配置目录、数据目录及凭据密钥。自行构建升级时，应核对 `BUILD-INFO.json` 的源码版本、验证两条协议路径，并保留旧包用于回退。包含未提交修改的自行构建包，应在基准版本旁记录实际源码清单与摘要；仅用提交号不能识别该包。
 
-Console 包含由 `web/package-lock.json` 锁定的 Ant Design 及其图标库，仍作为静态客户端由 Gate 提供，发行包不需要额外的前端应用服务器。打包 Console 更新前，应核对服务目录、详情分区加载、深浅主题、中英文文案及既有权限控制，并在生成的发行清单中包含新增前端依赖的许可证。
+Console 使用共享的 React、Tailwind 和 shadcn/Radix 布局与主题体系，依赖由 `web/package-lock.json` 锁定，仍作为静态客户端由 Gate 提供，发行包不需要额外的前端应用服务器。打包 Console 更新前，应核对服务目录、工具同步反馈、详情分区加载、深浅主题、中英文文案及既有权限控制，并在生成的发行清单中包含前端依赖的许可证。
 
 每个原生归档包含一个顶层目录，以及：
 

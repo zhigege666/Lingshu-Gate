@@ -36,7 +36,7 @@ export function httpAuthHeaders(value: unknown, previous: HttpAuthSelection, nex
   if (previous.kind === "custom" && !previous.headerName && Object.keys(headers).length) throw new Error("custom_headers_required")
   if (next.kind !== "none" && !/^[A-Za-z0-9_.-]+$/.test(next.credentialId)) throw new Error("credential_required")
   const key = next.kind === "api_key" ? next.headerName : "Authorization"
-  if (next.kind !== "none" && (!/^[A-Za-z0-9-]{1,128}$/.test(key) || reserved.has(key.toLowerCase()))) throw new Error("invalid_auth_header")
+  if (next.kind !== "none" && (!/^[!#$%&'*+.^_`|~A-Za-z0-9-]+$/.test(key) || reserved.has(key.toLowerCase()))) throw new Error("invalid_auth_header")
   const collision = Object.keys(headers).find(name => name.toLowerCase() === key.toLowerCase() && name.toLowerCase() !== previous.headerName.toLowerCase())
   if (collision && next.kind !== "none") throw new Error("header_conflict")
   if (previous.headerName) for (const name of Object.keys(headers)) {

@@ -1,5 +1,6 @@
 import { useContext, useEffect, useId, useRef, useState } from "react"
 import { Alert, Button, Card, Empty, Input, Select, Switch, Table, Tag } from "antd"
+import { ActionMenu, ActionMenuItem } from "@/components/action-menu"
 import { useAuth } from "@/components/auth-gate"
 import { EditorNavigationContext } from "@/components/editor-navigation-guard"
 import { useConfirm } from "@/components/confirm-dialog"
@@ -59,7 +60,7 @@ export function NetworkSettingsPanel({ t, onSaved, onState }: { t: TFunction; on
       setSettings(previous => preserve && defaults && previous ? { ...data, defaults: previous.defaults, revision: previous.revision } : data)
       if (!preserve) { setDefaults(data.defaults); setHostPolicy(JSON.stringify(data.defaults.git_hosts, null, 2)) }
       setError(null)
-    } catch (err) { if (mounted.current) setError(String(err)) }
+    } catch (err) { if (mounted.current && id === requestId.current) setError(String(err)) }
     finally { if (mounted.current && id === requestId.current) setLoading(false) }
   }
 
@@ -98,7 +99,7 @@ export function NetworkSettingsPanel({ t, onSaved, onState }: { t: TFunction; on
   const copy = (cn: string, en: string) => zh ? cn : en
   return <div ref={panel} className="flex flex-col gap-4" aria-busy={busy || loading}>
     {!settings && loading && <p role="status">{t("loadingData")}</p>}
-    {error && <Alert type="error" showIcon title={error} action={<Button disabled={busy} onClick={() => void load(true)}>{t("retry")}</Button>} />}
+    {error && <Alert type="error" showIcon title={error} action={<Button disabled={busy} onClick={() => void load(Boolean(settings))}>{t("retry")}</Button>} />}
     {result && <Alert type="success" showIcon title={result} closable onClose={() => setResult(null)} />}
     {settings && defaults && <>
       {!settings.executor.available && <Alert type="warning" showIcon title={copy("安全网络执行器尚未就绪", "Safe network executor is not ready")} description={<div className="flex flex-col gap-2">
@@ -116,12 +117,33 @@ export function NetworkSettingsPanel({ t, onSaved, onState }: { t: TFunction; on
             { title: copy("名称", "Name"), dataIndex: "name", ellipsis: true },
             { title: copy("版本 / 协议", "Version / scheme"), render: (_, row) => `v${row.version} · ${row.scheme}` },
             { title: copy("状态", "State"), render: (_, row) => <Tag color={!row.enabled || !row.credential_configured ? "warning" : "success"}>{!row.enabled ? copy("已停用", "Disabled") : row.credential_configured ? copy("已配置", "Configured") : copy("凭据需更新", "Credential changed")}</Tag> },
-            { title: copy("操作", "Actions"), width: 320, render: (_, row) => <div className="network-settings-actions">
+            { title: copy("操作", "Actions"), width: 210, render: (_, row) => <div className="network-settings-actions" data-profile-actions={row.id}>
               <Button size="small" disabled={busy} onClick={() => edit(row)}>{t("edit")}</Button>
-              <Button size="small" disabled={busy} onClick={event => { referencesTrigger.current = event.currentTarget; void run(async () => setReferences((await networkApi.references(row.id)).references)) }}>{copy("引用", "References")}</Button>
-              <Button size="small" disabled={busy || !canTest || !row.enabled} onClick={() => void run(async () => { if (!(await confirm({ title: copy("从执行环境测试网络？", "Test from the execution environment?"), description: `${target} · HEAD · 5s · 4 KiB` }))) return; const tested = await networkApi.test(row, target); setResult(`${target}: ${tested.status}`) })}>{copy("测试", "Test")}</Button>
-              <Button size="small" disabled={busy} onClick={() => void run(async () => { if (!(await confirm({ title: row.enabled ? copy("停用此配置？", "Disable this profile?") : copy("启用此配置？", "Enable this profile?"), description: copy("已排队任务仍固定原版本。", "Queued tasks retain their pinned version.") }))) return; await networkApi.saveProfile({ name: row.name, credential_ref: row.credential_ref, enabled: !row.enabled, expected_version: row.version }, row.id); await load(true); onSaved?.() })}>{row.enabled ? copy("停用", "Disable") : copy("启用", "Enable")}</Button>
-              <Button size="small" danger disabled={busy} onClick={event => { referencesTrigger.current = event.currentTarget; void run(async () => { const refs = await networkApi.references(row.id); if (refs.references.length) { setReferences(refs.references); throw new Error(copy("配置仍被引用，可停用但不能删除。", "Profile is referenced; disable it instead of deleting.")) } if (!(await confirm({ title: copy("删除此配置？", "Delete this profile?"), destructive: true }))) return; await networkApi.deleteProfile(row.id, row.version); await load(true); onSaved?.() }) }}>{t("delete")}</Button>
+              <Button size="small" disabled={busy || !canTest || !row.enabled || !settings.executor.available} onClick={() => void run(async () => {
+                const tested = await networkApi.test(row, target)
+                if (tested.status !== "success") throw new Error(`${row.name} · ${target}: ${tested.error_code || tested.status}`)
+                setResult(`${row.name} · ${target}: ${copy("连接成功", "Connected")}`)
+              })}>{copy("测试", "Test")}</Button>
+              <ActionMenu label={copy("更多", "More")}>
+                <ActionMenuItem disabled={busy} onClick={() => {
+                  referencesTrigger.current = Array.from(panel.current?.querySelectorAll<HTMLElement>('[data-profile-actions]') || []).find(element => element.dataset.profileActions === row.id)?.querySelector<HTMLElement>('button') || null
+                  void run(async () => setReferences((await networkApi.references(row.id)).references))
+                }}>{copy("查看引用", "View references")}</ActionMenuItem>
+                <ActionMenuItem disabled={busy} onClick={() => void run(async () => {
+                  if (row.enabled && !(await confirm({ title: copy("停用此配置？", "Disable this profile?"), description: `${row.name} · ${copy("使用此配置的新计划将无法执行；已排队任务保留原版本。", "New plans using this profile will be blocked; queued tasks retain their pinned version.")}` }))) return
+                  await networkApi.saveProfile({ name: row.name, credential_ref: row.credential_ref, enabled: !row.enabled, expected_version: row.version }, row.id)
+                  await load(true); onSaved?.()
+                })}>{row.enabled ? copy("停用", "Disable") : copy("启用", "Enable")}</ActionMenuItem>
+                <ActionMenuItem destructive disabled={busy} onClick={() => {
+                  referencesTrigger.current = Array.from(panel.current?.querySelectorAll<HTMLElement>('[data-profile-actions]') || []).find(element => element.dataset.profileActions === row.id)?.querySelector<HTMLElement>('button') || null
+                  void run(async () => {
+                    const refs = await networkApi.references(row.id)
+                    if (refs.references.length) { setReferences(refs.references); throw new Error(copy("配置仍被引用，可停用但不能删除。", "Profile is referenced; disable it instead of deleting.")) }
+                    if (!(await confirm({ title: copy("删除此配置？", "Delete this profile?"), description: `${row.name} · v${row.version}`, destructive: true }))) return
+                    await networkApi.deleteProfile(row.id, row.version); await load(true); onSaved?.()
+                  })
+                }}>{t("delete")}</ActionMenuItem>
+              </ActionMenu>
             </div> },
           ]} />
         </Card>

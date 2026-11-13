@@ -312,6 +312,7 @@ class ReusedSessionPeer(StreamableHttpMcpClient):
     def __init__(self, manifest, settings):
         super().__init__(manifest, settings)
         self.session_id = "A"
+        self.next_session_id = "A"
         self.calls = []
         self.fail_start = False
         self.raw_tools = [{"name": "inspect", "inputSchema": {}, "annotations": {"readOnlyHint": True}}]
@@ -319,6 +320,8 @@ class ReusedSessionPeer(StreamableHttpMcpClient):
     def start(self):
         if self.fail_start:
             raise RuntimeError("Synthetic connect failure")
+        self.session_id = self.next_session_id
+        self.initialized = True
 
     def list_tools(self):
         return self.raw_tools
@@ -356,7 +359,7 @@ def test_reconnect_generations_never_restore_an_old_group_session(gate, routing,
                 manager._recover_expired_session_locked("instance-0", runtime, "inspect", {}, retry_read_only=False)
             peer.fail_start = False
         for sid in (["B", "A"] if change == "sid_aba" else ["A"]):
-            peer.session_id = sid
+            peer.next_session_id = sid
             with pytest.raises(ToolExecutionError, match="not automatically replayed"):
                 manager._recover_expired_session_locked("instance-0", runtime, "inspect", {}, retry_read_only=False)
     assert runtime.client is peer and peer.session_id == "A"

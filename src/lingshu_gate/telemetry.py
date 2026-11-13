@@ -195,10 +195,19 @@ def _standard_provider(config: TelemetryConfig, state: _ExportState) -> tuple[An
             self._closed.set()
             super().close()
 
-        def post(self, url: Any, data: Any = None, json: Any = None, **kwargs: Any) -> Any:
+        def request(
+            self, method: Any, url: Any, params: Any = None, data: Any = None,
+            headers: Any = None, cookies: Any = None, files: Any = None, auth: Any = None,
+            timeout: Any = 2.0, allow_redirects: Any = False, proxies: Any = None,
+            hooks: Any = None, stream: Any = None, verify: Any = None, cert: Any = None, json: Any = None,
+        ) -> Any:
             token = _export_http.set(True)
             try:
-                return self._post(url, data, **kwargs)
+                if not isinstance(method, str) or method.upper() != "POST":
+                    raise requests.RequestException("otlp_method_not_allowed") from None
+                # Keep the Session signature; caller options cannot broaden the
+                # fixed destination, TLS, headers or response-handling policy.
+                return self._post(url, data, timeout=timeout)
             finally:
                 _export_http.reset(token)
 
@@ -208,11 +217,14 @@ def _standard_provider(config: TelemetryConfig, state: _ExportState) -> tuple[An
             self.cookies.clear()
             self.headers.clear()
             self.headers.update(fixed_headers)
+            # The SDK transport can populate Session.cert from ambient OTEL
+            # settings, and requests merges that value when cert=None.
+            self.cert = None
             try:
                 timeout = max(0.001, min(float(kwargs.get("timeout", 2.0)), 2.0))
                 if state.closed or self._closed.is_set() or os.getpid() != owner_pid:
                     raise requests.RequestException("otlp_export_closed")
-                response = super().post(config.otlp_endpoint, data=data, timeout=timeout, verify=verify, cert=None,
+                response = super().request("POST", config.otlp_endpoint, data=data, timeout=timeout, verify=verify, cert=None,
                     proxies={}, stream=True, allow_redirects=False)
                 try:
                     status = response.status_code
@@ -225,7 +237,8 @@ def _standard_provider(config: TelemetryConfig, state: _ExportState) -> tuple[An
                 sanitized.reason = "otlp_http_rejected" if sanitized.status_code == 400 else "accepted"
                 sanitized._content = b""
                 return sanitized
-            except requests.RequestException:
+            except Exception:
+                # The SDK transport now records any exception it receives.
                 raise requests.RequestException("otlp_transport_failed") from None
             finally:
                 self.cookies.clear()

@@ -125,8 +125,8 @@ def test_stopped_runtime_is_not_reconnected(tmp_path):
         assert len(state["sessions"]) == 1 and state["writes"] == 0
 
 
-@pytest.mark.parametrize("published,access,expected", [(True, "read", True), (True, "write", False), (False, "read", False)])
-def test_replay_permission_comes_from_published_classification(tmp_path, published, access, expected):
+@pytest.mark.parametrize("published,access,expected", [(True, "read", True), (True, "write", False), (False, "read", True), (False, "write", False)])
+def test_replay_permission_comes_from_explicit_local_policy(tmp_path, published, access, expected):
     with connected_runtime(tmp_path) as (manager, runtime, _client, state):
         store = AccessControlStore(SQLiteDatabase(manager.settings.db_url, tmp_path))
         store.attach_mcp_runtime(manager)
@@ -134,6 +134,8 @@ def test_replay_permission_comes_from_published_classification(tmp_path, publish
         store.synchronize_tools([manager.registry.get_definition(tool_id)])
         store.set_classification(server_id=runtime.manifest.id, tool_id=tool_id, access=access,
                                  destructive=False, idempotent=False, reviewer_id="test-admin")
+        # A deliberate policy save takes effect immediately; publishing is a
+        # legacy compatibility operation. External hints alone grant no retry.
         if published:
             store.publish_classifications(reviewer_id="test-admin", server_id=runtime.manifest.id)
         principal = AuthPrincipal(id="test-admin", username="admin", role="admin", auth_type="session")

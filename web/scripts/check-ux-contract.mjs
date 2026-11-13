@@ -52,15 +52,13 @@ function assertContract(condition, message) {
 
 for (const pageName of pageNames) {
   const source = await readFile(join(pageRoot, pageName), "utf8")
-  if (pageName === "dashboard-page.tsx") {
-    // The dashboard uses an inline overview instead of an otherwise empty
-    // toolbar. Keep its accessible page identity without a redundant help row.
-    assertContract(/<h1\b[^>]*>\{t\("dashboard"\)\}<\/h1>/.test(source), `${pageName} 缺少可访问的页面标题`)
+  if (pageName === "personal-tokens-page.tsx") {
+    assertContract(source.includes("MyAuthorizationsPage"), `${pageName} 必须复用统一授权页面`)
   } else {
     assertContract(source.includes("PageHeader"), `${pageName} 缺少统一页面标题`)
   }
-  if (!["servers-page.tsx", "dashboard-page.tsx"].includes(pageName)) {
-    assertContract(source.includes('helpLabel={t("pageHelp")}'), `${pageName} 缺少多语言页面帮助入口`)
+  // Help is contextual, not a mandatory extra button on every page.
+  if (source.includes("FormDialog")) {
     assertContract(source.includes('closeLabel={t("close")}'), `${pageName} 缺少多语言关闭按钮`)
   }
   assertContract(!/eyebrow="[^"]+"/.test(source), `${pageName} 的页面分类未经过多语言`)
@@ -85,19 +83,11 @@ const actionMenuSource = await readFile(join(webRoot, "src", "components", "acti
 assertContract(actionMenuSource.includes("createPortal"), "操作菜单必须通过 Portal 渲染，避免被表格滚动容器裁剪")
 
 const classificationSource = await readFile(join(pageRoot, "tool-classifications-page.tsx"), "utf8")
-const batchSetIndex = classificationSource.indexOf(">{c.batchClassify}")
-const batchConfirmIndex = classificationSource.indexOf(">{c.confirmSelected}")
-const publishIndex = classificationSource.indexOf(">{c.publishSelected}")
-assertContract(classificationSource.includes("api.confirmToolClassifications"), "工具分类页缺少批量确认 API 调用")
-assertContract(classificationSource.includes("expected_fingerprint: item.fingerprint"), "批量确认缺少 Tool fingerprint 并发保护")
-assertContract(classificationSource.includes("const CONFIRM_BATCH_SIZE = 500"), "工具分类页缺少与后端一致的批量确认上限")
-assertContract(classificationSource.includes("index += CONFIRM_BATCH_SIZE"), "工具分类页超过单批上限时必须自动拆批")
-assertContract(classificationSource.includes("未处理项仍保持选择"), "批量确认失败后缺少刷新与选择恢复反馈")
-assertContract(batchSetIndex >= 0 && batchSetIndex < batchConfirmIndex && batchConfirmIndex < publishIndex, "工具分类操作顺序必须是批量设置、批量确认、发布所选")
-assertContract(classificationSource.includes("c.step4"), "工具分类页缺少独立的发布生效阶段")
-assertContract(classificationSource.includes("labels.confirmedPending"), "工具分类页缺少已确认待发布状态")
-assertContract(classificationSource.includes("labels.needsConfirmation"), "工具分类页缺少待确认状态")
-
+const policySource = await readFile(join(webRoot, "src", "features", "tool-policy.ts"), "utf8")
+assertContract(classificationSource.includes("saveToolPolicyBatch"), "工具权限页必须通过统一批量保存处理部分成功")
+assertContract(policySource.includes("expected_fingerprint: item.fingerprint"), "工具权限保存缺少并发版本保护")
+assertContract(policySource.includes("item.required_access"), "工具权限展示必须使用后端有效策略")
+assertContract(!/api\.(analyze|confirm|publish)ToolClassifications/.test(classificationSource), "工具权限页不得恢复日常审核发布流程")
 
 // Enforce shared spacing without conflating source checks with browser QA.
 const sourceRoot = join(webRoot, "src")

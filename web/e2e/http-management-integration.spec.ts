@@ -31,13 +31,11 @@ test('HTTP management saves a scoped credential and permission together, preserv
   await inline.getByText('Credential ID (generated, editable)', { exact: true }).click()
   await inline.getByLabel('Credential ID', { exact: true }).fill(credentialId)
   await inline.getByLabel('Credential name', { exact: true }).fill('Synthetic scoped credential')
-  await inline.getByRole('button', { name: 'Save and use credential', exact: true }).scrollIntoViewIfNeeded()
+  await inline.getByLabel('Token', { exact: true }).scrollIntoViewIfNeeded()
   await expectInViewportAndUnobscured(inline.getByLabel('Credential ID', { exact: true }))
   await page.screenshot({ path: testInfo.outputPath('http-credential-inline-real.png'), animations: 'disabled' })
   await inline.getByLabel('Token', { exact: true }).fill(secret)
-  await inline.getByRole('button', { name: 'Save and use credential', exact: true }).click()
-  await expect(inline).toHaveCount(0)
-  await expect(editor.getByText('The authentication header is set automatically; no Add step is needed. The secret stays outside the configuration.', { exact: true })).toBeVisible()
+  await expect(inline).toContainText('The credential is saved with the configuration.')
   const save = editor.getByRole('button', { name: 'Save Config', exact: true })
   await expectInViewportAndUnobscured(save)
   await save.click()
@@ -56,7 +54,7 @@ test('HTTP management saves a scoped credential and permission together, preserv
   expect(credential).toMatchObject({ value_masked: '***', http_scopes: [{ server_id: serverId, origin: 'http://10.23.45.67:8080', server_binding: firstTrust.server_binding }] })
   expect(JSON.stringify(credential)).not.toContain(secret)
   expect(writes.filter(write => write.path.includes('/http-trust/'))).toHaveLength(0)
-  expect(writes.find(write => write.path === '/v1/mcp/configs')?.body).toMatchObject({ apply: false, start: false, http_trust_action: 'auto', expected_http_trust_revision: 0,
+  expect(writes.find(write => write.path === '/v1/mcp/configs/with-credential')?.body).toMatchObject({ apply: false, start: false, http_trust_action: 'auto', expected_http_trust_revision: 0,
     manifest: { transport: { headers: { Authorization: 'Bearer ${credential:' + credentialId + '}' } } } })
 
   const reopen = async () => {

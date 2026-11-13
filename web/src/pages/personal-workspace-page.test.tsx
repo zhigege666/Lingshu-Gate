@@ -31,7 +31,7 @@ describe("personal workspace presentation", () => {
     expect(personalToolAccessLabel("write", "zh-CN")).toBe("读写")
     expect(personalToolAccessLabel("read", "en-US")).toBe("Read only")
     expect(personalToolAccessLabel("write", "en-US")).toBe("Read and write")
-    expect(personalToolAccessLabel("unexpected", "zh-CN")).toBe("待确认")
+    expect(personalToolAccessLabel("unexpected", "zh-CN")).toBe("不可用")
   })
   it("restores search from the owning user's navigation snapshot", () => {
     const html = renderToStaticMarkup(<PersonalWorkspacePage {...props} view="myServers" viewState={{ ...initialPersonalWorkspaceView, query: "synthetic-service", page: 3 }} />)
@@ -45,7 +45,7 @@ describe("personal workspace presentation", () => {
   it("defaults to unified authorizations presenting personal tokens and OAuth grants", () => {
     const html = renderToStaticMarkup(<PersonalWorkspacePage {...props} view="myConnections" />)
     expect(html).toContain("My authorizations")
-    expect(html).toContain("New authorization")
+    expect(html).toContain("Create API token")
     expect(html).toContain("API token")
     expect(html).toContain("Gate OAuth")
     expect(html).toContain("External OAuth")

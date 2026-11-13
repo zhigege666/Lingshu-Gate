@@ -39,6 +39,7 @@ export function OAuthConsentPage() {
   function adopt(next: ConsentDetails) {
     setContext(next)
     if (!limitsInitialized.current) {
+      setDays(Math.min(7, next.max_grant_days))
       setRate(next.default_rate_per_minute ?? (next.resource_kind === "management" ? 30 : 6000))
       setConcurrency(next.default_concurrency ?? (next.resource_kind === "management" ? 1 : 100))
       limitsInitialized.current = true
@@ -133,20 +134,22 @@ export function OAuthConsentPage() {
             {targetError && <Alert type="error" title={targetError} />}
             <OAuthToolPicker tools={context.tools} selected={selected} onChange={setSelected} zh={zh} disabled={busy} />
           </> : <>
+            <McpAuthorizationEditor groups={policyGroups(context.tools, policies).map(group => ({ ...group, server_binding: context.server_bindings?.[group.server_id] }))} policies={policies} modes={modes} selectionCounts={summary.byServer} onSelectCurrent={(server, access) => chooseCurrent(access, server)} canWrite={context.scopes.includes("tools.invoke")} disabled={busy} zh={zh} onMode={(server, mode, access = "read") => { setModes(current => ({ ...current, [server]: mode })); setPolicies(current => [...current.filter(policy => policy.server_id !== server), ...(mode === "continuous" ? [{ server_id: server, server_binding: context.server_bindings?.[server], mode: "continuous" as const, access }] : [])]); if (mode !== "selected") setSelected(current => current.filter(id => !context.tools.some(tool => tool.id === id && tool.server_id === server))) }} onAccess={(server, access) => setPolicies(current => current.map(policy => policy.server_id === server ? { ...policy, access } : policy))} />
+            <details className="oauth-current-tool-options"><summary>{zh ? "批量选择当前工具" : "Select current tools in bulk"}</summary>
             <div className="oauth-scope-actions" role="group" aria-label={zh ? "批量选择当前工具" : "Select current tools in bulk"}>
               <Button disabled={busy || !context.tools.some(tool => tool.access === "read")} onClick={() => chooseCurrent("read")}>{zh ? "选择所有 MCP 当前只读工具" : "Select current read tools across all MCPs"}</Button>
               <Button disabled={busy || !context.tools.length} onClick={() => chooseCurrent("all")}>{zh ? "选择所有 MCP 当前全部工具" : "Select all current tools across all MCPs"}</Button>
               <Button disabled={busy || (!selected.length && !policies.length)} onClick={() => { setSelected([]); setPolicies([]); setModes({}) }}>{zh ? "清空选择" : "Clear selection"}</Button>
             </div>
             <p className="oauth-muted">{zh ? "批量选择覆盖当前全部页，仅保存现在可用的工具；之后新增的工具需再次选择。也可按 MCP 单独设置持续授权。" : "Batch selection covers every page and saves only the tools available now. Future tools require a new selection. Continuous authorization can be enabled explicitly for each MCP."}</p>
-            <McpAuthorizationEditor groups={policyGroups(context.tools, policies).map(group => ({ ...group, server_binding: context.server_bindings?.[group.server_id] }))} policies={policies} modes={modes} selectionCounts={summary.byServer} onSelectCurrent={(server, access) => chooseCurrent(access, server)} canWrite={context.scopes.includes("tools.invoke")} disabled={busy} zh={zh} onMode={(server, mode) => { setModes(current => ({ ...current, [server]: mode })); setPolicies(current => [...current.filter(policy => policy.server_id !== server), ...(mode === "continuous" ? [{ server_id: server, server_binding: context.server_bindings?.[server], mode: "continuous" as const, access: "read" as const }] : [])]); if (mode !== "selected") setSelected(current => current.filter(id => !context.tools.some(tool => tool.id === id && tool.server_id === server))) }} onAccess={(server, access) => setPolicies(current => current.map(policy => policy.server_id === server ? { ...policy, access } : policy))} />
+            </details>
             {Object.values(modes).includes("selected") && <OAuthToolPicker tools={context.tools.filter(tool => modes[tool.server_id] === "selected")} selected={selected} onChange={setSelected} zh={zh} disabled={busy} compact />}
           </>}
         </section>
         <aside className="oauth-consent-summary"><h2>{zh ? "本次授权" : "This authorization"}</h2>
           <div className="oauth-scope-summary" aria-live="polite" aria-atomic="true"><div className="oauth-selection-counts"><strong>{summary.servers} MCP</strong><strong>{zh ? `${summary.tools} 个当前工具` : `${summary.tools} current tools`}</strong></div><div><Tag>{zh ? `只读 ${summary.read}` : `${summary.read} read`}</Tag><Tag color={summary.write ? "warning" : undefined}>{zh ? `写入 ${summary.write}` : `${summary.write} write`}</Tag></div>{summary.continuous > 0 && <p>{zh ? `${summary.continuous} 个 MCP 持续授权，包含所选访问级别的未来工具。` : `${summary.continuous} MCPs include future tools at the selected access level.`}</p>}</div>
           <Form layout="horizontal" className="oauth-inline-form">
-          <Form.Item label={zh ? "授权有效期" : "Grant validity"}><Radio.Group aria-label={zh ? "授权有效期" : "Grant validity"} disabled={busy} value={days} onChange={event => setDays(Number(event.target.value))} options={[1, 7, 30].map(value => ({ value, label: zh ? `${value} 天` : `${value} days` }))} /></Form.Item>
+          <Form.Item label={zh ? "授权有效期" : "Grant validity"}><Radio.Group aria-label={zh ? "授权有效期" : "Grant validity"} disabled={busy} value={days} onChange={event => setDays(Number(event.target.value))} options={[...new Set([1, Math.min(7, context.max_grant_days), Math.min(30, context.max_grant_days)])].filter(value => value <= context.max_grant_days).map(value => ({ value, label: zh ? `${value} 天` : `${value} days` }))} /></Form.Item>
         </Form>
           <p className="oauth-expiry-local">{zh ? "预计到期（本地）：" : "Estimated expiry (local): "}<time dateTime={new Date(Date.now() + days * 86400000).toISOString()}>{expiresLocal}</time></p>
           <QuotaSettings rate={rate} concurrency={concurrency} onRate={setRate} onConcurrency={setConcurrency} disabled={busy} zh={zh} singleColumn />

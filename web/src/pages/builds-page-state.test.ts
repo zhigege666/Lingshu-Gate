@@ -1,5 +1,19 @@
 import { describe, expect, it } from "vitest"
-import { rollbackResultError, rollbackStartFor } from "./builds-page-state"
+import { requiresDeploymentConfirmation, rollbackResultError, rollbackStartFor } from "./builds-page-state"
+
+describe("deployment confirmation follows actual impact", () => {
+  const first = { server_id: "new-service", interrupts_existing_service: false, expected_previous_config_digest: null }
+  it("deploys a new service directly to the visible target", () => {
+    expect(requiresDeploymentConfirmation(first, "new-service", false)).toBe(false)
+  })
+  it("still confirms overwrite, interruption, existing configuration and target changes", () => {
+    expect(requiresDeploymentConfirmation(first, "new-service", true)).toBe(true)
+    expect(requiresDeploymentConfirmation({ ...first, interrupts_existing_service: true }, "new-service", false)).toBe(true)
+    expect(requiresDeploymentConfirmation({ ...first, expected_previous_config_digest: "existing" }, "new-service", false)).toBe(true)
+    expect(requiresDeploymentConfirmation(first, "another-service", false)).toBe(true)
+    expect(requiresDeploymentConfirmation(first, "", false)).toBe(true)
+  })
+})
 
 describe("rollback target and outcome", () => {
   it("never starts another deployment using the previously checked option", () => {

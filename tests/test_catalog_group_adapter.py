@@ -203,6 +203,7 @@ def test_session_routes_and_fixed_schemas_use_the_same_public_adapter(gate, inte
         assert client.post("/v1/catalog/sessions/close", json={"session_id": opened_response.json()["session_id"]}).json()["closed"]
     schemas = catalog_tools()
     assert len(schemas) == 7 and sum(schema["name"] == "gate_tool_invoke" for schema in schemas) == 1
+    assert "gate_request_status" in {schema["name"] for schema in schemas}
     assert schemas[2]["inputSchema"]["additionalProperties"] is False
 
 

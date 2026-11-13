@@ -8,6 +8,7 @@ export function SystemSettingsPage({ t }: { t: TFunction }) {
   const zh = t("uploads") === "项目上传"
   return <div className="flex min-w-0 flex-col gap-3">
     <PageHeader title={zh ? "系统设置" : "System settings"} helpLabel={t("pageHelp")} closeLabel={t("close")} helpContent={<p>{zh ? "管理交付网络、Cloudflare Tunnel 与版本更新。" : "Manage delivery networking, Cloudflare Tunnel and release updates."}</p>} />
+    <PageHeader title={zh ? "系统设置" : "System settings"} helpLabel={t("pageHelp")} closeLabel={t("close")} helpContent={<p>{zh ? "管理交付网络、Cloudflare Tunnel 与版本更新。" : "Manage delivery networking, Cloudflare Tunnel and release updates."}</p>} />
     <Tabs defaultActiveKey="network" items={[
       { key: "network", label: zh ? "网络与依赖" : "Network and dependencies", children: <NetworkSettingsPanel t={t} /> },
       { key: "tunnel", label: "Cloudflare Tunnel", children: <div className="flex min-w-0 flex-col gap-3">

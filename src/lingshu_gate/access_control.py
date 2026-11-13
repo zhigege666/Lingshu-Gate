@@ -31,7 +31,8 @@ from lingshu_gate.domain.oauth_management import (
 from lingshu_gate.invocation_payloads import snapshot
 from lingshu_gate.retention_store import RetentionStore
 from lingshu_gate.mcp_runtime import McpRuntimeManager
-from lingshu_gate.mcp_authorization_policy import ensure_server_identity, server_binding, tool_snapshot
+from lingshu_gate.mcp_authorization_policy import ensure_server_identity, server_binding, tool_snapshot_matches
+from lingshu_gate.tool_access_policy import effective_policy, legacy_snapshot, policy_status
 from lingshu_gate.models import ToolDefinition, ToolInvokeResponse
 from lingshu_gate.registry import (ToolDispatchRejectedError, ToolExecutionError, ToolInvocationContext,
                                   ToolNotFoundError, ToolRegistry, mcp_timeout_error, tool_definition_revision)
@@ -39,6 +40,33 @@ from lingshu_gate.user_credential_store import UserCredentialBindingError
 
 ACCESS_RANK = {"none": 0, "read": 1, "write": 2, "unknown": -1}
 VALID_ACCESS = {"none", "read", "write"}
+
+
+def control_tool_access(definition: ToolDefinition | FrozenToolDefinition) -> str | None:
+    """Gate-owned control contracts use dedicated permissions, never overrides."""
+    if definition.source != "builtin":
+        return None
+    server_id = _server_id(definition)
+    if definition.id in MANAGEMENT_TOOL_IDS and server_id == management_tool_server(definition.id):
+        return "read" if definition.id in MANAGEMENT_READ_TOOLS else "write"
+    if server_id == "gate_mcp_groups" and definition.metadata.get("group_management_control_plane") is True:
+        from lingshu_gate.mcp_group_mcp import GROUP_MANAGEMENT_TOOL_IDS
+
+        if definition.id in GROUP_MANAGEMENT_TOOL_IDS:
+            return "read" if definition.permission == "read" else "write"
+    permission = definition.metadata.get("required_control_permission")
+    if (definition.metadata.get("classification_control_plane") is True and isinstance(permission, str)
+            and permission.strip() == "classifications.manage"):
+        return "read" if definition.permission.startswith("read") else "write"
+    return None
+
+
+def tool_policy_constraints(definition: ToolDefinition | FrozenToolDefinition) -> dict[str, Any]:
+    required = control_tool_access(definition)
+    if required is None:
+        return {"policy_editable": True, "policy_constraint": None}
+    return {"policy_editable": False, "policy_constraint": "control_permission",
+            "required_access": required, "policy_source": "control_permission"}
 
 
 def token_authorization_budget_valid(connection: sqlite3.Connection, principal: AuthPrincipal) -> bool:
@@ -65,8 +93,8 @@ def token_authorization_budget_valid(connection: sqlite3.Connection, principal: 
         params.extend(selected)
     if not parts:
         return True
-    cursor = connection.execute("SELECT server_id,tool_id,effective_access FROM mcp_tool_classifications "
-        "WHERE status='published' AND effective_access IN ('read','write') AND (" + " OR ".join(parts) + ")", params)
+    cursor = connection.execute("SELECT server_id,tool_id,required_access FROM mcp_tool_classifications "
+        "WHERE required_access IN ('read','write') AND (" + " OR ".join(parts) + ")", params)
     count, servers = 0, set()
     while rows := cursor.fetchmany(250):
         grants = AccessControlStore._effective_access_map(connection, principal, [(row[0], row[1]) for row in rows])
@@ -128,7 +156,7 @@ CONTROL_PERMISSIONS = (
     ("users.manage", "管理用户", "审核、启用、停用和维护用户"),
     ("roles.manage", "管理角色", "维护角色与控制面权限"),
     ("grants.manage", "管理资源授权", "维护用户和角色的 MCP 授权"),
-    ("classifications.manage", "管理工具分类", "分析、确认并发布 Tool 读写分类"),
+    ("classifications.manage", "管理工具访问策略", "保存工具读写、禁用与自动默认策略；可选维护安全评审证据"),
     ("credentials.manage.self", "管理个人凭据", "维护自己的 Gate API Token 与下游 MCP 凭据"),
     ("credentials.manage.system", "管理共享服务凭据", "维护共享 MCP 服务秘密，仅默认管理员拥有"),
     ("credentials.manage.all", "管理全部凭据", "查看并吊销全部用户 API Token，不读取用户下游秘密"),
@@ -165,8 +193,8 @@ ROLE_PERMISSION_MAP = {
 
 SYSTEM_PERMISSION_TYPES = (
     ("none", "无权限", "none", "完全禁止访问"),
-    ("read", "只读", "read", "允许调用已发布的只读工具"),
-    ("write", "读写", "write", "允许调用已发布的只读和写入工具"),
+    ("read", "只读", "read", "允许调用本地策略标记为只读的工具"),
+    ("write", "读写", "write", "允许调用本地策略允许的只读和写入工具"),
 )
 
 
@@ -207,6 +235,9 @@ class AccessControlStore:
         """在应用装配完成后接入带用户上下文的 MCP 调用器。"""
 
         self.mcp_runtime = mcp_runtime
+        mcp_runtime.tool_policy_sync = lambda server_id, definitions: self.reconcile_server_tools(
+            server_id, definitions, reviewer_id="automatic_discovery",
+        )
 
     # ------------------------------------------------------------------
     # 系统角色、控制面权限与 MCP 权限类型
@@ -709,13 +740,91 @@ class AccessControlStore:
             placeholders = ",".join("(?, ?)" for _ in batch)
             rows = connection.execute(
                 "SELECT server_id,tool_id,fingerprint,status,effective_access,"
-                "reviewed_by,reviewed_at,destructive,idempotent,open_world "
+                "reviewed_by,reviewed_at,destructive,idempotent,open_world,"
+                "required_access,access_policy_source,access_policy_binding,access_policy_revision,legacy_authorization_snapshot "
                 "FROM mcp_tool_classifications "
                 f"WHERE (server_id, tool_id) IN (VALUES {placeholders})",
                 tuple(value for key in batch for value in key),
             ).fetchall()
             result.update({(row["server_id"], row["tool_id"]): dict(row) for row in rows})
         return result
+
+    @staticmethod
+    def _synchronize_access_policy(
+        connection: sqlite3.Connection, definition: ToolDefinition,
+        row: dict[str, Any], fingerprint: str, binding: str,
+    ) -> None:
+        """Adopt an existing valid local decision once; discovery defaults write.
+
+        A local access rule is independent of descriptive/schema metadata. The
+        classification's fingerprint and reviewed safety remain untouched here.
+        A replacement service or a removed/reappearing tool gets no old rule.
+        """
+        source = row.get("access_policy_source", "unresolved")
+        evidence = _loads(row["evidence_json"])
+        lifecycle = evidence.get("lifecycle")
+        reappeared = isinstance(lifecycle, dict) and lifecycle.get("status") == "retired"
+        retired_policy = lifecycle.get("previous_access_policy", {}) if isinstance(lifecycle, dict) and reappeared else {}
+        restore_default = (isinstance(retired_policy, dict)
+                           and retired_policy.get("source") in {"default_write", "builtin_contract", "local_override"}
+                           and retired_policy.get("required_access") in {"read", "write"}
+                           and (definition.source != "mcp" or binding
+                                and retired_policy.get("server_binding") == binding
+                                and row.get("access_policy_binding") == binding))
+        if reappeared:
+            evidence["lifecycle"] = {
+                "status": "active", "reason": "reappeared_in_tools_list",
+                "actor_id": "automatic_discovery", "at": iso_now(),
+            }
+            row["evidence_json"] = json.dumps(evidence, ensure_ascii=False)
+            connection.execute("UPDATE mcp_tool_classifications SET evidence_json=?,updated_at=? WHERE id=?",
+                               (row["evidence_json"], iso_now(), row["id"]))
+        if source == "unavailable" and not restore_default:
+            return
+        automatic_access, automatic_source = effective_policy(definition, None)
+        current_contract = (source not in {"builtin_contract", "default_write"}
+                            or (automatic_source == source and row.get("required_access") == automatic_access))
+        if current_contract and source not in {"unresolved", "unavailable"} and (
+            definition.source != "mcp" or binding and row.get("access_policy_binding") == binding
+        ):
+            return
+        access, source = automatic_access, automatic_source
+        previous_snapshot = ""
+        if (row.get("access_policy_source", "unresolved") == "unresolved"
+                and row["fingerprint"] == fingerprint
+                and (definition.source != "mcp" or binding)
+                and row.get("reviewed_by")
+                and (row["status"] == "published" or row["source"] == "manual")):
+            access = row["effective_access"] if row["effective_access"] in {"read", "write"} else "none"
+            source = "local_override"
+            if row["status"] == "published" and access in {"read", "write"}:
+                previous_snapshot = legacy_snapshot(row)
+        connection.execute(
+            "UPDATE mcp_tool_classifications SET required_access=?,access_policy_source=?,"
+            "access_policy_binding=?,legacy_authorization_snapshot=?,"
+            "access_policy_revision=access_policy_revision+CASE WHEN required_access!=? THEN 1 ELSE 0 END WHERE id=?",
+            (access, source, binding, previous_snapshot, access, row["id"]),
+        )
+        row["access_policy_revision"] = int(row.get("access_policy_revision", 1)) + int(row.get("required_access") != access)
+        row.update(required_access=access, access_policy_source=source,
+                   access_policy_binding=binding, legacy_authorization_snapshot=previous_snapshot)
+
+    @staticmethod
+    def _save_access_policy(connection: sqlite3.Connection, row: Mapping[str, Any], access: str) -> None:
+        """An explicit local policy save is effective without a publish step."""
+        binding_row = connection.execute(
+            "SELECT binding FROM gate_mcp_authorization_identities WHERE server_id=?", (row["server_id"],),
+        ).fetchone()
+        required = access if access in {"read", "write"} else "none"
+        binding = str(binding_row[0]) if binding_row else ""
+        alias = (str(row.get("legacy_authorization_snapshot", ""))
+                 if row.get("required_access") == required and row.get("access_policy_binding", "") == binding else "")
+        connection.execute(
+            "UPDATE mcp_tool_classifications SET required_access=?,access_policy_source='local_override',"
+            "access_policy_binding=?,legacy_authorization_snapshot=?,"
+            "access_policy_revision=access_policy_revision+CASE WHEN required_access!=? THEN 1 ELSE 0 END WHERE id=?",
+            (required, binding, alias, required, row["id"]),
+        )
 
     def _synchronize_tools(
         self,
@@ -733,12 +842,20 @@ class AccessControlStore:
                 ",".join("?" for _ in batch) + ")", batch)}
             for server_id in set(batch) - present:
                 ensure_server_identity(connection, server_id)
+        bindings: dict[str, str] = {}
+        for server_id in server_ids:
+            try:
+                bindings[server_id] = server_binding(connection, server_id)
+            except ValueError:
+                bindings[server_id] = ""
         now = iso_now()
         for definition in definitions:
             server_id = _server_id(definition)
             fingerprint = _tool_fingerprint(definition)
             key = (server_id, definition.id)
             existing = existing_rows.get(key)
+            if existing:
+                self._synchronize_access_policy(connection, definition, existing, fingerprint, bindings.get(server_id, ""))
             if (
                 existing
                 and existing["fingerprint"] == fingerprint
@@ -752,6 +869,17 @@ class AccessControlStore:
                 for evidence_key in ("invalidation", "lifecycle"):
                     if evidence_key in previous_evidence:
                         suggestion["evidence"][evidence_key] = previous_evidence[evidence_key]
+                if (existing["tool_name"] == definition.name
+                        and existing["suggested_access"] == suggestion["access"]
+                        and existing["confidence"] == suggestion["confidence"]
+                        and existing["source"] == suggestion["source"]
+                        and bool(existing["destructive"]) == suggestion["destructive"]
+                        and bool(existing["idempotent"]) == suggestion["idempotent"]
+                        and bool(existing["open_world"]) == suggestion["open_world"]
+                        and previous_evidence == suggestion["evidence"]):
+                    # A read/poll of an unchanged pending tool is not a policy
+                    # change and must not invalidate every catalog cursor.
+                    continue
             evidence_json = json.dumps(suggestion["evidence"], ensure_ascii=False)
             if not existing:
                 # Console 首次加载可能并发触发同步；由数据库原子忽略重复插入，
@@ -792,6 +920,7 @@ class AccessControlStore:
                 ).fetchone()
                 if current is not None:
                     existing_rows[key] = dict(current)
+                    self._synchronize_access_policy(connection, definition, existing_rows[key], fingerprint, bindings.get(server_id, ""))
                 continue
             if existing["fingerprint"] != fingerprint:
                 invalidation_evidence = dict(suggestion["evidence"])
@@ -873,6 +1002,46 @@ class AccessControlStore:
         self.synchronize_tools(definitions_list)
         return self.list_classifications()
 
+    @staticmethod
+    def _retire_tools(connection: sqlite3.Connection, tool_ids: Iterable[str], reviewer_id: str,
+                      *, server_id: str | None = None) -> None:
+        """Keep retirement separate from identity replacement and explicit denial.
+
+        A returning tool may use the conservative default only within the same
+        service identity. An administrator's disabled policy remains disabled.
+        Repeated catalog/runtime reconciliation must not retire it twice.
+        """
+        ids = sorted(set(tool_ids))
+        now = iso_now()
+        for offset in range(0, len(ids), 250):
+            batch = ids[offset:offset + 250]
+            sql = "SELECT * FROM mcp_tool_classifications WHERE tool_id IN (" + ",".join("?" for _ in batch) + ")"
+            params = [*batch]
+            if server_id is not None:
+                sql += " AND server_id=?"
+                params.append(server_id)
+            for record in connection.execute(sql, params).fetchall():
+                row = dict(record)
+                evidence = _loads(row["evidence_json"])
+                lifecycle = evidence.get("lifecycle")
+                if isinstance(lifecycle, dict) and lifecycle.get("status") == "retired":
+                    continue
+                evidence["lifecycle"] = {
+                    "status": "retired", "reason": "missing_from_latest_tools_list",
+                    "actor_id": reviewer_id, "at": now,
+                    "previous_access_policy": {
+                        "source": row["access_policy_source"], "required_access": row["required_access"],
+                        "server_binding": row["access_policy_binding"],
+                    },
+                }
+                disabled = row["access_policy_source"] == "local_override" and row["required_access"] == "none"
+                connection.execute(
+                    "UPDATE mcp_tool_classifications SET suggested_access='unknown',effective_access='unknown',"
+                    "status='stale',evidence_json=?,reviewed_at=NULL,required_access='none',access_policy_source=?,"
+                    "legacy_authorization_snapshot='',access_policy_revision=access_policy_revision+1,updated_at=? WHERE id=?",
+                    (json.dumps(evidence, ensure_ascii=False), "local_override" if disabled else "unavailable", now, row["id"]),
+                )
+
     def reconcile_server_tools(
         self,
         server_id: str,
@@ -905,25 +1074,8 @@ class AccessControlStore:
             lifecycle = dict(before[tool_id].get("evidence") or {}).get("lifecycle")
             if not isinstance(lifecycle, dict) or lifecycle.get("status") != "retired":
                 retired_ids.append(tool_id)
-        for tool_id in retired_ids:
-            previous = before[tool_id]
-            evidence = dict(previous.get("evidence") or {})
-            evidence["lifecycle"] = {
-                "status": "retired",
-                "reason": "missing_from_latest_tools_list",
-                "actor_id": reviewer_id,
-                "at": now,
-            }
-            self.database.execute(
-                """
-                UPDATE mcp_tool_classifications
-                SET suggested_access = 'unknown', effective_access = 'unknown',
-                    status = 'stale', evidence_json = ?, reviewed_at = NULL,
-                    updated_at = ?
-                WHERE server_id = ? AND tool_id = ?
-                """,
-                (json.dumps(evidence, ensure_ascii=False), now, server_id, tool_id),
-            )
+        with self.database.session() as connection:
+            self._retire_tools(connection, retired_ids, reviewer_id, server_id=server_id)
 
         reappeared_ids: list[str] = []
         for definition in definitions_list:
@@ -973,19 +1125,9 @@ class AccessControlStore:
             - set(changed_ids)
             - set(reappeared_ids)
         )
-        permissions_expanded = any(
-            ACCESS_RANK.get(str(after[tool_id]["effective_access"]), -1)
-            > ACCESS_RANK.get(str(before.get(tool_id, {}).get("effective_access", "unknown")), -1)
-            for tool_id in current_ids
-        )
-        if permissions_expanded:
-            raise RuntimeError("tool reconciliation unexpectedly expanded effective permissions")
-
-        needs_review_ids = sorted(
-            tool_id
-            for tool_id in current_ids
-            if after[tool_id]["status"] != "published"
-        )
+        # Synchronization changes the catalog, never account/token grants. New
+        # tools are already usable within an existing write authorization.
+        needs_review_ids: list[str] = []
         return {
             "server_id": server_id,
             "counts": {
@@ -1003,6 +1145,7 @@ class AccessControlStore:
             "retired_tool_ids": retired_ids,
             "needs_review_tool_ids": needs_review_ids,
             "effective_permissions_expanded": False,
+            "access_policy": "existing_authorizations",
         }
 
     def list_classifications(
@@ -1026,6 +1169,43 @@ class AccessControlStore:
         )
         return [_classification_row(row) for row in rows]
 
+    @staticmethod
+    def _reset_access_policy(connection: sqlite3.Connection, row: Mapping[str, Any], default: tuple[str, str],
+                             reviewer_id: str, note: str) -> None:
+        access, source = default
+        evidence = _loads(row["evidence_json"])
+        evidence["manual"] = {"note": note.strip(), "reviewer_id": reviewer_id, "policy_mode": "automatic"}
+        connection.execute(
+            "UPDATE mcp_tool_classifications SET required_access=?,access_policy_source=?,"
+            "access_policy_revision=access_policy_revision+CASE WHEN required_access!=? THEN 1 ELSE 0 END,"
+            "legacy_authorization_snapshot='',effective_access='unknown',status='pending',source='rule',"
+            "reviewed_by=?,reviewed_at=NULL,evidence_json=?,updated_at=? WHERE id=?",
+            (access, source, access, reviewer_id, json.dumps(evidence, ensure_ascii=False), iso_now(), row["id"]),
+        )
+
+    def reset_tool_access_policy(
+        self, definition: ToolDefinition, *, reviewer_id: str, note: str = "", expected_fingerprint: str | None = None,
+        expected_policy_revision: int | None = None,
+    ) -> dict[str, Any]:
+        """Remove a local override without interpreting downstream suggestions."""
+        if control_tool_access(definition) is not None:
+            raise ValueError("This tool uses dedicated control permissions; its access policy cannot be overridden.")
+        server_id = _server_id(definition)
+        with self.database.session() as connection:
+            connection.execute("BEGIN IMMEDIATE")
+            self._synchronize_tools(connection, [definition])
+            row = connection.execute(
+                "SELECT * FROM mcp_tool_classifications WHERE server_id=? AND tool_id=?", (server_id, definition.id),
+            ).fetchone()
+            assert row is not None
+            if expected_fingerprint is not None and row["fingerprint"] != expected_fingerprint:
+                raise ClassificationConfirmationConflictError("Tool metadata changed; refresh the tool before saving its access policy.")
+            if expected_policy_revision is not None and int(row["access_policy_revision"]) != expected_policy_revision:
+                raise ClassificationConfirmationConflictError("Tool access policy changed; refresh before saving.")
+            self._reset_access_policy(connection, dict(row), effective_policy(definition, None), reviewer_id, note)
+            updated = connection.execute("SELECT * FROM mcp_tool_classifications WHERE id=?", (row["id"],)).fetchone()
+        return _classification_row(updated)
+
     def set_classification(
         self,
         *,
@@ -1036,41 +1216,49 @@ class AccessControlStore:
         idempotent: bool,
         reviewer_id: str,
         note: str = "",
+        expected_fingerprint: str | None = None,
+        expected_policy_revision: int | None = None,
+        definition: ToolDefinition | None = None,
     ) -> dict[str, Any]:
         if access not in {"read", "write", "unknown"}:
             raise ValueError("access must be read, write, or unknown")
-        row = self.database.query_one(
-            "SELECT * FROM mcp_tool_classifications WHERE server_id = ? AND tool_id = ?",
-            (server_id, tool_id),
-        )
-        if not row:
-            raise KeyError(f"tool classification not found: {server_id}/{tool_id}")
-        evidence = _loads(row["evidence_json"])
-        evidence["manual"] = {"note": note.strip(), "reviewer_id": reviewer_id}
-        now = iso_now()
-        self.database.execute(
-            """
-            UPDATE mcp_tool_classifications
-            SET effective_access = ?, status = 'pending', source = 'manual',
-                destructive = ?, idempotent = ?, evidence_json = ?,
-                reviewed_by = ?, reviewed_at = NULL, updated_at = ?
-            WHERE id = ?
-            """,
-            (
-                access,
-                int(destructive),
-                int(idempotent),
-                json.dumps(evidence, ensure_ascii=False),
-                reviewer_id,
-                now,
-                row["id"],
-            ),
-        )
-        return next(
-            item
-            for item in self.list_classifications(server_id=server_id)
-            if item["tool_id"] == tool_id
-        )
+        if definition is not None and control_tool_access(definition) is not None:
+            raise ValueError("This tool uses dedicated control permissions; its access policy cannot be overridden.")
+        with self.database.session() as connection:
+            connection.execute("BEGIN IMMEDIATE")
+            row = connection.execute(
+                "SELECT * FROM mcp_tool_classifications WHERE server_id = ? AND tool_id = ?", (server_id, tool_id),
+            ).fetchone()
+            if not row:
+                raise KeyError(f"tool classification not found: {server_id}/{tool_id}")
+            if expected_fingerprint is not None and row["fingerprint"] != expected_fingerprint:
+                raise ClassificationConfirmationConflictError("Tool metadata changed; refresh the tool before saving its access policy.")
+            if expected_policy_revision is not None and int(row["access_policy_revision"]) != expected_policy_revision:
+                raise ClassificationConfirmationConflictError("Tool access policy changed; refresh before saving.")
+            evidence = _loads(row["evidence_json"])
+            evidence["manual"] = {"note": note.strip(), "reviewer_id": reviewer_id}
+            now = iso_now()
+            connection.execute(
+                """
+                UPDATE mcp_tool_classifications
+                SET effective_access = ?, status = 'pending', source = 'manual',
+                    destructive = ?, idempotent = ?, evidence_json = ?,
+                    reviewed_by = ?, reviewed_at = NULL, updated_at = ?
+                WHERE id = ?
+                """,
+                (
+                    access,
+                    int(destructive),
+                    int(idempotent),
+                    json.dumps(evidence, ensure_ascii=False),
+                    reviewer_id,
+                    now,
+                    row["id"],
+                ),
+            )
+            self._save_access_policy(connection, dict(row), access)
+            updated = connection.execute("SELECT * FROM mcp_tool_classifications WHERE id=?", (row["id"],)).fetchone()
+        return _classification_row(updated)
 
     def confirm_classifications(
         self,
@@ -1079,13 +1267,14 @@ class AccessControlStore:
         items: Iterable[dict[str, Any]],
         note: str = "",
         publish: bool = False,
+        definitions: Iterable[ToolDefinition] = (),
     ) -> dict[str, Any]:
         """按每条工具的人工结论或机器建议原子完成批量确认。
 
         publish=True 时在同一事务内完成审核和发布，保留整批指纹校验。
 
-        确认只生成待发布的人工结论，不直接改变运行时授权。先在同一写事务中
-        校验全部目标及 fingerprint，避免部分成功或基于旧元数据误确认。
+        明确保存的本地访问策略立即生效；可选 publish 仅维护历史安全评审证据。
+        同一写事务校验全部目标及 fingerprint，避免部分成功或错误保存。
         """
 
         raw_items = list(items)
@@ -1095,6 +1284,9 @@ class AccessControlStore:
             raise ValueError("at most 500 tool classifications can be confirmed at once")
 
         targets: dict[tuple[str, str], str] = {}
+        decisions: dict[tuple[str, str], tuple[str | None, bool | None, bool | None]] = {}
+        current_definitions = {(_server_id(item), item.id): item for item in definitions}
+        defaults = {key: effective_policy(item, None) for key, item in current_definitions.items()}
         for item in raw_items:
             if not isinstance(item, dict):
                 raise ValueError("tool classification item must be an object")
@@ -1104,6 +1296,20 @@ class AccessControlStore:
             if not server_id or not tool_id or not expected_fingerprint:
                 raise ValueError("server_id, tool_id, and expected_fingerprint are required")
             key = (server_id, tool_id)
+            requested = item.get("access")
+            destructive, idempotent = item.get("destructive"), item.get("idempotent")
+            if requested not in {None, "read", "write", "unknown", "automatic"}:
+                raise ValueError("access must be read, write, unknown, or automatic")
+            if any(value is not None and type(value) is not bool for value in (destructive, idempotent)):
+                raise ValueError("destructive and idempotent must be booleans")
+            if requested == "automatic" and key not in defaults:
+                raise ValueError("automatic policy requires a current tool definition")
+            if requested is not None and key in current_definitions and control_tool_access(current_definitions[key]) is not None:
+                raise ValueError("This tool uses dedicated control permissions; its access policy cannot be overridden.")
+            decision = (requested, destructive, idempotent)
+            if key in decisions and decisions[key] != decision:
+                raise ClassificationConfirmationConflictError(f"conflicting access policies for tool: {server_id}/{tool_id}")
+            decisions[key] = decision
             previous_fingerprint = targets.get(key)
             if previous_fingerprint and previous_fingerprint != expected_fingerprint:
                 raise ClassificationConfirmationConflictError(
@@ -1140,7 +1346,13 @@ class AccessControlStore:
                 rows[(server_id, tool_id)] = row
 
             for (server_id, tool_id), row in rows.items():
-                if row["status"] == "published":
+                requested, destructive, idempotent = decisions[(server_id, tool_id)]
+                if requested == "automatic":
+                    self._reset_access_policy(connection, dict(row), defaults[(server_id, tool_id)], reviewer_id, note_text)
+                    updated = connection.execute("SELECT * FROM mcp_tool_classifications WHERE id=?", (row["id"],)).fetchone()
+                    confirmed.append(_classification_row(updated))
+                    continue
+                if row["status"] == "published" and requested is None:
                     skipped.append(
                         {
                             "server_id": server_id,
@@ -1150,12 +1362,12 @@ class AccessControlStore:
                     )
                     continue
 
-                effective_access = str(row["effective_access"])
-                confirmed_from = "effective"
-                if effective_access not in {"read", "write"}:
+                effective_access = requested or str(row["effective_access"])
+                confirmed_from = "explicit" if requested is not None else "effective"
+                if requested is None and effective_access not in {"read", "write"}:
                     effective_access = str(row["suggested_access"])
                     confirmed_from = "suggested"
-                if effective_access not in {"read", "write"}:
+                if requested is None and effective_access not in {"read", "write"}:
                     skipped.append(
                         {
                             "server_id": server_id,
@@ -1176,19 +1388,23 @@ class AccessControlStore:
                     """
                     UPDATE mcp_tool_classifications
                     SET effective_access = ?, status = ?, source = 'manual',
+                        destructive = ?, idempotent = ?,
                         evidence_json = ?, reviewed_by = ?, reviewed_at = ?, updated_at = ?
                     WHERE id = ?
                     """,
                     (
                         effective_access,
-                        "published" if publish else "pending",
+                        "published" if publish and effective_access in {"read", "write"} else "pending",
+                        int(destructive) if destructive is not None else row["destructive"],
+                        int(idempotent) if idempotent is not None else row["idempotent"],
                         json.dumps(evidence, ensure_ascii=False),
                         reviewer_id,
-                        now if publish else None,
+                        now if publish and effective_access in {"read", "write"} else None,
                         now,
                         row["id"],
                     ),
                 )
+                self._save_access_policy(connection, dict(row), effective_access)
                 updated = connection.execute(
                     "SELECT * FROM mcp_tool_classifications WHERE id = ?",
                     (row["id"],),
@@ -1222,19 +1438,20 @@ class AccessControlStore:
             clauses.append(f"tool_id IN ({placeholders})")
             params.extend(ids)
         now = iso_now()
-        rows = self.database.query_all(
-            f"SELECT id FROM mcp_tool_classifications WHERE {' AND '.join(clauses)}",
-            tuple(params),
-        )
-        for row in rows:
-            self.database.execute(
-                """
-                UPDATE mcp_tool_classifications
-                SET status = 'published', reviewed_by = ?, reviewed_at = ?, updated_at = ?
-                WHERE id = ?
-                """,
-                (reviewer_id, now, now, row["id"]),
-            )
+        with self.database.session() as connection:
+            rows = connection.execute(
+                f"SELECT * FROM mcp_tool_classifications WHERE {' AND '.join(clauses)}", tuple(params),
+            ).fetchall()
+            for row in rows:
+                connection.execute(
+                    """
+                    UPDATE mcp_tool_classifications
+                    SET status = 'published', reviewed_by = ?, reviewed_at = ?, updated_at = ?
+                    WHERE id = ?
+                    """,
+                    (reviewer_id, now, now, row["id"]),
+                )
+                self._save_access_policy(connection, dict(row), row["effective_access"])
         return self.list_classifications(server_id=server_id)
 
     # ------------------------------------------------------------------
@@ -1276,6 +1493,8 @@ class AccessControlStore:
                             "gate_access": {
                                 "required_access": decision["required_access"],
                                 "classification_status": decision["classification_status"],
+                                "policy_source": decision.get("policy_source", "control_plane"),
+                                **tool_policy_constraints(definition),
                             },
                         },
                     }))
@@ -1304,9 +1523,11 @@ class AccessControlStore:
                     else:
                         fingerprint = fingerprints.get(definition.id)
                     if classification["fingerprint"] != fingerprint:
-                        classification = None
+                        classification = {**classification, "status": "stale", "effective_access": "unknown",
+                                          "reviewed_at": None}
                 except (ValueError, TypeError, RecursionError):
-                    classification = None
+                    classification = {**classification, "status": "stale", "effective_access": "unknown",
+                                      "reviewed_at": None}
             decision = self._evaluate(principal, definition, classification, partial(grants.__getitem__, key),
                                       connection=connection)
             permission = "tools.read" if decision["required_access"] == "read" else "tools.invoke"
@@ -1382,7 +1603,7 @@ class AccessControlStore:
                 id=tool_id, name="", description="", source=source, permission=permission,
                 metadata={**json.loads(policy), "server_id": server_id},
             )
-            classification = {"effective_access": effective_access, "status": status} if status else None
+            classification = {"required_access": effective_access, "access_policy_source": status} if status else None
             if independent and tool_id in dict(principal.api_token_tool_snapshots):
                 classification = self._load_classifications(connection, [(server_id, tool_id)]).get((server_id, tool_id))
             allowed = int(self._evaluate(principal, definition, classification, lambda: granted_access,
@@ -1396,8 +1617,8 @@ class AccessControlStore:
     @staticmethod
     def _token_mcp_policy_allows(principal: AuthPrincipal, definition: ToolDefinition | FrozenToolDefinition,
                                  classification: dict[str, Any] | None, connection: sqlite3.Connection) -> bool:
-        if (not classification or classification.get("status") != "published"
-                or classification.get("effective_access") not in {"read", "write"}):
+        required, _ = effective_policy(definition, classification)
+        if required not in {"read", "write"}:
             return False
         server_id = _server_id(definition)
         for candidate, binding, access in principal.api_token_server_policies:
@@ -1405,7 +1626,7 @@ class AccessControlStore:
                 continue
             try:
                 return (server_binding(connection, server_id) == binding
-                        and ACCESS_RANK[access] >= ACCESS_RANK[classification["effective_access"]])
+                        and ACCESS_RANK[access] >= ACCESS_RANK[required])
             except (ValueError, KeyError):
                 return False
         expected = dict(principal.api_token_tool_snapshots).get(definition.id)
@@ -1414,7 +1635,7 @@ class AccessControlStore:
             return False
         try:
             return (server_binding(connection, server_id) == expected_binding
-                    and tool_snapshot(definition, classification) == expected)
+                    and tool_snapshot_matches(definition, classification, expected))
         except (KeyError, TypeError, ValueError):
             return False
 
@@ -1429,6 +1650,11 @@ class AccessControlStore:
         """发现与调用复用同一策略；调用方只负责准备本次请求的分类及授权数据。"""
 
         server_id = _server_id(definition)
+        required, policy_source = effective_policy(definition, classification)
+        fixed_access = control_tool_access(definition)
+        if fixed_access is not None:
+            required, policy_source = fixed_access, "control_permission"
+        status = policy_status(policy_source, required)
         if (principal.auth_type == "token" and definition.source == "mcp"
                 and principal.api_token_authorization_mode == "independent"):
             # 业务 MCP 独立策略必须先于管理员旁路执行；内置控制工具仍走其原合同。
@@ -1436,8 +1662,8 @@ class AccessControlStore:
                 allowed = self._token_mcp_policy_allows(principal, definition, classification, policy_connection)
             if not allowed:
                 return {"allowed": False, "reason": "API token MCP authorization does not allow this tool",
-                        "server_id": server_id, "required_access": (classification or {}).get("effective_access", "unknown"),
-                        "granted_access": "none", "classification_status": (classification or {}).get("status", "missing")}
+                        "server_id": server_id, "required_access": required,
+                        "granted_access": "none", "classification_status": status}
         if principal.auth_type == "oauth":
             if principal.oauth_builtin and principal.oauth_resource and principal.oauth_resource.endswith("/mcp/manage"):
                 config_row = self.database.query_one("SELECT payload_json FROM gate_oauth_config WHERE id=1")
@@ -1463,7 +1689,6 @@ class AccessControlStore:
                 return {"allowed": allowed, "reason": "management grant matched" if allowed else "management grant does not allow this tool",
                         "server_id": server_id, "required_access": required, "granted_access": required if allowed else "none",
                         "classification_status": "management_resource"}
-            required = str(classification["effective_access"]) if classification else "unknown"
             if (not principal.external_grant_id or definition.source != "mcp"
                     or server_id not in principal.external_server_ids
                     or definition.id not in principal.external_tool_ids
@@ -1471,7 +1696,7 @@ class AccessControlStore:
                     or not principal.external_expires_at or _is_expired(principal.external_expires_at)):
                 return {"allowed": False, "reason": "external authorization does not allow this tool",
                         "server_id": server_id, "required_access": required, "granted_access": "none",
-                        "classification_status": classification["status"] if classification else "missing"}
+                        "classification_status": status}
         required_control_permission = definition.metadata.get("required_control_permission")
         if not isinstance(required_control_permission, str) or not required_control_permission.strip():
             required_control_permission = None
@@ -1511,7 +1736,7 @@ class AccessControlStore:
                 "server_id": server_id, "required_access": required, "granted_access": required if allowed else "none",
                 "classification_status": "control_plane"}
         if (
-            definition.metadata.get("classification_control_plane") is True
+            definition.source == "builtin" and definition.metadata.get("classification_control_plane") is True
             and required_control_permission == "classifications.manage"
         ):
             # 分类治理工具必须在下游工具尚未发布时仍可被审核员发现；
@@ -1531,101 +1756,28 @@ class AccessControlStore:
                 "granted_access": "write" if allowed else "none",
                 "classification_status": "control_plane",
             }
-        delegated = principal.auth_type == "oauth" or getattr(principal, "delegated_scopes", None) is not None
-        if delegated and (
-            not classification or classification["status"] != "published"
-            or classification["effective_access"] not in {"read", "write"}
-        ):
-            return {
-                "allowed": False,
-                "reason": "tool classification is not published",
-                "server_id": server_id,
-                "required_access": "unknown",
-                "granted_access": grant_lookup(),
-                "classification_status": classification["status"] if classification else "missing",
-            }
-        if principal.role == "admin" or "admin" in roles:
-            required = (
-                classification["effective_access"]
-                if classification and classification["effective_access"] in {"read", "write"}
-                else "write"
-            )
-            required_permission = "tools.read" if required == "read" else "tools.invoke"
-            control_allowed = _principal_control_allows(principal, required_permission)
-            token_allowed = _token_scope_allows(principal, required)
-            extra_control_allowed = (
-                required_control_permission is None
-                or self.has_control_permission(principal, required_control_permission)
-            )
-            allowed = control_allowed and token_allowed and extra_control_allowed
-            if not control_allowed:
-                reason = f"missing control permission: {required_permission}"
-            elif not token_allowed:
-                reason = "API token scope does not allow this operation"
-            elif not extra_control_allowed:
-                reason = f"missing control permission: {required_control_permission}"
-            else:
-                reason = "admin bypass"
-            return {
-                "allowed": allowed,
-                "reason": reason,
-                "server_id": server_id,
-                "required_access": required,
-                "granted_access": "write",
-                "classification_status": classification["status"] if classification else "missing",
-            }
-        if (
-            not classification
-            or classification["status"] != "published"
-            or classification["effective_access"] not in {"read", "write"}
-        ):
-            return {
-                "allowed": False,
-                "reason": "tool classification is not published",
-                "server_id": server_id,
-                "required_access": "unknown",
-                "granted_access": grant_lookup(),
-                "classification_status": classification["status"] if classification else "missing",
-            }
-        required = str(classification["effective_access"])
+        if required == "none":
+            return {"allowed": False, "reason": "tool is disabled by local access policy",
+                    "server_id": server_id, "required_access": required, "granted_access": "none",
+                    "classification_status": status, "policy_source": policy_source}
         required_permission = "tools.read" if required == "read" else "tools.invoke"
-        granted = grant_lookup()
+        administrator = principal.role == "admin" or "admin" in roles
+        granted = "write" if administrator else grant_lookup()
         if not _principal_control_allows(principal, required_permission):
-            return {
-                "allowed": False,
-                "reason": f"missing control permission: {required_permission}",
-                "server_id": server_id,
-                "required_access": required,
-                "granted_access": granted,
-                "classification_status": classification["status"],
-            }
-        if not _token_scope_allows(principal, required):
-            return {
-                "allowed": False,
-                "reason": "API token scope does not allow this operation",
-                "server_id": server_id,
-                "required_access": required,
-                "granted_access": granted,
-                "classification_status": classification["status"],
-            }
-        if required_control_permission and not self.has_control_permission(principal, required_control_permission):
-            return {
-                "allowed": False,
-                "reason": f"missing control permission: {required_control_permission}",
-                "server_id": server_id,
-                "required_access": required,
-                "granted_access": granted,
-                "classification_status": classification["status"],
-            }
-        allowed = ACCESS_RANK.get(granted, 0) >= ACCESS_RANK[required]
-        return {
-            "allowed": allowed,
-            "reason": "grant matched" if allowed else f"{required} access is required",
-            "server_id": server_id,
-            "required_access": required,
-            "granted_access": granted,
-            "classification_status": classification["status"],
-        }
+            reason = f"missing control permission: {required_permission}"
+        elif not _token_scope_allows(principal, required):
+            reason = "API token scope does not allow this operation"
+        elif required_control_permission and not self.has_control_permission(principal, required_control_permission):
+            reason = f"missing control permission: {required_control_permission}"
+        elif ACCESS_RANK.get(granted, 0) < ACCESS_RANK[required]:
+            reason = f"{required} access is required"
+        else:
+            return {"allowed": True, "reason": "admin bypass" if administrator else "grant matched",
+                    "server_id": server_id, "required_access": required, "granted_access": granted,
+                    "classification_status": status, "policy_source": policy_source}
+        return {"allowed": False, "reason": reason, "server_id": server_id,
+                "required_access": required, "granted_access": granted,
+                "classification_status": status, "policy_source": policy_source}
 
     def observability_server_ids(self, principal: AuthPrincipal, server_ids: Iterable[str]) -> list[str] | None:
         """Shared policy for every log/event reader; None is explicit global access."""
@@ -2018,7 +2170,7 @@ class AccessControlStore:
                             dispatch_started=mark_dispatch_started,
                             audit_snapshot=recorded_outputs.append if record_payload else None,
                             retry_read_only=(
-                                allow_read_retry and decision["classification_status"] == "published"
+                                allow_read_retry and decision.get("policy_source") in {"local_override", "builtin_contract"}
                                 and decision["required_access"] == "read"
                             ),
                         )
@@ -2421,7 +2573,7 @@ def _suggest_tool(definition: ToolDefinition) -> dict[str, Any]:
             "rule": {
                 "read_hits": read_hits,
                 "write_hits": write_hits,
-                "note": "机器结果仅为建议，人工发布后才进入运行时授权。",
+                "note": "机器结果仅为建议；实际调用遵循本地访问策略与账号、令牌既有授权。",
             },
         },
     }
@@ -2436,6 +2588,9 @@ def _classification_row(row: Any) -> dict[str, Any]:
         "fingerprint": row["fingerprint"],
         "suggested_access": row["suggested_access"],
         "effective_access": row["effective_access"],
+        "required_access": row["required_access"],
+        "policy_source": row["access_policy_source"],
+        "policy_revision": int(row["access_policy_revision"]),
         "status": row["status"],
         "confidence": float(row["confidence"]),
         "source": row["source"],

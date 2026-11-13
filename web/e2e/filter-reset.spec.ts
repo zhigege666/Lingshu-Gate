@@ -86,3 +86,32 @@ test('E2E-592 @smoke audit reset clears search and immediately requests defaults
   await expect(page.locator('.page-toolbar-search input')).toHaveValue('')
   await expect(page.locator('.list-pagination')).toContainText('1–50')
 })
+
+test('audit quick filter changes preserve the whole selection and ignore a delayed response', async ({ page }) => {
+  const fixture = listFixtures['/v1/access/invocation-audits'] as { audits: Array<Record<string, unknown>>; filter_options: unknown }
+  let releasePrevious!: () => void
+  const previous = new Promise<void>(resolve => { releasePrevious = resolve })
+  const requests: URL[] = []
+  await page.route('**/v1/access/invocation-audits*', async route => {
+    const url = new URL(route.request().url())
+    requests.push(url)
+    if (url.searchParams.get('decision') === 'deny' && !url.searchParams.has('outcome')) await previous
+    const latest = url.searchParams.get('outcome') === 'error'
+    return route.fulfill({ json: { ...fixture, audits: [{ ...fixture.audits[0], id: latest ? 'latest-audit' : 'previous-audit', tool_id: latest ? 'Latest audit result' : 'Previous audit result' }] } })
+  })
+  try {
+    await page.goto('/console/#/invocationAudit')
+    await expect(page.getByRole('button', { name: 'Previous audit result', exact: true })).toBeVisible()
+    await page.getByRole('radio', { name: 'Deny', exact: true }).check()
+    await expect.poll(() => requests.some(url => url.searchParams.get('decision') === 'deny')).toBe(true)
+    await page.getByRole('radio', { name: 'Error', exact: true }).check()
+    await expect(page.getByRole('button', { name: 'Latest audit result', exact: true })).toBeVisible()
+    expect(requests.at(-1)!.searchParams.get('decision')).toBe('deny')
+    expect(requests.at(-1)!.searchParams.get('outcome')).toBe('error')
+    const delayed = page.waitForResponse(response => { const url = new URL(response.url()); return url.pathname === '/v1/access/invocation-audits' && url.searchParams.get('decision') === 'deny' && !url.searchParams.has('outcome') })
+    releasePrevious()
+    await (await delayed).finished()
+    await expect(page.getByRole('button', { name: 'Latest audit result', exact: true })).toBeVisible()
+    await expect(page.getByRole('button', { name: 'Previous audit result', exact: true })).toHaveCount(0)
+  } finally { releasePrevious() }
+})

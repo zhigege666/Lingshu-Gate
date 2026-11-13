@@ -177,7 +177,7 @@ def test_debug_tool_does_not_bypass_global_capability_or_service_scope(observabi
     state.observability_store.add_log("error", "global-private-error-marker")
     login("admin")
     token = client.post("/v1/auth/tokens", json={"name": "debug-operations",
-        "scopes": ["tools.invoke", "operations.manage"]}).json()
+        "scopes": ["tools.read", "operations.manage"]}).json()
     select_direct_discovery({"client": client, "auth": state.auth_store}, token)
     client.cookies.clear()
     client.headers["Authorization"] = f"Bearer {token['token']}"
@@ -193,7 +193,7 @@ def test_debug_tool_does_not_bypass_global_capability_or_service_scope(observabi
         assert "global-private-marker" not in protocol.text
         assert "global-private-error-marker" not in protocol.text
     login("admin")
-    token = client.post("/v1/auth/tokens", json={"name": "debug-no-operations", "scopes": ["tools.invoke"]}).json()
+    token = client.post("/v1/auth/tokens", json={"name": "debug-no-operations", "scopes": ["tools.read"]}).json()
     client.cookies.clear()
     client.headers["Authorization"] = f"Bearer {token['token']}"
     denied = client.post("/v1/tools/gate_system_debug/invoke", json={"arguments": {"action": "events"}})

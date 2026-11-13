@@ -14,7 +14,7 @@ Protocol compatibility is a shared Gate platform capability. Client-to-Gate and 
 - Content negotiation: follow the Streamable HTTP requirements of the protocol.
 - Request model: HTTP is stateless; authenticate every request and use the framing required by its protocol version.
 
-For `2026-07-28`, start with `server/discover`. Handshake clients start with `initialize` (`protocolVersion`, `capabilities`, and `clientInfo`), then send `notifications/initialized`. Initialization does not require a protocol-version header; an unsupported proposal negotiates `2025-11-25`. Subsequent requests use the negotiated `MCP-Protocol-Version`; without a header or current-protocol metadata, the Streamable HTTP compatibility default is `2025-03-26`. Unknown header versions are rejected. Gate does not allocate an MCP session, and supports JSON responses, `ping`, `tools/list`, and `tools/call` for handshake clients; GET/SSE and DELETE are not required or exposed.
+For `2026-07-28`, start with `server/discover`. Handshake clients start with `initialize` (`protocolVersion`, `capabilities`, and `clientInfo`), then send `notifications/initialized`. Initialization does not require a protocol-version header; an unsupported proposal negotiates `2025-11-25`. Subsequent requests use the negotiated `MCP-Protocol-Version`; without a header or current-protocol metadata, the Streamable HTTP compatibility default is `2025-03-26`. Unknown header versions are rejected. Gate does not allocate an MCP session, and supports JSON responses, `ping`, `tools/list`, and `tools/call` for handshake clients. Authorized tool-change streams are described below; session DELETE remains unsupported.
 
 Derive tool names from `tools/list`; do not construct them from assumptions about server IDs. Legacy clients do not need `Mcp-Method`, `Mcp-Name`, or the current protocol's per-request metadata. The existing endpoint and bearer-token configuration can be retained. Downstream protocol selection is independent and configured per manifest as described below.
 
@@ -36,32 +36,35 @@ Remote deployments must use HTTPS. Gate should remain on a private interface beh
 ## Discovery-to-access flow
 
 ```mermaid
-flowchart LR
-    D["Discover"] --> A["Analyze by rules"]
-    A --> R["Human review"]
-    R --> P["Publish classification"]
-    P --> G["Grant and invoke"]
+flowchart TD
+    C["Save and connect MCP"] --> S["Synchronize tool catalog"]
+    S --> A{"Account and client scopes allow?"}
+    A -->|Yes| I["Validate current schema and invoke"]
+    A -->|No| E["Explain missing access"]
+    I --> R["Return result and audit"]
 ```
 
-Discovery is not authorization. A downstream tool becomes callable only when all applicable checks pass:
+Connection synchronizes the catalog. When a downstream server advertises `tools.listChanged`, Gate opens an independent notification stream and a `notifications/tools/list_changed` message schedules refresh. Approximately 60-second discovery, with jitter, also covers missing or unsupported notifications. Notification bursts coalesce into one discovery worker. Failed refreshes retain the last complete valid catalog and retry with exponential backoff from about 5 seconds to at most 5 minutes. A valid empty `tools` list retires tools; a missing or malformed `result.tools` does not clear the catalog. Unchanged catalogs do not advance the access-policy revision.
 
-1. the caller is authenticated;
-2. the caller has `tools.read` or `tools.invoke` as required;
-3. the tool has a current, human-reviewed, published read/write classification;
-4. the caller has the relevant server or tool resource grant;
-5. an API token, when used, includes a sufficient scope;
-6. required downstream credentials are configured for that caller.
+New external tools require `write`. Names, descriptions, schemas, manifest declarations and remote annotations never grant read access. Administrators can optionally save `read`, `write`, `unknown` (disabled) or `automatic` (restore default) in Tool access. A save takes effect immediately; publication is not required. `required_access` and `policy_source` describe the enforced policy. Historical status, reviewer timestamps and safety evidence are not publication gates for ordinary invocations. Dedicated management tools cannot be downgraded through generic tool policies.
 
-New, changed, missing, and reappearing definitions return to review. Gate does not infer permission from a tool's name, description, schema, or annotations.
+Discovery does not expand access scopes. Calls still enforce identity, functional permissions, account/role resource grants, Token/OAuth scope, expiry, service binding, argument restrictions and required credentials. Continuous service grants cover new tools at their existing level; exact selections never grow. Metadata changes preserve local access policies but require a fresh describe for a changed schema. Retirement, service replacement, disabling or policy changes do not resurrect old exact authorizations.
 
-The first-party classification operations are:
+Local policies live in the database and survive ordinary reconnects and Gate restarts. A tool retired from a complete catalog can return with a conservative write default only under the same verified service identity; its former read override and old exact grants do not revive. An explicit disabled policy stays disabled. A replacement service remains unavailable until an administrator explicitly chooses its local policy. Historical entries without sufficient identity or review evidence are not promoted to trusted read policies.
 
-- `gate_tool_classification_list`
-- `gate_tool_classification_analyze`
-- `gate_tool_classification_review`
-- `gate_tool_classification_publish`
+The existing `gate_tool_classification_list`, `gate_tool_classification_analyze`, `gate_tool_classification_review` and `gate_tool_classification_publish` IDs remain compatible. Review can save a policy in one operation. Analysis produces hints; the legacy publish operation maintains optional group-routing safety evidence and is not needed for routine connection or invocation. That evidence supports cross-instance contract comparison and routing constraints. Read-only retry uses a trusted local read policy or a Gate built-in read contract, with current authority and tool revision rechecked before dispatch. Automatic defaults are never represented as a human review.
 
-Analysis uses local rules and produces review input. Review and publication remain separate writes, and publication must bind the current fingerprint.
+### Client tool-list updates
+
+Gate advertises `tools.listChanged`. Legacy `2025-*` handshake clients can open `GET /mcp` with `Accept: text/event-stream` and their negotiated protocol version. Current `2026-07-28` clients use `POST /mcp` with `subscriptions/listen`; GET for that version returns 405 with `Allow: POST`. The subscription acknowledgement and notifications carry their subscription ID. A stream has a 15-second heartbeat and ends after 300 seconds so the client can reopen it. Each MCP endpoint accepts at most 64 streams and four per authenticated identity.
+
+About every five seconds, Gate rechecks authentication, current authorization and the caller's discovery mode before comparing the visible tool list. Only visible changes generate `notifications/tools/list_changed`, without tool names or counts in the notification. Revoked or expired authentication and disabled users close the stream at the next check; changed resource rules instead update the authorized projection. In on-demand mode, new business tools are immediately searchable/describable without changing the fixed entry list; changed pins or fixed entries can change that list. A client must listen and rediscover, or request a fresh list itself, to replace its cache. This mechanism does not broaden OAuth consent or exact-tool selections.
+
+### Synchronization status
+
+The service API exposes `tool_sync` separately from process/connection health. The Console shows its state, last successful synchronization, added/updated/removed counts and next retry. `last_changed_at` changes only when catalog content changes; a successful unchanged poll does not imply new tools. `idle`, `syncing`, `ready`, `retrying`, `auth_required` and `disabled` describe synchronization, not account authority.
+
+HTTP 401/403 or denied credential use enters `auth_required`, pauses automatic retries and shows a credential action. Update the service credentials, then reconnect or use **Sync now** for a running service. Other discovery/session failures use bounded automatic recovery. The retained catalog is the last accepted snapshot; it is not a guarantee that the remote endpoint currently accepts calls.
 
 ## Downstream Streamable HTTP
 
@@ -82,7 +85,7 @@ Omitting `transport.protocol_version`, or setting it to `auto`, enables platform
 }
 ```
 
-Gate sends `initialize`, validates the returned version and server information, then sends `notifications/initialized`. The negotiated version must be one of the three supported handshake versions. Subsequent requests use that version and any session ID assigned during initialization. JSON and POST SSE responses are supported. Sessions are scoped to their connection and credentials, never shared between per-user clients. Closing a session sends DELETE, tolerating 404/405 responses. A session-expiry 404 invalidates the connection. Gate may recover once and retry a published read-only call once only when the contract is unchanged and current authority and argument policy still pass. Writes, grouped calls, changed contracts and failed recovery are not automatically replayed.
+Gate sends `initialize`, validates the returned version and server information, then sends `notifications/initialized`. The negotiated version must be one of the three supported handshake versions. Subsequent requests use that version and any session ID assigned during initialization. JSON and POST SSE responses are supported. Advertised tool changes use an independent GET/SSE stream for handshake protocols or `subscriptions/listen` for `2026-07-28`. An unsupported GET, method rejection or rejected tools-change subscription falls back to periodic discovery. Sessions are scoped to their connection and credentials, never shared between per-user clients. Closing a session sends DELETE, tolerating 404/405 responses. A session-expiry 404 invalidates the connection and schedules handshake/discovery recovery. A call covered by a trusted local read policy or Gate built-in read contract can be retried once only when the contract is unchanged and current authority and argument policy still pass. Writes, grouped calls, changed contracts and failed recovery are not automatically replayed.
 
 Timeouts, ordinary HTTP/authentication errors, invalid discovery results and business-method errors do not trigger negotiation or replay; the bounded session-expiry recovery above is separate. Automatic negotiation does not relaunch a stdio process that exits during discovery; a service requiring initialization before any other message can use an explicitly pinned version. This does not add the older HTTP+SSE transport with separate event and message endpoints, unsolicited server requests, or resumable GET streams. A naming collision anywhere in the registry fails both discovery and calls closed; visibility filtering cannot change tool identities.
 
@@ -128,7 +131,7 @@ Recommended sequence:
 4. Review the configuration diff and resolved credential IDs.
 5. Apply or start the server.
 6. Inspect health and discovered definitions.
-7. Analyze, review, and publish classifications.
+7. Synchronize after connection; save a local policy only when a different access level is needed.
 8. Add the smallest resource grants.
 9. Verify one read-only call before enabling write access.
 
@@ -142,7 +145,7 @@ Gate registers only operations that belong to its own control and delivery bound
 |---|---|
 | `gate_system_debug` | Bounded, read-only overview, server detail, logs, events, and diagnostics |
 | `gate_file_upload_*` | User-bound, short-lived file upload and `fileRef` creation for calls that explicitly accept it |
-| `gate_tool_classification_*` | List, rule analysis, human review, and publication of tool classifications |
+| `gate_tool_classification_*` | Tool policy lookup and one-step save; legacy analysis/publication compatibility |
 | Project Delivery `gate_*` tools | Upload, build, deploy, start, status, and tool reconciliation |
 
 The complete Delivery list is in [Project delivery](project-delivery.md). First-party tool access is subject to the same authentication, permission, scope, and audit checks as downstream tools.
@@ -174,4 +177,4 @@ Use [Operations](operations.md) to correlate server status, logs, events, diagno
 
 ## Optional discovery and integration
 
-[Pins and result budgets](on-demand-tools.md) retain the same invocation checks. [Argument policies](argument-policies.md) restrict effective inputs immediately before execution. The [connector](private-connector.md) and [OpenAPI adapter](openapi-adapter.md) expose separately configured HTTP MCP endpoints that must be registered, reviewed, published and authorized in Core. Gate's `/docs` describes its control API; the adapter consumes a separate local upstream OpenAPI document. The [first-call demo](first-call.md) verifies read authorization, a denied write and revocation without a desktop client.
+[Pins and result budgets](on-demand-tools.md) retain the same invocation checks. [Argument policies](argument-policies.md) restrict effective inputs immediately before execution. The [connector](private-connector.md) and [OpenAPI adapter](openapi-adapter.md) expose separately configured HTTP MCP endpoints that must be registered and synchronized in Core, then authorized within the account and client scope. Gate's `/docs` describes its control API; the adapter consumes a separate local upstream OpenAPI document. The [first-call demo](first-call.md) verifies read authorization, a denied write and revocation without a desktop client.

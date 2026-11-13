@@ -80,4 +80,4 @@ Use separate development data, configuration and workspace paths, following [loc
 
 ## Finish the first call
 
-The [first-call guide](first-call.md) walks through an independent in-memory demo, explicit review/publication, a separate viewer's authorization, dynamic tool discovery, real invocation, audit, denied writes, invalid revisions, stopping/restarting the demo and revocation. A healthy Gate alone does not mean a downstream tool is published or authorized.
+The [first-call guide](first-call.md) walks through an independent in-memory demo, automatic synchronization and optional local read policies, a separate viewer's authorization, dynamic tool discovery, real invocation, audit, denied writes, invalid revisions, stopping/restarting the demo and revocation. A healthy Gate alone does not mean a downstream tool is connected, synchronized or authorized.

@@ -58,6 +58,8 @@
 .service-summary-grid > section + section { padding-left: var(--section-gap); }
 .service-summary-grid .service-facts { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: var(--space-3); }
 .service-facts .service-fact-note-wide { grid-column: 1 / -1; margin: calc(var(--space-1) * -1) 0 var(--space-1); line-height: 1.65; }
+.service-tool-sync { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-2) var(--space-4); color: hsl(var(--muted-foreground)); font-size: 12px; line-height: 1.65; margin-bottom: var(--space-3); }
+.service-tool-sync > span { min-width: 0; overflow-wrap: anywhere; }
 @container (max-width: 540px) {
  .service-summary-grid { grid-template-columns: minmax(0, 1fr); gap: var(--section-gap); }
  .service-summary-grid > section + section { padding-left: 0; border-left: 0; border-top: 1px solid hsl(var(--border)); padding-top: var(--section-gap); }

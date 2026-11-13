@@ -26,10 +26,10 @@ A URL alone does not authorize contacting it. Default external precheck is offli
 - Process only the project root that the user explicitly selected and trusts.
 - Never upload tokens, `.env` files, private keys, credential files, or unreviewed build artifacts. The script's content scan is only a heuristic gate; it cannot prove that unknown or obfuscated secrets are absent. A human must review the complete `included_files` list before upload.
 - Build only from the install and build steps returned by `gate_build_plan`; return those plan inputs unchanged to `gate_build_create`.
-- 上传、制品生成、部署覆盖、启动、取消和放弃会话仍是独立写入范围，各工具调用分别绑定 `confirmed=true`。用户明确一次授权覆盖同一项目、目标 Server 和列明的完整交付操作时，在来源、计划、配置和凭据摘要未冲突且后续步骤没有扩大命令或权限范围的前提下，复用该授权，不逐阶段重复询问；否则在相应写入前展示具体摘要并确认。组合部署仅在授权已覆盖覆盖、启动和工具刷新时使用；额外的回滚、删除及新增工具读写分类发布仍需独立确认。
+- 上传、制品生成、部署覆盖、启动、取消和放弃会话仍是独立写入范围，各工具调用分别绑定 `confirmed=true`。用户明确一次授权覆盖同一项目、目标 Server 和列明的完整交付操作时，在来源、计划、配置和凭据摘要未冲突且后续步骤没有扩大命令或权限范围的前提下，复用该授权，不逐阶段重复询问；否则在相应写入前展示具体摘要并确认。组合部署仅在授权已覆盖覆盖、启动和工具刷新时使用；额外的回滚和删除仍需独立确认。新发现工具自动同步，不再执行日常审核／发布。
 - `gate_deploy_build` defaults to `overwrite=false` and `start=false`. An overwrite must bind the current configuration digest. A standalone `gate_server_start` call must bind the deployed configuration digest.
 - Before an overwrite, call `gate_server_status` and read the redacted `credential_state`. When `has_credentials=true`, default to `credential_policy=preserve_existing` and return `expected_credential_binding_digest` unchanged. Preserve only `${credential:<id>}` references and user slot declarations; never read, copy, or expose secret values. Stop if a digest is missing or changes, a reference is invalid, or slots conflict.
-- Treat the remote `tools/list` result as untrusted factual input. New, changed, missing, or reappearing tools must enter review or inactive state. Never publish a classification automatically, grant access automatically, or elevate `unknown` to `read` or `write`.
+- Treat remote tools/list results as untrusted input. Newly discovered tools synchronize automatically but receive no caller authority by discovery alone. Before invocation, verify current account grants, Token/OAuth scopes and effective local tool policy. A changed service identity fails closed until an administrator explicitly chooses a local policy. Never expand a caller's existing scope automatically.
 - Report startup as complete only when `status=running` and tool discovery succeeds for the target. A submitted request, a successful deployment, or `desired_state=running` alone is not completion evidence.
 - Do not initiate an additional rollback, stop, delete, or force-kill automatically. A confirmed deploy may perform its documented target-level compensation; report the observed result without initiating another mutation. On failure, report the exact identifiers, states, and recoverable next actions first.
 
@@ -96,7 +96,7 @@ When a server is running but its tool set may have changed:
 1. Call `gate_server_status` and show its current `config_digest` and runtime state.
 2. After refresh confirmation, call `gate_server_refresh_tools(expected_config_digest=...,confirmed=true)`.
 3. Save `tool_snapshot_digest` and `counts.new`, `counts.changed`, `counts.reappeared`, `counts.retired`, and `counts.needs_review`.
-4. Accept the result only when `effective_permissions_expanded=false`. If `counts.needs_review>0`, stop for human classification review; do not publish or authorize automatically. Retired tools remain inactive even when no current tool needs review.
+4. Accept the result only when effective_permissions_expanded=false. Newly discovered tools receive no caller authority by discovery alone; verify account grants, Token/OAuth scopes and effective local policy before invocation. Retired or unavailable tools remain inactive.
 
 ## Failure recovery
 

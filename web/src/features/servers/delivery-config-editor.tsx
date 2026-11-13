@@ -20,7 +20,7 @@ export function DeliveryConfigEditor({ manifest, locale, t, onClose, onSave }: {
   return <>
     <FormDialog open onClose={() => void close()} title={zh ? "交付运行配置" : "Delivery runtime configuration"} closeLabel={t("close")} dirty={dirty} pending={pending} className="max-w-5xl"
       onCloseAutoFocus={event => { if (returnFocus?.isConnected && !returnFocus.matches(":disabled")) { event.preventDefault(); returnFocus.focus() } }}
-      description={zh ? "此配置将在部署预览与确认后，和构建产物一起应用。个人凭据请在个人绑定中设置。" : "This configuration is applied together with the build artifact after deployment preview and confirmation. Set personal credentials in personal bindings."}
+      description={zh ? "配置随构建产物一起部署。个人凭据请在个人绑定中设置。" : "Deploys with the build artifact. Set personal credentials in personal bindings."}
       footer={<div className="w-full" ref={setFooter} />}>
       <McpConfigEditor locale={locale} selectedConfigId="" value={value} onChange={setValue} busy={false} loadCredentials={false} backendPrecheck={false}
         saveLabel={zh ? "保存交付草稿" : "Save delivery draft"} onPendingChange={setPending} onDraftDirtyChange={setEntryDirty} footerContainer={footer} onClose={() => void close()}

@@ -160,9 +160,7 @@ class ToolCatalog:
                 with self.database.session() as connection:
                     if self._initial:
                         connection.execute("DELETE FROM gate_tool_catalog")
-                    for tool_ref in retired:
-                        connection.execute("""UPDATE mcp_tool_classifications
-                            SET status='stale',effective_access='unknown' WHERE tool_id=?""", (tool_ref,))
+                    self.access._retire_tools(connection, retired, "automatic_discovery")
                     definitions = [item for item in changes.values() if item is not None]
                     self.access._synchronize_tools(connection, definitions)
                     for tool_ref, definition in changes.items():
@@ -248,7 +246,7 @@ class ToolCatalog:
                 SELECT DISTINCT c.instance_id FROM gate_tool_catalog c
                 LEFT JOIN mcp_tool_classifications p ON p.server_id=c.instance_id AND p.tool_id=c.tool_ref
                 WHERE c.source='mcp' AND gate_catalog_allowed(
-                    c.tool_ref,c.instance_id,c.source,c.permission,c.policy_json,p.effective_access,p.status)=1
+                    c.tool_ref,c.instance_id,c.source,c.permission,c.policy_json,p.required_access,p.access_policy_source)=1
             ) SELECT DISTINCT g.id,g.name FROM mcp_groups g
                 JOIN mcp_group_members m ON m.group_id=g.id AND m.status='active'
                 JOIN allowed a ON a.instance_id=m.server_id
@@ -319,7 +317,7 @@ class ToolCatalog:
         if request.instance_id:
             where.append("c.instance_id=?")
             parameters.append(request.instance_id)
-        where.append("gate_catalog_allowed(c.tool_ref,c.instance_id,c.source,c.permission,c.policy_json,p.effective_access,p.status)=1")
+        where.append("gate_catalog_allowed(c.tool_ref,c.instance_id,c.source,c.permission,c.policy_json,p.required_access,p.access_policy_source)=1")
         # MATERIALIZED makes authorization happen before ordering and pagination.
         # Ranking uses local lexical fields; hidden FTS document frequencies never
         # influence a visible tool's score, count or recommendations.

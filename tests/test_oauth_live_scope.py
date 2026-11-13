@@ -14,6 +14,7 @@ from lingshu_gate.auth import hash_secret
 from lingshu_gate.database import SQLiteDatabase
 from lingshu_gate.external_connection_store import ExternalConnectionStore
 from lingshu_gate.mcp_gateway import register_mcp_gateway_route
+from lingshu_gate.mcp_authorization_policy import tool_snapshot
 from lingshu_gate.mcp_http_trust import McpHttpTrustStore, McpHttpTrustUpdate, TrustedHttpOrigin
 from lingshu_gate.mcp_http_trust import _schema as _http_trust_schema
 from lingshu_gate.observability_store import ObservabilityStore
@@ -324,9 +325,10 @@ def test_same_tool_id_classifications_are_bound_to_current_resource_and_reconfir
                                      idempotent=False, reviewer_id=gate["admin"]["id"])
     gate["access"].publish_classifications(server_id=historical_server, reviewer_id=gate["admin"]["id"])
     current = gate["server"].catalog(gate["principals"]["alice"], client["scopes"])[relocated.id]
-    classification = next(item for item in gate["access"].list_classifications(server_id=historical_server) if item["tool_id"] == relocated.id)
+    classification = gate["db"].query_one("SELECT * FROM mcp_tool_classifications WHERE server_id=? AND tool_id=?",
+                                          (historical_server, relocated.id))
     assert current["server_id"] == historical_server
-    assert current["snapshot"] == hash_secret(json.dumps([classification["fingerprint"], "write", classification["reviewed_at"]], sort_keys=True))
+    assert current["snapshot"] == tool_snapshot(relocated, classification)
     assert "mcp.A.write" not in gate["server"].verify(tokens["access_token"]).external_tool_ids
     prepared = preview(gate, grant, ids=["mcp.A.read", "mcp.A.write"])
     assert prepared["added"] == prepared["removed"] == ["mcp.A.write"]

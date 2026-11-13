@@ -1,7 +1,7 @@
 import { BuildLogWorkbench } from "@/components/builds/build-log-workbench"
 import { BUILD_LOG_WINDOW, mergeBuildLogWindow } from "@/features/build-log-window"
 import { replaceConsoleRouteHash } from "@/routing/use-console-route"
-import { rollbackResultError, rollbackStartFor } from "./builds-page-state"
+import { requiresDeploymentConfirmation, rollbackResultError, rollbackStartFor } from "./builds-page-state"
 import { EditorNavigationContext } from "@/components/editor-navigation-guard"
 import { deliveryDraftRequest, manifestPatch, mergeManifestPatch } from "@/features/servers/delivery-draft"
 import { DeliveryConfigEditor } from "@/features/servers/delivery-config-editor"
@@ -20,6 +20,7 @@ import { BuildRecordsTable } from "@/components/builds/build-records-table"
 import { BuildTimelineCard } from "@/components/builds/build-timeline-card"
 import { DeploymentRecordsTable } from "@/components/builds/deployment-records-table"
 import { useConfirm } from "@/components/confirm-dialog"
+import { ActionMenu, ActionMenuItem } from "@/components/action-menu"
 import { JsonPanel } from "@/components/json-panel"
 import { FilterRadio } from "@/components/filter-radio"
 import { FieldLabel } from "@/components/field-help"
@@ -34,7 +35,7 @@ import { Dialog, DialogBody, DialogContent, DialogHeader, DialogTitle } from "@/
 import { Toaster, type ToastState, type ToastTone } from "@/components/ui/toast"
 import { Input } from "@/components/ui/input"
 import { localizeStatus, type TFunction } from "@/i18n"
-import { formatDeploymentSummary, formatRollbackSummary } from "@/features/deployment-options"
+import { formatDeploymentSummary, formatRollbackSummary, resolveDeploymentTarget } from "@/features/deployment-options"
 import { buildPageText } from "@/pages/builds-page-text"
 
 const ACTIVE_BUILD_STATUSES = new Set(["queued", "running", "cancel_requested"])
@@ -340,9 +341,13 @@ export function BuildsPage({ t, initialBuildId = "" }: { t: TFunction; initialBu
         ...(currentForm ? { server_id: serverId.trim() || null, start: deployStart, overwrite: deployOverwrite, package_manager_override: packageManagerOverride } : {}),
         project_root: nextProjectRoot, runtime_override: nextRuntimeOverride,
       })
-      const preflightResult = await buildApi.preflightBuild(uploadId, { runtime_override: nextRuntimeOverride, project_root: nextProjectRoot, package_manager_override: draftRequest.package_manager_override })
+      // One plan request includes preflight; users do not need to run it first.
+      const buildOptions = { run_install: true, run_build: true, runtime_override: nextRuntimeOverride, project_root: nextProjectRoot, package_manager_override: draftRequest.package_manager_override }
+      const preview = await buildApi.planBuild(uploadId, buildOptions)
       if (!mounted.current || owner !== selectionRevision.current) return
+      const preflightResult = preview.preflight
       setPreflight(preflightResult)
+      setPlan(preview.plan)
       if (preflightResult.status === "error") {
         notify(tx("preflightBlocked"), "error")
         return
@@ -356,15 +361,11 @@ export function BuildsPage({ t, initialBuildId = "" }: { t: TFunction; initialBu
       const preparedDraft = await buildApi.saveDeliveryDraft(uploadId, draftRequest)
       if (!mounted.current || owner !== selectionRevision.current) return
       adoptDeliveryDraft(preparedDraft)
-      const buildOptions = { run_install: true, run_build: true, runtime_override: nextRuntimeOverride, project_root: nextProjectRoot, package_manager_override: preparedDraft.package_manager_override }
       let build: BuildRecord
-      const preview = await buildApi.planBuild(uploadId, buildOptions)
-      setPlan(preview.plan)
       if (!preview.plan.buildable) throw new Error(preview.plan.warnings.join("; ") || "build_plan_blocked")
       if (preview.plan.requires_safe_executor) {
         const bundle = await networkApi.planBuild(uploadId, buildOptions)
         if (!bundle.validation.ok || !bundle.plan.buildable) throw new Error(bundle.plan.warnings.join("; ") || "build_plan_blocked")
-        if (!(await confirm({ title: t("uploads") === "项目上传" ? "确认执行此安装与构建计划？" : "Confirm this installation and build plan?", description: `${bundle.source_sha256}\n${bundle.plan_fingerprint}`, details: <JsonPanel copyLabel={t("copy")} data={bundle.plan} /> }))) return
         const attempt = confirmedBuildAttempt(buildAttempts.current.get(uploadId), bundle.plan_fingerprint, builds, () => `git-build-${crypto.randomUUID()}`)
         buildAttempts.current.set(uploadId, attempt)
         const created = await networkApi.build(bundle, buildOptions, attempt.key)
@@ -385,7 +386,6 @@ export function BuildsPage({ t, initialBuildId = "" }: { t: TFunction; initialBu
       writeBuildHash(build.id, true)
       notify(`${t("createBuild")}: ${build.status} · ${build.id.slice(0, 8)}`, ["failed", "blocked", "cancelled"].includes(build.status) ? "error" : "success")
       await refresh(build.id)
-      await loadBuildLogs(build.id)
     } catch (err) {
       if (!mounted.current || owner !== selectionRevision.current) return
       // The build is already dispatched even if linking the draft failed.
@@ -411,7 +411,7 @@ export function BuildsPage({ t, initialBuildId = "" }: { t: TFunction; initialBu
 
   async function requestStopBuild(buildId = selectedBuildId) {
     if (!buildId) return
-    if (!(await confirm({ title: t("requestStopBuild"), description: t("requestStopConfirm") }))) return
+    if (!(await confirm({ title: t("requestStopBuild"), description: `${buildId}\n${t("requestStopConfirm")}` }))) return
     const owner = selectionRevision.current
     setBusy(true)
     try {
@@ -422,7 +422,6 @@ export function BuildsPage({ t, initialBuildId = "" }: { t: TFunction; initialBu
       writeBuildHash(build.id)
       notify(`${t("requestStopSent")} · ${t("stopRequestHint")}`, "info")
       await refresh(build.id)
-      await loadBuildLogs(build.id)
     } catch (err) {
       notifyError(err)
     } finally {
@@ -445,7 +444,12 @@ export function BuildsPage({ t, initialBuildId = "" }: { t: TFunction; initialBu
         target: tx("deploymentTarget"), overwrite: tx("overwriteExisting"), start: tx("startAfterDeploy"),
         yes: tx("enabledChoice"), no: tx("disabledChoice"), unresolved: tx("unavailableTarget"),
       })
-      if (!(await confirm({ title: tx("confirmDeploymentTitle"), description: `${summary}\n${preview.changed_fields.join(", ")}\n${preview.config_digest}`, details: <JsonPanel copyLabel={t("copy")} data={{ build_id: preview.build_id, credential_state: preview.credential_state, interrupts_existing_service: preview.interrupts_existing_service, manifest: preview.manifest }} /> }))) return
+      if (!mounted.current || owner !== selectionRevision.current) return
+      const expectedTarget = resolveDeploymentTarget(options.server_id, build?.manifest?.id, "")
+      if (requiresDeploymentConfirmation(preview, expectedTarget, options.overwrite) && !(await confirm({
+        title: tx("confirmDeploymentTitle"), description: summary, destructive: Boolean(preview.expected_previous_config_digest || preview.interrupts_existing_service),
+        details: <JsonPanel copyLabel={t("copy")} data={{ changed_fields: preview.changed_fields, config_digest: preview.config_digest, credential_state: preview.credential_state, interrupts_existing_service: preview.interrupts_existing_service, manifest: preview.manifest }} />,
+      }))) return
       const deployment = await buildApi.deployBuild(buildId, { ...options,
         expected_config_digest: preview.config_digest,
         expected_previous_config_digest: preview.expected_previous_config_digest,
@@ -490,7 +494,7 @@ export function BuildsPage({ t, initialBuildId = "" }: { t: TFunction; initialBu
   }
 
   async function deleteUpload(upload: ProjectUpload) {
-    if (!(await confirm({ title: tx("deleteUploadTitle"), description: tx("deleteUploadDesc"), destructive: true }))) return
+    if (!(await confirm({ title: tx("deleteUploadTitle"), description: `${upload.filename} · ${upload.id}\n${tx("deleteUploadDesc")}`, destructive: true }))) return
     setBusy(true)
     try {
       await buildApi.deleteUpload(upload.id)
@@ -510,7 +514,7 @@ export function BuildsPage({ t, initialBuildId = "" }: { t: TFunction; initialBu
   }
 
   async function deleteBuild(build: BuildRecord) {
-    if (!(await confirm({ title: tx("deleteBuildTitle"), description: tx("deleteBuildDesc"), destructive: true }))) return
+    if (!(await confirm({ title: tx("deleteBuildTitle"), description: `${build.id}\n${tx("deleteBuildDesc")}`, destructive: true }))) return
     setBusy(true)
     try {
       await buildApi.deleteBuild(build.id)
@@ -529,7 +533,7 @@ export function BuildsPage({ t, initialBuildId = "" }: { t: TFunction; initialBu
   }
 
   async function deleteDeployment(deployment: DeploymentRecord) {
-    if (!(await confirm({ title: tx("deleteDeploymentTitle"), description: tx("deleteDeploymentDesc"), destructive: true }))) return
+    if (!(await confirm({ title: tx("deleteDeploymentTitle"), description: `${deployment.server_id} · ${deployment.id}\n${tx("deleteDeploymentDesc")}`, destructive: true }))) return
     setBusy(true)
     try {
       await buildApi.deleteDeployment(deployment.id)
@@ -601,11 +605,11 @@ export function BuildsPage({ t, initialBuildId = "" }: { t: TFunction; initialBu
     setPlan(null)
   }
 
-  return <div className="flex flex-col gap-4">
+  return <div className="delivery-build-workspace flex flex-col gap-4">
     <PageHeader closeLabel={t("close")}
       eyebrow={t("projectPipeline")}
       title={t("builds")}
-      actions={<Button asChild><a href="#/uploads">{c.uploadProject}</a></Button>}
+      actions={<Button asChild variant={selectedUpload ? "outline" : "default"}><a href="#/uploads">{c.uploadProject}</a></Button>}
       description={t("buildDeployDesc")}
       helpLabel={t("pageHelp")}
       helpContent={<><p>{tx("projectContextDesc")}</p><p>{t("longBuildHint")}</p></>}
@@ -622,14 +626,12 @@ export function BuildsPage({ t, initialBuildId = "" }: { t: TFunction; initialBu
     {selectedUpload && <WorkflowSteps ariaLabel={t("workflowProgress")} steps={[
       { label: t("selectUpload"), state: "done" },
       { label: t("createBuild"), state: selectedBuild?.status === "success" ? "done" : "current" },
-      { label: t("manifest"), state: latestDeployment?.status === "success" || Boolean(configDrafts[selectedBuildId]) ? "done" : selectedBuild?.status === "success" ? "current" : "next" },
       { label: t("deployBuild"), state: latestDeployment?.status === "success" ? "done" : selectedBuild?.status === "success" ? "current" : "next" },
-      { label: t("start"), state: latestDeployment?.started ? "done" : latestDeployment?.status === "success" ? "current" : "next" },
     ]} />}
     <Card>
       {selectedUpload && <CardHeader className="gap-3 md:flex-row md:items-start md:justify-between">
         <CardTitle className="break-words text-base">{selectedUpload.filename}</CardTitle>
-        <Button variant="outline" className="text-destructive hover:text-destructive" onClick={() => void deleteUpload(selectedUpload)} disabled={busy}>{tx("deleteUpload")}</Button>
+        <ActionMenu label={t("actions")}><ActionMenuItem destructive onClick={() => void deleteUpload(selectedUpload)} disabled={busy}>{tx("deleteUpload")}</ActionMenuItem></ActionMenu>
       </CardHeader>}
       <CardContent className={`flex flex-col gap-4 ${selectedUpload ? "" : "pt-6"}`}>
         {uploads.length > 0 && <Field label={t("selectUpload")} htmlFor={`${fieldId}-upload`}>
@@ -639,45 +641,52 @@ export function BuildsPage({ t, initialBuildId = "" }: { t: TFunction; initialBu
         </Field>}
         {!selectedUpload ? <div className="flex flex-wrap items-center gap-3">
           {!loading && !loadError && <p className="text-sm text-muted-foreground">{uploads.length ? c.selectProject : c.noProjects}</p>}
-          <Button variant="outline" asChild><a href="#/uploads">{c.uploadProject}</a></Button>
         </div> : <>
-          <dl className="grid gap-3 text-sm sm:grid-cols-2">
-            <div><dt className="text-xs text-muted-foreground">{tx("latestBuild")}</dt><dd>{selectedBuild ? `${localizeStatus(t, selectedBuild.status)} · ${selectedBuild.runtime}` : tx("noBuild")}</dd></div>
-            <div><dt className="text-xs text-muted-foreground">{tx("latestDeployment")}</dt><dd>{latestDeployment ? `${localizeStatus(t, latestDeployment.status)} · ${latestDeployment.server_id}` : tx("notDeployed")}</dd></div>
-          </dl>
-          <details><summary className="cursor-pointer text-sm font-medium">{tx("advancedSettings")}</summary><fieldset disabled={busy || !deliveryDraft} className="gate-form-fields mt-4">
-            <Field label={t("runtimeType")} htmlFor={`${fieldId}-runtime`}><FilterRadio id={`${fieldId}-runtime`} label={t("runtimeType")} hideLabel disabled={busy || !deliveryDraft} value={runtimeOverride} onChange={value => { setRuntimeOverride(value); setPreflight(null); setPlan(null) }} options={[{ value: "auto", label: tx("runtimeAuto") }, { value: "node", label: tx("runtimeNode") }, { value: "python", label: tx("runtimePython") }]} /></Field>
-            <Field label={tx("projectRoot")} htmlFor={`${fieldId}-root`}><Input id={`${fieldId}-root`} aria-label={tx("projectRoot")} placeholder={tx("projectRootPlaceholder")} value={projectRoot} onChange={event => { setProjectRoot(event.target.value); setPreflight(null); setPlan(null) }} /></Field>
-            <Field label={tx("deploymentTarget")} htmlFor={`${fieldId}-target`} help={t("overrideServerId")} helpId={`${fieldId}-target-help`} zh={t("uploads") === "项目上传"}><Input id={`${fieldId}-target`} aria-label={t("overrideServerId")} aria-describedby={`${fieldId}-target-help`} placeholder={t("overrideServerId")} value={serverId} onChange={event => setServerId(event.target.value)} /></Field>
-            <PackageManagerFields value={packageManagerOverride} onChange={value => { setPackageManagerOverride(value); setPreflight(null); setPlan(null) }} choices={plan?.recommended_choices || preflight?.metadata.node_package_manager?.recommended_choices || []} disabled={busy || !deliveryDraft} zh={t("uploads") === "项目上传"} />
-          </fieldset></details>
-          {selectedBuild?.status === "success" && <fieldset disabled={busy || !deliveryDraft} className="border-t pt-3">
-            <legend className="mb-3 text-sm font-medium">{tx("deploymentOptions")}</legend>
-            <div className="grid gap-3 md:grid-cols-3">
-              <div className="text-sm"><div className="text-xs text-muted-foreground">{tx("deploymentTarget")}</div><div className="break-all font-mono">{serverId.trim() || (typeof selectedBuild.manifest?.id === "string" ? selectedBuild.manifest.id : tx("unavailableTarget"))}</div></div>
-              <label className="flex items-start gap-2 text-sm"><input type="checkbox" className="mt-1" checked={deployOverwrite} onChange={event => setDeployOverwrite(event.target.checked)} /><span><span className="font-medium">{tx("overwriteExisting")}</span><span className="block text-xs text-muted-foreground">{tx("overwriteExistingDesc")}</span></span></label>
-              <label className="flex items-start gap-2 text-sm" htmlFor={`${fieldId}-start`}><input id={`${fieldId}-start`} type="checkbox" className="mt-1" aria-label={tx("startAfterDeploy")} aria-describedby={`${fieldId}-start-help`} checked={deployStart} onChange={event => setDeployStart(event.target.checked)} /><FieldLabel className="font-medium" label={tx("startAfterDeploy")} help={tx("startAfterDeployDesc")} helpId={`${fieldId}-start-help`} zh={t("uploads") === "项目上传"} /></label>
-            </div>
-          </fieldset>}
-          {settingsDirty && <Button variant="outline" disabled={busy || !deliveryDraft} onClick={() => {
+          <div className="delivery-stage-grid">
+            <section className="delivery-stage-panel" aria-labelledby={`${fieldId}-build-heading`}>
+              <div className="delivery-stage-heading"><h2 id={`${fieldId}-build-heading`}>{t("uploads") === "项目上传" ? "构建" : "Build"}</h2><span>{selectedBuild ? `${localizeStatus(t, selectedBuild.status)} · ${selectedBuild.runtime}` : tx("noBuild")}</span></div>
+              <details><summary className="cursor-pointer text-sm font-medium">{tx("advancedSettings")}</summary><fieldset disabled={busy || !deliveryDraft} className="gate-form-fields mt-4">
+                <Field label={t("runtimeType")} htmlFor={`${fieldId}-runtime`}><FilterRadio id={`${fieldId}-runtime`} label={t("runtimeType")} hideLabel disabled={busy || !deliveryDraft} value={runtimeOverride} onChange={value => { setRuntimeOverride(value); setPreflight(null); setPlan(null) }} options={[{ value: "auto", label: tx("runtimeAuto") }, { value: "node", label: tx("runtimeNode") }, { value: "python", label: tx("runtimePython") }]} /></Field>
+                <Field label={tx("projectRoot")} htmlFor={`${fieldId}-root`}><Input id={`${fieldId}-root`} aria-label={tx("projectRoot")} placeholder={tx("projectRootPlaceholder")} value={projectRoot} onChange={event => { setProjectRoot(event.target.value); setPreflight(null); setPlan(null) }} /></Field>
+                <PackageManagerFields value={packageManagerOverride} onChange={value => { setPackageManagerOverride(value); setPreflight(null); setPlan(null) }} choices={plan?.recommended_choices || preflight?.metadata.node_package_manager?.recommended_choices || []} disabled={busy || !deliveryDraft} zh={t("uploads") === "项目上传"} />
+              </fieldset></details>
+              <div className="delivery-stage-actions">
+                <Button variant={selectedBuild?.status === "success" ? "outline" : "default"} onClick={() => void createBuild()} disabled={busy}>{t("createBuild")}</Button>
+                {selectedBuild && canRequestStop(selectedBuild) && <Button variant="outline" onClick={() => void requestStopBuild()} disabled={busy}>{t("requestStopBuild")}</Button>}
+                <ActionMenu label={t("uploads") === "项目上传" ? "更多构建操作" : "More build actions"}>
+                  <ActionMenuItem onClick={() => void runPreflight()} disabled={busy}>{tx("runPreflight")}</ActionMenuItem>
+                  {preflight && <ActionMenuItem onClick={() => void runPreflight(selectedUploadId, true)} disabled={busy}>{tx("forceRefresh")}</ActionMenuItem>}
+                  <ActionMenuItem onClick={() => void previewPlan()} disabled={busy}>{tx("previewPlan")}</ActionMenuItem>
+                </ActionMenu>
+              </div>
+            </section>
+            <section className="delivery-stage-panel" aria-labelledby={`${fieldId}-deploy-heading`}>
+              <div className="delivery-stage-heading"><h2 id={`${fieldId}-deploy-heading`}>{t("uploads") === "项目上传" ? "部署" : "Deploy"}</h2><span>{latestDeployment ? `${localizeStatus(t, latestDeployment.status)} · ${latestDeployment.server_id}` : tx("notDeployed")}</span></div>
+              <fieldset disabled={busy || !deliveryDraft} className="gate-form-fields">
+                <Field label={tx("deploymentTarget")} htmlFor={`${fieldId}-target`} help={t("overrideServerId")} helpId={`${fieldId}-target-help`} zh={t("uploads") === "项目上传"}><Input id={`${fieldId}-target`} aria-label={t("overrideServerId")} aria-describedby={`${fieldId}-target-help`} placeholder={typeof selectedBuild?.manifest?.id === "string" ? selectedBuild.manifest.id : t("overrideServerId")} value={serverId} onChange={event => setServerId(event.target.value)} /></Field>
+                {selectedBuild?.status === "success" && <div className="delivery-deploy-options">
+                  <label className="flex items-start gap-2 text-sm"><input type="checkbox" className="mt-1" checked={deployOverwrite} onChange={event => setDeployOverwrite(event.target.checked)} /><FieldLabel className="font-medium" label={tx("overwriteExisting")} help={tx("overwriteExistingDesc")} zh={t("uploads") === "项目上传"} /></label>
+                  <label className="flex items-start gap-2 text-sm" htmlFor={`${fieldId}-start`}><input id={`${fieldId}-start`} type="checkbox" className="mt-1" aria-label={tx("startAfterDeploy")} aria-describedby={`${fieldId}-start-help`} checked={deployStart} onChange={event => setDeployStart(event.target.checked)} /><FieldLabel className="font-medium" label={tx("startAfterDeploy")} help={tx("startAfterDeployDesc")} helpId={`${fieldId}-start-help`} zh={t("uploads") === "项目上传"} /></label>
+                </div>}
+              </fieldset>
+              {selectedBuild?.status === "success" && <div className="delivery-stage-actions">
+                <Button variant="outline" disabled={busy} onClick={() => setEditingBuildId(selectedBuild.id)}>{t("edit")} · {t("manifest")}</Button>
+                <Button variant={latestDeployment?.status === "success" ? "outline" : "default"} onClick={() => void deployBuild()} disabled={busy}>{t("deployBuild")}</Button>
+                {latestDeployment?.status === "success" && <Button asChild><a href={`#/servers/${encodeURIComponent(latestDeployment.server_id)}`}>{t("viewServerDetail")}</a></Button>}
+              </div>}
+            </section>
+          </div>
+          {settingsDirty && <div className="delivery-options-save"><Button variant="outline" disabled={busy || !deliveryDraft} onClick={() => {
             setBusy(true)
             void (selectedBuild ? saveDeliveryConfiguration(selectedBuild.id, mergeManifestPatch(selectedBuild.manifest || {}, configDrafts[selectedBuild.id] || deliveryDraft?.manifest_patch || {})) : saveBuildOptions()).catch(notifyError).finally(() => setBusy(false))
-          }}>{t("uploads") === "项目上传" ? "保存交付选项" : "Save delivery options"}</Button>}
-          <div className="delivery-task-actions flex flex-wrap items-center gap-2 border-t pt-3">
-            <Button variant="secondary" onClick={() => void runPreflight()} disabled={busy}>{tx("runPreflight")}</Button>
-            {preflight && <Button variant="outline" onClick={() => void runPreflight(selectedUploadId, true)} disabled={busy}>{tx("forceRefresh")}</Button>}
-            <Button variant="secondary" onClick={() => void previewPlan()} disabled={busy}>{tx("previewPlan")}</Button>
-            <Button onClick={() => void createBuild()} disabled={busy}>{t("createBuild")}</Button>
-            {selectedBuild?.status === "success" && <Button variant="outline" disabled={busy} onClick={() => setEditingBuildId(selectedBuild.id)}>{t("edit")} · {t("manifest")}</Button>}
-            {latestDeployment?.status === "success" && <Button asChild variant="outline"><a href={`#/servers/${encodeURIComponent(latestDeployment.server_id)}`}>{t("viewServerDetail")}</a></Button>}
-            {selectedBuild?.status === "success" && <Button variant="secondary" onClick={() => void deployBuild()} disabled={busy}>{t("deployBuild")}</Button>}
-            {selectedBuild && canRequestStop(selectedBuild) && <Button variant="outline" onClick={() => void requestStopBuild()} disabled={busy}>{t("requestStopBuild")}</Button>}
-          </div>
+          }}>{t("uploads") === "项目上传" ? "保存选项草稿" : "Save options draft"}</Button></div>}
         </>}
       </CardContent>
     </Card>
     {selectedUpload && preflight ? <PreflightCard preflight={preflight} t={t} /> : null}
-    {selectedUpload && plan ? <BuildPlanCard plan={plan} t={t} /> : null}
+    {selectedUpload && plan ? plan.buildable && !plan.warnings.length
+      ? <details className="rounded-md border bg-card px-4 py-3"><summary className="cursor-pointer text-sm font-medium">{tx("previewPlan")}</summary><div className="pt-3"><BuildPlanCard plan={plan} t={t} /></div></details>
+      : <BuildPlanCard plan={plan} t={t} /> : null}
     {selectedBuild && <>
       <BuildHintCard build={selectedBuild} t={t} />
       <div className="grid items-start gap-4 xl:grid-cols-[minmax(0,1.2fr)_minmax(0,0.8fr)]">
@@ -690,7 +699,7 @@ export function BuildsPage({ t, initialBuildId = "" }: { t: TFunction; initialBu
 
     {activeSection === "builds" ? <BuildRecordsTable builds={builds} busy={busy} selectedBuildId={selectedBuildId} canRequestStop={canRequestStop} onShowBuild={(build) => showBuild(build, "workspace")} onLoadLogs={(build) => showBuild(build, "logs")} onRequestStop={(id) => void requestStopBuild(id)} onDeploy={(id) => void deployBuild(id)} onRetry={retryBuild} onDelete={(build) => void deleteBuild(build)} t={t} /> : null}
     {activeSection === "deployments" ? <>
-      {selectedDeployment && <Card>
+      {selectedDeployment?.rollback_available && <Card>
         <CardHeader><CardTitle>{tx("rollbackSummary")}</CardTitle></CardHeader>
         <CardContent className="grid gap-3 md:grid-cols-3">
           <div className="rounded-md bg-muted/30 px-3 py-2 text-sm"><div className="text-xs text-muted-foreground">{tx("deploymentTarget")}</div><div className="break-all font-mono">{selectedDeployment.server_id}</div></div>

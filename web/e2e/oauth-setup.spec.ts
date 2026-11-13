@@ -183,7 +183,7 @@ for (const locale of ["en-US", "zh-CN"] as const) {
     const model = await setup(page, locale, "light", { signing_keys: activeKeys })
     const resource = page.locator("#oauth-resource")
     const otherMode = page.getByRole("tab", { name: zh ? "外部身份提供方" : "External identity provider", exact: true })
-    const refresh = page.locator(".oauth-infrastructure").getByRole("button", { name: zh ? "刷新" : "Refresh", exact: true })
+    const refresh = page.getByRole("button", { name: zh ? "刷新当前页面" : "Refresh current page", exact: true })
     await expect(page.locator(".oauth-setup-guidance")).toHaveCount(0)
     await resource.fill("https://manual-draft.example.test/mcp")
     await expect(refresh).toBeDisabled()
@@ -219,18 +219,13 @@ for (const locale of ["en-US", "zh-CN"] as const) {
     await expect(resource).toHaveValue("https://manual-draft.example.test/mcp")
     expect(model.writes).toHaveLength(1)
   })
-  test(`OAuth key generation needs confirmation and a fresh successful read ${locale} @permissions`, async ({ page }) => {
+  test(`OAuth initial key generation is direct and still requires a fresh successful read ${locale} @permissions`, async ({ page }) => {
     const model = await setup(page, locale)
     let releaseRead!: () => void
     const held = new Promise<void>(resolve => { releaseRead = resolve })
     model.afterRotateRead = () => held
     await page.locator("#oauth-generate-key").click()
-    const confirmation = page.getByRole("alertdialog", { name: zh ? "生成或轮换签名密钥？" : "Generate or rotate signing key?", exact: true })
-    expect(model.rotations).toBe(0)
-    await confirmation.getByRole("button", { name: zh ? "取消" : "Cancel", exact: true }).click()
-    expect(model.rotations).toBe(0)
-    await page.locator("#oauth-generate-key").click()
-    await confirmation.getByRole("button", { name: zh ? "生成密钥" : "Generate key", exact: true }).click()
+    await expect(page.getByRole("alertdialog")).toHaveCount(0)
     await expect.poll(() => model.rotations).toBe(1)
     await expect(enableSwitch(page, zh)).toBeDisabled()
     await expect.poll(() => model.reads).toBeGreaterThanOrEqual(2)
@@ -252,13 +247,12 @@ for (const locale of ["en-US", "zh-CN"] as const) {
     const model = await setup(page, locale)
     model.configFailure = true
     await page.locator("#oauth-generate-key").click()
-    await page.getByRole("alertdialog").getByRole("button", { name: zh ? "生成密钥" : "Generate key", exact: true }).click()
     await expect(page.getByRole("button", { name: zh ? "重试密钥状态" : "Retry key status", exact: true })).toBeEnabled()
     await expect(enableSwitch(page, zh)).toBeDisabled()
     await expect(page.locator("#oauth-generate-key")).toHaveCount(0)
     await expect(page.locator(".oauth-setup-guidance")).toHaveCount(0)
     expect(model.rotations).toBe(1)
-    await capture(page, `key-read-failed-${locale}`, "confirmed mock key operation; follow-up read fails; enable remains unavailable")
+    await capture(page, `key-read-failed-${locale}`, "direct initial key operation; follow-up read fails; enable remains unavailable")
     model.configFailure = false
     await page.getByRole("button", { name: zh ? "重试密钥状态" : "Retry key status", exact: true }).click()
     await expect(enableSwitch(page, zh)).toBeEnabled()
@@ -277,7 +271,7 @@ for (const locale of ["en-US", "zh-CN"] as const) {
   test(`OAuth enabled config stays enabled after failed load and can be explicitly disabled ${locale} @permissions`, async ({ page }) => {
     const model = await setup(page, locale, "light", { enabled: true, signing_keys: activeKeys })
     model.configFailure = true
-    await page.getByRole("button", { name: zh ? "刷新" : "Refresh", exact: true }).click()
+    await page.getByRole("button", { name: zh ? "刷新当前页面" : "Refresh current page", exact: true }).click()
     await expect(page.getByRole("button", { name: zh ? "重试读取 OAuth 配置" : "Retry loading OAuth configuration", exact: true })).toBeEnabled()
     await expect(enableSwitch(page, zh)).toBeChecked()
     await expect(enableSwitch(page, zh)).toBeEnabled()

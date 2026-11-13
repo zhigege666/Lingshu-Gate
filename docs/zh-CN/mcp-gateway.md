@@ -14,7 +14,7 @@ Lingshu Gate 在 `POST /mcp` 提供统一的认证 Streamable HTTP MCP 入口，
 - 内容协商：遵循协议的 Streamable HTTP 要求。
 - 请求模型：HTTP 无状态；每个请求都必须认证，并遵守所用协议版本的消息格式。
 
-`2026-07-28` 客户端先调用 `server/discover`。握手客户端先调用 `initialize`（携带 `protocolVersion`、`capabilities` 和 `clientInfo`），再发送 `notifications/initialized`。初始化不要求协议版本 Header；不支持的提议版本会协商为 `2025-11-25`。后续请求使用协商后的 `MCP-Protocol-Version`；缺少 Header 且没有当前协议元数据时，按 Streamable HTTP 兼容规则默认为 `2025-03-26`。未知 Header 版本会被拒绝。Gate 不分配 MCP Session，为握手客户端提供 JSON 响应、`ping`、`tools/list` 和 `tools/call`；不要求或提供 GET/SSE 和 DELETE。
+`2026-07-28` 客户端先调用 `server/discover`。握手客户端先调用 `initialize`（携带 `protocolVersion`、`capabilities` 和 `clientInfo`），再发送 `notifications/initialized`。初始化不要求协议版本 Header；不支持的提议版本会协商为 `2025-11-25`。后续请求使用协商后的 `MCP-Protocol-Version`；缺少 Header 且没有当前协议元数据时，按 Streamable HTTP 兼容规则默认为 `2025-03-26`。未知 Header 版本会被拒绝。Gate 不分配 MCP Session，为握手客户端提供 JSON 响应、`ping`、`tools/list` 和 `tools/call`。有权工具的变更通知流见下文；仍不提供会话 DELETE。
 
 从 `tools/list` 获取工具名称，不要根据服务 ID 推测名称。旧版客户端不需要 `Mcp-Method`、`Mcp-Name` 或当前协议的每请求元数据，可保留既有 Endpoint 和 Bearer Token 配置。下游协议独立选择，按下文在各服务的 Manifest 中配置。
 
@@ -36,32 +36,35 @@ Header 与参数不一致时，Gate 会在 Dispatch 前拒绝请求。携带当�
 ## 从发现到授权
 
 ```mermaid
-flowchart LR
-    D["发现"] --> A["规则分析"]
-    A --> R["人工复核"]
-    R --> P["发布分类"]
-    P --> G["授权并调用"]
+flowchart TD
+    C["保存并连接 MCP"] --> S["自动同步工具目录"]
+    S --> A{"账号与客户端范围允许？"}
+    A -->|是| I["校验当前 Schema 并执行"]
+    A -->|否| E["显示缺失的权限"]
+    I --> R["返回结果与审计记录"]
 ```
 
-发现不等于授权。下游工具只有在以下适用检查全部通过时才可调用：
+连接时同步工具目录。下游声明 `tools.listChanged` 时，Gate 打开独立通知流，收到 `notifications/tools/list_changed` 后安排刷新；约 60 秒且带抖动的周期发现同时覆盖缺失或不支持通知的情况。密集通知由同一发现线程合并处理。刷新失败保留最近一次完整有效目录，按约 5 秒起、最长 5 分钟的指数退避自动重试。有效的空 `tools` 列表会退役工具，缺失或无效的 `result.tools` 不清空目录。目录没有变化时不更新权限策略修订。
 
-1. 调用方已认证；
-2. 调用方按需要拥有 `tools.read` 或 `tools.invoke`；
-3. 工具有当前、经过人工复核且已发布的读写分类；
-4. 调用方拥有对应服务或工具资源授权；
-5. 使用 API Token 时，其 scope 足够；
-6. 该调用方已配置必需的下游凭据。
+外部新增工具默认需要 `write`，不会采信工具名称、描述、Schema、manifest 声明或 annotation 作为只读权限。管理员可以在“工具权限”按需保存 `read` / `write` / `unknown`（禁用）或 `automatic`（恢复默认），一次保存生效，无需发布。`required_access` 和 `policy_source` 表示当前有效策略；历史 `status`、复核时间和风险证据不再作为普通调用的发布门禁。受专用控制面权限管理的内置工具不能通过通用工具策略降级。
 
-新增、变化、消失和重新出现的定义都要重新进入复核。Gate 不会根据工具名称、描述、Schema 或 annotation 推断权限。
+发现不授予新的访问范围。每次调用仍须同时满足身份、功能权限、账号/角色资源授权、Token/OAuth 范围、有效期、服务身份绑定、参数限制和所需凭据。服务持续授权依原级别覆盖新工具；精确工具选择不自动增加。元数据变化不删除已有本地访问策略，但变化后的 Schema 必须重新 describe；退役、服务替换、禁用或策略变更不会让旧精确授权复活。
 
-第一方分类操作为：
+兼容保留 `gate_tool_classification_list`、`gate_tool_classification_analyze`、`gate_tool_classification_review` 和 `gate_tool_classification_publish`。`review` 支持一次保存策略；分析只提供提示；旧发布操作仅维护可选的组路由安全证据，日常连接和调用不需要它。这些证据用于跨实例合同比较与路由约束。只读重试依据可信本地只读策略或 Gate 内置只读契约，派发前仍重新核验权限与工具版本；不能把自动默认伪装成人工复核。
 
-- `gate_tool_classification_list`
-- `gate_tool_classification_analyze`
-- `gate_tool_classification_review`
-- `gate_tool_classification_publish`
+本地策略保存在数据库中，普通重连和 Gate 重启后继续生效。工具从完整目录退役后，只有在同一已验证服务身份下重新出现，才恢复保守的读写默认要求；旧只读覆盖和旧精确授权不复活，明确禁用继续生效。替换后的服务保持不可用，直到管理员明确选择本地策略。缺乏充分身份或审核证据的历史记录不会提升为可信只读策略。
 
-分析只使用本地规则并生成复核输入。复核与发布是两个独立写操作，发布必须绑定当前 fingerprint。
+### 客户端工具列表更新
+
+Gate 声明 `tools.listChanged`。`2025-*` 握手客户端可携带已协商协议版本及 `Accept: text/event-stream` 打开 `GET /mcp`；`2026-07-28` 客户端在 `POST /mcp` 调用 `subscriptions/listen`，该版本的 GET 返回 405 和 `Allow: POST`。订阅确认与后续通知绑定订阅 ID。通知流每 15 秒发送心跳，300 秒后结束，由客户端重新打开；每个 MCP 入口最多允许 64 个流，每个认证身份最多四个。
+
+Gate 约每五秒重新检查认证、当前授权和发现模式，再比较调用者可见的工具列表。仅可见内容变化会发送 `notifications/tools/list_changed`，通知本身不包含工具名称或数量。认证凭据撤销／到期或用户停用时，下一次复核关闭流；资源规则调整则重新计算当前有权目录。按需模式的新业务工具可立即通过 search/describe 发现，无需更改固定入口；固定项或入口变化才可能改变这份列表。客户端需要监听并重新发现，或主动获取新列表，才能替换自身缓存；该机制不会扩大 OAuth 同意或精确工具范围。
+
+### 同步状态
+
+服务 API 的 `tool_sync` 与进程／连接健康独立，控制台展示状态、最近成功同步、新增／更新／移除数量和下次重试。`last_changed_at` 仅在目录内容变更时更新，一次无变化的成功轮询不代表新增工具。`idle`、`syncing`、`ready`、`retrying`、`auth_required`、`disabled` 描述同步状态，不代表账号权限。
+
+HTTP 401/403 或凭据使用被拒绝时进入 `auth_required`，暂停自动重试并提示处理凭据。更新服务凭据后重新连接，或对运行中的服务点击“立即同步”。其他发现／会话故障按有界退避自动恢复。保留的目录只是最近一次接受的快照，不保证远端当前可以接受调用。
 
 ## 下游 Streamable HTTP
 
@@ -82,7 +85,7 @@ flowchart LR
 }
 ```
 
-Gate 发送 `initialize`，校验返回的版本及服务信息，再发送 `notifications/initialized`。协商结果必须属于上述三个握手版本。后续请求使用协商版本以及初始化时服务端分配的 Session ID，支持 JSON 和 POST SSE 响应。会话限定在当前连接与凭据内，不在不同用户的客户端之间共享。关闭会话时发送 DELETE，允许下游返回 404/405。会话过期返回 404 时连接失效，Gate 可恢复一次；仅已发布只读、合同未变且当前权限和参数策略仍通过的调用可重试一次。写调用、分组调用、变化合同或恢复失败不会自动重放。
+Gate 发送 `initialize`，校验返回的版本及服务信息，再发送 `notifications/initialized`。协商结果必须属于上述三个握手版本。后续请求使用协商版本以及初始化时服务端分配的 Session ID，支持 JSON 和 POST SSE 响应。服务声明工具变更能力时，握手协议使用独立 GET/SSE 流，`2026-07-28` 使用 `subscriptions/listen`；不支持 GET、方法被拒绝或工具变更订阅未获接受时，回到周期发现。会话限定在当前连接与凭据内，不在不同用户的客户端之间共享。关闭会话时发送 DELETE，允许下游返回 404/405。会话过期返回 404 时连接失效，并安排重新握手和发现；仅由可信本地只读策略或 Gate 内置只读契约覆盖、合同未变且当前权限和参数策略仍通过的调用可重试一次。写调用、分组调用、变化合同或恢复失败不会自动重放。
 
 超时、普通 HTTP/认证错误、无效发现结果及业务方法错误不触发协商或重放；前述有界会话恢复另行处理。自动协商不会重新启动在发现阶段退出的 stdio 进程；要求首条消息必须为初始化的服务，可显式固定版本。本次不增加使用独立事件与消息端点的旧 HTTP+SSE 传输、服务端主动请求或可恢复的 GET 事件流。Registry 中任意命名冲突都会让发现与调用一致地拒绝处理，可见性过滤不改变工具标识。
 
@@ -128,7 +131,7 @@ Console 和 `/v1/mcp/configs` API 支持列表、校验、创建、更新、应�
 4. 复核配置 Diff 和解析到的凭据 ID。
 5. 应用或启动服务。
 6. 检查健康状态和发现的定义。
-7. 分析、复核并发布分类。
+7. 连接后自动同步目录；需要调整权限级别时保存本地策略。
 8. 添加最小资源授权。
 9. 先验证一次只读调用，再开放写权限。
 
@@ -142,7 +145,7 @@ Gate 只注册属于自身控制和交付边界的操作：
 |---|---|
 | `gate_system_debug` | 受限只读的概览、服务详情、日志、事件和诊断 |
 | `gate_file_upload_*` | 为明确接受文件引用的调用创建用户绑定、短期有效的 `fileRef` |
-| `gate_tool_classification_*` | 工具分类的列表、规则分析、人工复核和发布 |
+| `gate_tool_classification_*` | 工具策略查询与一次保存；旧分析/发布操作保留兼容 |
 | 项目交付 `gate_*` 工具 | 上传、构建、部署、启动、状态和工具对账 |
 
 完整交付工具列表见 [项目交付](project-delivery.md)。第一方工具与下游工具遵循相同的认证、权限、scope 和审计检查。
@@ -174,4 +177,4 @@ MCP 等待期限到期时返回结构化 `mcp_request_timeout`，标明传输、
 
 ## 可选发现与集成
 
-[固定项和结果预算](on-demand-tools.md)保留相同调用检查，[参数策略](argument-policies.md)在执行前限制实际输入。[连接器](private-connector.md)和[OpenAPI 适配器](openapi-adapter.md)提供单独配置的 HTTP MCP 地址，仍须在 Core 注册、审核、发布及授权。Gate 的 `/docs` 描述控制 API；适配器消费另一个本地上游 OpenAPI 文件。[首次调用演示](first-call.md)无需桌面客户端即可验证只读授权、写入拒绝和撤销。
+[固定项和结果预算](on-demand-tools.md)保留相同调用检查，[参数策略](argument-policies.md)在执行前限制实际输入。[连接器](private-connector.md)和[OpenAPI 适配器](openapi-adapter.md)提供单独配置的 HTTP MCP 地址，仍须在 Core 注册并同步，再按账号与客户端范围授权。Gate 的 `/docs` 描述控制 API；适配器消费另一个本地上游 OpenAPI 文件。[首次调用演示](first-call.md)无需桌面客户端即可验证只读授权、写入拒绝和撤销。

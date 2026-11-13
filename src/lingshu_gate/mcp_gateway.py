@@ -19,6 +19,7 @@ from lingshu_gate.access_control import AccessControlStore, AccessDeniedError
 from lingshu_gate.auth import AuthPrincipal
 from lingshu_gate.config import Settings
 from lingshu_gate.models import ToolDefinition, ToolInvokeResponse
+from lingshu_gate.mcp_notifications import GatewayToolNotifications, subscription_tools_requested, visible_tools_fingerprint
 from lingshu_gate.protocol.capabilities import GatewayCapabilityPolicy
 from lingshu_gate.protocol.version import GATEWAY_HANDSHAKE_VERSIONS, MCP_PROTOCOL_VERSION
 from lingshu_gate.protocol.sdk_adapter import OfficialSdkTypesAdapter
@@ -46,7 +47,7 @@ from lingshu_gate.transports.oauth import (
 JSONRPC_VERSION = "2.0"
 SERVER_NAME = "lingshu_gate"
 GATEWAY_INSTRUCTIONS = (
-    "Tool discovery and invocation are filtered by published classifications, "
+    "Tool discovery and invocation follow local access policy and existing "
     "resource grants, and token scopes."
 )
 
@@ -67,6 +68,7 @@ def register_mcp_gateway_route(
     """注册聚合 MCP 网关；发现与调用都复用统一访问策略。"""
 
     capability_policy = GatewayCapabilityPolicy()
+    tool_notifications = GatewayToolNotifications(settings)
     result_cache = result_cache or ResultCache(registry, access_store, catalog)
     allowed_origins = resolve_allowed_origins(
         settings.mcp_allowed_origins,
@@ -76,7 +78,7 @@ def register_mcp_gateway_route(
     if oauth_boundary is not None:
         register_oauth_protected_resource_routes(app, oauth_boundary, include_root=path == "/mcp", metadata_path=metadata_path)
 
-    @app.post(path, tags=["mcp-gateway"])
+    @app.api_route(path, methods=["GET", "POST"], tags=["mcp-gateway"])
     async def mcp_gateway(
         request: Request,
         principal: AuthPrincipal = Depends(require_mcp_viewer),
@@ -96,10 +98,19 @@ def register_mcp_gateway_route(
                 protocol_version=MCP_PROTOCOL_VERSION,
             )
 
-        try:
-            message = await request.json()
-        except Exception:  # noqa: BLE001 - protocol boundary normalizes parse errors
-            return _error_response(None, -32700, "Parse error")
+        legacy_stream = request.method == "GET"
+        message: Any
+        if legacy_stream:
+            if request.headers.get("mcp-protocol-version") == MCP_PROTOCOL_VERSION:
+                return Response(status_code=405, headers={"Allow": "POST"})
+            # Reuse version, origin, authentication and discovery-mode handling;
+            # this synthetic request is never dispatched as an RPC operation.
+            message = {"jsonrpc": "2.0", "id": "gate-notification-stream", "method": "tools/list"}
+        else:
+            try:
+                message = await request.json()
+            except Exception:  # noqa: BLE001 - protocol boundary normalizes parse errors
+                return _error_response(None, -32700, "Parse error")
         if not isinstance(message, dict):
             return _error_response(None, -32600, "Invalid Request")
 
@@ -171,6 +182,45 @@ def register_mcp_gateway_route(
 
         preferences: dict[str, Any] = saved_preferences(principal) if authorization else {"tool_discovery_mode": mode, "pinned_tools": [], "result_budget": {"enabled": False}}
         budget_enabled = bool(authorization and preferences["result_budget"]["enabled"])
+        if legacy_stream or method == "subscriptions/listen" and protocol_context.protocol_version == MCP_PROTOCOL_VERSION:
+            if not any(part.split(";", 1)[0].strip().lower() == "text/event-stream"
+                       for part in request.headers.get("accept", "").split(",")):
+                return _error_response(None if legacy_stream else request_id, -32600,
+                    "Accept must include text/event-stream", settings, status_code=406,
+                    protocol_version=protocol_context.protocol_version)
+            try:
+                tools_requested = True if legacy_stream else subscription_tools_requested(message.get("params"))
+            except ValueError:
+                return _error_response(request_id, -32602, "Invalid notification subscription parameters", settings, status_code=400,
+                    protocol_version=protocol_context.protocol_version)
+            identity = _notification_identity(principal)
+
+            def visible_snapshot() -> str:
+                current = require_mcp_viewer(request)
+                if _notification_identity(current) != identity:
+                    raise AccessDeniedError("authorization changed", required_access="read", granted_access="none")
+                current_preferences = saved_preferences(current) if authorization else preferences
+                current_mode = str(current_preferences["tool_discovery_mode"]) if authorization else mode
+                tools = _project_gateway_tools(registry, access_store, current, current_mode, catalog,
+                    current_preferences, bool(authorization and current_preferences["result_budget"]["enabled"]))
+                return visible_tools_fingerprint(tools, settings.mcp_max_message_bytes)
+
+            try:
+                return await tool_notifications.open(request, identity=identity,
+                    protocol_version=protocol_context.protocol_version,
+                    request_id=None if legacy_stream else request_id, snapshot=visible_snapshot,
+                    tools_requested=tools_requested)
+            except AccessDeniedError:
+                return _error_response(None if legacy_stream else request_id, -32001,
+                    "MCP authorization is unavailable", settings, status_code=403,
+                    protocol_version=protocol_context.protocol_version)
+            except ToolNamespaceCollisionError as exc:
+                return _namespace_collision_response(request_id, exc, settings, protocol_context,
+                    disclose_name=await run_in_threadpool(_can_disclose_collision, exc, registry, access_store, principal))
+            except (ToolExecutionError, ValueError):
+                return _error_response(None if legacy_stream else request_id, -32603,
+                    "Tool notification stream is unavailable", settings, status_code=503,
+                    protocol_version=protocol_context.protocol_version)
         call_params = message.get("params")
         if method == "tools/call" and isinstance(call_params, dict) and call_params.get("name") == RESULT_TOOL and path == "/mcp":
             try:
@@ -199,8 +249,8 @@ def register_mcp_gateway_route(
             try:
                 catalog.check_namespace()
                 if method == "tools/list":
-                    pins = await run_in_threadpool(project_pins, catalog, principal, preferences)
-                    tools = [*catalog_tools(), *(pin.payload for pin in pins), *([result_read_tool()] if budget_enabled else [])]
+                    tools = await run_in_threadpool(_project_gateway_tools, registry, access_store, principal,
+                        mode, catalog, preferences, budget_enabled)
                     result = OfficialSdkTypesAdapter.list_tools(tools, server_name=SERVER_NAME,
                         server_version=settings.version, protocol_version=protocol_context.protocol_version)
                     return _result_response(request_id, result, settings, protocol_version=protocol_context.protocol_version)
@@ -290,14 +340,8 @@ def register_mcp_gateway_route(
             # 工具发现也包含同步 SQLite 对账和权限读取，复用调用路径的线程池以免阻塞协议事件循环。
             try:
                 # 发现与调用必须使用同一全局命名规则，隐藏的冲突也不能产生可列出却不可调用的工具。
-                namespace = ToolNamespace(registry.list_definitions())
-                definitions = await run_in_threadpool(
-                    access_store.visible_tools, principal,
-                    [entry.definition for entry in namespace.entries],
-                )
-                tools = [item[1] for item in _gateway_tools(registry, definitions, namespace=namespace)]
-                if budget_enabled:
-                    tools.append(result_read_tool())
+                tools = await run_in_threadpool(_project_gateway_tools, registry, access_store, principal,
+                    mode, catalog, preferences, budget_enabled)
             except ToolNamespaceCollisionError as exc:
                 return _namespace_collision_response(request_id, exc, settings, protocol_context,
                     disclose_name=await run_in_threadpool(_can_disclose_collision, exc, registry, access_store, principal))
@@ -334,6 +378,31 @@ def register_mcp_gateway_route(
             status_code=404,
             protocol_version=protocol_context.protocol_version,
         )
+
+
+def _notification_identity(principal: AuthPrincipal) -> tuple[Any, ...]:
+    return (principal.id, principal.auth_type, principal.token_id, principal.session_id,
+            principal.external_grant_id, principal.oauth_issuer, principal.oauth_resource, principal.oauth_client_id)
+
+
+def _project_gateway_tools(
+    registry: ToolRegistry, access_store: AccessControlStore, principal: AuthPrincipal,
+    mode: str, catalog: ToolCatalog | None, preferences: dict[str, Any], budget_enabled: bool,
+) -> list[dict[str, Any]]:
+    """One authorized projection for tools/list and notification comparisons."""
+    if mode == "on_demand" and catalog is not None:
+        catalog.check_namespace()
+        pins = project_pins(catalog, principal, preferences)
+        tools = [*catalog_tools(), *(pin.payload for pin in pins)]
+    elif mode == "direct":
+        namespace = ToolNamespace(registry.list_definitions())
+        definitions = access_store.visible_tools(principal, [entry.definition for entry in namespace.entries])
+        tools = [item[1] for item in _gateway_tools(registry, definitions, namespace=namespace)]
+    else:
+        raise AccessDeniedError("unsupported discovery mode", required_access="read", granted_access="none")
+    if budget_enabled:
+        tools.append(result_read_tool())
+    return tools
 
 
 async def _call_tool(

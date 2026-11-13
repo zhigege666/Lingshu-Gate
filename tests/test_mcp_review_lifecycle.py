@@ -71,7 +71,7 @@ def test_runtime_restart_preserves_entire_review_and_oauth_snapshot(lifecycle, s
 
 
 @pytest.mark.parametrize("synchronize_during_outage", [False, True])
-def test_upgrade_only_new_tool_needs_review(lifecycle, synchronize_during_outage):
+def test_upgrade_keeps_old_safety_and_new_tool_defaults_write_without_review(lifecycle, synchronize_during_outage):
     manager, runtime, catalog, descriptor = lifecycle
     before = classification(catalog)
     manager.stop_server("demo")
@@ -84,6 +84,7 @@ def test_upgrade_only_new_tool_needs_review(lifecycle, synchronize_during_outage
     added = classification(catalog, "mcp.demo.added")
     assert added["status"] == "pending" and added["effective_access"] == "unknown"
     assert added["reviewed_at"] is None
+    assert added["required_access"] == "write" and added["access_policy_source"] == "default_write"
 
 
 @pytest.mark.parametrize("field,value", [
@@ -92,7 +93,7 @@ def test_upgrade_only_new_tool_needs_review(lifecycle, synchronize_during_outage
     ("outputSchema", {"type": "object"}),
     ("annotations", {"readOnlyHint": False}),
 ])
-def test_changed_definition_still_requires_review(lifecycle, field, value):
+def test_changed_definition_invalidates_safety_without_discarding_local_access_policy(lifecycle, field, value):
     manager, runtime, catalog, descriptor = lifecycle
     before = classification(catalog)
     manager.stop_server("demo")
@@ -103,6 +104,7 @@ def test_changed_definition_still_requires_review(lifecycle, field, value):
     current = classification(catalog)
     assert current["status"] == "stale" and current["effective_access"] == "unknown"
     assert current["fingerprint"] != before["fingerprint"]
+    assert current["required_access"] == before["required_access"]
 
 
 @pytest.mark.parametrize("synchronize_during_outage", [False, True])

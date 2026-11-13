@@ -199,24 +199,26 @@ for (const locale of ["en-US", "zh-CN"] as const) {
     await expect(update).toBeDisabled()
     await scopeTools(editor).locator('tr[data-row-key="synthetic-tool-0"]').getByRole("checkbox").check()
     await update.click()
+    await expect(editor).toHaveCount(0)
+    await expect(page.getByRole("alertdialog")).toHaveCount(0)
     expect(model.previews[0].tool_ids).toEqual([tools[0].id])
     expect(model.previews[0].rate_per_minute).toBe(30)
     expect(model.optionsReads).toBe(3)
-    expect(model.writes).toHaveLength(0)
-    await page.getByRole("alertdialog").getByRole("button", { name: zh ? "取消" : "Cancel", exact: true }).click()
+    expect(model.writes).toHaveLength(1)
+    expect(model.writes[0].body.tool_ids).toEqual([tools[0].id])
   })
 
-  test(`OAuth owner-visible exclusions provide classification review without a mutation ${locale}`, async ({ page }) => {
+  test(`OAuth owner-visible local-policy exclusions explain unavailable tools without a mutation ${locale}`, async ({ page }) => {
     const model = await setup(page, locale, [grant(1)])
-    model.unavailable = [{ server_id: "synthetic-plane", server_name: "Synthetic Plane MCP", reasons: [{ code: "classification_not_published", count: 30 }] }]
+    model.unavailable = [{ server_id: "synthetic-plane", server_name: "Synthetic Plane MCP", reasons: [{ code: "local_policy_disabled", count: 30 }] }]
     model.canReview = true
     await rows(page).getByRole("button", { name: zh ? "调整授权" : "Adjust", exact: true }).click()
     const editor = page.getByRole("dialog", { name: zh ? "调整授权范围" : "Adjust authorization scope", exact: true })
     await editor.getByRole("button", { name: zh ? "查看不可授权原因" : "Why unavailable", exact: true }).click()
     const reasons = page.getByRole("dialog", { name: zh ? "不可授权原因" : "Unavailable scope reasons", exact: true })
     await expect(reasons).toContainText("Synthetic Plane MCP")
-    await expect(reasons).toContainText(zh ? "分类尚未发布；需审核并发布 · 30" : "Classification is unpublished; review and publish it · 30")
-    const review = reasons.getByRole("link", { name: zh ? "在新页审核工具分类" : "Review tool classifications in a new tab", exact: true })
+    await expect(reasons).toContainText(zh ? "此工具已被本地策略停用 · 30" : "This tool is disabled by local policy · 30")
+    const review = reasons.getByRole("link", { name: zh ? "在新页查看工具策略" : "View tool policies in a new tab", exact: true })
     await expect(review).toHaveAttribute("href", "#/toolClassifications")
     await expect(review).toHaveAttribute("target", "_blank")
     expect(model.writes).toHaveLength(0)
@@ -234,7 +236,7 @@ for (const size of sizes) for (const locale of ["en-US", "zh-CN"] as const) {
     await page.setViewportSize(size)
     const model = await setup(page, locale, [grantAcrossSelectedMcps(1)])
     model.candidates = tools.slice(1)
-    model.unavailable = [{ server_id: "synthetic-plane", server_name: "Synthetic Plane MCP", reasons: [{ code: "classification_not_published", count: 30 }] }]
+    model.unavailable = [{ server_id: "synthetic-plane", server_name: "Synthetic Plane MCP", reasons: [{ code: "local_policy_disabled", count: 30 }] }]
     await rows(page).getByRole("button", { name: zh ? "调整授权" : "Adjust", exact: true }).click()
     const editor = page.getByRole("dialog", { name: zh ? "调整授权范围" : "Adjust authorization scope", exact: true })
     const body = editor.locator(".oauth-grant-edit-body"), picker = scopeTools(editor)
@@ -263,8 +265,7 @@ for (const size of sizes) for (const locale of ["en-US", "zh-CN"] as const) {
     // The MCP catalog and tool picker share the outer editor scroll. Check each
     // control in its section, while the save/cancel footer remains stationary.
     await alignScopeSection(editor, picker.locator(".oauth-bulk-selection"))
-    for (const control of [picker.getByRole("radio", { name: zh ? "仅选全部当前只读" : "All current read-only tools", exact: true }),
-      picker.getByRole("button", { name: zh ? "刷新可授权范围" : "Refresh available scope", exact: true }), save, cancel]) await expectInViewportAndUnobscured(control)
+    for (const control of [picker.getByRole("radio", { name: zh ? "仅选全部当前只读" : "All current read-only tools", exact: true }), save, cancel]) await expectInViewportAndUnobscured(control)
     const layout = await editor.evaluate(element => {
       const body = element.querySelector<HTMLElement>(".oauth-grant-edit-body")!, bodyBounds = body.getBoundingClientRect()
       const picker = element.querySelector(".oauth-tools")!, viewport = picker.querySelector<HTMLElement>(".ant-table-body")!, table = viewport.getBoundingClientRect()
@@ -391,7 +392,7 @@ for (const size of sizes) for (const locale of ["en-US", "zh-CN"] as const) for 
     await expect(revoked.getByRole("button", { name: zh ? "调整授权" : "Adjust", exact: true })).toHaveCount(0)
     await expect(revoked.getByRole("button", { name: zh ? "撤销" : "Revoke", exact: true })).toHaveCount(0)
     await capture(page, `grants-all-${suffix}`)
-    const trigger = revoked.getByRole("button", { name: zh ? "详情" : "Details", exact: true })
+    const trigger = revoked.getByRole("button", { name: "Synthetic research client", exact: true })
     await trigger.click()
     const details = page.getByRole("dialog", { name: zh ? "授权详情" : "Grant details", exact: true })
     // Measure the settled dialog, rather than a fractional enter-animation frame.
@@ -460,7 +461,7 @@ for (const locale of ['en-US', 'zh-CN'] as const) for (const mixed of [false, tr
     await expect(page.getByRole('alertdialog')).toHaveCount(0)
     const update = editor.getByRole('button', { name: zh ? '保存授权' : 'Save authorization', exact: true })
     await update.click()
-    const review = page.getByRole('alertdialog', { name: zh ? '确认更新当前连接？' : 'Update this connection?', exact: true })
+    const review = page.getByRole('alertdialog', { name: zh ? '允许新增的工具与服务范围？' : 'Allow the added tools and service access?', exact: true })
     await expect(review).toContainText('synthetic-tool-1')
     await expect(review).toContainText(zh ? '写入' : 'Write')
     await expect(review).toContainText(original.client_name)
@@ -569,7 +570,7 @@ test('pending scope preview blocks duplicate submission, keyboard close and mode
   await expect(editor.getByRole('spinbutton', { name: 'Calls per minute', exact: true })).toBeDisabled()
   await expect(scopeTools(editor).locator('tr[data-row-key="synthetic-tool-1"]').getByRole('checkbox')).toBeDisabled()
   const authorizationModes = editor.locator('.authorization-mcp-editor').getByRole('radio')
-  await expect(authorizationModes).toHaveCount(3)
+  await expect(authorizationModes).toHaveCount(4)
   for (const mode of await authorizationModes.all()) await expect(mode).toBeDisabled()
   for (const key of ['Tab', 'Shift+Tab']) {
     await page.keyboard.press(key)
@@ -577,7 +578,7 @@ test('pending scope preview blocks duplicate submission, keyboard close and mode
   }
   expect(model.writes).toHaveLength(0)
   release()
-  const confirmation = page.getByRole('alertdialog', { name: 'Update this connection?', exact: true })
+  const confirmation = page.getByRole('alertdialog', { name: 'Allow the added tools and service access?', exact: true })
   await expect(confirmation).toBeVisible()
   expect(model.previews).toHaveLength(1)
   await confirmation.getByRole('button', { name: 'Cancel', exact: true }).click()
@@ -623,12 +624,12 @@ for (const locale of ["en-US", "zh-CN"] as const) {
       Object.defineProperty(navigator, "clipboard", { configurable: true, value: { writeText: () => pending } })
       ;(window as unknown as { finishSyntheticCopy: () => void }).finishSyntheticCopy = finish
     }, outcome)
-    await grantRow(page, grant(1).id).getByRole("button", { name: zh ? "详情" : "Details", exact: true }).click()
+    await grantRow(page, grant(1).id).getByRole("button", { name: "Synthetic research client", exact: true }).click()
     const details = page.getByRole("dialog", { name: zh ? "授权详情" : "Grant details", exact: true })
     await details.getByRole("button", { name: zh ? "复制授权 ID" : "Copy grant ID", exact: true }).click()
     await page.keyboard.press("Escape")
     await expect(details).toHaveCount(0)
-    await grantRow(page, grant(2).id).getByRole("button", { name: zh ? "详情" : "Details", exact: true }).click()
+    await grantRow(page, grant(2).id).getByRole("button", { name: "Synthetic research client", exact: true }).click()
     await expect(details.getByLabel("Grant ID", { exact: true })).toHaveValue(grant(2).id)
     await page.evaluate(() => (window as unknown as { finishSyntheticCopy: () => void }).finishSyntheticCopy())
     await expect(details.locator("p[role=status]")).toHaveCount(0)
@@ -643,12 +644,12 @@ for (const locale of ["en-US", "zh-CN"] as const) {
     await expectGrantPage(page, locale, 1, 950, records.slice(0, 15))
     await stateTab(page, zh ? "全部" : "All").click()
     await expectGrantPage(page, locale, 1, 1000, records.slice(0, 15))
-    const search = authorizationPage(page).getByRole("searchbox", { name: zh ? "搜索授权" : "Search authorizations", exact: true })
+    const search = authorizationPage(page).getByRole("textbox", { name: zh ? "搜索授权" : "Search authorizations", exact: true })
     // Authorization search uses record identity; tool search belongs to its scope details.
     await search.fill(records[999].id)
     await expect(rows(page)).toHaveCount(1)
     await expect(rows(page)).toHaveAttribute("data-row-key", `builtin:${records[999].id}`)
-    await rows(page).getByRole("button", { name: zh ? "详情" : "Details", exact: true }).click()
+    await rows(page).getByRole("button", { name: "Synthetic research client", exact: true }).click()
     const details = page.getByRole("dialog", { name: zh ? "授权详情" : "Grant details", exact: true })
     await expect(details.getByRole("status")).toContainText(zh ? "5000 个已记录工具，涉及 100 个 MCP" : "5000 recorded tools across 100 MCPs")
     const scopeSearch = details.getByRole("textbox", { name: zh ? "搜索当前范围内的工具" : "Search tools in the current scope", exact: true })
@@ -681,19 +682,16 @@ for (const locale of ["en-US", "zh-CN"] as const) {
     await expect(rows(page).first().getByRole("cell", { name: listExpiry(one.expires_at), exact: true })).toBeVisible()
     await expect(rows(page).first()).not.toContainText("Invalid Date")
   })
-  test(`OAuth reduction and revocation keep explicit confirmations ${locale} @permissions`, async ({ page }) => {
+  test(`OAuth quota reduction saves once while revocation keeps its impact confirmation ${locale} @permissions`, async ({ page }) => {
     const model = await setup(page, locale, [grant(1)])
     await rows(page).getByRole("button", { name: zh ? "调整授权" : "Adjust", exact: true }).click()
     const editor = page.getByRole("dialog", { name: zh ? "调整授权范围" : "Adjust authorization scope", exact: true })
     await expandCallLimits(editor)
     await editor.getByRole("spinbutton", { name: zh ? "每分钟调用上限" : "Calls per minute", exact: true }).fill("30")
     await editor.getByRole("button", { name: zh ? "保存授权" : "Save authorization", exact: true }).click()
-    const reduction = page.getByRole("alertdialog", { name: zh ? "确认更新当前连接？" : "Update this connection?", exact: true })
-    expect(model.writes).toHaveLength(0)
-    await reduction.getByRole("button", { name: zh ? "取消" : "Cancel", exact: true }).click()
-    await editor.getByRole("button", { name: zh ? "保存授权" : "Save authorization", exact: true }).click()
-    await reduction.getByRole("button", { name: zh ? "确认并更新" : "Confirm update", exact: true }).click()
     await expect(editor).toHaveCount(0)
+    await expect(page.getByRole("alertdialog")).toHaveCount(0)
+    expect(model.previews).toHaveLength(1)
     expect(model.writes).toHaveLength(1)
     expect(model.writes[0].body.rate_per_minute).toBe(30)
     expect(model.writes[0].body.tool_ids).toEqual(grant(1).tools.map(tool => tool.id))
@@ -707,7 +705,7 @@ for (const locale of ["en-US", "zh-CN"] as const) {
     await expect(rows(page)).toHaveCount(0)
     await stateTab(page, zh ? "已撤销" : "Revoked").click()
     await expect(rows(page)).toHaveCount(1)
-    await expect(rows(page).getByRole("button", { name: zh ? "详情" : "Details", exact: true })).toBeVisible()
+    await expect(rows(page).getByRole("button", { name: "Synthetic research client", exact: true })).toBeVisible()
   })
 }
 
