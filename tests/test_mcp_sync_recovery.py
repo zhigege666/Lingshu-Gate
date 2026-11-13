@@ -167,14 +167,30 @@ def test_operator_refresh_does_not_reapply_stale_listener_auth_error(tmp_path, m
         current.tool_sync.state = "auth_required"
         manager.synchronize_server_tools(current.manifest.id)
         assert current.tool_sync.state == "ready" and current.tool_sync_errors.empty()
+        completed = threading.Event()
+        complete = manager._complete_tool_sync
+
+        def complete_and_signal(runtime, previous, discovered):
+            complete(runtime, previous, discovered)
+            completed.set()
+
         try:
-            monkeypatch.setattr("lingshu_gate.mcp_runtime.TOOL_SYNC_INTERVAL_SECONDS", 0.02)
+            # Observe an actual background completion instead of sampling between
+            # short polling cycles. The explicit wakeup drives this discovery.
+            monkeypatch.setattr("lingshu_gate.mcp_runtime.TOOL_SYNC_INTERVAL_SECONDS", 60.0)
             monkeypatch.setattr("lingshu_gate.mcp_runtime.TOOL_SYNC_MIN_INTERVAL_SECONDS", 0.0)
             current.tool_sync.next_sync_at = None
-            manager._start_tool_sync(current.manifest.id, current, client)
-            current.tool_sync_wakeup.set()
-            threading.Event().wait(0.06)
-            assert current.tool_sync.state == "ready"
+            with patch.object(manager, "_complete_tool_sync", side_effect=complete_and_signal) as completion, \
+                    patch.object(manager, "_fail_tool_sync", wraps=manager._fail_tool_sync) as failure:
+                manager._start_tool_sync(current.manifest.id, current, client)
+                current.tool_sync_wakeup.set()
+                assert completed.wait(timeout=2), "Background tool synchronization did not complete"
+                with current.lock:
+                    assert completion.call_count == 1
+                    assert current.tool_sync.state == "ready"
+                    assert current.tool_sync.last_error is None and current.tool_sync.error_code is None
+                    assert current.tool_sync_errors.empty()
+                    failure.assert_not_called()
         finally:
             stop_worker(manager, current)
 
