@@ -4,12 +4,13 @@ from __future__ import annotations
 
 from typing import Any
 
-from fastapi import Depends, FastAPI, HTTPException, Query
+from fastapi import Depends, FastAPI, HTTPException, Query, Request
 
 from lingshu_gate.access_control import AccessControlStore
 from lingshu_gate.auth import AuthPrincipal
 from lingshu_gate.config import Settings
 from lingshu_gate.interfaces.control_api.dependencies import AuthDependency
+from lingshu_gate.interfaces.control_api.console_security import console_origin_allowed
 from lingshu_gate.mcp_runtime import McpRuntimeManager
 from lingshu_gate.mcp_server_detail import McpServerDetailSection, build_mcp_server_detail
 from lingshu_gate.models import McpServerListResponse, McpServerStatusResponse
@@ -150,3 +151,26 @@ def register_mcp_runtime_routes(
             return mcp_runtime.list_server_tools(server_id)
         except KeyError as exc:
             raise HTTPException(status_code=404, detail=str(exc)) from exc
+
+    @app.post(
+        "/v1/mcp/servers/{server_id}/tools/refresh",
+        response_model=McpServerStatusResponse,
+        tags=["mcp"],
+        dependencies=[Depends(require_operations_manager)],
+    )
+    def refresh_mcp_server_tools(server_id: str, request: Request,
+                                 principal: AuthPrincipal = Depends(require_operations_manager)) -> McpServerStatusResponse:
+        if principal.auth_type == "session" and not console_origin_allowed(request):
+            raise HTTPException(403, detail="Use the same-origin Console to synchronize tools")
+        try:
+            server = mcp_runtime.synchronize_server_tools(server_id)
+        except KeyError as exc:
+            raise HTTPException(status_code=404, detail=str(exc)) from exc
+        except RuntimeError as exc:
+            raise HTTPException(status_code=409, detail=str(exc)) from exc
+        observability_store.emit_event(
+            "gate.mcp.tools_synchronized", source="runtime", subject_type="server", subject_id=server_id,
+            payload={"actor_id": principal.id, "state": server.tool_sync.state if server.tool_sync else "idle",
+                     "tool_count": server.tool_count},
+        )
+        return server

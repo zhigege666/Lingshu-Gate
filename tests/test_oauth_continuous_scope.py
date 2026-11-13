@@ -253,6 +253,13 @@ def test_other_mcp_scope_edit_preserves_stale_binding_until_explicit_current_bin
     rebound = gate["server"].update_scope(owner, updated["id"], session, prepared["confirmation"], updated["revision"], ["mcp.B.read"],
         updated["expires_at"], 6000, 100, server_policies=policies)
     assert rebound["server_policies"][0]["server_binding"] == "synthetic-replaced"
+    # Confirming a personal subscription cannot restore the replacement's
+    # globally disabled tools. An administrator must choose their local policy.
+    assert gate["server"].verify(tokens["access_token"]).external_tool_ids == ("mcp.B.read",)
+    for tool_id in ("mcp.A.read", "mcp.A.write"):
+        restored = gate["access"].reset_tool_access_policy(gate["registry"].get_definition(tool_id),
+            reviewer_id=gate["admin"]["id"])
+        assert restored["required_access"] == "write" and restored["policy_source"] == "default_write"
     assert set(gate["server"].verify(tokens["access_token"]).external_tool_ids) == {"mcp.A.read", "mcp.A.write", "mcp.B.read"}
 
 

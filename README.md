@@ -65,10 +65,13 @@ The [included demo walkthrough](docs/first-call.md) needs no external service ac
 
 Check the successful audit, deny a write with an unchanged counter, reject an invalid revision, stop/restart the demo and revoke the caller. Saving and connecting validates the configuration and synchronizes tools automatically; ordinary use needs no separate review/publication. Access still requires both resource grants and token scope.
 
-## 0.5.12 — Console redesign and simpler MCP workflows
+## 0.5.12 — Console redesign and automatic MCP tool synchronization
 
 - Rebuild the management Console around the shadcn-admin layout direction: consistent navigation, page headers, filters, tables, forms, dialogs and theme tokens. Bilingual screenshots cover the dashboard, tools, services, builds and authorization pages.
-- Synchronize MCP tools automatically after discovery. Routine tool review/publication is removed; account, Token and OAuth scopes and local tool policies still control invocation.
+- Keep remote HTTP MCP tools current through independent change notifications and periodic discovery, including servers without notification support. Failed refreshes retain the last complete catalog and retry with bounded backoff.
+- Save local tool policies once and retain them across ordinary synchronization, reconnects and Gate restarts. Routine review/publication is removed; account, Token and OAuth scopes still control invocation. Returning tools use conservative write defaults within the same service identity, without reviving old exact grants or explicit disabled tools.
+- Show tool synchronization separately from connection health, including the last success, added/updated/removed counts and next retry. Credential failures enter `auth_required`; correct the credentials before reconnecting or synchronizing again.
+- Recover expired HTTP sessions automatically without replaying writes. Only an unchanged tool with a trusted read policy can receive one guarded retry; a client's cached tool list refreshes through the supported notification stream or its next discovery request.
 - Fail closed when a service identity changes, preserve exact Token grants when editing unrelated selections, and reject malformed tool-list responses without clearing the last complete catalog.
 - Refreshing the configuration list is read-only and no longer interrupts running MCP instances.
 - Retain the Cloudflare Tunnel deployment profile and verified native update checks introduced in 0.5.11. Docker and Unraid image updates remain host-managed.
@@ -116,7 +119,7 @@ flowchart TB
 
 ## Console refactor in the current source
 
-The layout follows [shadcn-admin](https://github.com/satnaing/shadcn-admin), using the existing React, Tailwind and shadcn/Radix components. Navigation, page titles, search, forms and light/dark themes share one system. Complex Ant Design tables retain their behavior and read the same color and dimension tokens.
+The layout follows [shadcn-admin](https://github.com/satnaing/shadcn-admin), using the existing React, Tailwind and shadcn/Radix components. Navigation, page titles, search, forms and light/dark themes share one system. Complex tables retain their behavior and read the same color and dimension tokens.
 
 | Batch | Coverage | Interaction changes |
 |---|---|---|

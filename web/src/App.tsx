@@ -14,6 +14,8 @@ import { useAuth } from "@/components/auth-gate"
 import { gateVersionText } from "@/features/gate-version"
 import { createMcpConfigTemplate } from "@/features/mcp-config/model"
 import { configurationApplyResultError, configurationResultError, readConfigurationRuntime } from "@/features/servers/configuration-result"
+import { serverCopy } from "@/features/servers/copy"
+import { reconcileServerSnapshots, toolCatalogChanged, toolSyncResult } from "@/features/servers/tool-sync-model"
 import { RouteErrorBoundary, RouteLoadingFallback } from "@/components/route-boundary"
 import { useConfirm } from "@/components/confirm-dialog"
 import { HighlightText } from "@/components/highlight-text"
@@ -128,6 +130,7 @@ export default function App() {
   const [error, setError] = useState<string | null>(null)
   const [busy, setBusy] = useState(false)
   const configMutationPending = useRef(false)
+  const toolSyncPending = useRef(false)
   const [sharedLoading, setSharedLoading] = useState(false)
   const [dashboardBusy, setDashboardBusy] = useState(false)
   const [dashboardRefreshId, setDashboardRefreshId] = useState(0)
@@ -189,6 +192,44 @@ export default function App() {
     })
     return () => { active = false }
   }, [view, user.id, canReadTools, needsFullToolCatalog])
+
+  // The service route owns live snapshots. Hidden pages and mutations suspend
+  // reads; changing the owner aborts older responses before they can publish.
+  useEffect(() => {
+    if (view !== "servers" || !canManageOperations || busy || routeLoading) return
+    const controller = new AbortController()
+    let reading = false
+    const read = async () => {
+      if (document.hidden || reading || controller.signal.aborted) return
+      reading = true
+      try {
+        const snapshot = await api.servers(controller.signal)
+        if (controller.signal.aborted) return
+        const nextServers = reconcileServerSnapshots(servers, snapshot.servers)
+        const changed = nextServers.length !== servers.length || nextServers.some((server, index) => server !== servers[index])
+        let catalog: ToolDefinition[] | undefined
+        let catalogError: string | undefined
+        if (canReadTools && (toolsError || toolCatalogChanged(servers, snapshot.servers))) {
+          try { catalog = await api.tools(controller.signal) }
+          catch (reason) { catalogError = reason instanceof Error ? reason.message : String(reason) }
+        }
+        if (controller.signal.aborted || toolSyncPending.current) return
+        if (changed) setServers(nextServers)
+        setLoadErrors(snapshot.load_errors); setServersLoaded(true); setServersError(null)
+        if (catalog) { setTools(catalog); setToolsLoaded(true); setToolsError(null) }
+        else if (catalogError) setToolsError(catalogError)
+      } catch (reason) {
+        if (!controller.signal.aborted) {
+          const detail = reason instanceof Error ? reason.message : String(reason)
+          setServersError(detail); setLoadErrors([detail])
+        }
+      } finally { reading = false }
+    }
+    const timer = window.setInterval(() => { void read() }, 15_000)
+    const onVisibility = () => { if (!document.hidden) void read() }
+    document.addEventListener("visibilitychange", onVisibility)
+    return () => { controller.abort(); window.clearInterval(timer); document.removeEventListener("visibilitychange", onVisibility) }
+  }, [view, user, canManageOperations, canReadTools, busy, routeLoading, servers, toolsError])
 
   useEffect(() => {
     const onKey = (event: KeyboardEvent) => {
@@ -405,6 +446,29 @@ export default function App() {
     } catch (err) { setError(err instanceof Error ? err.message : String(err)) }
     finally { setBusy(false) }
   }
+  async function serverToolSync(id: string) {
+    if (busy || toolSyncPending.current || !canManageOperations) return
+    toolSyncPending.current = true
+    setBusy(true); setMessage(null); setError(null)
+    let resultMessage: string | null = null
+    let failure: string | null = null
+    try { resultMessage = toolSyncResult(id, await api.serverToolSync(id), serverCopy(locale)) }
+    catch (reason) { failure = reason instanceof Error ? reason.message : String(reason) }
+    finally {
+      // Reconcile both successful writes and upstream failures. Refreshing the
+      // view must not hide the write result or repeat the synchronization.
+      const reads = [api.servers().then(data => { setServers(data.servers); setLoadErrors(data.load_errors); setServersLoaded(true); setServersError(null) })]
+      if (canReadTools) reads.push(api.tools().then(data => { setTools(data); setToolsLoaded(true); setToolsError(null) }).catch(reason => {
+        setToolsError(reason instanceof Error ? reason.message : String(reason)); throw reason
+      }))
+      const settled = await Promise.allSettled(reads)
+      const refreshErrors = settled.filter((result): result is PromiseRejectedResult => result.status === "rejected").map(result => result.reason instanceof Error ? result.reason.message : String(result.reason))
+      if (failure) setError([`${id}: ${failure}`, ...refreshErrors].join(" · "))
+      else if (refreshErrors.length) setError([resultMessage, ...refreshErrors].filter(Boolean).join(" · "))
+      else setMessage(resultMessage)
+      toolSyncPending.current = false; setBusy(false)
+    }
+  }
   async function runDiagnostics() { setBusy(true); try { setDiagnostics(await api.runDiagnostics()); setMessage("diagnostics completed") } catch (err) { setError(err instanceof Error ? err.message : String(err)) } finally { setBusy(false) } }
 
   const { nav, navById, navGroups, canAccessView } = useConsoleNavigation({
@@ -443,7 +507,7 @@ export default function App() {
             {view === "connectionInfrastructure" && <ConnectionInfrastructurePage locale={locale} t={t} />}
             {view === "dashboard" && <DashboardPage health={health} healthError={healthError} servers={servers} serversLoaded={serversLoaded} serversError={serversError} tools={tools} principalId={user.id} globalRefreshId={dashboardRefreshId} onBusyChange={setDashboardBusy} operationsAllowed={can("operations.manage")} canReadAudit={can("audit.read")} canReadTools={can("tools.read")} toolsLoaded={toolsLoaded} toolsError={toolsError} t={t} />}
             {view === "configs" && <ConfigsPage canManageCredentials={can("credentials.manage.system")} canManageHttpTrust={canManageHttpTrust} locale={locale} t={t} configs={configs} configErrors={configErrors} selectedConfigId={selectedConfigId} configText={configText} busy={busy || routeLoading} editorOpen={configEditorOpen} onCloseEditor={() => { if (!busy) { setConfigEditorOpen(false); setConfigText(prettyJson(createMcpConfigTemplate())) } }} onNewConfig={newConfig} onReloadConfigs={reloadConfigs} onEditConfig={editConfig} onApplyConfig={applyConfig} onDeleteConfig={deleteConfig} onConfigTextChange={setConfigText} onSaveConfig={saveConfig} />}
-            {view === "servers" && <ServersPage canManageCredentials={can("credentials.manage.system")} canManageGroups={canManageHttpTrust} canWriteGroups={canManageHttpTrust && can("tools.invoke")} canManageHttpTrust={canManageHttpTrust} initialServerId={routeServerId} locale={locale} t={t} servers={servers} loadErrors={loadErrors} busy={busy || routeLoading} visibleTools={toolsLoaded ? tools : null} toolsError={toolsError} canReadTools={can("tools.read")} canManageClassifications={can("classifications.manage")} onServerAction={serverAction} onRefresh={refreshCurrentPage} onNewConfig={newConfig} onNavigate={navigate} onInvoke={async toolId => { if (await navigate("invoke")) setSelectedToolId(toolId) }} />}
+            {view === "servers" && <ServersPage canManageCredentials={can("credentials.manage.system")} canManageGroups={canManageHttpTrust} canWriteGroups={canManageHttpTrust && can("tools.invoke")} canManageHttpTrust={canManageHttpTrust} canSyncTools={canManageOperations} initialServerId={routeServerId} locale={locale} t={t} servers={servers} loadErrors={loadErrors} busy={busy || routeLoading} visibleTools={toolsLoaded ? tools : null} toolsError={toolsError} canReadTools={can("tools.read")} canManageClassifications={can("classifications.manage")} onServerAction={serverAction} onServerToolSync={serverToolSync} onRefresh={refreshCurrentPage} onNewConfig={newConfig} onNavigate={navigate} onInvoke={async toolId => { if (await navigate("invoke")) setSelectedToolId(toolId) }} />}
             {view === "builds" && <BuildsPage t={t} initialBuildId={routeBuildId} />}
             {view === "credentials" && <CredentialsPage locale={locale} t={t} />}
             {view === "accessUsers" && <AccessUsersPage locale={locale} t={t} />}

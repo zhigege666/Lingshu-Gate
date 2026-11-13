@@ -260,6 +260,69 @@ def test_exact_scope_never_revives_when_a_local_policy_or_tool_is_recreated(poli
     assert not access.evaluate(token, definition)["allowed"]
 
 
+@pytest.mark.parametrize("retirement", ["catalog", "reconcile"])
+def test_reappeared_read_override_uses_default_write_without_reviving_exact_scope(policy, retirement):
+    database, access, actor, definition, registry, catalog = policy
+    save(access, definition, "read")
+    previous = row(database, definition)
+    with database.session() as connection:
+        binding = server_binding(connection, "example")
+    exact = replace(actor, auth_type="token", scopes=("tools.read", "tools.invoke"),
+        api_token_authorization_mode="independent", api_token_tool_snapshots=((definition.id, tool_snapshot(definition, previous)),),
+        api_token_tool_bindings=((definition.id, binding),))
+    continuous = replace(exact, api_token_tool_snapshots=(), api_token_tool_bindings=(),
+        api_token_server_policies=(("example", binding, "write"),))
+    registry.unregister_by_metadata("server_id", "example", source="mcp")
+    if retirement == "catalog":
+        catalog.synchronize()
+    else:
+        access.reconcile_server_tools("example", [], "automatic_discovery")
+    retired = row(database, definition)
+    assert retired["required_access"] == "none"
+    access.reconcile_server_tools("example", [], "automatic_discovery")
+    assert row(database, definition) == retired
+    registry.register(definition, lambda arguments: {})
+    if retirement == "catalog":
+        catalog.synchronize()
+    else:
+        access.reconcile_server_tools("example", [definition], "automatic_discovery")
+    current = row(database, definition)
+    assert current["required_access"] == "write" and current["access_policy_source"] == "default_write"
+    assert current["reviewed_at"] is None and current["legacy_authorization_snapshot"] == ""
+    assert current["access_policy_revision"] > previous["access_policy_revision"]
+    assert access.evaluate(continuous, definition)["allowed"]
+    assert not access.evaluate(exact, definition)["allowed"]
+    assert not access.evaluate(replace(continuous, api_token_server_policies=(("example", binding, "read"),)), definition)["allowed"]
+
+
+@pytest.mark.parametrize("retirement", ["catalog", "reconcile"])
+@pytest.mark.parametrize("blocked_by", ["disabled", "identity_before", "identity_during", "identity_deleted"])
+def test_reappearance_cannot_restore_disabled_or_replaced_service_policy(policy, retirement, blocked_by):
+    database, access, actor, definition, registry, catalog = policy
+    if blocked_by == "disabled":
+        save(access, definition, "unknown")
+    elif blocked_by == "identity_before":
+        database.execute("UPDATE gate_mcp_authorization_identities SET binding='replacement-before' WHERE server_id='example'")
+    registry.unregister_by_metadata("server_id", "example", source="mcp")
+    if retirement == "catalog":
+        catalog.synchronize()
+    else:
+        access.reconcile_server_tools("example", [], "automatic_discovery")
+    if blocked_by == "identity_during":
+        database.execute("UPDATE gate_mcp_authorization_identities SET binding='replacement-during' WHERE server_id='example'")
+    elif blocked_by == "identity_deleted":
+        database.execute("DELETE FROM gate_mcp_authorization_identities WHERE server_id='example'")
+    registry.register(definition, lambda arguments: {})
+    if retirement == "catalog":
+        catalog.synchronize()
+    else:
+        access.reconcile_server_tools("example", [definition], "automatic_discovery")
+    current = row(database, definition)
+    assert current["required_access"] == "none"
+    assert current["access_policy_source"] == ("local_override" if blocked_by == "disabled" else "unavailable")
+    assert not access.evaluate(actor, definition)["allowed"]
+
+
 def test_unchanged_automatic_tools_do_not_write_or_invalidate_catalog_cursors(policy):
     database, access, actor, definition, _, catalog = policy
     before = row(database, definition)

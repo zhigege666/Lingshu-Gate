@@ -182,7 +182,9 @@ def test_quota_only_does_not_reapprove_changed_tool_snapshot(tokens, gate):
 
 
 def test_editing_one_exact_token_scope_does_not_rebind_another_changed_tool(tokens, gate):
-    created = save(tokens, gate, tool_ids=["mcp.A.read", "mcp.A.write"])
+    with pytest.raises(ValueError, match="tool_scope_exceeds_function_permissions"):
+        save(tokens, gate, tool_ids=["mcp.A.read", "mcp.A.write"])
+    created = save(tokens, gate, scopes=["tools.read", "tools.invoke"], tool_ids=["mcp.A.read", "mcp.A.write"])
     gate["db"].execute(
         "UPDATE mcp_tool_classifications SET access_policy_revision=access_policy_revision+1 WHERE tool_id='mcp.A.read'"
     )

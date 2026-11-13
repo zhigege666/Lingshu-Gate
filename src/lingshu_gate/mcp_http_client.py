@@ -17,6 +17,8 @@ from lingshu_gate.telemetry import trace_headers
 import json
 import hashlib
 import logging
+import random
+import socket
 import threading
 import time
 import urllib.error
@@ -57,6 +59,11 @@ MAX_SSE_EVENTS = 10_000
 MAX_TOOL_LIST_PAGES = 100
 MAX_DISCOVERED_TOOLS = 10_000
 HTTP_READ_CHUNK_BYTES = 64 * 1024
+NOTIFICATION_OPEN_TIMEOUT_SECONDS = 5.0
+NOTIFICATION_IDLE_TIMEOUT_SECONDS = 60.0
+NOTIFICATION_STREAM_LIFETIME_SECONDS = 300.0
+NOTIFICATION_RETRY_MAX_SECONDS = 60.0
+SUBSCRIPTION_ID_META_KEY = "io.modelcontextprotocol/subscriptionId"
 
 
 class _NoRedirectHandler(urllib.request.HTTPRedirectHandler):
@@ -91,6 +98,21 @@ class McpSessionExpiredError(McpProtocolError):
 
 class _LegacyHttpInitializationRequired(McpProtocolError):
     """A strictly recognized initial HTTP discovery rejection, never a tool error."""
+
+
+class _ToolNotificationsUnsupported(Exception):
+    """An optional notification channel was declined; normal requests still work."""
+
+
+@dataclass
+class _ToolNotificationListener:
+    generation: str
+    cancel: threading.Event
+    on_error: Callable[[Exception], None] | None
+    thread: threading.Thread | None = None
+    response: Any = None
+    accepted: bool = False
+    retry_after: float | None = None
 
 
 @dataclass
@@ -154,6 +176,10 @@ class StreamableHttpMcpClient:
         self._credential_server_binding: str | None = None
         self._http_server_binding: str | None = None
         self._opener = urllib.request.build_opener(_NoRedirectHandler())
+        self._notification_opener = urllib.request.build_opener(_NoRedirectHandler())
+        self._headers_lock = threading.RLock()
+        self._notification_lock = threading.Lock()
+        self._notifications: _ToolNotificationListener | None = None
         self._operation_cancel: threading.Event | None = None
         self._operation_deadline: float | None = None
         self._operation_credential_revisions: dict[str, str] | None = None
@@ -199,6 +225,7 @@ class StreamableHttpMcpClient:
         self._require_endpoint()
         if self.initialized:
             return
+        self.stop_tool_notifications()
         if not self.endpoint:
             raise ValueError("transport.endpoint is required for streamable_http")
         self._connection_generation = uuid4().hex
@@ -401,6 +428,7 @@ class StreamableHttpMcpClient:
         )
 
     def stop(self) -> None:
+        self.stop_tool_notifications()
         if self.session_id:
             # DELETE 仅用于释放本连接的旧版会话；清理失败不能掩盖原调用错误。
             try:
@@ -409,9 +437,8 @@ class StreamableHttpMcpClient:
                     cleanup_timeout = min(cleanup_timeout, _remaining_seconds(self._operation_deadline))
                 with self.credential_store.dispatch_guard():
                     self._require_endpoint()
-                    self._resolve_headers()
                     request = urllib.request.Request(self.endpoint,
-                        headers=self._http_headers({"MCP-Protocol-Version": self.protocol_version}), method="DELETE")
+                        headers=self._prepared_http_headers({"MCP-Protocol-Version": self.protocol_version}), method="DELETE")
                     response = self._opener.open(request, timeout=cleanup_timeout)
                 with response:
                     pass
@@ -425,6 +452,248 @@ class StreamableHttpMcpClient:
         self._store_log("info", "External MCP endpoint disconnected", "gate.mcp.http_disconnected", {})
         self.initialized = False
         self.session_id = None
+
+    def start_tool_notifications(
+        self, on_changed: Callable[[], None] | None = None,
+        on_error: Callable[[Exception], None] | None = None,
+    ) -> bool:
+        """Listen independently of business requests; callbacks only wake runtime work.
+
+        Return whether the peer advertised notifications, not proof that its
+        optional stream was accepted. Polling remains the runtime's responsibility.
+        """
+        self.stop_tool_notifications()
+        if on_changed is not None:
+            self.on_tools_changed = on_changed
+        capabilities = self.server_capabilities.get("tools")
+        if (not self.initialized or not isinstance(capabilities, dict)
+                or capabilities.get("listChanged") is not True):
+            return False
+        listener = _ToolNotificationListener(self._connection_generation, threading.Event(), on_error)
+        listener.thread = threading.Thread(target=self._tool_notification_loop, args=(listener,),
+                                           name=f"mcp-notifications-{self.manifest.id}", daemon=True)
+        with self._notification_lock:
+            self._notifications = listener
+        listener.thread.start()
+        return True
+
+    def stop_tool_notifications(self) -> None:
+        with self._notification_lock:
+            listener, self._notifications = self._notifications, None
+            if listener is None:
+                return
+            listener.cancel.set()
+            response = listener.response
+        # Closing a BufferedReader while another thread reads can block. Shut
+        # down its socket first so a quiet SSE stream exits immediately.
+        _close_notification_response(response)
+        if listener.thread is not None and listener.thread is not threading.current_thread():
+            listener.thread.join(timeout=1.0)
+
+    def _notification_active(self, listener: _ToolNotificationListener) -> bool:
+        return (not listener.cancel.is_set() and self._notifications is listener
+                and self.initialized and self._connection_generation == listener.generation)
+
+    def _notify_tools_changed(self, listener: _ToolNotificationListener | None = None) -> None:
+        if listener is not None and not self._notification_active(listener):
+            return
+        callback = self.on_tools_changed
+        if callback is not None:
+            try:
+                callback()
+            except Exception:  # callbacks must never fail a business response
+                self._store_log("warning", "Tool notification callback failed",
+                                "gate.mcp.tool_notification_callback_failed", {})
+
+    def _notification_error(self, listener: _ToolNotificationListener, error: Exception) -> None:
+        if not self._notification_active(listener) or listener.on_error is None:
+            return
+        try:
+            listener.on_error(error)
+        except Exception:
+            self._store_log("warning", "Tool notification callback failed",
+                            "gate.mcp.tool_notification_callback_failed", {})
+
+    def _tool_notification_loop(self, listener: _ToolNotificationListener) -> None:
+        attempts = 0
+        while self._notification_active(listener):
+            response = None
+            listener.accepted, listener.retry_after = False, None
+            try:
+                response, request_id = self._open_tool_notification_stream()
+                with self._notification_lock:
+                    if not self._notification_active(listener):
+                        return
+                    listener.response = response
+                self._read_tool_notification_stream(response, request_id, listener)
+            except _ToolNotificationsUnsupported:
+                self._store_log("info", "Tool notifications unavailable; periodic synchronization remains active",
+                                "gate.mcp.tool_notifications_unsupported", {})
+                return
+            except (McpSessionExpiredError, McpHttpAuthenticationError, CredentialUsageDenied) as exc:
+                self._notification_error(listener, exc)
+                return  # runtime owns reinitialization and credential recovery
+            except Exception:
+                # Peer bodies, urllib reasons and callback errors may contain
+                # credentials. Notify only a fixed safe error to the runtime.
+                self._notification_error(listener, McpProtocolError("MCP tool notification stream disconnected"))
+            finally:
+                _close_notification_response(response)
+                with self._notification_lock:
+                    if listener.response is response:
+                        listener.response = None
+            if not self._notification_active(listener):
+                return
+            attempts = 0 if listener.accepted else min(attempts + 1, 6)
+            delay = 2.0 ** attempts * random.uniform(0.8, 1.2)
+            if listener.retry_after is not None:
+                delay = max(delay, listener.retry_after)
+            delay = min(NOTIFICATION_RETRY_MAX_SECONDS, delay)
+            if listener.cancel.wait(delay):
+                return
+
+    def _open_tool_notification_stream(self) -> tuple[Any, int | None]:
+        modern = self.protocol_version == MCP_PROTOCOL_VERSION
+        request_id = next(self._ids) if modern else None
+        protocol_headers = {"MCP-Protocol-Version": self.protocol_version}
+        data = None
+        if modern:
+            params, protocol_headers = build_protocol_request(
+                "subscriptions/listen", {"notifications": {"toolsListChanged": True}},
+                client_name="lingshu-gate", client_version=self.settings.version,
+                protocol_version=self.protocol_version,
+            )
+            data = json.dumps({"jsonrpc": "2.0", "id": request_id,
+                               "method": "subscriptions/listen", "params": params}).encode()
+        timeout = min(NOTIFICATION_OPEN_TIMEOUT_SECONDS,
+                      self.manifest.timeout_seconds or self.settings.mcp_request_timeout_seconds)
+        try:
+            with self.credential_store.dispatch_guard():
+                self._require_endpoint()
+                headers = self._prepared_http_headers(protocol_headers)
+                headers["Accept"] = "text/event-stream" if not modern else "application/json, text/event-stream"
+                request = urllib.request.Request(self.endpoint, data=data, headers=headers,
+                                                 method="POST" if modern else "GET")
+                response = self._notification_opener.open(request, timeout=timeout)
+        except urllib.error.HTTPError as exc:
+            status = exc.code
+            exc.close()
+            if status == 405:
+                raise _ToolNotificationsUnsupported() from None
+            if status in {401, 403}:
+                raise McpHttpAuthenticationError(status, self.endpoint) from None
+            if status == 404 and self.session_id:
+                raise McpSessionExpiredError("MCP notification session expired (HTTP 404)") from None
+            raise McpProtocolError(f"HTTP {status} from MCP notification endpoint") from None
+        content_type = (response.headers.get("Content-Type") or "").split(";", 1)[0].strip().lower()
+        if content_type == "text/event-stream":
+            return response, request_id
+        try:
+            raw = _read_bounded_response(response, time.monotonic() + timeout, self.settings.mcp_max_message_bytes)
+            message = json.loads(raw)
+            if (modern and isinstance(message, dict) and message.get("jsonrpc") == "2.0"
+                    and type(message.get("id")) is int and message["id"] == request_id
+                    and isinstance(message.get("error"), dict) and message["error"].get("code") == -32601):
+                raise _ToolNotificationsUnsupported()
+            raise McpProtocolError("MCP notification endpoint did not return an SSE stream")
+        finally:
+            _close_notification_response(response)
+
+    def _read_tool_notification_stream(
+        self, response: Any, request_id: int | None, listener: _ToolNotificationListener,
+    ) -> None:
+        modern = request_id is not None
+        deadline = time.monotonic() + NOTIFICATION_STREAM_LIFETIME_SECONDS
+        pending = bytearray()
+        data_lines: list[str] = []
+        event_bytes = total_bytes = events = 0
+        if not modern:
+            listener.accepted = True
+            self._notify_tools_changed(listener)  # close the list-before-subscribe race
+
+        def deliver() -> bool:
+            nonlocal events, event_bytes
+            if not data_lines:
+                return False
+            events += 1
+            if events > MAX_SSE_EVENTS:
+                raise McpProtocolError("MCP notification stream exceeded the event limit")
+            message = json.loads("\n".join(data_lines))
+            data_lines.clear()
+            event_bytes = 0
+            if not isinstance(message, dict) or message.get("jsonrpc") != "2.0":
+                raise McpProtocolError("Invalid MCP notification message")
+            if modern and "id" in message:
+                if type(message["id"]) is not int or message["id"] != request_id:
+                    raise McpProtocolError("MCP subscription response identifier mismatch")
+                if isinstance(message.get("error"), dict) and message["error"].get("code") == -32601:
+                    raise _ToolNotificationsUnsupported()
+                if not listener.accepted or not isinstance(message.get("result"), dict) or "error" in message:
+                    raise McpProtocolError("MCP subscription ended without acknowledgement")
+                return True
+            if "id" in message:
+                return False  # this connection never handles server requests
+            method = message.get("method")
+            if modern:
+                params = message.get("params")
+                if not isinstance(params, dict):
+                    raise McpProtocolError("MCP subscription notification parameters must be an object")
+                meta = params.get("_meta")
+                subscription_id = meta.get(SUBSCRIPTION_ID_META_KEY) if isinstance(meta, dict) else None
+                if type(subscription_id) is not int or subscription_id != request_id:
+                    raise McpProtocolError("MCP subscription notification identifier mismatch")
+                if not listener.accepted:
+                    if method != "notifications/subscriptions/acknowledged":
+                        raise McpProtocolError("MCP subscription acknowledgement must arrive first")
+                    accepted = params.get("notifications")
+                    if not isinstance(accepted, dict) or accepted.get("toolsListChanged") is not True:
+                        raise _ToolNotificationsUnsupported()
+                    listener.accepted = True
+                    self._notify_tools_changed(listener)
+                    return False
+            if method == "notifications/tools/list_changed":
+                self._notify_tools_changed(listener)
+            return False
+
+        while self._notification_active(listener):
+            try:
+                chunk = _read_response_chunk(response, min(deadline, time.monotonic() + NOTIFICATION_IDLE_TIMEOUT_SECONDS))
+            except (McpProtocolError, TimeoutError) as exc:
+                if listener.accepted and _caused_by_timeout(exc):
+                    return  # routinely renew quiet streams without failing a healthy service
+                raise
+            if not chunk:
+                if modern and not listener.accepted:
+                    raise McpProtocolError("MCP subscription ended without acknowledgement")
+                return
+            total_bytes += len(chunk)
+            if total_bytes > self.settings.mcp_max_message_bytes:
+                raise McpProtocolError("MCP notification stream exceeded the byte limit")
+            pending.extend(chunk)
+            while (newline := pending.find(b"\n")) >= 0:
+                line = bytes(pending[:newline]).rstrip(b"\r")
+                del pending[:newline + 1]
+                if not line:
+                    if deliver():
+                        return
+                elif line.startswith(b"data:"):
+                    event_bytes += len(line)
+                    if event_bytes > self.settings.mcp_max_message_bytes:
+                        raise McpProtocolError("MCP notification event exceeded the byte limit")
+                    data_lines.append(line[5:].lstrip(b" ").decode("utf-8"))
+                elif not modern and line.startswith(b"retry:"):
+                    raw_retry = line[6:].strip()
+                    if raw_retry.isdigit() and len(raw_retry) <= 9:
+                        listener.retry_after = int(raw_retry) / 1000.0
+            if len(pending) > self.settings.mcp_max_message_bytes:
+                raise McpProtocolError("MCP notification line exceeded the byte limit")
+
+    def _prepared_http_headers(self, protocol_headers: dict[str, str]) -> dict[str, str]:
+        # The independent listener and business requests share credential state.
+        # Serialize only resolution/copying, never the lifetime of an SSE stream.
+        with self._headers_lock:
+            self._resolve_headers()
+            return self._http_headers(protocol_headers)
 
     def _http_headers(self, protocol_headers: dict[str, str]) -> dict[str, str]:
         # 协议头由连接状态生成，不能被配置中的大小写变体覆盖。
@@ -545,8 +814,7 @@ class StreamableHttpMcpClient:
             # waits for an already-dispatching request, then every later POST
             # and DELETE reads the new value; no business request is replayed.
             with self.credential_store.dispatch_guard():
-                self._resolve_headers()
-                headers = self._http_headers(protocol_headers)
+                headers = self._prepared_http_headers(protocol_headers)
                 if self.settings.mcp_log_payloads and not self._sensitive_payloads:
                     log_event(logger, logging.DEBUG, "gate.mcp.http_message_sent", "MCP HTTP message sent", server_id=self.manifest.id, payload=self._redact(message))
                 request = urllib.request.Request(self.endpoint, data=body, headers=headers, method="POST")
@@ -722,9 +990,9 @@ class StreamableHttpMcpClient:
             return None
         if not isinstance(message, dict):
             return None
-        if "id" not in message and message.get("method") == "notifications/tools/list_changed":
-            if self.on_tools_changed is not None:
-                self.on_tools_changed()
+        if (message.get("jsonrpc") == "2.0" and "id" not in message
+                and message.get("method") == "notifications/tools/list_changed"):
+            self._notify_tools_changed()
             return None
         if self.settings.mcp_log_payloads and not self._sensitive_payloads:
             log_event(logger, logging.DEBUG, "gate.mcp.http_message_received", "MCP HTTP SSE message received", server_id=self.manifest.id, payload=self._redact(message))
@@ -745,6 +1013,21 @@ class StreamableHttpMcpClient:
 
     def _redact(self, value: Any) -> Any:
         return redact_value(value, known_secrets=self._redaction_values)
+
+
+def _close_notification_response(response: Any) -> None:
+    if response is None:
+        return
+    connection = getattr(getattr(getattr(response, "fp", None), "raw", None), "_sock", None)
+    if connection is not None:
+        try:
+            connection.shutdown(socket.SHUT_RDWR)
+        except (OSError, ValueError):
+            pass
+    try:
+        response.close()
+    except (OSError, ValueError):
+        pass
 
 
 def _legacy_initialization_error(raw: bytes, request_id: int | None) -> bool:

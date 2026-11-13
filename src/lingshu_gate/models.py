@@ -119,6 +119,21 @@ class AuthSessionResponse(BaseModel):
     message: str = "ok"
 
 
+class McpToolSyncStatus(BaseModel):
+    """Safe operational status of the last complete tool discovery."""
+
+    state: Literal["idle", "syncing", "ready", "retrying", "auth_required", "disabled"] = "idle"
+    last_attempt_at: str | None = None
+    last_success_at: str | None = None
+    last_changed_at: str | None = None
+    next_sync_at: str | None = None
+    last_error: str | None = None
+    error_code: str | None = None
+    added: int = 0
+    updated: int = 0
+    removed: int = 0
+
+
 class McpServerStatusResponse(BaseModel):
     """Runtime status for one MCP server."""
 
@@ -132,6 +147,7 @@ class McpServerStatusResponse(BaseModel):
     status: str
     pid: int | None = None
     tool_count: int = 0
+    tool_sync: McpToolSyncStatus | None = None
     last_error: str | None = None
     manifest_path: str | None = None
     restart_policy: dict[str, Any] = Field(default_factory=dict)

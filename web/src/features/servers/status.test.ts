@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest"
-import type { McpServer } from "@/api/client"
+import type { McpServer, McpToolSync } from "@/api/client"
 import { hasServerIssue, isPlannedDisabled } from "@/pages/servers-page"
 
 const server = (changes: Partial<McpServer> = {}): McpServer => ({
@@ -25,5 +25,13 @@ describe("intentional disabled server presentation", () => {
       expect(isPlannedDisabled(server({ status }))).toBe(false)
       expect(hasServerIssue(server({ status }))).toBe(true)
     }
+  })
+  it("includes upstream sync failures in Issues even when the runtime is running", () => {
+    const sync: McpToolSync = { state: "retrying", last_attempt_at: null, last_success_at: null, next_sync_at: null, last_error: null, error_code: null, added: 0, updated: 0, removed: 0 }
+    const running = server({ enabled: true, status: "running", last_error: null, restore_blocked_reason: null, tool_sync: sync })
+    expect(hasServerIssue(running)).toBe(true)
+    expect(hasServerIssue({ ...running, tool_sync: { ...sync, state: "auth_required" } })).toBe(true)
+    expect(hasServerIssue({ ...running, tool_sync: { ...sync, state: "ready" } })).toBe(false)
+    expect(hasServerIssue({ ...running, tool_sync: undefined })).toBe(false)
   })
 })

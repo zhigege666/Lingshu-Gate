@@ -160,11 +160,7 @@ class ToolCatalog:
                 with self.database.session() as connection:
                     if self._initial:
                         connection.execute("DELETE FROM gate_tool_catalog")
-                    for tool_ref in retired:
-                        connection.execute("""UPDATE mcp_tool_classifications
-                            SET status='stale',effective_access='unknown',required_access='none',
-                                access_policy_source='unavailable',legacy_authorization_snapshot='',
-                                access_policy_revision=access_policy_revision+1 WHERE tool_id=?""", (tool_ref,))
+                    self.access._retire_tools(connection, retired, "automatic_discovery")
                     definitions = [item for item in changes.values() if item is not None]
                     self.access._synchronize_tools(connection, definitions)
                     for tool_ref, definition in changes.items():

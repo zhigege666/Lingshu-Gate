@@ -761,7 +761,25 @@ class AccessControlStore:
         A replacement service or a removed/reappearing tool gets no old rule.
         """
         source = row.get("access_policy_source", "unresolved")
-        if source == "unavailable":
+        evidence = _loads(row["evidence_json"])
+        lifecycle = evidence.get("lifecycle")
+        reappeared = isinstance(lifecycle, dict) and lifecycle.get("status") == "retired"
+        retired_policy = lifecycle.get("previous_access_policy", {}) if isinstance(lifecycle, dict) and reappeared else {}
+        restore_default = (isinstance(retired_policy, dict)
+                           and retired_policy.get("source") in {"default_write", "builtin_contract", "local_override"}
+                           and retired_policy.get("required_access") in {"read", "write"}
+                           and (definition.source != "mcp" or binding
+                                and retired_policy.get("server_binding") == binding
+                                and row.get("access_policy_binding") == binding))
+        if reappeared:
+            evidence["lifecycle"] = {
+                "status": "active", "reason": "reappeared_in_tools_list",
+                "actor_id": "automatic_discovery", "at": iso_now(),
+            }
+            row["evidence_json"] = json.dumps(evidence, ensure_ascii=False)
+            connection.execute("UPDATE mcp_tool_classifications SET evidence_json=?,updated_at=? WHERE id=?",
+                               (row["evidence_json"], iso_now(), row["id"]))
+        if source == "unavailable" and not restore_default:
             return
         automatic_access, automatic_source = effective_policy(definition, None)
         current_contract = (source not in {"builtin_contract", "default_write"}
@@ -984,6 +1002,46 @@ class AccessControlStore:
         self.synchronize_tools(definitions_list)
         return self.list_classifications()
 
+    @staticmethod
+    def _retire_tools(connection: sqlite3.Connection, tool_ids: Iterable[str], reviewer_id: str,
+                      *, server_id: str | None = None) -> None:
+        """Keep retirement separate from identity replacement and explicit denial.
+
+        A returning tool may use the conservative default only within the same
+        service identity. An administrator's disabled policy remains disabled.
+        Repeated catalog/runtime reconciliation must not retire it twice.
+        """
+        ids = sorted(set(tool_ids))
+        now = iso_now()
+        for offset in range(0, len(ids), 250):
+            batch = ids[offset:offset + 250]
+            sql = "SELECT * FROM mcp_tool_classifications WHERE tool_id IN (" + ",".join("?" for _ in batch) + ")"
+            params = [*batch]
+            if server_id is not None:
+                sql += " AND server_id=?"
+                params.append(server_id)
+            for record in connection.execute(sql, params).fetchall():
+                row = dict(record)
+                evidence = _loads(row["evidence_json"])
+                lifecycle = evidence.get("lifecycle")
+                if isinstance(lifecycle, dict) and lifecycle.get("status") == "retired":
+                    continue
+                evidence["lifecycle"] = {
+                    "status": "retired", "reason": "missing_from_latest_tools_list",
+                    "actor_id": reviewer_id, "at": now,
+                    "previous_access_policy": {
+                        "source": row["access_policy_source"], "required_access": row["required_access"],
+                        "server_binding": row["access_policy_binding"],
+                    },
+                }
+                disabled = row["access_policy_source"] == "local_override" and row["required_access"] == "none"
+                connection.execute(
+                    "UPDATE mcp_tool_classifications SET suggested_access='unknown',effective_access='unknown',"
+                    "status='stale',evidence_json=?,reviewed_at=NULL,required_access='none',access_policy_source=?,"
+                    "legacy_authorization_snapshot='',access_policy_revision=access_policy_revision+1,updated_at=? WHERE id=?",
+                    (json.dumps(evidence, ensure_ascii=False), "local_override" if disabled else "unavailable", now, row["id"]),
+                )
+
     def reconcile_server_tools(
         self,
         server_id: str,
@@ -1016,27 +1074,8 @@ class AccessControlStore:
             lifecycle = dict(before[tool_id].get("evidence") or {}).get("lifecycle")
             if not isinstance(lifecycle, dict) or lifecycle.get("status") != "retired":
                 retired_ids.append(tool_id)
-        for tool_id in retired_ids:
-            previous = before[tool_id]
-            evidence = dict(previous.get("evidence") or {})
-            evidence["lifecycle"] = {
-                "status": "retired",
-                "reason": "missing_from_latest_tools_list",
-                "actor_id": reviewer_id,
-                "at": now,
-            }
-            self.database.execute(
-                """
-                UPDATE mcp_tool_classifications
-                SET suggested_access = 'unknown', effective_access = 'unknown',
-                    status = 'stale', evidence_json = ?, reviewed_at = NULL,
-                    required_access = 'none', access_policy_source = 'unavailable',
-                    legacy_authorization_snapshot = '', access_policy_revision = access_policy_revision + 1,
-                    updated_at = ?
-                WHERE server_id = ? AND tool_id = ?
-                """,
-                (json.dumps(evidence, ensure_ascii=False), now, server_id, tool_id),
-            )
+        with self.database.session() as connection:
+            self._retire_tools(connection, retired_ids, reviewer_id, server_id=server_id)
 
         reappeared_ids: list[str] = []
         for definition in definitions_list:

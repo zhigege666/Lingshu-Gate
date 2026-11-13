@@ -1,6 +1,19 @@
 import { apiErrorMessage, queryString, request } from "@/api/http"
 import type { ObservabilityEvent, ObservabilityLog } from "@/api/observability"
 
+export type McpToolSync = {
+  state: "idle" | "syncing" | "ready" | "retrying" | "auth_required" | "disabled"
+  last_attempt_at: string | null
+  last_success_at: string | null
+  last_changed_at?: string | null
+  next_sync_at: string | null
+  last_error: string | null
+  error_code: string | null
+  added: number
+  updated: number
+  removed: number
+}
+
 export type McpServer = {
   id: string
   name?: string | null
@@ -11,6 +24,7 @@ export type McpServer = {
   status: string
   pid?: number | null
   tool_count: number
+  tool_sync?: McpToolSync | null
   last_error?: string | null
   manifest_path?: string | null
   restart_policy: Record<string, unknown>
@@ -245,14 +259,15 @@ export const serversRuntimeApi = {
   runtimeCache: () => request<RuntimeCacheStatus>("/v1/runtime/cache"),
   runtimeEnvironment: () => request<RuntimeEnvironment>("/v1/runtime/environment"),
   clearRuntimeCache: (cacheName: string) => request<RuntimeCacheClearResponse>(`/v1/runtime/cache/${encodeURIComponent(cacheName)}`, { method: "DELETE" }),
-  servers: () => request<McpServerListResponse>("/v1/mcp/servers"),
+  servers: (signal?: AbortSignal) => request<McpServerListResponse>("/v1/mcp/servers", { signal }),
   serverDetail: (serverId: string, options: { section?: McpServerDetailSection; limit?: number; signal?: AbortSignal } = {}) => request<McpServerDetailSlice>(
     `/v1/mcp/servers/${encodeURIComponent(serverId)}/detail${queryString({ section: options.section, limit: options.limit })}`,
     { signal: options.signal },
   ),
   serverTools: (serverId: string) => request<unknown[]>(`/v1/mcp/servers/${encodeURIComponent(serverId)}/tools`),
+  serverToolSync: (serverId: string) => request<McpServer>(`/v1/mcp/servers/${encodeURIComponent(serverId)}/tools/refresh`, { method: "POST" }),
   serverAction: (serverId: string, action: "start" | "stop" | "restart") => request<McpServer>(`/v1/mcp/servers/${encodeURIComponent(serverId)}/${action}`, { method: "POST" }),
-  tools: () => request<ToolDefinition[]>("/v1/tools"),
+  tools: (signal?: AbortSignal) => request<ToolDefinition[]>("/v1/tools", { signal }),
   invoke: (toolId: string, args: Record<string, unknown>) => request("/v1/invoke", { method: "POST", body: JSON.stringify({ tool_id: toolId, arguments: args }) }),
   configs: () => request<McpConfigListResponse>("/v1/mcp/configs"),
   validateConfig: (manifest: Record<string, unknown>, serverId?: string | null, httpTrust: HttpTrustSaveOptions = {}) => request<ManifestValidationResponse>(serverId ? `/v1/mcp/configs/${encodeURIComponent(serverId)}/validate` : "/v1/mcp/configs/validate", { method: "POST", body: JSON.stringify({ manifest, apply: false, start: false, ...httpTrust }) }),

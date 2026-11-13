@@ -218,7 +218,7 @@ class GatewayCurrentProtocolTest(unittest.TestCase):
 
         discovery = self._json(discovered)["result"]
         self.assertEqual(discovery["supportedVersions"], [MCP_PROTOCOL_VERSION])
-        self.assertEqual(discovery["capabilities"], {"tools": {"listChanged": False}})
+        self.assertEqual(discovery["capabilities"], {"tools": {"listChanged": True}})
         self.assertEqual(discovery["resultType"], "complete")
         self.assertEqual(self._json(listed)["result"]["resultType"], "complete")
         self.assertEqual(self._json(called)["result"]["resultType"], "complete")

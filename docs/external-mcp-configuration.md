@@ -38,13 +38,17 @@ Credential values are never embedded in an HTTP plan. First create or update a s
 
 ## Console task flow
 
-The service editor validates automatically on save; a successful connection test is optional. **Save only** writes the reviewed configuration directly without a second generic confirmation. Applying, starting, restarting or reconnecting still asks for confirmation of the runtime interruption. Saving can establish the exact target permission shown beside the endpoint; it does not itself connect to the peer.
+The service editor validates automatically on save; a successful connection test is optional. **Save and start** saves the configuration, connects and synchronizes tools. **Save only** writes the reviewed configuration without connecting or a second generic confirmation. Replacing a running instance requires confirmation of the concrete runtime interruption. Saving can establish the exact target permission shown beside the endpoint; the explicit connection choice determines whether Gate contacts the peer.
 
 When connection permission is revoked or needs review, the restore action is visible beside that status. A chosen restoration survives name edits and Form/JSON switches. Changing the target or observing a different permission revision, state or service identity clears that choice and requires review again. Ordinary save never restores a revoked permission by itself.
 
 HTTP service IDs accept letters, numbers, dots, underscores and hyphens, up to 128 characters. The editor reports an invalid ID at its field instead of waiting indefinitely for permission loading. Public hosts and domain names use HTTPS; plaintext HTTP is limited to localhost/canonical loopback and explicitly authorized private IPv4 targets. URLs cannot contain user information, query parameters or fragments. Shared-credential IDs are a separate field and support up to 512 characters.
 
 A successful connection automatically synchronizes the complete tool catalog. Routine discovery and invocation do not require a review or publication step. Calls are still checked against the caller's current account grants, Token/OAuth scopes and each tool's effective local access policy. Use the tool-permissions page only when you intentionally want to change a tool from its automatic default to read, write or disabled.
+
+After connection, HTTP tool-change notifications and approximately one-minute fallback discovery continue updating the catalog. The service list and detail show synchronization independently from connection health: last success, added/updated/removed tools, retry state and next retry. **Sync now** requests discovery for a running service; it does not republish tools or grant access. A failed or malformed response preserves the last accepted complete catalog.
+
+For `auth_required`, fix the shared credential, credential reference or downstream authorization, then reconnect or synchronize again. Repeated background attempts pause for HTTP 401/403 and denied credential use. Transient discovery failures retry with bounded backoff. An expired HTTP session can be reinitialized automatically, but writes and changed tool contracts are never replayed. Saved local policies survive ordinary reconnects and Gate restarts; a replacement service identity remains a separate authorization decision. See [synchronization and client updates](mcp-gateway.md#discovery-to-access-flow).
 
 ## Legacy authority and input
 
