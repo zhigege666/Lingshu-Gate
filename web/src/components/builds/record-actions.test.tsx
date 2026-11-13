@@ -21,7 +21,7 @@ function rowButtons(html: string) {
   const row = html.match(/<tbody[^>]*>([\s\S]*?)<\/tbody>/)?.[1] || ""
   expect(row).toContain('aria-haspopup="menu"')
   return [...row.matchAll(/<button\b[^>]*>[\s\S]*?<\/button>/g)].map(([button]) => ({
-    label: button.replace(/<[^>]+>/g, ""), disabled: button.includes('disabled=""'),
+    markup: button, disabled: button.includes('disabled=""'),
   }))
 }
 
@@ -34,31 +34,31 @@ function buildButtons(status: string, busy = false) {
 describe("构建和部署行主要操作与更多菜单", () => {
   it("成功构建显示日志和配置部署，删除收进菜单", () => {
     expect(buildButtons("success")).toEqual([
-      { label: "查看日志", disabled: false }, { label: "配置部署", disabled: false },
-      { label: t("actions"), disabled: false },
+      { markup: expect.stringContaining(">查看日志<"), disabled: false }, { markup: expect.stringContaining(">配置部署<"), disabled: false },
+      { markup: expect.stringContaining(`>${t("actions")}<`), disabled: false },
     ])
   })
   it("运行中直接显示停止入口，不能部署或重试", () => {
     expect(buildButtons("running")).toEqual([
-      { label: "查看日志", disabled: false }, { label: t("requestStop"), disabled: false },
-      { label: t("actions"), disabled: false },
+      { markup: expect.stringContaining(">查看日志<"), disabled: false }, { markup: expect.stringContaining(`>${t("requestStop")}<`), disabled: false },
+      { markup: expect.stringContaining(`>${t("actions")}<`), disabled: false },
     ])
   })
   it.each(["failed", "cancelled", "unsupported"])("%s 构建直接显示重试", status => {
-    expect(buildButtons(status)).toContainEqual({ label: "重新构建", disabled: false })
-    expect(buildButtons(status).map(button => button.label)).not.toContain(t("deployBuild"))
+    expect(buildButtons(status)).toContainEqual({ markup: expect.stringContaining(">重新构建<"), disabled: false })
+    expect(buildButtons(status).map(button => button.markup)).not.toContainEqual(expect.stringContaining(`>${t("deployBuild")}<`))
   })
   it("忙碌时禁用写操作，但仍可查看", () => {
     expect(buildButtons("success", true)).toEqual([
-      { label: "查看日志", disabled: false }, { label: "配置部署", disabled: true },
-      { label: t("actions"), disabled: false },
+      { markup: expect.stringContaining(">查看日志<"), disabled: false }, { markup: expect.stringContaining(">配置部署<"), disabled: true },
+      { markup: expect.stringContaining(`>${t("actions")}<`), disabled: false },
     ])
   })
   it.each([false, true])("部署操作以服务入口和次要菜单呈现：%s", hasPrevious => {
     const buttons = rowButtons(renderToStaticMarkup(<DeploymentRecordsTable
       deployments={[{ ...deployment, previous_manifest: { id: deployment.server_id }, rollback_available: hasPrevious }]}
       busy={false} selectedDeploymentId="" onSelect={noop} onDetail={noop} onRollback={noop} onDelete={noop} t={t} />))
-    expect(buttons.map(button => button.label)).toEqual([t("actions")])
+    expect(buttons.map(button => button.markup)).toEqual([expect.stringContaining(`>${t("actions")}<`)])
   })
 })
 

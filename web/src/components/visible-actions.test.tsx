@@ -35,9 +35,9 @@ describe("控制台导航与上传行操作", () => {
       builds={[]} deployments={[]} selectedId="" busy={busy} loading={false} failed={false} filtered={false}
       onSelect={noop} onDraft={noop} onCreateBuild={noop} onDelete={noop} t={t} />)
     const buttons = [...html.matchAll(/<button\b[^>]*>[\s\S]*?<\/button>/g)].map(([button]) => ({
-      label: button.replace(/<[^>]+>/g, "").trim(), disabled: button.includes('disabled=""'),
+      markup: button, disabled: button.includes('disabled=""'),
     }))
-    expect(buttons).toContainEqual({ label: "操作", disabled: false })
+    expect(buttons).toContainEqual({ markup: expect.stringContaining(">操作<"), disabled: false })
     expect(html).toContain('aria-haspopup="menu"')
     expect(html).not.toContain(t("draftManifest"))
   })

@@ -26,7 +26,7 @@ function actionButtons(busy: boolean, count = 1) {
   />)
   const row = html.match(/<tbody[^>]*>([\s\S]*?)<\/tbody>/)?.[1] || ""
   return [...row.matchAll(/<button\b[^>]*>[\s\S]*?<\/button>/g)].map(([button]) => ({
-    label: button.replace(/<[^>]+>/g, ""),
+    markup: button,
     disabled: button.includes('disabled=""'),
   }))
 }
@@ -34,17 +34,17 @@ function actionButtons(busy: boolean, count = 1) {
 describe("MCP 配置行操作", () => {
   it("只显示一次编辑、应用并启动和删除，删除无需打开重复菜单", () => {
     expect(actionButtons(false)).toEqual([
-      { label: "编辑", disabled: false },
-      { label: "应用并启动", disabled: false },
-      { label: "删除", disabled: false },
+      { markup: expect.stringContaining(">编辑<"), disabled: false },
+      { markup: expect.stringContaining(">应用并启动<"), disabled: false },
+      { markup: expect.stringContaining(">删除<"), disabled: false },
     ])
   })
 
   it("操作繁忙时同时禁用三个行按钮", () => {
     expect(actionButtons(true)).toEqual([
-      { label: "编辑", disabled: true },
-      { label: "应用并启动", disabled: true },
-      { label: "删除", disabled: true },
+      { markup: expect.stringContaining(">编辑<"), disabled: true },
+      { markup: expect.stringContaining(">应用并启动<"), disabled: true },
+      { markup: expect.stringContaining(">删除<"), disabled: true },
     ])
   })
   it("200 configurations render only 50 rows without duplicating actions", () => {
